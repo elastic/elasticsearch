@@ -580,12 +580,19 @@ public abstract class ESRestTestCase extends ESTestCase {
                 .collect(Collectors.toSet());
         List<Node> sniffed = new ArrayList<>();
         for (Node node : nodesWithMetadata) {
+            /*
+             * getHost is the publish_address of the node which, sometimes, is
+             * ipv6 and, sometimes, our original address for the node is ipv4.
+             * In that case the ipv4 address should be in getBoundHosts. If it
+             * isn't then we'll end up without the right number of hosts which
+             * will fail down below with a pretty error message.
+             */
             if (originalHosts.contains(node.getHost())) {
                 sniffed.add(node);
             } else {
                 for (HttpHost bound : node.getBoundHosts()) {
                     if (originalHosts.contains(bound)) {
-                        sniffed.add(node.withBoundHostAsHost(bound));
+                        sniffed.add(node.withHost(bound));
                         break;
                     }
                 }

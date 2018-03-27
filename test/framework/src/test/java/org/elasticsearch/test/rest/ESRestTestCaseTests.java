@@ -58,7 +58,7 @@ public class ESRestTestCaseTests extends ESTestCase {
         verify(client).setNodes(new Node[] {
             nodesWithMetadata.get(0),
             nodesWithMetadata.get(1),
-            nodesWithMetadata.get(2).withBoundHostAsHost(new HttpHost("3")),
+            nodesWithMetadata.get(2).withHost(new HttpHost("3")),
         });
     }
 

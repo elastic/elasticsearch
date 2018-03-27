@@ -28,26 +28,23 @@ import static java.util.Collections.singletonList;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 public class NodeTests extends RestClientTestCase {
-    public void testWithBoundHostAsHost() {
+    public void testWithHost() {
         HttpHost h1 = new HttpHost("1");
         HttpHost h2 = new HttpHost("2");
         HttpHost h3 = new HttpHost("3");
 
-        Node n = new Node(h1, Arrays.asList(h1, h2, h3), randomAsciiAlphanumOfLength(5),
+        Node n = new Node(h1, Arrays.asList(h1, h2), randomAsciiAlphanumOfLength(5),
             new Roles(randomBoolean(), randomBoolean(), randomBoolean()));
-        assertEquals(h2, n.withBoundHostAsHost(h2).getHost());
-        assertEquals(n.getBoundHosts(), n.withBoundHostAsHost(h2).getBoundHosts());
 
-        try {
-            n.withBoundHostAsHost(new HttpHost("4"));
-            fail("expected failure");
-        } catch (IllegalArgumentException e) {
-            assertEquals("http://4 must be a bound host but wasn't in [http://1, http://2, http://3]",
-                    e.getMessage());
-        }
+        // Host is in nthe bound hosts list
+        assertEquals(h2, n.withHost(h2).getHost());
+        assertEquals(n.getBoundHosts(), n.withHost(h2).getBoundHosts());
+
+        // Host not in the bound hosts list
+        assertEquals(h3, n.withHost(h3).getHost());
+        assertEquals(Arrays.asList(h1, h2, h3), n.withHost(h3).getBoundHosts());
     }
 
     public void testToString() {

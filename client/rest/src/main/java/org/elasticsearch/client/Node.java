@@ -19,6 +19,9 @@
 
 package org.elasticsearch.client;
 
+import static java.util.Collections.unmodifiableList;
+
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -33,7 +36,9 @@ public class Node {
      */
     private final HttpHost host;
     /**
-     * Addresses that this host is bound to.
+     * Addresses on which the host is listening. These are useful to have
+     * around because they allow you to find a host based on any address it
+     * is listening on.
      */
     private final List<HttpHost> boundHosts;
     /**
@@ -70,16 +75,23 @@ public class Node {
     }
 
     /**
-     * Make a copy of this {@link Node} but replacing its {@link #getHost()}
-     * with the provided {@link HttpHost}. The provided host must be part of
-     * of {@link #getBoundHosts() bound hosts}.
+     * Make a copy of this {@link Node} but replacing its
+     * {@link #getHost() host}. Use this when the sniffing implementation
+     * returns returns a {@link #getHost() host} that is not useful to the
+     * client.
      */
-    public Node withBoundHostAsHost(HttpHost boundHost) {
-        if (false == boundHosts.contains(boundHost)) {
-            throw new IllegalArgumentException(boundHost + " must be a bound host but wasn't in "
-                    + boundHosts);
+    public Node withHost(HttpHost host) {
+        /*
+         * If the new host isn't in the bound hosts list we add it so the
+         * result looks sane.
+         */
+        List<HttpHost> boundHosts = this.boundHosts;
+        if (false == boundHosts.contains(host)) {
+            boundHosts = new ArrayList<>(boundHosts);
+            boundHosts.add(host);
+            boundHosts = unmodifiableList(boundHosts);
         }
-        return new Node(boundHost, boundHosts, version, roles);
+        return new Node(host, boundHosts, version, roles);
     }
 
     /**
@@ -90,8 +102,9 @@ public class Node {
     }
 
     /**
-     * Addresses that this host is bound to or {@code null} if we don't
-     * know which addresses are bound.
+     * Addresses on which the host is listening. These are useful to have
+     * around because they allow you to find a host based on any address it
+     * is listening on.
      */
     public List<HttpHost> getBoundHosts() {
         return boundHosts;
@@ -136,14 +149,14 @@ public class Node {
         }
         Node other = (Node) obj;
         return host.equals(other.host)
+            && Objects.equals(boundHosts, other.boundHosts)
             && Objects.equals(version, other.version)
-            && Objects.equals(roles, other.roles)
-            && Objects.equals(boundHosts, other.boundHosts);
+            && Objects.equals(roles, other.roles);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(host, version, roles, boundHosts);
+        return Objects.hash(host, boundHosts, version, roles);
     }
 
     /**

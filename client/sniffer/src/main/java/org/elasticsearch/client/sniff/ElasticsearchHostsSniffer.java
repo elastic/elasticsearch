@@ -125,6 +125,12 @@ public final class ElasticsearchHostsSniffer implements HostsSniffer {
 
     private static void readHost(String nodeId, JsonParser parser, Scheme scheme, List<Node> nodes) throws IOException {
         HttpHost publishedHost = null;
+        /*
+         * We sniff the bound hosts so we can look up the node based on any
+         * address on which it is listening. This is useful in Elasticsearch's
+         * test framework where we sometimes publish ipv6 addresses but the
+         * tests contact the node on ipv4.
+         */
         List<HttpHost> boundHosts = new ArrayList<>();
         String fieldName = null;
         String version = null;

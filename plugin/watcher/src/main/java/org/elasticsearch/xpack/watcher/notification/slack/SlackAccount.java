@@ -6,6 +6,9 @@
 package org.elasticsearch.xpack.watcher.notification.slack;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -29,8 +32,11 @@ import java.util.List;
 
 public class SlackAccount {
 
+
     public static final String URL_SETTING = "url";
     public static final String MESSAGE_DEFAULTS_SETTING = "message_defaults";
+
+    private static final Setting<SecureString> SECURE_URL_SETTING = SecureSetting.secureString("secure_" + URL_SETTING, null);
 
     final String name;
     final URI url;
@@ -116,6 +122,12 @@ public class SlackAccount {
 
     static URI url(String name, Settings settings, Settings defaultSettings) {
         String url = settings.get(URL_SETTING, defaultSettings.get(URL_SETTING, null));
+        if (url == null) {
+            SecureString secureStringUrl = SECURE_URL_SETTING.get(settings);
+            if (secureStringUrl != null && secureStringUrl.length() > 0) {
+                url = secureStringUrl.toString();
+            }
+        }
         if (url == null) {
             throw new SettingsException("invalid slack [" + name + "] account settings. missing required [" + URL_SETTING + "] setting");
         }

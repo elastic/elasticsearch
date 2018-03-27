@@ -193,15 +193,16 @@ image::images/slack-add-webhook-integration.jpg[]
 image::images/slack-copy-webhook-url.jpg[]
 
 To configure a Slack account, at a minimum you need to specify the account 
-name and webhook URL:
+name and webhook URL in the elasticsearch keystore (see {ref}/secure-settings.html[secure settings]):
 
-[source,yaml]
+[source,shell]
 --------------------------------------------------
-xpack.notification.slack:
-  account:
-    monitoring:
-      url: https://hooks.slack.com/services/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
+bin/elasticsearch-keystore add xpack.notification.slack.account.monitoring.secure_url
 --------------------------------------------------
+
+You can also configure this via settings in the `elasticsearch.yml` file by
+removing the `secure_` prefix, but using the keystore is the preferred and
+secure way of doing this.
 
 You can also specify defaults for the {ref}/notification-settings.html#slack-account-attributes[Slack
 notification attributes]:
@@ -211,7 +212,6 @@ notification attributes]:
 xpack.notification.slack:
   account:
     monitoring:
-      url: https://hooks.slack.com/services/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
       message_defaults:
         from: x-pack
         to: notifications

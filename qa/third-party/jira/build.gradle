@@ -12,16 +12,11 @@ dependencies {
 }
 
 ext {
-  jiraUrlPropertyName      = 'xpack.notification.jira.url'
-  jiraUserPropertyName     = 'xpack.notification.jira.user'
-  jiraPasswordPropertyName = 'xpack.notification.jira.password'
-  jiraProjectPropertyName  = 'xpack.notification.jira.project'
+  jiraUrl      = System.getenv('jira_url')
+  jiraUser     = System.getenv('jira_user')
+  jiraPassword = System.getenv('jira_password')
+  jiraProject  = System.getenv('jira_project')
 }
-
-System.setProperty(jiraUrlPropertyName,      'https://elasticsearch.atlassian.net/')
-System.setProperty(jiraUserPropertyName,     'xpack-user@elastic.co')
-System.setProperty(jiraPasswordPropertyName, 'N9M4ea9rfy')
-System.setProperty(jiraProjectPropertyName,  'XWT')
 
 integTestCluster {
   plugin xpackProject('plugin').path
@@ -30,25 +25,17 @@ integTestCluster {
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
-
-  //
-  // JIRA integration test settings
-  //
-  // The integration tests use a JIRA account on elasticsearch.atlassian.net. This account
-  // has been created by Edward Sy [edward@elastic.co]. It uses the "XPACK WATCHER TEST"
-  // Jira project available at https://elasticsearch.atlassian.net/projects/XWT/issues/?filter=allopenissues
-  // and the "xpack-user@elastic.co" username which is also an internal Google Group.
-  setting 'xpack.notification.jira.account.test.url', System.getProperty(jiraUrlPropertyName)
-  setting 'xpack.notification.jira.account.test.user', System.getProperty(jiraUserPropertyName)
-  setting 'xpack.notification.jira.account.test.password', System.getProperty(jiraPasswordPropertyName)
-  setting 'xpack.notification.jira.account.test.issue_defaults.project.key', System.getProperty(jiraProjectPropertyName)
-  setting 'xpack.notification.jira.account.test.issue_defaults.labels', ['integration-tests', project.version]
+  keystoreSetting 'xpack.notification.jira.account.test.secure_url', jiraUrl
+  keystoreSetting 'xpack.notification.jira.account.test.secure_user', jiraUser
+  keystoreSetting 'xpack.notification.jira.account.test.secure_password', jiraPassword
+  setting 'xpack.notification.jira.account.test.issue_defaults.project.key', jiraProject
+  setting 'xpack.notification.jira.account.test.issue_defaults.issuetype.name', 'Bug'
+  setting 'xpack.notification.jira.account.test.issue_defaults.labels.0', 'integration-tests'
 }
 
-/** Clean up JIRA after tests: delete all created issues **/
 task cleanJira(type: DefaultTask) {
   doLast {
-    def issues = jiraIssues(System.getProperty(jiraProjectPropertyName))
+    List<String> issues = jiraIssues(jiraProject)
     assert issues instanceof List
     issues.forEach {
       // See https://docs.atlassian.com/jira/REST/cloud/#api/2/issue-deleteIssue
@@ -59,9 +46,7 @@ task cleanJira(type: DefaultTask) {
 }
 
 // require network access for this one, exit early instead of starting up the cluster if we dont have network
-if (!System.getProperty(jiraUrlPropertyName) || !System.getProperty(jiraUserPropertyName) ||
-    !System.getProperty(jiraPasswordPropertyName) || !System.getProperty(jiraProjectPropertyName) ||
-    !System.getProperty('tests.network')) {
+if (!jiraUrl && !jiraUser && !jiraPassword && !jiraProject) {
     integTest.enabled = false
 } else {
     integTestRunner.finalizedBy cleanJira
@@ -79,9 +64,6 @@ def jiraIssues(projectKey) {
 def jiraHttpRequest(String endpoint, String method, int successCode) {
   HttpsURLConnection connection = null;
   try {
-    def jiraUser = System.getProperty(jiraUserPropertyName)
-    def jiraPassword = System.getProperty(jiraPasswordPropertyName)
-    def jiraUrl = System.getProperty(jiraUrlPropertyName)
     byte[] credentials = "${jiraUser}:${jiraPassword}".getBytes(StandardCharsets.UTF_8);
     connection = (HttpsURLConnection) new URL("${jiraUrl}/rest/api/2/${endpoint}").openConnection();
     connection.setRequestProperty("Authorization", "Basic " + Base64.getEncoder().encodeToString(credentials));

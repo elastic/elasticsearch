@@ -7,6 +7,9 @@ package org.elasticsearch.xpack.watcher.notification.hipchat;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -29,6 +32,8 @@ public abstract class HipChatAccount  {
     public static final String DEFAULT_COLOR_SETTING = "message_defaults." + HipChatMessage.Field.COLOR.getPreferredName();
     public static final String DEFAULT_NOTIFY_SETTING = "message_defaults." + HipChatMessage.Field.NOTIFY.getPreferredName();
 
+    private static final Setting<SecureString> SECURE_AUTH_TOKEN_SETTING = SecureSetting.secureString("secure_" + AUTH_TOKEN_SETTING, null);
+
     protected final Logger logger;
     protected final String name;
     protected final Profile profile;
@@ -42,11 +47,21 @@ public abstract class HipChatAccount  {
         this.profile = profile;
         this.server = new HipChatServer(settings, defaultServer);
         this.httpClient = httpClient;
-        this.authToken = settings.get(AUTH_TOKEN_SETTING);
-        if (this.authToken == null || this.authToken.length() == 0) {
-            throw new SettingsException("hipchat account [" + name + "] missing required [" + AUTH_TOKEN_SETTING + "] setting");
-        }
+        this.authToken = getAuthToken(name, settings);
         this.logger = logger;
+    }
+
+    private static String getAuthToken(String name, Settings settings) {
+        String authToken = settings.get(AUTH_TOKEN_SETTING);
+        if (authToken == null || authToken.length() == 0) {
+            SecureString secureString = SECURE_AUTH_TOKEN_SETTING.get(settings);
+            if (secureString == null || secureString.length() < 1) {
+                throw new SettingsException("hipchat account [" + name + "] missing required [" + AUTH_TOKEN_SETTING + "] setting");
+            }
+            authToken = secureString.toString();
+        }
+
+        return authToken;
     }
 
     public abstract String type();

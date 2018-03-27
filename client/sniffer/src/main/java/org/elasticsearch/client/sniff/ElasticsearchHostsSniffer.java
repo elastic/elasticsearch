@@ -26,14 +26,17 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
+import org.elasticsearch.client.HostMetadata;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.HostMetadata.Roles;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -41,7 +44,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Class responsible for sniffing the http hosts from elasticsearch through the nodes info api and returning them back.
- * Compatible with elasticsearch 5.x and 2.x.
+ * Compatible with elasticsearch 2.x+.
  */
 public final class ElasticsearchHostsSniffer implements HostsSniffer {
 
@@ -89,18 +92,20 @@ public final class ElasticsearchHostsSniffer implements HostsSniffer {
     /**
      * Calls the elasticsearch nodes info api, parses the response and returns all the found http hosts
      */
-    public List<HttpHost> sniffHosts() throws IOException {
+    @Override
+    public SnifferResult sniffHosts() throws IOException {
         Response response = restClient.performRequest("get", "/_nodes/http", sniffRequestParams);
         return readHosts(response.getEntity());
     }
 
-    private List<HttpHost> readHosts(HttpEntity entity) throws IOException {
+    private SnifferResult readHosts(HttpEntity entity) throws IOException {
         try (InputStream inputStream = entity.getContent()) {
             JsonParser parser = jsonFactory.createParser(inputStream);
             if (parser.nextToken() != JsonToken.START_OBJECT) {
                 throw new IOException("expected data to start with an object");
             }
             List<HttpHost> hosts = new ArrayList<>();
+            Map<HttpHost, HostMetadata> hostMetadata = new HashMap<>();
             while (parser.nextToken() != JsonToken.END_OBJECT) {
                 if (parser.getCurrentToken() == JsonToken.START_OBJECT) {
                     if ("nodes".equals(parser.getCurrentName())) {
@@ -108,24 +113,27 @@ public final class ElasticsearchHostsSniffer implements HostsSniffer {
                             JsonToken token = parser.nextToken();
                             assert token == JsonToken.START_OBJECT;
                             String nodeId = parser.getCurrentName();
-                            HttpHost sniffedHost = readHost(nodeId, parser, this.scheme);
-                            if (sniffedHost != null) {
-                                logger.trace("adding node [" + nodeId + "]");
-                                hosts.add(sniffedHost);
-                            }
+                            readHost(nodeId, parser, scheme, hosts, hostMetadata);
                         }
                     } else {
                         parser.skipChildren();
                     }
                 }
             }
-            return hosts;
+            return new SnifferResult(hosts, hostMetadata);
         }
     }
 
-    private static HttpHost readHost(String nodeId, JsonParser parser, Scheme scheme) throws IOException {
-        HttpHost httpHost = null;
+    private static void readHost(String nodeId, JsonParser parser, Scheme scheme, List<HttpHost> hosts,
+            Map<HttpHost, HostMetadata> hostMetadata) throws IOException {
+        HttpHost publishedHost = null;
+        List<HttpHost> boundHosts = new ArrayList<>();
         String fieldName = null;
+        String version = null;
+        boolean sawRoles = false;
+        boolean master = false;
+        boolean data = false;
+        boolean ingest = false;
         while (parser.nextToken() != JsonToken.END_OBJECT) {
             if (parser.getCurrentToken() == JsonToken.FIELD_NAME) {
                 fieldName = parser.getCurrentName();
@@ -133,9 +141,15 @@ public final class ElasticsearchHostsSniffer implements HostsSniffer {
                 if ("http".equals(fieldName)) {
                     while (parser.nextToken() != JsonToken.END_OBJECT) {
                         if (parser.getCurrentToken() == JsonToken.VALUE_STRING && "publish_address".equals(parser.getCurrentName())) {
-                            URI boundAddressAsURI = URI.create(scheme + "://" + parser.getValueAsString());
-                            httpHost = new HttpHost(boundAddressAsURI.getHost(), boundAddressAsURI.getPort(),
-                                    boundAddressAsURI.getScheme());
+                            URI publishAddressAsURI = URI.create(scheme + "://" + parser.getValueAsString());
+                            publishedHost = new HttpHost(publishAddressAsURI.getHost(), publishAddressAsURI.getPort(),
+                                    publishAddressAsURI.getScheme());
+                        } else if (parser.currentToken() == JsonToken.START_ARRAY && "bound_address".equals(parser.getCurrentName())) {
+                            while (parser.nextToken() != JsonToken.END_ARRAY) {
+                                URI boundAddressAsURI = URI.create(scheme + "://" + parser.getValueAsString());
+                                boundHosts.add(new HttpHost(boundAddressAsURI.getHost(), boundAddressAsURI.getPort(),
+                                        boundAddressAsURI.getScheme()));
+                            }
                         } else if (parser.getCurrentToken() == JsonToken.START_OBJECT) {
                             parser.skipChildren();
                         }
@@ -143,14 +157,45 @@ public final class ElasticsearchHostsSniffer implements HostsSniffer {
                 } else {
                     parser.skipChildren();
                 }
+            } else if (parser.currentToken() == JsonToken.START_ARRAY) {
+                if ("roles".equals(fieldName)) {
+                    sawRoles = true;
+                    while (parser.nextToken() != JsonToken.END_ARRAY) {
+                        switch (parser.getText()) {
+                        case "master":
+                            master = true;
+                            break;
+                        case "data":
+                            data = true;
+                            break;
+                        case "ingest":
+                            ingest = true;
+                            break;
+                        default:
+                            logger.warn("unknown role [" + parser.getText() + "] on node [" + nodeId + "]");
+                        }
+                    }
+                } else {
+                    parser.skipChildren();
+                }
+            } else if (parser.currentToken().isScalarValue()) {
+                if ("version".equals(fieldName)) {
+                    version = parser.getText();
+                }
             }
         }
         //http section is not present if http is not enabled on the node, ignore such nodes
-        if (httpHost == null) {
+        if (publishedHost == null) {
             logger.debug("skipping node [" + nodeId + "] with http disabled");
-            return null;
+        } else {
+            logger.trace("adding node [" + nodeId + "]");
+            assert sawRoles : "didn't see roles for [" + nodeId + "]";
+            hosts.add(publishedHost);
+            HostMetadata meta = new HostMetadata(version, new Roles(master, data, ingest));
+            for (HttpHost bound: boundHosts) {
+                hostMetadata.put(bound, meta);
+            }
         }
-        return httpHost;
     }
 
     public enum Scheme {

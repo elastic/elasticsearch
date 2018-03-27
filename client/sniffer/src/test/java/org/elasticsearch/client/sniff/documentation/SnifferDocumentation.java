@@ -20,14 +20,17 @@
 package org.elasticsearch.client.sniff.documentation;
 
 import org.apache.http.HttpHost;
+import org.elasticsearch.client.HostMetadata;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.sniff.ElasticsearchHostsSniffer;
 import org.elasticsearch.client.sniff.HostsSniffer;
 import org.elasticsearch.client.sniff.SniffOnFailureListener;
 import org.elasticsearch.client.sniff.Sniffer;
+import org.elasticsearch.client.sniff.SnifferResult;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -119,7 +122,7 @@ public class SnifferDocumentation {
                     .build();
             HostsSniffer hostsSniffer = new HostsSniffer() {
                 @Override
-                public List<HttpHost> sniffHosts() throws IOException {
+                public SnifferResult sniffHosts() throws IOException {
                     return null; // <1>
                 }
             };

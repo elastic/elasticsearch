@@ -16,18 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.client;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.http.ConnectionClosedException;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpRequest;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.AuthCache;
-import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpOptions;
@@ -39,17 +38,16 @@ import org.apache.http.client.methods.HttpTrace;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.concurrent.FutureCallback;
-import org.apache.http.conn.ConnectTimeoutException;
 import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.client.BasicAuthCache;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.nio.client.methods.HttpAsyncMethods;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
+import org.elasticsearch.client.HostMetadata.HostMetadataResolver;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
@@ -67,12 +65,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import javax.net.ssl.SSLHandshakeException;
 
 /**
  * Client that connects to an Elasticsearch cluster through HTTP.
@@ -91,9 +86,14 @@ import javax.net.ssl.SSLHandshakeException;
  * <p>
  * Requests can be traced by enabling trace logging for "tracer". The trace logger outputs requests and responses in curl format.
  */
-public class RestClient implements Closeable {
-
+public class RestClient extends AbstractRestClientActions implements Closeable {
     private static final Log logger = LogFactory.getLog(RestClient.class);
+
+    /**
+     * The maximum number of attempts that {@link #nextHost(HostSelector)} makes
+     * before giving up and failing the request.
+     */
+    private static final int MAX_NEXT_HOSTS_ATTEMPTS = 10;
 
     private final CloseableHttpAsyncClient client;
     // We don't rely on default headers supported by HttpAsyncClient as those cannot be replaced.
@@ -102,18 +102,18 @@ public class RestClient implements Closeable {
     private final long maxRetryTimeoutMillis;
     private final String pathPrefix;
     private final AtomicInteger lastHostIndex = new AtomicInteger(0);
-    private volatile HostTuple<Set<HttpHost>> hostTuple;
     private final ConcurrentMap<HttpHost, DeadHostState> blacklist = new ConcurrentHashMap<>();
     private final FailureListener failureListener;
+    private volatile HostTuple<Set<HttpHost>> hostTuple;
 
     RestClient(CloseableHttpAsyncClient client, long maxRetryTimeoutMillis, Header[] defaultHeaders,
-               HttpHost[] hosts, String pathPrefix, FailureListener failureListener) {
+               HttpHost[] hosts, HostMetadataResolver metaResolver, String pathPrefix, FailureListener failureListener) {
         this.client = client;
         this.maxRetryTimeoutMillis = maxRetryTimeoutMillis;
         this.defaultHeaders = Collections.unmodifiableList(Arrays.asList(defaultHeaders));
         this.failureListener = failureListener;
         this.pathPrefix = pathPrefix;
-        setHosts(hosts);
+        setHosts(Arrays.asList(hosts), metaResolver);
     }
 
     /**
@@ -125,197 +125,88 @@ public class RestClient implements Closeable {
     }
 
     /**
-     * Replaces the hosts that the client communicates with.
+     * Replaces the hosts that the client communicates with without
+     * changing any {@link HostMetadata}.
      * @see HttpHost
      */
-    public synchronized void setHosts(HttpHost... hosts) {
-        if (hosts == null || hosts.length == 0) {
-            throw new IllegalArgumentException("hosts must not be null nor empty");
+    public void setHosts(HttpHost... hosts) {
+        if (hosts == null) {
+            throw new IllegalArgumentException("hosts must not be null");
         }
-        Set<HttpHost> httpHosts = new HashSet<>();
+        setHosts(Arrays.asList(hosts), hostTuple.metaResolver);
+    }
+
+    /**
+     * Replaces the hosts that the client communicates with and the
+     * {@link HostMetadata} used by any {@link HostSelector}s.
+     * @see HttpHost
+     */
+    public void setHosts(Iterable<HttpHost> hosts, HostMetadataResolver metaResolver) {
+        if (hosts == null) {
+            throw new IllegalArgumentException("hosts must not be null");
+        }
+        if (metaResolver == null) {
+            throw new IllegalArgumentException("metaResolver must not be null");
+        }
+        Set<HttpHost> newHosts = new HashSet<>();
         AuthCache authCache = new BasicAuthCache();
+
         for (HttpHost host : hosts) {
             Objects.requireNonNull(host, "host cannot be null");
-            httpHosts.add(host);
+            newHosts.add(host);
             authCache.put(host, new BasicScheme());
         }
-        this.hostTuple = new HostTuple<>(Collections.unmodifiableSet(httpHosts), authCache);
+        if (newHosts.isEmpty()) {
+            throw new IllegalArgumentException("hosts must not be empty");
+        }
+        this.hostTuple = new HostTuple<>(Collections.unmodifiableSet(newHosts), authCache, metaResolver);
         this.blacklist.clear();
     }
 
     /**
-     * Sends a request to the Elasticsearch cluster that the client points to and waits for the corresponding response
-     * to be returned. Shortcut to {@link #performRequest(String, String, Map, HttpEntity, Header...)} but without parameters
-     * and request body.
-     *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param headers the optional request headers
-     * @return the response returned by Elasticsearch
-     * @throws IOException in case of a problem or the connection was aborted
-     * @throws ClientProtocolException in case of an http protocol error
-     * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
+     * Get the metadata resolver associated with this client.
      */
-    public Response performRequest(String method, String endpoint, Header... headers) throws IOException {
-        return performRequest(method, endpoint, Collections.<String, String>emptyMap(), null, headers);
+    public HostMetadataResolver getHostMetadataResolver() {
+        return hostTuple.metaResolver;
     }
 
-    /**
-     * Sends a request to the Elasticsearch cluster that the client points to and waits for the corresponding response
-     * to be returned. Shortcut to {@link #performRequest(String, String, Map, HttpEntity, Header...)} but without request body.
-     *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param params the query_string parameters
-     * @param headers the optional request headers
-     * @return the response returned by Elasticsearch
-     * @throws IOException in case of a problem or the connection was aborted
-     * @throws ClientProtocolException in case of an http protocol error
-     * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
-     */
-    public Response performRequest(String method, String endpoint, Map<String, String> params, Header... headers) throws IOException {
-        return performRequest(method, endpoint, params, (HttpEntity)null, headers);
+    @Override
+    final SyncResponseListener syncResponseListener() {
+        return new SyncResponseListener(maxRetryTimeoutMillis);
     }
 
-    /**
-     * Sends a request to the Elasticsearch cluster that the client points to and waits for the corresponding response
-     * to be returned. Shortcut to {@link #performRequest(String, String, Map, HttpEntity, HttpAsyncResponseConsumerFactory, Header...)}
-     * which doesn't require specifying an {@link HttpAsyncResponseConsumerFactory} instance,
-     * {@link HttpAsyncResponseConsumerFactory} will be used to create the needed instances of {@link HttpAsyncResponseConsumer}.
-     *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param params the query_string parameters
-     * @param entity the body of the request, null if not applicable
-     * @param headers the optional request headers
-     * @return the response returned by Elasticsearch
-     * @throws IOException in case of a problem or the connection was aborted
-     * @throws ClientProtocolException in case of an http protocol error
-     * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
-     */
+    @Override
+    public RestClientActions withHostSelector(HostSelector hostSelector) {
+        return new RestClientView(this, hostSelector);
+    }
+
+    // TODO this exists entirely to so we don't have to change much in the high level rest client tests. We'll remove in a followup.
+    @Override
     public Response performRequest(String method, String endpoint, Map<String, String> params,
-                                   HttpEntity entity, Header... headers) throws IOException {
-        return performRequest(method, endpoint, params, entity, HttpAsyncResponseConsumerFactory.DEFAULT, headers);
+                                         HttpEntity entity, Header... headers) throws IOException {
+        return super.performRequest(method, endpoint, params, entity, headers);
     }
 
-    /**
-     * Sends a request to the Elasticsearch cluster that the client points to. Blocks until the request is completed and returns
-     * its response or fails by throwing an exception. Selects a host out of the provided ones in a round-robin fashion. Failing hosts
-     * are marked dead and retried after a certain amount of time (minimum 1 minute, maximum 30 minutes), depending on how many times
-     * they previously failed (the more failures, the later they will be retried). In case of failures all of the alive nodes (or dead
-     * nodes that deserve a retry) are retried until one responds or none of them does, in which case an {@link IOException} will be thrown.
-     *
-     * This method works by performing an asynchronous call and waiting
-     * for the result. If the asynchronous call throws an exception we wrap
-     * it and rethrow it so that the stack trace attached to the exception
-     * contains the call site. While we attempt to preserve the original
-     * exception this isn't always possible and likely haven't covered all of
-     * the cases. You can get the original exception from
-     * {@link Exception#getCause()}.
-     *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param params the query_string parameters
-     * @param entity the body of the request, null if not applicable
-     * @param httpAsyncResponseConsumerFactory the {@link HttpAsyncResponseConsumerFactory} used to create one
-     * {@link HttpAsyncResponseConsumer} callback per retry. Controls how the response body gets streamed from a non-blocking HTTP
-     * connection on the client side.
-     * @param headers the optional request headers
-     * @return the response returned by Elasticsearch
-     * @throws IOException in case of a problem or the connection was aborted
-     * @throws ClientProtocolException in case of an http protocol error
-     * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
-     */
-    public Response performRequest(String method, String endpoint, Map<String, String> params,
-                                   HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
-                                   Header... headers) throws IOException {
-        SyncResponseListener listener = new SyncResponseListener(maxRetryTimeoutMillis);
+    // TODO this exists entirely to so we don't have to change much in the high level rest client tests. We'll remove in a followup.
+    @Override
+    public void performRequestAsync(String method, String endpoint, Map<String, String> params,
+                                          HttpEntity entity, ResponseListener responseListener, Header... headers) {
+        super.performRequestAsync(method, endpoint, params, entity, responseListener, headers);
+    }
+
+    @Override
+    final void performRequestAsyncNoCatch(String method, String endpoint, Map<String, String> params,
+            HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
+            ResponseListener responseListener, Header[] headers) throws IOException {
+        // Requests made directly to the client use the noop HostSelector.
+        HostSelector hostSelector = HostSelector.ANY;
         performRequestAsyncNoCatch(method, endpoint, params, entity, httpAsyncResponseConsumerFactory,
-            listener, headers);
-        return listener.get();
-    }
-
-    /**
-     * Sends a request to the Elasticsearch cluster that the client points to. Doesn't wait for the response, instead
-     * the provided {@link ResponseListener} will be notified upon completion or failure. Shortcut to
-     * {@link #performRequestAsync(String, String, Map, HttpEntity, ResponseListener, Header...)} but without parameters and  request body.
-     *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
-     * @param headers the optional request headers
-     */
-    public void performRequestAsync(String method, String endpoint, ResponseListener responseListener, Header... headers) {
-        performRequestAsync(method, endpoint, Collections.<String, String>emptyMap(), null, responseListener, headers);
-    }
-
-    /**
-     * Sends a request to the Elasticsearch cluster that the client points to. Doesn't wait for the response, instead
-     * the provided {@link ResponseListener} will be notified upon completion or failure. Shortcut to
-     * {@link #performRequestAsync(String, String, Map, HttpEntity, ResponseListener, Header...)} but without request body.
-     *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param params the query_string parameters
-     * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
-     * @param headers the optional request headers
-     */
-    public void performRequestAsync(String method, String endpoint, Map<String, String> params,
-                                    ResponseListener responseListener, Header... headers) {
-        performRequestAsync(method, endpoint, params, null, responseListener, headers);
-    }
-
-    /**
-     * Sends a request to the Elasticsearch cluster that the client points to. Doesn't wait for the response, instead
-     * the provided {@link ResponseListener} will be notified upon completion or failure.
-     * Shortcut to {@link #performRequestAsync(String, String, Map, HttpEntity, HttpAsyncResponseConsumerFactory, ResponseListener,
-     * Header...)} which doesn't require specifying an {@link HttpAsyncResponseConsumerFactory} instance,
-     * {@link HttpAsyncResponseConsumerFactory} will be used to create the needed instances of {@link HttpAsyncResponseConsumer}.
-     *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param params the query_string parameters
-     * @param entity the body of the request, null if not applicable
-     * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
-     * @param headers the optional request headers
-     */
-    public void performRequestAsync(String method, String endpoint, Map<String, String> params,
-                                    HttpEntity entity, ResponseListener responseListener, Header... headers) {
-        performRequestAsync(method, endpoint, params, entity, HttpAsyncResponseConsumerFactory.DEFAULT, responseListener, headers);
-    }
-
-    /**
-     * Sends a request to the Elasticsearch cluster that the client points to. The request is executed asynchronously
-     * and the provided {@link ResponseListener} gets notified upon request completion or failure.
-     * Selects a host out of the provided ones in a round-robin fashion. Failing hosts are marked dead and retried after a certain
-     * amount of time (minimum 1 minute, maximum 30 minutes), depending on how many times they previously failed (the more failures,
-     * the later they will be retried). In case of failures all of the alive nodes (or dead nodes that deserve a retry) are retried
-     * until one responds or none of them does, in which case an {@link IOException} will be thrown.
-     *
-     * @param method the http method
-     * @param endpoint the path of the request (without host and port)
-     * @param params the query_string parameters
-     * @param entity the body of the request, null if not applicable
-     * @param httpAsyncResponseConsumerFactory the {@link HttpAsyncResponseConsumerFactory} used to create one
-     * {@link HttpAsyncResponseConsumer} callback per retry. Controls how the response body gets streamed from a non-blocking HTTP
-     * connection on the client side.
-     * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
-     * @param headers the optional request headers
-     */
-    public void performRequestAsync(String method, String endpoint, Map<String, String> params,
-                                    HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
-                                    ResponseListener responseListener, Header... headers) {
-        try {
-            performRequestAsyncNoCatch(method, endpoint, params, entity, httpAsyncResponseConsumerFactory,
-                responseListener, headers);
-        } catch (Exception e) {
-            responseListener.onFailure(e);
-        }
+            responseListener, hostSelector, headers);
     }
 
     void performRequestAsyncNoCatch(String method, String endpoint, Map<String, String> params,
-                                    HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
-                                    ResponseListener responseListener, Header... headers) {
+                HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
+                ResponseListener responseListener, HostSelector hostSelector, Header[] headers) throws IOException {
         Objects.requireNonNull(params, "params must not be null");
         Map<String, String> requestParams = new HashMap<>(params);
         //ignore is a special parameter supported by the clients, shouldn't be sent to es
@@ -348,7 +239,7 @@ public class RestClient implements Closeable {
         setHeaders(request, headers);
         FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(responseListener);
         long startTime = System.nanoTime();
-        performRequestAsync(startTime, nextHost(), request, ignoreErrorCodes, httpAsyncResponseConsumerFactory,
+        performRequestAsync(startTime, nextHost(hostSelector), request, ignoreErrorCodes, httpAsyncResponseConsumerFactory,
                 failureTrackingResponseListener);
     }
 
@@ -444,44 +335,133 @@ public class RestClient implements Closeable {
     }
 
     /**
-     * Returns an {@link Iterable} of hosts to be used for a request call.
-     * Ideally, the first host is retrieved from the iterable and used successfully for the request.
-     * Otherwise, after each failure the next host has to be retrieved from the iterator so that the request can be retried until
-     * there are no more hosts available to retry against. The maximum total of attempts is equal to the number of hosts in the iterable.
-     * The iterator returned will never be empty. In case there are no healthy hosts available, or dead ones to be be retried,
-     * one dead host gets returned so that it can be retried.
+     * Returns a non-empty {@link Iterator} of hosts to be used for a request
+     * that match the {@link HostSelector}.
+     * <p>
+     * If there are no living hosts that match the {@link HostSelector}
+     * this will return the dead host that matches the {@link HostSelector}
+     * that is closest to being revived.
+     * <p>
+     * If no living and no dead hosts match the selector we retry a few
+     * times to handle concurrent modifications of the list of dead hosts.
+     * We never block the thread or {@link Thread#sleep} or anything like
+     * that. If the retries fail this throws a {@link IOException}.
+     * @throws IOException if no hosts are available
      */
-    private HostTuple<Iterator<HttpHost>> nextHost() {
-        final HostTuple<Set<HttpHost>> hostTuple = this.hostTuple;
-        Collection<HttpHost> nextHosts = Collections.emptySet();
+    private HostTuple<Iterator<HttpHost>> nextHost(HostSelector hostSelector) throws IOException {
+        int attempts = 0;
+        NextHostsResult result;
+        /*
+         * Try to fetch the hosts to which we can send the request. It is possible that
+         * this returns an empty collection because of concurrent modification to the
+         * blacklist.
+         */
         do {
-            Set<HttpHost> filteredHosts = new HashSet<>(hostTuple.hosts);
-            for (Map.Entry<HttpHost, DeadHostState> entry : blacklist.entrySet()) {
-                if (System.nanoTime() - entry.getValue().getDeadUntilNanos() < 0) {
-                    filteredHosts.remove(entry.getKey());
-                }
-            }
-            if (filteredHosts.isEmpty()) {
-                //last resort: if there are no good host to use, return a single dead one, the one that's closest to being retried
-                List<Map.Entry<HttpHost, DeadHostState>> sortedHosts = new ArrayList<>(blacklist.entrySet());
-                if (sortedHosts.size() > 0) {
-                    Collections.sort(sortedHosts, new Comparator<Map.Entry<HttpHost, DeadHostState>>() {
-                        @Override
-                        public int compare(Map.Entry<HttpHost, DeadHostState> o1, Map.Entry<HttpHost, DeadHostState> o2) {
-                            return Long.compare(o1.getValue().getDeadUntilNanos(), o2.getValue().getDeadUntilNanos());
-                        }
-                    });
-                    HttpHost deadHost = sortedHosts.get(0).getKey();
-                    logger.trace("resurrecting host [" + deadHost + "]");
-                    nextHosts = Collections.singleton(deadHost);
+            final HostTuple<Set<HttpHost>> hostTuple = this.hostTuple;
+            result = nextHostsOneTime(hostTuple, blacklist, lastHostIndex, System.nanoTime(), hostSelector);
+            if (result.hosts == null) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("No hosts avialable. Will retry. Failure is " + result.describeFailure());
                 }
             } else {
-                List<HttpHost> rotatedHosts = new ArrayList<>(filteredHosts);
-                Collections.rotate(rotatedHosts, rotatedHosts.size() - lastHostIndex.getAndIncrement());
-                nextHosts = rotatedHosts;
+                // Success!
+                return new HostTuple<>(result.hosts.iterator(), hostTuple.authCache, hostTuple.metaResolver);
             }
-        } while(nextHosts.isEmpty());
-        return new HostTuple<>(nextHosts.iterator(), hostTuple.authCache);
+            attempts++;
+        } while (attempts < MAX_NEXT_HOSTS_ATTEMPTS);
+        throw new IOException("No hosts available for request. Last failure was " + result.describeFailure());
+    }
+
+    static class NextHostsResult {
+        /**
+         * Number of hosts filtered from the list because they are
+         * dead.
+         */
+        int blacklisted = 0;
+        /**
+         * Number of hosts filtered from the list because the.
+         * {@link HostSelector} didn't approve of them.
+         */
+        int selectorRejected = 0;
+        /**
+         * Number of hosts that could not be revived because the
+         * {@link HostSelector} didn't approve of them.
+         */
+        int selectorBlockedRevival = 0;
+        /**
+         * {@code null} if we failed to find any hosts, a list of
+         * hosts to use if we found any.
+         */
+        Collection<HttpHost> hosts = null;
+
+        public String describeFailure() {
+            assert hosts == null : "describeFailure shouldn't be called with successful request";
+            return "[blacklisted=" + blacklisted
+                + ", selectorRejected=" + selectorRejected
+                + ", selectorBlockedRevival=" + selectorBlockedRevival + "]]";
+        }
+    }
+    static NextHostsResult nextHostsOneTime(HostTuple<Set<HttpHost>> hostTuple,
+            Map<HttpHost, DeadHostState> blacklist, AtomicInteger lastHostIndex,
+            long now, HostSelector hostSelector) {
+        NextHostsResult result = new NextHostsResult();
+        Set<HttpHost> filteredHosts = new HashSet<>(hostTuple.hosts);
+        for (Map.Entry<HttpHost, DeadHostState> entry : blacklist.entrySet()) {
+            if (now - entry.getValue().getDeadUntilNanos() < 0) {
+                filteredHosts.remove(entry.getKey());
+                result.blacklisted++;
+            }
+        }
+        for (Iterator<HttpHost> hostItr = filteredHosts.iterator(); hostItr.hasNext();) {
+            final HttpHost host = hostItr.next();
+            if (false == hostSelector.select(host, hostTuple.metaResolver.resolveMetadata(host))) {
+                hostItr.remove();
+                result.selectorRejected++;
+            }
+        }
+        if (false == filteredHosts.isEmpty()) {
+            /*
+             * Normal case: we have at least one non-dead host that the hostSelector
+             * is fine with. Rotate the list so repeated requests with the same blacklist
+             * and the same selector round robin. If you use a different HostSelector
+             * or a host goes dark then the round robin won't be perfect but that should
+             * be fine.
+             */
+            List<HttpHost> rotatedHosts = new ArrayList<>(filteredHosts);
+            int i = lastHostIndex.getAndIncrement();
+            Collections.rotate(rotatedHosts, i);
+            result.hosts = rotatedHosts;
+            return result;
+        }
+        /*
+         * Last resort: If there are no good hosts to use, return a single dead one,
+         * the one that's closest to being retried *and* matches the selector.
+         */
+        List<Map.Entry<HttpHost, DeadHostState>> sortedHosts = new ArrayList<>(blacklist.entrySet());
+        if (sortedHosts.isEmpty()) {
+            // There are no dead hosts to revive. Return a failed result and we'll retry.
+            return result;
+        }
+        Collections.sort(sortedHosts, new Comparator<Map.Entry<HttpHost, DeadHostState>>() {
+            @Override
+            public int compare(Map.Entry<HttpHost, DeadHostState> o1, Map.Entry<HttpHost, DeadHostState> o2) {
+                return Long.compare(o1.getValue().getDeadUntilNanos(), o2.getValue().getDeadUntilNanos());
+            }
+        });
+        Iterator<Map.Entry<HttpHost, DeadHostState>> nodeItr = sortedHosts.iterator();
+        while (nodeItr.hasNext()) {
+            final HttpHost deadHost = nodeItr.next().getKey();
+            if (hostSelector.select(deadHost, hostTuple.metaResolver.resolveMetadata(deadHost))) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("resurrecting host [" + deadHost + "]");
+                }
+                result.hosts = Collections.singleton(deadHost);
+                return result;
+            } else {
+                result.selectorBlockedRevival++;
+            }
+        }
+        return result;
     }
 
     /**
@@ -637,109 +617,6 @@ public class RestClient implements Closeable {
     }
 
     /**
-     * Listener used in any sync performRequest calls, it waits for a response or an exception back up to a timeout
-     */
-    static class SyncResponseListener implements ResponseListener {
-        private final CountDownLatch latch = new CountDownLatch(1);
-        private final AtomicReference<Response> response = new AtomicReference<>();
-        private final AtomicReference<Exception> exception = new AtomicReference<>();
-
-        private final long timeout;
-
-        SyncResponseListener(long timeout) {
-            assert timeout > 0;
-            this.timeout = timeout;
-        }
-
-        @Override
-        public void onSuccess(Response response) {
-            Objects.requireNonNull(response, "response must not be null");
-            boolean wasResponseNull = this.response.compareAndSet(null, response);
-            if (wasResponseNull == false) {
-                throw new IllegalStateException("response is already set");
-            }
-
-            latch.countDown();
-        }
-
-        @Override
-        public void onFailure(Exception exception) {
-            Objects.requireNonNull(exception, "exception must not be null");
-            boolean wasExceptionNull = this.exception.compareAndSet(null, exception);
-            if (wasExceptionNull == false) {
-                throw new IllegalStateException("exception is already set");
-            }
-            latch.countDown();
-        }
-
-        /**
-         * Waits (up to a timeout) for some result of the request: either a response, or an exception.
-         */
-        Response get() throws IOException {
-            try {
-                //providing timeout is just a safety measure to prevent everlasting waits
-                //the different client timeouts should already do their jobs
-                if (latch.await(timeout, TimeUnit.MILLISECONDS) == false) {
-                    throw new IOException("listener timeout after waiting for [" + timeout + "] ms");
-                }
-            } catch (InterruptedException e) {
-                throw new RuntimeException("thread waiting for the response was interrupted", e);
-            }
-
-            Exception exception = this.exception.get();
-            Response response = this.response.get();
-            if (exception != null) {
-                if (response != null) {
-                    IllegalStateException e = new IllegalStateException("response and exception are unexpectedly set at the same time");
-                    e.addSuppressed(exception);
-                    throw e;
-                }
-                /*
-                 * Wrap and rethrow whatever exception we received, copying the type
-                 * where possible so the synchronous API looks as much as possible
-                 * like the asynchronous API. We wrap the exception so that the caller's
-                 * signature shows up in any exception we throw.
-                 */
-                if (exception instanceof ResponseException) {
-                    throw new ResponseException((ResponseException) exception);
-                }
-                if (exception instanceof ConnectTimeoutException) {
-                    ConnectTimeoutException e = new ConnectTimeoutException(exception.getMessage());
-                    e.initCause(exception);
-                    throw e;
-                }
-                if (exception instanceof SocketTimeoutException) {
-                    SocketTimeoutException e = new SocketTimeoutException(exception.getMessage());
-                    e.initCause(exception);
-                    throw e;
-                }
-                if (exception instanceof ConnectionClosedException) {
-                    ConnectionClosedException e = new ConnectionClosedException(exception.getMessage());
-                    e.initCause(exception);
-                    throw e;
-                }
-                if (exception instanceof SSLHandshakeException) {
-                    SSLHandshakeException e = new SSLHandshakeException(exception.getMessage());
-                    e.initCause(exception);
-                    throw e;
-                }
-                if (exception instanceof IOException) {
-                    throw new IOException(exception.getMessage(), exception);
-                }
-                if (exception instanceof RuntimeException){
-                    throw new RuntimeException(exception.getMessage(), exception);
-                }
-                throw new RuntimeException("error while performing request", exception);
-            }
-
-            if (response == null) {
-                throw new IllegalStateException("response not set and no exception caught either");
-            }
-            return response;
-        }
-    }
-
-    /**
      * Listener that allows to be notified whenever a failure happens. Useful when sniffing is enabled, so that we can sniff on failure.
      * The default implementation is a no-op.
      */
@@ -756,13 +633,15 @@ public class RestClient implements Closeable {
      * {@code HostTuple} enables the {@linkplain HttpHost}s and {@linkplain AuthCache} to be set together in a thread
      * safe, volatile way.
      */
-    private static class HostTuple<T> {
+    static class HostTuple<T> {
         final T hosts;
         final AuthCache authCache;
+        final HostMetadataResolver metaResolver;
 
-        HostTuple(final T hosts, final AuthCache authCache) {
+        HostTuple(final T hosts, final AuthCache authCache, final HostMetadataResolver metaResolver) {
             this.hosts = hosts;
             this.authCache = authCache;
+            this.metaResolver = metaResolver;
         }
     }
 }

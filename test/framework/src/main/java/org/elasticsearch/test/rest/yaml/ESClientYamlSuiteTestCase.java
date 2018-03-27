@@ -120,8 +120,10 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                 }
             }
             ClientYamlTestClient clientYamlTestClient = initClientYamlTestClient(restSpec, restClient, hosts, esVersion);
-            restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, randomizeContentType());
-            adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, false);
+            restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient,
+                    () -> sniffHostMetadata(client()), randomizeContentType());
+            adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient,
+                    () -> sniffHostMetadata(adminClient()), false);
             String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
             blacklistPathMatchers = new ArrayList<>();
             for (String entry : blacklist) {

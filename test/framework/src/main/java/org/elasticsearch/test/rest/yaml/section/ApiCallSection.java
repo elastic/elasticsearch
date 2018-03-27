@@ -24,6 +24,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.elasticsearch.client.HostSelector;
+
 import static java.util.Collections.unmodifiableMap;
 
 /**
@@ -35,6 +37,7 @@ public class ApiCallSection {
     private final Map<String, String> params = new HashMap<>();
     private final Map<String, String> headers = new HashMap<>();
     private final List<Map<String, Object>> bodies = new ArrayList<>();
+    private HostSelector hostSelector = HostSelector.ANY;
 
     public ApiCallSection(String api) {
         this.api = api;
@@ -75,5 +78,19 @@ public class ApiCallSection {
 
     public boolean hasBody() {
         return bodies.size() > 0;
+    }
+
+    /**
+     * Selects the node on which to run this request.
+     */
+    public HostSelector getHostSelector() {
+        return hostSelector;
+    }
+
+    /**
+     * Set the selector that decides which node can run this request.
+     */
+    public void setHostSelector(HostSelector hostSelector) {
+        this.hostSelector = hostSelector;
     }
 }

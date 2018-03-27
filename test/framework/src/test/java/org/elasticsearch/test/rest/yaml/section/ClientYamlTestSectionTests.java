@@ -20,6 +20,7 @@
 package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.client.HostSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -35,11 +36,12 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentParserTestCase {
-    public void testAddingDoWithoutWarningWithoutSkip() {
+    public void testAddingDoWithoutSkips() {
         int lineNumber = between(1, 10000);
         ClientYamlTestSection section = new ClientYamlTestSection(new XContentLocation(0, 0), "test");
         section.setSkipSection(SkipSection.EMPTY);
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
+        doSection.setApiCallSection(new ApiCallSection("test"));
         section.addExecutableSection(doSection);
     }
 
@@ -49,6 +51,7 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
         section.setSkipSection(new SkipSection(null, singletonList("warnings"), null));
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         doSection.setExpectedWarningHeaders(singletonList("foo"));
+        doSection.setApiCallSection(new ApiCallSection("test"));
         section.addExecutableSection(doSection);
     }
 
@@ -58,9 +61,35 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
         section.setSkipSection(new SkipSection(null, singletonList("yaml"), null));
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         doSection.setExpectedWarningHeaders(singletonList("foo"));
+        doSection.setApiCallSection(new ApiCallSection("test"));
         Exception e = expectThrows(IllegalArgumentException.class, () -> section.addExecutableSection(doSection));
         assertEquals("Attempted to add a [do] with a [warnings] section without a corresponding [skip] so runners that do not support the"
                 + " [warnings] section can skip the test at line [" + lineNumber + "]", e.getMessage());
+    }
+
+    public void testAddingDoWithHostSelectorWithSkip() {
+        int lineNumber = between(1, 10000);
+        ClientYamlTestSection section = new ClientYamlTestSection(new XContentLocation(0, 0), "test");
+        section.setSkipSection(new SkipSection(null, singletonList("host_selector"), null));
+        DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
+        ApiCallSection apiCall = new ApiCallSection("test");
+        apiCall.setHostSelector(HostSelector.NOT_MASTER);
+        doSection.setApiCallSection(apiCall);
+        section.addExecutableSection(doSection);
+    }
+
+    public void testAddingDoWithHostSelectorWithSkipButNotWarnings() {
+        int lineNumber = between(1, 10000);
+        ClientYamlTestSection section = new ClientYamlTestSection(new XContentLocation(0, 0), "test");
+        section.setSkipSection(new SkipSection(null, singletonList("yaml"), null));
+        DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
+        ApiCallSection apiCall = new ApiCallSection("test");
+        apiCall.setHostSelector(HostSelector.NOT_MASTER);
+        doSection.setApiCallSection(apiCall);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> section.addExecutableSection(doSection));
+        assertEquals("Attempted to add a [do] with a [host_selector] section without a corresponding"
+                + " [skip] so runners that do not support the [host_selector] section can skip the test at"
+                + " line [" + lineNumber + "]", e.getMessage());
     }
 
     public void testWrongIndentation() throws Exception {

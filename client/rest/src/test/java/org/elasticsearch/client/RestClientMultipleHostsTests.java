@@ -35,6 +35,7 @@ import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicStatusLine;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
+import org.elasticsearch.client.HostMetadata.HostMetadataResolver;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.invocation.InvocationOnMock;
@@ -42,8 +43,10 @@ import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.net.SocketTimeoutException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -56,12 +59,15 @@ import static org.elasticsearch.client.RestClientTestUtil.randomOkStatusCode;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+
+import static java.util.Collections.singletonMap;
 
 /**
  * Tests for {@link RestClient} behaviour against multiple hosts: fail-over, blacklisting etc.
@@ -70,6 +76,7 @@ import static org.mockito.Mockito.when;
 public class RestClientMultipleHostsTests extends RestClientTestCase {
 
     private ExecutorService exec = Executors.newFixedThreadPool(1);
+    private volatile Map<HttpHost, HostMetadata> hostMetadata = Collections.<HttpHost, HostMetadata>emptyMap();
     private RestClient restClient;
     private HttpHost[] httpHosts;
     private HostsTrackingFailureListener failureListener;
@@ -113,8 +120,17 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
         for (int i = 0; i < numHosts; i++) {
             httpHosts[i] = new HttpHost("localhost", 9200 + i);
         }
+        /*
+         * Back the metadata to a map that we can manipulate during testing.
+         */
+        HostMetadataResolver metaResolver = new HostMetadataResolver() {
+            @Override
+            public HostMetadata resolveMetadata(HttpHost host) {
+                return hostMetadata.get(host);
+            }
+        };
         failureListener = new HostsTrackingFailureListener();
-        restClient = new RestClient(httpClient, 10000, new Header[0], httpHosts, null, failureListener);
+        restClient = new RestClient(httpClient, 10000, new Header[0], httpHosts, metaResolver, null, failureListener);
     }
 
     /**
@@ -306,6 +322,54 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
                 }
             }
         }
+    }
+
+    /**
+     * Test that calling {@link RestClient#setHosts(Iterable, HostMetadataResolver)}
+     * sets the {@link HostMetadataResolver}.
+     */
+    public void testSetHostsWithMetadataResolver() throws IOException {
+        HostMetadataResolver firstPositionIsClient = new HostMetadataResolver() {
+            @Override
+            public HostMetadata resolveMetadata(HttpHost host) {
+                HostMetadata.Roles roles;
+                if (host == httpHosts[0]) {
+                    roles = new HostMetadata.Roles(false, false, false);
+                } else {
+                    roles = new HostMetadata.Roles(true, true, true);
+                }
+                return new HostMetadata("dummy", roles);
+            }
+        };
+        restClient.setHosts(Arrays.asList(httpHosts), firstPositionIsClient);
+        assertSame(firstPositionIsClient, restClient.getHostMetadataResolver());
+        Response response = restClient.withHostSelector(HostSelector.NOT_MASTER).performRequest("GET", "/200");
+        assertEquals(httpHosts[0], response.getHost());
+    }
+
+    public void testWithHostSelector() throws IOException {
+        HostSelector firstPositionOnly = new HostSelector() {
+            @Override
+            public boolean select(HttpHost host, HostMetadata meta) {
+                return httpHosts[0] == host;
+            }
+        };
+        RestClientActions withHostSelector = restClient.withHostSelector(firstPositionOnly);
+        Response response = withHostSelector.performRequest("GET", "/200");
+        assertEquals(httpHosts[0], response.getHost());
+        restClient.close();
+    }
+
+    /**
+     * Test that calling {@link RestClient#setHosts(Iterable)} preserves the
+     * {@link HostMetadataResolver}.
+     */
+    public void testSetHostsWithoutMetadataResolver() throws IOException {
+        HttpHost expected = randomFrom(httpHosts);
+        hostMetadata = singletonMap(expected, new HostMetadata("dummy", new HostMetadata.Roles(false, false, false)));
+        restClient.setHosts(httpHosts);
+        Response response = restClient.withHostSelector(HostSelector.NOT_MASTER).performRequest("GET", "/200");
+        assertEquals(expected, response.getHost());
     }
 
     private static String randomErrorRetryEndpoint() {

@@ -19,7 +19,11 @@
 
 package org.elasticsearch.test.rest.yaml.section;
 
+import org.apache.http.HttpHost;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
+import org.elasticsearch.client.HostMetadata;
+import org.elasticsearch.client.HostSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -84,6 +88,7 @@ public class DoSection implements ExecutableSection {
 
         DoSection doSection = new DoSection(parser.getTokenLocation());
         ApiCallSection apiCallSection = null;
+        HostSelector hostSelector = HostSelector.ANY;
         Map<String, String> headers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         List<String> expectedWarnings = new ArrayList<>();
 
@@ -120,6 +125,28 @@ public class DoSection implements ExecutableSection {
                             headers.put(headerName, parser.text());
                         }
                     }
+                } else if ("host_selector".equals(currentFieldName)) {
+                    String selectorName = null;
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            selectorName = parser.currentName();
+                        } else if (token.isValue()) {
+                            final HostSelector original = hostSelector;
+                            final HostSelector newSelector = buildHostSelector(
+                                parser.getTokenLocation(), selectorName, parser.text());
+                            hostSelector = new HostSelector() {
+                                @Override
+                                public boolean select(HttpHost host, HostMetadata meta) {
+                                    return original.select(host, meta) && newSelector.select(host, meta);
+                                }
+
+                                @Override
+                                public String toString() {
+                                    return original + " AND " + newSelector;
+                                }
+                            };
+                        }
+                    }
                 } else if (currentFieldName != null) { // must be part of API call then
                     apiCallSection = new ApiCallSection(currentFieldName);
                     String paramName = null;
@@ -152,6 +179,7 @@ public class DoSection implements ExecutableSection {
                 throw new IllegalArgumentException("client call section is mandatory within a do section");
             }
             apiCallSection.addHeaders(headers);
+            apiCallSection.setHostSelector(hostSelector);
             doSection.setApiCallSection(apiCallSection);
             doSection.setExpectedWarningHeaders(unmodifiableList(expectedWarnings));
         } finally {
@@ -159,7 +187,6 @@ public class DoSection implements ExecutableSection {
         }
         return doSection;
     }
-
 
     private static final Logger logger = Loggers.getLogger(DoSection.class);
 
@@ -221,7 +248,7 @@ public class DoSection implements ExecutableSection {
 
         try {
             ClientYamlTestResponse response = executionContext.callApi(apiCallSection.getApi(), apiCallSection.getParams(),
-                    apiCallSection.getBodies(), apiCallSection.getHeaders());
+                    apiCallSection.getBodies(), apiCallSection.getHeaders(), apiCallSection.getHostSelector());
             if (Strings.hasLength(catchParam)) {
                 String catchStatusCode;
                 if (catches.containsKey(catchParam)) {
@@ -336,5 +363,29 @@ public class DoSection implements ExecutableSection {
                 not(equalTo(404)),
                 not(equalTo(408)),
                 not(equalTo(409)))));
+    }
+
+    private static HostSelector buildHostSelector(XContentLocation location, String name, String value) {
+        switch (name) {
+        case "version":
+            Version[] range = SkipSection.parseVersionRange(value);
+            return new HostSelector() {
+                @Override
+                public boolean select(HttpHost host, HostMetadata meta) {
+                    if (meta == null) {
+                        throw new IllegalStateException("expected HostMetadata to be loaded!");
+                    }
+                    Version version = Version.fromString(meta.version());
+                    return version.onOrAfter(range[0]) && version.onOrBefore(range[1]);
+                }
+
+                @Override
+                public String toString() {
+                    return "version between [" + range[0] + "] and [" + range[1] + "]";
+                }
+            };
+        default:
+            throw new IllegalArgumentException("unknown host_selector [" + name + "]");
+        }
     }
 }

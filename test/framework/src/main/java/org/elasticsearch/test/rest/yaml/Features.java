@@ -39,6 +39,7 @@ public final class Features {
             "catch_unauthorized",
             "embedded_stash_key",
             "headers",
+            "host_selector",
             "stash_in_key",
             "stash_in_path",
             "stash_path_replace",

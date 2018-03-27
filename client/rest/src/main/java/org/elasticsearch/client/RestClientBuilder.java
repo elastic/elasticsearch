@@ -27,6 +27,7 @@ import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.nio.conn.SchemeIOSessionStrategy;
+import org.elasticsearch.client.HostMetadata.HostMetadataResolver;
 
 import javax.net.ssl.SSLContext;
 import java.security.AccessController;
@@ -50,6 +51,7 @@ public final class RestClientBuilder {
     private static final Header[] EMPTY_HEADERS = new Header[0];
 
     private final HttpHost[] hosts;
+    private HostMetadataResolver metaResolver = HostMetadata.EMPTY_RESOLVER;
     private int maxRetryTimeout = DEFAULT_MAX_RETRY_TIMEOUT_MILLIS;
     private Header[] defaultHeaders = EMPTY_HEADERS;
     private RestClient.FailureListener failureListener;
@@ -72,6 +74,15 @@ public final class RestClientBuilder {
             Objects.requireNonNull(host, "host cannot be null");
         }
         this.hosts = hosts;
+    }
+
+    /**
+     * Set the {@link HostMetadataResolver} used when {@link HostSelector}s
+     * chose hosts.
+     */
+    public RestClientBuilder setHostMetadataResolver(HostMetadataResolver metaResolver) {
+        this.metaResolver = metaResolver;
+        return this;
     }
 
     /**
@@ -187,7 +198,8 @@ public final class RestClientBuilder {
                 return createHttpClient();
             }
         });
-        RestClient restClient = new RestClient(httpClient, maxRetryTimeout, defaultHeaders, hosts, pathPrefix, failureListener);
+        RestClient restClient = new RestClient(httpClient, maxRetryTimeout, defaultHeaders, hosts,
+                metaResolver, pathPrefix, failureListener);
         httpClient.start();
         return restClient;
     }

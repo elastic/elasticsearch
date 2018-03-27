@@ -211,7 +211,6 @@ public class BulkProcessor implements Closeable {
         } catch (InterruptedException exc) {
             Thread.currentThread().interrupt();
         }
-        onClose.run();
     }
 
     /**
@@ -237,7 +236,9 @@ public class BulkProcessor implements Closeable {
         if (bulkRequest.numberOfActions() > 0) {
             execute();
         }
-        return this.bulkRequestHandler.awaitClose(timeout, unit);
+        boolean awaitClose = this.bulkRequestHandler.awaitClose(timeout, unit);
+        onClose.run();
+        return awaitClose;
     }
 
     /**

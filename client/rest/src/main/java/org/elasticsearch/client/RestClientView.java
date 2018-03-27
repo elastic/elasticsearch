@@ -24,7 +24,6 @@ import java.util.Map;
 
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
 
 /**
  * Stateless view into a {@link RestClient} with customized parameters.

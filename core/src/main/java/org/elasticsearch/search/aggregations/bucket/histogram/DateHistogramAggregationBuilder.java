@@ -18,7 +18,6 @@
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
-
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -331,17 +330,38 @@ public class DateHistogramAggregationBuilder
         return new DateHistogramAggregatorFactory(name, config, interval, dateHistogramInterval, offset, order, keyed, minDocCount,
                 rounding, roundedBounds, context, parent, subFactoriesBuilder, metaData);
     }
+    
+    /**Transform year/quarter/month/week interval to days interval
+    */
+    private String transformFromDateUnitsToDateTimeUnits(String interval){
+        int multiplier = 1;        
+        if (interval.endsWith("year") || interval.endsWith("y")){
+            multiplier = 365;
+        }else if (interval.endsWith("quarter") || interval.endsWith("q")) {
+            multiplier = 90;
+        }else if (interval.endsWith("month") || interval.endsWith("m")) {
+            multiplier = 30;
+        }else if (interval.endsWith("week") || interval.endsWith("w")){
+            multiplier = 7;
+        }else{
+            return interval;
+        }
+        Integer day_multiplier = Integer.parseInt(interval.replaceAll("\\D+","")) * multiplier;
+        return day_multiplier.toString()+"d";
+    }
 
     private Rounding createRounding() {
         Rounding.Builder tzRoundingBuilder;
         if (dateHistogramInterval != null) {
+            // left this code for backward compatibility
             DateTimeUnit dateTimeUnit = DATE_FIELD_UNITS.get(dateHistogramInterval.toString());
             if (dateTimeUnit != null) {
                 tzRoundingBuilder = Rounding.builder(dateTimeUnit);
             } else {
                 // the interval is a time value?
+                String dayed_interval = transformFromDateUnitsToDateTimeUnits(dateHistogramInterval.toString());
                 tzRoundingBuilder = Rounding.builder(
-                        TimeValue.parseTimeValue(dateHistogramInterval.toString(), null, getClass().getSimpleName() + ".interval"));
+                        TimeValue.parseTimeValue(dayed_interval, null, getClass().getSimpleName() + ".interval"));
             }
         } else {
             // the interval is an integer time value in millis?

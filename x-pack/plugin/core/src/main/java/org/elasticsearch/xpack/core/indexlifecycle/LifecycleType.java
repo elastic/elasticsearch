@@ -9,6 +9,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 public interface LifecycleType extends NamedWriteable {
@@ -16,17 +17,10 @@ public interface LifecycleType extends NamedWriteable {
     /**
      * @return the first phase of this policy to execute
      */
-    Phase getFirstPhase(Map<String, Phase> phases);
+    List<Phase> getOrderedPhases(Map<String, Phase> phases);
 
-    /**
-     * @param currentPhase
-     *            the current phase that is or was just executed
-     * @return the next phase after <code>currentPhase</code> to be execute. If
-     *         it is `null`, the first phase to be executed is returned. If it
-     *         is the last phase, then no next phase is to be executed and
-     *         `null` is returned.
-     */
-    Phase nextPhase(Map<String, Phase> phases, @Nullable Phase currentPhase);
+    List<LifecycleAction> getOrderedActions(Phase phase);
+
 
     /**
      * validates whether the specified <code>phases</code> are valid for this

@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -85,8 +86,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         }
         this.name = name;
         this.phases = phases;
-        // TODO(talevy): return validation
-        //this.type.validate(phases.values());
+        this.type.validate(phases.values());
     }
 
     /**
@@ -145,8 +145,14 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
     }
 
     public List<Step> toSteps() {
-        // TODO(talevy): make real with types
-        return Collections.emptyList();
+        List<Step> steps = new ArrayList<>();
+        for (Phase phase : type.getOrderedPhases(phases)) {
+            for (LifecycleAction action : type.getOrderedActions(phase)) {
+                // TODO(talevy): correctly set `nextStep` between actions and phases
+                steps.addAll(action.toSteps(phase.getName()));
+            }
+        }
+        return steps;
     }
 
     @Override
@@ -170,24 +176,5 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
     @Override
     public String toString() {
         return Strings.toString(this, true, true);
-    }
-
-    /**
-     * Reference to a method that determines which {@link LifecycleAction} to
-     * execute next after a specific action.
-     *
-     * <p>
-     * Concrete {@link LifecyclePolicy} classes will implement this to help
-     * determine their specific ordering of actions for the phases they allow.
-     */
-    @FunctionalInterface
-    interface NextActionProvider {
-
-        /**
-         * @param current
-         *            The current action which is being or was executed
-         * @return the action following {@code current} to execute
-         */
-        LifecycleAction next(LifecycleAction current);
     }
 }

@@ -20,7 +20,7 @@ import java.util.function.LongSupplier;
  */
 public interface LifecycleAction extends ToXContentObject, NamedWriteable {
 
-    List<Step> toSteps(String phase, Index index, Client client, ThreadPool threadPool, LongSupplier nowSupplier);
+    List<Step> toSteps(String phase);
 
     default boolean indexSurvives() {
         return true;

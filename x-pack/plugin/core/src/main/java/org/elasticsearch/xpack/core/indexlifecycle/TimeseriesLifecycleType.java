@@ -12,12 +12,14 @@ import org.elasticsearch.common.util.set.Sets;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -56,138 +58,29 @@ public class TimeseriesLifecycleType implements LifecycleType {
         return TYPE;
     }
 
-    @Override
-    public Phase getFirstPhase(Map<String, Phase> phases) {
-        Phase firstPhase = phases.get("hot");
-        if (firstPhase == null) {
-            firstPhase = phases.get("warm");
-        }
-        if (firstPhase == null) {
-            firstPhase = phases.get("cold");
-        }
-        if (firstPhase == null) {
-            firstPhase = phases.get("delete");
-        }
-        return firstPhase;
+    public List<Phase> getOrderedPhases(Map<String, Phase> phases) {
+        return VALID_PHASES.stream().map(p -> phases.getOrDefault(p, null)).collect(Collectors.toList());
     }
 
-    @Override
-    public Phase nextPhase(Map<String, Phase> phases, @Nullable Phase currentPhase) {
-        if (currentPhase == null) {
-            return getFirstPhase(phases);
+    public List<LifecycleAction> getOrderedActions(Phase phase) {
+        Map<String, LifecycleAction> actions = phase.getActions();
+        switch (phase.getName()) {
+            case "hot":
+                return Stream.of(RolloverAction.NAME).map(a -> actions.getOrDefault(a, null))
+                    .filter(Objects::nonNull).collect(Collectors.toList());
+            case "warm":
+                return Stream.of(AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME, ReplicasAction.NAME)
+                    .map(a -> actions.getOrDefault(a, null)).filter(Objects::nonNull).collect(Collectors.toList());
+            case "cold":
+                return Stream.of(ReplicasAction.NAME, AllocateAction.NAME).map(a -> actions.getOrDefault(a, null))
+                    .filter(Objects::nonNull).collect(Collectors.toList());
+            case "delete":
+                return Stream.of(DeleteAction.NAME).map(a -> actions.getOrDefault(a, null))
+                    .filter(Objects::nonNull).collect(Collectors.toList());
+            default:
+                return Collections.emptyList();
         }
-
-        // VALID_PHASES is in order of execution
-        boolean readyToSetNext = false;
-        for (String phaseName : VALID_PHASES) {
-            if (readyToSetNext && phases.containsKey(phaseName)) {
-                return phases.get(phaseName);
-            }
-            if (phaseName.equals(currentPhase.getName())) {
-                readyToSetNext = true;
-            }
-        }
-
-        return null;
     }
-
-//    /**
-//     * This action provider returns an ordering for the actions within each of the four timeseries phases.
-//     *  Hot Phase:
-//     *      The Hot Phase only supports the {@link RolloverAction} and so that is the only action to order
-//     *  Warm Phase:
-//     *      The Warm Phase executes the supported actions in a slightly complicated order for the sake of
-//     *      optimization. Assuming the {@link ReplicasAction} is specified, it will run first or last depending
-//     *      on whether it increases, decreases, or keeps the existing replica count. If number-of-replicas is
-//     *      kept the same, or reduced, then {@link ReplicasAction} is executed first, otherwise, it is last.
-//     *      So the ordering looks something like this:
-//     *          - {@link ReplicasAction} (if action.number_of_replicas lte idxMeta.number_of_replicas)
-//     *          - {@link AllocateAction}
-//     *          - {@link ShrinkAction}
-//     *          - {@link ForceMergeAction}
-//     *          - {@link ReplicasAction} (if action.number_of_replicas gt idxMeta.number_of_replicas)
-//     *
-//     *      NORELEASE: there may exist further optimizations to this when {@link ShrinkAction} is specified.
-//     *
-//     * @param context the index lifecycle context for this phase at the time of execution
-//     * @param phase the current phase for which to provide an action provider
-//     * @return the {@link LifecyclePolicy.NextActionProvider} for {@code phase}.
-//     */
-//    @Override
-//    public LifecyclePolicy.NextActionProvider getActionProvider(IndexLifecycleContext context, Phase phase) {
-//        Map<String, LifecycleAction> actions = phase.getActions();
-//        switch (phase.getName()) {
-//            case "hot":
-//                // The hot-phase only has one action, either start with it, or return null. Simple as that!
-//                return (action) -> (action == null) ? actions.getOrDefault(RolloverAction.NAME, null) : null;
-//            case "warm":
-//                return (action) -> {
-//                    ReplicasAction replicasAction = (ReplicasAction) actions.getOrDefault(ReplicasAction.NAME, null);
-//                    boolean replicaActionFirst = replicasAction != null
-//                        && replicasAction.getNumberOfReplicas() <= context.getNumberOfReplicas();
-//                    if (action == null) {
-//                        if (replicaActionFirst) {
-//                            return replicasAction;
-//                        }
-//                        return Stream.of(AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME, ReplicasAction.NAME)
-//                            .map(a -> actions.getOrDefault(a, null))
-//                            .filter(Objects::nonNull).findFirst().orElse(null);
-//                    } else if (action instanceof ReplicasAction) {
-//                        if (replicaActionFirst) {
-//                            return Stream.of(AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME)
-//                                .map(a -> actions.getOrDefault(a, null))
-//                                .filter(Objects::nonNull).findFirst().orElse(null);
-//                        }
-//                    } else if (action instanceof AllocateAction) {
-//                        return Stream.of(ShrinkAction.NAME, ForceMergeAction.NAME, ReplicasAction.NAME)
-//                            .map(a -> actions.getOrDefault(a, null))
-//                            .filter(Objects::nonNull).findFirst().orElse(null);
-//                    } else if (action instanceof ShrinkAction) {
-//                        return Stream.of(ForceMergeAction.NAME, ReplicasAction.NAME)
-//                            .map(a -> actions.getOrDefault(a, null))
-//                            .filter(Objects::nonNull).findFirst().orElse(null);
-//                    } else if (action instanceof ForceMergeAction) {
-//                        if (replicaActionFirst == false) {
-//                            return replicasAction;
-//                        }
-//                    }
-//                    return null;
-//                };
-//            case "cold":
-//                return (action) -> {
-//                    ReplicasAction replicasAction = (ReplicasAction) actions.getOrDefault(ReplicasAction.NAME, null);
-//                    LifecycleAction allocateAction = actions.getOrDefault(AllocateAction.NAME, null);
-//                    boolean replicaActionFirst = replicasAction != null
-//                        && replicasAction.getNumberOfReplicas() <= context.getNumberOfReplicas();
-//                    if (action == null) {
-//                        if (replicaActionFirst) {
-//                            return replicasAction;
-//                        } else if (allocateAction != null) {
-//                            return allocateAction;
-//                        }
-//                        return replicasAction;
-//                    } else if (action instanceof ReplicasAction) {
-//                        if (replicaActionFirst) {
-//                            return allocateAction;
-//                        }
-//                    } else if (action instanceof AllocateAction) {
-//                        if (replicaActionFirst == false) {
-//                            return replicasAction;
-//                        }
-//                    }
-//                    return null;
-//                };
-//            case "delete":
-//                return (action) -> {
-//                    if (action == null) {
-//                        return actions.getOrDefault(DeleteAction.NAME, null);
-//                    }
-//                    return null;
-//                };
-//            default:
-//                throw new IllegalArgumentException("phase [" + phase.getName() + "] is invalid for policy [timeseries]");
-//        }
-//    }
 
     @Override
     public void validate(Collection<Phase> phases) {

@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.search.stats;
+package org.elasticsearch.index.search.stats;
 
-import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.SearchStats.Stats;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
 
-public class SearchStatsUnitTests extends ESTestCase {
+public class SearchStatsTests extends ESTestCase {
+
     // https://github.com/elastic/elasticsearch/issues/7644
     public void testShardLevelSearchGroupStats() throws Exception {
         // let's create two dummy search stats with groups
@@ -52,7 +52,7 @@ public class SearchStatsUnitTests extends ESTestCase {
         assertStats(groupStats1.get("group1"), 3);
     }
 
-    private void assertStats(Stats stats, long equalTo) {
+    private static void assertStats(Stats stats, long equalTo) {
         assertEquals(equalTo, stats.getQueryCount());
         assertEquals(equalTo, stats.getQueryTimeInMillis());
         assertEquals(equalTo, stats.getQueryCurrent());
@@ -66,4 +66,5 @@ public class SearchStatsUnitTests extends ESTestCase {
         assertEquals(equalTo, stats.getSuggestTimeInMillis());
         assertEquals(equalTo, stats.getSuggestCurrent());
     }
+
 }

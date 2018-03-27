@@ -576,23 +576,23 @@ public class DataCounts implements ToXContentObject, Writeable {
         builder.field(SPARSE_BUCKET_COUNT.getPreferredName(), sparseBucketCount);
         builder.field(BUCKET_COUNT.getPreferredName(), bucketCount);
         if (earliestRecordTimeStamp != null) {
-            builder.dateField(EARLIEST_RECORD_TIME.getPreferredName(), EARLIEST_RECORD_TIME.getPreferredName() + "_string",
+            builder.timeField(EARLIEST_RECORD_TIME.getPreferredName(), EARLIEST_RECORD_TIME.getPreferredName() + "_string",
                     earliestRecordTimeStamp.getTime());
         }
         if (latestRecordTimeStamp != null) {
-            builder.dateField(LATEST_RECORD_TIME.getPreferredName(), LATEST_RECORD_TIME.getPreferredName() + "_string",
+            builder.timeField(LATEST_RECORD_TIME.getPreferredName(), LATEST_RECORD_TIME.getPreferredName() + "_string",
                     latestRecordTimeStamp.getTime());
         }
         if (lastDataTimeStamp != null) {
-            builder.dateField(LAST_DATA_TIME.getPreferredName(), LAST_DATA_TIME.getPreferredName() + "_string",
+            builder.timeField(LAST_DATA_TIME.getPreferredName(), LAST_DATA_TIME.getPreferredName() + "_string",
                     lastDataTimeStamp.getTime());
         }
         if (latestEmptyBucketTimeStamp != null) {
-            builder.dateField(LATEST_EMPTY_BUCKET_TIME.getPreferredName(), LATEST_EMPTY_BUCKET_TIME.getPreferredName() + "_string",
+            builder.timeField(LATEST_EMPTY_BUCKET_TIME.getPreferredName(), LATEST_EMPTY_BUCKET_TIME.getPreferredName() + "_string",
                     latestEmptyBucketTimeStamp.getTime());
         }
         if (latestSparseBucketTimeStamp != null) {
-            builder.dateField(LATEST_SPARSE_BUCKET_TIME.getPreferredName(), LATEST_SPARSE_BUCKET_TIME.getPreferredName() + "_string",
+            builder.timeField(LATEST_SPARSE_BUCKET_TIME.getPreferredName(), LATEST_SPARSE_BUCKET_TIME.getPreferredName() + "_string",
                     latestSparseBucketTimeStamp.getTime());
         }
         builder.field(INPUT_RECORD_COUNT.getPreferredName(), getInputRecordCount());

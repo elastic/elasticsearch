@@ -110,8 +110,8 @@ public class WatchExecutionSnapshot implements Streamable, ToXContentObject {
         builder.startObject();
         builder.field("watch_id", watchId);
         builder.field("watch_record_id", watchRecordId);
-        builder.field("triggered_time", triggeredTime);
-        builder.field("execution_time", executionTime);
+        builder.timeField("triggered_time", triggeredTime);
+        builder.timeField("execution_time", executionTime);
         builder.field("execution_phase", phase);
         if (executedActions != null) {
             builder.startArray("executed_actions");

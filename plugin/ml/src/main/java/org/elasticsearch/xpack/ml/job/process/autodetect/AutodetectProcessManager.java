@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
+import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -448,13 +449,13 @@ public class AutodetectProcessManager extends AbstractComponent {
             msgBuilder.append("] with latest_record_timestamp [");
             Date snapshotLatestRecordTimestamp = modelSnapshot.getLatestRecordTimeStamp();
             msgBuilder.append(snapshotLatestRecordTimestamp == null ? "N/A" :
-                    XContentBuilder.DEFAULT_DATE_PRINTER.print(
+                    XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(
                             snapshotLatestRecordTimestamp.getTime()));
         }
         msgBuilder.append("], job latest_record_timestamp [");
         Date jobLatestRecordTimestamp = autodetectParams.dataCounts().getLatestRecordTimeStamp();
         msgBuilder.append(jobLatestRecordTimestamp == null ? "N/A"
-                : XContentBuilder.DEFAULT_DATE_PRINTER.print(jobLatestRecordTimestamp.getTime()));
+                : XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(jobLatestRecordTimestamp.getTime()));
         msgBuilder.append("]");
         String msg = msgBuilder.toString();
         logger.info("[{}] {}", jobId, msg);

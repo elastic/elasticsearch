@@ -73,8 +73,8 @@ public class QueuedWatch implements Streamable, ToXContentObject {
         builder.startObject();
         builder.field("watch_id", watchId);
         builder.field("watch_record_id", watchRecordId);
-        builder.field("triggered_time", triggeredTime);
-        builder.field("execution_time", executionTime);
+        builder.timeField("triggered_time", triggeredTime);
+        builder.timeField("execution_time", executionTime);
         builder.endObject();
         return builder;
     }

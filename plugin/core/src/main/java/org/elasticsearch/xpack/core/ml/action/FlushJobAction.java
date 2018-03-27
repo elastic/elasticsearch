@@ -246,7 +246,7 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
             builder.startObject();
             builder.field("flushed", flushed);
             if (lastFinalizedBucketEnd != null) {
-                builder.dateField(FlushAcknowledgement.LAST_FINALIZED_BUCKET_END.getPreferredName(),
+                builder.timeField(FlushAcknowledgement.LAST_FINALIZED_BUCKET_END.getPreferredName(),
                         FlushAcknowledgement.LAST_FINALIZED_BUCKET_END.getPreferredName() + "_string", lastFinalizedBucketEnd.getTime());
             }
             builder.endObject();

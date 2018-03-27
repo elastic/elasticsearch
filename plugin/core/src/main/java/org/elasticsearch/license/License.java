@@ -393,13 +393,13 @@ public class License implements ToXContentObject {
         if (version == VERSION_START) {
             builder.field(Fields.SUBSCRIPTION_TYPE, subscriptionType);
         }
-        builder.dateField(Fields.ISSUE_DATE_IN_MILLIS, Fields.ISSUE_DATE, issueDate);
+        builder.timeField(Fields.ISSUE_DATE_IN_MILLIS, Fields.ISSUE_DATE, issueDate);
         if (version == VERSION_START) {
             builder.field(Fields.FEATURE, feature);
         }
 
         if (expiryDate != LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
-            builder.dateField(Fields.EXPIRY_DATE_IN_MILLIS, Fields.EXPIRY_DATE, expiryDate);
+            builder.timeField(Fields.EXPIRY_DATE_IN_MILLIS, Fields.EXPIRY_DATE, expiryDate);
         }
         builder.field(Fields.MAX_NODES, maxNodes);
         builder.field(Fields.ISSUED_TO, issuedTo);
@@ -411,7 +411,7 @@ public class License implements ToXContentObject {
             builder.humanReadable(previouslyHumanReadable);
         }
         if (version >= VERSION_START_DATE) {
-            builder.dateField(Fields.START_DATE_IN_MILLIS, Fields.START_DATE, startDate);
+            builder.timeField(Fields.START_DATE_IN_MILLIS, Fields.START_DATE, startDate);
         }
         return builder;
     }

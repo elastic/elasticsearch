@@ -202,7 +202,7 @@ public class ModelPlot implements ToXContentObject, Writeable {
         builder.field(DETECTOR_INDEX.getPreferredName(), detectorIndex);
 
         if (timestamp != null) {
-            builder.dateField(Result.TIMESTAMP.getPreferredName(), 
+            builder.timeField(Result.TIMESTAMP.getPreferredName(),
                     Result.TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
         }
         if (partitionFieldName != null) {

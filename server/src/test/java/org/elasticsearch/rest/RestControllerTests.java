@@ -551,7 +551,7 @@ public class RestControllerTests extends ESTestCase {
         private final BytesReference content;
 
         private TestRestRequest(String path, String content, XContentType xContentType) {
-            super(NamedXContentRegistry.EMPTY, Collections.emptyMap(), path, xContentType == null ?
+            super(xContentType, NamedXContentRegistry.EMPTY, Collections.emptyMap(), path, xContentType == null ?
                 Collections.emptyMap() : Collections.singletonMap("Content-Type", Collections.singletonList(xContentType.mediaType())));
             this.content = new BytesArray(content);
         }

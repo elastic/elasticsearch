@@ -104,24 +104,24 @@ public class ShrinkAction implements LifecycleAction {
     }
 
     @Override
-    public List<Step> toSteps(String phase, Index index, Client client, ThreadPool threadPool, LongSupplier nowSupplier) {
-        String shrunkenIndexName = SHRUNK_INDEX_NAME_PREFIX + index.getName();
-        // TODO(talevy): magical node.name to allocate to
-        String nodeName = "MAGIC";
-        ClusterStateUpdateStep updateAllocationToOneNode = new ClusterStateUpdateStep(
-            "move_to_single_node", NAME, phase, index.getName(), (clusterState) -> {
-            IndexMetaData idxMeta = clusterState.metaData().index(index);
-            if (idxMeta == null) {
-                return clusterState;
-            }
-            Settings.Builder newSettings = Settings.builder()
-                .put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_PREFIX, "")
-                .put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX, "")
-                .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_name", nodeName);
-            return ClusterState.builder(clusterState)
-                .metaData(MetaData.builder(clusterState.metaData())
-                    .updateSettings(newSettings.build(), index.getName())).build();
-        });
+    public List<Step> toSteps(String phase) {
+//        String shrunkenIndexName = SHRUNK_INDEX_NAME_PREFIX + index.getName();
+//        // TODO(talevy): magical node.name to allocate to
+//        String nodeName = "MAGIC";
+//        ClusterStateUpdateStep updateAllocationToOneNode = new ClusterStateUpdateStep(
+//            "move_to_single_node", NAME, phase, index.getName(), (clusterState) -> {
+//            IndexMetaData idxMeta = clusterState.metaData().index(index);
+//            if (idxMeta == null) {
+//                return clusterState;
+//            }
+//            Settings.Builder newSettings = Settings.builder()
+//                .put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_PREFIX, "")
+//                .put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX, "")
+//                .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_name", nodeName);
+//            return ClusterState.builder(clusterState)
+//                .metaData(MetaData.builder(clusterState.metaData())
+//                    .updateSettings(newSettings.build(), index.getName())).build();
+//        });
 
 //            resizeRequest.getTargetIndexRequest().settings(Settings.builder()
 //                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards)
@@ -132,42 +132,42 @@ public class ShrinkAction implements LifecycleAction {
 //                resizeRequest.getTargetIndexRequest().alias(new Alias(aliasMetaDataObjectCursor.value.alias()));
 //            });
 
-        // TODO(talevy): needs access to original index metadata, not just Index
-        int numReplicas = -1;
-        long lifecycleDate = -1L;
-        Settings targetIndexSettings = Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numReplicas)
-            .put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, lifecycleDate)
-            .build();
-        CreateIndexRequest targetIndexRequest = new CreateIndexRequest(shrunkenIndexName, targetIndexSettings);
+//        // TODO(talevy): needs access to original index metadata, not just Index
+//        int numReplicas = -1;
+//        long lifecycleDate = -1L;
+//        Settings targetIndexSettings = Settings.builder()
+//            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+//            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+//            .put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, lifecycleDate)
+//            .build();
+//        CreateIndexRequest targetIndexRequest = new CreateIndexRequest(shrunkenIndexName, targetIndexSettings);
         // TODO(talevy): need access to indexmetadata
 //            indexMetaData.getAliases().values().spliterator().forEachRemaining(aliasMetaDataObjectCursor -> {
 //                resizeRequest.getTargetIndexRequest().alias(new Alias(aliasMetaDataObjectCursor.value.alias()));
 //            });
 
-        ClientStep<ResizeRequestBuilder, ResizeResponse> shrinkStep = new ClientStep<>( "segment_count",
-            NAME, phase, index.getName(),
-
-            client.admin().indices().prepareResizeIndex(index.getName(), shrunkenIndexName).setTargetIndex(targetIndexRequest),
-            currentState -> {
-                // check that shrunken index was already created, if so, no need to both client
-                IndexMetaData shrunkMetaData = currentState.metaData().index(shrunkenIndexName);
-                return shrunkMetaData != null && shrunkenIndexName.equals(IndexMetaData.INDEX_SHRINK_SOURCE_NAME
-                    .get(shrunkMetaData.getSettings()));
-
-            }, ResizeResponse::isAcknowledged);
-
-
-        ConditionalWaitStep shrunkenIndexIsAllocated = new ConditionalWaitStep("wait_replicas_allocated", NAME,
-            phase, index.getName(), (currentState) -> ActiveShardCount.ALL.enoughShardsActive(currentState, index.getName()) );
-
-        ClusterStateUpdateStep deleteAndUpdateAliases = new ClusterStateUpdateStep(
-            "delete_this_index_set_aliases_on_shrunken", NAME, phase, index.getName(), (clusterState) -> {
-            IndexMetaData idxMeta = clusterState.metaData().index(index);
-            if (idxMeta == null) {
-                return clusterState;
-            }
+//        ClientStep<ResizeRequestBuilder, ResizeResponse> shrinkStep = new ClientStep<>( "segment_count",
+//            NAME, phase, index.getName(),
+//
+//            client.admin().indices().prepareResizeIndex(index.getName(), shrunkenIndexName).setTargetIndex(targetIndexRequest),
+//            currentState -> {
+//                // check that shrunken index was already created, if so, no need to both client
+//                IndexMetaData shrunkMetaData = currentState.metaData().index(shrunkenIndexName);
+//                return shrunkMetaData != null && shrunkenIndexName.equals(IndexMetaData.INDEX_SHRINK_SOURCE_NAME
+//                    .get(shrunkMetaData.getSettings()));
+//
+//            }, ResizeResponse::isAcknowledged);
+//
+//
+//        ConditionalWaitStep shrunkenIndexIsAllocated = new ConditionalWaitStep("wait_replicas_allocated", NAME,
+//            phase, index.getName(), (currentState) -> ActiveShardCount.ALL.enoughShardsActive(currentState, index.getName()) );
+//
+//        ClusterStateUpdateStep deleteAndUpdateAliases = new ClusterStateUpdateStep(
+//            "delete_this_index_set_aliases_on_shrunken", NAME, phase, index.getName(), (clusterState) -> {
+//            IndexMetaData idxMeta = clusterState.metaData().index(index);
+//            if (idxMeta == null) {
+//                return clusterState;
+//            }
 
             // TODO(talevy): expose - MetadataDeleteIndexService.deleteIndices(clusterState, Set.of(index.getName()))
             // also, looks like deletes are special CS tasks
@@ -176,12 +176,10 @@ public class ShrinkAction implements LifecycleAction {
             // 1. delete index
             // 2. assign alias to shrunken index
             // 3. assign index.lifecycle settings to shrunken index
-            return clusterState;
-        });
+//            return clusterState;
+//        });
 
-        return Arrays.asList(updateAllocationToOneNode,
-            AllocateAction.getAllocationCheck(allocationDeciders, phase, index.getName()),
-            shrinkStep, shrunkenIndexIsAllocated, deleteAndUpdateAliases);
+        return Arrays.asList();
     }
 
     @Override

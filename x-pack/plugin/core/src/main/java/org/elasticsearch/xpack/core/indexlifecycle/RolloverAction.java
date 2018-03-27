@@ -6,11 +6,6 @@
 package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
-import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,14 +17,11 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.LongSupplier;
 
 /**
  * A {@link LifecycleAction} which deletes the index.
@@ -153,7 +145,7 @@ public class RolloverAction implements LifecycleAction {
     }
 
     @Override
-    public List<Step> toSteps(String phase, Index index, Client client, ThreadPool threadPool, LongSupplier nowSupplier) {
+    public List<Step> toSteps(String phase) {
         return Collections.emptyList();
 //        ConditionalWaitStep wait = new ConditionalWaitStep(clusterService, "wait_for_rollover", index.getName(), phase, action, (clusterState) -> {
 //            // TODO(talevy): actually, needs to RolloverRequest with dryrun to get the appropriate data; clusterState is not enough...

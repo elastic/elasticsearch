@@ -83,14 +83,14 @@ public class ReplicasAction implements LifecycleAction {
     }
 
     @Override
-    public List<Step> toSteps(String phase, Index index, Client client, ThreadPool threadPool, LongSupplier nowSupplier) {
-        ClusterStateUpdateStep updateAllocationSettings = new ClusterStateUpdateStep(
-            "update_replica_count", NAME, phase, index.getName(), (currentState) ->
-            ClusterState.builder(currentState).metaData(MetaData.builder(currentState.metaData())
-                .updateNumberOfReplicas(numberOfReplicas, index.getName())).build());
-        ConditionalWaitStep isReplicatedCheck = new ConditionalWaitStep("wait_replicas_allocated", NAME,
-            phase, index.getName(), (currentState) -> ActiveShardCount.ALL.enoughShardsActive(currentState, index.getName()) );
-        return Arrays.asList(updateAllocationSettings, isReplicatedCheck);
+    public List<Step> toSteps(String phase) {
+//        ClusterStateUpdateStep updateAllocationSettings = new ClusterStateUpdateStep(
+//            "update_replica_count", NAME, phase, index.getName(), (currentState) ->
+//            ClusterState.builder(currentState).metaData(MetaData.builder(currentState.metaData())
+//                .updateNumberOfReplicas(numberOfReplicas, index.getName())).build());
+//        ConditionalWaitStep isReplicatedCheck = new ConditionalWaitStep("wait_replicas_allocated", NAME,
+//            phase, index.getName(), (currentState) -> ActiveShardCount.ALL.enoughShardsActive(currentState, index.getName()) );
+        return Arrays.asList();
     }
 
     public int getNumberOfReplicas() {

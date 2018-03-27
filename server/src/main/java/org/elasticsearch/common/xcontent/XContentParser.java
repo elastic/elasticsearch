@@ -235,7 +235,7 @@ public interface XContentParser extends Closeable {
      * as well as via their <code>String</code> variants of the separated value methods.
      * Note: Do not use this method to read values written with:
      * <ul>
-     *     <li>{@link XContentBuilder#utf8Field(String, byte[], int, int)}</li>
+     *     <li>{@link XContentBuilder#utf8Value(byte[], int, int)}</li>
      * </ul>
      *
      * these methods write UTF-8 encoded strings and must be read through:

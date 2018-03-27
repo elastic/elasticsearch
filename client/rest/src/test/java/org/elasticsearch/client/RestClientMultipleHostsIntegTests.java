@@ -60,8 +60,7 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
     private static HttpHost[] httpHosts;
     private static String pathPrefixWithoutLeadingSlash;
     private static String pathPrefix;
-
-    private RestClient restClient;
+    private static RestClient restClient;
 
     @BeforeClass
     public static void startHttpServer() throws Exception {
@@ -80,11 +79,6 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
             httpServers[i] = httpServer;
             httpHosts[i] = new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort());
         }
-        httpServers[0].createContext(pathPrefix + "/firstOnly", new ResponseHandler(200));
-    }
-
-    @Before
-    public void buildRestClient() throws Exception {
         RestClientBuilder restClientBuilder = RestClient.builder(httpHosts);
         if (pathPrefix.length() > 0) {
             restClientBuilder.setPathPrefix((randomBoolean() ? "/" : "") + pathPrefixWithoutLeadingSlash);
@@ -119,20 +113,18 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
         }
     }
 
-    @After
-    public void stopRestClient() throws IOException {
-        restClient.close();
-    }
-
     @AfterClass
     public static void stopHttpServers() throws IOException {
+        restClient.close();
+        restClient = null;
         for (HttpServer httpServer : httpServers) {
             httpServer.stop(0);
         }
         httpServers = null;
     }
 
-    private void stopRandomHost() {
+    @Before
+    public void stopRandomHost() {
         //verify that shutting down some hosts doesn't matter as long as one working host is left behind
         if (httpServers.length > 1 && randomBoolean()) {
             List<HttpServer> updatedHttpServers = new ArrayList<>(httpServers.length - 1);
@@ -150,7 +142,6 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
     }
 
     public void testSyncRequests() throws IOException {
-        stopRandomHost();
         int numRequests = randomIntBetween(5, 20);
         for (int i = 0; i < numRequests; i++) {
             final String method = RestClientTestUtil.randomHttpMethod(getRandom());
@@ -169,7 +160,6 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
     }
 
     public void testAsyncRequests() throws Exception {
-        stopRandomHost();
         int numRequests = randomIntBetween(5, 20);
         final CountDownLatch latch = new CountDownLatch(numRequests);
         final List<TestResponse> responses = new CopyOnWriteArrayList<>();
@@ -208,26 +198,37 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
      * test what happens after calling
      */
     public void testWithNodeSelector() throws IOException {
-        /*
-         * note that this *doesn't* stopRandomHost(); because it might stop
-         * the first host which we use for testing the selector.
-         */
-        NodeSelector firstPositionOnly = new NodeSelector() {
-            @Override
-            public boolean select(Node node) {
-                return httpHosts[0] == node.getHost();
-            }
-        };
-        RestClientActions withNodeSelector = restClient.withNodeSelector(firstPositionOnly);
-        Response response = withNodeSelector.performRequest("GET", "/firstOnly");
-        assertEquals(httpHosts[0], response.getHost());
-        restClient.close();
+        RestClientActions withNodeSelector = restClient.withNodeSelector(FIRST_POSITION_NODE_SELECTOR);
+        int rounds = between(1, 10);
+        for (int i = 0; i < rounds; i++) {
+            /*
+             * Run the request more than once to verify that the
+             * NodeSelector overrides the round robin behavior.
+             */
+            Response response = withNodeSelector.performRequest("GET", "/200");
+            assertEquals(httpHosts[0], response.getHost());
+        }
+    }
+
+    /**
+     * Tests that stopping the {@link RestClient} backing the result of
+     * {@link RestClientActions#withNodeSelector(NodeSelector)} causes
+     * subsequent uses of the view to throw sensible exceptions.
+     */
+    public void testStoppedView() throws IOException {
+        RestClientActions withNodeSelector;
+        try (RestClient toStop = RestClient.builder(httpHosts).build()) {
+            withNodeSelector = toStop.withNodeSelector(FIRST_POSITION_NODE_SELECTOR);
+            Response response = withNodeSelector.performRequest("GET", "/200");
+            assertEquals(httpHosts[0], response.getHost());
+        }
         try {
-            withNodeSelector.performRequest("GET", "/firstOnly");
+            withNodeSelector.performRequest("GET", "/200");
             fail("expected a failure");
         } catch (IllegalStateException e) {
             assertThat(e.getMessage(), containsString("status: STOPPED"));
         }
+
     }
 
     private static class TestResponse {
@@ -254,4 +255,11 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
             throw new AssertionError("unexpected response " + response.getClass());
         }
     }
+
+    private static final NodeSelector FIRST_POSITION_NODE_SELECTOR = new NodeSelector() {
+        @Override
+        public boolean select(Node node) {
+            return httpHosts[0] == node.getHost();
+        }
+    };
 }

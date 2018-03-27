@@ -24,7 +24,10 @@ import org.elasticsearch.client.Node.Roles;
 
 import java.util.Arrays;
 
+import static java.util.Collections.singletonList;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class NodeTests extends RestClientTestCase {
@@ -57,5 +60,23 @@ public class NodeTests extends RestClientTestCase {
                 Arrays.asList(new HttpHost("1"), new HttpHost("2")), null, null).toString());
     }
 
-    // TODO tests for equals and hashcode probably
+    public void testEqualsAndHashCode() {
+        HttpHost host = new HttpHost(randomAsciiAlphanumOfLength(5));
+        Node node = new Node(host,
+            randomBoolean() ? null : singletonList(host),
+            randomBoolean() ? null : randomAsciiAlphanumOfLength(5),
+            randomBoolean() ? null : new Roles(true, true, true));
+        assertFalse(node.equals(null));
+        assertTrue(node.equals(node));
+        assertEquals(node.hashCode(), node.hashCode());
+        Node copy = new Node(host, node.getBoundHosts(), node.getVersion(), node.getRoles());
+        assertTrue(node.equals(copy));
+        assertEquals(node.hashCode(), copy.hashCode());
+        assertFalse(node.equals(new Node(new HttpHost(host.toHostString() + "changed"), node.getBoundHosts(),
+                node.getVersion(), node.getRoles())));
+        assertFalse(node.equals(new Node(host, Arrays.asList(host, new HttpHost(host.toHostString() + "changed")),
+                node.getVersion(), node.getRoles())));
+        assertFalse(node.equals(new Node(host, node.getBoundHosts(), node.getVersion() + "changed", node.getRoles())));
+        assertFalse(node.equals(new Node(host, node.getBoundHosts(), node.getVersion(), new Roles(false, false, false))));
+    }
 }

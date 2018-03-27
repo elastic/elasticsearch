@@ -41,8 +41,16 @@ import org.apache.http.conn.ConnectTimeoutException;
  * {@link RestClient} and {@link RestClientView}.
  */
 abstract class AbstractRestClientActions implements RestClientActions {
+    /**
+     * Build a {@link SyncResponseListener} to convert requests from
+     * asynchronous to synchronous.
+     */
     abstract SyncResponseListener syncResponseListener();
 
+    /**
+     * Perform the actual request asynchronously, letting any the caller
+     * handle all exceptions.
+     */
     abstract void performRequestAsyncNoCatch(String method, String endpoint, Map<String, String> params,
         HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
         ResponseListener responseListener, Header[] headers) throws IOException;

@@ -157,7 +157,7 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
      * {@link #setHosts(HttpHost...)} if you have metadata about the hosts
      * like their Elasticsearch version of which roles they implement.
      */
-    public void setNodes(Node... nodes) {
+    public synchronized void setNodes(Node... nodes) {
         if (nodes == null || nodes.length == 0) {
             throw new IllegalArgumentException("nodes must not be null or empty");
         }

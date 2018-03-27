@@ -48,7 +48,9 @@ public class Node {
     private final Roles roles;
 
     /**
-     * Create a {@linkplain Node} with metadata.
+     * Create a {@linkplain Node} with metadata. All parameters except
+     * {@code host} are nullable and implementations of {@link NodeSelector}
+     * need to decide what to do in their absence.
      */
     public Node(HttpHost host, List<HttpHost> boundHosts, String version, Roles roles) {
         if (host == null) {
@@ -68,6 +70,19 @@ public class Node {
     }
 
     /**
+     * Make a copy of this {@link Node} but replacing its {@link #getHost()}
+     * with the provided {@link HttpHost}. The provided host must be part of
+     * of {@link #getBoundHosts() bound hosts}.
+     */
+    public Node withBoundHostAsHost(HttpHost boundHost) {
+        if (false == boundHosts.contains(boundHost)) {
+            throw new IllegalArgumentException(boundHost + " must be a bound host but wasn't in "
+                    + boundHosts);
+        }
+        return new Node(boundHost, boundHosts, version, roles);
+    }
+
+    /**
      * Contact information for the host.
      */
     public HttpHost getHost() {
@@ -75,7 +90,8 @@ public class Node {
     }
 
     /**
-     * Addresses that this host is bound to.
+     * Addresses that this host is bound to or {@code null} if we don't
+     * know which addresses are bound.
      */
     public List<HttpHost> getBoundHosts() {
         return boundHosts;
@@ -95,19 +111,6 @@ public class Node {
      */
     public Roles getRoles() {
         return roles;
-    }
-
-    /**
-     * Make a copy of this {@link Node} but replacing its {@link #getHost()}
-     * with the provided {@link HttpHost}. The provided host must be part of
-     * of {@link #getBoundHosts() bound hosts}.
-     */
-    public Node withBoundHostAsHost(HttpHost boundHost) {
-        if (false == boundHosts.contains(boundHost)) {
-            throw new IllegalArgumentException(boundHost + " must be a bound host but wasn't in "
-                    + boundHosts);
-        }
-        return new Node(boundHost, boundHosts, version, roles);
     }
 
     @Override

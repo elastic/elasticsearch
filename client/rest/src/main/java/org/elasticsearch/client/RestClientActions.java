@@ -181,12 +181,12 @@ public interface RestClientActions {
 
     /**
      * Create a "stateless view" of this client that only runs requests on
-     * selected hosts. The result of this method is "stateless" it backs all
-     * of its requests to the {@link RestClient} that created it so there is
-     * no need to manage this view with try-with-resources and it does not
-     * extend {@link Closeable}. Closing the {@linkplain RestClient} that
-     * created the view disposes of the underlying connection, making the
-     * view useless.
+     * selected hosts. The result of this method is "stateless" because it
+     * backs all of its requests to the {@link RestClient} that created it
+     * so there is no need to manage this view with try-with-resources and
+     * it does not extend {@link Closeable}. Closing the
+     * {@linkplain RestClient} that created the view disposes of the
+     * underlying connection, making the view useless.
      */
     RestClientActions withNodeSelector(NodeSelector nodeSelector);
 }

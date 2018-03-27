@@ -43,10 +43,7 @@ import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.net.SocketTimeoutException;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -59,7 +56,6 @@ import static org.elasticsearch.client.RestClientTestUtil.randomOkStatusCode;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -315,9 +311,15 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
             }
         };
         RestClientActions withNodeSelector = restClient.withNodeSelector(firstPositionOnly);
-        Response response = withNodeSelector.performRequest("GET", "/200");
-        assertEquals(nodes[0].getHost(), response.getHost());
-        restClient.close();
+        int rounds = between(1, 10);
+        for (int i = 0; i < rounds; i++) {
+            /*
+             * Run the request more than once to verify that the
+             * NodeSelector overrides the round robin behavior.
+             */
+            Response response = withNodeSelector.performRequest("GET", "/200");
+            assertEquals(nodes[0].getHost(), response.getHost());
+        }
     }
 
     public void testSetNodes() throws IOException {
@@ -327,10 +329,16 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
             newNodes[i] = new Node(nodes[i].getHost(), null, null, roles);
         }
         restClient.setNodes(newNodes);
-        Response response = restClient
-                .withNodeSelector(NodeSelector.NOT_MASTER_ONLY)
-                .performRequest("GET", "/200");
-        assertEquals(newNodes[0].getHost(), response.getHost());
+        RestClientActions withNodeSelector = restClient.withNodeSelector(NodeSelector.NOT_MASTER_ONLY);
+        int rounds = between(1, 10);
+        for (int i = 0; i < rounds; i++) {
+            /*
+             * Run the request more than once to verify that the
+             * NodeSelector overrides the round robin behavior.
+             */
+            Response response = withNodeSelector.performRequest("GET", "/200");
+            assertEquals(newNodes[0].getHost(), response.getHost());
+        }
     }
 
     private static String randomErrorRetryEndpoint() {

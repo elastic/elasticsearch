@@ -1632,7 +1632,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             // we also don't specify a codec here and merges should use the engines for this index
             .setMergePolicy(NoMergePolicy.INSTANCE)
             .setOpenMode(openMode);
-
         return new IndexWriter(dir, iwc);
     }
 

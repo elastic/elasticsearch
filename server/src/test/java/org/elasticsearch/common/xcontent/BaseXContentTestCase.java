@@ -67,6 +67,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -1007,22 +1008,20 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         {
             p.nextToken();
             assertEquals("test", p.namedObject(Object.class, "str", null));
-            UnknownNamedObjectException e = expectThrows(UnknownNamedObjectException.class,
+            NamedObjectNotFoundException e = expectThrows(NamedObjectNotFoundException.class,
                     () -> p.namedObject(Object.class, "unknown", null));
-            assertEquals("Unknown Object [unknown]", e.getMessage());
-            assertEquals("java.lang.Object", e.getCategoryClass());
-            assertEquals("unknown", e.getName());
+            assertThat(e.getMessage(), endsWith("unable to parse Object with name [unknown]: parser not found"));
         }
         {
-            Exception e = expectThrows(ElasticsearchException.class, () -> p.namedObject(String.class, "doesn't matter", null));
-            assertEquals("Unknown namedObject category [java.lang.String]", e.getMessage());
+            Exception e = expectThrows(NamedObjectNotFoundException.class, () -> p.namedObject(String.class, "doesn't matter", null));
+            assertEquals("unknown named object category [java.lang.String]", e.getMessage());
         }
         {
             XContentParser emptyRegistryParser = xcontentType().xContent()
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, new byte[] {});
-            Exception e = expectThrows(ElasticsearchException.class,
+            Exception e = expectThrows(NamedObjectNotFoundException.class,
                     () -> emptyRegistryParser.namedObject(String.class, "doesn't matter", null));
-            assertEquals("namedObject is not supported for this parser", e.getMessage());
+            assertEquals("named objects are not supported for this parser", e.getMessage());
         }
     }
 

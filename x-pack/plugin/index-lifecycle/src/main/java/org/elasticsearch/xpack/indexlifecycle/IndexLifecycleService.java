@@ -6,17 +6,12 @@
 package org.elasticsearch.xpack.indexlifecycle;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.FormattedMessage;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -36,14 +31,7 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import java.io.Closeable;
 import java.time.Clock;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.SortedMap;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
 
 /**
  * A service which runs the {@link LifecyclePolicy}s associated with indexes.
@@ -94,7 +82,7 @@ public class IndexLifecycleService extends AbstractComponent
 
             boolean pollIntervalSettingChanged = !pollInterval.equals(previousPollInterval);
 
-            if (lifecycleMetadata != null) {
+            if (lifecycleMetadata != null && event.changedCustomMetaDataSet().contains(IndexLifecycleMetadata.TYPE)) {
                 // update policy steps registry
                 policyRegistry.update(event.state());
             }
@@ -149,7 +137,7 @@ public class IndexLifecycleService extends AbstractComponent
                         String stepName = currentState.metaData().settings().get(LifecycleSettings.LIFECYCLE_STEP);
                         // returns current step to execute. If settings are null, then the first step to be executed in
                         // this policy is returned.
-                        Step currentStep = policyRegistry.getStep(policyName, phase, action, stepName);
+                        Step currentStep = policyRegistry.getStep(policyName, new Step.StepKey(phase, action, stepName));
                         return executeStepUntilAsync(currentStep, clusterState, client, nowSupplier, idxMeta.getIndex());
                     }
 

@@ -264,10 +264,13 @@ public class DateHistoGroupConfig implements Writeable, ToXContentFragment {
 
         public DateHistoGroupConfig build() {
             if (field == null || field.isEmpty()) {
-                throw new IllegalArgumentException("Parameter [" + FIELD + "] is mandatory.");
+                throw new IllegalArgumentException("Parameter [" + FIELD.getPreferredName() + "] is mandatory.");
             }
             if (timeZone == null) {
                 timeZone = DateTimeZone.UTC;
+            }
+            if (interval == null) {
+                throw new IllegalArgumentException("Parameter [" + INTERVAL.getPreferredName() + "] is mandatory.");
             }
             // validate interval
             createRounding(interval.toString(), timeZone, INTERVAL.getPreferredName());

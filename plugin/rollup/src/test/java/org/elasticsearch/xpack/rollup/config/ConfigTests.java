@@ -155,6 +155,14 @@ public class ConfigTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("Parameter [field] is mandatory."));
     }
 
+    public void testEmptyDateHistoInterval() {
+        DateHistoGroupConfig.Builder config = ConfigTestHelpers.getDateHisto();
+        config.setField("foo");
+        config.setInterval(null);
+        Exception e = expectThrows(IllegalArgumentException.class, config::build);
+        assertThat(e.getMessage(), equalTo("Parameter [interval] is mandatory."));
+    }
+
     public void testNullTimeZone() {
         DateHistoGroupConfig.Builder config = ConfigTestHelpers.getDateHisto();
         config.setTimeZone(null);

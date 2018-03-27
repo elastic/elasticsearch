@@ -103,6 +103,7 @@ aggregation has been used on the `temperature` field, yielding the following res
 {
   "took" : 102,
   "timed_out" : false,
+  "terminated_early" : false,
   "_shards" : ... ,
   "hits" : {
     "total" : 0,
@@ -142,7 +143,7 @@ GET sensor_rollup/_rollup_search
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
-// TEST[catch:bad_request]
+// TEST[catch:/illegal_argument_exception/]
 
 [source,js]
 ----
@@ -151,12 +152,12 @@ GET sensor_rollup/_rollup_search
         "root_cause" : [
             {
                 "type" : "illegal_argument_exception",
-                "reason" : "There is not a [avg] agg with name [temperature] configured in selected rollup indices, cannot translate aggregation.",
+                "reason" : "There is not a rollup job that has a [avg] agg with name [avg_temperature] which also satisfies all requirements of query.",
                 "stack_trace": ...
             }
         ],
         "type" : "illegal_argument_exception",
-        "reason" : "There is not a [avg] agg with name [temperature] configured in selected rollup indices, cannot translate aggregation.",
+        "reason" : "There is not a rollup job that has a [avg] agg with name [avg_temperature] which also satisfies all requirements of query.",
         "stack_trace": ...
     },
     "status": 400
@@ -204,6 +205,7 @@ The response to the above query will look as expected, despite spanning rollup a
 {
   "took" : 102,
   "timed_out" : false,
+  "terminated_early" : false,
   "_shards" : ... ,
   "hits" : {
     "total" : 0,

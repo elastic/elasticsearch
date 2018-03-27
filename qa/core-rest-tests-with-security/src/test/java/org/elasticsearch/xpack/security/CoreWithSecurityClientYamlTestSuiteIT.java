@@ -9,7 +9,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
-import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -19,7 +18,6 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/4164")
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE) // as default timeout seems not enough on the jenkins VMs
 public class CoreWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 

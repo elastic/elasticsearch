@@ -284,7 +284,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
     @Nullable
     public Map<String, Stats> getGroupStats() {
-        return Collections.unmodifiableMap(this.groupStats);
+        return this.groupStats != null ? Collections.unmodifiableMap(this.groupStats) : null;
     }
 
     @Override

@@ -25,12 +25,12 @@ import com.sun.net.httpserver.HttpServer;
 import org.apache.http.HttpHost;
 import org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement;
 import org.elasticsearch.mocksocket.MockHttpServer;
-import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
@@ -58,6 +58,7 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
 
     private static HttpServer[] httpServers;
     private static HttpHost[] httpHosts;
+    private static boolean stoppedFirstHost = false;
     private static String pathPrefixWithoutLeadingSlash;
     private static String pathPrefix;
     private static RestClient restClient;
@@ -79,11 +80,15 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
             httpServers[i] = httpServer;
             httpHosts[i] = new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort());
         }
+        restClient = buildRestClient();
+    }
+
+    private static RestClient buildRestClient() {
         RestClientBuilder restClientBuilder = RestClient.builder(httpHosts);
         if (pathPrefix.length() > 0) {
             restClientBuilder.setPathPrefix((randomBoolean() ? "/" : "") + pathPrefixWithoutLeadingSlash);
         }
-        restClient = restClientBuilder.build();
+        return restClientBuilder.build();
     }
 
     private static HttpServer createHttpServer() throws Exception {
@@ -129,6 +134,9 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
         if (httpServers.length > 1 && randomBoolean()) {
             List<HttpServer> updatedHttpServers = new ArrayList<>(httpServers.length - 1);
             int nodeIndex = randomInt(httpServers.length - 1);
+            if (0 == nodeIndex) {
+                stoppedFirstHost = true;
+            }
             for (int i = 0; i < httpServers.length; i++) {
                 HttpServer httpServer = httpServers[i];
                 if (i == nodeIndex) {
@@ -198,15 +206,14 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
      * test what happens after calling
      */
     public void testWithNodeSelector() throws IOException {
-        RestClientActions withNodeSelector = restClient.withNodeSelector(FIRST_POSITION_NODE_SELECTOR);
+        RestClientActions withNodeSelector = restClient.withNodeSelector(firstPositionNodeSelector());
         int rounds = between(1, 10);
         for (int i = 0; i < rounds; i++) {
             /*
              * Run the request more than once to verify that the
              * NodeSelector overrides the round robin behavior.
              */
-            Response response = withNodeSelector.performRequest("GET", "/200");
-            assertEquals(httpHosts[0], response.getHost());
+            performRequestAndAssertOnFirstHost(withNodeSelector);
         }
     }
 
@@ -217,16 +224,30 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
      */
     public void testStoppedView() throws IOException {
         RestClientActions withNodeSelector;
-        try (RestClient toStop = RestClient.builder(httpHosts).build()) {
-            withNodeSelector = toStop.withNodeSelector(FIRST_POSITION_NODE_SELECTOR);
-            Response response = withNodeSelector.performRequest("GET", "/200");
-            assertEquals(httpHosts[0], response.getHost());
+        // Build our own RestClient for this test because we're going to close it.
+        try (RestClient toStop = buildRestClient()) {
+            withNodeSelector = toStop.withNodeSelector(firstPositionNodeSelector());
+            performRequestAndAssertOnFirstHost(withNodeSelector);
         }
         try {
             withNodeSelector.performRequest("GET", "/200");
             fail("expected a failure");
         } catch (IllegalStateException e) {
             assertThat(e.getMessage(), containsString("status: STOPPED"));
+        }
+    }
+
+    private void performRequestAndAssertOnFirstHost(RestClientActions withNodeSelector) throws IOException {
+        if (stoppedFirstHost) {
+            try {
+                withNodeSelector.performRequest("GET", "/200");
+                fail("expected to fail to connect");
+            } catch (ConnectException e) {
+                assertEquals("Connection refused", e.getMessage());
+            }
+        } else {
+            Response response = withNodeSelector.performRequest("GET", "/200");
+            assertEquals(httpHosts[0], response.getHost());
         }
 
     }
@@ -256,10 +277,12 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
         }
     }
 
-    private static final NodeSelector FIRST_POSITION_NODE_SELECTOR = new NodeSelector() {
-        @Override
-        public boolean select(Node node) {
-            return httpHosts[0] == node.getHost();
-        }
-    };
+    private NodeSelector firstPositionNodeSelector() {
+        return new NodeSelector() {
+            @Override
+            public boolean select(Node node) {
+                return httpHosts[0] == node.getHost();
+            }
+        };
+    }
 }

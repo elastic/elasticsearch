@@ -2667,13 +2667,16 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     public void testRestoreSnapshotWithCorruptedIndexMetadata() throws Exception {
         final Client client = client();
         final Path repo = randomRepoPath();
-        final int nbIndices = randomIntBetween(2, 7);
+        final int nbIndices = randomIntBetween(2, 3);
 
         final Map<String, Integer> nbDocsPerIndex = new HashMap<>();
         for (int i = 0; i < nbIndices; i++) {
             String indexName = "test-idx-" + i;
 
-            int nbDocs = randomIntBetween(1, 50);
+            assertAcked(prepareCreate(indexName).setSettings(Settings.builder()
+                .put(SETTING_NUMBER_OF_SHARDS, Math.min(2, numberOfShards())).put(SETTING_NUMBER_OF_REPLICAS, 0)));
+
+            int nbDocs = randomIntBetween(1, 10);
             nbDocsPerIndex.put(indexName, nbDocs);
 
             IndexRequestBuilder[] documents = new IndexRequestBuilder[nbDocs];

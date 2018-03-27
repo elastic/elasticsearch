@@ -21,6 +21,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.index.translog.Translog;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -81,9 +82,15 @@ class VersionValue implements Accountable {
     public String toString() {
         return "VersionValue{" +
             "version=" + version +
-
             ", seqNo=" + seqNo +
             ", term=" + term +
             '}';
+    }
+
+    /**
+     * Returns the translog location for this version value or null. This is optional and might not be tracked all the time.
+     */
+    public Translog.Location getLocation() {
+        return null;
     }
 }

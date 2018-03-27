@@ -84,7 +84,7 @@ public class Netty4BadRequestIT extends ESRestTestCase {
         assertThat(response.getStatusLine().getStatusCode(), equalTo(400));
         final ObjectPath objectPath = ObjectPath.createFromResponse(response);
         final Map<String, Object> map = objectPath.evaluate("error");
-        assertThat(map.get("type"), equalTo("invalid_argument_exception"));
+        assertThat(map.get("type"), equalTo("illegal_argument_exception"));
         assertThat(map.get("reason"), equalTo("Failed to parse value [neither-true-nor-false] as only [true] or [false] are allowed."));
     }
 

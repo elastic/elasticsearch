@@ -50,7 +50,8 @@ public class Netty4HttpRequest extends RestRequest {
      * @param xContentRegistry the content registry
      * @param request          the underlying request
      * @param channel          the channel for the request
-     * @throws BadParameterException if the parameters can not be decoded
+     * @throws BadParameterException      if the parameters can not be decoded
+     * @throws ContentTypeHeaderException if the Content-Type header can not be parsed
      */
     Netty4HttpRequest(NamedXContentRegistry xContentRegistry, FullHttpRequest request, Channel channel) {
         super(xContentRegistry, request.uri(), new HttpHeadersMap(request.headers()));
@@ -66,13 +67,14 @@ public class Netty4HttpRequest extends RestRequest {
     /**
      * Construct a new request. In contrast to
      * {@link Netty4HttpRequest#Netty4HttpRequest(NamedXContentRegistry, Map, String, FullHttpRequest, Channel)}, the URI is not decoded so
-     * this method constructor should not throw any exceptions.
+     * this constructor will not throw a {@link BadParameterException}.
      *
      * @param xContentRegistry the content registry
      * @param params           the parameters for the request
      * @param uri              the path for the request
      * @param request          the underlying request
      * @param channel          the channel for the request
+     * @throws ContentTypeHeaderException if the Content-Type header can not be parsed
      */
     Netty4HttpRequest(
             final NamedXContentRegistry xContentRegistry,

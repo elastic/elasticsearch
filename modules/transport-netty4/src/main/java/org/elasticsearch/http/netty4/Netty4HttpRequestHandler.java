@@ -20,16 +20,20 @@
 package org.elasticsearch.http.netty4;
 
 import io.netty.buffer.Unpooled;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
@@ -39,7 +43,10 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -78,80 +85,73 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                         Unpooled.copiedBuffer(request.content()),
                         request.headers(),
                         request.trailingHeaders());
+
+        Exception badRequestCause = null;
+        final XContentType xContentType;
+        {
+            XContentType innerXContentType;
+            try {
+                innerXContentType = RestRequest.parseContentType(request.headers().getAll("Content-Type"));
+            } catch (final IllegalArgumentException e) {
+                innerXContentType = null;
+                badRequestCause = e;
+            }
+            xContentType = innerXContentType;
+        }
+
         final Netty4HttpRequest httpRequest;
-        try {
-            httpRequest = new Netty4HttpRequest(serverTransport.xContentRegistry, copy, ctx.channel());
-        } catch (final Exception e) {
-            // we use suppliers here because if acquiring these values blows up, we want error handling in handleException to take over
-            final Supplier<List<String>> contentTypes = () -> request.headers().getAll("Content-Type");
-            final Supplier<String> accept = () -> request.headers().get("Accept");
-            handleException(e, ctx, copy, pipelinedRequest, request.uri(), ToXContent.EMPTY_PARAMS, contentTypes, accept);
-            return;
+        {
+            Netty4HttpRequest innerHttpRequest;
+            try {
+                innerHttpRequest = new Netty4HttpRequest(xContentType, serverTransport.xContentRegistry, copy, ctx.channel());
+            } catch (final Exception e) {
+                if (badRequestCause == null) {
+                    badRequestCause = e;
+                } else {
+                    badRequestCause.addSuppressed(e);
+                }
+                innerHttpRequest =
+                        new Netty4HttpRequest(
+                                xContentType,
+                                serverTransport.xContentRegistry,
+                                Collections.emptyMap(),
+                                copy.uri(),
+                                copy,
+                                ctx.channel());
+            }
+            httpRequest = innerHttpRequest;
         }
 
         final Netty4HttpChannel channel;
-        try {
-            channel = new Netty4HttpChannel(serverTransport, httpRequest, pipelinedRequest, detailedErrorsEnabled, threadContext);
-        } catch (final Exception e) {
-            // we use suppliers here because if acquiring these values blows up, we want error handling in handleException to take over
-            final Supplier<List<String>> contentTypes = () -> httpRequest.getAllHeaderValues("Content-Type");
-            final Supplier<String> accept = () -> httpRequest.header("Accept");
-            handleException(e, ctx, copy, pipelinedRequest, httpRequest.rawPath(), httpRequest, contentTypes, accept);
-            return;
-        }
-
-        if (request.decoderResult().isSuccess()) {
-            serverTransport.dispatchRequest(httpRequest, channel);
-        } else {
-            assert request.decoderResult().isFailure();
-            serverTransport.dispatchBadRequest(httpRequest, channel, request.decoderResult().cause());
-        }
-    }
-
-    private void handleException(
-            final Exception e,
-            final ChannelHandlerContext ctx,
-            final FullHttpRequest copy,
-            final HttpPipelinedRequest pipelinedRequest,
-            final String rawPath,
-            final ToXContent.Params params,
-            final Supplier<List<String>> contentType,
-            final Supplier<String> accept) throws IOException {
-        // we failed to construct a channel so we use direct access to underlying channel to write a response to the client
-        boolean success = false;
-        try {
-            final AtomicReference<BytesStreamOutput> bytesStreamOutput = new AtomicReference<>();
-            final Supplier<BytesStreamOutput> bytesOutput = () -> {
-                if (bytesStreamOutput.get() == null) {
-                    bytesStreamOutput.set(new ReleasableBytesStreamOutput(serverTransport.bigArrays));
+        {
+            Netty4HttpChannel innerChannel;
+            try {
+                innerChannel = new Netty4HttpChannel(serverTransport, httpRequest, pipelinedRequest, detailedErrorsEnabled, threadContext);
+            } catch (final Exception e) {
+                if (badRequestCause == null) {
+                    badRequestCause = e;
+                } else {
+                    badRequestCause.addSuppressed(e);
                 }
-                return bytesStreamOutput.get();
-            };
-            XContentType parsedRequestContentType;
-            try {
-                parsedRequestContentType = RestRequest.parseContentType(contentType.get());
-            } catch (final Exception inner) {
-                e.addSuppressed(inner);
-                parsedRequestContentType = null;
+                final Netty4HttpRequest innerRequest =
+                        new Netty4HttpRequest(
+                                xContentType,
+                                serverTransport.xContentRegistry,
+                                Collections.emptyMap(),
+                                copy.uri(),
+                                copy,
+                                ctx.channel());
+                innerChannel = new Netty4HttpChannel(serverTransport, innerRequest, pipelinedRequest, detailedErrorsEnabled, threadContext);
             }
-            final XContentType requestContentType = parsedRequestContentType;
-            String parsedAcceptHeader;
-            try {
-                parsedAcceptHeader = accept.get();
-            } catch (final Exception inner) {
-                e.addSuppressed(inner);
-                parsedAcceptHeader = null;
-            }
-            final String acceptHeader = parsedAcceptHeader;
-            final CheckedSupplier<XContentBuilder, IOException> supplier =
-                    () -> AbstractRestChannel.newBuilder(requestContentType, false, null, acceptHeader, false, false, bytesOutput);
-            final BytesRestResponse response = new BytesRestResponse(params, rawPath, supplier, detailedErrorsEnabled, e);
-            Netty4HttpChannel.sendResponse(ctx.channel(), serverTransport, copy, pipelinedRequest, response, threadContext, bytesOutput);
-            success = true;
-        } finally {
-            if (success == false && pipelinedRequest != null) {
-                pipelinedRequest.release();
-            }
+            channel = innerChannel;
+        }
+
+        if (request.decoderResult().isFailure()) {
+            serverTransport.dispatchBadRequest(httpRequest, channel, request.decoderResult().cause());
+        } else if (badRequestCause != null) {
+            serverTransport.dispatchBadRequest(httpRequest, channel, badRequestCause);
+        } else {
+            serverTransport.dispatchRequest(httpRequest, channel);
         }
     }
 

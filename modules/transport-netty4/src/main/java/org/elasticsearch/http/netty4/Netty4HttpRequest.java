@@ -27,13 +27,16 @@ import io.netty.handler.codec.http.HttpMethod;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.net.SocketAddress;
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -45,8 +48,59 @@ public class Netty4HttpRequest extends RestRequest {
     private final Channel channel;
     private final BytesReference content;
 
-    Netty4HttpRequest(NamedXContentRegistry xContentRegistry, FullHttpRequest request, Channel channel) {
-        super(xContentRegistry, request.uri(), new HttpHeadersMap(request.headers()));
+    /**
+     * Construct a new request.
+     *
+     * @param xContentType     the content type
+     * @param xContentRegistry the content registry
+     * @param request          the underlying request
+     * @param channel          the channel for the request
+     * @throws IllegalArgumentException if the parameters can not be decoded
+     */
+    Netty4HttpRequest(XContentType xContentType, NamedXContentRegistry xContentRegistry, FullHttpRequest request, Channel channel) {
+        this(xContentType, xContentRegistry, params(request), uri(request), request, channel);
+    }
+
+    private static Map<String, String> params(FullHttpRequest request) {
+        final String uri = request.uri();
+        final Map<String, String> params = new HashMap<>();
+        int index = uri.indexOf('?');
+        if (index >= 0) {
+            RestUtils.decodeQueryString(uri, index + 1, params);
+        }
+        return params;
+    }
+
+    private static String uri(FullHttpRequest request) {
+        final String uri = request.uri();
+        final int index = uri.indexOf('?');
+        if (index >= 0) {
+            return uri.substring(0, index);
+        } else {
+            return uri;
+        }
+    }
+
+    /**
+     * Construct a new request. In contrast to
+     * {@link Netty4HttpRequest#Netty4HttpRequest(XContentType, NamedXContentRegistry, Map, String, FullHttpRequest, Channel)}, the URI is
+     * not decoded so this method constructor should not throw any exceptions.
+     *
+     * @param xContentType     the content type
+     * @param xContentRegistry the content registry
+     * @param params           the parameters for the request
+     * @param uri              the path for the request
+     * @param request          the underlying request
+     * @param channel          the channel for the request
+     */
+    Netty4HttpRequest(
+            final XContentType xContentType,
+            final NamedXContentRegistry xContentRegistry,
+            final Map<String, String> params,
+            final String uri,
+            final FullHttpRequest request,
+            final Channel channel) {
+        super(xContentType, xContentRegistry, params, uri, new HttpHeadersMap(request.headers()));
         this.request = request;
         this.channel = channel;
         if (request.content().isReadable()) {

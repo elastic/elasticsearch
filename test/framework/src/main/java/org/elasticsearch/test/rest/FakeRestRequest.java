@@ -42,7 +42,7 @@ public class FakeRestRequest extends RestRequest {
 
     private FakeRestRequest(NamedXContentRegistry xContentRegistry, Map<String, List<String>> headers, Map<String, String> params,
                             BytesReference content, Method method, String path, SocketAddress remoteAddress) {
-        super(xContentRegistry, params, path, headers);
+        super(XContentType.JSON, xContentRegistry, params, path, headers);
         this.content = content;
         this.method = method;
         this.remoteAddress = remoteAddress;

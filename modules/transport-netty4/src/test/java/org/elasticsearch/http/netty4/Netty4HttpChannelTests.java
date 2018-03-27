@@ -55,6 +55,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.NullDispatcher;
@@ -211,7 +212,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
             final FullHttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
             httpRequest.headers().add(HttpHeaderNames.ORIGIN, "remote");
             final WriteCapturingChannel writeCapturingChannel = new WriteCapturingChannel();
-            Netty4HttpRequest request = new Netty4HttpRequest(xContentRegistry(), httpRequest, writeCapturingChannel);
+            Netty4HttpRequest request = new Netty4HttpRequest(XContentType.JSON, xContentRegistry(), httpRequest, writeCapturingChannel);
 
             // send a response
             Netty4HttpChannel channel =
@@ -240,7 +241,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
                      new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, registry, new NullDispatcher())) {
             final FullHttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
             final EmbeddedChannel embeddedChannel = new EmbeddedChannel();
-            final Netty4HttpRequest request = new Netty4HttpRequest(registry, httpRequest, embeddedChannel);
+            final Netty4HttpRequest request = new Netty4HttpRequest(XContentType.JSON, registry, httpRequest, embeddedChannel);
             final HttpPipelinedRequest pipelinedRequest = randomBoolean() ? new HttpPipelinedRequest(request.request(), 1) : null;
             final Netty4HttpChannel channel =
                     new Netty4HttpChannel(httpServerTransport, request, pipelinedRequest, randomBoolean(), threadPool.getThreadContext());
@@ -259,7 +260,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
                  new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, registry, new NullDispatcher())) {
             final FullHttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
             final EmbeddedChannel embeddedChannel = new EmbeddedChannel();
-            final Netty4HttpRequest request = new Netty4HttpRequest(registry, httpRequest, embeddedChannel);
+            final Netty4HttpRequest request = new Netty4HttpRequest(XContentType.JSON, registry, httpRequest, embeddedChannel);
             final HttpPipelinedRequest pipelinedRequest = randomBoolean() ? new HttpPipelinedRequest(request.request(), 1) : null;
             final Netty4HttpChannel channel =
                 new Netty4HttpChannel(httpServerTransport, request, pipelinedRequest, randomBoolean(), threadPool.getThreadContext());
@@ -302,7 +303,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
                 }
             }
             final EmbeddedChannel embeddedChannel = new EmbeddedChannel();
-            final Netty4HttpRequest request = new Netty4HttpRequest(xContentRegistry(), httpRequest, embeddedChannel);
+            final Netty4HttpRequest request = new Netty4HttpRequest(XContentType.JSON, xContentRegistry(), httpRequest, embeddedChannel);
 
             // send a response, the channel close status should match
             assertTrue(embeddedChannel.isOpen());
@@ -330,7 +331,8 @@ public class Netty4HttpChannelTests extends ESTestCase {
             }
             httpRequest.headers().add(HttpHeaderNames.HOST, host);
             final WriteCapturingChannel writeCapturingChannel = new WriteCapturingChannel();
-            final Netty4HttpRequest request = new Netty4HttpRequest(xContentRegistry(), httpRequest, writeCapturingChannel);
+            final Netty4HttpRequest request =
+                    new Netty4HttpRequest(XContentType.JSON, xContentRegistry(), httpRequest, writeCapturingChannel);
 
             Netty4HttpChannel channel =
                     new Netty4HttpChannel(httpServerTransport, request, null, randomBoolean(), threadPool.getThreadContext());

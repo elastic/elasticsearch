@@ -31,7 +31,6 @@ import java.io.OutputStream;
 import java.util.Collections;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 
 import static java.util.stream.Collectors.toSet;
 
@@ -49,6 +48,13 @@ public abstract class AbstractRestChannel implements RestChannel {
 
     private BytesStreamOutput bytesOut;
 
+    /**
+     * Construct a channel for handling the request.
+     *
+     * @param request               the request
+     * @param detailedErrorsEnabled if detailed errors should be reported to the channel
+     * @throws IllegalArgumentException if parsing the pretty or human parameters fails
+     */
     protected AbstractRestChannel(RestRequest request, boolean detailedErrorsEnabled) {
         this.request = request;
         this.detailedErrorsEnabled = detailedErrorsEnabled;
@@ -78,17 +84,6 @@ public abstract class AbstractRestChannel implements RestChannel {
      */
     @Override
     public XContentBuilder newBuilder(@Nullable XContentType requestContentType, boolean useFiltering) throws IOException {
-        return newBuilder(requestContentType, useFiltering, filterPath, format, pretty, human, this::bytesOutput);
-    }
-
-    public static XContentBuilder newBuilder(
-            final @Nullable XContentType requestContentType,
-            final boolean useFiltering,
-            final String filterPath,
-            final String format,
-            final boolean pretty,
-            final boolean human,
-            final Supplier<BytesStreamOutput> bytesOutput) throws IOException {
         // try to determine the response content type from the media type or the format query string parameter, with the format parameter
         // taking precedence over the Accept header
         XContentType responseContentType = XContentType.fromMediaTypeOrFormat(format);
@@ -111,9 +106,9 @@ public abstract class AbstractRestChannel implements RestChannel {
             excludes = filters.stream().filter(EXCLUDE_FILTER).map(f -> f.substring(1)).collect(toSet());
         }
 
-        OutputStream unclosableOutputStream = Streams.flushOnCloseStream(bytesOutput.get());
+        OutputStream unclosableOutputStream = Streams.flushOnCloseStream(bytesOutput());
         XContentBuilder builder =
-                new XContentBuilder(XContentFactory.xContent(responseContentType), unclosableOutputStream, includes, excludes);
+            new XContentBuilder(XContentFactory.xContent(responseContentType), unclosableOutputStream, includes, excludes);
         if (pretty) {
             builder.prettyPrint().lfAtEnd();
         }

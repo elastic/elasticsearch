@@ -33,6 +33,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -40,7 +41,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.SocketAddress;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -66,47 +66,23 @@ public abstract class RestRequest implements ToXContent.Params {
     /**
      * Creates a new RestRequest
      * @param xContentRegistry the xContentRegistry to use when parsing XContent
-     * @param uri the URI of the request that potentially contains request parameters
-     * @param headers a map of the headers. This map should implement a Case-Insensitive hashing for keys as HTTP header names are case
-     *                insensitive
-     */
-    public RestRequest(NamedXContentRegistry xContentRegistry, String uri, Map<String, List<String>> headers) {
-        this.xContentRegistry = xContentRegistry;
-        final Map<String, String> params = new HashMap<>();
-        int pathEndPos = uri.indexOf('?');
-        if (pathEndPos < 0) {
-            this.rawPath = uri;
-        } else {
-            this.rawPath = uri.substring(0, pathEndPos);
-            RestUtils.decodeQueryString(uri, pathEndPos + 1, params);
-        }
-        this.params = params;
-        this.headers = Collections.unmodifiableMap(headers);
-        final List<String> contentType = getAllHeaderValues("Content-Type");
-        final XContentType xContentType = parseContentType(contentType);
-        if (xContentType != null) {
-            this.xContentType.set(xContentType);
-        }
-    }
-
-    /**
-     * Creates a new RestRequest
-     * @param xContentRegistry the xContentRegistry to use when parsing XContent
      * @param params the parameters of the request
      * @param path the path of the request. This should not contain request parameters
      * @param headers a map of the headers. This map should implement a Case-Insensitive hashing for keys as HTTP header names are case
      *                insensitive
      */
-    public RestRequest(NamedXContentRegistry xContentRegistry, Map<String, String> params, String path, Map<String, List<String>> headers) {
+    public RestRequest(
+            final XContentType xContentType,
+            final NamedXContentRegistry xContentRegistry,
+            final Map<String, String> params,
+            final String path, Map<String, List<String>> headers) {
+        if (xContentType != null) {
+            this.xContentType.set(xContentType);
+        }
         this.xContentRegistry = xContentRegistry;
         this.params = params;
         this.rawPath = path;
         this.headers = Collections.unmodifiableMap(headers);
-        final List<String> contentType = getAllHeaderValues("Content-Type");
-        final XContentType xContentType = parseContentType(contentType);
-        if (xContentType != null) {
-            this.xContentType.set(xContentType);
-        }
     }
 
     public enum Method {
@@ -306,11 +282,6 @@ public abstract class RestRequest implements ToXContent.Params {
         return Booleans.parseBoolean(param(key), defaultValue);
     }
 
-    @Override
-    public Map<String, String> toMap() {
-        return Collections.unmodifiableMap(params);
-    }
-
     public TimeValue paramAsTime(String key, TimeValue defaultValue) {
         return parseTimeValue(param(key), defaultValue, key);
     }
@@ -405,7 +376,7 @@ public abstract class RestRequest implements ToXContent.Params {
      * Get the content of the request or the contents of the {@code source} param or throw an exception if both are missing.
      * Prefer {@link #contentOrSourceParamParser()} or {@link #withContentOrSourceParamParserOrNull(CheckedConsumer)} if you need a parser.
      */
-    public final Tuple<XContentType, BytesReference> contentOrSourceParam() {
+    public final Tuple<XContentType, BytesReference> contentOrSourceParam() throws IllegalArgumentException {
         if (hasContentOrSourceParam() == false) {
             throw new ElasticsearchParseException("request body or source parameter is required");
         } else if (hasContent()) {

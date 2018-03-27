@@ -20,9 +20,6 @@
 package org.elasticsearch.common.xcontent;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -40,8 +37,6 @@ public interface ToXContent {
         boolean paramAsBoolean(String key, boolean defaultValue);
 
         Boolean paramAsBoolean(String key, Boolean defaultValue);
-
-        Map<String, String> toMap();
     }
 
     Params EMPTY_PARAMS = new Params() {
@@ -65,10 +60,6 @@ public interface ToXContent {
             return defaultValue;
         }
 
-        @Override
-        public Map<String, String> toMap() {
-            return Collections.emptyMap();
-        }
     };
 
     class MapParams implements Params {
@@ -102,11 +93,6 @@ public interface ToXContent {
         public Boolean paramAsBoolean(String key, Boolean defaultValue) {
             return Booleans.parseBoolean(param(key), defaultValue);
         }
-
-        @Override
-        public Map<String, String> toMap() {
-            return Collections.unmodifiableMap(params);
-        }
     }
 
     class DelegatingMapParams extends MapParams {
@@ -136,14 +122,6 @@ public interface ToXContent {
         @Override
         public Boolean paramAsBoolean(String key, Boolean defaultValue) {
             return super.paramAsBoolean(key, delegate.paramAsBoolean(key, defaultValue));
-        }
-
-        @Override
-        public Map<String, String> toMap() {
-            final Map<String, String> map = new HashMap<>();
-            map.putAll(super.toMap());
-            map.putAll(delegate.toMap());
-            return map;
         }
     }
 

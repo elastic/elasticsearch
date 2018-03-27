@@ -23,13 +23,13 @@ public class Step {
     private final String name;
     private final String action;
     private final String phase;
-    private final Step nextStep;
+    private final StepKey nextStepKey;
 
-    public Step(String name, String action, String phase, Step nextStep) {
+    public Step(String name, String action, String phase, StepKey nextStepKey) {
         this.name = name;
         this.action = action;
         this.phase = phase;
-        this.nextStep = nextStep;
+        this.nextStepKey = nextStepKey;
     }
 
     public String getName() {
@@ -44,12 +44,12 @@ public class Step {
         return phase;
     }
 
-    public Step getNextStep() {
-        return nextStep;
+    public StepKey getNextStepKey() {
+        return nextStepKey;
     }
 
     public boolean hasNextStep() {
-        return nextStep != null;
+        return nextStepKey != null;
     }
 
     /**
@@ -97,12 +97,12 @@ public class Step {
         long now = nowSupplier.getAsLong();
         // fetch details about next step to run and update the cluster state with this information
         Settings newLifecyclePhaseSettings = Settings.builder()
-            .put(LifecycleSettings.LIFECYCLE_PHASE, nextStep.getPhase())
+            .put(LifecycleSettings.LIFECYCLE_PHASE, nextStepKey.getPhase())
             .put(LifecycleSettings.LIFECYCLE_PHASE_TIME, now)
             .put(LifecycleSettings.LIFECYCLE_ACTION_TIME, now)
-            .put(LifecycleSettings.LIFECYCLE_ACTION, nextStep.getAction())
+            .put(LifecycleSettings.LIFECYCLE_ACTION, nextStepKey.getAction())
             .put(LifecycleSettings.LIFECYCLE_STEP_TIME, now)
-            .put(LifecycleSettings.LIFECYCLE_STEP, nextStep.getName())
+            .put(LifecycleSettings.LIFECYCLE_STEP, nextStepKey.getName())
             .build();
         return ClusterState.builder(currentState)
             .metaData(MetaData.builder(currentState.metaData())

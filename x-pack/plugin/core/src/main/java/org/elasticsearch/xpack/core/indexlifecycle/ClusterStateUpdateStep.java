@@ -18,8 +18,8 @@ import java.util.function.LongSupplier;
 public class ClusterStateUpdateStep extends Step {
     private final Function<ClusterState, ClusterState> updateTask;
 
-    public ClusterStateUpdateStep(String name, String index, String phase, String action, Step nextStep, Function<ClusterState, ClusterState> updateTask) {
-        super(name, action, phase, nextStep);
+    public ClusterStateUpdateStep(String name, String index, String phase, String action, StepKey nextStepKey, Function<ClusterState, ClusterState> updateTask) {
+        super(name, action, phase, nextStepKey);
         this.updateTask = updateTask;
     }
 

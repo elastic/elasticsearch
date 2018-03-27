@@ -21,7 +21,6 @@ package org.elasticsearch.test.rest;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
 
@@ -38,12 +37,12 @@ public class FakeRestRequest extends RestRequest {
     private final SocketAddress remoteAddress;
 
     public FakeRestRequest() {
-        this(null, NamedXContentRegistry.EMPTY, new HashMap<>(), new HashMap<>(), null, Method.GET, "/", null);
+        this(NamedXContentRegistry.EMPTY, new HashMap<>(), new HashMap<>(), null, Method.GET, "/", null);
     }
 
-    private FakeRestRequest(XContentType xContentType, NamedXContentRegistry xContentRegistry, Map<String, List<String>> headers,
+    private FakeRestRequest(NamedXContentRegistry xContentRegistry, Map<String, List<String>> headers,
                             Map<String, String> params, BytesReference content, Method method, String path, SocketAddress remoteAddress) {
-        super(xContentType, xContentRegistry, params, path, headers);
+        super(xContentRegistry, params, path, headers);
         this.content = content;
         this.method = method;
         this.remoteAddress = remoteAddress;
@@ -83,8 +82,6 @@ public class FakeRestRequest extends RestRequest {
 
         private BytesReference content;
 
-        private XContentType xContentType;
-
         private String path = "/";
 
         private Method method = Method.GET;
@@ -108,7 +105,6 @@ public class FakeRestRequest extends RestRequest {
         public Builder withContent(BytesReference content, XContentType xContentType) {
             this.content = content;
             if (xContentType != null) {
-                this.xContentType = xContentType;
                 headers.put("Content-Type", Collections.singletonList(xContentType.mediaType()));
             }
             return this;
@@ -130,7 +126,7 @@ public class FakeRestRequest extends RestRequest {
         }
 
         public FakeRestRequest build() {
-            return new FakeRestRequest(xContentType, xContentRegistry, headers, params, content, method, path, address);
+            return new FakeRestRequest(xContentRegistry, headers, params, content, method, path, address);
         }
 
     }

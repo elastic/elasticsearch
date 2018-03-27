@@ -166,7 +166,7 @@ public class BytesRestResponseTests extends ESTestCase {
     public void testResponseWhenPathContainsEncodingError() throws IOException {
         final String path = "%a";
         final RestRequest request =
-                new RestRequest(null, NamedXContentRegistry.EMPTY, Collections.emptyMap(), path, Collections.emptyMap()) {
+                new RestRequest(NamedXContentRegistry.EMPTY, Collections.emptyMap(), path, Collections.emptyMap()) {
                     @Override
                     public Method method() {
                         return null;

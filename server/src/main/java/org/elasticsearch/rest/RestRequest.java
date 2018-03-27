@@ -40,6 +40,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.SocketAddress;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -62,6 +63,32 @@ public abstract class RestRequest implements ToXContent.Params {
     private final Set<String> consumedParams = new HashSet<>();
     private final SetOnce<XContentType> xContentType = new SetOnce<>();
 
+    public RestRequest(final NamedXContentRegistry xContentRegistry, final String uri, final Map<String, List<String>> headers) {
+        this(xContentRegistry, params(uri), path(uri), headers);
+    }
+
+    private static Map<String, String> params(final String uri) {
+        final Map<String, String> params = new HashMap<>();
+        int index = uri.indexOf('?');
+        if (index >= 0) {
+            try {
+                RestUtils.decodeQueryString(uri, index + 1, params);
+            } catch (final IllegalArgumentException e) {
+                throw new BadParameterException(e);
+            }
+        }
+        return params;
+    }
+
+    private static String path(final String uri) {
+        final int index = uri.indexOf('?');
+        if (index >= 0) {
+            return uri.substring(0, index);
+        } else {
+            return uri;
+        }
+    }
+
     /**
      * Creates a new RestRequest
      * @param xContentRegistry the xContentRegistry to use when parsing XContent
@@ -71,10 +98,16 @@ public abstract class RestRequest implements ToXContent.Params {
      *                insensitive
      */
     public RestRequest(
-            final XContentType xContentType,
             final NamedXContentRegistry xContentRegistry,
             final Map<String, String> params,
-            final String path, Map<String, List<String>> headers) {
+            final String path,
+            final Map<String, List<String>> headers) {
+        final XContentType xContentType;
+        try {
+            xContentType = parseContentType(headers.get("Content-Type"));
+        } catch (final IllegalArgumentException e) {
+            throw new ContentTypeHeaderException(e);
+        }
         if (xContentType != null) {
             this.xContentType.set(xContentType);
         }
@@ -417,6 +450,22 @@ public abstract class RestRequest implements ToXContent.Params {
             }
         }
         throw new IllegalArgumentException("empty Content-Type header");
+    }
+
+    public static class ContentTypeHeaderException extends RuntimeException {
+
+        ContentTypeHeaderException(final IllegalArgumentException cause) {
+            super(cause);
+        }
+
+    }
+
+    public static class BadParameterException extends RuntimeException {
+
+        BadParameterException(final IllegalArgumentException cause) {
+            super(cause);
+        }
+
     }
 
 }

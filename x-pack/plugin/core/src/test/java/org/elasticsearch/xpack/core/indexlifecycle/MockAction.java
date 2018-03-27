@@ -6,8 +6,6 @@
 package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -15,15 +13,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.LongSupplier;
 
 public class MockAction implements LifecycleAction {
     public static final ParseField COMPLETED_FIELD = new ParseField("completed");
@@ -89,7 +84,7 @@ public class MockAction implements LifecycleAction {
     }
 
     @Override
-    public List<Step> toSteps(String phase, Index index, Client client, ThreadPool threadPool, LongSupplier nowSupplier) {
+    public List<Step> toSteps(String phase) {
         return steps;
     }
 

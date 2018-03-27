@@ -97,36 +97,36 @@ public class ForceMergeAction implements LifecycleAction {
     }
 
     @Override
-    public List<Step> toSteps(String phase, Index index, Client client, ThreadPool threadPool, LongSupplier nowSupplier) {
-        ClusterStateUpdateStep readOnlyStep = new ClusterStateUpdateStep(
-            "read_only", NAME, phase, index.getName(), (currentState) -> {
-            Settings readOnlySettings = Settings.builder().put(IndexMetaData.SETTING_BLOCKS_WRITE, true).build();
-            return ClusterState.builder(currentState).metaData(MetaData.builder(currentState.metaData())
-                .updateSettings(readOnlySettings, index.getName())).build();
-        });
+    public List<Step> toSteps(String phase) {
+//        ClusterStateUpdateStep readOnlyStep = new ClusterStateUpdateStep(
+//            "read_only", NAME, phase, index.getName(), (currentState) -> {
+//            Settings readOnlySettings = Settings.builder().put(IndexMetaData.SETTING_BLOCKS_WRITE, true).build();
+//            return ClusterState.builder(currentState).metaData(MetaData.builder(currentState.metaData())
+//                .updateSettings(readOnlySettings, index.getName())).build();
+//        });
+//
+//        ClientStep<IndicesSegmentsRequestBuilder, IndicesSegmentResponse> segmentCount = new ClientStep<>( "segment_count",
+//            NAME, phase, index.getName(),
+//            client.admin().indices().prepareSegments(index.getName()),
+//            currentState -> false, response -> {
+//                // check if has too many segments
+//                return StreamSupport.stream(response.getIndices().get(index.getName()).spliterator(), false)
+//                    .anyMatch(iss -> Arrays.stream(iss.getShards()).anyMatch(p -> p.getSegments().size() > maxNumSegments));
+//        });
+//
+//        ClientStep forceMerge = new ClientStep<ForceMergeRequestBuilder, ForceMergeResponse>( "force_merge",
+//            NAME, phase, index.getName(),
+//            client.admin().indices().prepareForceMerge(index.getName()).setMaxNumSegments(maxNumSegments),
+//            currentState -> false, response -> RestStatus.OK.equals(response.getStatus()));
+//
+//        ClusterStateUpdateStep readWriteStep = new ClusterStateUpdateStep(
+//            "read_only", NAME, phase, index.getName(), (currentState) -> {
+//            Settings readOnlySettings = Settings.builder().put(IndexMetaData.SETTING_BLOCKS_WRITE, false).build();
+//            return ClusterState.builder(currentState).metaData(MetaData.builder(currentState.metaData())
+//                .updateSettings(readOnlySettings, index.getName())).build();
+//        });
 
-        ClientStep<IndicesSegmentsRequestBuilder, IndicesSegmentResponse> segmentCount = new ClientStep<>( "segment_count",
-            NAME, phase, index.getName(),
-            client.admin().indices().prepareSegments(index.getName()),
-            currentState -> false, response -> {
-                // check if has too many segments
-                return StreamSupport.stream(response.getIndices().get(index.getName()).spliterator(), false)
-                    .anyMatch(iss -> Arrays.stream(iss.getShards()).anyMatch(p -> p.getSegments().size() > maxNumSegments));
-        });
-
-        ClientStep forceMerge = new ClientStep<ForceMergeRequestBuilder, ForceMergeResponse>( "force_merge",
-            NAME, phase, index.getName(),
-            client.admin().indices().prepareForceMerge(index.getName()).setMaxNumSegments(maxNumSegments),
-            currentState -> false, response -> RestStatus.OK.equals(response.getStatus()));
-
-        ClusterStateUpdateStep readWriteStep = new ClusterStateUpdateStep(
-            "read_only", NAME, phase, index.getName(), (currentState) -> {
-            Settings readOnlySettings = Settings.builder().put(IndexMetaData.SETTING_BLOCKS_WRITE, false).build();
-            return ClusterState.builder(currentState).metaData(MetaData.builder(currentState.metaData())
-                .updateSettings(readOnlySettings, index.getName())).build();
-        });
-
-        return Arrays.asList(readOnlyStep, segmentCount, forceMerge, readWriteStep);
+        return Arrays.asList();
     }
 
     @Override

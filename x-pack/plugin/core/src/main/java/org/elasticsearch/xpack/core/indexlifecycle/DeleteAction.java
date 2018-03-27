@@ -22,6 +22,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.LongSupplier;
@@ -67,11 +68,12 @@ public class DeleteAction implements LifecycleAction {
     }
 
     @Override
-    public List<Step> toSteps(String phase, Index index, Client client, ThreadPool threadPool, LongSupplier nowSupplier) {
-        String indexName = index.getName();
-        return Collections.singletonList(new ClientStep<DeleteIndexRequestBuilder, DeleteIndexResponse>( "delete",
-            NAME, phase, indexName, client.admin().indices().prepareDelete(indexName),
-            clusterState -> clusterState.metaData().hasIndex(indexName), response -> true));
+    public List<Step> toSteps(String phase) {
+//        String indexName = index.getName();
+//        return Collections.singletonList(new ClientStep<DeleteIndexRequestBuilder, DeleteIndexResponse>( "delete",
+//            NAME, phase, indexName, client.admin().indices().prepareDelete(indexName),
+//            clusterState -> clusterState.metaData().hasIndex(indexName), response -> true));
+        return Arrays.asList();
     }
 
     @Override

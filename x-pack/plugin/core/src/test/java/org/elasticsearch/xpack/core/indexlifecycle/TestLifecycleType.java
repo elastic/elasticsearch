@@ -5,14 +5,12 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy.NextActionProvider;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 public class TestLifecycleType implements LifecycleType {
     public static final TestLifecycleType INSTANCE = new TestLifecycleType();
@@ -41,31 +39,41 @@ public class TestLifecycleType implements LifecycleType {
 //        return a -> Optional.ofNullable(phase.getActions().entrySet().iterator().next()).map(Map.Entry::getValue).orElse(null);
 //    }
 
-    @Override
-    public Phase getFirstPhase(Map<String, Phase> phases) {
-        return phases.values().iterator().next();
-    }
-
-    @Override
-    public Phase nextPhase(Map<String, Phase> phases, @Nullable Phase currentPhase) {
-        if (currentPhase == null) {
-            return getFirstPhase(phases);
-        }
-
-        boolean foundPhase = false;
-        for (Phase phase : phases.values()) {
-            if (foundPhase) {
-                return phase;
-            } else if (phase.equals(currentPhase)) {
-                foundPhase = true;
-            }
-        }
-
-        return null;
-    }
+//    @Override
+//    public Phase getFirstPhase(Map<String, Phase> phases) {
+//        return phases.values().iterator().next();
+//    }
+//
+//    @Override
+//    public Phase nextPhase(Map<String, Phase> phases, @Nullable Phase currentPhase) {
+//        if (currentPhase == null) {
+//            return getFirstPhase(phases);
+//        }
+//
+//        boolean foundPhase = false;
+//        for (Phase phase : phases.values()) {
+//            if (foundPhase) {
+//                return phase;
+//            } else if (phase.equals(currentPhase)) {
+//                foundPhase = true;
+//            }
+//        }
+//
+//        return null;
+//    }
 
     @Override
     public void validate(Collection<Phase> phases) {
         // always valid
+    }
+
+    @Override
+    public List<Phase> getOrderedPhases(Map<String, Phase> phases) {
+        return null;
+    }
+
+    @Override
+    public List<LifecycleAction> getOrderedActions(Phase phase) {
+        return null;
     }
 }

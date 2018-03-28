@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
@@ -72,11 +73,11 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
 
     public static final String NAME = "logfile";
     public static final Setting<Boolean> HOST_ADDRESS_SETTING =
-            Setting.boolSetting(setting("audit.logfile.prefix.emit_node_host_address"), false, Property.NodeScope);
+            Setting.boolSetting(setting("audit.logfile.prefix.emit_node_host_address"), false, Property.NodeScope, Property.Dynamic);
     public static final Setting<Boolean> HOST_NAME_SETTING =
-            Setting.boolSetting(setting("audit.logfile.prefix.emit_node_host_name"), false, Property.NodeScope);
+            Setting.boolSetting(setting("audit.logfile.prefix.emit_node_host_name"), false, Property.NodeScope, Property.Dynamic);
     public static final Setting<Boolean> NODE_NAME_SETTING =
-            Setting.boolSetting(setting("audit.logfile.prefix.emit_node_name"), true, Property.NodeScope);
+            Setting.boolSetting(setting("audit.logfile.prefix.emit_node_name"), true, Property.NodeScope, Property.Dynamic);
     private static final List<String> DEFAULT_EVENT_INCLUDES = Arrays.asList(
             ACCESS_DENIED.toString(),
             ACCESS_GRANTED.toString(),
@@ -87,35 +88,37 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
             RUN_AS_DENIED.toString(),
             RUN_AS_GRANTED.toString()
     );
-    private static final Setting<List<String>> INCLUDE_EVENT_SETTINGS =
-            Setting.listSetting(setting("audit.logfile.events.include"), DEFAULT_EVENT_INCLUDES, Function.identity(), Property.NodeScope);
-    private static final Setting<List<String>> EXCLUDE_EVENT_SETTINGS =
-            Setting.listSetting(setting("audit.logfile.events.exclude"), Collections.emptyList(), Function.identity(), Property.NodeScope);
-    private static final Setting<Boolean> INCLUDE_REQUEST_BODY =
-            Setting.boolSetting(setting("audit.logfile.events.emit_request_body"), false, Property.NodeScope);
+    public static final Setting<List<String>> INCLUDE_EVENT_SETTINGS =
+            Setting.listSetting(setting("audit.logfile.events.include"), DEFAULT_EVENT_INCLUDES, Function.identity(), Property.NodeScope,
+                    Property.Dynamic);
+    public static final Setting<List<String>> EXCLUDE_EVENT_SETTINGS =
+            Setting.listSetting(setting("audit.logfile.events.exclude"), Collections.emptyList(), Function.identity(), Property.NodeScope,
+                    Property.Dynamic);
+    public static final Setting<Boolean> INCLUDE_REQUEST_BODY =
+            Setting.boolSetting(setting("audit.logfile.events.emit_request_body"), false, Property.NodeScope, Property.Dynamic);
     private static final String FILTER_POLICY_PREFIX = setting("audit.logfile.events.ignore_filters.");
     // because of the default wildcard value (*) for the field filter, a policy with
     // an unspecified filter field will match events that have any value for that
     // particular field, as well as events with that particular field missing
     private static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_PRINCIPALS =
             Setting.affixKeySetting(FILTER_POLICY_PREFIX, "users", (key) -> Setting.listSetting(key, Collections.singletonList("*"),
-                    Function.identity(), Setting.Property.NodeScope, Setting.Property.Dynamic));
+                    Function.identity(), Property.NodeScope, Property.Dynamic));
     private static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_REALMS =
             Setting.affixKeySetting(FILTER_POLICY_PREFIX, "realms", (key) -> Setting.listSetting(key, Collections.singletonList("*"),
-                    Function.identity(), Setting.Property.NodeScope, Setting.Property.Dynamic));
+                    Function.identity(), Property.NodeScope, Property.Dynamic));
     private static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_ROLES =
             Setting.affixKeySetting(FILTER_POLICY_PREFIX, "roles", (key) -> Setting.listSetting(key, Collections.singletonList("*"),
-                    Function.identity(), Setting.Property.NodeScope, Setting.Property.Dynamic));
+                    Function.identity(), Property.NodeScope, Property.Dynamic));
     private static final Setting.AffixSetting<List<String>> FILTER_POLICY_IGNORE_INDICES =
             Setting.affixKeySetting(FILTER_POLICY_PREFIX, "indices", (key) -> Setting.listSetting(key, Collections.singletonList("*"),
-                    Function.identity(), Setting.Property.NodeScope, Setting.Property.Dynamic));
+                    Function.identity(), Property.NodeScope, Property.Dynamic));
 
     private final Logger logger;
-    private final EnumSet<AuditLevel> events;
-    private final boolean includeRequestBody;
-    // protected for testing
     final EventFilterPolicyRegistry eventFilterPolicyRegistry;
     private final ThreadContext threadContext;
+    // protected for testing
+    volatile EnumSet<AuditLevel> events;
+    volatile boolean includeRequestBody;
     volatile LocalNodeInfo localNodeInfo;
 
     @Override
@@ -136,6 +139,17 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
         this.localNodeInfo = new LocalNodeInfo(settings, null);
         this.eventFilterPolicyRegistry = new EventFilterPolicyRegistry(settings);
         clusterService.addListener(this);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(newSettings -> {
+            this.includeRequestBody = INCLUDE_REQUEST_BODY.get(newSettings);
+        }, Arrays.asList(INCLUDE_REQUEST_BODY));
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(newSettings -> {
+            this.events = parse(INCLUDE_EVENT_SETTINGS.get(newSettings), EXCLUDE_EVENT_SETTINGS.get(newSettings));
+        }, Arrays.asList(INCLUDE_EVENT_SETTINGS, EXCLUDE_EVENT_SETTINGS));
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(newSettings -> {
+            final LocalNodeInfo localNodeInfo = this.localNodeInfo;
+            final Settings.Builder builder = Settings.builder().put(localNodeInfo.settings).put(newSettings, false);
+            this.localNodeInfo = new LocalNodeInfo(builder.build(), localNodeInfo.localNode);
+        }, Arrays.asList(HOST_ADDRESS_SETTING, HOST_NAME_SETTING, NODE_NAME_SETTING));
         clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_PRINCIPALS, (policyName, filtersList) -> {
             final Optional<EventFilterPolicy> policy = eventFilterPolicyRegistry.get(policyName);
             final EventFilterPolicy newPolicy = policy.orElse(new EventFilterPolicy(policyName, settings))
@@ -788,19 +802,21 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
 
     void updateLocalNodeInfo(DiscoveryNode newLocalNode) {
         // check if local node changed
-        final DiscoveryNode localNode = localNodeInfo.localNode;
-        if ((localNode == null) || (localNode.equals(newLocalNode) == false)) {
+        final LocalNodeInfo localNodeInfo = this.localNodeInfo;
+        if ((localNodeInfo.localNode == null) || (localNodeInfo.localNode.equals(newLocalNode) == false)) {
             // no need to synchronize, called only from the cluster state applier thread
-            localNodeInfo = new LocalNodeInfo(settings, newLocalNode);
+            this.localNodeInfo = new LocalNodeInfo(localNodeInfo.settings, newLocalNode);
         }
     }
 
     static class LocalNodeInfo {
+        private final Settings settings;
         private final DiscoveryNode localNode;
-        private final String prefix;
+        final String prefix;
         private final String localOriginTag;
 
         LocalNodeInfo(Settings settings, @Nullable DiscoveryNode newLocalNode) {
+            this.settings = settings;
             this.localNode = newLocalNode;
             this.prefix = resolvePrefix(settings, newLocalNode);
             this.localOriginTag = localOriginTag(newLocalNode);
@@ -821,7 +837,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
                 }
             }
             if (NODE_NAME_SETTING.get(settings)) {
-                final String name = settings.get("name");
+                final String name = Node.NODE_NAME_SETTING.get(settings);
                 if (name != null) {
                     builder.append("[").append(name).append("] ");
                 }

@@ -12,13 +12,17 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.regex.Pattern;
+
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -26,7 +30,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ClusterScope(scope = TEST, numDataNodes = 1)
-public class AuditTrailFilteringUpdateTests extends SecurityIntegTestCase {
+public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
 
     private static Settings startupFilterSettings;
     private static Settings updateFilterSettings;
@@ -64,7 +68,7 @@ public class AuditTrailFilteringUpdateTests extends SecurityIntegTestCase {
         return settingsBuilder.build();
     }
 
-    public void testDynamicSettings() throws Exception {
+    public void testDynamicFilterSettings() throws Exception {
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterSettings clusterSettings = mockClusterSettings();
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
@@ -76,7 +80,7 @@ public class AuditTrailFilteringUpdateTests extends SecurityIntegTestCase {
         final LoggingAuditTrail auditTrail = new LoggingAuditTrail(settingsBuilder.build(), clusterService, logger, threadContext);
         final String expected = auditTrail.eventFilterPolicyRegistry.toString();
         // update settings on internal cluster
-        updateSettings(updateFilterSettings);
+        updateSettings(updateFilterSettings, randomBoolean());
         final String actual = ((LoggingAuditTrail) internalCluster().getInstances(AuditTrailService.class)
                 .iterator()
                 .next()
@@ -86,7 +90,7 @@ public class AuditTrailFilteringUpdateTests extends SecurityIntegTestCase {
         assertEquals(expected, actual);
     }
 
-    public void testInvalidSettings() throws Exception {
+    public void testInvalidFilterSettings() throws Exception {
         final String invalidLuceneRegex = "/invalid";
         final Settings.Builder settingsBuilder = Settings.builder();
         final String[] allSettingsKeys = new String[] { "xpack.security.audit.logfile.events.ignore_filters.invalid.users",
@@ -99,8 +103,72 @@ public class AuditTrailFilteringUpdateTests extends SecurityIntegTestCase {
         assertThat(e.getMessage(), containsString("illegal value can't update"));
     }
 
-    private void updateSettings(Settings settings) {
-        if (randomBoolean()) {
+    public void testDynamicHostSettings() {
+        final boolean persistent = randomBoolean();
+        final Settings.Builder settingsBuilder = Settings.builder();
+        settingsBuilder.put(LoggingAuditTrail.HOST_ADDRESS_SETTING.getKey(), true);
+        settingsBuilder.put(LoggingAuditTrail.HOST_NAME_SETTING.getKey(), true);
+        settingsBuilder.put(LoggingAuditTrail.NODE_NAME_SETTING.getKey(), true);
+        updateSettings(settingsBuilder.build(), persistent);
+        final LoggingAuditTrail loggingAuditTrail = ((LoggingAuditTrail) internalCluster().getInstances(AuditTrailService.class)
+                .iterator()
+                .next()
+                .getAuditTrails()
+                .iterator()
+                .next());
+        assertTrue(Pattern.matches("\\[127\\.0\\.0\\.1\\] \\[127\\.0\\.0\\.1\\] \\[node_.*\\] ", loggingAuditTrail.localNodeInfo.prefix));
+        settingsBuilder.put(LoggingAuditTrail.HOST_ADDRESS_SETTING.getKey(), false);
+        updateSettings(settingsBuilder.build(), persistent);
+        assertTrue(Pattern.matches("\\[127\\.0\\.0\\.1\\] \\[node_.*\\] ", loggingAuditTrail.localNodeInfo.prefix));
+        settingsBuilder.put(LoggingAuditTrail.HOST_ADDRESS_SETTING.getKey(), true);
+        settingsBuilder.put(LoggingAuditTrail.HOST_NAME_SETTING.getKey(), false);
+        updateSettings(settingsBuilder.build(), persistent);
+        assertTrue(Pattern.matches("\\[127\\.0\\.0\\.1\\] \\[node_.*\\] ", loggingAuditTrail.localNodeInfo.prefix));
+        settingsBuilder.put(LoggingAuditTrail.HOST_NAME_SETTING.getKey(), true);
+        settingsBuilder.put(LoggingAuditTrail.NODE_NAME_SETTING.getKey(), false);
+        updateSettings(settingsBuilder.build(), persistent);
+        assertTrue(Pattern.matches("\\[127\\.0\\.0\\.1\\] \\[127\\.0\\.0\\.1\\] ", loggingAuditTrail.localNodeInfo.prefix));
+    }
+
+    public void testDynamicRequestBodySettings() {
+        final boolean persistent = randomBoolean();
+        final boolean enableRequestBody = randomBoolean();
+        final Settings.Builder settingsBuilder = Settings.builder();
+        settingsBuilder.put(LoggingAuditTrail.INCLUDE_REQUEST_BODY.getKey(), enableRequestBody);
+        updateSettings(settingsBuilder.build(), persistent);
+        final LoggingAuditTrail loggingAuditTrail = ((LoggingAuditTrail) internalCluster().getInstances(AuditTrailService.class)
+                .iterator()
+                .next()
+                .getAuditTrails()
+                .iterator()
+                .next());
+        assertEquals(enableRequestBody, loggingAuditTrail.includeRequestBody);
+        settingsBuilder.put(LoggingAuditTrail.INCLUDE_REQUEST_BODY.getKey(), !enableRequestBody);
+        updateSettings(settingsBuilder.build(), persistent);
+        assertEquals(!enableRequestBody, loggingAuditTrail.includeRequestBody);
+    }
+
+    public void testDynamicEventsSettings() {
+        final List<String> allEventTypes = Arrays.asList("anonymous_access_denied", "authentication_failed", "realm_authentication_failed",
+                "access_granted", "access_denied", "tampered_request", "connection_granted", "connection_denied", "system_access_granted",
+                "authentication_success", "run_as_granted", "run_as_denied");
+        final List<String> includedEvents = randomSubsetOf(allEventTypes);
+        final List<String> excludedEvents = randomSubsetOf(allEventTypes);
+        final Settings.Builder settingsBuilder = Settings.builder();
+        settingsBuilder.putList(LoggingAuditTrail.INCLUDE_EVENT_SETTINGS.getKey(), includedEvents);
+        settingsBuilder.putList(LoggingAuditTrail.EXCLUDE_EVENT_SETTINGS.getKey(), excludedEvents);
+        updateSettings(settingsBuilder.build(), randomBoolean());
+        final LoggingAuditTrail loggingAuditTrail = ((LoggingAuditTrail) internalCluster().getInstances(AuditTrailService.class)
+                .iterator()
+                .next()
+                .getAuditTrails()
+                .iterator()
+                .next());
+        assertEquals(AuditLevel.parse(includedEvents, excludedEvents), loggingAuditTrail.events);
+    }
+
+    private void updateSettings(Settings settings, boolean persistent) {
+        if (persistent) {
             assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
         } else {
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));

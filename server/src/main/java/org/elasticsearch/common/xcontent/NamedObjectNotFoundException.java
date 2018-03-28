@@ -17,25 +17,19 @@
  * under the License.
  */
 
-apply plugin: 'elasticsearch.vagrantsupport'
-apply plugin: 'elasticsearch.vagrant'
+package org.elasticsearch.common.xcontent;
 
-List<String> plugins = []
-for (Project subproj : project.rootProject.subprojects) {
-  if (subproj.path.startsWith(':plugins:') || subproj.path.equals(':example-plugins:custom-settings')) {
-    // add plugin as a dep
-    dependencies {
-      packaging project(path: "${subproj.path}", configuration: 'zip')
+/**
+ * Thrown when {@link NamedXContentRegistry} cannot locate a named object to
+ * parse for a particular name
+ */
+public class NamedObjectNotFoundException extends XContentParseException {
+
+    public NamedObjectNotFoundException(String message) {
+        this(null, message);
     }
-    plugins.add(subproj.name)
-  }
-}
-plugins = plugins.toSorted()
 
-setupPackagingTest {
-  doFirst {
-    File expectedPlugins = file('build/plugins/expected')
-    expectedPlugins.parentFile.mkdirs()
-    expectedPlugins.setText(plugins.join('\n'), 'UTF-8')
-  }
+    public NamedObjectNotFoundException(XContentLocation location, String message) {
+        super(location, message);
+    }
 }

@@ -58,7 +58,7 @@ import java.time.ZonedDateTime
 class BuildPlugin implements Plugin<Project> {
 
     static final JavaVersion minimumRuntimeVersion = JavaVersion.VERSION_1_8
-    static final JavaVersion minimumCompilerVersion = JavaVersion.VERSION_1_9
+    static final JavaVersion minimumCompilerVersion = JavaVersion.VERSION_1_10
 
     @Override
     void apply(Project project) {

@@ -22,6 +22,7 @@ package org.elasticsearch.index.replication;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.bulk.BulkItemRequest;
@@ -30,11 +31,13 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.BulkShardResponse;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkActionTests;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.resync.ResyncReplicationRequest;
 import org.elasticsearch.action.resync.ResyncReplicationResponse;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -618,6 +621,13 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         return result;
     }
 
+    private <Request extends ReplicatedWriteRequest & DocWriteRequest>
+    BulkShardRequest executeReplicationRequestOnPrimary(IndexShard primary, Request request) throws Exception {
+        final BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, request.getRefreshPolicy(),
+            new BulkItemRequest[]{new BulkItemRequest(0, request)});
+        return executeShardBulkOnPrimary(primary, bulkShardRequest).replicaRequest();
+    }
+
     private void executeShardBulkOnReplica(BulkShardRequest request, IndexShard replica, long operationPrimaryTerm, long globalCheckpointOnPrimary) throws Exception {
         final PlainActionFuture<Releasable> permitAcquiredFuture = new PlainActionFuture<>();
         replica.acquireReplicaOperationPermit(operationPrimaryTerm, globalCheckpointOnPrimary, permitAcquiredFuture, ThreadPool.Names.SAME, request);
@@ -632,19 +642,27 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
      * indexes the given requests on the supplied primary, modifying it for replicas
      */
     BulkShardRequest indexOnPrimary(IndexRequest request, IndexShard primary) throws Exception {
-        final BulkItemRequest bulkItemRequest = new BulkItemRequest(0, request);
-        BulkItemRequest[] bulkItemRequests = new BulkItemRequest[1];
-        bulkItemRequests[0] = bulkItemRequest;
-        final BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, request.getRefreshPolicy(), bulkItemRequests);
-        final TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse> result =
-                executeShardBulkOnPrimary(primary, bulkShardRequest);
-        return result.replicaRequest();
+        return executeReplicationRequestOnPrimary(primary, request);
+    }
+
+    /**
+     * Executes the delete request on the primary, and modifies it for replicas.
+     */
+    BulkShardRequest deleteOnPrimary(DeleteRequest request, IndexShard primary) throws Exception {
+        return executeReplicationRequestOnPrimary(primary, request);
     }
 
     /**
      * indexes the given requests on the supplied replica shard
      */
     void indexOnReplica(BulkShardRequest request, ReplicationGroup group, IndexShard replica) throws Exception {
+        executeShardBulkOnReplica(request, replica, group.primary.getPrimaryTerm(), group.primary.getGlobalCheckpoint());
+    }
+
+    /**
+     * Executes the delete request on the given replica shard.
+     */
+    void deleteOnReplica(BulkShardRequest request, ReplicationGroup group, IndexShard replica) throws Exception {
         executeShardBulkOnReplica(request, replica, group.primary.getPrimaryTerm(), group.primary.getGlobalCheckpoint());
     }
 

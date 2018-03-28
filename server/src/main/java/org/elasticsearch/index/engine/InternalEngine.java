@@ -81,6 +81,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -136,6 +137,7 @@ public class InternalEngine extends Engine {
     private final AtomicBoolean pendingTranslogRecovery = new AtomicBoolean(false);
     public static final String MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID = "max_unsafe_auto_id_timestamp";
     private final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
+    private final AtomicLong maxSeqNoOfNonAppendOnlyOperations = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
     private final CounterMetric numVersionLookups = new CounterMetric();
     private final CounterMetric numIndexVersionsLookups = new CounterMetric();
     /**
@@ -186,7 +188,7 @@ public class InternalEngine extends Engine {
                 this.combinedDeletionPolicy = new CombinedDeletionPolicy(logger, translogDeletionPolicy,
                     translog::getLastSyncedGlobalCheckpoint, startingCommit);
                 writer = createWriter(startingCommit);
-                updateMaxUnsafeAutoIdTimestampFromWriter(writer);
+                bootstrapAppendOnlyInfoFromWriter(writer);
                 historyUUID = loadOrGenerateHistoryUUID(writer);
                 Objects.requireNonNull(historyUUID, "history uuid should not be null");
                 indexWriter = writer;
@@ -345,15 +347,20 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private void updateMaxUnsafeAutoIdTimestampFromWriter(IndexWriter writer) {
-        long commitMaxUnsafeAutoIdTimestamp = Long.MIN_VALUE;
+    private void bootstrapAppendOnlyInfoFromWriter(IndexWriter writer) {
         for (Map.Entry<String, String> entry : writer.getLiveCommitData()) {
-            if (entry.getKey().equals(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID)) {
-                commitMaxUnsafeAutoIdTimestamp = Long.parseLong(entry.getValue());
-                break;
+            final String key = entry.getKey();
+            if (key.equals(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID)) {
+                assert maxUnsafeAutoIdTimestamp.get() == -1 :
+                    "max unsafe timestamp was assigned already [" + maxUnsafeAutoIdTimestamp.get() + "]";
+                maxUnsafeAutoIdTimestamp.set(Long.parseLong(entry.getValue()));
+            }
+            if (key.equals(SequenceNumbers.MAX_SEQ_NO)) {
+                assert maxSeqNoOfNonAppendOnlyOperations.get() == -1 :
+                    "max unsafe append-only seq# was assigned already [" + maxSeqNoOfNonAppendOnlyOperations.get() + "]";
+                maxSeqNoOfNonAppendOnlyOperations.set(Long.parseLong(entry.getValue()));
             }
         }
-        maxUnsafeAutoIdTimestamp.set(Math.max(maxUnsafeAutoIdTimestamp.get(), commitMaxUnsafeAutoIdTimestamp));
     }
 
     @Override
@@ -802,11 +809,24 @@ public class InternalEngine extends Engine {
     protected final IndexingStrategy planIndexingAsNonPrimary(Index index) throws IOException {
         assertNonPrimaryOrigin(index);
         final IndexingStrategy plan;
-        if (canOptimizeAddDocument(index) && mayHaveBeenIndexedBefore(index) == false) {
-            // no need to deal with out of order delivery - we never saw this one
+        final boolean appendOnlyRequest = canOptimizeAddDocument(index);
+        if (appendOnlyRequest && mayHaveBeenIndexedBefore(index) == false && index.seqNo() > maxSeqNoOfNonAppendOnlyOperations.get()) {
+            /*
+             * As soon as an append-only request was indexed into the primary, it can be exposed to a search then users can issue
+             * a follow-up operation on it. In rare cases, the follow up operation can be arrived and processed on a replica before
+             * the original append-only. In this case we can't simply proceed with the append only without consulting the version map.
+             * If a replica has seen a non-append-only operation with a higher seqno than the seqno of an append-only, it may have seen
+             * the document of that append-only request. However if the seqno of an append-only is higher than seqno of any non-append-only
+             * requests, we can assert the replica have not seen the document of that append-only request, thus we can apply optimization.
+             */
             assert index.version() == 1L : "can optimize on replicas but incoming version is [" + index.version() + "]";
             plan = IndexingStrategy.optimizedAppendOnly(index.seqNo());
         } else {
+            if (appendOnlyRequest == false) {
+                maxSeqNoOfNonAppendOnlyOperations.updateAndGet(curr -> Math.max(index.seqNo(), curr));
+                assert maxSeqNoOfNonAppendOnlyOperations.get() >= index.seqNo() : "max_seqno of non-append-only was not updated;" +
+                    "max_seqno non-append-only [" + maxSeqNoOfNonAppendOnlyOperations.get() + "], seqno of index [" + index.seqNo() + "]";
+            }
             versionMap.enforceSafeAccess();
             // drop out of order operations
             assert index.versionType().versionTypeForReplicationAndRecovery() == index.versionType() :
@@ -948,6 +968,11 @@ public class InternalEngine extends Engine {
             mayHaveBeenIndexBefore = maxUnsafeAutoIdTimestamp.get() >= index.getAutoGeneratedIdTimestamp();
         }
         return mayHaveBeenIndexBefore;
+    }
+
+    // for testing
+    long getMaxSeqNoOfNonAppendOnlyOperations() {
+        return maxSeqNoOfNonAppendOnlyOperations.get();
     }
 
     private static void index(final List<ParseContext.Document> docs, final IndexWriter indexWriter) throws IOException {
@@ -1109,6 +1134,9 @@ public class InternalEngine extends Engine {
         assert delete.versionType().versionTypeForReplicationAndRecovery() == delete.versionType() :
             "resolving out of order delivery based on versioning but version type isn't fit for it. got ["
                 + delete.versionType() + "]";
+        maxSeqNoOfNonAppendOnlyOperations.updateAndGet(curr -> Math.max(delete.seqNo(), curr));
+        assert maxSeqNoOfNonAppendOnlyOperations.get() >= delete.seqNo() : "max_seqno of non-append-only was not updated;" +
+            "max_seqno non-append-only [" + maxSeqNoOfNonAppendOnlyOperations.get() + "], seqno of delete [" + delete.seqNo() + "]";
         // unlike the primary, replicas don't really care to about found status of documents
         // this allows to ignore the case where a document was found in the live version maps in
         // a delete state and return true for the found flag in favor of code simplicity
@@ -1558,15 +1586,41 @@ public class InternalEngine extends Engine {
     }
 
     private void pruneDeletedTombstones() {
+        /*
+         * We need to deploy two different trimming strategies for GC deletes on primary and replicas. Delete operations on primary
+         * are remembered for at least one GC delete cycle and trimmed periodically. This is, at the moment, the best we can do on
+         * primary for user facing APIs but this arbitrary time limit is problematic for replicas. On replicas however we should
+         * trim only deletes whose seqno at most the local checkpoint. This requirement is explained as follows.
+         *
+         * Suppose o1 and o2 are two operations on the same document with seq#(o1) < seq#(o2), and o2 arrives before o1 on the replica.
+         * o2 is processed normally since it arrives first; when o1 arrives it should be discarded:
+         * - If seq#(o1) <= LCP, then it will be not be added to Lucene, as it was already previously added.
+         * - If seq#(o1)  > LCP, then it depends on the nature of o2:
+         *   *) If o2 is a delete then its seq# is recorded in the VersionMap, since seq#(o2) > seq#(o1) > LCP,
+         *      so a lookup can find it and determine that o1 is stale.
+         *   *) If o2 is an indexing then its seq# is either in Lucene (if refreshed) or the VersionMap (if not refreshed yet),
+         *      so a real-time lookup can find it and determine that o1 is stale.
+         *
+         * Here we prefer to deploy a single trimming strategy, which satisfies two constraints, on both primary and replicas because:
+         * - It's simpler - no need to distinguish if an engine is running at primary mode or replica mode or being promoted.
+         * - If a replica subsequently is promoted, user experience is maintained as that replica remembers deletes for the last GC cycle.
+         *
+         * However, the version map may consume less memory if we deploy two different trimming strategies for primary and replicas.
+         */
         final long timeMSec = engineConfig.getThreadPool().relativeTimeInMillis();
-        versionMap.pruneTombstones(timeMSec, engineConfig.getIndexSettings().getGcDeletesInMillis());
+        final long maxTimestampToPrune = timeMSec - engineConfig.getIndexSettings().getGcDeletesInMillis();
+        versionMap.pruneTombstones(maxTimestampToPrune, localCheckpointTracker.getCheckpoint());
         lastDeleteVersionPruneTimeMSec = timeMSec;
     }
 
     // testing
     void clearDeletedTombstones() {
-        // clean with current time Long.MAX_VALUE and interval 0 since we use a greater than relationship here.
-        versionMap.pruneTombstones(Long.MAX_VALUE, 0);
+        versionMap.pruneTombstones(Long.MAX_VALUE, localCheckpointTracker.getMaxSeqNo());
+    }
+
+    // for testing
+    final Collection<DeleteVersionValue> getDeletedTombstones() {
+        return versionMap.getAllTombstones().values();
     }
 
     @Override

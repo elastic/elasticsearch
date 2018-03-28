@@ -65,7 +65,6 @@ import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
@@ -77,6 +76,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -91,6 +91,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
@@ -163,6 +164,8 @@ import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTr
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
@@ -173,6 +176,8 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 public class InternalEngineTests extends EngineTestCase {
 
@@ -1141,8 +1146,9 @@ public class InternalEngineTests extends EngineTestCase {
             engine.flushAndClose();
         }
         if (randomBoolean()) {
-            EngineDiskUtils.createNewTranslog(store.directory(), config.getTranslogConfig().getTranslogPath(),
+            final String translogUUID = Translog.createEmptyTranslog(config.getTranslogConfig().getTranslogPath(),
                 SequenceNumbers.UNASSIGNED_SEQ_NO, shardId);
+            store.associateIndexWithNewTranslog(translogUUID);
         }
         engine = new InternalEngine(config);
         engine.recoverFromTranslog();
@@ -2233,6 +2239,84 @@ public class InternalEngineTests extends EngineTestCase {
         assertEquals(currentIndexWriterConfig.getCodec().getName(), codecService.codec(codecName).getName());
     }
 
+    public void testCurrentTranslogIDisCommitted() throws IOException {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        try (Store store = createStore()) {
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
+
+            // create
+            {
+                store.createEmpty();
+                final String translogUUID =
+                    Translog.createEmptyTranslog(config.getTranslogConfig().getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId);
+                store.associateIndexWithNewTranslog(translogUUID);
+                ParsedDocument doc = testParsedDocument(Integer.toString(0), null, testDocument(), new BytesArray("{}"), null);
+                Engine.Index firstIndexRequest = new Engine.Index(newUid(doc), doc, SequenceNumbers.UNASSIGNED_SEQ_NO, 0,
+                    Versions.MATCH_DELETED, VersionType.INTERNAL, PRIMARY, System.nanoTime(), -1, false);
+
+                try (InternalEngine engine = createEngine(config)) {
+                    engine.index(firstIndexRequest);
+                    globalCheckpoint.set(engine.getLocalCheckpointTracker().getCheckpoint());
+                    expectThrows(IllegalStateException.class, () -> engine.recoverFromTranslog());
+                    Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
+                    assertEquals("1", userData.get(Translog.TRANSLOG_GENERATION_KEY));
+                    assertEquals(engine.getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
+                }
+            }
+            // open and recover tlog
+            {
+                for (int i = 0; i < 2; i++) {
+                    try (InternalEngine engine = new InternalEngine(config)) {
+                        assertTrue(engine.isRecovering());
+                        Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
+                        if (i == 0) {
+                            assertEquals("1", userData.get(Translog.TRANSLOG_GENERATION_KEY));
+                        } else {
+                            // creating an empty index will create the first translog gen and commit it
+                            // opening the empty index will make the second translog file but not commit it
+                            // opening the engine again (i=0) will make the third translog file, which then be committed
+                            assertEquals("3", userData.get(Translog.TRANSLOG_GENERATION_KEY));
+                        }
+                        assertEquals(engine.getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
+                        engine.recoverFromTranslog();
+                        userData = engine.getLastCommittedSegmentInfos().getUserData();
+                        assertEquals("3", userData.get(Translog.TRANSLOG_GENERATION_KEY));
+                        assertEquals(engine.getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
+                    }
+                }
+            }
+            // open index with new tlog
+            {
+                final String translogUUID =
+                    Translog.createEmptyTranslog(config.getTranslogConfig().getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId);
+                store.associateIndexWithNewTranslog(translogUUID);
+                try (InternalEngine engine = new InternalEngine(config)) {
+                    Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
+                    assertEquals("1", userData.get(Translog.TRANSLOG_GENERATION_KEY));
+                    assertEquals(engine.getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
+                    engine.recoverFromTranslog();
+                    assertEquals(2, engine.getTranslog().currentFileGeneration());
+                    assertEquals(0L, engine.getTranslog().stats().getUncommittedOperations());
+                }
+            }
+
+            // open and recover tlog with empty tlog
+            {
+                for (int i = 0; i < 2; i++) {
+                    try (InternalEngine engine = new InternalEngine(config)) {
+                        Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
+                        assertEquals("1", userData.get(Translog.TRANSLOG_GENERATION_KEY));
+                        assertEquals(engine.getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
+                        engine.recoverFromTranslog();
+                        userData = engine.getLastCommittedSegmentInfos().getUserData();
+                        assertEquals("no changes - nothing to commit", "1", userData.get(Translog.TRANSLOG_GENERATION_KEY));
+                        assertEquals(engine.getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
+                    }
+                }
+            }
+        }
+    }
+
     public void testMissingTranslog() throws IOException {
         // test that we can force start the engine , even if the translog is missing.
         engine.close();
@@ -2248,7 +2332,8 @@ public class InternalEngineTests extends EngineTestCase {
             // expected
         }
         // when a new translog is created it should be ok
-        EngineDiskUtils.createNewTranslog(store.directory(), primaryTranslogDir, SequenceNumbers.UNASSIGNED_SEQ_NO, shardId);
+        final String translogUUID = Translog.createEmptyTranslog(primaryTranslogDir, SequenceNumbers.UNASSIGNED_SEQ_NO, shardId);
+        store.associateIndexWithNewTranslog(translogUUID);
         EngineConfig config = config(defaultSettings, store, primaryTranslogDir, newMergePolicy(), null);
         engine = new InternalEngine(config);
     }
@@ -2311,7 +2396,9 @@ public class InternalEngineTests extends EngineTestCase {
             final Path translogPath = createTempDir();
             final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
             final LongSupplier globalCheckpointSupplier = () -> globalCheckpoint.get();
-            EngineDiskUtils.createEmpty(store.directory(), translogPath, shardId);
+            store.createEmpty();
+            final String translogUUID = Translog.createEmptyTranslog(translogPath, globalCheckpoint.get(), shardId);
+            store.associateIndexWithNewTranslog(translogUUID);
             try (InternalEngine engine =
                      new InternalEngine(config(indexSettings, store, translogPath, newMergePolicy(), null, null,
                          globalCheckpointSupplier)) {
@@ -3102,7 +3189,8 @@ public class InternalEngineTests extends EngineTestCase {
         }
         try (Store store = createStore(newFSDirectory(storeDir))) {
             if (randomBoolean() || true) {
-                EngineDiskUtils.createNewTranslog(store.directory(), translogDir, SequenceNumbers.NO_OPS_PERFORMED, shardId);
+                final String translogUUID = Translog.createEmptyTranslog(translogDir, SequenceNumbers.NO_OPS_PERFORMED, shardId);
+                store.associateIndexWithNewTranslog(translogUUID);
             }
             try (Engine engine = new InternalEngine(configSupplier.apply(store))) {
                 assertEquals(maxTimestamp12, engine.segmentsStats(false).getMaxUnsafeAutoIdTimestamp());
@@ -3904,10 +3992,12 @@ public class InternalEngineTests extends EngineTestCase {
         final Path translogPath = createTempDir();
         store = createStore();
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        store.createEmpty();
+        final String translogUUID = Translog.createEmptyTranslog(translogPath, globalCheckpoint.get(), shardId);
+        store.associateIndexWithNewTranslog(translogUUID);
 
         final EngineConfig engineConfig = config(indexSettings, store, translogPath, NoMergePolicy.INSTANCE, null, null,
             () -> globalCheckpoint.get());
-        EngineDiskUtils.createEmpty(store.directory(), translogPath, shardId);
         try (Engine engine = new InternalEngine(engineConfig) {
                 @Override
                 protected void commitIndexWriter(IndexWriter writer, Translog translog, String syncId) throws IOException {
@@ -3921,7 +4011,6 @@ public class InternalEngineTests extends EngineTestCase {
             }) {
             engine.recoverFromTranslog();
             int numDocs = scaledRandomIntBetween(10, 100);
-            final String translogUUID = engine.getTranslog().getTranslogUUID();
             for (int docId = 0; docId < numDocs; docId++) {
                 ParseContext.Document document = testDocumentWithTextField();
                 document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
@@ -4258,5 +4347,151 @@ public class InternalEngineTests extends EngineTestCase {
                 thread.join();
             }
         }
+    }
+
+    public void testPruneOnlyDeletesAtMostLocalCheckpoint() throws Exception {
+        final AtomicLong clock = new AtomicLong(0);
+        threadPool = spy(threadPool);
+        when(threadPool.relativeTimeInMillis()).thenAnswer(invocation -> clock.get());
+        final long gcInterval = randomIntBetween(0, 10);
+        final IndexSettings indexSettings = engine.config().getIndexSettings();
+        final IndexMetaData indexMetaData = IndexMetaData.builder(indexSettings.getIndexMetaData())
+            .settings(Settings.builder().put(indexSettings.getSettings())
+                .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), TimeValue.timeValueMillis(gcInterval).getStringRep())).build();
+        indexSettings.updateIndexMetaData(indexMetaData);
+        try (Store store = createStore();
+             InternalEngine engine = createEngine(store, createTempDir())) {
+            engine.config().setEnableGcDeletes(false);
+            for (int i = 0, docs = scaledRandomIntBetween(0, 10); i < docs; i++) {
+                index(engine, i);
+            }
+            final long deleteBatch = between(10, 20);
+            final long gapSeqNo = randomLongBetween(
+                engine.getLocalCheckpointTracker().getMaxSeqNo() + 1, engine.getLocalCheckpointTracker().getMaxSeqNo() + deleteBatch);
+            for (int i = 0; i < deleteBatch; i++) {
+                final long seqno = engine.getLocalCheckpointTracker().generateSeqNo();
+                if (seqno != gapSeqNo) {
+                    if (randomBoolean()) {
+                        clock.incrementAndGet();
+                    }
+                    engine.delete(replicaDeleteForDoc(UUIDs.randomBase64UUID(), 1, seqno, threadPool.relativeTimeInMillis()));
+                }
+            }
+            List<DeleteVersionValue> tombstones = new ArrayList<>(engine.getDeletedTombstones());
+            engine.config().setEnableGcDeletes(true);
+            // Prune tombstones whose seqno < gap_seqno and timestamp < clock-gcInterval.
+            clock.set(randomLongBetween(gcInterval, deleteBatch + gcInterval));
+            engine.refresh("test");
+            tombstones.removeIf(v -> v.seqNo < gapSeqNo && v.time < clock.get() - gcInterval);
+            assertThat(engine.getDeletedTombstones(), containsInAnyOrder(tombstones.toArray()));
+            // Prune tombstones whose seqno at most the local checkpoint (eg. seqno < gap_seqno).
+            clock.set(randomLongBetween(deleteBatch + gcInterval * 4/3, 100)); // Need a margin for gcInterval/4.
+            engine.refresh("test");
+            tombstones.removeIf(v -> v.seqNo < gapSeqNo);
+            assertThat(engine.getDeletedTombstones(), containsInAnyOrder(tombstones.toArray()));
+            // Fill the seqno gap - should prune all tombstones.
+            clock.set(between(0, 100));
+            if (randomBoolean()) {
+                engine.index(replicaIndexForDoc(testParsedDocument("d", null, testDocumentWithTextField(), SOURCE, null), 1, gapSeqNo, false));
+            } else {
+                engine.delete(replicaDeleteForDoc(UUIDs.randomBase64UUID(), Versions.MATCH_ANY, gapSeqNo, threadPool.relativeTimeInMillis()));
+            }
+            clock.set(randomLongBetween(100 + gcInterval * 4/3, Long.MAX_VALUE)); // Need a margin for gcInterval/4.
+            engine.refresh("test");
+            assertThat(engine.getDeletedTombstones(), empty());
+        }
+    }
+
+    public void testTrackMaxSeqNoOfNonAppendOnlyOperations() throws Exception {
+        IOUtils.close(engine, store);
+        store = createStore();
+        final Path translogPath = createTempDir();
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        try (InternalEngine engine = createEngine(store, translogPath, globalCheckpoint::get)) {
+            final CountDownLatch latch = new CountDownLatch(1);
+            final Thread appendOnlyIndexer = new Thread(() -> {
+                try {
+                    latch.countDown();
+                    final int numDocs = scaledRandomIntBetween(100, 1000);
+                    for (int i = 0; i < numDocs; i++) {
+                        ParsedDocument doc = testParsedDocument("append-only" + i, null, testDocumentWithTextField(), SOURCE, null);
+                        if (randomBoolean()) {
+                            engine.index(appendOnlyReplica(doc, randomBoolean(), 1, engine.getLocalCheckpointTracker().generateSeqNo()));
+                        } else {
+                            engine.index(appendOnlyPrimary(doc, randomBoolean(), randomNonNegativeLong()));
+                        }
+                    }
+                } catch (Exception ex) {
+                    throw new RuntimeException("Failed to index", ex);
+                }
+            });
+            appendOnlyIndexer.setName("append-only indexer");
+            appendOnlyIndexer.start();
+            latch.await();
+            long maxSeqNoOfNonAppendOnly = SequenceNumbers.NO_OPS_PERFORMED;
+            final int numOps = scaledRandomIntBetween(100, 1000);
+            for (int i = 0; i < numOps; i++) {
+                ParsedDocument parsedDocument = testParsedDocument(Integer.toString(i), null, testDocumentWithTextField(), SOURCE, null);
+                if (randomBoolean()) { // On replica - update max_seqno for non-append-only operations
+                    final long seqno = engine.getLocalCheckpointTracker().generateSeqNo();
+                    final Engine.Index doc = replicaIndexForDoc(parsedDocument, 1, seqno, randomBoolean());
+                    if (randomBoolean()) {
+                        engine.index(doc);
+                    } else {
+                        engine.delete(new Engine.Delete(doc.type(), doc.id(), doc.uid(), seqno, doc.primaryTerm(),
+                            doc.version(), doc.versionType(), doc.origin(), threadPool.relativeTimeInMillis()));
+                    }
+                    maxSeqNoOfNonAppendOnly = seqno;
+                } else { // On primary - do not update max_seqno for non-append-only operations
+                    if (randomBoolean()) {
+                        engine.index(indexForDoc(parsedDocument));
+                    } else {
+                        engine.delete(new Engine.Delete(parsedDocument.type(), parsedDocument.id(), newUid(parsedDocument.id())));
+                    }
+                }
+            }
+            appendOnlyIndexer.join(120_000);
+            assertThat(engine.getMaxSeqNoOfNonAppendOnlyOperations(), equalTo(maxSeqNoOfNonAppendOnly));
+            globalCheckpoint.set(engine.getLocalCheckpointTracker().getCheckpoint());
+            engine.syncTranslog();
+            engine.flush();
+        }
+        try (InternalEngine engine = createEngine(store, translogPath, globalCheckpoint::get)) {
+            assertThat("max_seqno from non-append-only was not bootstrap from the safe commit",
+                engine.getMaxSeqNoOfNonAppendOnlyOperations(), equalTo(globalCheckpoint.get()));
+        }
+    }
+
+    public void testSkipOptimizeForExposedAppendOnlyOperations() throws Exception {
+        long lookupTimes = 0L;
+        final LocalCheckpointTracker localCheckpointTracker = engine.getLocalCheckpointTracker();
+        final int initDocs = between(0, 10);
+        for (int i = 0; i < initDocs; i++) {
+            index(engine, i);
+            lookupTimes++;
+        }
+        // doc1 is delayed and arrived after a non-append-only op.
+        final long seqNoAppendOnly1 = localCheckpointTracker.generateSeqNo();
+        final long seqnoNormalOp = localCheckpointTracker.generateSeqNo();
+        if (randomBoolean()) {
+            engine.index(replicaIndexForDoc(
+                testParsedDocument("d", null, testDocumentWithTextField(), SOURCE, null), 1, seqnoNormalOp, false));
+        } else {
+            engine.delete(replicaDeleteForDoc("d", 1, seqnoNormalOp, randomNonNegativeLong()));
+        }
+        lookupTimes++;
+        assertThat(engine.getNumVersionLookups(), equalTo(lookupTimes));
+        assertThat(engine.getMaxSeqNoOfNonAppendOnlyOperations(), equalTo(seqnoNormalOp));
+
+        // should not optimize for doc1 and process as a regular doc (eg. look up in version map)
+        engine.index(appendOnlyReplica(testParsedDocument("append-only-1", null, testDocumentWithTextField(), SOURCE, null),
+            false, randomNonNegativeLong(), seqNoAppendOnly1));
+        lookupTimes++;
+        assertThat(engine.getNumVersionLookups(), equalTo(lookupTimes));
+
+        // optimize for other append-only 2 (its seqno > max_seqno of non-append-only) - do not look up in version map.
+        engine.index(appendOnlyReplica(testParsedDocument("append-only-2", null, testDocumentWithTextField(), SOURCE, null),
+            false, randomNonNegativeLong(), localCheckpointTracker.generateSeqNo()));
+        assertThat(engine.getNumVersionLookups(), equalTo(lookupTimes));
     }
 }

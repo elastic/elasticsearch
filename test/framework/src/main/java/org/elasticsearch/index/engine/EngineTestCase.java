@@ -53,6 +53,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -369,9 +370,14 @@ public abstract class EngineTestCase extends ESTestCase {
                                         @Nullable BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
                                         @Nullable ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation,
                                         EngineConfig config) throws IOException {
-        final Directory directory = config.getStore().directory();
+        final Store store = config.getStore();
+        final Directory directory = store.directory();
         if (Lucene.indexExists(directory) == false) {
-            EngineDiskUtils.createEmpty(directory, config.getTranslogConfig().getTranslogPath(), config.getShardId());
+            store.createEmpty();
+            final String translogUuid =
+                Translog.createEmptyTranslog(config.getTranslogConfig().getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId);
+            store.associateIndexWithNewTranslog(translogUuid);
+
         }
         InternalEngine internalEngine = createInternalEngine(indexWriterFactory, localCheckpointTrackerSupplier, seqNoForOperation, config);
         internalEngine.recoverFromTranslog();
@@ -487,6 +493,10 @@ public abstract class EngineTestCase extends ESTestCase {
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, isRetry);
     }
 
+    protected Engine.Delete replicaDeleteForDoc(String id, long version, long seqNo, long startTime) {
+        return new Engine.Delete("test", id, newUid(id), seqNo, 1, version, VersionType.EXTERNAL,
+            Engine.Operation.Origin.REPLICA, startTime);
+    }
     protected static void assertVisibleCount(InternalEngine engine, int numDocs) throws IOException {
         assertVisibleCount(engine, numDocs, true);
     }

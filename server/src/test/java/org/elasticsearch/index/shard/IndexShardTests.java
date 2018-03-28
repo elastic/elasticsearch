@@ -29,7 +29,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -70,6 +69,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -1061,27 +1061,27 @@ public class IndexShardTests extends IndexShardTestCase {
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
 
         Store.MetadataSnapshot snapshot = newShard.snapshotStoreMetadata();
-        assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_2"));
+        assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_3"));
 
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
 
         snapshot = newShard.snapshotStoreMetadata();
-        assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_2"));
+        assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_3"));
 
         assertTrue(newShard.recoverFromStore());
 
         snapshot = newShard.snapshotStoreMetadata();
-        assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_2"));
+        assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_3"));
 
         IndexShardTestCase.updateRoutingEntry(newShard, newShard.routingEntry().moveToStarted());
 
         snapshot = newShard.snapshotStoreMetadata();
-        assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_2"));
+        assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_3"));
 
         newShard.close("test", false);
 
         snapshot = newShard.snapshotStoreMetadata();
-        assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_2"));
+        assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_3"));
 
         closeShards(newShard);
     }

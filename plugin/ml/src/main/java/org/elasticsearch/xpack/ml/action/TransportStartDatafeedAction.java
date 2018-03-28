@@ -153,20 +153,20 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
-    void waitForDatafeedStarted(String taskId, StartDatafeedAction.DatafeedParams params,
-                                ActionListener<StartDatafeedAction.Response> listener) {
-        Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> predicate = persistentTask -> {
-            if (persistentTask == null) {
-                return false;
-            }
-            DatafeedState datafeedState = (DatafeedState) persistentTask.getStatus();
-            return datafeedState == DatafeedState.STARTED;
-        };
+    private void waitForDatafeedStarted(String taskId, StartDatafeedAction.DatafeedParams params,
+                                        ActionListener<StartDatafeedAction.Response> listener) {
+        DatafeedPredicate predicate = new DatafeedPredicate();
         persistentTasksService.waitForPersistentTaskStatus(taskId, predicate, params.getTimeout(),
                 new PersistentTasksService.WaitForPersistentTaskStatusListener<StartDatafeedAction.DatafeedParams>() {
             @Override
-            public void onResponse(PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams> task) {
-                listener.onResponse(new StartDatafeedAction.Response(true));
+            public void onResponse(PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask) {
+                if (predicate.exception != null) {
+                    // We want to return to the caller without leaving an unassigned persistent task, to match
+                    // what would have happened if the error had been detected in the "fast fail" validation
+                    cancelDatafeedStart(persistentTask, predicate.exception, listener);
+                } else {
+                    listener.onResponse(new StartDatafeedAction.Response(true));
+                }
             }
 
             @Override
@@ -180,6 +180,27 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                         + params.getDatafeedId() + "] timed out after [" + timeout + "]"));
             }
         });
+    }
+
+    private void cancelDatafeedStart(PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask,
+                                     Exception exception, ActionListener<StartDatafeedAction.Response> listener) {
+        persistentTasksService.cancelPersistentTask(persistentTask.getId(),
+                new ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
+                    @Override
+                    public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> task) {
+                        // We succeeded in cancelling the persistent task, but the
+                        // problem that caused us to cancel it is the overall result
+                        listener.onFailure(exception);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.error("[" + persistentTask.getParams().getDatafeedId() + "] Failed to cancel persistent task that could " +
+                                "not be assigned due to [" + exception.getMessage() + "]", e);
+                        listener.onFailure(exception);
+                    }
+                }
+        );
     }
 
     public static class StartDatafeedPersistentTasksExecutor extends PersistentTasksExecutor<StartDatafeedAction.DatafeedParams> {
@@ -282,6 +303,32 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             if (datafeedManager != null) {
                 datafeedManager.isolateDatafeed(getAllocationId());
             }
+        }
+    }
+
+    /**
+     * Important: the methods of this class must NOT throw exceptions.  If they did then the callers
+     * of endpoints waiting for a condition tested by this predicate would never get a response.
+     */
+    private class DatafeedPredicate implements Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> {
+
+        private volatile Exception exception;
+
+        @Override
+        public boolean test(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
+            if (persistentTask == null) {
+                return false;
+            }
+            PersistentTasksCustomMetaData.Assignment assignment = persistentTask.getAssignment();
+            if (assignment != null && assignment.equals(PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT) == false &&
+                    assignment.isAssigned() == false) {
+                // Assignment has failed despite passing our "fast fail" validation
+                exception = new ElasticsearchStatusException("Could not start datafeed, allocation explanation [" +
+                        assignment.getExplanation() + "]", RestStatus.TOO_MANY_REQUESTS);
+                return true;
+            }
+            DatafeedState datafeedState = (DatafeedState) persistentTask.getStatus();
+            return datafeedState == DatafeedState.STARTED;
         }
     }
 }

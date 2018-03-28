@@ -393,3 +393,54 @@ setup:
       xpack.ml.get_datafeed_stats:
         datafeed_id: "start-stop-datafeed-job-bar-1-feed"
   - match: { datafeeds.0.state: "started"}
+
+---
+"Test start datafeed when persistent task allocation disabled":
+
+  - do:
+      xpack.ml.open_job:
+        job_id: "start-stop-datafeed-job"
+  - match: { opened: true }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      cluster.put_settings:
+        body:
+          transient:
+            cluster.persistent_tasks.allocation.enable: "none"
+  - match: {transient.cluster.persistent_tasks.allocation.enable: "none"}
+
+  - do:
+      catch: /no persistent task assignments are allowed due to cluster settings/
+      xpack.ml.start_datafeed:
+        datafeed_id: "start-stop-datafeed-datafeed-1"
+        start: 0
+
+  - do:
+      xpack.ml.get_datafeed_stats:
+        datafeed_id: "start-stop-datafeed-datafeed-1"
+  - match: { datafeeds.0.state: stopped }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      cluster.put_settings:
+        body:
+          transient:
+            cluster.persistent_tasks.allocation.enable: "all"
+  - match: {transient.cluster.persistent_tasks.allocation.enable: "all"}
+
+  - do:
+      xpack.ml.start_datafeed:
+        datafeed_id: "start-stop-datafeed-datafeed-1"
+        start: 0
+
+  - do:
+      xpack.ml.get_datafeed_stats:
+        datafeed_id: "start-stop-datafeed-datafeed-1"
+  - match: { datafeeds.0.state: started }
+
+  - do:
+      xpack.ml.stop_datafeed:
+        datafeed_id: "start-stop-datafeed-datafeed-1"

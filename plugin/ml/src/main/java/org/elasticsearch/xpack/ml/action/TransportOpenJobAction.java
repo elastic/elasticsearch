@@ -510,14 +510,20 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         }
     }
 
-    void waitForJobStarted(String taskId, OpenJobAction.JobParams jobParams, ActionListener<OpenJobAction.Response> listener) {
+    private void waitForJobStarted(String taskId, OpenJobAction.JobParams jobParams, ActionListener<OpenJobAction.Response> listener) {
         JobPredicate predicate = new JobPredicate();
         persistentTasksService.waitForPersistentTaskStatus(taskId, predicate, jobParams.getTimeout(),
                 new PersistentTasksService.WaitForPersistentTaskStatusListener<OpenJobAction.JobParams>() {
             @Override
             public void onResponse(PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams> persistentTask) {
                 if (predicate.exception != null) {
-                    listener.onFailure(predicate.exception);
+                    if (predicate.shouldCancel) {
+                        // We want to return to the caller without leaving an unassigned persistent task, to match
+                        // what would have happened if the error had been detected in the "fast fail" validation
+                        cancelJobStart(persistentTask, predicate.exception, listener);
+                    } else {
+                        listener.onFailure(predicate.exception);
+                    }
                 } else {
                     listener.onResponse(new OpenJobAction.Response(predicate.opened));
                 }
@@ -534,6 +540,27 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                         + jobParams.getJobId() + "] timed out after [" + timeout + "]"));
             }
         });
+    }
+
+    private void cancelJobStart(PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams> persistentTask, Exception exception,
+                                ActionListener<OpenJobAction.Response> listener) {
+        persistentTasksService.cancelPersistentTask(persistentTask.getId(),
+                new ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
+                    @Override
+                    public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> task) {
+                        // We succeeded in cancelling the persistent task, but the
+                        // problem that caused us to cancel it is the overall result
+                        listener.onFailure(exception);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.error("[" + persistentTask.getParams().getJobId() + "] Failed to cancel persistent task that could " +
+                                "not be assigned due to [" + exception.getMessage() + "]", e);
+                        listener.onFailure(exception);
+                    }
+                }
+        );
     }
 
     private void addDocMappingIfMissing(String alias, CheckedSupplier<XContentBuilder, IOException> mappingSupplier, ClusterState state,
@@ -699,6 +726,10 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     }
 
     /**
+     * This class contains the wait logic for waiting for a job's persistent task to be allocated on
+     * job opening.  It should only be used in the open job action, and never at other times the job's
+     * persistent task may be assigned to a node, for example on recovery from node failures.
+     *
      * Important: the methods of this class must NOT throw exceptions.  If they did then the callers
      * of endpoints waiting for a condition tested by this predicate would never get a response.
      */
@@ -706,6 +737,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
         private volatile boolean opened;
         private volatile Exception exception;
+        private volatile boolean shouldCancel;
 
         @Override
         public boolean test(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
@@ -713,6 +745,20 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             if (persistentTask != null) {
                 JobTaskStatus jobStateStatus = (JobTaskStatus) persistentTask.getStatus();
                 jobState = jobStateStatus == null ? JobState.OPENING : jobStateStatus.getState();
+
+                PersistentTasksCustomMetaData.Assignment assignment = persistentTask.getAssignment();
+                // This logic is only appropriate when opening a job, not when reallocating following a failure,
+                // and this is why this class must only be used when opening a job
+                if (assignment != null && assignment.equals(PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT) == false &&
+                        assignment.isAssigned() == false) {
+                    // Assignment has failed on the master node despite passing our "fast fail" validation
+                    exception = new ElasticsearchStatusException("Could not open job because no suitable nodes were found, " +
+                            "allocation explanation [" + assignment.getExplanation() + "]", RestStatus.TOO_MANY_REQUESTS);
+                    // The persistent task should be cancelled so that the observed outcome is the
+                    // same as if the "fast fail" validation on the coordinating node had failed
+                    shouldCancel = true;
+                    return true;
+                }
             }
             switch (jobState) {
                 case OPENING:

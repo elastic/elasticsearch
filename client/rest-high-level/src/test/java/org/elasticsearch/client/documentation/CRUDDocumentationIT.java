@@ -121,7 +121,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             builder.startObject();
             {
                 builder.field("user", "kimchy");
-                builder.field("postDate", new Date());
+                builder.timeField("postDate", new Date());
                 builder.field("message", "trying out Elasticsearch");
             }
             builder.endObject();
@@ -331,7 +331,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
             {
-                builder.field("updated", new Date());
+                builder.timeField("updated", new Date());
                 builder.field("reason", "daily update");
             }
             builder.endObject();

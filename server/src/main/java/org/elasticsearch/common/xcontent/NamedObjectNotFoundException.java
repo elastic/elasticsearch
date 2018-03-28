@@ -17,23 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.index.shard;
+package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.io.stream.StreamInput;
+/**
+ * Thrown when {@link NamedXContentRegistry} cannot locate a named object to
+ * parse for a particular name
+ */
+public class NamedObjectNotFoundException extends XContentParseException {
 
-import java.io.IOException;
-
-public class IndexShardRelocatedException extends IllegalIndexShardStateException {
-
-    public IndexShardRelocatedException(ShardId shardId) {
-        this(shardId, "Already relocated");
+    public NamedObjectNotFoundException(String message) {
+        this(null, message);
     }
 
-    public IndexShardRelocatedException(ShardId shardId, String reason) {
-        super(shardId, IndexShardState.STARTED, reason);
-    }
-
-    public IndexShardRelocatedException(StreamInput in) throws IOException{
-        super(in);
+    public NamedObjectNotFoundException(XContentLocation location, String message) {
+        super(location, message);
     }
 }

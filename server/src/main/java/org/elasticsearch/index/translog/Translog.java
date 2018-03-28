@@ -134,10 +134,14 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * translog file referenced by this generation. The translog creation will fail if this generation can't be opened.
      *
      * @param config                   the configuration of this translog
-     * @param translogUUID     the translog uuid to open, null for a new translog
+     * @param translogUUID             the translog uuid to open, null for a new translog
      * @param deletionPolicy           an instance of {@link TranslogDeletionPolicy} that controls when a translog file can be safely
      *                                 deleted
      * @param globalCheckpointSupplier a supplier for the global checkpoint
+     * @param primaryTermSupplier      a supplier for the latest value of primary term of the owning index shard. The latest term value
+     *                                 is retrieved and stored in the header of the newly rolled generation. It's guaranteed from outside
+     *                                 that a new generation is rolled when the term is increased. This allows to us to check and reject
+     *                                 translog operations whose terms are higher than the primary term stored in the translog header.
      */
     public Translog(
         final TranslogConfig config, final String translogUUID, TranslogDeletionPolicy deletionPolicy,

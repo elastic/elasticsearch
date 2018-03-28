@@ -55,11 +55,20 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
 
     private Map<String, Object> anomalyDetectorsDefaults() {
         Map<String, Object> defaults = new HashMap<>();
-        defaults.put(AnalysisLimits.MODEL_MEMORY_LIMIT.getPreferredName(),
-                new ByteSizeValue(AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB, ByteSizeUnit.MB));
+        defaults.put(AnalysisLimits.MODEL_MEMORY_LIMIT.getPreferredName(), defaultModelMemoryLimit());
         defaults.put(AnalysisLimits.CATEGORIZATION_EXAMPLES_LIMIT.getPreferredName(), AnalysisLimits.DEFAULT_CATEGORIZATION_EXAMPLES_LIMIT);
         defaults.put(Job.MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName(), Job.DEFAULT_MODEL_SNAPSHOT_RETENTION_DAYS);
         return defaults;
+    }
+
+    private ByteSizeValue defaultModelMemoryLimit() {
+        ByteSizeValue defaultLimit = new ByteSizeValue(AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB, ByteSizeUnit.MB);
+        ByteSizeValue maxModelMemoryLimit = clusterService.getClusterSettings().get(MachineLearningField.MAX_MODEL_MEMORY_LIMIT);
+        if (maxModelMemoryLimit != null && maxModelMemoryLimit.getBytes() > 0
+                && maxModelMemoryLimit.getBytes() < defaultLimit.getBytes()) {
+            return maxModelMemoryLimit;
+        }
+        return defaultLimit;
     }
 
     private Map<String, Object> datafeedsDefaults() {

@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -20,13 +19,11 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
-import org.elasticsearch.xpack.core.indexlifecycle.Step;
-import org.elasticsearch.xpack.core.indexlifecycle.StepResult;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
+import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleRunner.Cause;
 
 import java.io.Closeable;
 import java.time.Clock;
@@ -48,6 +45,7 @@ public class IndexLifecycleService extends AbstractComponent
     private ThreadPool threadPool;
     private LongSupplier nowSupplier;
     private SchedulerEngine.Job scheduledJob;
+    private IndexLifecycleRunner lifecycleRunner;
 
     public IndexLifecycleService(Settings settings, Client client, ClusterService clusterService, Clock clock,
             ThreadPool threadPool, LongSupplier nowSupplier) {
@@ -59,6 +57,7 @@ public class IndexLifecycleService extends AbstractComponent
         this.nowSupplier = nowSupplier;
         this.scheduledJob = null;
         this.policyRegistry = new PolicyStepsRegistry();
+        this.lifecycleRunner = new IndexLifecycleRunner(policyRegistry, clusterService);
         clusterService.addListener(this);
     }
 
@@ -71,7 +70,6 @@ public class IndexLifecycleService extends AbstractComponent
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.localNodeMaster()) { // only act if we are master, otherwise keep idle until elected
             IndexLifecycleMetadata lifecycleMetadata = event.state().metaData().custom(IndexLifecycleMetadata.TYPE);
@@ -99,6 +97,8 @@ public class IndexLifecycleService extends AbstractComponent
             } else if (pollIntervalSettingChanged) { // all engines are running, just need to update with latest interval
                 scheduleJob(pollInterval);
             }
+
+            triggerPolicies(event.state(), Cause.CLUSTER_STATE_CHANGE);
         } else {
             cancelJob();
         }
@@ -116,67 +116,11 @@ public class IndexLifecycleService extends AbstractComponent
         scheduler.get().add(scheduledJob);
     }
 
-    public void triggerPolicies() {
-        // loop through all indices in cluster state and filter for ones that are
-        // managed by the Index Lifecycle Service they have a index.lifecycle.name setting
-        // associated to a policy
-        ClusterState clusterState = clusterService.state();
-        clusterState.metaData().indices().valuesIt().forEachRemaining((idxMeta) -> {
-            String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
-            if (Strings.isNullOrEmpty(policyName) == false) {
-                clusterService.submitStateUpdateTask("index-lifecycle-" + policyName, new ClusterStateUpdateTask() {
-                    @Override
-                    public ClusterState execute(ClusterState currentState) throws Exception {
-                        // ensure date is set
-                        currentState = putLifecycleDate(currentState, idxMeta);
-                        long lifecycleDate = currentState.metaData().settings()
-                            .getAsLong(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, -1L);
-                        // get current phase, action, step
-                        String phase = currentState.metaData().settings().get(LifecycleSettings.LIFECYCLE_PHASE);
-                        String action = currentState.metaData().settings().get(LifecycleSettings.LIFECYCLE_ACTION);
-                        String stepName = currentState.metaData().settings().get(LifecycleSettings.LIFECYCLE_STEP);
-                        // returns current step to execute. If settings are null, then the first step to be executed in
-                        // this policy is returned.
-                        Step currentStep = policyRegistry.getStep(policyName, new Step.StepKey(phase, action, stepName));
-                        return executeStepUntilAsync(policyName, currentStep, clusterState, client, nowSupplier, idxMeta.getIndex());
-                    }
-
-                    @Override
-                    public void onFailure(String source, Exception e) {
-
-                    }
-                });
-            }
-        });
-    }
-
-    /**
-     * executes the given step, and then all proceeding steps, until it is necessary to exit the
-     * cluster-state thread and let any wait-condition or asynchronous action progress externally
-     *
-     * TODO(colin): should steps execute themselves and execute `nextStep` internally?
-     *
-     * @param startStep The current step that has either not been executed, or not completed before
-     * @return the new ClusterState
-     */
-    private ClusterState executeStepUntilAsync(String policyName, Step startStep, ClusterState currentState, Client client, LongSupplier nowSupplier, Index index) {
-        StepResult result = startStep.execute(clusterService, currentState, index, client, nowSupplier);
-        while (result.isComplete() && result.indexSurvived() && startStep.hasNextStep()) {
-            currentState = result.getClusterState();
-            startStep = policyRegistry.getStep(policyName, startStep.getNextStepKey());
-            result = startStep.execute(clusterService, currentState, index, client, nowSupplier);
-        }
-        if (result.isComplete()) {
-            currentState = result.getClusterState();
-        }
-        return currentState;
-    }
-
     @Override
     public void triggered(SchedulerEngine.Event event) {
         if (event.getJobName().equals(IndexLifecycle.NAME)) {
             logger.info("Job triggered: " + event.getJobName() + ", " + event.getScheduledTime() + ", " + event.getTriggeredTime());
-            triggerPolicies();
+            triggerPolicies(clusterService.state(), Cause.SCHEDULE_TRIGGER);
         }
     }
 
@@ -198,18 +142,17 @@ public class IndexLifecycleService extends AbstractComponent
                 }
             }));
     }
-
-    private ClusterState putLifecycleDate(ClusterState clusterState, IndexMetaData idxMeta) {
-        if (idxMeta.getSettings().hasValue(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE)) {
-            return clusterState;
-        } else {
-            ClusterState.Builder builder = new ClusterState.Builder(clusterState);
-            MetaData.Builder metadataBuilder = MetaData.builder(clusterState.metaData());
-            Settings settings = Settings.builder()
-                .put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE_SETTING.getKey(), idxMeta.getCreationDate()).build();
-            metadataBuilder.updateSettings(settings, idxMeta.getIndex().getName());
-            return builder.metaData(metadataBuilder.build()).build();
-        }
+    
+    public void triggerPolicies(ClusterState clusterState, Cause cause) {
+        // loop through all indices in cluster state and filter for ones that are
+        // managed by the Index Lifecycle Service they have a index.lifecycle.name setting
+        // associated to a policy
+        clusterState.metaData().indices().valuesIt().forEachRemaining((idxMeta) -> {
+            String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
+            if (Strings.isNullOrEmpty(policyName) == false) {
+                lifecycleRunner.runPolicy(policyName, idxMeta.getIndex(), idxMeta.getSettings(), cause);
+            }
+        });
     }
 
     @Override

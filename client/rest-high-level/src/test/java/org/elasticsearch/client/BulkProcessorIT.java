@@ -208,8 +208,6 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         Response response = client().performRequest("PUT", "/test-ro", Collections.emptyMap(), entity);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
 
-        //ensureGreen();
-
         int bulkActions = randomIntBetween(10, 100);
         int numDocs = randomIntBetween(bulkActions, bulkActions + 100);
         int concurrentRequests = randomIntBetween(0, 10);

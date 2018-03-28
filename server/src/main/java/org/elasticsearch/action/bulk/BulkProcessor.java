@@ -236,9 +236,11 @@ public class BulkProcessor implements Closeable {
         if (bulkRequest.numberOfActions() > 0) {
             execute();
         }
-        boolean awaitClose = this.bulkRequestHandler.awaitClose(timeout, unit);
-        onClose.run();
-        return awaitClose;
+        try {
+            return this.bulkRequestHandler.awaitClose(timeout, unit);
+        } finally {
+            onClose.run();
+        }
     }
 
     /**

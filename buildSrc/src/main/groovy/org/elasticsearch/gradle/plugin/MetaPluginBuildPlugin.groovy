@@ -37,19 +37,28 @@ class MetaPluginBuildPlugin implements Plugin<Project> {
         project.plugins.apply(RestTestPlugin)
 
         createBundleTask(project)
+        boolean isModule = project.path.startsWith(':modules:')
 
         project.integTestCluster {
             dependsOn(project.bundlePlugin)
-            plugin(project.path)
         }
         BuildPlugin.configurePomGeneration(project)
         project.afterEvaluate {
             PluginBuildPlugin.addZipPomGeneration(project)
+            if (isModule) {
+                if (project.integTestCluster.distribution == 'integ-test-zip') {
+                    project.integTestCluster.module(project)
+                }
+             } else {
+                project.integTestCluster.plugin(project.path)
+             }
         }
 
         RunTask run = project.tasks.create('run', RunTask)
         run.dependsOn(project.bundlePlugin)
-        run.clusterConfig.plugin(project.path)
+        if (isModule == false) {
+            run.clusterConfig.plugin(project.path)
+        }
     }
 
     private static void createBundleTask(Project project) {
@@ -79,12 +88,13 @@ class MetaPluginBuildPlugin implements Plugin<Project> {
             buildProperties.extension.plugins.each { String bundledPluginProjectName ->
                 Project bundledPluginProject = project.project(bundledPluginProjectName)
                 bundledPluginProject.afterEvaluate {
+                    String bundledPluginName = bundledPluginProject.esplugin.name
                     bundle.configure {
                         dependsOn bundledPluginProject.bundlePlugin
                         from(project.zipTree(bundledPluginProject.bundlePlugin.outputs.files.singleFile)) {
                             eachFile { FileCopyDetails details ->
                                 // we want each path to have the plugin name interjected
-                                details.relativePath = new RelativePath(true, bundledPluginProjectName, details.relativePath.toString())
+                                details.relativePath = new RelativePath(true, bundledPluginName, details.relativePath.toString())
                             }
                         }
                     }

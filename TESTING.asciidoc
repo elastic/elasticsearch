@@ -414,16 +414,16 @@ and in another window:
 
 ----------------------------------------------------
 vagrant up centos-7 --provider virtualbox && vagrant ssh centos-7
-cd $BATS_ARCHIVES
+cd $PACKAGING_ARCHIVES
 sudo -E bats $BATS_TESTS/*rpm*.bats
 ----------------------------------------------------
 
 If you wanted to retest all the release artifacts on a single VM you could:
 
 -------------------------------------------------
-./gradlew setupBats
+./gradlew setupPackagingTest
 cd qa/vagrant; vagrant up ubuntu-1404 --provider virtualbox && vagrant ssh ubuntu-1404
-cd $BATS_ARCHIVES
+cd $PACKAGING_ARCHIVES
 sudo -E bats $BATS_TESTS/*.bats
 -------------------------------------------------
 
@@ -499,32 +499,21 @@ will contain your change.
 . Push both branches to your remote repository.
 . Run the tests with `./gradlew check -Dtests.bwc.remote=${remote} -Dtests.bwc.refspec=index_req_bwc_5.x`.
 
-== Coverage analysis
+== Test coverage analysis
 
-Tests can be run instrumented with jacoco to produce a coverage report in
-`target/site/jacoco/`.
+Generating test coverage reports for Elasticsearch is currently not possible through Gradle.
+However, it _is_ possible to gain insight in code coverage using IntelliJ's built-in coverage 
+analysis tool that can measure coverage upon executing specific tests. Eclipse may also be able
+to do the same using the EclEmma plugin.
 
-Unit test coverage:
-
----------------------------------------------------------------------------
-mvn -Dtests.coverage test jacoco:report
----------------------------------------------------------------------------
-
-Integration test coverage:
-
----------------------------------------------------------------------------
-mvn -Dtests.coverage -Dskip.unit.tests verify jacoco:report
----------------------------------------------------------------------------
-
-Combined (Unit+Integration) coverage:
-
----------------------------------------------------------------------------
-mvn -Dtests.coverage verify jacoco:report
----------------------------------------------------------------------------
+Test coverage reporting used to be possible with JaCoCo when Elasticsearch was using Maven
+as its build system. Since the switch to Gradle though, this is no longer possible, seeing as
+the code currently used to build Elasticsearch does not allow JaCoCo to recognize its tests.
+For more information on this, see the discussion in https://github.com/elastic/elasticsearch/issues/28867[issue #28867].
 
 == Launching and debugging from an IDE
 
-If you want to run elasticsearch from your IDE, the `./gradlew run` task
+If you want to run Elasticsearch from your IDE, the `./gradlew run` task
 supports a remote debugging option:
 
 ---------------------------------------------------------------------------

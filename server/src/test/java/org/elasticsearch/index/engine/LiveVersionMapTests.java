@@ -37,7 +37,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.StreamSupport;
+
+import static org.hamcrest.Matchers.empty;
 
 public class LiveVersionMapTests extends ESTestCase {
 
@@ -106,7 +107,6 @@ public class LiveVersionMapTests extends ESTestCase {
             map.afterRefresh(randomBoolean());
             assertNull(map.getUnderLock(uid("test")));
 
-
             map.putUnderLock(uid("test"), new DeleteVersionValue(1,1,1,1));
             assertEquals(new DeleteVersionValue(1,1,1,1), map.getUnderLock(uid("test")));
             map.beforeRefresh();
@@ -114,6 +114,8 @@ public class LiveVersionMapTests extends ESTestCase {
             map.afterRefresh(randomBoolean());
             assertEquals(new DeleteVersionValue(1,1,1,1), map.getUnderLock(uid("test")));
             map.pruneTombstones(2, 0);
+            assertEquals(new DeleteVersionValue(1,1,1,1), map.getUnderLock(uid("test")));
+            map.pruneTombstones(2, 1);
             assertNull(map.getUnderLock(uid("test")));
         }
     }
@@ -134,8 +136,10 @@ public class LiveVersionMapTests extends ESTestCase {
         CountDownLatch startGun = new CountDownLatch(numThreads);
         CountDownLatch done = new CountDownLatch(numThreads);
         int randomValuesPerThread = randomIntBetween(5000, 20000);
-        AtomicLong clock = new AtomicLong(0);
-        AtomicLong lastPrunedTimestamp = new AtomicLong(-1);
+        final AtomicLong clock = new AtomicLong(0);
+        final AtomicLong lastPrunedTimestamp = new AtomicLong(-1);
+        final AtomicLong maxSeqNo = new AtomicLong();
+        final AtomicLong lastPrunedSeqNo = new AtomicLong();
         for (int j = 0; j < threads.length; j++) {
             threads[j] = new Thread(() -> {
                 startGun.countDown();
@@ -148,29 +152,31 @@ public class LiveVersionMapTests extends ESTestCase {
                 try {
                     for (int i = 0; i < randomValuesPerThread; ++i) {
                         BytesRef bytesRef = randomFrom(random(), keyList);
-                        final long clockTick = clock.get();
                         try (Releasable r = map.acquireLock(bytesRef)) {
                             VersionValue versionValue = values.computeIfAbsent(bytesRef,
-                                v -> new VersionValue(randomLong(), randomLong(), randomLong()));
+                                v -> new VersionValue(randomLong(), maxSeqNo.incrementAndGet(), randomLong()));
                             boolean isDelete = versionValue instanceof DeleteVersionValue;
                             if (isDelete) {
                                 map.removeTombstoneUnderLock(bytesRef);
                                 deletes.remove(bytesRef);
                             }
                             if (isDelete == false && rarely()) {
-                                versionValue = new DeleteVersionValue(versionValue.version + 1, versionValue.seqNo + 1,
+                                versionValue = new DeleteVersionValue(versionValue.version + 1, maxSeqNo.incrementAndGet(),
                                     versionValue.term, clock.getAndIncrement());
                                 deletes.put(bytesRef, (DeleteVersionValue) versionValue);
                             } else {
-                                versionValue = new VersionValue(versionValue.version + 1, versionValue.seqNo + 1, versionValue.term);
+                                versionValue = new VersionValue(versionValue.version + 1, maxSeqNo.incrementAndGet(), versionValue.term);
                             }
                             values.put(bytesRef, versionValue);
                             map.putUnderLock(bytesRef, versionValue);
                         }
                         if (rarely()) {
-                            map.pruneTombstones(clockTick, 0);
-                            // timestamp we pruned the deletes
-                            lastPrunedTimestamp.updateAndGet(prev -> Math.max(clockTick, prev)); // make sure we track the latest
+                            final long pruneSeqNo = randomLongBetween(0, maxSeqNo.get());
+                            final long clockTick = randomLongBetween(0, clock.get());
+                            map.pruneTombstones(clockTick, pruneSeqNo);
+                            // make sure we track the latest timestamp and seqno we pruned the deletes
+                            lastPrunedTimestamp.updateAndGet(prev -> Math.max(clockTick, prev));
+                            lastPrunedSeqNo.updateAndGet(prev -> Math.max(pruneSeqNo, prev));
                         }
                     }
                 } finally {
@@ -234,15 +240,17 @@ public class LiveVersionMapTests extends ESTestCase {
                 VersionValue value = map.getUnderLock(e.getKey());
                 // here we keep track of the deletes and ensure that all deletes that are not visible anymore ie. not in the map
                 // have a timestamp that is smaller or equal to the maximum timestamp that we pruned on
+                final DeleteVersionValue delete = e.getValue();
                 if (value == null) {
-                    assertTrue(e.getValue().time + " > " + lastPrunedTimestamp.get(), e.getValue().time <= lastPrunedTimestamp.get());
+                    assertTrue(delete.time + " > " + lastPrunedTimestamp.get() + "," + delete.seqNo + " > " + lastPrunedSeqNo.get(),
+                        delete.time <= lastPrunedTimestamp.get() && delete.seqNo <= lastPrunedSeqNo.get());
                 } else {
-                    assertEquals(value, e.getValue());
+                    assertEquals(value, delete);
                 }
             }
         });
-        map.pruneTombstones(clock.incrementAndGet(), 0);
-        assertEquals(0, StreamSupport.stream(map.getAllTombstones().entrySet().spliterator(), false).count());
+        map.pruneTombstones(clock.incrementAndGet(), maxSeqNo.get());
+        assertThat(map.getAllTombstones().entrySet(), empty());
     }
 
     public void testCarryOnSafeAccess() throws IOException {

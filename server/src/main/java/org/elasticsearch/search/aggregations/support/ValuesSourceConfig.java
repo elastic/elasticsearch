@@ -263,7 +263,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             return (VS) MissingValues.replaceMissing((ValuesSource.Numeric) vs, missing);
         } else if (vs instanceof ValuesSource.GeoPoint) {
             // TODO: also support the structured formats of geo points
-            final GeoPoint missing = GeoUtils.parseGeoPoint(missing().toString(), new GeoPoint());
+            final GeoPoint missing = new GeoPoint(missing().toString());
             return (VS) MissingValues.replaceMissing((ValuesSource.GeoPoint) vs, missing);
         } else {
             // Should not happen

@@ -269,7 +269,8 @@ public abstract class EngineTestCase extends ESTestCase {
 
     protected Translog createTranslog(Path translogPath, LongSupplier primaryTermSupplier) throws IOException {
         TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE);
-        String translogUUID = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId);
+        String translogUUID = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId,
+            primaryTermSupplier.getAsLong());
         return new Translog(translogConfig, translogUUID, createTranslogDeletionPolicy(INDEX_SETTINGS),
             () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTermSupplier);
     }
@@ -369,8 +370,8 @@ public abstract class EngineTestCase extends ESTestCase {
         final Directory directory = store.directory();
         if (Lucene.indexExists(directory) == false) {
             store.createEmpty();
-            final String translogUuid =
-                Translog.createEmptyTranslog(config.getTranslogConfig().getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId);
+            final String translogUuid = Translog.createEmptyTranslog(config.getTranslogConfig().getTranslogPath(),
+                SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
             store.associateIndexWithNewTranslog(translogUuid);
 
         }

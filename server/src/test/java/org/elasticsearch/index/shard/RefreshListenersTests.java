@@ -122,10 +122,10 @@ public class RefreshListenersTests extends ESTestCase {
             }
         };
         store.createEmpty();
-        final String translogUUID =
-            Translog.createEmptyTranslog(translogConfig.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId);
-        store.associateIndexWithNewTranslog(translogUUID);
         final long primaryTerm = randomNonNegativeLong();
+        final String translogUUID =
+            Translog.createEmptyTranslog(translogConfig.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm);
+        store.associateIndexWithNewTranslog(translogUUID);
         EngineConfig config = new EngineConfig(shardId, allocationId, threadPool,
             indexSettings, null, store, newMergePolicy(), iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger),
             eventListener, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,

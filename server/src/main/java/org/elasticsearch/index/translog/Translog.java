@@ -1716,13 +1716,14 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return readers;
     }
 
-    public static String createEmptyTranslog(final Path location, final long initialGlobalCheckpoint, final ShardId shardId)
-        throws IOException {
+    public static String createEmptyTranslog(final Path location, final long initialGlobalCheckpoint,
+                                             final ShardId shardId, final long primaryTerm) throws IOException {
         final ChannelFactory channelFactory = FileChannel::open;
-        return createEmptyTranslog(location, initialGlobalCheckpoint, shardId, channelFactory);
+        return createEmptyTranslog(location, initialGlobalCheckpoint, shardId, channelFactory, primaryTerm);
     }
 
-    static String createEmptyTranslog(Path location, long initialGlobalCheckpoint, ShardId shardId, ChannelFactory channelFactory) throws IOException {
+    static String createEmptyTranslog(Path location, long initialGlobalCheckpoint, ShardId shardId,
+                                      ChannelFactory channelFactory, long primaryTerm) throws IOException {
         IOUtils.rm(location);
         Files.createDirectories(location);
         final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(0, 1, initialGlobalCheckpoint, 1);
@@ -1732,7 +1733,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         final String translogUUID = UUIDs.randomBase64UUID();
         TranslogWriter writer = TranslogWriter.create(shardId, translogUUID, 1, location.resolve(getFilename(1)), channelFactory,
             new ByteSizeValue(10), 1, initialGlobalCheckpoint,
-            () -> { throw new UnsupportedOperationException(); }, () -> { throw new UnsupportedOperationException(); }, 0L
+            () -> { throw new UnsupportedOperationException(); }, () -> { throw new UnsupportedOperationException(); }, primaryTerm
         );
         writer.close();
         return translogUUID;

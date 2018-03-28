@@ -106,7 +106,6 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
@@ -155,7 +154,7 @@ public class TranslogTests extends ESTestCase {
 
     protected Translog createTranslog(TranslogConfig config) throws IOException {
         String translogUUID =
-            Translog.createEmptyTranslog(config.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId);
+            Translog.createEmptyTranslog(config.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
         return new Translog(config, translogUUID, createTranslogDeletionPolicy(config.getIndexSettings()),
             () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get);
     }
@@ -212,7 +211,7 @@ public class TranslogTests extends ESTestCase {
         globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final TranslogConfig translogConfig = getTranslogConfig(path);
         final TranslogDeletionPolicy deletionPolicy = createTranslogDeletionPolicy(translogConfig.getIndexSettings());
-        final String translogUUID = Translog.createEmptyTranslog(path, SequenceNumbers.NO_OPS_PERFORMED, shardId);
+        final String translogUUID = Translog.createEmptyTranslog(path, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
         return new Translog(translogConfig, translogUUID, deletionPolicy, () -> globalCheckpoint.get(), primaryTerm::get);
     }
 
@@ -2032,7 +2031,7 @@ public class TranslogTests extends ESTestCase {
         };
         if (translogUUID == null) {
             translogUUID = Translog.createEmptyTranslog(
-                config.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, channelFactory);
+                config.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, channelFactory, primaryTerm.get());
         }
         return new Translog(config, translogUUID, deletionPolicy, () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get) {
             @Override
@@ -2346,7 +2345,7 @@ public class TranslogTests extends ESTestCase {
             deletionPolicy.setMinTranslogGenerationForRecovery(minGenForRecovery);
             if (generationUUID == null) {
                 // we never managed to successfully create a translog, make it
-                generationUUID = Translog.createEmptyTranslog(config.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId);
+                generationUUID = Translog.createEmptyTranslog(config.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
             }
             try (Translog translog = new Translog(config, generationUUID, deletionPolicy, () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get);
                  Translog.Snapshot snapshot = translog.newSnapshotFromGen(minGenForRecovery)) {

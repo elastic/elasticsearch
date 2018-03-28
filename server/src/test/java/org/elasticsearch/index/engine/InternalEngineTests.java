@@ -1147,7 +1147,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
         if (randomBoolean()) {
             final String translogUUID = Translog.createEmptyTranslog(config.getTranslogConfig().getTranslogPath(),
-                SequenceNumbers.UNASSIGNED_SEQ_NO, shardId);
+                SequenceNumbers.UNASSIGNED_SEQ_NO, shardId, primaryTerm.get());
             store.associateIndexWithNewTranslog(translogUUID);
         }
         engine = new InternalEngine(config);
@@ -2369,7 +2369,7 @@ public class InternalEngineTests extends EngineTestCase {
             {
                 store.createEmpty();
                 final String translogUUID =
-                    Translog.createEmptyTranslog(config.getTranslogConfig().getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId);
+                    Translog.createEmptyTranslog(config.getTranslogConfig().getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
                 store.associateIndexWithNewTranslog(translogUUID);
                 ParsedDocument doc = testParsedDocument(Integer.toString(0), null, testDocument(), new BytesArray("{}"), null);
                 Engine.Index firstIndexRequest = new Engine.Index(newUid(doc), doc, SequenceNumbers.UNASSIGNED_SEQ_NO, 0,
@@ -2409,7 +2409,7 @@ public class InternalEngineTests extends EngineTestCase {
             // open index with new tlog
             {
                 final String translogUUID =
-                    Translog.createEmptyTranslog(config.getTranslogConfig().getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId);
+                    Translog.createEmptyTranslog(config.getTranslogConfig().getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
                 store.associateIndexWithNewTranslog(translogUUID);
                 try (InternalEngine engine = new InternalEngine(config)) {
                     Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
@@ -2454,7 +2454,7 @@ public class InternalEngineTests extends EngineTestCase {
             // expected
         }
         // when a new translog is created it should be ok
-        final String translogUUID = Translog.createEmptyTranslog(primaryTranslogDir, SequenceNumbers.UNASSIGNED_SEQ_NO, shardId);
+        final String translogUUID = Translog.createEmptyTranslog(primaryTranslogDir, SequenceNumbers.UNASSIGNED_SEQ_NO, shardId, primaryTerm);
         store.associateIndexWithNewTranslog(translogUUID);
         EngineConfig config = config(defaultSettings, store, primaryTranslogDir, newMergePolicy(), null);
         engine = new InternalEngine(config);
@@ -2519,7 +2519,7 @@ public class InternalEngineTests extends EngineTestCase {
             final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
             final LongSupplier globalCheckpointSupplier = () -> globalCheckpoint.get();
             store.createEmpty();
-            final String translogUUID = Translog.createEmptyTranslog(translogPath, globalCheckpoint.get(), shardId);
+            final String translogUUID = Translog.createEmptyTranslog(translogPath, globalCheckpoint.get(), shardId, primaryTerm.get());
             store.associateIndexWithNewTranslog(translogUUID);
             try (InternalEngine engine =
                      new InternalEngine(config(indexSettings, store, translogPath, newMergePolicy(), null, null,
@@ -2681,7 +2681,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine.close();
 
         final Path badTranslogLog = createTempDir();
-        final String badUUID = Translog.createEmptyTranslog(badTranslogLog, SequenceNumbers.NO_OPS_PERFORMED, shardId);
+        final String badUUID = Translog.createEmptyTranslog(badTranslogLog, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
         Translog translog = new Translog(
             new TranslogConfig(shardId, badTranslogLog, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE),
             badUUID, createTranslogDeletionPolicy(INDEX_SETTINGS), () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get);
@@ -3311,7 +3311,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
         try (Store store = createStore(newFSDirectory(storeDir))) {
             if (randomBoolean() || true) {
-                final String translogUUID = Translog.createEmptyTranslog(translogDir, SequenceNumbers.NO_OPS_PERFORMED, shardId);
+                final String translogUUID = Translog.createEmptyTranslog(translogDir, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
                 store.associateIndexWithNewTranslog(translogUUID);
             }
             try (Engine engine = new InternalEngine(configSupplier.apply(store))) {
@@ -4114,7 +4114,7 @@ public class InternalEngineTests extends EngineTestCase {
         store = createStore();
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         store.createEmpty();
-        final String translogUUID = Translog.createEmptyTranslog(translogPath, globalCheckpoint.get(), shardId);
+        final String translogUUID = Translog.createEmptyTranslog(translogPath, globalCheckpoint.get(), shardId, primaryTerm.get());
         store.associateIndexWithNewTranslog(translogUUID);
 
         final EngineConfig engineConfig = config(indexSettings, store, translogPath, NoMergePolicy.INSTANCE, null, null,

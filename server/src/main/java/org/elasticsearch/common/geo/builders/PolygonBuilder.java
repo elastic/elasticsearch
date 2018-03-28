@@ -682,6 +682,9 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
         final int top = top(points, offset, length);
         final int prev = (top + length - 1) % length;
         final int next = (top + 1) % length;
+
+        // This duplicates the functionality of org.apache.lucene.geo.Polygon2D#orient which is, at time of writing, private.
+        // TODO make Lucene's method public and then use it here instead.
         final double determinant
             = (points[offset + next].x - points[offset + top].x) * (points[offset + prev].y - points[offset + top].y)
             - (points[offset + prev].x - points[offset + top].x) * (points[offset + next].y - points[offset + top].y);

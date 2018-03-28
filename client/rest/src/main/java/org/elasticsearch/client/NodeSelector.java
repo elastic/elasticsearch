@@ -74,7 +74,7 @@ public interface NodeSelector {
             List<Node> subset = new ArrayList<>(nodes.size());
             for (Node node : nodes) {
                 if (node.getRoles() == null) continue;
-                if (false == node.getRoles().hasMasterEligible() || node.getRoles().hasData()) {
+                if (false == node.getRoles().isMasterEligible() || node.getRoles().isData()) {
                     subset.add(node);
                 }
             }

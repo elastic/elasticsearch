@@ -137,7 +137,6 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
     /**
      * Replaces the nodes that the client communicates without providing any
      * metadata about any of the nodes.
-     * @see Node#Node(HttpHost)
      */
     public void setHosts(HttpHost... hosts) {
         setNodes(hostsToNodes(hosts));
@@ -255,11 +254,11 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
                 failureTrackingResponseListener);
     }
 
-    private void performRequestAsync(final long startTime, final NodeTuple<Iterator<HttpHost>> hostTuple, final HttpRequestBase request,
+    private void performRequestAsync(final long startTime, final NodeTuple<Iterator<Node>> hostTuple, final HttpRequestBase request,
                                      final Set<Integer> ignoreErrorCodes,
                                      final HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
                                      final FailureTrackingResponseListener listener) {
-        final HttpHost host = hostTuple.nodes.next();
+        final HttpHost host = hostTuple.nodes.next().getHost();
         //we stream the request body if the entity allows for it
         final HttpAsyncRequestProducer requestProducer = HttpAsyncMethods.create(host, request);
         final HttpAsyncResponseConsumer<HttpResponse> asyncResponseConsumer =
@@ -360,30 +359,15 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
      * that. If the retries fail this throws a {@link IOException}.
      * @throws IOException if no nodes are available
      */
-    private NodeTuple<Iterator<HttpHost>> nextNode(NodeSelector nodeSelector) throws IOException {
+    private NodeTuple<Iterator<Node>> nextNode(NodeSelector nodeSelector) throws IOException {
         NodeTuple<List<Node>> nodeTuple = this.nodeTuple;
-        List<HttpHost> hosts = selectHosts(nodeTuple, blacklist, lastNodeIndex, System.nanoTime(), nodeSelector);
+        List<Node> hosts = selectHosts(nodeTuple, blacklist, lastNodeIndex, System.nanoTime(), nodeSelector);
         return new NodeTuple<>(hosts.iterator(), nodeTuple.authCache);
     }
 
-    static List<HttpHost> selectHosts(NodeTuple<List<Node>> nodeTuple,
+    static List<Node> selectHosts(NodeTuple<List<Node>> nodeTuple,
             Map<HttpHost, DeadHostState> blacklist, AtomicInteger lastNodeIndex,
             long now, NodeSelector nodeSelector) throws IOException {
-        class DeadNodeAndRevival {
-            final Node node;
-            final long nanosUntilRevival;
-
-            DeadNodeAndRevival(Node node, long nanosUntilRevival) {
-                this.node = node;
-                this.nanosUntilRevival = nanosUntilRevival;
-            }
-
-            @Override
-            public String toString() {
-                return node.toString();
-            }
-        }
-
         /*
          * Sort the nodes into living and dead lists.
          */
@@ -415,11 +399,7 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
             Collections.rotate(livingNodes, lastNodeIndex.getAndIncrement());
             List<Node> selectedLivingNodes = nodeSelector.select(livingNodes);
             if (false == selectedLivingNodes.isEmpty()) {
-                List<HttpHost> hosts = new ArrayList<>(selectedLivingNodes.size());
-                for (Node node : selectedLivingNodes) {
-                    hosts.add(node.getHost());
-                }
-                return hosts;
+                return selectedLivingNodes;
             }
         }
 
@@ -448,7 +428,7 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
             }
             selectedDeadNodes = nodeSelector.select(selectedDeadNodes);
             if (false == selectedDeadNodes.isEmpty()) {
-                return singletonList(selectedDeadNodes.get(0).getHost());
+                return singletonList(selectedDeadNodes.get(0));
             }
         }
         throw new IOException("NodeSelector [" + nodeSelector + "] rejected all nodes, "
@@ -631,6 +611,25 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
         NodeTuple(final T nodes, final AuthCache authCache) {
             this.nodes = nodes;
             this.authCache = authCache;
+        }
+    }
+
+    /**
+     * Contains a reference to a blacklisted node and the time until it is
+     * revived. We use this so we can do a single pass over the blacklist.
+     */
+    private static class DeadNodeAndRevival {
+        final Node node;
+        final long nanosUntilRevival;
+
+        DeadNodeAndRevival(Node node, long nanosUntilRevival) {
+            this.node = node;
+            this.nanosUntilRevival = nanosUntilRevival;
+        }
+
+        @Override
+        public String toString() {
+            return node.toString();
         }
     }
 }

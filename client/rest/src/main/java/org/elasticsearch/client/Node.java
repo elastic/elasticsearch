@@ -82,8 +82,7 @@ public class Node {
     /**
      * Make a copy of this {@link Node} but replacing its
      * {@link #getHost() host}. Use this when the sniffing implementation
-     * returns returns a {@link #getHost() host} that is not useful to the
-     * client.
+     * returns a {@link #getHost() host} that is not useful to the client.
      */
     public Node withHost(HttpHost host) {
         /*
@@ -192,19 +191,19 @@ public class Node {
         /**
          * The node <strong>could</strong> be elected master.
          */
-        public boolean hasMasterEligible() {
+        public boolean isMasterEligible() {
             return masterEligible;
         }
         /**
          * The node stores data.
          */
-        public boolean hasData() {
+        public boolean isData() {
             return data;
         }
         /**
          * The node runs ingest pipelines.
          */
-        public boolean hasIngest() {
+        public boolean isIngest() {
             return ingest;
         }
 

@@ -244,13 +244,13 @@ public class ElasticsearchHostsSnifferTests extends RestClientTestCase {
             Collections.shuffle(roles, getRandom());
             generator.writeArrayFieldStart("roles");
             for (String role : roles) {
-                if ("master".equals(role) && node.getRoles().hasMasterEligible()) {
+                if ("master".equals(role) && node.getRoles().isMasterEligible()) {
                     generator.writeString("master");
                 }
-                if ("data".equals(role) && node.getRoles().hasData()) {
+                if ("data".equals(role) && node.getRoles().isData()) {
                     generator.writeString("data");
                 }
-                if ("ingest".equals(role) && node.getRoles().hasIngest()) {
+                if ("ingest".equals(role) && node.getRoles().isIngest()) {
                     generator.writeString("ingest");
                 }
             }

@@ -158,13 +158,10 @@ public class RestClientTests extends RestClientTestCase {
 
     public void testSelectHosts() throws IOException {
         int iterations = 1000;
-        HttpHost h1 = new HttpHost("1");
-        HttpHost h2 = new HttpHost("2");
-        HttpHost h3 = new HttpHost("3");
-        List<Node> nodes = Arrays.asList(
-                new Node(h1, null, null, "1", null),
-                new Node(h2, null, null, "2", null),
-                new Node(h3, null, null, "3", null));
+        Node n1 = new Node(new HttpHost("1"), null, null, "1", null);
+        Node n2 = new Node(new HttpHost("2"), null, null, "2", null);
+        Node n3 = new Node(new HttpHost("3"), null, null, "3", null);
+        List<Node> nodes = Arrays.asList(n1, n2, n3);
 
         NodeSelector not1 = new NodeSelector() {
             @Override
@@ -201,33 +198,33 @@ public class RestClientTests extends RestClientTestCase {
         long now = 0;
 
         // Normal case
-        List<HttpHost> expectedHosts = Arrays.asList(h1, h2, h3);
-        assertEquals(expectedHosts, RestClient.selectHosts(nodeTuple, blacklist,
+        List<Node> expectedNodes = Arrays.asList(n1, n2, n3);
+        assertEquals(expectedNodes, RestClient.selectHosts(nodeTuple, blacklist,
                 lastNodeIndex, now, NodeSelector.ANY));
         // Calling it again rotates the set of results
         for (int i = 0; i < iterations; i++) {
-            Collections.rotate(expectedHosts, 1);
-            assertEquals(expectedHosts, RestClient.selectHosts(nodeTuple, blacklist,
+            Collections.rotate(expectedNodes, 1);
+            assertEquals(expectedNodes, RestClient.selectHosts(nodeTuple, blacklist,
                     lastNodeIndex, now, NodeSelector.ANY));
         }
 
         // Exclude some node
         lastNodeIndex.set(0);
         // h1 excluded
-        assertEquals(Arrays.asList(h2, h3), RestClient.selectHosts(nodeTuple, blacklist,
+        assertEquals(Arrays.asList(n2, n3), RestClient.selectHosts(nodeTuple, blacklist,
                 lastNodeIndex, now, not1));
         // Calling it again rotates the set of results
-        assertEquals(Arrays.asList(h3, h2), RestClient.selectHosts(nodeTuple, blacklist,
+        assertEquals(Arrays.asList(n3, n2), RestClient.selectHosts(nodeTuple, blacklist,
                 lastNodeIndex, now, not1));
         // And again, same
-        assertEquals(Arrays.asList(h2, h3), RestClient.selectHosts(nodeTuple, blacklist,
+        assertEquals(Arrays.asList(n2, n3), RestClient.selectHosts(nodeTuple, blacklist,
                 lastNodeIndex, now, not1));
         /*
          * But this time it doesn't because the list being filtered changes
          * from (h1, h2, h3) to (h2, h3, h1) which both look the same when
          * you filter out h1.
          */
-        assertEquals(Arrays.asList(h2, h3), RestClient.selectHosts(nodeTuple, blacklist,
+        assertEquals(Arrays.asList(n2, n3), RestClient.selectHosts(nodeTuple, blacklist,
                 lastNodeIndex, now, not1));
 
         /*
@@ -249,18 +246,18 @@ public class RestClientTests extends RestClientTestCase {
          * Mark all nodes as dead and look up at a time *after* the
          * revival time. This should return all nodes.
          */
-        blacklist.put(h1, new DeadHostState(1, 1));
-        blacklist.put(h2, new DeadHostState(1, 2));
-        blacklist.put(h3, new DeadHostState(1, 3));
+        blacklist.put(n1.getHost(), new DeadHostState(1, 1));
+        blacklist.put(n2.getHost(), new DeadHostState(1, 2));
+        blacklist.put(n3.getHost(), new DeadHostState(1, 3));
         lastNodeIndex.set(0);
         now = 1000;
-        expectedHosts = Arrays.asList(h1, h2, h3);
-        assertEquals(expectedHosts, RestClient.selectHosts(nodeTuple, blacklist, lastNodeIndex,
+        expectedNodes = Arrays.asList(n1, n2, n3);
+        assertEquals(expectedNodes, RestClient.selectHosts(nodeTuple, blacklist, lastNodeIndex,
                 now, NodeSelector.ANY));
         // Calling it again rotates the set of results
         for (int i = 0; i < iterations; i++) {
-            Collections.rotate(expectedHosts, 1);
-            assertEquals(expectedHosts, RestClient.selectHosts(nodeTuple, blacklist,
+            Collections.rotate(expectedNodes, 1);
+            assertEquals(expectedNodes, RestClient.selectHosts(nodeTuple, blacklist,
                     lastNodeIndex, now, NodeSelector.ANY));
         }
 
@@ -269,7 +266,7 @@ public class RestClientTests extends RestClientTestCase {
          * Only the node closest to revival should come back.
          */
         now = 0;
-        assertEquals(singletonList(h1), RestClient.selectHosts(nodeTuple, blacklist, lastNodeIndex,
+        assertEquals(singletonList(n1), RestClient.selectHosts(nodeTuple, blacklist, lastNodeIndex,
                 now, NodeSelector.ANY));
 
         /*
@@ -277,7 +274,7 @@ public class RestClientTests extends RestClientTestCase {
          * *and* a node selector that removes the node that is closest
          * to being revived. The second closest node should come back.
          */
-        assertEquals(singletonList(h2), RestClient.selectHosts(nodeTuple, blacklist,
+        assertEquals(singletonList(n2), RestClient.selectHosts(nodeTuple, blacklist,
                 lastNodeIndex, now, not1));
 
         /*

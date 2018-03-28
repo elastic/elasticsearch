@@ -576,34 +576,23 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * this method will return <code>null</code>.
      */
     public Operation readOperation(Location location) throws IOException {
-        BaseTranslogReader reader = null;
-        Closeable onClose = null;
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             if (location.generation < getMinFileGeneration()) {
                 return null;
             }
             if (current.generation == location.generation) {
-                // fsync here to ensure all buffers are written to disk
-                current.syncUpTo(location.translogLocation + location.size);
-                reader = current;
-                onClose = acquireTranslogGenFromDeletionPolicy(current.generation);
-
+                // no need to fsync here the read operation will ensure that buffers are written to disk
+                // if they are still in RAM and we are reading onto that position
+                return current.read(location);
             } else {
+                // read backwards - it's likely we need to read on that is recent
                 for (int i = readers.size() - 1; i >= 0; i--) {
                     TranslogReader translogReader = readers.get(i);
                     if (translogReader.generation == location.generation) {
-                        reader = translogReader;
-                        onClose = acquireTranslogGenFromDeletionPolicy(current.generation);
-                        break;
+                        return translogReader.read(location);
                     }
                 }
-            }
-        }
-        // read outside of the lock
-        try (Closeable ignore = onClose) {
-            if (reader != null) {
-                return reader.read(location);
             }
         }
         return null;

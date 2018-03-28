@@ -21,6 +21,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.translog.Translog;
 
 import java.util.Collection;

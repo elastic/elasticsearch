@@ -567,12 +567,14 @@ public class InternalEngine extends Engine {
                             try {
                                 Translog.Operation operation = translog.readOperation(versionValue.getLocation());
                                 if (operation != null) {
+                                    // in the case of a already pruned translog generation we might get null here - yet very unlikely
                                     TranslogLeafReader reader = new TranslogLeafReader((Translog.Index) operation, engineConfig
                                         .getIndexSettings().getIndexVersionCreated());
                                     return new GetResult(new Searcher("realtime_get", new IndexSearcher(reader)),
                                         new VersionsAndSeqNoResolver.DocIdAndVersion(0, ((Translog.Index) operation).version(), reader, 0));
                                 }
                             } catch (IOException e) {
+                                maybeFailEngine("realtime_get", e); // lets check if the translog has failed with a tragic event
                                 throw new EngineException(shardId, "failed to read operation from translog", e);
                             }
                         } else {

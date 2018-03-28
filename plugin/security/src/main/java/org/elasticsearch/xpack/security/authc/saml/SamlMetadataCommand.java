@@ -6,9 +6,17 @@
 package org.elasticsearch.xpack.security.authc.saml;
 
 import java.io.InputStream;
+import java.io.Reader;
 import java.io.Writer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.Key;
+import java.security.PrivateKey;
+import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -16,6 +24,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import joptsimple.OptionParser;
@@ -28,6 +37,7 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.Loggers;
@@ -38,10 +48,18 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
+import org.elasticsearch.xpack.core.ssl.CertUtils;
 import org.elasticsearch.xpack.security.authc.saml.SamlSpMetadataBuilder.ContactInfo;
+import org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport;
+import org.opensaml.core.xml.io.MarshallingException;
 import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.saml.saml2.metadata.impl.EntityDescriptorMarshaller;
+import org.opensaml.security.credential.Credential;
+import org.opensaml.security.x509.BasicX509Credential;
+import org.opensaml.xmlsec.signature.Signature;
+import org.opensaml.xmlsec.signature.support.SignatureConstants;
+import org.opensaml.xmlsec.signature.support.Signer;
 import org.w3c.dom.Element;
 import org.xml.sax.SAXException;
 
@@ -65,6 +83,10 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
     private final OptionSpec<String> orgDisplayNameSpec;
     private final OptionSpec<String> orgUrlSpec;
     private final OptionSpec<Void> contactsSpec;
+    private final OptionSpec<String> signingPkcs12PathSpec;
+    private final OptionSpec<String> signingCertPathSpec;
+    private final OptionSpec<String> signingKeyPathSpec;
+    private final OptionSpec<String> keyPasswordSpec;
 
     public static void main(String[] args) throws Exception {
         new SamlMetadataCommand().main(args, Terminal.DEFAULT);
@@ -84,6 +106,18 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
         orgUrlSpec = parser.accepts("organisation-url", "the URL of the organisation operating this service")
                 .requiredIf(orgNameSpec).withRequiredArg();
         contactsSpec = parser.accepts("contacts", "Include contact information in metadata").availableUnless(batchSpec);
+        signingPkcs12PathSpec = parser.accepts("signing-bundle", "path to an existing key pair (in PKCS#12 format) to be used for " +
+                "signing ")
+                .withRequiredArg();
+        signingCertPathSpec = parser.accepts("signing-cert", "path to an existing signing certificate")
+                .availableUnless(signingPkcs12PathSpec)
+                .withRequiredArg();
+        signingKeyPathSpec = parser.accepts("signing-key", "path to an existing signing private key")
+                .availableIf(signingCertPathSpec)
+                .requiredIf(signingCertPathSpec)
+                .withRequiredArg();
+        keyPasswordSpec = parser.accepts("signing-key-password", "password for an existing signing private key or keypair")
+                .withOptionalArg();
     }
 
     @Override
@@ -95,7 +129,9 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
         SamlUtils.initialize(logger);
 
         final EntityDescriptor descriptor = buildEntityDescriptor(terminal, options, env);
-        final Path xml = writeOutput(terminal, options, descriptor);
+        Element element = possiblySignDescriptor(terminal, options, descriptor, env);
+
+        final Path xml = writeOutput(terminal, options, element);
         validateXml(terminal, xml);
     }
 
@@ -181,9 +217,42 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
         return builder.build();
     }
 
-    private Path writeOutput(Terminal terminal, OptionSet options, EntityDescriptor descriptor) throws Exception {
-        final EntityDescriptorMarshaller marshaller = new EntityDescriptorMarshaller();
-        final Element element = marshaller.marshall(descriptor);
+    // package-protected for testing
+    Element possiblySignDescriptor(Terminal terminal, OptionSet options, EntityDescriptor descriptor, Environment env)
+            throws UserException {
+        try {
+            final EntityDescriptorMarshaller marshaller = new EntityDescriptorMarshaller();
+            if (options.has(signingPkcs12PathSpec) || (options.has(signingCertPathSpec) && options.has(signingKeyPathSpec))) {
+                Signature signature = (Signature) XMLObjectProviderRegistrySupport.getBuilderFactory()
+                        .getBuilder(Signature.DEFAULT_ELEMENT_NAME)
+                        .buildObject(Signature.DEFAULT_ELEMENT_NAME);
+                signature.setSigningCredential(buildSigningCredential(terminal, options, env));
+                signature.setSignatureAlgorithm(SignatureConstants.ALGO_ID_SIGNATURE_RSA_SHA256);
+                signature.setCanonicalizationAlgorithm(SignatureConstants.ALGO_ID_C14N_EXCL_OMIT_COMMENTS);
+                descriptor.setSignature(signature);
+                Element element = marshaller.marshall(descriptor);
+                Signer.signObject(signature);
+                return element;
+            } else {
+                return marshaller.marshall(descriptor);
+            }
+        } catch (Exception e) {
+            String errorMessage;
+            if (e instanceof MarshallingException) {
+                errorMessage = "Error serializing Metadata to file";
+            } else if (e instanceof org.opensaml.xmlsec.signature.support.SignatureException) {
+                errorMessage = "Error attempting to sign Metadata";
+            } else {
+                errorMessage = "Error building signing credentials from provided keyPair";
+            }
+            terminal.println(Terminal.Verbosity.SILENT, errorMessage);
+            terminal.println("The following errors were found:");
+            printExceptions(terminal, e);
+            throw new UserException(ExitCodes.CANT_CREATE, "Unable to create metadata document");
+        }
+    }
+
+    private Path writeOutput(Terminal terminal, OptionSet options, Element element) throws Exception {
         final Path outputFile = resolvePath(option(outputPathSpec, options, "saml-elasticsearch-metadata.xml"));
         final Writer writer = Files.newBufferedWriter(outputFile);
         SamlUtils.print(element, writer, true);
@@ -191,7 +260,74 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
         return outputFile;
     }
 
+    private Credential buildSigningCredential(Terminal terminal, OptionSet options, Environment env) throws
+            Exception {
+        X509Certificate signingCertificate;
+        PrivateKey signingKey;
+        char[] password = getChars(keyPasswordSpec.value(options));
+        if (options.has(signingPkcs12PathSpec)) {
+            Path p12Path = resolvePath(signingPkcs12PathSpec.value(options));
+            Map<Certificate, Key> keys = withPassword("certificate bundle (" + p12Path + ")", password,
+                    terminal, keyPassword -> CertUtils.readPkcs12KeyPairs(p12Path, keyPassword, a -> keyPassword, env));
 
+            if (keys.size() != 1) {
+                throw new IllegalArgumentException("expected a single key in file [" + p12Path.toAbsolutePath() + "] but found [" +
+                        keys.size() + "]");
+            }
+            final Map.Entry<Certificate, Key> pair = keys.entrySet().iterator().next();
+            signingCertificate = (X509Certificate) pair.getKey();
+            signingKey = (PrivateKey) pair.getValue();
+        } else {
+            Path cert = resolvePath(signingCertPathSpec.value(options));
+            Path key = resolvePath(signingKeyPathSpec.value(options));
+            final String resolvedSigningCertPath = cert.toAbsolutePath().toString();
+            Certificate[] certificates = CertUtils.readCertificates(Collections.singletonList(resolvedSigningCertPath), env);
+            if (certificates.length != 1) {
+                throw new IllegalArgumentException("expected a single certificate in file [" + resolvedSigningCertPath + "] but found [" +
+                        certificates.length + "]");
+            }
+            signingCertificate = (X509Certificate) certificates[0];
+            signingKey = readSigningKey(key, password, terminal);
+        }
+        return new BasicX509Credential(signingCertificate, signingKey);
+    }
+
+    private static <T, E extends Exception> T withPassword(String description, char[] password, Terminal terminal,
+                                                           CheckedFunction<char[], T, E> body) throws E {
+        if (password == null) {
+            char[] promptedValue = terminal.readSecret("Enter password for " + description + " : ");
+            try {
+                return body.apply(promptedValue);
+            } finally {
+                Arrays.fill(promptedValue, (char) 0);
+            }
+        } else {
+            return body.apply(password);
+        }
+    }
+
+    private static char[] getChars(String password) {
+        return password == null ? null : password.toCharArray();
+    }
+
+    private static PrivateKey readSigningKey(Path path, char[] password, Terminal terminal)
+            throws Exception {
+        AtomicReference<char[]> passwordReference = new AtomicReference<>(password);
+        try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+            return CertUtils.readPrivateKey(reader, () -> {
+                if (password != null) {
+                    return password;
+                }
+                char[] promptedValue = terminal.readSecret("Enter password for the signing key (" + path.getFileName() + ") : ");
+                passwordReference.set(promptedValue);
+                return promptedValue;
+            });
+        } finally {
+            if (passwordReference.get() != null) {
+                Arrays.fill(passwordReference.get(), (char) 0);
+            }
+        }
+    }
     private void validateXml(Terminal terminal, Path xml) throws Exception {
         try (InputStream xmlInput = Files.newInputStream(xml)) {
             SamlUtils.validate(xmlInput, METADATA_SCHEMA);

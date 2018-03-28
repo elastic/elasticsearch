@@ -214,7 +214,7 @@ to Elasticsearch types:
 |=======================================================================
 |GeoJSON Type |WKT Type |Elasticsearch Type |Description
 
-|`Point` |`POINT` |`point` |A single geographic coordinate.
+|`Point` |`POINT` |`point` |A single geographic coordinate. Note: Elasticsearch uses WGS-84 coordinates only.
 |`LineString` |`LINESTRING` |`linestring` |An arbitrary line given two or more points.
 |`Polygon` |`POLYGON` |`polygon` |A _closed_ polygon whose first and last point
 must match, thus requiring `n + 1` vertices to create an `n`-sided

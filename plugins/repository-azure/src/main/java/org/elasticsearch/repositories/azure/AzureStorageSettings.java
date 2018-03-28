@@ -19,6 +19,7 @@
 
 package org.elasticsearch.repositories.azure;
 
+import com.microsoft.azure.storage.CloudStorageAccount;
 import com.microsoft.azure.storage.RetryPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureSetting;
@@ -33,7 +34,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
+import java.net.URISyntaxException;
 import java.net.UnknownHostException;
+import java.security.InvalidKeyException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
@@ -87,6 +90,7 @@ public final class AzureStorageSettings {
     private final int maxRetries;
     private final Proxy proxy;
 
+    private final CloudStorageAccount cloudStorageAccount;
 
     public AzureStorageSettings(String account, String key, String endpointSuffix, TimeValue timeout, int maxRetries,
                                 Proxy.Type proxyType, String proxyHost, Integer proxyPort) {
@@ -98,10 +102,10 @@ public final class AzureStorageSettings {
 
         // Register the proxy if we have any
         // Validate proxy settings
-        if (proxyType.equals(Proxy.Type.DIRECT) && (proxyPort != 0 || Strings.hasText(proxyHost))) {
+        if (proxyType.equals(Proxy.Type.DIRECT) && ((proxyPort != 0) || Strings.hasText(proxyHost))) {
             throw new SettingsException("Azure Proxy port or host have been set but proxy type is not defined.");
         }
-        if (proxyType.equals(Proxy.Type.DIRECT) == false && (proxyPort == 0 || Strings.isEmpty(proxyHost))) {
+        if ((proxyType.equals(Proxy.Type.DIRECT) == false) && ((proxyPort == 0) || Strings.isEmpty(proxyHost))) {
             throw new SettingsException("Azure Proxy type has been set but proxy host or port is not defined.");
         }
 
@@ -110,9 +114,23 @@ public final class AzureStorageSettings {
         } else {
             try {
                 proxy = new Proxy(proxyType, new InetSocketAddress(InetAddress.getByName(proxyHost), proxyPort));
-            } catch (UnknownHostException e) {
+            } catch (final UnknownHostException e) {
                 throw new SettingsException("Azure proxy host is unknown.", e);
             }
+        }
+
+        final StringBuilder connectionStringBuilder = new StringBuilder();
+        connectionStringBuilder
+            .append("DefaultEndpointsProtocol=https")
+            .append(";AccountName=").append(account)
+            .append(";AccountKey=").append(key);
+        if (Strings.hasText(endpointSuffix)) {
+            connectionStringBuilder.append(";EndpointSuffix=").append(endpointSuffix);
+        }
+        try {
+            this.cloudStorageAccount = CloudStorageAccount.parse(connectionStringBuilder.toString());
+        } catch (InvalidKeyException | URISyntaxException e) {
+            throw new SettingsException("Check settings for client [" + account + "].", e);
         }
     }
 
@@ -160,15 +178,15 @@ public final class AzureStorageSettings {
      */
     public static Map<String, AzureStorageSettings> load(Settings settings) {
         // Get the list of existing named configurations
-        Map<String, AzureStorageSettings> storageSettings = new HashMap<>();
-        for (String clientName : ACCOUNT_SETTING.getNamespaces(settings)) {
+        final Map<String, AzureStorageSettings> storageSettings = new HashMap<>();
+        for (final String clientName : ACCOUNT_SETTING.getNamespaces(settings)) {
             storageSettings.put(clientName, getClientSettings(settings, clientName));
         }
 
-        if (storageSettings.containsKey("default") == false && storageSettings.isEmpty() == false) {
+        if ((storageSettings.containsKey("default") == false) && (storageSettings.isEmpty() == false)) {
             // in case no setting named "default" has been set, let's define our "default"
             // as the first named config we get
-            AzureStorageSettings defaultSettings = storageSettings.values().iterator().next();
+            final AzureStorageSettings defaultSettings = storageSettings.values().iterator().next();
             storageSettings.put("default", defaultSettings);
         }
         return Collections.unmodifiableMap(storageSettings);
@@ -191,13 +209,13 @@ public final class AzureStorageSettings {
 
     private static <T> T getConfigValue(Settings settings, String clientName,
                                         Setting.AffixSetting<T> clientSetting) {
-        Setting<T> concreteSetting = clientSetting.getConcreteSettingForNamespace(clientName);
+        final Setting<T> concreteSetting = clientSetting.getConcreteSettingForNamespace(clientName);
         return concreteSetting.get(settings);
     }
 
     public static <T> T getValue(Settings settings, String groupName, Setting<T> setting) {
-        Setting.AffixKey k = (Setting.AffixKey) setting.getRawKey();
-        String fullKey = k.toConcreteKey(groupName).toString();
+        final Setting.AffixKey k = (Setting.AffixKey) setting.getRawKey();
+        final String fullKey = k.toConcreteKey(groupName).toString();
         return setting.getConcreteSetting(fullKey).get(settings);
     }
 }

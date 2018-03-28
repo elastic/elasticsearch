@@ -49,11 +49,11 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
+
 public class AzureStorageServiceImpl extends AbstractComponent implements AzureStorageService {
 
-    final Map<String, AzureStorageSettings> storageSettings;
-
-    final Map<String, CloudBlobClient> clients = new HashMap<>();
+    private volatile Map<String, AzureStorageSettings> storageSettings = emptyMap();
 
     public AzureStorageServiceImpl(Settings settings, Map<String, AzureStorageSettings> storageSettings) {
         super(settings);
@@ -72,6 +72,20 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
             logger.debug("registering regular client for account [{}]", azureStorageSettingsEntry.getKey());
             createClient(azureStorageSettingsEntry.getValue());
         }
+    }
+
+    @Override
+    public CloudBlobClient client(String clientName) {
+        return null;
+    }
+
+    @Override
+    public Map<String, AzureStorageSettings> updateClientsSettings(Map<String, AzureStorageSettings> clientsSettings) {
+        assert clientsSettings.containsKey("default") : "always at least have 'default'";
+        final Map<String, AzureStorageSettings> prevSettings = this.storageSettings;
+        this.storageSettings = MapBuilder.newMapBuilder(clientsSettings).immutableMap();
+        // clients are built lazily by {@link client(String)}
+        return prevSettings;
     }
 
     void createClient(AzureStorageSettings azureStorageSettings) {
@@ -320,4 +334,5 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         SocketAccess.doPrivilegedVoidException(() -> blob.upload(inputStream, blobSize, null, null, generateOperationContext(account)));
         logger.trace("writeBlob({}, stream, {}) - done", blobName, blobSize);
     }
+
 }

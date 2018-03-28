@@ -21,6 +21,8 @@ package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
+import com.microsoft.azure.storage.blob.CloudBlobClient;
+
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -35,6 +37,23 @@ import java.util.Map;
  * @see AzureStorageServiceImpl for Azure REST API implementation
  */
 public interface AzureStorageService {
+
+    /**
+     * Creates but DOES NOT cache a {@code CloudBlobClient} using the current client
+     * settings. CloudBlobClient is not thread safe, so it's not cache-able.
+     */
+    CloudBlobClient client(String clientName);
+
+    /**
+     * Updates settings for building clients. Future client requests will use the
+     * new settings. Implementations SHOULD drop the client cache to prevent reusing
+     * clients with old settings from cache.
+     *
+     * @param clientsSettings
+     *            the new settings
+     * @return the old settings
+     */
+    Map<String, AzureStorageSettings> updateClientsSettings(Map<String, AzureStorageSettings> clientsSettings);
 
     ByteSizeValue MIN_CHUNK_SIZE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
     ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(64, ByteSizeUnit.MB);

@@ -552,7 +552,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                     List<Map<String, Object>> logs = new ArrayList<>();
                     String line;
                     Pattern logPattern = Pattern.compile(
-                            ("PART PART PART origin_type=PART, origin_address=PART, principal=PART, realm=PART, "
+                            ("PART PART PART PART origin_type=PART, origin_address=PART, principal=PART, realm=PART, "
                             + "(?:run_as_principal=IGN, )?(?:run_as_realm=IGN, )?(?:run_by_principal=PART, )?(?:run_by_realm=PART, )?"
                             + "roles=PART, action=\\[(.*?)\\], (?:indices=PART, )?request=PART")
                                 .replace(" ", "\\s+").replace("PART", "\\[([^\\]]*)\\]").replace("IGN", "\\[[^\\]]*\\]"));
@@ -567,6 +567,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                         /* We *could* parse the date but leaving it in the original format makes it
                         * easier to find the lines in the file that this log comes from. */
                         log.put("time", m.group(i++));
+                        log.put("node", m.group(i++));
                         log.put("origin", m.group(i++));
                         String eventType = m.group(i++);
                         if (false == ("access_denied".equals(eventType) || "access_granted".equals(eventType))) {

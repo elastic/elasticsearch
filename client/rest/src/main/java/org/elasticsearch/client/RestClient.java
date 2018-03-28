@@ -90,12 +90,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class RestClient extends AbstractRestClientActions implements Closeable {
     private static final Log logger = LogFactory.getLog(RestClient.class);
 
-    /**
-     * The maximum number of attempts that {@link #nextNode(NodeSelector)} makes
-     * before giving up and failing the request.
-     */
-    private static final int MAX_NEXT_NODES_ATTEMPTS = 10;
-
     private final CloseableHttpAsyncClient client;
     // We don't rely on default headers supported by HttpAsyncClient as those cannot be replaced.
     // These are package private for tests.

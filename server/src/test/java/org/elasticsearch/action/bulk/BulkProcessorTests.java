@@ -32,6 +32,8 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
 public class BulkProcessorTests extends ESTestCase {
@@ -96,5 +98,30 @@ public class BulkProcessorTests extends ESTestCase {
         assertNull(threadPool.getThreadContext().getHeader(headerKey));
         assertNull(threadPool.getThreadContext().getTransient(transientKey));
         bulkProcessor.close();
+    }
+
+    public void testAwaitOnCloseCallsOnClose() throws Exception {
+        final AtomicBoolean called = new AtomicBoolean(false);
+        BulkProcessor bulkProcessor = new BulkProcessor((request, listener) -> {
+        }, BackoffPolicy.noBackoff(), new BulkProcessor.Listener() {
+            @Override
+            public void beforeBulk(long executionId, BulkRequest request) {
+
+            }
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
+
+            }
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+
+            }
+        }, 0, 10, new ByteSizeValue(1000), null, (delay, executor, command) -> null, () -> called.set(true));
+
+        assertFalse(called.get());
+        bulkProcessor.awaitClose(100, TimeUnit.MILLISECONDS);
+        assertTrue(called.get());
     }
 }

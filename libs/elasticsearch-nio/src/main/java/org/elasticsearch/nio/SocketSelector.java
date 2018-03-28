@@ -33,7 +33,7 @@ import java.util.function.BiConsumer;
  */
 public class SocketSelector extends ESSelector {
 
-    private final ConcurrentLinkedQueue<NioSocketChannel> newChannels = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<SocketChannelContext> newChannels = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<WriteOperation> queuedWrites = new ConcurrentLinkedQueue<>();
     private final SocketEventHandler eventHandler;
 
@@ -49,21 +49,23 @@ public class SocketSelector extends ESSelector {
 
     @Override
     void processKey(SelectionKey selectionKey) {
-        NioSocketChannel nioSocketChannel = (NioSocketChannel) selectionKey.attachment();
+        SocketChannelContext channelContext = (SocketChannelContext) selectionKey.attachment();
         int ops = selectionKey.readyOps();
         if ((ops & SelectionKey.OP_CONNECT) != 0) {
-            attemptConnect(nioSocketChannel, true);
+            attemptConnect(channelContext, true);
         }
 
-        if (nioSocketChannel.isConnectComplete()) {
+        if (channelContext.isConnectComplete()) {
             if ((ops & SelectionKey.OP_WRITE) != 0) {
-                handleWrite(nioSocketChannel);
+                handleWrite(channelContext);
             }
 
             if ((ops & SelectionKey.OP_READ) != 0) {
-                handleRead(nioSocketChannel);
+                handleRead(channelContext);
             }
         }
+
+        eventHandler.postHandling(channelContext);
     }
 
     @Override
@@ -87,8 +89,9 @@ public class SocketSelector extends ESSelector {
      * @param nioSocketChannel the channel to register
      */
     public void scheduleForRegistration(NioSocketChannel nioSocketChannel) {
-        newChannels.offer(nioSocketChannel);
-        ensureSelectorOpenForEnqueuing(newChannels, nioSocketChannel);
+        SocketChannelContext channelContext = nioSocketChannel.getContext();
+        newChannels.offer(channelContext);
+        ensureSelectorOpenForEnqueuing(newChannels, channelContext);
         wakeup();
     }
 
@@ -104,7 +107,7 @@ public class SocketSelector extends ESSelector {
         if (isOpen() == false) {
             boolean wasRemoved = queuedWrites.remove(writeOperation);
             if (wasRemoved) {
-                executeFailedListener(writeOperation.getListener(), new ClosedSelectorException());
+                writeOperation.getListener().accept(null, new ClosedSelectorException());
             }
         } else {
             wakeup();
@@ -118,12 +121,11 @@ public class SocketSelector extends ESSelector {
      * @param writeOperation to be queued in a channel's buffer
      */
     public void queueWriteInChannelBuffer(WriteOperation writeOperation) {
-        assert isOnCurrentThread() : "Must be on selector thread";
-        NioSocketChannel channel = writeOperation.getChannel();
-        WriteContext context = channel.getWriteContext();
+        assertOnSelectorThread();
+        SocketChannelContext context = writeOperation.getChannel();
         try {
-            SelectionKeyUtils.setWriteInterested(channel);
-            context.queueWriteOperations(writeOperation);
+            SelectionKeyUtils.setWriteInterested(context.getSelectionKey());
+            context.queueWriteOperation(writeOperation);
         } catch (Exception e) {
             executeFailedListener(writeOperation.getListener(), e);
         }
@@ -137,7 +139,7 @@ public class SocketSelector extends ESSelector {
      * @param value to provide to listener
      */
     public <V> void executeListener(BiConsumer<V, Throwable> listener, V value) {
-        assert isOnCurrentThread() : "Must be on selector thread";
+        assertOnSelectorThread();
         try {
             listener.accept(value, null);
         } catch (Exception e) {
@@ -153,7 +155,7 @@ public class SocketSelector extends ESSelector {
      * @param exception to provide to listener
      */
     public <V> void executeFailedListener(BiConsumer<V, Throwable> listener, Exception exception) {
-        assert isOnCurrentThread() : "Must be on selector thread";
+        assertOnSelectorThread();
         try {
             listener.accept(null, exception);
         } catch (Exception e) {
@@ -161,26 +163,26 @@ public class SocketSelector extends ESSelector {
         }
     }
 
-    private void handleWrite(NioSocketChannel nioSocketChannel) {
+    private void handleWrite(SocketChannelContext context) {
         try {
-            eventHandler.handleWrite(nioSocketChannel);
+            eventHandler.handleWrite(context);
         } catch (Exception e) {
-            eventHandler.writeException(nioSocketChannel, e);
+            eventHandler.writeException(context, e);
         }
     }
 
-    private void handleRead(NioSocketChannel nioSocketChannel) {
+    private void handleRead(SocketChannelContext context) {
         try {
-            eventHandler.handleRead(nioSocketChannel);
+            eventHandler.handleRead(context);
         } catch (Exception e) {
-            eventHandler.readException(nioSocketChannel, e);
+            eventHandler.readException(context, e);
         }
     }
 
     private void handleQueuedWrites() {
         WriteOperation writeOperation;
         while ((writeOperation = queuedWrites.poll()) != null) {
-            if (writeOperation.getChannel().isWritable()) {
+            if (writeOperation.getChannel().isOpen()) {
                 queueWriteInChannelBuffer(writeOperation);
             } else {
                 executeFailedListener(writeOperation.getListener(), new ClosedChannelException());
@@ -189,38 +191,34 @@ public class SocketSelector extends ESSelector {
     }
 
     private void setUpNewChannels() {
-        NioSocketChannel newChannel;
-        while ((newChannel = this.newChannels.poll()) != null) {
-            setupChannel(newChannel);
+        SocketChannelContext channelContext;
+        while ((channelContext = this.newChannels.poll()) != null) {
+            setupChannel(channelContext);
         }
     }
 
-    private void setupChannel(NioSocketChannel newChannel) {
-        assert newChannel.getSelector() == this : "The channel must be registered with the selector with which it was created";
+    private void setupChannel(SocketChannelContext context) {
+        assert context.getSelector() == this : "The channel must be registered with the selector with which it was created";
         try {
-            if (newChannel.isOpen()) {
-                newChannel.register();
-                SelectionKey key = newChannel.getSelectionKey();
-                key.attach(newChannel);
-                eventHandler.handleRegistration(newChannel);
-                attemptConnect(newChannel, false);
+            if (context.isOpen()) {
+                eventHandler.handleRegistration(context);
+                attemptConnect(context, false);
             } else {
-                eventHandler.registrationException(newChannel, new ClosedChannelException());
+                eventHandler.registrationException(context, new ClosedChannelException());
             }
         } catch (Exception e) {
-            eventHandler.registrationException(newChannel, e);
+            eventHandler.registrationException(context, e);
         }
     }
 
-    private void attemptConnect(NioSocketChannel newChannel, boolean connectEvent) {
+    private void attemptConnect(SocketChannelContext context, boolean connectEvent) {
         try {
-            if (newChannel.finishConnect()) {
-                eventHandler.handleConnect(newChannel);
-            } else if (connectEvent) {
-                eventHandler.connectException(newChannel, new IOException("Received OP_CONNECT but connect failed"));
+            eventHandler.handleConnect(context);
+            if (connectEvent && context.isConnectComplete() == false) {
+                eventHandler.connectException(context, new IOException("Received OP_CONNECT but connect failed"));
             }
         } catch (Exception e) {
-            eventHandler.connectException(newChannel, e);
+            eventHandler.connectException(context, e);
         }
     }
 }

@@ -25,6 +25,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -147,7 +148,7 @@ public class ClientYamlTestExecutionContext {
     private BytesRef bodyAsBytesRef(Map<String, Object> bodyAsMap, XContentType xContentType) throws IOException {
         Map<String, Object> finalBodyAsMap = stash.replaceStashedValues(bodyAsMap);
         try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType)) {
-            return builder.map(finalBodyAsMap).bytes().toBytesRef();
+            return BytesReference.bytes(builder.map(finalBodyAsMap)).toBytesRef();
         }
     }
 

@@ -92,7 +92,7 @@ public class MockLogAppender extends AbstractAppender {
                         saw = true;
                     }
                 } else {
-                    if (event.getMessage().toString().contains(message)) {
+                    if (event.getMessage().getFormattedMessage().contains(message)) {
                         saw = true;
                     }
                 }

@@ -27,9 +27,9 @@ Note that the `has_child` is a slow query compared to other queries in the
 query dsl due to the fact that it performs a join. The performance degrades
 as the number of matching child documents pointing to unique parent documents
 increases. If you care about query performance you should not use this query.
-However if you do happen to use this query then use it as less as possible. Each
-`has_child` query that gets added to a search request can increase query time
-significantly.
+However if you do happen to use this query then use it as little as possible.
+Each `has_child` query that gets added to a search request can increase query
+time significantly.
 
 [float]
 ==== Scoring capabilities
@@ -107,7 +107,7 @@ is not mapped.
 
 Parent documents can't be sorted by fields in matching child documents via the
 regular sort options. If you need to sort parent document by field in the child
-documents then you can should use the `function_score` query and then just sort
+documents then you should use the `function_score` query and then just sort
 by `_score`.
 
 Sorting blogs by child documents' `click_count` field:

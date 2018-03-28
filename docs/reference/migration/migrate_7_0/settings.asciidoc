@@ -1,0 +1,8 @@
+[[breaking_70_settings_changes]]
+
+=== Settings changes
+
+==== Percolator
+
+* The deprecated `index.percolator.map_unmapped_fields_as_string` setting has been removed in favour of
+  the `index.percolator.map_unmapped_fields_as_text` setting.

@@ -78,6 +78,9 @@ public class PolicyStepsRegistry {
         return step;
     }
 
+    public Step getFirstStep(String policy) {
+        return firstStepMap.get(policy);
+    }
 
     @Override
     public int hashCode() {

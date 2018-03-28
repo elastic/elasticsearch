@@ -50,12 +50,6 @@ public class UpdateSettingsRequestStreamableTests extends AbstractStreamableTest
         return new UpdateSettingsRequest();
     }
 
-    @Override
-    protected void assertEqualInstances(UpdateSettingsRequest expectedInstance, UpdateSettingsRequest newInstance) {
-        newInstance.indices(expectedInstance.indices());
-        super.assertEqualInstances(expectedInstance, newInstance);
-    }
-    
     public static UpdateSettingsRequest createTestItem() {
         return randomBoolean()
                 ? new UpdateSettingsRequest(randomSettings(0, 2))

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
+import org.elasticsearch.xpack.core.ml.job.results.OverallBucket;
 import org.junit.After;
 
 import java.util.ArrayList;
@@ -54,7 +55,7 @@ public class OverallBucketsIT extends MlNativeAutodetectIntegTestCase {
         putJob(job);
         openJob(job.getId());
 
-        long timestamp = 1483228800000L; // 2017-01-01T00:00:00Z
+        long timestamp = 1483228800L; // 2017-01-01T00:00:00Z
         List<String> data = new ArrayList<>();
         for (int i = 0; i < 3000; i++) {
             data.add(createJsonRecord(createRecord(timestamp)));

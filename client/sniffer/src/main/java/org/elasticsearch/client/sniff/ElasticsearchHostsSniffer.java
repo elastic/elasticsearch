@@ -36,10 +36,11 @@ import java.io.InputStream;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -95,10 +96,10 @@ public final class ElasticsearchHostsSniffer implements HostsSniffer {
     @Override
     public List<Node> sniffHosts() throws IOException {
         Response response = restClient.performRequest("get", "/_nodes/http", sniffRequestParams);
-        return readHosts(response.getEntity());
+        return readHosts(response.getEntity(), scheme, jsonFactory);
     }
 
-    private List<Node> readHosts(HttpEntity entity) throws IOException {
+    static List<Node> readHosts(HttpEntity entity, Scheme scheme, JsonFactory jsonFactory) throws IOException {
         try (InputStream inputStream = entity.getContent()) {
             JsonParser parser = jsonFactory.createParser(inputStream);
             if (parser.nextToken() != JsonToken.START_OBJECT) {
@@ -131,13 +132,19 @@ public final class ElasticsearchHostsSniffer implements HostsSniffer {
          * test framework where we sometimes publish ipv6 addresses but the
          * tests contact the node on ipv4.
          */
-        List<HttpHost> boundHosts = new ArrayList<>();
-        String fieldName = null;
+        Set<HttpHost> boundHosts = new HashSet<>();
+        String name = null;
         String version = null;
+        String fieldName = null;
+        // Used to read roles from 5.0+
         boolean sawRoles = false;
         boolean master = false;
         boolean data = false;
         boolean ingest = false;
+        // Used to read roles from 2.x
+        Boolean masterAttribute = null;
+        Boolean dataAttribute = null;
+        boolean clientAttribute = false;
         while (parser.nextToken() != JsonToken.END_OBJECT) {
             if (parser.getCurrentToken() == JsonToken.FIELD_NAME) {
                 fieldName = parser.getCurrentName();
@@ -154,6 +161,18 @@ public final class ElasticsearchHostsSniffer implements HostsSniffer {
                                 boundHosts.add(new HttpHost(boundAddressAsURI.getHost(), boundAddressAsURI.getPort(),
                                         boundAddressAsURI.getScheme()));
                             }
+                        } else if (parser.getCurrentToken() == JsonToken.START_OBJECT) {
+                            parser.skipChildren();
+                        }
+                    }
+                } else if ("attributes".equals(fieldName)) {
+                    while (parser.nextToken() != JsonToken.END_OBJECT) {
+                        if (parser.getCurrentToken() == JsonToken.VALUE_STRING && "master".equals(parser.getCurrentName())) {
+                            masterAttribute = toBoolean(parser.getValueAsString());
+                        } else if (parser.getCurrentToken() == JsonToken.VALUE_STRING && "data".equals(parser.getCurrentName())) {
+                            dataAttribute = toBoolean(parser.getValueAsString());
+                        } else if (parser.getCurrentToken() == JsonToken.VALUE_STRING && "client".equals(parser.getCurrentName())) {
+                            clientAttribute = toBoolean(parser.getValueAsString());
                         } else if (parser.getCurrentToken() == JsonToken.START_OBJECT) {
                             parser.skipChildren();
                         }
@@ -185,6 +204,8 @@ public final class ElasticsearchHostsSniffer implements HostsSniffer {
             } else if (parser.currentToken().isScalarValue()) {
                 if ("version".equals(fieldName)) {
                     version = parser.getText();
+                } else if ("name".equals(fieldName)) {
+                    name = parser.getText();
                 }
             }
         }
@@ -193,10 +214,19 @@ public final class ElasticsearchHostsSniffer implements HostsSniffer {
             logger.debug("skipping node [" + nodeId + "] with http disabled");
         } else {
             logger.trace("adding node [" + nodeId + "]");
-            assert sawRoles : "didn't see roles for [" + nodeId + "]";
+            if (version.startsWith("2.")) {
+                /*
+                 * 2.x doesn't send roles, instead we try to read them from
+                 * attributes.
+                 */
+                master = masterAttribute == null ? false == clientAttribute : masterAttribute;
+                data = dataAttribute == null ? false == clientAttribute : dataAttribute;
+            } else {
+                assert sawRoles : "didn't see roles for [" + nodeId + "]";
+            }
             assert boundHosts.contains(publishedHost) :
                     "[" + nodeId + "] doesn't make sense! publishedHost should be in boundHosts";
-            nodes.add(new Node(publishedHost, boundHosts, version, new Roles(master, data, ingest)));
+            nodes.add(new Node(publishedHost, boundHosts, name, version, new Roles(master, data, ingest)));
         }
     }
 
@@ -212,6 +242,17 @@ public final class ElasticsearchHostsSniffer implements HostsSniffer {
         @Override
         public String toString() {
             return name;
+        }
+    }
+
+    private static boolean toBoolean(String string) {
+        switch (string) {
+        case "true":
+            return true;
+        case "false":
+            return false;
+        default:
+            throw new IllegalArgumentException("[" + string + "] is not a valid boolean");
         }
     }
 }

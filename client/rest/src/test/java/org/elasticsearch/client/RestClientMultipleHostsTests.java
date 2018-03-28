@@ -331,7 +331,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
         Node[] newNodes = new Node[nodes.length];
         for (int i = 0; i < nodes.length; i++) {
             Roles roles = i == 0 ? new Roles(false, true, true) : new Roles(true, false, false);
-            newNodes[i] = new Node(nodes[i].getHost(), null, null, roles);
+            newNodes[i] = new Node(nodes[i].getHost(), null, null, null, roles);
         }
         restClient.setNodes(newNodes);
         RestClientActions withNodeSelector = restClient.withNodeSelector(NodeSelector.NOT_MASTER_ONLY);

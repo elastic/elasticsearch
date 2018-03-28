@@ -19,11 +19,11 @@
 
 package org.elasticsearch.client;
 
-import static java.util.Collections.unmodifiableList;
+import static java.util.Collections.unmodifiableSet;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 
 import org.apache.http.HttpHost;
 
@@ -40,7 +40,11 @@ public class Node {
      * around because they allow you to find a host based on any address it
      * is listening on.
      */
-    private final List<HttpHost> boundHosts;
+    private final Set<HttpHost> boundHosts;
+    /**
+     * Name of the node as configured by the {@code node.name} attribute.
+     */
+    private final String name;
     /**
      * Version of Elasticsearch that the node is running or {@code null}
      * if we don't know the version.
@@ -57,12 +61,13 @@ public class Node {
      * {@code host} are nullable and implementations of {@link NodeSelector}
      * need to decide what to do in their absence.
      */
-    public Node(HttpHost host, List<HttpHost> boundHosts, String version, Roles roles) {
+    public Node(HttpHost host, Set<HttpHost> boundHosts, String name, String version, Roles roles) {
         if (host == null) {
             throw new IllegalArgumentException("host cannot be null");
         }
         this.host = host;
         this.boundHosts = boundHosts;
+        this.name = name;
         this.version = version;
         this.roles = roles;
     }
@@ -71,7 +76,7 @@ public class Node {
      * Create a {@linkplain Node} without any metadata.
      */
     public Node(HttpHost host) {
-        this(host, null, null, null);
+        this(host, null, null, null, null);
     }
 
     /**
@@ -85,13 +90,13 @@ public class Node {
          * If the new host isn't in the bound hosts list we add it so the
          * result looks sane.
          */
-        List<HttpHost> boundHosts = this.boundHosts;
+        Set<HttpHost> boundHosts = this.boundHosts;
         if (false == boundHosts.contains(host)) {
-            boundHosts = new ArrayList<>(boundHosts);
+            boundHosts = new HashSet<>(boundHosts);
             boundHosts.add(host);
-            boundHosts = unmodifiableList(boundHosts);
+            boundHosts = unmodifiableSet(boundHosts);
         }
-        return new Node(host, boundHosts, version, roles);
+        return new Node(host, boundHosts, name, version, roles);
     }
 
     /**
@@ -106,8 +111,15 @@ public class Node {
      * around because they allow you to find a host based on any address it
      * is listening on.
      */
-    public List<HttpHost> getBoundHosts() {
+    public Set<HttpHost> getBoundHosts() {
         return boundHosts;
+    }
+
+    /**
+     * @return the name
+     */
+    public String getName() {
+        return name;
     }
 
     /**
@@ -133,6 +145,9 @@ public class Node {
         if (boundHosts != null) {
             b.append(", bound=").append(boundHosts);
         }
+        if (name != null) {
+            b.append(", name=").append(name);
+        }
         if (version != null) {
             b.append(", version=").append(version);
         }
@@ -151,12 +166,13 @@ public class Node {
         return host.equals(other.host)
             && Objects.equals(boundHosts, other.boundHosts)
             && Objects.equals(version, other.version)
+            && Objects.equals(name, other.name)
             && Objects.equals(roles, other.roles);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(host, boundHosts, version, roles);
+        return Objects.hash(host, boundHosts, name, version, roles);
     }
 
     /**

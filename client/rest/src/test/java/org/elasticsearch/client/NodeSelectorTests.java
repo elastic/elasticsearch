@@ -52,7 +52,8 @@ public class NodeSelectorTests extends RestClientTestCase {
     }
 
     private Node dummyNode(boolean master, boolean data, boolean ingest) {
-        return new Node(new HttpHost("dummy"), Collections.<HttpHost>emptyList(),
-                randomAsciiAlphanumOfLength(5), new Roles(master, data, ingest));
+        return new Node(new HttpHost("dummy"), Collections.<HttpHost>emptySet(),
+                randomAsciiAlphanumOfLength(5), randomAsciiAlphanumOfLength(5),
+                new Roles(master, data, ingest));
     }
 }

@@ -33,7 +33,7 @@ class MockHostsSniffer implements HostsSniffer {
     @Override
     public List<Node> sniffHosts() throws IOException {
         return Collections.singletonList(new Node(
-                new HttpHost("localhost", 9200), Collections.<HttpHost>emptyList(),
+                new HttpHost("localhost", 9200), Collections.<HttpHost>emptySet(), "mock node name",
                     "mock version", new Node.Roles(false, false, false)));
     }
 }

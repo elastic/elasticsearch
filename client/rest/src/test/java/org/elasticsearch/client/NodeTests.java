@@ -23,8 +23,9 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.client.Node.Roles;
 
 import java.util.Arrays;
+import java.util.HashSet;
 
-import static java.util.Collections.singletonList;
+import static java.util.Collections.singleton;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -35,8 +36,9 @@ public class NodeTests extends RestClientTestCase {
         HttpHost h2 = new HttpHost("2");
         HttpHost h3 = new HttpHost("3");
 
-        Node n = new Node(h1, Arrays.asList(h1, h2), randomAsciiAlphanumOfLength(5),
-            new Roles(randomBoolean(), randomBoolean(), randomBoolean()));
+        Node n = new Node(h1, new HashSet<>(Arrays.asList(h1, h2)),
+                randomAsciiAlphanumOfLength(5), randomAsciiAlphanumOfLength(5),
+                new Roles(randomBoolean(), randomBoolean(), randomBoolean()));
 
         // Host is in nthe bound hosts list
         assertEquals(h2, n.withHost(h2).getHost());
@@ -44,36 +46,44 @@ public class NodeTests extends RestClientTestCase {
 
         // Host not in the bound hosts list
         assertEquals(h3, n.withHost(h3).getHost());
-        assertEquals(Arrays.asList(h1, h2, h3), n.withHost(h3).getBoundHosts());
+        assertEquals(new HashSet<>(Arrays.asList(h1, h2, h3)), n.withHost(h3).getBoundHosts());
     }
 
     public void testToString() {
         assertEquals("[host=http://1]", new Node(new HttpHost("1")).toString());
         assertEquals("[host=http://1, roles=mdi]", new Node(new HttpHost("1"),
-                null, null, new Roles(true, true, true)).toString());
+                null, null, null, new Roles(true, true, true)).toString());
         assertEquals("[host=http://1, version=ver]", new Node(new HttpHost("1"),
-                null, "ver", null).toString());
+                null, null, "ver", null).toString());
+        assertEquals("[host=http://1, name=nam]", new Node(new HttpHost("1"),
+                null, "nam", null, null).toString());
         assertEquals("[host=http://1, bound=[http://1, http://2]]", new Node(new HttpHost("1"),
-                Arrays.asList(new HttpHost("1"), new HttpHost("2")), null, null).toString());
+                new HashSet<>(Arrays.asList(new HttpHost("1"), new HttpHost("2"))), null, null, null).toString());
+        assertEquals("[host=http://1, bound=[http://1, http://2], name=nam, version=ver, roles=m]",
+                new Node(new HttpHost("1"), new HashSet<>(Arrays.asList(new HttpHost("1"), new HttpHost("2"))),
+                    "nam", "ver", new Roles(true, false, false)).toString());
+
     }
 
     public void testEqualsAndHashCode() {
         HttpHost host = new HttpHost(randomAsciiAlphanumOfLength(5));
         Node node = new Node(host,
-            randomBoolean() ? null : singletonList(host),
+            randomBoolean() ? null : singleton(host),
+            randomBoolean() ? null : randomAsciiAlphanumOfLength(5),
             randomBoolean() ? null : randomAsciiAlphanumOfLength(5),
             randomBoolean() ? null : new Roles(true, true, true));
         assertFalse(node.equals(null));
         assertTrue(node.equals(node));
         assertEquals(node.hashCode(), node.hashCode());
-        Node copy = new Node(host, node.getBoundHosts(), node.getVersion(), node.getRoles());
+        Node copy = new Node(host, node.getBoundHosts(), node.getName(), node.getVersion(), node.getRoles());
         assertTrue(node.equals(copy));
         assertEquals(node.hashCode(), copy.hashCode());
         assertFalse(node.equals(new Node(new HttpHost(host.toHostString() + "changed"), node.getBoundHosts(),
-                node.getVersion(), node.getRoles())));
-        assertFalse(node.equals(new Node(host, Arrays.asList(host, new HttpHost(host.toHostString() + "changed")),
-                node.getVersion(), node.getRoles())));
-        assertFalse(node.equals(new Node(host, node.getBoundHosts(), node.getVersion() + "changed", node.getRoles())));
-        assertFalse(node.equals(new Node(host, node.getBoundHosts(), node.getVersion(), new Roles(false, false, false))));
+                node.getName(), node.getVersion(), node.getRoles())));
+        assertFalse(node.equals(new Node(host, new HashSet<>(Arrays.asList(host, new HttpHost(host.toHostString() + "changed"))),
+                node.getName(), node.getVersion(), node.getRoles())));
+        assertFalse(node.equals(new Node(host, node.getBoundHosts(), node.getName() + "changed", node.getVersion(), node.getRoles())));
+        assertFalse(node.equals(new Node(host, node.getBoundHosts(), node.getName(), node.getVersion() + "changed", node.getRoles())));
+        assertFalse(node.equals(new Node(host, node.getBoundHosts(), node.getName(), node.getVersion(), new Roles(false, false, false))));
     }
 }

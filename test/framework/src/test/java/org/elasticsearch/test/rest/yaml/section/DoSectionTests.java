@@ -535,7 +535,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
     }
 
     private Node nodeWithVersion(String version) {
-        return new Node(new HttpHost("dummy"), null, version, null);
+        return new Node(new HttpHost("dummy"), null, null, version, null);
     }
 
     private void assertJsonEquals(Map<String, Object> actual, String expected) throws IOException {

@@ -50,7 +50,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -196,7 +195,7 @@ public class ElasticsearchHostsSnifferTests extends RestClientTestCase {
             String host = "host" + i;
             int port = RandomNumbers.randomIntBetween(getRandom(), 9200, 9299);
             HttpHost publishHost = new HttpHost(host, port, scheme.toString());
-            List<HttpHost> boundHosts = new ArrayList<>();
+            Set<HttpHost> boundHosts = new HashSet<>();
             boundHosts.add(publishHost);
 
             if (randomBoolean()) {
@@ -207,6 +206,7 @@ public class ElasticsearchHostsSnifferTests extends RestClientTestCase {
             }
 
             Node node = new Node(publishHost, boundHosts, randomAsciiAlphanumOfLength(5),
+                    randomAsciiAlphanumOfLength(5),
                     new Node.Roles(randomBoolean(), randomBoolean(), randomBoolean()));
 
             generator.writeObjectFieldStart(nodeId);
@@ -258,6 +258,8 @@ public class ElasticsearchHostsSnifferTests extends RestClientTestCase {
 
             generator.writeFieldName("version");
             generator.writeString(node.getVersion());
+            generator.writeFieldName("name");
+            generator.writeString(node.getName());
 
             int numAttributes = RandomNumbers.randomIntBetween(getRandom(), 0, 3);
             Map<String, String> attributes = new HashMap<>(numAttributes);

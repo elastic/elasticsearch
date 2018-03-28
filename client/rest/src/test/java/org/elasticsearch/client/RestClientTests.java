@@ -162,9 +162,9 @@ public class RestClientTests extends RestClientTestCase {
         HttpHost h2 = new HttpHost("2");
         HttpHost h3 = new HttpHost("3");
         List<Node> nodes = Arrays.asList(
-                new Node(h1, null, "1", null),
-                new Node(h2, null, "2", null),
-                new Node(h3, null, "3", null));
+                new Node(h1, null, null, "1", null),
+                new Node(h2, null, null, "2", null),
+                new Node(h3, null, null, "3", null));
 
         NodeSelector not1 = new NodeSelector() {
             @Override

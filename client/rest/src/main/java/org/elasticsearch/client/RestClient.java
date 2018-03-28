@@ -123,6 +123,9 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
     /**
      * Returns a new {@link RestClientBuilder} to help with {@link RestClient} creation.
      * Creates a new builder instance and sets the nodes that the client will send requests to.
+     * <p>
+     * Prefer this to {@link #builder(Node...)} if you have metadata up front about the nodes.
+     * If y ou don't either one is fine.
      */
     public static RestClientBuilder builder(Node... nodes) {
         return new RestClientBuilder(nodes);
@@ -172,8 +175,8 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
     /**
      * Copy of the list of nodes that the client knows about.
      */
-    public Node[] getNodes() { // TODO is it ok to expose this? It feels excessive but we do use it in tests.
-        return nodeTuple.nodes.toArray(new Node[0]);
+    public List<Node> getNodes() {
+        return nodeTuple.nodes;
     }
 
     @Override
@@ -384,10 +387,10 @@ public class RestClient extends AbstractRestClientActions implements Closeable {
         if (false == livingNodes.isEmpty()) {
             /*
              * Normal state: there is at least one living node. Rotate the
-             * list so subsequent requests to will see prefer the nodes in
-             * a different order then run them through the NodeSelector so
-             * it can have its say in which nodes are ok and their ordering.
-             * If the selector is ok with any over the living nodes then use
+             * list so subsequent requests to will prefer the nodes in a
+             * different order then run them through the NodeSelector so it
+             * can have its say in which nodes are ok and their ordering. If
+             * the selector is ok with any over the living nodes then use
              * them for the request.
              */
             Collections.rotate(livingNodes, lastNodeIndex.getAndIncrement());

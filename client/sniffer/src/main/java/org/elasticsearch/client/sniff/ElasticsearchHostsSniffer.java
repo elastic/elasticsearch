@@ -113,7 +113,10 @@ public final class ElasticsearchHostsSniffer implements HostsSniffer {
                             JsonToken token = parser.nextToken();
                             assert token == JsonToken.START_OBJECT;
                             String nodeId = parser.getCurrentName();
-                            readHost(nodeId, parser, scheme, nodes);
+                            Node node = readHost(nodeId, parser, scheme);
+                            if (node != null) {
+                                nodes.add(node);
+                            }
                         }
                     } else {
                         parser.skipChildren();
@@ -124,7 +127,7 @@ public final class ElasticsearchHostsSniffer implements HostsSniffer {
         }
     }
 
-    private static void readHost(String nodeId, JsonParser parser, Scheme scheme, List<Node> nodes) throws IOException {
+    private static Node readHost(String nodeId, JsonParser parser, Scheme scheme) throws IOException {
         HttpHost publishedHost = null;
         /*
          * We sniff the bound hosts so we can look up the node based on any
@@ -212,6 +215,7 @@ public final class ElasticsearchHostsSniffer implements HostsSniffer {
         //http section is not present if http is not enabled on the node, ignore such nodes
         if (publishedHost == null) {
             logger.debug("skipping node [" + nodeId + "] with http disabled");
+            return null;
         } else {
             logger.trace("adding node [" + nodeId + "]");
             if (version.startsWith("2.")) {
@@ -226,7 +230,7 @@ public final class ElasticsearchHostsSniffer implements HostsSniffer {
             }
             assert boundHosts.contains(publishedHost) :
                     "[" + nodeId + "] doesn't make sense! publishedHost should be in boundHosts";
-            nodes.add(new Node(publishedHost, boundHosts, name, version, new Roles(master, data, ingest)));
+            return new Node(publishedHost, boundHosts, name, version, new Roles(master, data, ingest));
         }
     }
 

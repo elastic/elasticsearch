@@ -40,7 +40,7 @@ public class NodeTests extends RestClientTestCase {
                 randomAsciiAlphanumOfLength(5), randomAsciiAlphanumOfLength(5),
                 new Roles(randomBoolean(), randomBoolean(), randomBoolean()));
 
-        // Host is in nthe bound hosts list
+        // Host is in the bound hosts list
         assertEquals(h2, n.withHost(h2).getHost());
         assertEquals(n.getBoundHosts(), n.withHost(h2).getBoundHosts());
 

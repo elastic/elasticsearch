@@ -42,9 +42,9 @@ public class NodeSelectorTests extends RestClientTestCase {
     public void testNotMasterOnly() {
         Node masterOnly = dummyNode(true, false, randomBoolean());
         Node masterAndData = dummyNode(true, true, randomBoolean());
-        Node client = dummyNode(false, false, randomBoolean());
+        Node coordinatingOnly = dummyNode(false, false, randomBoolean());
         Node data = dummyNode(false, true, randomBoolean());
-        List<Node> nodes = Arrays.asList(masterOnly, masterAndData, client, data);
+        List<Node> nodes = Arrays.asList(masterOnly, masterAndData, coordinatingOnly, data);
         Collections.shuffle(nodes, getRandom());
         List<Node> expected = new ArrayList<>(nodes);
         expected.remove(masterOnly);

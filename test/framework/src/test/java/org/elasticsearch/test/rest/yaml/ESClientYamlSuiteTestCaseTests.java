@@ -106,11 +106,10 @@ public class ESClientYamlSuiteTestCaseTests extends ESTestCase {
 
     public void testAttachSniffedMetadataOnClientOk() {
         RestClient client = mock(RestClient.class);
-        Node[] originalNodes = new Node[] {
+        List<Node> originalNodes = Arrays.asList(
             new Node(new HttpHost("1")),
             new Node(new HttpHost("2")),
-            new Node(new HttpHost("3")),
-        };
+            new Node(new HttpHost("3")));
         List<Node> nodesWithMetadata = Arrays.asList(new Node[] {
             // This node matches exactly:
             new Node(new HttpHost("1"), emptySet(), randomAlphaOfLength(5),
@@ -139,10 +138,9 @@ public class ESClientYamlSuiteTestCaseTests extends ESTestCase {
     public void testAttachSniffedMetadataOnClientNotEnoughNodes() {
         // Try a version of the call that should fail because it doesn't have all the results
         RestClient client = mock(RestClient.class);
-        Node[] originalNodes = new Node[] {
+        List<Node> originalNodes = Arrays.asList(
             new Node(new HttpHost("1")),
-            new Node(new HttpHost("2")),
-        };
+            new Node(new HttpHost("2")));
         List<Node> nodesWithMetadata = Arrays.asList(new Node[] {
             // This node matches exactly:
             new Node(new HttpHost("1"), emptySet(), "n", "v", new Node.Roles(true, true, true)),

@@ -295,6 +295,65 @@ public class RestClientTests extends RestClientTestCase {
         }
     }
 
+    public void testSetHostsFailures() throws IOException {
+        RestClient restClient = createRestClient();
+        try {
+            restClient.setHosts((HttpHost[]) null);
+            fail("setHosts should have failed");
+        } catch (IllegalArgumentException e) {
+            assertEquals("hosts must not be null or empty", e.getMessage());
+        }
+        try {
+            restClient.setHosts();
+            fail("setHosts should have failed");
+        } catch (IllegalArgumentException e) {
+            assertEquals("hosts must not be null or empty", e.getMessage());
+        }
+        try {
+            restClient.setHosts((HttpHost) null);
+            fail("setHosts should have failed");
+        } catch (IllegalArgumentException e) {
+            assertEquals("host cannot be null", e.getMessage());
+        }
+        try {
+            restClient.setHosts(new HttpHost("localhost", 9200), null, new HttpHost("localhost", 9201));
+            fail("setHosts should have failed");
+        } catch (IllegalArgumentException e) {
+            assertEquals("host cannot be null", e.getMessage());
+        }
+    }
+
+    public void testSetNodesFailures() throws IOException {
+        RestClient restClient = createRestClient();
+        try {
+            restClient.setNodes((Node[]) null);
+            fail("setNodes should have failed");
+        } catch (IllegalArgumentException e) {
+            assertEquals("nodes must not be null or empty", e.getMessage());
+        }
+        try {
+            restClient.setNodes();
+            fail("setNodes should have failed");
+        } catch (IllegalArgumentException e) {
+            assertEquals("nodes must not be null or empty", e.getMessage());
+        }
+        try {
+            restClient.setNodes((Node) null);
+            fail("setNodes should have failed");
+        } catch (IllegalArgumentException e) {
+            assertEquals("node cannot be null", e.getMessage());
+        }
+        try {
+            restClient.setNodes(
+                    new Node(new HttpHost("localhost", 9200)),
+                    null,
+                    new Node(new HttpHost("localhost", 9201)));
+            fail("setNodes should have failed");
+        } catch (IllegalArgumentException e) {
+            assertEquals("node cannot be null", e.getMessage());
+        }
+    }
+
     private static RestClient createRestClient() {
         Node[] hosts = new Node[] {
             new Node(new HttpHost("localhost", 9200))

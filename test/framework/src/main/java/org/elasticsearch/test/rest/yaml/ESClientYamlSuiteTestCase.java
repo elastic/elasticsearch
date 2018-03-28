@@ -373,7 +373,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * </ul>
      */
     private void sniffHostMetadata(RestClient client) throws IOException {
-        Node[] nodes = client.getNodes();
+        List<Node> nodes = client.getNodes();
         boolean allHaveRoles = true;
         for (Node node : nodes) {
             if (node.getRoles() == null) {
@@ -390,16 +390,18 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             ElasticsearchHostsSniffer.Scheme.valueOf(getProtocol().toUpperCase(Locale.ROOT));
         /*
          * We don't want to change the list of nodes that the client communicates with
-         * because that'd just be rude. So instead we replace the nodes with nodes the
-         * that
+         * because that'd just be rude. So instead we replace the nodes find the nodes
+         * returned by the sniffer that correspond with the nodes already the client
+         * and set the nodes to them. That *shouldn't* change the nodes that the client
+         * communicates with.
          */
         ElasticsearchHostsSniffer sniffer = new ElasticsearchHostsSniffer(
                 adminClient(), ElasticsearchHostsSniffer.DEFAULT_SNIFF_REQUEST_TIMEOUT, scheme);
         attachSniffedMetadataOnClient(client, nodes, sniffer.sniffHosts());
     }
 
-    static void attachSniffedMetadataOnClient(RestClient client, Node[] originalNodes, List<Node> nodesWithMetadata) {
-        Set<HttpHost> originalHosts = Arrays.stream(originalNodes)
+    static void attachSniffedMetadataOnClient(RestClient client, List<Node> originalNodes, List<Node> nodesWithMetadata) {
+        Set<HttpHost> originalHosts = originalNodes.stream()
                 .map(Node::getHost)
                 .collect(Collectors.toSet());
         List<Node> sniffed = new ArrayList<>();
@@ -422,9 +424,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                 }
             }
         }
-        int missing = originalNodes.length - sniffed.size();
+        int missing = originalNodes.size() - sniffed.size();
         if (missing > 0) {
-            List<HttpHost> hosts = Arrays.stream(originalNodes)
+            List<HttpHost> hosts = originalNodes.stream()
                 .map(Node::getHost)
                 .collect(Collectors.toList());
             throw new IllegalStateException("Didn't sniff metadata for all nodes. Wanted metadata for "

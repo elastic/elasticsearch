@@ -2605,7 +2605,12 @@ public class IndexShardTests extends IndexShardTestCase {
         }
 
         @Override
-        public MetaData getSnapshotMetaData(SnapshotInfo snapshot, List<IndexId> indices) throws IOException {
+        public MetaData getSnapshotGlobalMetaData(SnapshotId snapshotId) {
+            return null;
+        }
+
+        @Override
+        public IndexMetaData getSnapshotIndexMetaData(SnapshotId snapshotId, IndexId index) throws IOException {
             return null;
         }
 

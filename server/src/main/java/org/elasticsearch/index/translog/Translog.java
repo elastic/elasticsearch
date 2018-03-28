@@ -571,6 +571,33 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
+    /**
+     * Reads and returns the operation from the given location if the generation it references is still available. Otherwise
+     * this method will return <code>null</code>.
+     */
+    public Operation readOperation(Location location) throws IOException {
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
+            if (location.generation < getMinFileGeneration()) {
+                return null;
+            }
+            if (current.generation == location.generation) {
+                // no need to fsync here the read operation will ensure that buffers are written to disk
+                // if they are still in RAM and we are reading onto that position
+                return current.read(location);
+            } else {
+                // read backwards - it's likely we need to read on that is recent
+                for (int i = readers.size() - 1; i >= 0; i--) {
+                    TranslogReader translogReader = readers.get(i);
+                    if (translogReader.generation == location.generation) {
+                        return translogReader.read(location);
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
     public Snapshot newSnapshotFromMinSeqNo(long minSeqNo) throws IOException {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();

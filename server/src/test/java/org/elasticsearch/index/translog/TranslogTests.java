@@ -236,9 +236,9 @@ public class TranslogTests extends ESTestCase {
         return new TranslogConfig(shardId, path, indexSettings, NON_RECYCLING_INSTANCE, bufferSize);
     }
 
-    private void addToTranslogAndList(Translog translog, List<Translog.Operation> list, Translog.Operation op) throws IOException {
+    private Location addToTranslogAndList(Translog translog, List<Translog.Operation> list, Translog.Operation op) throws IOException {
         list.add(op);
-        translog.add(op);
+        return translog.add(op);
     }
 
     public void testIdParsingFromFile() {
@@ -580,6 +580,19 @@ public class TranslogTests extends ESTestCase {
         }
     }
 
+    public void testReadLocation() throws IOException {
+        ArrayList<Translog.Operation> ops = new ArrayList<>();
+        ArrayList<Translog.Location> locs = new ArrayList<>();
+        locs.add(addToTranslogAndList(translog, ops, new Translog.Index("test", "1", 0, new byte[]{1})));
+        locs.add(addToTranslogAndList(translog, ops, new Translog.Index("test", "2", 1, new byte[]{1})));
+        locs.add(addToTranslogAndList(translog, ops, new Translog.Index("test", "3", 2, new byte[]{1})));
+        int i = 0;
+        for (Translog.Operation op : ops) {
+            assertEquals(op, translog.readOperation(locs.get(i++)));
+        }
+        assertNull(translog.readOperation(new Location(100, 0, 0)));
+    }
+
     public void testSnapshotWithNewTranslog() throws IOException {
         List<Closeable> toClose = new ArrayList<>();
         try {
@@ -690,6 +703,9 @@ public class TranslogTests extends ESTestCase {
                 Translog.Operation op = snapshot.next();
                 assertNotNull(op);
                 Translog.Operation expectedOp = locationOperation.operation;
+                if (randomBoolean()) {
+                    assertEquals(expectedOp, translog.readOperation(locationOperation.location));
+                }
                 assertEquals(expectedOp.opType(), op.opType());
                 switch (op.opType()) {
                     case INDEX:
@@ -1644,6 +1660,9 @@ public class TranslogTests extends ESTestCase {
 
                     Translog.Location loc = add(op);
                     writtenOperations.add(new LocationOperation(op, loc));
+                    if (rarely()) { // lets verify we can concurrently read this
+                        assertEquals(op, translog.readOperation(loc));
+                    }
                     afterAdd();
                 }
             } catch (Exception t) {

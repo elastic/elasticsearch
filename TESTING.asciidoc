@@ -294,7 +294,6 @@ e.g. -Dtests.rest.suite=index,get,create/10_with_id
 * `tests.rest.blacklist`: comma separated globs that identify tests that are
 blacklisted and need to be skipped
 e.g. -Dtests.rest.blacklist=index/*/Index document,get/10_basic/*
-* `tests.rest.spec`: REST spec path (default /rest-api-spec/api)
 
 Note that the REST tests, like all the integration tests, can be run against an external
 cluster by specifying the `tests.cluster` property, which if present needs to contain a

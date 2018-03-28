@@ -7,11 +7,13 @@ package org.elasticsearch.xpack.security.authc.ldap.support;
 
 import com.unboundid.ldap.listener.InMemoryDirectoryServer;
 import com.unboundid.ldap.sdk.Attribute;
+import com.unboundid.ldap.sdk.BindRequest;
 import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPConnectionPool;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPInterface;
 import com.unboundid.ldap.sdk.LDAPURL;
+import com.unboundid.ldap.sdk.SimpleBindRequest;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -170,15 +172,20 @@ public abstract class LdapTestCase extends ESTestCase {
         return future.actionGet();
     }
 
-    protected static void assertConnectionCanReconnect(LDAPInterface conn) {
+    protected static void assertConnectionValid(LDAPInterface conn, SimpleBindRequest bindRequest) {
         AccessController.doPrivileged(new PrivilegedAction<Void>() {
             @Override
             public Void run() {
                 try {
                     if (conn instanceof LDAPConnection) {
+                        assertTrue(((LDAPConnection) conn).isConnected());
+                        assertEquals(bindRequest.getBindDN(),
+                                ((SimpleBindRequest)((LDAPConnection) conn).getLastBindRequest()).getBindDN());
                         ((LDAPConnection) conn).reconnect();
                     } else if (conn instanceof LDAPConnectionPool) {
                         try (LDAPConnection c = ((LDAPConnectionPool) conn).getConnection()) {
+                            assertTrue(c.isConnected());
+                            assertEquals(bindRequest.getBindDN(), ((SimpleBindRequest)c.getLastBindRequest()).getBindDN());
                             c.reconnect();
                         }
                     }

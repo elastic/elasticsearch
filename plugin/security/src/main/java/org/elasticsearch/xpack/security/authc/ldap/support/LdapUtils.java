@@ -88,22 +88,35 @@ public final class LdapUtils {
     }
 
     /**
-     * This method submits the {@code bind} request over the provided {@code ldap}
-     * connection or connection pool. The connection authentication status changes,
-     * see {@code LDAPConnection#bind}; in case of a connection pool the bind
-     * authentication status is reverted, so that the connection can be safely
-     * returned to the pool, see:
-     * {@code LDAPConnectionPool#bindAndRevertAuthentication}.
+     * If necessary, fork before executing the runnable. A deadlock will happen if
+     * the same thread which handles bind responses blocks on the bind call, waiting
+     * for the response which he itself should handle.
+     */
+    private static void maybeForkAndRun(ThreadPool threadPool, Runnable runnable) {
+        if (isLdapConnectionThread(Thread.currentThread())) {
+            // only fork if binding on the LDAPConnectionReader thread
+            threadPool.executor(ThreadPool.Names.GENERIC).execute(runnable);
+        } else {
+            // avoids repeated forking
+            runnable.run();
+        }
+    }
+
+    /**
+     * This method submits the {@code bind} request over one connection from the
+     * pool. The bind authentication is then reverted and the connection is returned
+     * to the pool, so that the connection can be safely reused, see
+     * {@code LDAPConnectionPool#bindAndRevertAuthentication}. This validates the
+     * bind credentials.
      *
      * Bind calls are blocking and if a bind is executed on the LDAP Connection
-     * Reader thread (as returned by {@code LdapUtils#isLdapConnectionThread}),
-     * the thread will be blocked until it is interrupted by something else
-     * such as a timeout timer.
-     * <b>Do not call bind</b> outside of this method.
+     * Reader thread (as returned by {@code LdapUtils#isLdapConnectionThread}), the
+     * thread will be blocked until it is interrupted by something else such as a
+     * timeout timer. <b>Do not call bind</b> outside this method or
+     * {@link LdapUtils#maybeForkThenBind(LDAPConnection, BindRequest, ThreadPool, AbstractRunnable)}
      *
-     * @param ldap
-     *            The LDAP connection or connection pool on which to submit the bind
-     *            operation.
+     * @param ldapPool
+     *            The LDAP connection pool on which to submit the bind operation.
      * @param bind
      *            The request object of the bind operation.
      * @param threadPool
@@ -114,19 +127,13 @@ public final class LdapUtils {
      *            The runnable that continues the program flow after the bind
      *            operation. It is executed on the same thread as the prior bind.
      */
-    public static void maybeForkThenBind(LDAPInterface ldap, BindRequest bind, ThreadPool threadPool,
-                                   AbstractRunnable runnable) {
-        Runnable bindRunnable = new AbstractRunnable() {
+    public static void maybeForkThenBindAndRevert(LDAPConnectionPool ldapPool, BindRequest bind, ThreadPool threadPool,
+                                                  AbstractRunnable runnable) {
+        final Runnable bindRunnable = new AbstractRunnable() {
             @Override
             @SuppressForbidden(reason = "Bind allowed if forking of the LDAP Connection Reader Thread.")
             protected void doRun() throws Exception {
-                if (ldap instanceof LDAPConnectionPool) {
-                    privilegedConnect(() -> ((LDAPConnectionPool) ldap).bindAndRevertAuthentication(bind));
-                } else if (ldap instanceof LDAPConnection) {
-                    ((LDAPConnection) ldap).bind(bind);
-                } else {
-                    throw new IllegalArgumentException("unsupported LDAPInterface implementation: " + ldap);
-                }
+                privilegedConnect(() -> ldapPool.bindAndRevertAuthentication(bind.duplicate()));
                 runnable.run();
             }
 
@@ -140,14 +147,52 @@ public final class LdapUtils {
                 runnable.onAfter();
             }
         };
+        maybeForkAndRun(threadPool, bindRunnable);
+    }
 
-        if (isLdapConnectionThread(Thread.currentThread())) {
-            // only fork if binding on the LDAPConnectionReader thread
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(bindRunnable);
-        } else {
-            // avoids repeated forking
-            bindRunnable.run();
-        }
+    /**
+     * This method submits the {@code bind} request over the ldap connection. Its
+     * authentication status changes. The connection can be subsequently reused.
+     * This validates the bind credentials.
+     *
+     * Bind calls are blocking and if a bind is executed on the LDAP Connection
+     * Reader thread (as returned by {@code LdapUtils#isLdapConnectionThread}), the
+     * thread will be blocked until it is interrupted by something else such as a
+     * timeout timer. <b>Do not call bind</b> outside this method or
+     * {@link LdapUtils#maybeForkThenBind(LDAPConnection, BindRequest, ThreadPool, AbstractRunnable)}
+     *
+     * @param ldap
+     *            The LDAP connection on which to submit the bind operation.
+     * @param bind
+     *            The request object of the bind operation.
+     * @param threadPool
+     *            The threads that will call the blocking bind operation, in case
+     *            the calling thread is a connection reader, see:
+     *            {@code LdapUtils#isLdapConnectionThread}.
+     * @param runnable
+     *            The runnable that continues the program flow after the bind
+     *            operation. It is executed on the same thread as the prior bind.
+     */
+    public static void maybeForkThenBind(LDAPConnection ldap, BindRequest bind, ThreadPool threadPool, AbstractRunnable runnable) {
+        final Runnable bindRunnable = new AbstractRunnable() {
+            @Override
+            @SuppressForbidden(reason = "Bind allowed if forking of the LDAP Connection Reader Thread.")
+            protected void doRun() throws Exception {
+                privilegedConnect(() -> ldap.bind(bind.duplicate()));
+                runnable.run();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                runnable.onFailure(e);
+            }
+
+            @Override
+            public void onAfter() {
+                runnable.onAfter();
+            }
+        };
+        maybeForkAndRun(threadPool, bindRunnable);
     }
 
     /**

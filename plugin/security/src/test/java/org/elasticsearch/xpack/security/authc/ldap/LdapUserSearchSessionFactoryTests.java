@@ -24,7 +24,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -40,9 +39,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.nio.file.Path;
-import java.util.List;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isEmptyString;
@@ -137,18 +134,19 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
 
         String user = "William Bush";
         SecureString userPass = new SecureString("pass");
+        final SimpleBindRequest bindDNBindRequest = LdapUserSearchSessionFactory.bindRequest(config.settings());
 
         try {
             // auth
             try (LdapSession ldap = session(sessionFactory, user, userPass)) {
-                assertConnectionCanReconnect(ldap.getConnection());
+                assertConnectionValid(ldap.getConnection(), bindDNBindRequest);
                 String dn = ldap.userDn();
                 assertThat(dn, containsString(user));
             }
 
             //lookup
             try (LdapSession ldap = unauthenticatedSession(sessionFactory, user)) {
-                assertConnectionCanReconnect(ldap.getConnection());
+                assertConnectionValid(ldap.getConnection(), bindDNBindRequest);
                 String dn = ldap.userDn();
                 assertThat(dn, containsString(user));
             }
@@ -222,18 +220,19 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
 
         String user = "William Bush";
         SecureString userPass = new SecureString("pass");
+        final SimpleBindRequest bindDNBindRequest = LdapUserSearchSessionFactory.bindRequest(config.settings());
 
         try {
             // auth
             try (LdapSession ldap = session(sessionFactory, user, userPass)) {
-                assertConnectionCanReconnect(ldap.getConnection());
+                assertConnectionValid(ldap.getConnection(), bindDNBindRequest);
                 String dn = ldap.userDn();
                 assertThat(dn, containsString(user));
             }
 
             //lookup
             try (LdapSession ldap = unauthenticatedSession(sessionFactory, user)) {
-                assertConnectionCanReconnect(ldap.getConnection());
+                assertConnectionValid(ldap.getConnection(), bindDNBindRequest);
                 String dn = ldap.userDn();
                 assertThat(dn, containsString(user));
             }
@@ -307,18 +306,19 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
 
         String user = "William Bush";
         SecureString userPass = new SecureString("pass");
+        final SimpleBindRequest bindDNBindRequest = LdapUserSearchSessionFactory.bindRequest(config.settings());
 
         try {
             //auth
             try (LdapSession ldap = session(sessionFactory, user, userPass)) {
-                assertConnectionCanReconnect(ldap.getConnection());
+                assertConnectionValid(ldap.getConnection(), bindDNBindRequest);
                 String dn = ldap.userDn();
                 assertThat(dn, containsString(user));
             }
 
             //lookup
             try (LdapSession ldap = unauthenticatedSession(sessionFactory, user)) {
-                assertConnectionCanReconnect(ldap.getConnection());
+                assertConnectionValid(ldap.getConnection(), bindDNBindRequest);
                 String dn = ldap.userDn();
                 assertThat(dn, containsString(user));
             }
@@ -383,18 +383,19 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
 
         String user = "wbush";
         SecureString userPass = new SecureString("pass");
+        final SimpleBindRequest bindDNBindRequest = LdapUserSearchSessionFactory.bindRequest(config.settings());
 
         try {
             //auth
             try (LdapSession ldap = session(sessionFactory, user, userPass)) {
-                assertConnectionCanReconnect(ldap.getConnection());
+                assertConnectionValid(ldap.getConnection(), bindDNBindRequest);
                 String dn = ldap.userDn();
                 assertThat(dn, containsString("William Bush"));
             }
 
             //lookup
             try (LdapSession ldap = unauthenticatedSession(sessionFactory, user)) {
-                assertConnectionCanReconnect(ldap.getConnection());
+                assertConnectionValid(ldap.getConnection(), bindDNBindRequest);
                 String dn = ldap.userDn();
                 assertThat(dn, containsString("William Bush"));
             }

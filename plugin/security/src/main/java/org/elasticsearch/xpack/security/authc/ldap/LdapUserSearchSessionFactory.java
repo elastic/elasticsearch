@@ -90,17 +90,12 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
             } else {
                 final String dn = entry.getDN();
                 final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
-                SimpleBindRequest bind = new SimpleBindRequest(dn, passwordBytes);
-                LdapUtils.maybeForkThenBind(connectionPool, bind, threadPool, new ActionRunnable<LdapSession>(listener) {
+                final SimpleBindRequest bind = new SimpleBindRequest(dn, passwordBytes);
+                LdapUtils.maybeForkThenBindAndRevert(connectionPool, bind, threadPool, new ActionRunnable<LdapSession>(listener) {
                     @Override
                     protected void doRun() throws Exception {
                         listener.onResponse(new LdapSession(logger, config, connectionPool, dn, groupResolver, metaDataResolver, timeout,
                                 entry.getAttributes()));
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
                     }
                 });
             }
@@ -138,8 +133,20 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
                             LdapUtils.maybeForkThenBind(connection, userBind, threadPool, new AbstractRunnable() {
                                 @Override
                                 protected void doRun() throws Exception {
-                                    listener.onResponse(new LdapSession(logger, config, connection, dn, groupResolver, metaDataResolver,
-                                            timeout, entry.getAttributes()));
+                                    LdapUtils.maybeForkThenBind(connection, bind, threadPool, new AbstractRunnable() {
+
+                                        @Override
+                                        protected void doRun() throws Exception {
+                                            listener.onResponse(new LdapSession(logger, config, connection, dn, groupResolver,
+                                                    metaDataResolver, timeout, entry.getAttributes()));
+                                        }
+
+                                        @Override
+                                        public void onFailure(Exception e) {
+                                            IOUtils.closeWhileHandlingException(connection);
+                                            listener.onFailure(e);
+                                        }
+                                    });
                                 }
 
                                 @Override

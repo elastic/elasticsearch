@@ -6,8 +6,11 @@
 package org.elasticsearch.xpack.security.authc.ldap;
 
 import com.unboundid.ldap.listener.InMemoryDirectoryServer;
+import com.unboundid.ldap.sdk.BindRequest;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPURL;
+import com.unboundid.ldap.sdk.SimpleBindRequest;
+
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -92,9 +95,10 @@ public class LdapSessionFactoryTests extends LdapTestCase {
 
         String user = "Horatio Hornblower";
         SecureString userPass = new SecureString("pass");
+        final SimpleBindRequest bindRequest = new SimpleBindRequest("cn=Horatio Hornblower,ou=people,o=sevenSeas", "pass");
 
         try (LdapSession ldap = session(sessionFactory, user, userPass)) {
-            assertConnectionCanReconnect(ldap.getConnection());
+            assertConnectionValid(ldap.getConnection(), bindRequest);
             String dn = ldap.userDn();
             assertThat(dn, containsString(user));
         }
@@ -132,9 +136,10 @@ public class LdapSessionFactoryTests extends LdapTestCase {
 
         String user = "Horatio Hornblower";
         SecureString userPass = new SecureString("pass");
+        final SimpleBindRequest bindRequest = new SimpleBindRequest("cn=Horatio Hornblower,ou=people,o=sevenSeas", "pass");
 
         try (LdapSession ldap = session(ldapFac, user, userPass)) {
-            assertConnectionCanReconnect(ldap.getConnection());
+            assertConnectionValid(ldap.getConnection(), bindRequest);
             List<String> groups = groups(ldap);
             assertThat(groups, contains("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
         }
@@ -149,8 +154,10 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         LdapSessionFactory ldapFac = new LdapSessionFactory(config, sslService, threadPool);
 
         String user = "Horatio Hornblower";
+        final SimpleBindRequest bindRequest = new SimpleBindRequest("cn=Horatio Hornblower,ou=people,o=sevenSeas", "pass");
+
         try (LdapSession ldap = session(ldapFac, user, new SecureString("pass"))) {
-            assertConnectionCanReconnect(ldap.getConnection());
+            assertConnectionValid(ldap.getConnection(), bindRequest);
             List<String> groups = groups(ldap);
             assertThat(groups, contains("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
         }
@@ -166,9 +173,10 @@ public class LdapSessionFactoryTests extends LdapTestCase {
 
         String user = "Horatio Hornblower";
         SecureString userPass = new SecureString("pass");
+        final SimpleBindRequest bindRequest = new SimpleBindRequest("cn=Horatio Hornblower,ou=people,o=sevenSeas", "pass");
 
         try (LdapSession ldap = session(ldapFac, user, userPass)) {
-            assertConnectionCanReconnect(ldap.getConnection());
+            assertConnectionValid(ldap.getConnection(), bindRequest);
             List<String> groups = groups(ldap);
             assertThat(groups.size(), is(1));
             assertThat(groups, contains("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));

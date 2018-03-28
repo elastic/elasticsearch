@@ -285,7 +285,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                                 ActionListener<LdapSession> listener) {
             final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
             final SimpleBindRequest bind = new SimpleBindRequest(bindUsername(username), passwordBytes);
-            LdapUtils.maybeForkThenBind(pool, bind, threadPool, new ActionRunnable<LdapSession>(listener) {
+            LdapUtils.maybeForkThenBindAndRevert(pool, bind, threadPool, new ActionRunnable<LdapSession>(listener) {
                 @Override
                 protected void doRun() throws Exception {
                     searchForDN(pool, username, password, Math.toIntExact(timeout.seconds()), ActionListener.wrap((entry) -> {

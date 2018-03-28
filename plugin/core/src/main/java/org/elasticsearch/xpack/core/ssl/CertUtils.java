@@ -396,7 +396,8 @@ public class CertUtils {
      * @param keyPassword A supplier for the password for each key. The key alias is supplied as an argument to the function, and it should
      *                    return the password for that key. If it returns {@code null}, then the key-pair for that alias is not read.
      */
-    static Map<Certificate, Key> readPkcs12KeyPairs(Path path, char[] password, Function<String, char[]> keyPassword, Environment env)
+    public static Map<Certificate, Key> readPkcs12KeyPairs(Path path, char[] password, Function<String, char[]> keyPassword, Environment
+            env)
             throws CertificateException, NoSuchAlgorithmException, KeyStoreException, IOException, UnrecoverableKeyException {
         final KeyStore store = readKeyStore(path, "PKCS12", password);
         final Enumeration<String> enumeration = store.aliases();

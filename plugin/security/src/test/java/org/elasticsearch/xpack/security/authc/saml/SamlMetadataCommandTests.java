@@ -18,12 +18,22 @@ import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.saml.saml2.metadata.RequestedAttribute;
 import org.opensaml.saml.saml2.metadata.SPSSODescriptor;
+import org.opensaml.saml.security.impl.SAMLSignatureProfileValidator;
+import org.opensaml.security.credential.Credential;
 import org.opensaml.security.credential.UsageType;
+import org.opensaml.security.x509.BasicX509Credential;
 import org.opensaml.xmlsec.keyinfo.KeyInfoSupport;
+import org.opensaml.xmlsec.signature.Signature;
 import org.opensaml.xmlsec.signature.X509Certificate;
 import org.opensaml.xmlsec.signature.X509Data;
+import org.opensaml.xmlsec.signature.support.SignatureValidator;
+import org.w3c.dom.Element;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.PrivateKey;
+import java.security.cert.Certificate;
 import java.util.Collections;
 import java.util.List;
 
@@ -266,5 +276,271 @@ public class SamlMetadataCommandTests extends SamlTestCase {
 
         assertThat(attributes.get(1).getFriendlyName(), equalTo("principal"));
         assertThat(attributes.get(1).getName(), equalTo("urn:oid:0.9.2342.19200300.100.1.1"));
+    }
+
+    public void testSigningMetadataWithPfx() throws Exception {
+        final Path certPath = getDataPath("saml.crt");
+        final Path keyPath = getDataPath("saml.key");
+        final Path p12Path = getDataPath("saml.p12");
+        final SamlMetadataCommand command = new SamlMetadataCommand();
+        final OptionSet options = command.getParser().parse(new String[]{
+                "-signing-bundle", p12Path.toString()
+        });
+
+        final boolean useSigningCredentials = randomBoolean();
+        final Settings.Builder settingsBuilder = Settings.builder()
+                .put("path.home", createTempDir())
+                .put(RealmSettings.PREFIX + "my_saml.type", "saml")
+                .put(RealmSettings.PREFIX + "my_saml.order", 1)
+                .put(RealmSettings.PREFIX + "my_saml.idp.entity_id", "https://okta.my.corp/")
+                .put(RealmSettings.PREFIX + "my_saml.sp.entity_id", "https://kibana.my.corp/")
+                .put(RealmSettings.PREFIX + "my_saml.sp.acs", "https://kibana.my.corp/saml/login")
+                .put(RealmSettings.PREFIX + "my_saml.sp.logout", "https://kibana.my.corp/saml/logout")
+                .put(RealmSettings.PREFIX + "my_saml.attributes.principal", "urn:oid:0.9.2342.19200300.100.1.1");
+        if (useSigningCredentials) {
+            settingsBuilder.put(RealmSettings.PREFIX + "my_saml.signing.certificate", certPath.toString())
+                    .put(RealmSettings.PREFIX + "my_saml.signing.key", keyPath.toString());
+        }
+        final Settings settings = settingsBuilder.build();
+        final Environment env = TestEnvironment.newEnvironment(settings);
+
+        final MockTerminal terminal = new MockTerminal();
+
+        // What is the friendly name for "principal" attribute "urn:oid:0.9.2342.19200300.100.1.1" [default: principal]
+        terminal.addTextInput("");
+        terminal.addSecretInput("");
+
+        final EntityDescriptor descriptor = command.buildEntityDescriptor(terminal, options, env);
+        command.possiblySignDescriptor(terminal, options, descriptor, env);
+        assertThat(descriptor, notNullValue());
+        // Verify generated signature
+        assertThat(descriptor.getSignature(), notNullValue());
+        assertThat(validateSignature(descriptor.getSignature()), equalTo(true));
+        // Make sure that Signing didn't mangle the XML at all and we can still read metadata
+        assertThat(descriptor.getEntityID(), equalTo("https://kibana.my.corp/"));
+
+        assertThat(descriptor.getRoleDescriptors(), iterableWithSize(1));
+        assertThat(descriptor.getRoleDescriptors().get(0), instanceOf(SPSSODescriptor.class));
+        final SPSSODescriptor spDescriptor = (SPSSODescriptor) descriptor.getRoleDescriptors().get(0);
+
+        assertThat(spDescriptor.getAssertionConsumerServices(), iterableWithSize(1));
+        assertThat(spDescriptor.getAssertionConsumerServices().get(0).getLocation(), equalTo("https://kibana.my.corp/saml/login"));
+        assertThat(spDescriptor.getAssertionConsumerServices().get(0).isDefault(), equalTo(true));
+        assertThat(spDescriptor.getAssertionConsumerServices().get(0).getIndex(), equalTo(1));
+        assertThat(spDescriptor.getAssertionConsumerServices().get(0).getBinding(), equalTo(SAMLConstants.SAML2_POST_BINDING_URI));
+
+        final RequestedAttribute uidAttribute = spDescriptor.getAttributeConsumingServices().get(0).getRequestAttributes().get(0);
+        assertThat(uidAttribute.getName(), equalTo("urn:oid:0.9.2342.19200300.100.1.1"));
+        assertThat(uidAttribute.getFriendlyName(), equalTo("principal"));
+
+        assertThat(spDescriptor.isAuthnRequestsSigned(), equalTo(useSigningCredentials));
+        assertThat(spDescriptor.getWantAssertionsSigned(), equalTo(true));
+    }
+
+    public void testSigningMetadataWithPasswordProtectedPfx() throws Exception {
+        final Path certPath = getDataPath("saml.crt");
+        final Path keyPath = getDataPath("saml.key");
+        final Path p12Path = getDataPath("saml_with_password.p12");
+        final SamlMetadataCommand command = new SamlMetadataCommand();
+        final OptionSet options = command.getParser().parse(new String[]{
+                "-signing-bundle", p12Path.toString(),
+                "-signing-key-password", "saml"
+        });
+
+        final boolean useSigningCredentials = randomBoolean();
+        final Settings.Builder settingsBuilder = Settings.builder()
+                .put("path.home", createTempDir())
+                .put(RealmSettings.PREFIX + "my_saml.type", "saml")
+                .put(RealmSettings.PREFIX + "my_saml.order", 1)
+                .put(RealmSettings.PREFIX + "my_saml.idp.entity_id", "https://okta.my.corp/")
+                .put(RealmSettings.PREFIX + "my_saml.sp.entity_id", "https://kibana.my.corp/")
+                .put(RealmSettings.PREFIX + "my_saml.sp.acs", "https://kibana.my.corp/saml/login")
+                .put(RealmSettings.PREFIX + "my_saml.sp.logout", "https://kibana.my.corp/saml/logout");
+        if (useSigningCredentials) {
+            settingsBuilder.put(RealmSettings.PREFIX + "my_saml.signing.certificate", certPath.toString())
+                    .put(RealmSettings.PREFIX + "my_saml.signing.key", keyPath.toString());
+        }
+        final Settings settings = settingsBuilder.build();
+        final Environment env = TestEnvironment.newEnvironment(settings);
+
+        final MockTerminal terminal = new MockTerminal();
+
+        final EntityDescriptor descriptor = command.buildEntityDescriptor(terminal, options, env);
+        Element e = command.possiblySignDescriptor(terminal, options, descriptor, env);
+        String a = SamlUtils.toString(e);
+        assertThat(descriptor, notNullValue());
+        // Verify generated signature
+        assertThat(descriptor.getSignature(), notNullValue());
+        assertThat(validateSignature(descriptor.getSignature()), equalTo(true));
+    }
+
+    public void testErrorSigningMetadataWithWrongPassword() throws Exception {
+        final Path certPath = getDataPath("saml.crt");
+        final Path keyPath = getDataPath("saml.key");
+        final Path p12Path = getDataPath("saml_with_password.p12");
+        final SamlMetadataCommand command = new SamlMetadataCommand();
+        final OptionSet options = command.getParser().parse(new String[]{
+                "-signing-bundle", p12Path.toString(),
+                "-signing-key-password", "wrong_password"
+        });
+
+        final boolean useSigningCredentials = randomBoolean();
+        final Settings.Builder settingsBuilder = Settings.builder()
+                .put("path.home", createTempDir())
+                .put(RealmSettings.PREFIX + "my_saml.type", "saml")
+                .put(RealmSettings.PREFIX + "my_saml.order", 1)
+                .put(RealmSettings.PREFIX + "my_saml.idp.entity_id", "https://okta.my.corp/")
+                .put(RealmSettings.PREFIX + "my_saml.sp.entity_id", "https://kibana.my.corp/")
+                .put(RealmSettings.PREFIX + "my_saml.sp.acs", "https://kibana.my.corp/saml/login")
+                .put(RealmSettings.PREFIX + "my_saml.sp.logout", "https://kibana.my.corp/saml/logout");
+        if (useSigningCredentials) {
+            settingsBuilder.put(RealmSettings.PREFIX + "my_saml.signing.certificate", certPath.toString())
+                    .put(RealmSettings.PREFIX + "my_saml.signing.key", keyPath.toString());
+        }
+        final Settings settings = settingsBuilder.build();
+        final Environment env = TestEnvironment.newEnvironment(settings);
+
+        final MockTerminal terminal = new MockTerminal();
+
+        final EntityDescriptor descriptor = command.buildEntityDescriptor(terminal, options, env);
+        final UserException userException = expectThrows(UserException.class, () -> command.possiblySignDescriptor(terminal, options,
+                descriptor, env));
+        assertThat(userException.getMessage(), containsString("Unable to create metadata document"));
+        assertThat(terminal.getOutput(), containsString("keystore password was incorrect"));
+    }
+
+    public void testSigningMetadataWithPem() throws Exception {
+        //Use this keypair for signing the metadata also
+        final Path certPath = getDataPath("saml.crt");
+        final Path keyPath = getDataPath("saml.key");
+
+        final SamlMetadataCommand command = new SamlMetadataCommand();
+        final OptionSet options = command.getParser().parse(new String[]{
+                "-signing-cert", certPath.toString(),
+                "-signing-key", keyPath.toString()
+        });
+
+        final boolean useSigningCredentials = randomBoolean();
+        final Settings.Builder settingsBuilder = Settings.builder()
+                .put("path.home", createTempDir())
+                .put(RealmSettings.PREFIX + "my_saml.type", "saml")
+                .put(RealmSettings.PREFIX + "my_saml.order", 1)
+                .put(RealmSettings.PREFIX + "my_saml.idp.entity_id", "https://okta.my.corp/")
+                .put(RealmSettings.PREFIX + "my_saml.sp.entity_id", "https://kibana.my.corp/")
+                .put(RealmSettings.PREFIX + "my_saml.sp.acs", "https://kibana.my.corp/saml/login")
+                .put(RealmSettings.PREFIX + "my_saml.sp.logout", "https://kibana.my.corp/saml/logout");
+        if (useSigningCredentials) {
+            settingsBuilder.put(RealmSettings.PREFIX + "my_saml.signing.certificate", certPath.toString())
+                    .put(RealmSettings.PREFIX + "my_saml.signing.key", keyPath.toString());
+        }
+        final Settings settings = settingsBuilder.build();
+        final Environment env = TestEnvironment.newEnvironment(settings);
+
+        final MockTerminal terminal = new MockTerminal();
+
+        final EntityDescriptor descriptor = command.buildEntityDescriptor(terminal, options, env);
+        command.possiblySignDescriptor(terminal, options, descriptor, env);
+        assertThat(descriptor, notNullValue());
+        // Verify generated signature
+        assertThat(descriptor.getSignature(), notNullValue());
+        assertThat(validateSignature(descriptor.getSignature()), equalTo(true));
+    }
+
+    public void testSigningMetadataWithPasswordProtectedPem() throws Exception {
+        //Use same keypair for signing the metadata
+        final Path signingKeyPath = getDataPath("saml_with_password.key");
+
+        final Path certPath = getDataPath("saml.crt");
+        final Path keyPath = getDataPath("saml.key");
+
+        final SamlMetadataCommand command = new SamlMetadataCommand();
+        final OptionSet options = command.getParser().parse(new String[]{
+                "-signing-cert", certPath.toString(),
+                "-signing-key", signingKeyPath.toString(),
+                "-signing-key-password", "saml"
+
+        });
+
+        final boolean useSigningCredentials = randomBoolean();
+        final Settings.Builder settingsBuilder = Settings.builder()
+                .put("path.home", createTempDir())
+                .put(RealmSettings.PREFIX + "my_saml.type", "saml")
+                .put(RealmSettings.PREFIX + "my_saml.order", 1)
+                .put(RealmSettings.PREFIX + "my_saml.idp.entity_id", "https://okta.my.corp/")
+                .put(RealmSettings.PREFIX + "my_saml.sp.entity_id", "https://kibana.my.corp/")
+                .put(RealmSettings.PREFIX + "my_saml.sp.acs", "https://kibana.my.corp/saml/login")
+                .put(RealmSettings.PREFIX + "my_saml.sp.logout", "https://kibana.my.corp/saml/logout");
+        if (useSigningCredentials) {
+            settingsBuilder.put(RealmSettings.PREFIX + "my_saml.signing.certificate", certPath.toString())
+                    .put(RealmSettings.PREFIX + "my_saml.signing.key", keyPath.toString());
+        }
+        final Settings settings = settingsBuilder.build();
+        final Environment env = TestEnvironment.newEnvironment(settings);
+
+        final MockTerminal terminal = new MockTerminal();
+
+        final EntityDescriptor descriptor = command.buildEntityDescriptor(terminal, options, env);
+        command.possiblySignDescriptor(terminal, options, descriptor, env);
+        assertThat(descriptor, notNullValue());
+        // Verify generated signature
+        assertThat(descriptor.getSignature(), notNullValue());
+        assertThat(validateSignature(descriptor.getSignature()), equalTo(true));
+    }
+
+    public void testSigningMetadataWithPasswordProtectedPemInTerminal() throws Exception {
+        //Use same keypair for signing the metadata
+        final Path signingKeyPath = getDataPath("saml_with_password.key");
+
+        final Path certPath = getDataPath("saml.crt");
+        final Path keyPath = getDataPath("saml.key");
+
+        final SamlMetadataCommand command = new SamlMetadataCommand();
+        final OptionSet options = command.getParser().parse(new String[]{
+                "-signing-cert", certPath.toString(),
+                "-signing-key", signingKeyPath.toString()
+
+        });
+
+        final boolean useSigningCredentials = randomBoolean();
+        final Settings.Builder settingsBuilder = Settings.builder()
+                .put("path.home", createTempDir())
+                .put(RealmSettings.PREFIX + "my_saml.type", "saml")
+                .put(RealmSettings.PREFIX + "my_saml.order", 1)
+                .put(RealmSettings.PREFIX + "my_saml.idp.entity_id", "https://okta.my.corp/")
+                .put(RealmSettings.PREFIX + "my_saml.sp.entity_id", "https://kibana.my.corp/")
+                .put(RealmSettings.PREFIX + "my_saml.sp.acs", "https://kibana.my.corp/saml/login")
+                .put(RealmSettings.PREFIX + "my_saml.sp.logout", "https://kibana.my.corp/saml/logout");
+        if (useSigningCredentials) {
+            settingsBuilder.put(RealmSettings.PREFIX + "my_saml.signing.certificate", certPath.toString())
+                    .put(RealmSettings.PREFIX + "my_saml.signing.key", keyPath.toString());
+        }
+        final Settings settings = settingsBuilder.build();
+        final Environment env = TestEnvironment.newEnvironment(settings);
+
+        final MockTerminal terminal = new MockTerminal();
+
+        terminal.addSecretInput("saml");
+
+        final EntityDescriptor descriptor = command.buildEntityDescriptor(terminal, options, env);
+        command.possiblySignDescriptor(terminal, options, descriptor, env);
+        assertThat(descriptor, notNullValue());
+        // Verify generated signature
+        assertThat(descriptor.getSignature(), notNullValue());
+        assertThat(validateSignature(descriptor.getSignature()), equalTo(true));
+    }
+
+    private boolean validateSignature(Signature signature) {
+        try {
+            Certificate[] certificates = CertUtils.readCertificates(Collections.singletonList(getDataPath("saml.crt").toString()), null);
+            PrivateKey key = CertUtils.readPrivateKey(Files.newBufferedReader(getDataPath("saml.key"), StandardCharsets.UTF_8),
+                    ""::toCharArray);
+            Credential verificationCredential = new BasicX509Credential((java.security.cert.X509Certificate) certificates[0], key);
+            SAMLSignatureProfileValidator profileValidator = new SAMLSignatureProfileValidator();
+            profileValidator.validate(signature);
+            SignatureValidator.validate(signature, verificationCredential);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 }

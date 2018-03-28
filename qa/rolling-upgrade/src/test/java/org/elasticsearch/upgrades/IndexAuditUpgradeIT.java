@@ -11,6 +11,7 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -19,9 +20,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.apache.lucene.util.LuceneTestCase.AwaitsFix;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isOneOf;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/pull/4025")
 public class IndexAuditUpgradeIT extends AbstractUpgradeTestCase {
 
     private Version minVersionInCluster;
@@ -43,7 +44,7 @@ public class IndexAuditUpgradeIT extends AbstractUpgradeTestCase {
 
     public void testDocsAuditedInOldCluster() throws Exception {
         assumeTrue("only runs against old cluster", clusterType == CLUSTER_TYPE.OLD);
-        final int expectedBuckets = minVersionInCluster.before(Version.V_6_2_3) ? 0 : 2;
+        final Matcher<Integer> expectedBuckets = minVersionInCluster.onOrAfter(Version.V_6_2_3) ? is(2) : is(0);
         assertBusy(() -> {
             assertAuditDocsExist();
             assertNumUniqueNodeNameBuckets(expectedBuckets);
@@ -52,7 +53,10 @@ public class IndexAuditUpgradeIT extends AbstractUpgradeTestCase {
 
     public void testDocsAuditedInMixedCluster() throws Exception {
         assumeTrue("only runs against mixed cluster", clusterType == CLUSTER_TYPE.MIXED);
-        final int expectedBuckets = minVersionInCluster.before(Version.V_6_2_3) ? 0 : 2;
+        // the isOneOf(0, 1) check is necessary for instances where this test runs across an
+        // an index rollover and the audit trail on the upgraded node starts so we get a bucket
+        // with a node name
+        final Matcher<Integer> expectedBuckets = minVersionInCluster.onOrAfter(Version.V_6_2_3) ? is(2) : isOneOf(0, 1);
         assertBusy(() -> {
             assertAuditDocsExist();
             assertNumUniqueNodeNameBuckets(expectedBuckets);
@@ -81,7 +85,7 @@ public class IndexAuditUpgradeIT extends AbstractUpgradeTestCase {
         }
 
         assertNotNull(minVersion);
-        final int expectedBuckets = minVersion.before(Version.V_6_2_3) ? 2 : 4;
+        final Matcher<Integer> expectedBuckets = minVersion.onOrAfter(Version.V_6_2_3) ? is(4) : is(2);
         assertBusy(() -> {
             assertAuditDocsExist();
             assertNumUniqueNodeNameBuckets(expectedBuckets);
@@ -97,7 +101,7 @@ public class IndexAuditUpgradeIT extends AbstractUpgradeTestCase {
         assertThat((Integer) responseMap.get("count"), Matchers.greaterThanOrEqualTo(1));
     }
 
-    private void assertNumUniqueNodeNameBuckets(int numBuckets) throws Exception {
+    private void assertNumUniqueNodeNameBuckets(Matcher<Integer> numBucketsMatcher) throws Exception {
         // call API that will hit all nodes
         assertEquals(200, client().performRequest("GET", "/_nodes").getStatusLine().getStatusCode());
 
@@ -119,6 +123,6 @@ public class IndexAuditUpgradeIT extends AbstractUpgradeTestCase {
         assertNotNull(nodesAgg);
         List<Map<String, Object>> buckets = (List<Map<String, Object>>) nodesAgg.get("buckets");
         assertNotNull(buckets);
-        assertEquals(numBuckets, buckets.size());
+        assertThat(buckets.size(), numBucketsMatcher);
     }
 }

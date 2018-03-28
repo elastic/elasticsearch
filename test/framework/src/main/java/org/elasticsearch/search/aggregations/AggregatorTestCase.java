@@ -293,7 +293,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         A internalAgg = (A) a.buildAggregation(0L);
         InternalAggregationTestCase.assertMultiBucketConsumer(internalAgg, bucketConsumer);
         return internalAgg;
-
     }
 
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(IndexSearcher searcher,

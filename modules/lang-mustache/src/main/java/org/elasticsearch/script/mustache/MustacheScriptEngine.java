@@ -20,8 +20,6 @@ package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.Mustache;
 import com.github.mustachejava.MustacheFactory;
-
-import java.io.StringReader;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
@@ -34,6 +32,7 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.TemplateScript;
 
 import java.io.Reader;
+import java.io.StringReader;
 import java.io.StringWriter;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -64,6 +63,11 @@ public final class MustacheScriptEngine implements ScriptEngine {
         if (context.instanceClazz.equals(TemplateScript.class) == false) {
             throw new IllegalArgumentException("mustache engine does not know how to handle context [" + context.name + "]");
         }
+        // early termination if there is nothing to compile
+        if (containsMustacheTemplates(templateSource) == false) {
+            TemplateScript.Factory compiled = params -> new NoRenderMustacheExecutableScript(templateSource, params);
+            return context.factoryClazz.cast(compiled);
+        }
         final MustacheFactory factory = createMustacheFactory(options);
         Reader reader = new StringReader(templateSource);
         Mustache template = factory.compile(reader, "query-template");
@@ -81,6 +85,22 @@ public final class MustacheScriptEngine implements ScriptEngine {
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    public boolean requiresCompilation(String templateSource) {
+        return containsMustacheTemplates(templateSource);
+    }
+
+    /**
+     * A simple check if this mustache templates requires compilation. If you pass JSON in here, this condition can
+     * be triggered by the JSON, even though no compilation would be needed otherwise
+     *
+     * @param template the mustache template source
+     * @return         true if it contains mustache opening and closing tags, false otherwise
+     */
+    private boolean containsMustacheTemplates(String template) {
+        return template.contains("{{") && template.contains("}}");
     }
 
     /**
@@ -116,6 +136,26 @@ public final class MustacheScriptEngine implements ScriptEngine {
                 throw new GeneralScriptException("Error running " + template, e);
             }
             return writer.toString();
+        }
+    }
+
+    /**
+     * a small helper class, that returns the original template instead of trying to execute any compilation or merging of
+     * the supplied parameters
+     */
+    // package private for testing
+    class NoRenderMustacheExecutableScript extends TemplateScript {
+
+        private final String templateSource;
+
+        NoRenderMustacheExecutableScript(String templateSource, Map<String, Object> params) {
+            super(params);
+            this.templateSource = templateSource;
+        }
+
+        @Override
+        public String execute() {
+            return templateSource;
         }
     }
 }

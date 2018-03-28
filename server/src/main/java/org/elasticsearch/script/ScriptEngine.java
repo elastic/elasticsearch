@@ -45,4 +45,15 @@ public interface ScriptEngine extends Closeable {
 
     @Override
     default void close() throws IOException {}
+
+    /**
+     * Usually scripts require compilation. However there can be special cases where scripts do not require any compilation to happen.
+     * For example, when the input is equal to the output when rendering a string based template without parameters.
+     *
+     * @param scriptSource the script
+     * @return             true if it makes sense to put the executed script in the cache, false otherwise
+     */
+    default boolean requiresCompilation(String scriptSource) {
+        return true;
+    }
 }

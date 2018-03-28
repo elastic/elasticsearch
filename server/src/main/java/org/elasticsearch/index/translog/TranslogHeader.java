@@ -45,7 +45,7 @@ final class TranslogHeader {
     public static final int VERSION_PRIMARY_TERM = 3; // added primary term
     public static final int CURRENT_VERSION = VERSION_PRIMARY_TERM;
 
-    public static final long UNKNOWN_PRIMARY_TERM = -1L;
+    public static final long UNKNOWN_PRIMARY_TERM = 0L;
 
     private final String translogUUID;
     private final long primaryTerm;

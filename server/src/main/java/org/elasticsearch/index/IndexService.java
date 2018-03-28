@@ -713,7 +713,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     continue;
                 case POST_RECOVERY:
                 case STARTED:
-                case RELOCATED:
                     try {
                         shard.trimTranslog();
                     } catch (IndexShardClosedException | AlreadyClosedException ex) {
@@ -733,7 +732,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     case CLOSED:
                     case CREATED:
                     case RECOVERING:
-                    case RELOCATED:
                         continue;
                     case POST_RECOVERY:
                         assert false : "shard " + shard.shardId() + " is in post-recovery but marked as active";

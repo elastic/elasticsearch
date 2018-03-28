@@ -1001,7 +1001,7 @@ public abstract class TransportReplicationAction<
         }
 
         public boolean isRelocated() {
-            return indexShard.state() == IndexShardState.RELOCATED;
+            return indexShard.isPrimaryMode() == false;
         }
 
         @Override

@@ -78,6 +78,7 @@ import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -145,6 +146,7 @@ public class InternalEngine extends Engine {
      * being indexed/deleted.
      */
     private final AtomicLong writingBytes = new AtomicLong();
+    private final AtomicBoolean trackTranslogLocation = new AtomicBoolean(false);
 
     @Nullable
     private final String historyUUID;
@@ -558,6 +560,27 @@ public class InternalEngine extends Engine {
                         throw new VersionConflictEngineException(shardId, get.type(), get.id(),
                             get.versionType().explainConflictForReads(versionValue.version, get.version()));
                     }
+                    if (get.isReadFromTranslog()) {
+                        // this is only used for updates - API _GET calls will always read form a reader for consistency
+                        // the update call doesn't need the consistency since it's source only + _parent but parent can go away in 7.0
+                        if (versionValue.getLocation() != null) {
+                            try {
+                                Translog.Operation operation = translog.readOperation(versionValue.getLocation());
+                                if (operation != null) {
+                                    // in the case of a already pruned translog generation we might get null here - yet very unlikely
+                                    TranslogLeafReader reader = new TranslogLeafReader((Translog.Index) operation, engineConfig
+                                        .getIndexSettings().getIndexVersionCreated());
+                                    return new GetResult(new Searcher("realtime_get", new IndexSearcher(reader)),
+                                        new VersionsAndSeqNoResolver.DocIdAndVersion(0, ((Translog.Index) operation).version(), reader, 0));
+                                }
+                            } catch (IOException e) {
+                                maybeFailEngine("realtime_get", e); // lets check if the translog has failed with a tragic event
+                                throw new EngineException(shardId, "failed to read operation from translog", e);
+                            }
+                        } else {
+                            trackTranslogLocation.set(true);
+                        }
+                    }
                     refresh("realtime_get", SearcherScope.INTERNAL);
                 }
                 scope = SearcherScope.INTERNAL;
@@ -790,6 +813,10 @@ public class InternalEngine extends Engine {
                     }
                     indexResult.setTranslogLocation(location);
                 }
+                if (plan.indexIntoLucene && indexResult.hasFailure() == false) {
+                    versionMap.maybePutUnderLock(index.uid().bytes(),
+                        getVersionValue(plan.versionForIndexing, plan.seqNoForIndexing, index.primaryTerm(), indexResult.getTranslogLocation()));
+                }
                 if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                     localCheckpointTracker.markSeqNoAsCompleted(indexResult.getSeqNo());
                 }
@@ -916,8 +943,6 @@ public class InternalEngine extends Engine {
                 assert assertDocDoesNotExist(index, canOptimizeAddDocument(index) == false);
                 index(index.docs(), indexWriter);
             }
-            versionMap.maybePutUnderLock(index.uid().bytes(),
-                new VersionValue(plan.versionForIndexing, plan.seqNoForIndexing, index.primaryTerm()));
             return new IndexResult(plan.versionForIndexing, plan.seqNoForIndexing, plan.currentNotFoundOrDeleted);
         } catch (Exception ex) {
             if (indexWriter.getTragicException() == null) {
@@ -939,6 +964,13 @@ public class InternalEngine extends Engine {
                 throw ex;
             }
         }
+    }
+
+    private VersionValue getVersionValue(long version, long seqNo, long term, Translog.Location location) {
+        if (location != null && trackTranslogLocation.get()) {
+            return new TranslogVersionValue(location, version, seqNo, term);
+        }
+        return new VersionValue(version, seqNo, term);
     }
 
     /**

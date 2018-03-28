@@ -113,11 +113,15 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
 
         @Override
         protected void doSaveState(IndexerState state, Map<String, Object> position, Runnable next) {
-            assert state == IndexerState.INDEXING || state == IndexerState.STARTED || state == IndexerState.STOPPED;
-            final RollupJobStatus status = new RollupJobStatus(state, getPosition());
-            logger.debug("Updating persistent status of job [" + job.getConfig().getId() + "] to [" + state.toString() + "]");
-            updatePersistentStatus(status, ActionListener.wrap(task -> next.run(), exc -> next.run()));
-
+            if (state.equals(IndexerState.ABORTING)) {
+                // If we're aborting, just invoke `next` (which is likely an onFailure handler)
+                next.run();
+            } else {
+                // Otherwise, attempt to persist our state
+                final RollupJobStatus status = new RollupJobStatus(state, getPosition());
+                logger.debug("Updating persistent status of job [" + job.getConfig().getId() + "] to [" + state.toString() + "]");
+                updatePersistentStatus(status, ActionListener.wrap(task -> next.run(), exc -> next.run()));
+            }
         }
 
         @Override

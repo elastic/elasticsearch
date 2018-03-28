@@ -16,16 +16,16 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlClientHelper;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
-import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -61,16 +61,16 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         if (job == null) {
             throw ExceptionsHelper.missingJobException(datafeed.getJobId());
         }
-        DatafeedConfig.Builder datafeedWithAutoChunking = new DatafeedConfig.Builder(datafeed);
-        datafeedWithAutoChunking.setChunkingConfig(ChunkingConfig.newAuto());
+
+        DatafeedConfig.Builder previewDatafeed = buildPreviewDatafeed(datafeed);
         Map<String, String> headers = threadPool.getThreadContext().getHeaders().entrySet().stream()
                 .filter(e -> MlClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        datafeedWithAutoChunking.setHeaders(headers);
+        previewDatafeed.setHeaders(headers);
         // NB: this is using the client from the transport layer, NOT the internal client.
         // This is important because it means the datafeed search will fail if the user
         // requesting the preview doesn't have permission to search the relevant indices.
-        DataExtractorFactory.create(client, datafeedWithAutoChunking.build(), job, new ActionListener<DataExtractorFactory>() {
+        DataExtractorFactory.create(client, previewDatafeed.build(), job, new ActionListener<DataExtractorFactory>() {
             @Override
             public void onResponse(DataExtractorFactory dataExtractorFactory) {
                 DataExtractor dataExtractor = dataExtractorFactory.newExtractor(0, Long.MAX_VALUE);
@@ -83,6 +83,23 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             }
         });
 
+    }
+
+    /** Visible for testing */
+    static DatafeedConfig.Builder buildPreviewDatafeed(DatafeedConfig datafeed) {
+
+        // Since we only want a preview, it's worth limiting the cost
+        // of the search in the case of non-aggregated datafeeds.
+        // We do so by setting auto-chunking. This ensures to find
+        // a sensible time range with enough data to preview.
+        // When aggregations are present, it's best to comply with
+        // what the datafeed is set to do as it can reveal problems with
+        // the datafeed config (e.g. a chunking config that would hit circuit-breakers).
+        DatafeedConfig.Builder previewDatafeed = new DatafeedConfig.Builder(datafeed);
+        if (datafeed.hasAggregations() == false) {
+            previewDatafeed.setChunkingConfig(ChunkingConfig.newAuto());
+        }
+        return previewDatafeed;
     }
 
     /** Visible for testing */

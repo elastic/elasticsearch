@@ -6,8 +6,14 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
+import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.junit.Before;
 import org.mockito.invocation.InvocationOnMock;
@@ -17,10 +23,12 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.Optional;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -57,6 +65,30 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
                 return null;
             }
         }).when(actionListener).onFailure(any());
+    }
+
+    public void testBuildPreviewDatafeed_GivenNoAggregations() {
+        DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("no_aggs_feed", "job_foo");
+        datafeed.setIndices(Collections.singletonList("my_index"));
+        datafeed.setChunkingConfig(ChunkingConfig.newManual(TimeValue.timeValueHours(1)));
+
+        DatafeedConfig previewDatafeed = TransportPreviewDatafeedAction.buildPreviewDatafeed(datafeed.build()).build();
+
+        assertThat(previewDatafeed.getChunkingConfig(), equalTo(ChunkingConfig.newAuto()));
+    }
+
+    public void testBuildPreviewDatafeed_GivenAggregations() {
+        DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("no_aggs_feed", "job_foo");
+        datafeed.setIndices(Collections.singletonList("my_index"));
+        MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
+        datafeed.setAggregations(AggregatorFactories.builder().addAggregator(
+                AggregationBuilders.histogram("time").interval(300000).subAggregation(maxTime).field("time")));
+        datafeed.setChunkingConfig(ChunkingConfig.newManual(TimeValue.timeValueHours(1)));
+
+        DatafeedConfig previewDatafeed = TransportPreviewDatafeedAction.buildPreviewDatafeed(datafeed.build()).build();
+
+        assertThat(previewDatafeed.getChunkingConfig(), not(equalTo(ChunkingConfig.newAuto())));
+        assertThat(previewDatafeed.getChunkingConfig(), equalTo(datafeed.build().getChunkingConfig()));
     }
 
     public void testPreviewDatafed_GivenEmptyStream() throws IOException {

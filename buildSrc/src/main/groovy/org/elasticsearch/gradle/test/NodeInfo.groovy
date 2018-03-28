@@ -162,7 +162,7 @@ class NodeInfo {
             args.add("${esScript}")
         }
 
-        env = ['JAVA_HOME': project.javaHome]
+        env = ['JAVA_HOME': project.runtimeJavaHome]
         args.addAll("-E", "node.portsfile=true")
         String collectedSystemProperties = config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" ")
         String esJavaOpts = config.jvmArgs.isEmpty() ? collectedSystemProperties : collectedSystemProperties + " " + config.jvmArgs

@@ -164,7 +164,7 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
     private static final ParseField K_FIELD = new ParseField("k");
     private static final ParseField NORMALIZE_FIELD = new ParseField("normalize");
     private static final ParseField UNKNOWN_DOC_RATING_FIELD = new ParseField("unknown_doc_rating");
-    private static final ConstructingObjectParser<DiscountedCumulativeGain, Void> PARSER = new ConstructingObjectParser<>("dcg_at",
+    private static final ConstructingObjectParser<DiscountedCumulativeGain, Void> PARSER = new ConstructingObjectParser<>("dcg_at", false,
             args -> {
                 Boolean normalized = (Boolean) args[0];
                 Integer optK = (Integer) args[2];

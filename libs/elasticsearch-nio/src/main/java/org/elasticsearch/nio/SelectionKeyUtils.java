@@ -26,28 +26,76 @@ public final class SelectionKeyUtils {
 
     private SelectionKeyUtils() {}
 
-    public static void setWriteInterested(NioChannel channel) throws CancelledKeyException {
-        SelectionKey selectionKey = channel.getSelectionKey();
+    /**
+     * Adds an interest in writes for this selection key while maintaining other interests.
+     *
+     * @param selectionKey the selection key
+     * @throws CancelledKeyException if the key was already cancelled
+     */
+    public static void setWriteInterested(SelectionKey selectionKey) throws CancelledKeyException {
         selectionKey.interestOps(selectionKey.interestOps() | SelectionKey.OP_WRITE);
     }
 
-    public static void removeWriteInterested(NioChannel channel) throws CancelledKeyException {
-        SelectionKey selectionKey = channel.getSelectionKey();
+    /**
+     * Removes an interest in writes for this selection key while maintaining other interests.
+     *
+     * @param selectionKey the selection key
+     * @throws CancelledKeyException if the key was already cancelled
+     */
+    public static void removeWriteInterested(SelectionKey selectionKey) throws CancelledKeyException {
         selectionKey.interestOps(selectionKey.interestOps() & ~SelectionKey.OP_WRITE);
     }
 
-    public static void setConnectAndReadInterested(NioChannel channel) throws CancelledKeyException {
-        SelectionKey selectionKey = channel.getSelectionKey();
+    /**
+     * Removes an interest in connects and reads for this selection key while maintaining other interests.
+     *
+     * @param selectionKey the selection key
+     * @throws CancelledKeyException if the key was already cancelled
+     */
+    public static void setConnectAndReadInterested(SelectionKey selectionKey) throws CancelledKeyException {
         selectionKey.interestOps(selectionKey.interestOps() | SelectionKey.OP_CONNECT | SelectionKey.OP_READ);
     }
 
-    public static void removeConnectInterested(NioChannel channel) throws CancelledKeyException {
-        SelectionKey selectionKey = channel.getSelectionKey();
+    /**
+     * Removes an interest in connects, reads, and writes for this selection key while maintaining other
+     * interests.
+     *
+     * @param selectionKey the selection key
+     * @throws CancelledKeyException if the key was already cancelled
+     */
+    public static void setConnectReadAndWriteInterested(SelectionKey selectionKey) throws CancelledKeyException {
+        selectionKey.interestOps(selectionKey.interestOps() | SelectionKey.OP_CONNECT | SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+    }
+
+    /**
+     * Removes an interest in connects for this selection key while maintaining other interests.
+     *
+     * @param selectionKey the selection key
+     * @throws CancelledKeyException if the key was already cancelled
+     */
+    public static void removeConnectInterested(SelectionKey selectionKey) throws CancelledKeyException {
         selectionKey.interestOps(selectionKey.interestOps() & ~SelectionKey.OP_CONNECT);
     }
 
-    public static void setAcceptInterested(NioServerSocketChannel channel) {
-        SelectionKey selectionKey = channel.getSelectionKey();
+    /**
+     * Adds an interest in accepts for this selection key while maintaining other interests.
+     *
+     * @param selectionKey the selection key
+     * @throws CancelledKeyException if the key was already cancelled
+     */
+    public static void setAcceptInterested(SelectionKey selectionKey) throws CancelledKeyException {
         selectionKey.interestOps(selectionKey.interestOps() | SelectionKey.OP_ACCEPT);
+    }
+
+
+    /**
+     * Checks for an interest in writes for this selection key.
+     *
+     * @param selectionKey the selection key
+     * @return a boolean indicating if we are currently interested in writes for this channel
+     * @throws CancelledKeyException if the key was already cancelled
+     */
+    public static boolean isWriteInterested(SelectionKey selectionKey) throws CancelledKeyException {
+        return (selectionKey.interestOps() & SelectionKey.OP_WRITE) != 0;
     }
 }

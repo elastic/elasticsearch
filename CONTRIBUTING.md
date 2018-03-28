@@ -92,21 +92,28 @@ Contributing to the Elasticsearch codebase
 
 **Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
 
-Make sure you have [Gradle](http://gradle.org) installed, as
-Elasticsearch uses it as its build system. Gradle must be at least
-version 3.3 in order to build successfully.
+JDK 10 is required to build Elasticsearch. You must have a JDK 10 installation
+with the environment variable `JAVA_HOME` referencing the path to Java home for
+your JDK 10 installation. By default, tests use the same runtime as `JAVA_HOME`.
+However, since Elasticsearch, supports JDK 8 the build supports compiling with
+JDK 10 and testing on a JDK 8 runtime; to do this, set `RUNTIME_JAVA_HOME`
+pointing to the Java home of a JDK 8 installation. Note that this mechanism can
+be used to test against other JDKs as well, this is not only limited to JDK 8.
+
+Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
+using the wrapper via the `gradlew` script in the root of the repository.
 
 We support development in the Eclipse and IntelliJ IDEs. For Eclipse, the
 minimum version that we support is [Eclipse Oxygen][eclipse] (version 4.7). For
 IntelliJ, the minimum version that we support is [IntelliJ 2017.2][intellij].
 
-Eclipse users can automatically configure their IDE: `gradle eclipse`
+Eclipse users can automatically configure their IDE: `./gradlew eclipse`
 then `File: Import: Existing Projects into Workspace`. Select the
 option `Search for nested projects`. Additionally you will want to
 ensure that Eclipse is using 2048m of heap by modifying `eclipse.ini`
 accordingly to avoid GC overhead errors.
 
-IntelliJ users can automatically configure their IDE: `gradle idea`
+IntelliJ users can automatically configure their IDE: `./gradlew idea`
 then `File->New Project From Existing Sources`. Point to the root of
 the source directory, select
 `Import project from external model->Gradle`, enable
@@ -119,12 +126,12 @@ Alternatively, `idea.no.launcher=true` can be set in the
 [`idea.properties`](https://www.jetbrains.com/help/idea/file-idea-properties.html)
 file which can be accessed under Help > Edit Custom Properties (this will require a
 restart of IDEA). For IDEA 2017.3 and above, in addition to the JVM option, you will need to go to
-`Run->Edit Configurations->...->Defaults->JUnit` and change the value for the `Shorten command line` setting from
-`user-local default: none` to `classpath file`. You may also need to [remove `ant-javafx.jar` from your
+`Run->Edit Configurations->...->Defaults->JUnit` and verify that the `Shorten command line` setting is set to
+`user-local default: none`. You may also need to [remove `ant-javafx.jar` from your
 classpath](https://github.com/elastic/elasticsearch/issues/14348) if that is
 reported as a source of jar hell.
 
-To run an instance of elasticsearch from the source code run `gradle run`
+To run an instance of elasticsearch from the source code run `./gradlew run`
 
 The Elasticsearch codebase makes heavy use of Java `assert`s and the
 test runner requires that assertions be enabled within the JVM. This
@@ -152,15 +159,20 @@ To create a distribution from the source, simply run:
 
 ```sh
 cd elasticsearch/
-gradle assemble
+./gradlew assemble
 ```
 
-You will find the newly built packages under: `./distribution/(deb|rpm|tar|zip)/build/distributions/`.
+The package distributions (Debian and RPM) can be found under:
+`./distribution/packages/(deb|rpm)/build/distributions/`
+
+The archive distributions (tar and zip) can be found under:
+`./distribution/archives/(tar|zip)/build/distributions/`
+
 
 Before submitting your changes, run the test suite to make sure that nothing is broken, with:
 
 ```sh
-gradle check
+./gradlew check
 ```
 
 Contributing as part of a class
@@ -188,7 +200,7 @@ code review process because it wastes our time.
 * We don't have the capacity to absorb an entire class full of new contributors,
 especially when they are unlikely to become long time contributors.
 
-Finally, we require that you run `gradle check` before submitting a
+Finally, we require that you run `./gradlew check` before submitting a
 non-documentation contribution. This is mentioned above, but it is worth
 repeating in this section because it has come up in this context.
 

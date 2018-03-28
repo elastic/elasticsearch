@@ -195,3 +195,71 @@ The following command will change the grouping to parent tasks:
 GET _tasks?group_by=parents
 --------------------------------------------------
 // CONSOLE
+
+The grouping can be disabled by specifying `none` as a `group_by` parameter:
+
+[source,js]
+--------------------------------------------------
+GET _tasks?group_by=none
+--------------------------------------------------
+// CONSOLE
+
+[float]
+=== Identifying running tasks
+
+The `X-Opaque-Id` header, when provided on the HTTP request header, is going to be returned as a header in the response as well as
+in the `headers` field for in the task information. This allows to track certain calls, or associate certain tasks with
+a the client that started them:
+
+[source,sh]
+--------------------------------------------------
+curl -i -H "X-Opaque-Id: 123456" "http://localhost:9200/_tasks?group_by=parents"
+--------------------------------------------------
+// NOTCONSOLE
+
+The result will look similar to the following:
+
+[source,js]
+--------------------------------------------------
+HTTP/1.1 200 OK
+X-Opaque-Id: 123456 <1>
+content-type: application/json; charset=UTF-8
+content-length: 831
+
+{
+  "tasks" : {
+    "u5lcZHqcQhu-rUoFaqDphA:45" : {
+      "node" : "u5lcZHqcQhu-rUoFaqDphA",
+      "id" : 45,
+      "type" : "transport",
+      "action" : "cluster:monitor/tasks/lists",
+      "start_time_in_millis" : 1513823752749,
+      "running_time_in_nanos" : 293139,
+      "cancellable" : false,
+      "headers" : {
+        "X-Opaque-Id" : "123456" <2>
+      },
+      "children" : [
+        {
+          "node" : "u5lcZHqcQhu-rUoFaqDphA",
+          "id" : 46,
+          "type" : "direct",
+          "action" : "cluster:monitor/tasks/lists[n]",
+          "start_time_in_millis" : 1513823752750,
+          "running_time_in_nanos" : 92133,
+          "cancellable" : false,
+          "parent_task_id" : "u5lcZHqcQhu-rUoFaqDphA:45",
+          "headers" : {
+            "X-Opaque-Id" : "123456" <3>
+          }
+        }
+      ]
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+<1> id as a part of the response header
+<2> id for the tasks that was initiated by the REST request
+<3> the child task of the task initiated by the REST request

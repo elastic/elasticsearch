@@ -19,15 +19,8 @@
 
 package org.elasticsearch.repositories.gcs;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-
 import com.google.api.client.auth.oauth2.TokenRequest;
 import com.google.api.client.auth.oauth2.TokenResponse;
-import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
 import com.google.api.client.googleapis.json.GoogleJsonError;
 import com.google.api.client.http.GenericUrl;
 import com.google.api.client.http.HttpHeaders;
@@ -48,12 +41,15 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository;
-import org.elasticsearch.repositories.gcs.GoogleCloudStorageService;
+
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin {
-
-    public static final String NAME = "repository-gcs";
 
     static {
         /*
@@ -112,15 +108,19 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
         });
     }
 
-    private final Map<String, GoogleCredential> credentials;
+    private final Map<String, GoogleCloudStorageClientSettings> clientsSettings;
 
-    public GoogleCloudStoragePlugin(Settings settings) {
-        credentials = GoogleCloudStorageService.loadClientCredentials(settings);
+    public GoogleCloudStoragePlugin(final Settings settings) {
+        clientsSettings = GoogleCloudStorageClientSettings.load(settings);
+    }
+
+    protected Map<String, GoogleCloudStorageClientSettings> getClientsSettings() {
+        return clientsSettings;
     }
 
     // overridable for tests
     protected GoogleCloudStorageService createStorageService(Environment environment) {
-        return new GoogleCloudStorageService.InternalGoogleCloudStorageService(environment, credentials);
+        return new GoogleCloudStorageService(environment, clientsSettings);
     }
 
     @Override
@@ -131,6 +131,11 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Collections.singletonList(GoogleCloudStorageService.CREDENTIALS_FILE_SETTING);
+        return Arrays.asList(
+            GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING,
+            GoogleCloudStorageClientSettings.ENDPOINT_SETTING,
+            GoogleCloudStorageClientSettings.CONNECT_TIMEOUT_SETTING,
+            GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING,
+            GoogleCloudStorageClientSettings.APPLICATION_NAME_SETTING);
     }
 }

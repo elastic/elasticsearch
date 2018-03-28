@@ -311,7 +311,7 @@ to floating point types.
 | int   | explicit | explicit | explicit |          | implicit | implicit | implicit
 | long  | explicit | explicit | explicit | explicit |          | implicit | implicit
 | float | explicit | explicit | explicit | explicit | explicit |          | implicit
-| float | explicit | explicit | explicit | explicit | explicit | explicit |
+| double | explicit | explicit | explicit | explicit | explicit | explicit |
 |====
 
 
@@ -376,7 +376,7 @@ cast would normally be required between the non-def types.
 def x;          // Declare def variable x and set it to null
 x = 3;          // Set the def variable x to the literal 3 with an implicit
                 //   cast from int to def
-double a = x;   // Declare double variable y and set it to def variable x,
+double a = x;   // Declare double variable a and set it to def variable x,
                 //   which contains a double
 int b = x;      // ERROR: Results in a run-time error because an explicit cast is
                 //   required to cast from a double to an int

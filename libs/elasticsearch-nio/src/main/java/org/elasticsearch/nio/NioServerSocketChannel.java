@@ -21,35 +21,41 @@ package org.elasticsearch.nio;
 
 import java.io.IOException;
 import java.nio.channels.ServerSocketChannel;
-import java.util.function.Consumer;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-public class NioServerSocketChannel extends AbstractNioChannel<ServerSocketChannel> {
+public class NioServerSocketChannel extends NioChannel {
 
-    private final ChannelFactory<?, ?> channelFactory;
-    private Consumer<NioSocketChannel> acceptContext;
+    private final ServerSocketChannel socketChannel;
+    private final AtomicBoolean contextSet = new AtomicBoolean(false);
+    private ServerChannelContext context;
 
-    public NioServerSocketChannel(ServerSocketChannel socketChannel, ChannelFactory<?, ?> channelFactory, AcceptingSelector selector)
-        throws IOException {
-        super(socketChannel, selector);
-        this.channelFactory = channelFactory;
-    }
-
-    public ChannelFactory<?, ?> getChannelFactory() {
-        return channelFactory;
+    public NioServerSocketChannel(ServerSocketChannel socketChannel) throws IOException {
+        super(socketChannel);
+        this.socketChannel = socketChannel;
     }
 
     /**
-     * This method sets the accept context for a server socket channel. The accept context is called when a
-     * new channel is accepted. The parameter passed to the context is the new channel.
+     * This method sets the context for a server socket channel. The context is called when a new channel is
+     * accepted, an exception occurs, or it is time to close the channel.
      *
-     * @param acceptContext to call
+     * @param context to call
      */
-    public void setAcceptContext(Consumer<NioSocketChannel> acceptContext) {
-        this.acceptContext = acceptContext;
+    public void setContext(ServerChannelContext context) {
+        if (contextSet.compareAndSet(false, true)) {
+            this.context = context;
+        } else {
+            throw new IllegalStateException("Context on this channel were already set. It should only be once.");
+        }
     }
 
-    public Consumer<NioSocketChannel> getAcceptContext() {
-        return acceptContext;
+    @Override
+    public ServerSocketChannel getRawChannel() {
+        return socketChannel;
+    }
+
+    @Override
+    public ServerChannelContext getContext() {
+        return context;
     }
 
     @Override

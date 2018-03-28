@@ -46,6 +46,7 @@ forbiddenApisMain {
 
 // TODO: should we have licenses for our test deps?
 dependencyLicenses.enabled = false
+dependenciesInfo.enabled = false
 
 thirdPartyAudit.excludes = [
   // classes are missing
@@ -70,6 +71,6 @@ task namingConventionsMain(type: org.elasticsearch.gradle.precommit.NamingConven
 precommit.dependsOn namingConventionsMain
 
 test.configure {
-  systemProperty 'tests.gradle_index_compat_versions', versionCollection.versionsIndexCompatibleWithCurrent.join(',')
-  systemProperty 'tests.gradle_wire_compat_versions', versionCollection.versionsWireCompatibleWithCurrent.join(',')
+  systemProperty 'tests.gradle_index_compat_versions', bwcVersions.indexCompatible.join(',')
+  systemProperty 'tests.gradle_wire_compat_versions', bwcVersions.wireCompatible.join(',')
 }

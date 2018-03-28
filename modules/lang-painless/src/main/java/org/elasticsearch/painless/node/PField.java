@@ -23,7 +23,7 @@ import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Field;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Struct;
-import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Definition.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -62,12 +62,12 @@ public final class PField extends AStoreable {
         prefix.expected = prefix.actual;
         prefix = prefix.cast(locals);
 
-        if (prefix.actual.dimensions > 0) {
-            sub = new PSubArrayLength(location, prefix.actual.name, value);
-        } else if (prefix.actual.dynamic) {
+        if (prefix.actual.isArray()) {
+            sub = new PSubArrayLength(location, Definition.ClassToName(prefix.actual), value);
+        } else if (prefix.actual == def.class) {
             sub = new PSubDefField(location, value);
         } else {
-            Struct struct = prefix.actual.struct;
+            Struct struct = locals.getDefinition().ClassToType(prefix.actual).struct;
             Field field = prefix instanceof EStatic ? struct.staticMembers.get(value) : struct.members.get(value);
 
             if (field != null) {
@@ -85,16 +85,16 @@ public final class PField extends AStoreable {
                     new Definition.MethodKey("set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
 
                 if (getter != null || setter != null) {
-                    sub = new PSubShortcut(location, value, prefix.actual.name, getter, setter);
+                    sub = new PSubShortcut(location, value, Definition.ClassToName(prefix.actual), getter, setter);
                 } else {
                     EConstant index = new EConstant(location, value);
                     index.analyze(locals);
 
-                    if (Map.class.isAssignableFrom(prefix.actual.clazz)) {
+                    if (Map.class.isAssignableFrom(prefix.actual)) {
                         sub = new PSubMapShortcut(location, struct, index);
                     }
 
-                    if (List.class.isAssignableFrom(prefix.actual.clazz)) {
+                    if (List.class.isAssignableFrom(prefix.actual)) {
                         sub = new PSubListShortcut(location, struct, index);
                     }
                 }
@@ -102,7 +102,8 @@ public final class PField extends AStoreable {
         }
 
         if (sub == null) {
-            throw createError(new IllegalArgumentException("Unknown field [" + value + "] for type [" + prefix.actual.name + "]."));
+            throw createError(new IllegalArgumentException(
+                "Unknown field [" + value + "] for type [" + Definition.ClassToName(prefix.actual) + "]."));
         }
 
         if (nullSafe) {
@@ -129,7 +130,7 @@ public final class PField extends AStoreable {
     }
 
     @Override
-    void updateActual(Type actual) {
+    void updateActual(Class<?> actual) {
         sub.updateActual(actual);
         this.actual = actual;
     }

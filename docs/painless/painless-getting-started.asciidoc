@@ -53,7 +53,13 @@ GET hockey/_search
       "script_score": {
         "script": {
           "lang": "painless",
-          "source": "int total = 0; for (int i = 0; i < doc['goals'].length; ++i) { total += doc['goals'][i]; } return total;"
+          "source": """
+            int total = 0;
+            for (int i = 0; i < doc['goals'].length; ++i) {
+              total += doc['goals'][i];
+            }
+            return total;
+          """
         }
       }
     }
@@ -75,7 +81,13 @@ GET hockey/_search
     "total_goals": {
       "script": {
         "lang": "painless",
-        "source": "int total = 0; for (int i = 0; i < doc['goals'].length; ++i) { total += doc['goals'][i]; } return total;"
+        "source": """
+          int total = 0;
+          for (int i = 0; i < doc['goals'].length; ++i) {
+            total += doc['goals'][i];
+          }
+          return total;
+        """
       }
     }
   }
@@ -157,7 +169,10 @@ POST hockey/player/1/_update
 {
   "script": {
     "lang": "painless",
-    "source": "ctx._source.last = params.last; ctx._source.nick = params.nick",
+    "source": """
+      ctx._source.last = params.last;
+      ctx._source.nick = params.nick
+    """,
     "params": {
       "last": "gaudreau",
       "nick": "hockey"
@@ -228,13 +243,19 @@ POST hockey/player/_update_by_query
 {
   "script": {
     "lang": "painless",
-    "source": "if (ctx._source.last =~ /b/) {ctx._source.last += \"matched\"} else {ctx.op = 'noop'}"
+    "source": """
+      if (ctx._source.last =~ /b/) {
+        ctx._source.last += "matched";
+      } else {
+        ctx.op = "noop";
+      }
+    """
   }
 }
 ----------------------------------------------------------------
 // CONSOLE
 
-Using the match operator (`==~`) you can update all the hockey players who's
+Using the match operator (`==~`) you can update all the hockey players whose
 names start with a consonant and end with a vowel:
 
 [source,js]
@@ -243,7 +264,13 @@ POST hockey/player/_update_by_query
 {
   "script": {
     "lang": "painless",
-    "source": "if (ctx._source.last ==~ /[^aeiou].*[aeiou]/) {ctx._source.last += \"matched\"} else {ctx.op = 'noop'}"
+    "source": """
+      if (ctx._source.last ==~ /[^aeiou].*[aeiou]/) {
+        ctx._source.last += "matched";
+      } else {
+        ctx.op = "noop";
+      }
+    """
   }
 }
 ----------------------------------------------------------------
@@ -296,7 +323,10 @@ POST hockey/player/_update_by_query
 {
   "script": {
     "lang": "painless",
-    "source": "ctx._source.last = ctx._source.last.replaceAll(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))"
+    "source": """
+      ctx._source.last = ctx._source.last.replaceAll(/[aeiou]/, m ->
+        m.group().toUpperCase(Locale.ROOT))
+    """
   }
 }
 ----------------------------------------------------------------
@@ -311,7 +341,10 @@ POST hockey/player/_update_by_query
 {
   "script": {
     "lang": "painless",
-    "source": "ctx._source.last = ctx._source.last.replaceFirst(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))"
+    "source": """
+      ctx._source.last = ctx._source.last.replaceFirst(/[aeiou]/, m ->
+        m.group().toUpperCase(Locale.ROOT))
+    """
   }
 }
 ----------------------------------------------------------------
@@ -320,7 +353,7 @@ POST hockey/player/_update_by_query
 
 Note: all of the `_update_by_query` examples above could really do with a
 `query` to limit the data that they pull back. While you *could* use a
-See {ref}/query-dsl-script-query.html[script query] it wouldn't be as efficient
+{ref}/query-dsl-script-query.html[script query] it wouldn't be as efficient
 as using any other query because script queries aren't able to use the inverted
 index to limit the documents that they have to check.
 

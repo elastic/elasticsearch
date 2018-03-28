@@ -21,6 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -89,7 +90,8 @@ public abstract class AbstractBulkByQueryRestHandler<
                     consumer.getValue().accept(value);
                 }
             }
-            return parser.contentType().xContent().createParser(parser.getXContentRegistry(), builder.map(body).bytes());
+            return parser.contentType().xContent().createParser(parser.getXContentRegistry(),
+                parser.getDeprecationHandler(), BytesReference.bytes(builder.map(body)).streamInput());
         }
     }
 }

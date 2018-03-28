@@ -19,7 +19,7 @@ Users have a specific _information need_, e.g. they are looking for gift in a we
 They usually enters some search terms into a search box or some other web form.
 All of this information, together with meta information about the user (e.g. the browser, location, earlier preferences etc...) then gets translated into a query to the underlying search system.
 
-The challenge for search engineers is to tweak this translation process from user entries to a concrete query in such a way, that the search results contain the most relevant information with respect to the users information_need.
+The challenge for search engineers is to tweak this translation process from user entries to a concrete query in such a way, that the search results contain the most relevant information with respect to the users information need.
 This can only be done if the search result quality is evaluated constantly across a representative test suite of typical user queries, so that improvements in the rankings for one particular query doesn't negatively effect the ranking for other types of queries.
 
 In order to get started with search quality evaluation, three basic things are needed:
@@ -28,7 +28,7 @@ In order to get started with search quality evaluation, three basic things are n
 . a collection of typical search requests that users enter into your system
 . a set of document ratings that judge the documents relevance with respect to a search request+
   It is important to note that one set of document ratings is needed per test query, and that
-  the relevance judgements are based on the _information_need_ of the user that entered the query. 
+  the relevance judgements are based on the information need of the user that entered the query.
 
 The ranking evaluation API provides a convenient way to use this information in a ranking evaluation request to calculate different search evaluation metrics. This gives a first estimation of your overall search quality and give you a measurement to optimize against when fine-tuning various aspect of the query generation in your application. 
 

@@ -75,10 +75,10 @@ public class SamlRealmSettings {
      * @return The {@link Setting setting configuration} for this realm type
      */
     public static Set<Setting<?>> getSettings() {
-        final Set<Setting<?>> set = Sets.newHashSet(IDP_ENTITY_ID, IDP_METADATA_PATH,
+        final Set<Setting<?>> set = Sets.newHashSet(IDP_ENTITY_ID, IDP_METADATA_PATH, IDP_SINGLE_LOGOUT,
                 SP_ENTITY_ID, SP_ACS, SP_LOGOUT,
                 NAMEID_FORMAT, NAMEID_ALLOW_CREATE, NAMEID_SP_QUALIFIER, FORCE_AUTHN,
-                CLOCK_SKEW,
+                POPULATE_USER_METADATA, CLOCK_SKEW,
                 ENCRYPTION_KEY_ALIAS, SIGNING_KEY_ALIAS, SIGNING_MESSAGE_TYPES);
         set.addAll(ENCRYPTION_SETTINGS.getAllSettings());
         set.addAll(SIGNING_SETTINGS.getAllSettings());

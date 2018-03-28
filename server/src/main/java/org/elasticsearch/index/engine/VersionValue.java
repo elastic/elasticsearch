@@ -91,6 +91,7 @@ class VersionValue implements Accountable {
     /**
      * Returns the translog location for this version value or null. This is optional and might not be tracked all the time.
      */
+    @Nullable
     public Translog.Location getLocation() {
         return null;
     }

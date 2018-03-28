@@ -29,7 +29,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
-import org.elasticsearch.index.engine.EngineDiskUtils;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.TranslogHandler;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -40,6 +39,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.DummyShardLock;
@@ -122,9 +122,7 @@ public class FollowingEngineTests extends ESTestCase {
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
             final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store, logger, xContentRegistry());
-            EngineDiskUtils.createEmpty(store.directory(), engineConfig.getTranslogConfig().getTranslogPath(), shardId);
-            try (FollowingEngine followingEngine = new FollowingEngine(engineConfig)) {
-                followingEngine.recoverFromTranslog();
+            try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
                 final VersionType versionType =
                         randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE, VersionType.FORCE);
                 final List<Engine.Operation> ops = EngineTestCase.generateSingleDocHistory(true, versionType, false, 2, 2, 20);
@@ -148,9 +146,7 @@ public class FollowingEngineTests extends ESTestCase {
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
             final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store, logger, xContentRegistry());
-            EngineDiskUtils.createEmpty(store.directory(), engineConfig.getTranslogConfig().getTranslogPath(), shardId);
-            try (FollowingEngine followingEngine = new FollowingEngine(engineConfig)) {
-                followingEngine.recoverFromTranslog();
+            try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
                 final String id = "id";
                 final Field uidField = new Field("_id", id, IdFieldMapper.Defaults.FIELD_TYPE);
                 final String type = "type";
@@ -226,9 +222,7 @@ public class FollowingEngineTests extends ESTestCase {
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
             final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store, logger, xContentRegistry());
-            EngineDiskUtils.createEmpty(store.directory(), engineConfig.getTranslogConfig().getTranslogPath(), shardId);
-            try (FollowingEngine followingEngine = new FollowingEngine(engineConfig)) {
-                followingEngine.recoverFromTranslog();
+            try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
                 final String id = "id";
                 final Engine.Delete delete = new Engine.Delete(
                         "type",
@@ -296,6 +290,16 @@ public class FollowingEngineTests extends ESTestCase {
             }
         };
         return new Store(shardId, indexSettings, directoryService, new DummyShardLock(shardId));
+    }
+
+    private FollowingEngine createEngine(Store store, EngineConfig config) throws IOException {
+        store.createEmpty();
+        final String translogUuid =
+                Translog.createEmptyTranslog(config.getTranslogConfig().getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId);
+        store.associateIndexWithNewTranslog(translogUuid);
+        FollowingEngine followingEngine = new FollowingEngine(config);
+        followingEngine.recoverFromTranslog();
+        return followingEngine;
     }
 
 }

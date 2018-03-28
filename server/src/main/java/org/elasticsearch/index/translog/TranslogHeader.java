@@ -51,8 +51,16 @@ final class TranslogHeader {
     private final long primaryTerm;
     private final int headerSizeInBytes;
 
+    /**
+     * Creates a new translog header with the given uuid and primary term.
+     *
+     * @param translogUUID this UUID is used to prevent accidental recovery from a transaction log that belongs to a
+     *                     different engine
+     * @param primaryTerm  the primary term of the owning index shard when creating (eg. rolling) this translog file.
+     *                     All operations' terms in this translog file are enforced to be at most this term.
+     */
     TranslogHeader(String translogUUID, long primaryTerm) {
-        this(translogUUID, primaryTerm, defaultSizeInBytes(translogUUID));
+        this(translogUUID, primaryTerm, headerSizeInBytes(translogUUID));
         assert primaryTerm >= 0 : "Primary term must be non-negative; term [" + primaryTerm + "]";
     }
 
@@ -82,11 +90,11 @@ final class TranslogHeader {
         return headerSizeInBytes;
     }
 
-    static int defaultSizeInBytes(String translogUUID) {
-        return headerSize(CURRENT_VERSION, new BytesRef(translogUUID).length);
+    static int headerSizeInBytes(String translogUUID) {
+        return headerSizeInBytes(CURRENT_VERSION, new BytesRef(translogUUID).length);
     }
 
-    private static int headerSize(int version, int uuidLength) {
+    private static int headerSizeInBytes(int version, int uuidLength) {
         int size = CodecUtil.headerLength(TRANSLOG_CODEC);
         size += Integer.BYTES + uuidLength; // uuid
         if (version >= VERSION_PRIMARY_TERM) {
@@ -139,7 +147,7 @@ final class TranslogHeader {
         if (version >= VERSION_PRIMARY_TERM) {
             Translog.verifyChecksum(in);
         }
-        final int headerSizeInBytes = headerSize(version, uuid.length);
+        final int headerSizeInBytes = headerSizeInBytes(version, uuid.length);
         assert channel.position() == headerSizeInBytes :
             "Header is not fully read; header size [" + headerSizeInBytes + "], position [" + channel.position() + "]";
         return new TranslogHeader(translogUUID, primaryTerm, headerSizeInBytes);

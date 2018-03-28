@@ -4567,7 +4567,7 @@ public class InternalEngineTests extends EngineTestCase {
                     if (randomBoolean()) {
                         engine.index(indexForDoc(parsedDocument));
                     } else {
-                        engine.delete(new Engine.Delete(parsedDocument.type(), parsedDocument.id(), newUid(parsedDocument.id())));
+                        engine.delete(new Engine.Delete(parsedDocument.type(), parsedDocument.id(), newUid(parsedDocument.id()), primaryTerm.get()));
                     }
                 }
             }

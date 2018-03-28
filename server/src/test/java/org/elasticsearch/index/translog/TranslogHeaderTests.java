@@ -78,7 +78,7 @@ public class TranslogHeaderTests extends ESTestCase {
         final Path translogFile = createTempDir().resolve(Translog.getFilename(generation));
         try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
             writeHeaderWithoutTerm(channel, translogUUID);
-            assertThat((int)channel.position(), lessThan(TranslogHeader.defaultSizeInBytes(translogUUID)));
+            assertThat((int)channel.position(), lessThan(TranslogHeader.headerSizeInBytes(translogUUID)));
         }
         try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.READ)) {
             final TranslogHeader inHeader = TranslogHeader.read(translogUUID, translogFile, channel);

@@ -109,7 +109,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public static final String CHECKPOINT_FILE_NAME = "translog" + CHECKPOINT_SUFFIX;
 
     static final Pattern PARSE_STRICT_ID_PATTERN = Pattern.compile("^" + TRANSLOG_FILE_PREFIX + "(\\d+)(\\.tlog)$");
-    public static final int DEFAULT_HEADER_SIZE_IN_BYTES = TranslogHeader.defaultSizeInBytes(UUIDs.randomBase64UUID());
+    public static final int DEFAULT_HEADER_SIZE_IN_BYTES = TranslogHeader.headerSizeInBytes(UUIDs.randomBase64UUID());
 
     // the list of translog readers is guaranteed to be in order of translog generation
     private final List<TranslogReader> readers = new ArrayList<>();
@@ -138,10 +138,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @param deletionPolicy           an instance of {@link TranslogDeletionPolicy} that controls when a translog file can be safely
      *                                 deleted
      * @param globalCheckpointSupplier a supplier for the global checkpoint
-     * @param primaryTermSupplier      a supplier for the latest value of primary term of the owning index shard. The latest term value
-     *                                 is retrieved and stored in the header of the newly rolled generation. It's guaranteed from outside
-     *                                 that a new generation is rolled when the term is increased. This allows to us to check and reject
-     *                                 translog operations whose terms are higher than the primary term stored in the translog header.
+     * @param primaryTermSupplier      a supplier for the latest value of primary term of the owning index shard. The latest term value is
+     *                                 examined and stored in the header whenever a new generation is rolled. It's guaranteed from outside
+     *                                 that a new generation is rolled when the term is increased. This guarantee allows to us to validate
+     *                                 and reject operation whose term is higher than the primary term stored in the translog header.
      */
     public Translog(
         final TranslogConfig config, final String translogUUID, TranslogDeletionPolicy deletionPolicy,
@@ -171,7 +171,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             //
             // For this to happen we must have already copied the translog.ckp file into translog-gen.ckp so we first check if that file exists
             // if not we don't even try to clean it up and wait until we fail creating it
-            assert Files.exists(nextTranslogFile) == false || Files.size(nextTranslogFile) <= TranslogHeader.defaultSizeInBytes(translogUUID) : "unexpected translog file: [" + nextTranslogFile + "]";
+            assert Files.exists(nextTranslogFile) == false || Files.size(nextTranslogFile) <= TranslogHeader.headerSizeInBytes(translogUUID) : "unexpected translog file: [" + nextTranslogFile + "]";
             if (Files.exists(currentCheckpointFile) // current checkpoint is already copied
                 && Files.deleteIfExists(nextTranslogFile)) { // delete it and log a warning
                 logger.warn("deleted previously created, but not yet committed, next generation [{}]. This can happen due to a tragic exception when creating a new generation", nextTranslogFile.getFileName());

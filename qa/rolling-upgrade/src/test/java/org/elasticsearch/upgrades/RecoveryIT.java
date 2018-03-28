@@ -172,20 +172,20 @@ public class RecoveryIT extends ESRestTestCase {
                 indexDocs(index, 0, 10);
                 ensureGreen(index);
                 // make sure that we can index while the replicas are recovering
-                updateIndexSetting(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries"));
+                updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries"));
                 break;
             case MIXED:
-                updateIndexSetting(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String)null));
+                updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String)null));
                 asyncIndexDocs(index, 10, 50).get();
                 ensureGreen(index);
                 assertOK(client().performRequest("POST", index + "/_refresh"));
                 assertCount(index, "_only_nodes:" + nodes.get(0), 60);
                 assertCount(index, "_only_nodes:" + nodes.get(1), 60);
                 // make sure that we can index while the replicas are recovering
-                updateIndexSetting(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries"));
+                updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries"));
                 break;
             case UPGRADED:
-                updateIndexSetting(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String)null));
+                updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String)null));
                 asyncIndexDocs(index, 60, 50).get();
                 ensureGreen(index);
                 assertOK(client().performRequest("POST", index + "/_refresh"));
@@ -237,27 +237,27 @@ public class RecoveryIT extends ESRestTestCase {
                 ensureGreen(index);
                 // make sure that no shards are allocated, so we can make sure the primary stays on the old node (when one
                 // node stops, we lose the master too, so a replica will not be promoted)
-                updateIndexSetting(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"));
+                updateIndexSettings(index, Settings.builder().put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"));
                 break;
             case MIXED:
                 final String newNode = getNodeId(v -> v.equals(Version.CURRENT));
                 final String oldNode = getNodeId(v -> v.before(Version.CURRENT));
                 // remove the replica and guaranteed the primary is placed on the old node
-                updateIndexSetting(index, Settings.builder()
+                updateIndexSettings(index, Settings.builder()
                     .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
                     .put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String)null)
                     .put("index.routing.allocation.include._id", oldNode)
                 );
                 ensureGreen(index); // wait for the primary to be assigned
                 ensureNoInitializingShards(); // wait for all other shard activity to finish
-                updateIndexSetting(index, Settings.builder().put("index.routing.allocation.include._id", newNode));
+                updateIndexSettings(index, Settings.builder().put("index.routing.allocation.include._id", newNode));
                 asyncIndexDocs(index, 10, 50).get();
                 ensureGreen(index);
                 assertOK(client().performRequest("POST", index + "/_refresh"));
                 assertCount(index, "_only_nodes:" + newNode, 60);
                 break;
             case UPGRADED:
-                updateIndexSetting(index, Settings.builder()
+                updateIndexSettings(index, Settings.builder()
                     .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
                     .put("index.routing.allocation.include._id", (String)null)
                 );

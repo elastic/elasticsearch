@@ -54,6 +54,7 @@ import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -61,6 +62,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toSet;
 
@@ -366,22 +368,38 @@ final class QueryAnalyzer {
                         Set<QueryExtraction> extractions = new HashSet<>();
                         Set<String> seenRangeFields = new HashSet<>();
                         for (Result result : results) {
-                            QueryExtraction[] t = result.extractions.toArray(new QueryExtraction[1]);
-                            if (result.extractions.size() == 1 && t[0].range != null) {
-                                // In case of range queries each extraction does not simply increment the minimum_should_match
-                                // for that percolator query like for a term based extraction, so that can lead to more false
-                                // positives for percolator queries with range queries than term based queries.
-                                // The is because the way number fields are extracted from the document to be percolated.
-                                // Per field a single range is extracted and if a percolator query has two or more range queries
-                                // on the same field, then the minimum should match can be higher than clauses in the CoveringQuery.
-                                // Therefore right now the minimum should match is incremented once per number field when processing
-                                // the percolator query at index time.
-                                if (seenRangeFields.add(t[0].range.fieldName)) {
-                                    msm += 1;
+                            // In case that there are duplicate query extractions we need to be careful with incrementing msm,
+                            // because that could lead to valid matches not becoming candidate matches:
+                            // query: (field:val1 AND field:val2) AND (field:val2 AND field:val3)
+                            // doc:   field: val1 val2 val3
+                            // So lets be protective and decrease the msm:
+                            int resultMsm = result.minimumShouldMatch;
+                            for (QueryExtraction queryExtraction : result.extractions) {
+                                if (queryExtraction.range != null) {
+                                    // In case of range queries each extraction does not simply increment the minimum_should_match
+                                    // for that percolator query like for a term based extraction, so that can lead to more false
+                                    // positives for percolator queries with range queries than term based queries.
+                                    // The is because the way number fields are extracted from the document to be percolated.
+                                    // Per field a single range is extracted and if a percolator query has two or more range queries
+                                    // on the same field, then the minimum should match can be higher than clauses in the CoveringQuery.
+                                    // Therefore right now the minimum should match is incremented once per number field when processing
+                                    // the percolator query at index time.
+                                    if (seenRangeFields.add(queryExtraction.range.fieldName)) {
+                                        resultMsm = 1;
+                                    } else {
+                                        resultMsm = 0;
+                                    }
                                 }
-                            } else {
-                                msm += result.minimumShouldMatch;
+
+                                if (extractions.contains(queryExtraction)) {
+                                    // To protect against negative msm:
+                                    // (sub results could consist out of disjunction and conjunction and
+                                    // then we do not know which extraction contributed to msm)
+                                    resultMsm = Math.max(0, resultMsm - 1);
+                                }
                             }
+                            msm += resultMsm;
+
                             verified &= result.verified;
                             matchAllDocs &= result.matchAllDocs;
                             extractions.addAll(result.extractions);
@@ -447,12 +465,17 @@ final class QueryAnalyzer {
         return (query, version) -> {
             FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) query;
             Result result = analyze(functionScoreQuery.getSubQuery(), version);
+
             // If min_score is specified we can't guarantee upfront that this percolator query matches,
             // so in that case we set verified to false.
             // (if it matches with the percolator document matches with the extracted terms.
             // Min score filters out docs, which is different than the functions, which just influences the score.)
-            boolean verified = functionScoreQuery.getMinScore() == null;
-            return new Result(verified, result.extractions, result.minimumShouldMatch);
+            boolean verified = result.verified && functionScoreQuery.getMinScore() == null;
+            if (result.matchAllDocs) {
+                return new Result(result.matchAllDocs, verified);
+            } else {
+                return new Result(verified, result.extractions, result.minimumShouldMatch);
+            }
         };
     }
 
@@ -504,8 +527,7 @@ final class QueryAnalyzer {
     private static Result handleDisjunction(List<Query> disjunctions, int requiredShouldClauses, boolean otherClauses,
                                             Version version) {
         // Keep track of the msm for each clause:
-        int[] msmPerClause = new int[disjunctions.size()];
-        String[] rangeFieldNames = new String[disjunctions.size()];
+        List<DisjunctionClause> clauses = new ArrayList<>(disjunctions.size());
         boolean verified = otherClauses == false;
         if (version.before(Version.V_6_1_0)) {
             verified &= requiredShouldClauses <= 1;
@@ -519,13 +541,16 @@ final class QueryAnalyzer {
             if (subResult.matchAllDocs) {
                 numMatchAllClauses++;
             }
-            terms.addAll(subResult.extractions);
-
-            QueryExtraction[] t = subResult.extractions.toArray(new QueryExtraction[1]);
-            msmPerClause[i] = subResult.minimumShouldMatch;
-            if (subResult.extractions.size() == 1 && t[0].range != null) {
-                rangeFieldNames[i] = t[0].range.fieldName;
+            int resultMsm = subResult.minimumShouldMatch;
+            for (QueryExtraction extraction : subResult.extractions) {
+                if (terms.add(extraction) == false) {
+                    resultMsm = Math.max(0, resultMsm - 1);
+                }
             }
+            clauses.add(new DisjunctionClause(resultMsm, subResult.extractions.stream()
+                .filter(extraction -> extraction.range != null)
+                .map(extraction -> extraction.range.fieldName)
+                .collect(toSet())));
         }
         boolean matchAllDocs = numMatchAllClauses > 0 && numMatchAllClauses >= requiredShouldClauses;
 
@@ -534,15 +559,20 @@ final class QueryAnalyzer {
             Set<String> seenRangeFields = new HashSet<>();
             // Figure out what the combined msm is for this disjunction:
             // (sum the lowest required clauses, otherwise we're too strict and queries may not match)
-            Arrays.sort(msmPerClause);
-            int limit = Math.min(msmPerClause.length, Math.max(1, requiredShouldClauses));
+            clauses = clauses.stream()
+                .filter(o -> o.msm > 0)
+                .sorted(Comparator.comparingInt(o -> o.msm))
+                .collect(Collectors.toList());
+            int limit = Math.min(clauses.size(), Math.max(1, requiredShouldClauses));
             for (int i = 0; i < limit; i++) {
-                if (rangeFieldNames[i] != null) {
-                    if (seenRangeFields.add(rangeFieldNames[i])) {
-                        msm += 1;
+                if (clauses.get(i).rangeFieldNames.isEmpty() == false) {
+                    for (String rangeField: clauses.get(i).rangeFieldNames) {
+                        if (seenRangeFields.add(rangeField)) {
+                            msm += 1;
+                        }
                     }
                 } else {
-                    msm += msmPerClause[i];
+                    msm += clauses.get(i).msm;
                 }
             }
         } else {
@@ -552,6 +582,17 @@ final class QueryAnalyzer {
             return new Result(matchAllDocs, verified);
         } else {
             return new Result(verified, terms, msm);
+        }
+    }
+
+    static class DisjunctionClause {
+
+        final int msm;
+        final Set<String> rangeFieldNames;
+
+        DisjunctionClause(int msm, Set<String> rangeFieldNames) {
+            this.msm = msm;
+            this.rangeFieldNames = rangeFieldNames;
         }
     }
 

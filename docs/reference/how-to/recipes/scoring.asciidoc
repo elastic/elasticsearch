@@ -65,7 +65,7 @@ documents and scores will be consistent.
 
 Otherwise the recommended way to work around this issue is to use the
 <<dfs-query-then-fetch,`dfs_query_then_fetch`>> search type. This will make
-Elasticsearch perform an inital round trip to all involved shards, asking
+Elasticsearch perform an initial round trip to all involved shards, asking
 them for their index statistics relatively to the query, then the coordinating
 node will merge those statistics and send the merged statistics alongside the
 request when asking shards to perform the `query` phase, so that shards can

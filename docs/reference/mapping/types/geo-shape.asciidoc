@@ -91,6 +91,12 @@ false (default), malformed GeoJSON and WKT shapes throw an exception and reject 
 entire document.
 | `false`
 
+|`ignore_z_value` |If `true` (default) three dimension points will be accepted (stored in source)
+but only latitude and longitude values will be indexed; the third dimension is ignored. If `false`,
+geo-points containing any more than latitude and longitude (two dimensions) values throw an exception
+and reject the whole document.
+| `true`
+
 
 |=======================================================================
 

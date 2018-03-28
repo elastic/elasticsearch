@@ -22,6 +22,7 @@ import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.plugins.JavaBasePlugin
+import org.gradle.api.plugins.quality.Checkstyle
 
 /**
  * Validation tasks which should be run before committing. These run before tests.
@@ -36,6 +37,7 @@ class PrecommitTasks {
             configureNamingConventions(project),
             project.tasks.create('forbiddenPatterns', ForbiddenPatternsTask.class),
             project.tasks.create('licenseHeaders', LicenseHeadersTask.class),
+            project.tasks.create('filepermissions', FilePermissionsTask.class),
             project.tasks.create('jarHell', JarHellTask.class),
             project.tasks.create('thirdPartyAudit', ThirdPartyAuditTask.class)]
 
@@ -84,7 +86,7 @@ class PrecommitTasks {
         Task mainForbidden = project.tasks.findByName('forbiddenApisMain')
         if (mainForbidden != null) {
             mainForbidden.configure {
-                signaturesURLs += getClass().getResource('/forbidden/es-core-signatures.txt')
+                signaturesURLs += getClass().getResource('/forbidden/es-server-signatures.txt')
             }
         }
         Task testForbidden = project.tasks.findByName('forbiddenApisTest')
@@ -142,7 +144,7 @@ class PrecommitTasks {
             ]
             toolVersion = 7.5
         }
-        for (String taskName : ['checkstyleMain', 'checkstyleTest']) {
+        for (String taskName : ['checkstyleMain', 'checkstyleJava9', 'checkstyleTest']) {
             Task task = project.tasks.findByName(taskName)
             if (task != null) {
                 project.tasks['check'].dependsOn.remove(task)
@@ -154,6 +156,11 @@ class PrecommitTasks {
                 }
             }
         }
+
+        project.tasks.withType(Checkstyle) {
+            dependsOn(copyCheckstyleConf)
+        }
+
         return checkstyleTask
     }
 

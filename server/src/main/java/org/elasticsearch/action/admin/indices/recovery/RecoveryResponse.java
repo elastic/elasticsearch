@@ -24,7 +24,6 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.indices.recovery.RecoveryState;
 
@@ -37,9 +36,8 @@ import java.util.Map;
 /**
  * Information regarding the recovery state of indices and their associated shards.
  */
-public class RecoveryResponse extends BroadcastResponse implements ToXContentFragment {
+public class RecoveryResponse extends BroadcastResponse {
 
-    private boolean detailed = false;
     private Map<String, List<RecoveryState>> shardRecoveryStates = new HashMap<>();
 
     public RecoveryResponse() { }
@@ -51,28 +49,17 @@ public class RecoveryResponse extends BroadcastResponse implements ToXContentFra
      * @param totalShards       Total count of shards seen
      * @param successfulShards  Count of shards successfully processed
      * @param failedShards      Count of shards which failed to process
-     * @param detailed          Display detailed metrics
      * @param shardRecoveryStates    Map of indices to shard recovery information
      * @param shardFailures     List of failures processing shards
      */
-    public RecoveryResponse(int totalShards, int successfulShards, int failedShards, boolean detailed,
-                            Map<String, List<RecoveryState>> shardRecoveryStates,
+    public RecoveryResponse(int totalShards, int successfulShards, int failedShards, Map<String, List<RecoveryState>> shardRecoveryStates,
                             List<DefaultShardOperationFailedException> shardFailures) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.shardRecoveryStates = shardRecoveryStates;
-        this.detailed = detailed;
     }
 
     public boolean hasRecoveries() {
         return shardRecoveryStates.size() > 0;
-    }
-
-    public boolean detailed() {
-        return detailed;
-    }
-
-    public void detailed(boolean detailed) {
-        this.detailed = detailed;
     }
 
     public Map<String, List<RecoveryState>> shardRecoveryStates() {
@@ -81,6 +68,7 @@ public class RecoveryResponse extends BroadcastResponse implements ToXContentFra
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         if (hasRecoveries()) {
             for (String index : shardRecoveryStates.keySet()) {
                 List<RecoveryState> recoveryStates = shardRecoveryStates.get(index);
@@ -98,6 +86,7 @@ public class RecoveryResponse extends BroadcastResponse implements ToXContentFra
                 builder.endObject();
             }
         }
+        builder.endObject();
         return builder;
     }
 

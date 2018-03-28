@@ -16,21 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.persistent.decider;
 
-package org.elasticsearch.search.aggregations.bucket.composite;
+import org.elasticsearch.test.ESTestCase;
 
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.SearchPlugin;
+public class AssignmentDecisionTests extends ESTestCase {
 
-import java.util.Arrays;
-import java.util.List;
+    public void testConstantsTypes() {
+        assertEquals(AssignmentDecision.Type.YES, AssignmentDecision.YES.getType());
+    }
 
-public class CompositeAggregationPlugin extends Plugin implements SearchPlugin {
-    @Override
-    public List<AggregationSpec> getAggregations() {
-        return Arrays.asList(
-            new AggregationSpec(CompositeAggregationBuilder.NAME, CompositeAggregationBuilder::new, CompositeAggregationBuilder::parse)
-                .addResultReader(InternalComposite::new)
-        );
+    public void testResolveFromType() {
+        final AssignmentDecision.Type expected = randomFrom(AssignmentDecision.Type.values());
+        assertEquals(expected, AssignmentDecision.Type.resolve(expected.toString()));
     }
 }

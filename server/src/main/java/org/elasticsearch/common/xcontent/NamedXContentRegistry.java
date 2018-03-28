@@ -19,10 +19,8 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -114,28 +112,31 @@ public class NamedXContentRegistry {
     }
 
     /**
-     * Parse a named object, throwing an exception if the parser isn't found. Throws an {@link ElasticsearchException} if the
-     * {@code categoryClass} isn't registered because this is almost always a bug. Throws a {@link UnknownNamedObjectException} if the
+     * Parse a named object, throwing an exception if the parser isn't found. Throws an {@link NamedObjectNotFoundException} if the
+     * {@code categoryClass} isn't registered because this is almost always a bug. Throws an {@link NamedObjectNotFoundException} if the
      * {@code categoryClass} is registered but the {@code name} isn't.
+     *
+     * @throws NamedObjectNotFoundException if the categoryClass or name is not registered
      */
     public <T, C> T parseNamedObject(Class<T> categoryClass, String name, XContentParser parser, C context) throws IOException {
         Map<String, Entry> parsers = registry.get(categoryClass);
         if (parsers == null) {
             if (registry.isEmpty()) {
                 // The "empty" registry will never work so we throw a better exception as a hint.
-                throw new ElasticsearchException("namedObject is not supported for this parser");
+                throw new NamedObjectNotFoundException("named objects are not supported for this parser");
             }
-            throw new ElasticsearchException("Unknown namedObject category [" + categoryClass.getName() + "]");
+            throw new NamedObjectNotFoundException("unknown named object category [" + categoryClass.getName() + "]");
         }
         Entry entry = parsers.get(name);
         if (entry == null) {
-            throw new UnknownNamedObjectException(parser.getTokenLocation(), categoryClass, name);
+            throw new NamedObjectNotFoundException(parser.getTokenLocation(), "unable to parse " + categoryClass.getSimpleName() +
+                " with name [" + name + "]: parser not found");
         }
         if (false == entry.name.match(name, parser.getDeprecationHandler())) {
             /* Note that this shouldn't happen because we already looked up the entry using the names but we need to call `match` anyway
              * because it is responsible for logging deprecation warnings. */
-            throw new ParsingException(parser.getTokenLocation(),
-                    "Unknown " + categoryClass.getSimpleName() + " [" + name + "]: Parser didn't match");
+            throw new NamedObjectNotFoundException(parser.getTokenLocation(),
+                    "unable to parse " + categoryClass.getSimpleName() + " with name [" + name + "]: parser didn't match");
         }
         return categoryClass.cast(entry.parser.parse(parser, context));
     }

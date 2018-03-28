@@ -629,21 +629,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setOrder(0)
                 .addMapping("test", "field", "type=text")
                 .addAlias(new Alias("alias1").filter(termQuery("field", "value"))).get();
-        // Indexing into b should succeed, because the field mapping for field 'field' is defined in the _default_ mapping and
-        //  the test type exists.
-        client().admin().indices().preparePutTemplate("template2")
-                .setPatterns(Collections.singletonList("b*"))
-                .setOrder(0)
-                .addMapping("_default_", "field", "type=text")
-                .addMapping("test")
-                .addAlias(new Alias("alias2").filter(termQuery("field", "value"))).get();
-        // Indexing into c should succeed, because the field mapping for field 'field' is defined in the _default_ mapping.
-        client().admin().indices().preparePutTemplate("template3")
-                .setPatterns(Collections.singletonList("c*"))
-                .setOrder(0)
-                .addMapping("_default_", "field", "type=text")
-                .addAlias(new Alias("alias3").filter(termQuery("field", "value"))).get();
-        // Indexing into d index should fail, since there is field with name 'field' in the mapping
+        // Indexing into b index should fail, since there is field with name 'field' in the mapping
         client().admin().indices().preparePutTemplate("template4")
                 .setPatterns(Collections.singletonList("d*"))
                 .setOrder(0)
@@ -658,24 +644,6 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(response.getItems()[0].getId(), equalTo("test"));
         assertThat(response.getItems()[0].getVersion(), equalTo(1L));
 
-        client().prepareIndex("b1", "test", "test").setSource("{}", XContentType.JSON).get();
-        response = client().prepareBulk().add(new IndexRequest("b2", "test", "test").source("{}", XContentType.JSON)).get();
-        assertThat(response.hasFailures(), is(false));
-        assertThat(response.getItems()[0].isFailed(), equalTo(false));
-        assertThat(response.getItems()[0].getIndex(), equalTo("b2"));
-        assertThat(response.getItems()[0].getType(), equalTo("test"));
-        assertThat(response.getItems()[0].getId(), equalTo("test"));
-        assertThat(response.getItems()[0].getVersion(), equalTo(1L));
-
-        client().prepareIndex("c1", "test", "test").setSource("{}", XContentType.JSON).get();
-        response = client().prepareBulk().add(new IndexRequest("c2", "test", "test").source("{}", XContentType.JSON)).get();
-        assertThat(response.hasFailures(), is(false));
-        assertThat(response.getItems()[0].isFailed(), equalTo(false));
-        assertThat(response.getItems()[0].getIndex(), equalTo("c2"));
-        assertThat(response.getItems()[0].getType(), equalTo("test"));
-        assertThat(response.getItems()[0].getId(), equalTo("test"));
-        assertThat(response.getItems()[0].getVersion(), equalTo(1L));
-
         // Before 2.0 alias filters were parsed at alias creation time, in order
         // for filters to work correctly ES required that fields mentioned in those
         // filters exist in the mapping.
@@ -684,9 +652,9 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         // So the aliases defined in the index template for this index will not fail
         // even though the fields in the alias fields don't exist yet and indexing into
         // an index that doesn't exist yet will succeed
-        client().prepareIndex("d1", "test", "test").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("b1", "test", "test").setSource("{}", XContentType.JSON).get();
 
-        response = client().prepareBulk().add(new IndexRequest("d2", "test", "test").source("{}", XContentType.JSON)).get();
+        response = client().prepareBulk().add(new IndexRequest("b2", "test", "test").source("{}", XContentType.JSON)).get();
         assertThat(response.hasFailures(), is(false));
         assertThat(response.getItems()[0].isFailed(), equalTo(false));
         assertThat(response.getItems()[0].getId(), equalTo("test"));

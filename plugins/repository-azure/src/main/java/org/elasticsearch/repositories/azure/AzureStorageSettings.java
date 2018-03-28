@@ -19,7 +19,7 @@
 
 package org.elasticsearch.repositories.azure;
 
-import com.microsoft.azure.storage.CloudStorageAccount;
+import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.RetryPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureSetting;
@@ -34,15 +34,13 @@ import org.elasticsearch.common.unit.TimeValue;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
-import java.net.URISyntaxException;
 import java.net.UnknownHostException;
-import java.security.InvalidKeyException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-public final class AzureStorageSettings {
+final class AzureStorageSettings {
 
     // prefix for azure client settings
     private static final String AZURE_CLIENT_PREFIX_KEY = "azure.client.";
@@ -89,8 +87,9 @@ public final class AzureStorageSettings {
     private final TimeValue timeout;
     private final int maxRetries;
     private final Proxy proxy;
+    private final LocationMode locationMode;
 
-    private final CloudStorageAccount cloudStorageAccount;
+    private final String connectionString;
 
     public AzureStorageSettings(String account, String key, String endpointSuffix, TimeValue timeout, int maxRetries,
                                 Proxy.Type proxyType, String proxyHost, Integer proxyPort) {
@@ -127,11 +126,8 @@ public final class AzureStorageSettings {
         if (Strings.hasText(endpointSuffix)) {
             connectionStringBuilder.append(";EndpointSuffix=").append(endpointSuffix);
         }
-        try {
-            this.cloudStorageAccount = CloudStorageAccount.parse(connectionStringBuilder.toString());
-        } catch (InvalidKeyException | URISyntaxException e) {
-            throw new SettingsException("Check settings for client [" + account + "].", e);
-        }
+        this.connectionString = connectionStringBuilder.toString();
+        this.locationMode = LocationMode.PRIMARY_ONLY;
     }
 
     public String getKey() {
@@ -157,16 +153,25 @@ public final class AzureStorageSettings {
     public Proxy getProxy() {
         return proxy;
     }
+    
+    public String getConnectionString() {
+        return connectionString;
+    }
+    
+    public LocationMode getLocationMode() {
+        return locationMode;
+    }
 
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("AzureStorageSettings{");
-        sb.append(", account='").append(account).append('\'');
+        sb.append("account='").append(account).append('\'');
         sb.append(", key='").append(key).append('\'');
         sb.append(", timeout=").append(timeout);
         sb.append(", endpointSuffix='").append(endpointSuffix).append('\'');
         sb.append(", maxRetries=").append(maxRetries);
         sb.append(", proxy=").append(proxy);
+        sb.append(", locationMode='").append(locationMode).append('\'');
         sb.append('}');
         return sb.toString();
     }

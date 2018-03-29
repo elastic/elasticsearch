@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent;
 
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * This interface provides a way for non-JDK classes to plug in a way to serialize to xcontent.
@@ -61,4 +62,20 @@ public interface XContentBuilderExtension {
      * @return a map of class name to transformer used to retrieve raw value
      */
     Map<Class<?>, XContentBuilder.HumanReadableTransformer> getXContentHumanReadableTransformers();
+
+    /**
+     * Used for plugging a transformer for a date or time type object into a String (or other
+     * encodable object).
+     *
+     * For example:
+     *
+     * <pre>
+     * {@code
+     *     final DateTimeFormatter datePrinter = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
+     *     Map<Class<?>, Function<Object, Object>> transformers = new HashMap<>();
+     *     transformers.put(Date.class, d -> datePrinter.print(((Date) d).getTime()));
+     * }
+     * </pre>
+     */
+    Map<Class<?>, Function<Object, Object>> getDateTransformers();
 }

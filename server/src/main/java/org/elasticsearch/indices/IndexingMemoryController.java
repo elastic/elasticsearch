@@ -89,7 +89,7 @@ public class IndexingMemoryController extends AbstractComponent implements Index
     private final Cancellable scheduler;
 
     private static final EnumSet<IndexShardState> CAN_WRITE_INDEX_BUFFER_STATES = EnumSet.of(
-            IndexShardState.RECOVERING, IndexShardState.POST_RECOVERY, IndexShardState.STARTED, IndexShardState.RELOCATED);
+            IndexShardState.RECOVERING, IndexShardState.POST_RECOVERY, IndexShardState.STARTED);
 
     private final ShardsIndicesStatusChecker statusChecker;
 

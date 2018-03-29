@@ -90,7 +90,7 @@ subprojects {
     testRuntime("net.sourceforge.csvjdbc:csvjdbc:1.0.34") {
       transitive = false
     }
-    testRuntime("com.h2database:h2:1.4.194") {
+    testRuntime("com.h2database:h2:1.4.197") {
       transitive = false
     }
 

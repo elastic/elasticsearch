@@ -59,7 +59,8 @@ public class TimeseriesLifecycleType implements LifecycleType {
     }
 
     public List<Phase> getOrderedPhases(Map<String, Phase> phases) {
-        return VALID_PHASES.stream().map(p -> phases.getOrDefault(p, null)).collect(Collectors.toList());
+        return VALID_PHASES.stream().map(p -> phases.getOrDefault(p, null))
+            .filter(Objects::nonNull).collect(Collectors.toList());
     }
 
     public List<LifecycleAction> getOrderedActions(Phase phase) {

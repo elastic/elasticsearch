@@ -83,7 +83,7 @@ public class ReplicasAction implements LifecycleAction {
     }
 
     @Override
-    public List<Step> toSteps(String phase) {
+    public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
 //        ClusterStateUpdateStep updateAllocationSettings = new ClusterStateUpdateStep(
 //            "update_replica_count", NAME, phase, index.getName(), (currentState) ->
 //            ClusterState.builder(currentState).metaData(MetaData.builder(currentState.metaData())

@@ -10,8 +10,8 @@ import org.elasticsearch.index.Index;
 
 public abstract class ClusterStateWaitStep extends Step {
 
-    public ClusterStateWaitStep(String name, String action, String phase, StepKey nextStepKey) {
-        super(name, action, phase, nextStepKey);
+    public ClusterStateWaitStep(StepKey key, StepKey nextStepKey) {
+        super(key, nextStepKey);
     }
 
     public abstract boolean isConditionMet(Index index, ClusterState clusterState);

@@ -12,8 +12,8 @@ public abstract class AsyncActionStep extends Step {
 
     private Client client;
 
-    public AsyncActionStep(String name, String action, String phase, StepKey nextStepKey, Client client) {
-        super(name, action, phase, nextStepKey);
+    public AsyncActionStep(StepKey key, StepKey nextStepKey, Client client) {
+        super(key, nextStepKey);
         this.client = client;
     }
 

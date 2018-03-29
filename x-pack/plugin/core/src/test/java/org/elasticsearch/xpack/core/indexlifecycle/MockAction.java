@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -84,7 +85,7 @@ public class MockAction implements LifecycleAction {
     }
 
     @Override
-    public List<Step> toSteps(String phase) {
+    public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
         return steps;
     }
 

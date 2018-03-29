@@ -44,8 +44,7 @@ public class IndexLifecycleRunner {
                     @Override
                     public void onResponse(boolean conditionMet) {
                         if (conditionMet) {
-                            moveToStep(index, policy, new StepKey(currentStep.getPhase(), currentStep.getAction(), currentStep.getName()),
-                                    currentStep.getNextStepKey(), Cause.CALLBACK);
+                            moveToStep(index, policy, currentStep.getKey(), currentStep.getNextStepKey(), Cause.CALLBACK);
                         }
                     }
     
@@ -63,8 +62,7 @@ public class IndexLifecycleRunner {
                     @Override
                     public void onResponse(boolean complete) {
                         if (complete) {
-                            moveToStep(index, policy, new StepKey(currentStep.getPhase(), currentStep.getAction(), currentStep.getName()),
-                                    currentStep.getNextStepKey(), Cause.CALLBACK);
+                            moveToStep(index, policy, currentStep.getKey(), currentStep.getNextStepKey(), Cause.CALLBACK);
                         }
                     }
     
@@ -76,7 +74,7 @@ public class IndexLifecycleRunner {
             }
         } else {
             throw new IllegalStateException(
-                    "Step with key [" + currentStep.getName() + "] is not a recognised type: [" + currentStep.getClass().getName() + "]");
+                    "Step with key [" + currentStep.getKey() + "] is not a recognised type: [" + currentStep.getClass().getName() + "]");
         }
     }
 

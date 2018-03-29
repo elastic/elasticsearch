@@ -68,12 +68,9 @@ public class DeleteAction implements LifecycleAction {
     }
 
     @Override
-    public List<Step> toSteps(String phase) {
-//        String indexName = index.getName();
-//        return Collections.singletonList(new ClientStep<DeleteIndexRequestBuilder, DeleteIndexResponse>( "delete",
-//            NAME, phase, indexName, client.admin().indices().prepareDelete(indexName),
-//            clusterState -> clusterState.metaData().hasIndex(indexName), response -> true));
-        return Arrays.asList();
+    public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
+        Step.StepKey deleteStepKey = new Step.StepKey(phase, NAME, "delete-step");
+        return Collections.singletonList(new DeleteAsyncActionStep(deleteStepKey, nextStepKey, client));
     }
 
     @Override

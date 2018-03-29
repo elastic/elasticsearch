@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -14,11 +15,13 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
+import org.elasticsearch.xpack.core.indexlifecycle.DeleteAsyncActionStep;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleType;
 import org.elasticsearch.xpack.core.indexlifecycle.MockAction;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
+import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.elasticsearch.xpack.core.indexlifecycle.TestLifecycleType;
 import org.elasticsearch.xpack.core.indexlifecycle.TimeseriesLifecycleType;
 
@@ -30,6 +33,10 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.LongSupplier;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecyclePolicy> {
 
@@ -110,36 +117,26 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         assertSame(TimeseriesLifecycleType.INSTANCE, policy.getType());
     }
 
-    public void testSteps() throws Exception {
-//        ThreadPool threadPool = new TestThreadPool("test");
-//        LongSupplier nowSupplier = () -> 0L;
-//        Client client = mock(Client.class);
-//        Step phaseAfterStep = new PhaseAfterStep(threadPool, 0L, nowSupplier,
-//            TimeValue.timeValueSeconds(0L), "name-0", "index", "phase", "mock_action");
-//        Step updateStep = new ClusterStateUpdateStep("name-1", "index", "phase", "mock_action",
-//            (state) -> state);
-//        Step waitStep = new ConditionalWaitStep("name-2", "index", "phase", "mock_action",
-//            (state) -> true);
-//        indexName = randomAlphaOfLengthBetween(1, 20);
-//        lifecycleName = randomAlphaOfLengthBetween(1, 20);
-//        Map<String, Phase> phases = new LinkedHashMap<>();
-//        firstAction = new MockAction(Arrays.asList(phaseAfterStep, updateStep, waitStep));
-//        Map<String, LifecycleAction> actions = Collections.singletonMap(MockAction.NAME, firstAction);
-//        firstPhase = new Phase("phase", null, actions);
-//        phases.put(firstPhase.getName(), firstPhase);
-//        policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, null);
-//
-//        List<Step> phaseSteps = firstPhase.toSteps(new Index(indexName, indexName), 0L,
-//            client, threadPool, nowSupplier);
-//
-//        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-//            .metaData(MetaData.builder().put(
-//                IndexMetaData.builder("index")
-//                    .settings(settings(Version.CURRENT))
-//                .numberOfShards(1).numberOfReplicas(1))).build();
-//
-//        StepResult result = policy.execute(phaseSteps, clusterState, clusterState.metaData().index("index"), client, nowSupplier);
-//
-//        threadPool.shutdown();
+    public void testToSteps() throws Exception {
+        Client client = mock(Client.class);
+        LongSupplier nowSupplier = () -> 0L;
+        Step deleteStep = new DeleteAsyncActionStep(
+            new Step.StepKey("delete", "DELETE", "delete"), null, client);
+
+        indexName = randomAlphaOfLengthBetween(1, 20);
+        lifecycleName = randomAlphaOfLengthBetween(1, 20);
+        Map<String, Phase> phases = new LinkedHashMap<>();
+        firstAction = new MockAction(Arrays.asList(deleteStep));
+        Map<String, LifecycleAction> actions = Collections.singletonMap(MockAction.NAME, firstAction);
+        firstPhase = new Phase("delete", TimeValue.ZERO, actions);
+        phases.put(firstPhase.getName(), firstPhase);
+        policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
+
+        List<Step> steps = policy.toSteps(client, nowSupplier);
+        assertThat(steps.size(), equalTo(2));
+        assertThat(steps.get(0).getKey(), equalTo(new Step.StepKey("delete", null, "after")));
+        assertThat(steps.get(0).getNextStepKey(), equalTo(deleteStep.getKey()));
+        assertThat(steps.get(1), equalTo(deleteStep));
+        assertNull(steps.get(1).getNextStepKey());
     }
 }

@@ -12,8 +12,8 @@ public abstract class AsyncWaitStep extends Step {
 
     private Client client;
 
-    public AsyncWaitStep(String name, String action, String phase, StepKey nextStepKey, Client client) {
-        super(name, action, phase, nextStepKey);
+    public AsyncWaitStep(StepKey key, StepKey nextStepKey, Client client) {
+        super(key, nextStepKey);
         this.client = client;
     }
 

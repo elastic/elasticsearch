@@ -182,7 +182,7 @@ public class AllocateAction implements LifecycleAction {
 //    }
 
     @Override
-    public List<Step> toSteps(String phase) {
+    public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
 //        ClusterStateUpdateStep updateAllocationSettings = new ClusterStateUpdateStep(
 //            "update_allocation", NAME, phase, index.getName(), (clusterState) -> {
 //            IndexMetaData idxMeta = clusterState.metaData().index(index);

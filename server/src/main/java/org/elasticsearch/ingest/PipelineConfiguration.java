@@ -48,7 +48,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         PARSER.declareString(Builder::setId, new ParseField("id"));
         PARSER.declareField((parser, builder, aVoid) -> {
             XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent());
-            XContent.copyCurrentStructure(contentBuilder.generator(), parser);
+            contentBuilder.generator().copyCurrentStructure(parser);
             builder.setConfig(BytesReference.bytes(contentBuilder), contentBuilder.contentType());
         }, new ParseField("config"), ObjectParser.ValueType.OBJECT);
 

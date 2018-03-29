@@ -426,7 +426,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                                 // We reached the place in the object tree where we want to insert a new object level
                                 generator.writeStartObject();
                                 generator.writeFieldName("newField");
-                                XContent.copyCurrentStructure(generator, parser);
+                                generator.copyCurrentStructure(parser);
                                 generator.writeEndObject();
 
                                 if (hasArbitraryContent) {
@@ -448,7 +448,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                         }
 
                         // We are walking through the object tree, so we can safely copy the current node
-                        XContent.copyCurrentEvent(generator, parser);
+                        generator.copyCurrentEvent(parser);
                     }
 
                     if (objectIndex < mutation) {

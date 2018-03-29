@@ -392,7 +392,40 @@ public class JsonXContentGenerator implements XContentGenerator {
         if (parser instanceof JsonXContentParser) {
             generator.copyCurrentStructure(((JsonXContentParser) parser).parser);
         } else {
-            XContent.copyCurrentStructure(this, parser);
+            copyCurrentStructure(this, parser);
+        }
+    }
+
+    /**
+     * Low level implementation detail of {@link XContentGenerator#copyCurrentStructure(XContentParser)}.
+     */
+    private static void copyCurrentStructure(XContentGenerator destination, XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+
+        // Let's handle field-name separately first
+        if (token == XContentParser.Token.FIELD_NAME) {
+            destination.writeFieldName(parser.currentName());
+            token = parser.nextToken();
+            // fall-through to copy the associated value
+        }
+
+        switch (token) {
+            case START_ARRAY:
+                destination.writeStartArray();
+                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                    copyCurrentStructure(destination, parser);
+                }
+                destination.writeEndArray();
+                break;
+            case START_OBJECT:
+                destination.writeStartObject();
+                while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                    copyCurrentStructure(destination, parser);
+                }
+                destination.writeEndObject();
+                break;
+            default: // others are simple:
+                destination.copyCurrentEvent(parser);
         }
     }
 

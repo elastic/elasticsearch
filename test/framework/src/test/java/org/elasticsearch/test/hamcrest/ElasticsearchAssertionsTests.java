@@ -86,7 +86,7 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
             try (XContentBuilder copy = JsonXContent.contentBuilder();
                     XContentParser parser = createParser(original.contentType().xContent(), BytesReference.bytes(original))) {
                 parser.nextToken();
-                XContent.copyCurrentStructure(copy.generator(), parser);
+                copy.generator().copyCurrentStructure(parser);
                 try (XContentBuilder copyShuffled = shuffleXContent(copy) ) {
                     assertToXContentEquivalent(BytesReference.bytes(original), BytesReference.bytes(copyShuffled), original.contentType());
                 }

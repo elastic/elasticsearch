@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.security.authc.ldap;
 
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
@@ -12,11 +13,15 @@ import org.elasticsearch.common.util.set.Sets;
 import java.util.Optional;
 import java.util.Set;
 
+import static org.elasticsearch.common.settings.SecureSetting.secureString;
+
 public final class PoolingSessionFactorySettings {
     public static final TimeValue DEFAULT_HEALTH_CHECK_INTERVAL = TimeValue.timeValueSeconds(60L);
     public static final Setting<String> BIND_DN = Setting.simpleString("bind_dn", Setting.Property.NodeScope, Setting.Property.Filtered);
-    public static final Setting<String> BIND_PASSWORD = Setting.simpleString("bind_password", Setting.Property.NodeScope,
-            Setting.Property.Filtered);
+    public static final Setting<SecureString> LEGACY_BIND_PASSWORD = new Setting<>("bind_password", "", SecureString::new,
+            Setting.Property.NodeScope, Setting.Property.Filtered, Setting.Property.Deprecated);
+    public static final Setting<SecureString> SECURE_BIND_PASSWORD = secureString("secure_bind_password", LEGACY_BIND_PASSWORD);
+
     public static final int DEFAULT_CONNECTION_POOL_INITIAL_SIZE = 0;
     public static final Setting<Integer> POOL_INITIAL_SIZE = Setting.intSetting("user_search.pool.initial_size",
             DEFAULT_CONNECTION_POOL_INITIAL_SIZE, 0, Setting.Property.NodeScope);
@@ -34,6 +39,6 @@ public final class PoolingSessionFactorySettings {
 
     public static Set<Setting<?>> getSettings() {
         return Sets.newHashSet(POOL_INITIAL_SIZE, POOL_SIZE, HEALTH_CHECK_ENABLED, HEALTH_CHECK_INTERVAL, HEALTH_CHECK_DN, BIND_DN,
-                BIND_PASSWORD);
+                SECURE_BIND_PASSWORD, LEGACY_BIND_PASSWORD);
     }
 }

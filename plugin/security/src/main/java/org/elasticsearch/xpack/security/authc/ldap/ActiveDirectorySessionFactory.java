@@ -14,7 +14,6 @@ import com.unboundid.ldap.sdk.SearchResultEntry;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
 import com.unboundid.ldap.sdk.controls.AuthorizationIdentityRequestControl;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -25,6 +24,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -66,23 +66,18 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
 
     ActiveDirectorySessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool) throws LDAPException {
         super(config, sslService, new ActiveDirectoryGroupsResolver(config.settings()),
-                ActiveDirectorySessionFactorySettings.POOL_ENABLED, () -> {
-            if (PoolingSessionFactorySettings.BIND_DN.exists(config.settings())) {
-                return new SimpleBindRequest(getBindDN(config.settings()),
-                        PoolingSessionFactorySettings.BIND_PASSWORD.get(config.settings()));
-            } else {
-                return new SimpleBindRequest();
-            }
-        }, () -> {
-            if (PoolingSessionFactorySettings.BIND_DN.exists(config.settings())) {
-                final String healthCheckDn = PoolingSessionFactorySettings.BIND_DN.get(config.settings());
-                if (healthCheckDn.isEmpty() && healthCheckDn.indexOf('=') > 0) {
-                    return healthCheckDn;
-                }
-            }
-            return config.settings().get(ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_BASEDN_SETTING,
-                    config.settings().get(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING));
-        }, threadPool);
+                ActiveDirectorySessionFactorySettings.POOL_ENABLED,
+                PoolingSessionFactorySettings.BIND_DN.exists(config.settings())? getBindDN(config.settings()) : null,
+                () -> {
+                    if (PoolingSessionFactorySettings.BIND_DN.exists(config.settings())) {
+                        final String healthCheckDn = PoolingSessionFactorySettings.BIND_DN.get(config.settings());
+                        if (healthCheckDn.isEmpty() && healthCheckDn.indexOf('=') > 0) {
+                            return healthCheckDn;
+                        }
+                    }
+                    return config.settings().get(ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_BASEDN_SETTING,
+                            config.settings().get(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING));
+                }, threadPool);
         Settings settings = config.settings();
         String domainName = settings.get(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING);
         if (domainName == null) {
@@ -155,9 +150,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
         }
         try {
             final LDAPConnection connection = LdapUtils.privilegedConnect(serverSet::getConnection);
-            final SimpleBindRequest bind = new SimpleBindRequest(getBindDN(config.settings()),
-                    PoolingSessionFactorySettings.BIND_PASSWORD.get(config.settings()));
-            LdapUtils.maybeForkThenBind(connection, bind, threadPool, new AbstractRunnable() {
+            LdapUtils.maybeForkThenBind(connection, bindCredentials, threadPool, new AbstractRunnable() {
 
                 @Override
                 public void onFailure(Exception e) {
@@ -225,7 +218,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
         final LdapSearchScope userSearchScope;
         final String userSearchFilter;
         final String bindDN;
-        final String bindPassword; // TODO this needs to be a setting in the secure settings store!
+        final SecureString bindPassword;
         final ThreadPool threadPool;
 
         ADAuthenticator(RealmConfig realm, TimeValue timeout, boolean ignoreReferralErrors, Logger logger, GroupsResolver groupsResolver,
@@ -239,7 +232,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
             this.metaDataResolver = metaDataResolver;
             final Settings settings = realm.settings();
             this.bindDN = getBindDN(settings);
-            this.bindPassword = PoolingSessionFactorySettings.BIND_PASSWORD.get(settings);
+            this.bindPassword = PoolingSessionFactorySettings.SECURE_BIND_PASSWORD.get(settings);
             this.threadPool = threadPool;
             userSearchDN = settings.get(ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_BASEDN_SETTING, domainDN);
             userSearchScope = LdapSearchScope.resolve(settings.get(ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_SCOPE_SETTING),
@@ -274,7 +267,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                     if (bindDN.isEmpty()) {
                         searchRunnable.run();
                     } else {
-                        final SimpleBindRequest bind = new SimpleBindRequest(bindDN, bindPassword);
+                        final SimpleBindRequest bind = new SimpleBindRequest(bindDN, CharArrays.toUtf8Bytes(bindPassword.getChars()));
                         LdapUtils.maybeForkThenBind(connection, bind, threadPool, searchRunnable);
                     }
                 }
@@ -439,7 +432,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                     final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
                     final SimpleBindRequest bind = bindDN.isEmpty()
                             ? new SimpleBindRequest(username, passwordBytes)
-                            : new SimpleBindRequest(bindDN, bindPassword);
+                            : new SimpleBindRequest(bindDN, CharArrays.toUtf8Bytes(bindPassword.getChars()));
                     LdapUtils.maybeForkThenBind(searchConnection, bind, threadPool, new ActionRunnable<String>(listener) {
                         @Override
                         protected void doRun() throws Exception {

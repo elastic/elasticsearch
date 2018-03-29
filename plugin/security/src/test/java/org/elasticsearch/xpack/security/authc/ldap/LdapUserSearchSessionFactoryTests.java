@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.security.authc.ldap;
 
 import com.unboundid.ldap.listener.InMemoryDirectoryServer;
-import com.unboundid.ldap.sdk.BindRequest;
 import com.unboundid.ldap.sdk.GetEntryLDAPConnectionPoolHealthCheck;
 import com.unboundid.ldap.sdk.LDAPConnectionPool;
 import com.unboundid.ldap.sdk.LDAPConnectionPoolHealthCheck;
@@ -39,6 +38,8 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -87,8 +88,8 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, "", LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", "")
                 .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
-                .put("bind_password", "pass")
                 .put("user_search.pool.enabled", randomBoolean());
+        final boolean useLegacyBindPassword = configureBindPassword(builder);
         if (useAttribute) {
             builder.put("user_search.attribute", "cn");
         } else {
@@ -105,11 +106,8 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
             sessionFactory.close();
         }
 
-        if (useAttribute) {
-            assertSettingDeprecationsAndWarnings(new Setting[] { LdapUserSearchSessionFactorySettings.SEARCH_ATTRIBUTE });
-        }
+        assertDeprecationWarnings(useAttribute, useLegacyBindPassword);
     }
-
 
     public void testUserSearchSubTree() throws Exception {
         String groupSearchBase = "o=sevenSeas";
@@ -120,8 +118,8 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
-                .put("bind_password", "pass")
                 .put("user_search.pool.enabled", randomBoolean());
+        final boolean useLegacyBindPassword = configureBindPassword(builder);
         if (useAttribute) {
             builder.put("user_search.attribute", "cn");
         } else {
@@ -134,19 +132,18 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
 
         String user = "William Bush";
         SecureString userPass = new SecureString("pass");
-        final SimpleBindRequest bindDNBindRequest = LdapUserSearchSessionFactory.bindRequest(config.settings());
 
         try {
             // auth
             try (LdapSession ldap = session(sessionFactory, user, userPass)) {
-                assertConnectionValid(ldap.getConnection(), bindDNBindRequest);
+                assertConnectionValid(ldap.getConnection(), sessionFactory.bindCredentials);
                 String dn = ldap.userDn();
                 assertThat(dn, containsString(user));
             }
 
             //lookup
             try (LdapSession ldap = unauthenticatedSession(sessionFactory, user)) {
-                assertConnectionValid(ldap.getConnection(), bindDNBindRequest);
+                assertConnectionValid(ldap.getConnection(), sessionFactory.bindCredentials);
                 String dn = ldap.userDn();
                 assertThat(dn, containsString(user));
             }
@@ -154,9 +151,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
             sessionFactory.close();
         }
 
-        if (useAttribute) {
-            assertSettingDeprecationsAndWarnings(new Setting[] { LdapUserSearchSessionFactorySettings.SEARCH_ATTRIBUTE });
-        }
+        assertDeprecationWarnings(useAttribute, useLegacyBindPassword);
     }
 
     public void testUserSearchBaseScopeFailsWithWrongBaseDN() throws Exception {
@@ -168,9 +163,9 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
-                .put("bind_password", "pass")
                 .put("user_search.scope", LdapSearchScope.BASE)
                 .put("user_search.pool.enabled", randomBoolean());
+        final boolean useLegacyBindPassword = configureBindPassword(builder);
         if (useAttribute) {
             builder.put("user_search.attribute", "cn");
         } else {
@@ -191,9 +186,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
             sessionFactory.close();
         }
 
-        if (useAttribute) {
-            assertSettingDeprecationsAndWarnings(new Setting[] { LdapUserSearchSessionFactorySettings.SEARCH_ATTRIBUTE });
-        }
+        assertDeprecationWarnings(useAttribute, useLegacyBindPassword);
     }
 
     public void testUserSearchBaseScopePassesWithCorrectBaseDN() throws Exception {
@@ -204,9 +197,9 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
-                .put("bind_password", "pass")
                 .put("user_search.scope", LdapSearchScope.BASE)
                 .put("user_search.pool.enabled", randomBoolean());
+        final boolean useLegacyBindPassword = configureBindPassword(builder);
         final boolean useAttribute = randomBoolean();
         if (useAttribute) {
             builder.put("user_search.attribute", "cn");
@@ -220,19 +213,18 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
 
         String user = "William Bush";
         SecureString userPass = new SecureString("pass");
-        final SimpleBindRequest bindDNBindRequest = LdapUserSearchSessionFactory.bindRequest(config.settings());
 
         try {
             // auth
             try (LdapSession ldap = session(sessionFactory, user, userPass)) {
-                assertConnectionValid(ldap.getConnection(), bindDNBindRequest);
+                assertConnectionValid(ldap.getConnection(), sessionFactory.bindCredentials);
                 String dn = ldap.userDn();
                 assertThat(dn, containsString(user));
             }
 
             //lookup
             try (LdapSession ldap = unauthenticatedSession(sessionFactory, user)) {
-                assertConnectionValid(ldap.getConnection(), bindDNBindRequest);
+                assertConnectionValid(ldap.getConnection(), sessionFactory.bindCredentials);
                 String dn = ldap.userDn();
                 assertThat(dn, containsString(user));
             }
@@ -240,9 +232,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
             sessionFactory.close();
         }
 
-        if (useAttribute) {
-            assertSettingDeprecationsAndWarnings(new Setting[] { LdapUserSearchSessionFactorySettings.SEARCH_ATTRIBUTE });
-        }
+        assertDeprecationWarnings(useAttribute, useLegacyBindPassword);
     }
 
     public void testUserSearchOneLevelScopeFailsWithWrongBaseDN() throws Exception {
@@ -253,9 +243,9 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
-                .put("bind_password", "pass")
                 .put("user_search.scope", LdapSearchScope.ONE_LEVEL)
                 .put("user_search.pool.enabled", randomBoolean());
+        final boolean useLegacyBindPassword = configureBindPassword(builder);
         final boolean useAttribute = randomBoolean();
         if (useAttribute) {
             builder.put("user_search.attribute", "cn");
@@ -277,9 +267,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
             sessionFactory.close();
         }
 
-        if (useAttribute) {
-            assertSettingDeprecationsAndWarnings(new Setting[] { LdapUserSearchSessionFactorySettings.SEARCH_ATTRIBUTE });
-        }
+        assertDeprecationWarnings(useAttribute, useLegacyBindPassword);
     }
 
     public void testUserSearchOneLevelScopePassesWithCorrectBaseDN() throws Exception {
@@ -290,9 +278,9 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
-                .put("bind_password", "pass")
                 .put("user_search.scope", LdapSearchScope.ONE_LEVEL)
                 .put("user_search.pool.enabled", randomBoolean());
+        final boolean useLegacyBindPassword = configureBindPassword(builder);
         final boolean useAttribute = randomBoolean();
         if (useAttribute) {
             builder.put("user_search.attribute", "cn");
@@ -306,19 +294,18 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
 
         String user = "William Bush";
         SecureString userPass = new SecureString("pass");
-        final SimpleBindRequest bindDNBindRequest = LdapUserSearchSessionFactory.bindRequest(config.settings());
 
         try {
             //auth
             try (LdapSession ldap = session(sessionFactory, user, userPass)) {
-                assertConnectionValid(ldap.getConnection(), bindDNBindRequest);
+                assertConnectionValid(ldap.getConnection(), sessionFactory.bindCredentials);
                 String dn = ldap.userDn();
                 assertThat(dn, containsString(user));
             }
 
             //lookup
             try (LdapSession ldap = unauthenticatedSession(sessionFactory, user)) {
-                assertConnectionValid(ldap.getConnection(), bindDNBindRequest);
+                assertConnectionValid(ldap.getConnection(), sessionFactory.bindCredentials);
                 String dn = ldap.userDn();
                 assertThat(dn, containsString(user));
             }
@@ -326,9 +313,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
             sessionFactory.close();
         }
 
-        if (useAttribute) {
-            assertSettingDeprecationsAndWarnings(new Setting[] { LdapUserSearchSessionFactorySettings.SEARCH_ATTRIBUTE });
-        }
+        assertDeprecationWarnings(useAttribute, useLegacyBindPassword);
     }
 
     public void testUserSearchWithBadAttributeFails() throws Exception {
@@ -339,8 +324,8 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
-                .put("bind_password", "pass")
                 .put("user_search.pool.enabled", randomBoolean());
+        final boolean useLegacyBindPassword = configureBindPassword(builder);
         final boolean useAttribute = randomBoolean();
         if (useAttribute) {
             builder.put("user_search.attribute", "uid1");
@@ -362,61 +347,62 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
             sessionFactory.close();
         }
 
-        if (useAttribute) {
-            assertSettingDeprecationsAndWarnings(new Setting[] { LdapUserSearchSessionFactorySettings.SEARCH_ATTRIBUTE });
-        }
+        assertDeprecationWarnings(useAttribute, useLegacyBindPassword);
     }
 
     public void testUserSearchWithoutAttributePasses() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String userSearchBase = "o=sevenSeas";
 
-        RealmConfig config = new RealmConfig("ldap_realm", Settings.builder()
-                        .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
-                        .put("user_search.base_dn", userSearchBase)
-                        .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
-                        .put("bind_password", "pass")
-                        .put("user_search.pool.enabled", randomBoolean())
-                        .build(), globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        final Settings.Builder realmSettings = Settings.builder()
+                .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
+                .put("user_search.base_dn", userSearchBase)
+                .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
+                .put("user_search.pool.enabled", randomBoolean());
+        final boolean useLegacyBindPassword = configureBindPassword(realmSettings);
+        RealmConfig config = new RealmConfig("ldap_realm", realmSettings.build(), globalSettings,
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
 
         LdapUserSearchSessionFactory sessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool);
 
         String user = "wbush";
         SecureString userPass = new SecureString("pass");
-        final SimpleBindRequest bindDNBindRequest = LdapUserSearchSessionFactory.bindRequest(config.settings());
 
         try {
             //auth
             try (LdapSession ldap = session(sessionFactory, user, userPass)) {
-                assertConnectionValid(ldap.getConnection(), bindDNBindRequest);
+                assertConnectionValid(ldap.getConnection(), sessionFactory.bindCredentials);
                 String dn = ldap.userDn();
                 assertThat(dn, containsString("William Bush"));
             }
 
             //lookup
             try (LdapSession ldap = unauthenticatedSession(sessionFactory, user)) {
-                assertConnectionValid(ldap.getConnection(), bindDNBindRequest);
+                assertConnectionValid(ldap.getConnection(), sessionFactory.bindCredentials);
                 String dn = ldap.userDn();
                 assertThat(dn, containsString("William Bush"));
             }
         } finally {
             sessionFactory.close();
         }
+
+        assertDeprecationWarnings(false, useLegacyBindPassword);
     }
 
     public void testConnectionPoolDefaultSettings() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String userSearchBase = "o=sevenSeas";
-        RealmConfig config = new RealmConfig("ldap_realm", Settings.builder()
-                        .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
-                        .put("user_search.base_dn", userSearchBase)
-                        .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
-                        .put("bind_password", "pass")
-                        .build(), globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        final Settings.Builder realmSettings = Settings.builder()
+                .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
+                .put("user_search.base_dn", userSearchBase)
+                .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas");
+        configureBindPassword(realmSettings);
+        RealmConfig config = new RealmConfig("ldap_realm", realmSettings.build(), globalSettings,
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
 
         LDAPConnectionPool connectionPool = LdapUserSearchSessionFactory.createConnectionPool(config, new SingleServerSet("localhost",
-                randomFrom(ldapServers).getListenPort()), TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE,
-                () -> new SimpleBindRequest("cn=Horatio Hornblower,ou=people,o=sevenSeas", "pass"),
+                        randomFrom(ldapServers).getListenPort()), TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE,
+                new SimpleBindRequest("cn=Horatio Hornblower,ou=people,o=sevenSeas", "pass"),
                 () -> "cn=Horatio Hornblower,ou=people,o=sevenSeas");
         try {
             assertThat(connectionPool.getCurrentAvailableConnections(),
@@ -435,19 +421,20 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
     public void testConnectionPoolSettings() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String userSearchBase = "o=sevenSeas";
-        RealmConfig config = new RealmConfig("ldap_realm", Settings.builder()
-                        .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
-                        .put("user_search.base_dn", userSearchBase)
-                        .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
-                        .put("bind_password", "pass")
-                        .put("user_search.pool.initial_size", 10)
-                        .put("user_search.pool.size", 12)
-                        .put("user_search.pool.health_check.enabled", false)
-                        .build(), globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        final Settings.Builder realmSettings = Settings.builder()
+                .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
+                .put("user_search.base_dn", userSearchBase)
+                .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
+                .put("user_search.pool.initial_size", 10)
+                .put("user_search.pool.size", 12)
+                .put("user_search.pool.health_check.enabled", false);
+        configureBindPassword(realmSettings);
+        RealmConfig config = new RealmConfig("ldap_realm", realmSettings.build(), globalSettings,
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
 
         LDAPConnectionPool connectionPool = LdapUserSearchSessionFactory.createConnectionPool(config, new SingleServerSet("localhost",
-                randomFrom(ldapServers).getListenPort()), TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE,
-                () -> new SimpleBindRequest("cn=Horatio Hornblower,ou=people,o=sevenSeas", "pass"),
+                        randomFrom(ldapServers).getListenPort()), TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE,
+                new SimpleBindRequest("cn=Horatio Hornblower,ou=people,o=sevenSeas", "pass"),
                 () -> "cn=Horatio Hornblower,ou=people,o=sevenSeas");
         try {
             assertThat(connectionPool.getCurrentAvailableConnections(), is(10));
@@ -463,10 +450,10 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         String groupSearchBase = "o=sevenSeas";
         String userSearchBase = "o=sevenSeas";
         RealmConfig config = new RealmConfig("ldap_realm", Settings.builder()
-                        .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
-                        .put("user_search.base_dn", userSearchBase)
-                        .put("bind_password", "pass")
-                        .build(), globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+                .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
+                .put("user_search.base_dn", userSearchBase)
+                .put("bind_password", "pass")
+                .build(), globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
 
         LdapUserSearchSessionFactory searchSessionFactory = null;
         try {
@@ -476,17 +463,19 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 searchSessionFactory.close();
             }
         }
+
+        assertDeprecationWarnings(false, true);
     }
 
     public void testThatEmptyBindDNAndDisabledPoolingDoesNotThrow() throws Exception {
         String groupSearchBase = "o=sevenSeas";
         String userSearchBase = "o=sevenSeas";
         RealmConfig config = new RealmConfig("ldap_realm", Settings.builder()
-                        .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
-                        .put("user_search.base_dn", userSearchBase)
-                        .put("user_search.pool.enabled", false)
-                        .put("bind_password", "pass")
-                        .build(), globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+                .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
+                .put("user_search.base_dn", userSearchBase)
+                .put("user_search.pool.enabled", false)
+                .put("bind_password", "pass")
+                .build(), globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
 
         LdapUserSearchSessionFactory searchSessionFactory = null;
         try {
@@ -499,22 +488,41 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 searchSessionFactory.close();
             }
         }
+
+        assertDeprecationWarnings(false, true);
     }
 
-    public void testEmptyBindDNReturnsAnonymousBindRequest() {
-        SimpleBindRequest request = LdapUserSearchSessionFactory.bindRequest(Settings.builder().put("bind_password", "password").build());
-        assertThat(request, is(notNullValue()));
-        assertThat(request.getBindDN(), isEmptyString());
+    public void testEmptyBindDNReturnsAnonymousBindRequest() throws LDAPException {
+        String groupSearchBase = "o=sevenSeas";
+        String userSearchBase = "o=sevenSeas";
+        final Settings.Builder realmSettings = Settings.builder()
+                .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
+                .put("user_search.base_dn", userSearchBase);
+        final boolean useLegacyBindPassword = configureBindPassword(realmSettings);
+        RealmConfig config = new RealmConfig("ldap_realm", realmSettings.build(), globalSettings,
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        try (LdapUserSearchSessionFactory searchSessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool)) {
+            assertThat(searchSessionFactory.bindCredentials, notNullValue());
+            assertThat(searchSessionFactory.bindCredentials.getBindDN(), isEmptyString());
+        }
+        assertDeprecationWarnings(false, useLegacyBindPassword);
     }
 
-    public void testThatBindRequestReturnsSimpleBindRequest() {
-        BindRequest request = LdapUserSearchSessionFactory.bindRequest(Settings.builder()
-                .put("bind_password", "password")
+    public void testThatBindRequestReturnsSimpleBindRequest() throws LDAPException {
+        String groupSearchBase = "o=sevenSeas";
+        String userSearchBase = "o=sevenSeas";
+        final Settings.Builder realmSettings = Settings.builder()
+                .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("bind_dn", "cn=ironman")
-                .build());
-        assertEquals(request.getClass(), SimpleBindRequest.class);
-        SimpleBindRequest simpleBindRequest = (SimpleBindRequest) request;
-        assertThat(simpleBindRequest.getBindDN(), is("cn=ironman"));
+                .put("user_search.base_dn", userSearchBase);
+        final boolean useLegacyBindPassword = configureBindPassword(realmSettings);
+        RealmConfig config = new RealmConfig("ldap_realm", realmSettings.build(), globalSettings,
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        try (LdapUserSearchSessionFactory searchSessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool)) {
+            assertThat(searchSessionFactory.bindCredentials, notNullValue());
+            assertThat(searchSessionFactory.bindCredentials.getBindDN(), is("cn=ironman"));
+        }
+        assertDeprecationWarnings(false, useLegacyBindPassword);
     }
 
     public void testThatConnectErrorIsNotThrownOnConstruction() throws Exception {
@@ -526,20 +534,20 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         String ldapUrl = new LDAPURL("ldap", "localhost", inMemoryDirectoryServer.getListenPort(), null, null, null, null).toString();
         inMemoryDirectoryServer.shutDown(true);
 
-        Settings ldapSettings = Settings.builder()
-                .put(LdapTestCase.buildLdapSettings(new String[] { ldapUrl }, Strings.EMPTY_ARRAY,
+        final Settings.Builder ldapSettingsBuilder = Settings.builder()
+                .put(LdapTestCase.buildLdapSettings(new String[]{ldapUrl}, Strings.EMPTY_ARRAY,
                         groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
                 .put("bind_dn", "ironman@ad.test.elasticsearch.com")
-                .put("bind_password", "password")
                 .put("user_search.attribute", "cn")
                 .put("timeout.tcp_connect", "500ms")
                 .put("type", "ldap")
                 .put("user_search.pool.health_check.enabled", false)
-                .put("user_search.pool.enabled", randomBoolean())
-                .build();
+                .put("user_search.pool.enabled", randomBoolean());
 
-        RealmConfig config = new RealmConfig("ldap_realm", ldapSettings, globalSettings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        final boolean useLegacyBindPassword = configureBindPassword(ldapSettingsBuilder);
+        RealmConfig config = new RealmConfig("ldap_realm", ldapSettingsBuilder.build(), globalSettings,
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
         LdapUserSearchSessionFactory searchSessionFactory = null;
         try {
             searchSessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool);
@@ -549,7 +557,30 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
             }
         }
 
-        assertSettingDeprecationsAndWarnings(new Setting[] { LdapUserSearchSessionFactorySettings.SEARCH_ATTRIBUTE });
+        assertDeprecationWarnings(true, useLegacyBindPassword);
+    }
+
+    private void assertDeprecationWarnings(boolean useAttribute, boolean legacyBindPassword) {
+        List<Setting<?>> deprecatedSettings = new ArrayList<>();
+        if (useAttribute) {
+            deprecatedSettings.add(LdapUserSearchSessionFactorySettings.SEARCH_ATTRIBUTE);
+        }
+        if (legacyBindPassword) {
+            deprecatedSettings.add(PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD);
+        }
+        if (deprecatedSettings.size() > 0) {
+            assertSettingDeprecationsAndWarnings(deprecatedSettings.toArray(new Setting<?>[deprecatedSettings.size()]));
+        }
+    }
+
+    private boolean configureBindPassword(Settings.Builder builder) {
+        final boolean useLegacyBindPassword = randomBoolean();
+        if (useLegacyBindPassword) {
+            builder.put("bind_password", "pass");
+        } else {
+            builder.setSecureSettings(newSecureSettings("secure_bind_password", "pass"));
+        }
+        return useLegacyBindPassword;
     }
 
     static LdapUserSearchSessionFactory getLdapUserSearchSessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool)

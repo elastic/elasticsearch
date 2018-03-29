@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
@@ -28,19 +29,30 @@ import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswo
  */
 public class ActiveDirectoryRunAsIT extends AbstractAdLdapRealmTestCase {
 
+    private static boolean useLegacyBindPassword;
+
     @BeforeClass
     public static void selectRealmConfig() {
         realmConfig = RealmConfig.AD;
+        useLegacyBindPassword = randomBoolean();
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
+        useLegacyBindPassword = randomBoolean();
         final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
         switch (realmConfig) {
             case AD:
                 builder.put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".bind_dn", "ironman@ad.test.elasticsearch.com")
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".bind_password", ActiveDirectorySessionFactoryTests.PASSWORD)
                         .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".user_search.pool.enabled", false);
+                if (useLegacyBindPassword) {
+                    builder.put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".bind_password", ActiveDirectorySessionFactoryTests.PASSWORD);
+                } else {
+                    SecuritySettingsSource.addSecureSettings(builder, secureSettings -> {
+                        secureSettings.setString(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".secure_bind_password",
+                                ActiveDirectorySessionFactoryTests.PASSWORD);
+                    });
+                }
                 break;
             default:
                 throw new IllegalStateException("Unknown realm config " + realmConfig);

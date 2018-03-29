@@ -61,7 +61,6 @@ xpack:
           order: 0
           url: "ldaps://ldap.example.com:636"
           bind_dn: "cn=ldapuser, ou=users, o=services, dc=example, dc=com"
-          bind_password: x-pack-test-password
           user_search:
             base_dn: "dc=example,dc=com"
             attribute: cn
@@ -70,6 +69,15 @@ xpack:
           files:
             role_mapping: "CONFIG_DIR/x-pack/role_mapping.yml"
           unmapped_groups_as_roles: false
+------------------------------------------------------------
++
+The password for the `bind_dn` user should be configured by adding the appropriate
+`secure_bind_password` setting to the {es} keystore.
+For example, the following command adds the password for the example realm above:
++
+[source, shell]
+------------------------------------------------------------
+bin/elasticsearch-keystore add xpack.security.authc.realms.ldap1.secure_bind_password
 ------------------------------------------------------------
 +
 IMPORTANT: When you configure realms in `elasticsearch.yml`, only the
@@ -281,9 +289,12 @@ failover and load balancing modes of operation.
                                                         impact, `bind_dn` is not exposed via the
                                                         {ref}/cluster-nodes-info.html#cluster-nodes-info[nodes info API].
 | `bind_password`                          | no       | The password for the user that is used to bind to the
-                                                        LDAP. Due to its potential security impact,
+                                                        LDAP directory. Due to its potential security impact,
                                                         `bind_password` is not exposed via the
                                                         {ref}/cluster-nodes-info.html#cluster-nodes-info[nodes info API].
+                                                        *Deprecated.* Use `secure_bind_password` instead. 
+| `secure_bind_password`                   | no       | ({ref}/secure-settings.html[Secure])
+                                                        The password for the user that is used to bind to LDAP directory.
 | `user_search.base_dn`                    | yes      | Specifies a container DN to search for users.
 | `user_search.scope`                      | no       | The scope of the user search. Valid values are `sub_tree`,
                                                         `one_level` or `base`. `one_level` only searches objects

@@ -12,9 +12,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.SecurityExtension;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -138,8 +138,11 @@ public class RealmSettingsTests extends ESTestCase {
     private Settings.Builder ldapSettings(boolean userSearch, boolean groupSearch) {
         final Settings.Builder builder = commonLdapSettings("ldap", true)
                 .put("bind_dn", "elasticsearch")
-                .put("bind_password", "t0p_s3cr3t")
                 .put("follow_referrals", randomBoolean());
+
+        SecuritySettingsSource.addSecureSettings(builder, secureSettings -> {
+            secureSettings.setString("bind_password", "t0p_s3cr3t");
+        });
 
         if (userSearch) {
             builder.put("user_search.base_dn", "o=people, dc=example, dc=com");

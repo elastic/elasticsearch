@@ -55,4 +55,3 @@ PUT /_cluster/settings
   }
 }
 -------------------------------
-// CONSOLE

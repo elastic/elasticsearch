@@ -88,8 +88,8 @@ public final class ThreadContext implements Closeable, Writeable {
     private static final ThreadContextStruct DEFAULT_CONTEXT = new ThreadContextStruct();
     private final Map<String, String> defaultHeader;
     private final ContextThreadLocal threadLocal;
-    private static volatile int maxWarningHeaderCount;
-    private static volatile long maxWarningHeaderSize;
+    private final int maxWarningHeaderCount;
+    private final long maxWarningHeaderSize;
 
     /**
      * Creates a new ThreadContext instance
@@ -107,21 +107,13 @@ public final class ThreadContext implements Closeable, Writeable {
             this.defaultHeader = Collections.unmodifiableMap(defaultHeader);
         }
         threadLocal = new ContextThreadLocal();
-        maxWarningHeaderCount = SETTING_HTTP_MAX_WARNING_HEADER_COUNT.get(settings);
-        maxWarningHeaderSize = SETTING_HTTP_MAX_WARNING_HEADER_SIZE.get(settings).getBytes();
+        this.maxWarningHeaderCount = SETTING_HTTP_MAX_WARNING_HEADER_COUNT.get(settings);
+        this.maxWarningHeaderSize = SETTING_HTTP_MAX_WARNING_HEADER_SIZE.get(settings).getBytes();
     }
 
     @Override
     public void close() throws IOException {
         threadLocal.close();
-    }
-
-    public static void setMaxWarningHeaderCount(final int maxWarningHeaderCount) {
-        ThreadContext.maxWarningHeaderCount = maxWarningHeaderCount;
-    }
-
-    public static void setMaxWarningHeaderSize(final ByteSizeValue maxWarningHeaderSize) {
-        ThreadContext.maxWarningHeaderSize = maxWarningHeaderSize.getBytes();
     }
 
     /**
@@ -301,7 +293,7 @@ public final class ThreadContext implements Closeable, Writeable {
      * @param uniqueValue the function that produces de-duplication values
      */
     public void addResponseHeader(final String key, final String value, final Function<String, String> uniqueValue) {
-        threadLocal.set(threadLocal.get().putResponse(key, value, uniqueValue));
+        threadLocal.set(threadLocal.get().putResponse(key, value, uniqueValue, maxWarningHeaderCount, maxWarningHeaderSize));
     }
 
     /**
@@ -476,7 +468,8 @@ public final class ThreadContext implements Closeable, Writeable {
             return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders, isSystemContext);
         }
 
-        private ThreadContextStruct putResponse(final String key, final String value, final Function<String, String> uniqueValue) {
+        private ThreadContextStruct putResponse(final String key, final String value, final Function<String, String> uniqueValue,
+                final int maxWarningHeaderCount, final long maxWarningHeaderSize) {
             assert value != null;
             long newWarningHeaderSize = warningHeadersSize;
             //check if we can add another warning header - if max size within limits

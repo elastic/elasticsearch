@@ -20,7 +20,6 @@
 package org.elasticsearch.node;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.ThreadContext;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.SetOnce;
@@ -352,12 +351,6 @@ public class Node implements Closeable {
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client,
                 listener::onNewInfo);
             final UsageService usageService = new UsageService(settings);
-
-
-            clusterService.getClusterSettings().addSettingsUpdateConsumer(HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT,
-                org.elasticsearch.common.util.concurrent.ThreadContext::setMaxWarningHeaderCount);
-            clusterService.getClusterSettings().addSettingsUpdateConsumer(HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE,
-                org.elasticsearch.common.util.concurrent.ThreadContext::setMaxWarningHeaderSize);
 
             ModulesBuilder modules = new ModulesBuilder();
             // plugin modules must be added here, before others or we can get crazy injection errors...

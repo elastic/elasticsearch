@@ -34,7 +34,6 @@ import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.saml.saml2.core.Response;
 import org.opensaml.saml.saml2.core.StatusCode;
 import org.opensaml.security.credential.Credential;
-import org.opensaml.security.x509.X509Credential;
 import org.opensaml.xmlsec.encryption.support.DecryptionException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -110,10 +109,12 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     private static final String IDP_ENTITY_ID = "https://idp.saml.elastic.test/";
     private static final String SP_ACS_URL = SP_ENTITY_ID + "sso/post";
 
-    private static Tuple<X509Certificate, PrivateKey> idpCertificatePair;
-    private static Tuple<X509Certificate, PrivateKey> spCertificatePair;
+    private static Tuple<X509Certificate, PrivateKey> idpSigningCertificatePair;
+    private static Tuple<X509Certificate, PrivateKey> spSigningCertificatePair;
+    private static Tuple<X509Certificate, PrivateKey> spEncryptionCertificatePair;
 
     private static List<Integer> supportedAesKeyLengths;
+    private static List<String> supportedAesTransformations;
 
     private ClockMock clock;
     private SamlAuthenticator authenticator;
@@ -130,9 +131,17 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     @BeforeClass
     public static void calculateAesLength() throws NoSuchAlgorithmException {
         supportedAesKeyLengths = new ArrayList<>();
+        supportedAesTransformations = new ArrayList<>();
         supportedAesKeyLengths.add(128);
-        if (Cipher.getMaxAllowedKeyLength("AES") >= 256) {
+        supportedAesTransformations.add(XMLCipher.AES_128);
+        supportedAesTransformations.add(XMLCipher.AES_128_GCM);
+        if (Cipher.getMaxAllowedKeyLength("AES") > 128) {
+            supportedAesKeyLengths.add(192);
             supportedAesKeyLengths.add(256);
+            supportedAesTransformations.add(XMLCipher.AES_192);
+            supportedAesTransformations.add(XMLCipher.AES_192_GCM);
+            supportedAesTransformations.add(XMLCipher.AES_256);
+            supportedAesTransformations.add(XMLCipher.AES_256_GCM);
         }
     }
 
@@ -141,22 +150,29 @@ public class SamlAuthenticatorTests extends SamlTestCase {
      */
     @BeforeClass
     public static void initCredentials() throws Exception {
-        idpCertificatePair = createKeyPair();
-        spCertificatePair = createKeyPair();
+        idpSigningCertificatePair = createKeyPair(randomSigningAlgorithm());
+        spSigningCertificatePair = createKeyPair(randomSigningAlgorithm());
+        spEncryptionCertificatePair = createKeyPair("RSA");
+    }
+
+    private static String randomSigningAlgorithm() {
+        return randomFrom("RSA", "DSA", "EC");
     }
 
     @AfterClass
     public static void cleanup() {
-        idpCertificatePair = null;
-        spCertificatePair = null;
+        idpSigningCertificatePair = null;
+        spSigningCertificatePair = null;
+        spEncryptionCertificatePair = null;
         supportedAesKeyLengths = null;
+        supportedAesTransformations = null;
     }
 
     @Before
     public void setupAuthenticator() throws Exception {
         this.clock = new ClockMock();
         this.maxSkew = TimeValue.timeValueMinutes(1);
-        this.authenticator = buildAuthenticator(() -> singletonList(buildOpenSamlCredential(idpCertificatePair)));
+        this.authenticator = buildAuthenticator(() -> singletonList(buildOpenSamlCredential(idpSigningCertificatePair)));
         this.requestId = randomId();
     }
 
@@ -165,9 +181,10 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final Settings realmSettings = Settings.EMPTY;
         final IdpConfiguration idp = new IdpConfiguration(IDP_ENTITY_ID, credentials);
 
-        final X509Credential spCredential = buildOpenSamlCredential(spCertificatePair);
-        final SigningConfiguration signingConfiguration = new SigningConfiguration(Collections.singleton("*"), spCredential);
-        final SpConfiguration sp = new SpConfiguration(SP_ENTITY_ID, SP_ACS_URL, null, signingConfiguration, spCredential);
+        final SigningConfiguration signingConfiguration =
+                new SigningConfiguration(Collections.singleton("*"), buildOpenSamlCredential(spSigningCertificatePair));
+        final SpConfiguration sp = new SpConfiguration(SP_ENTITY_ID, SP_ACS_URL, null, signingConfiguration,
+                buildOpenSamlCredential(spEncryptionCertificatePair));
         final Environment env = TestEnvironment.newEnvironment(globalSettings);
         return new SamlAuthenticator(
                 new RealmConfig("saml_test", realmSettings, globalSettings, env, new ThreadContext(globalSettings)),
@@ -276,7 +293,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final Instant now = clock.instant();
         final String xml = getSimpleResponse(now);
 
-        final String encrypted = encryptAssertions(xml, spCertificatePair);
+        final String encrypted = encryptAssertions(xml, spEncryptionCertificatePair);
         assertThat(encrypted, not(equalTo(xml)));
 
         final String signed = signDoc(encrypted);
@@ -306,13 +323,13 @@ public class SamlAuthenticatorTests extends SamlTestCase {
             // This is the most reliable way to get a valid signature
             final String str = SamlUtils.toString(element);
             final Element clone = parseDocument(str).getDocumentElement();
-            signElement(clone, idpCertificatePair);
+            signElement(clone, idpSigningCertificatePair);
             element.getOwnerDocument().adoptNode(clone);
             element.getParentNode().replaceChild(clone, element);
         });
 
         assertThat(signed, not(equalTo(xml)));
-        final String encrypted = encryptAssertions(signed, spCertificatePair);
+        final String encrypted = encryptAssertions(signed, spEncryptionCertificatePair);
         assertThat(encrypted, not(equalTo(signed)));
 
         final SamlToken token = token(encrypted);
@@ -331,10 +348,10 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final Instant now = clock.instant();
         final String xml = getSimpleResponse(now);
 
-        final String encrypted = encryptAttributes(xml, spCertificatePair);
+        final String encrypted = encryptAttributes(xml, spEncryptionCertificatePair);
         assertThat(encrypted, not(equalTo(xml)));
 
-        final String signed = signer.transform(encrypted, idpCertificatePair);
+        final String signed = signer.transform(encrypted, idpSigningCertificatePair);
         assertThat(signed, not(equalTo(encrypted)));
 
         final SamlToken token = token(signed);
@@ -352,8 +369,8 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final Instant now = clock.instant();
         final String xml = getSimpleResponse(now);
 
-        // Encrypting with idp cert instead of sp cert will mean that the SP cannot decrypt
-        final String encrypted = encryptAssertions(xml, idpCertificatePair);
+        // Encrypting with different cert instead of sp cert will mean that the SP cannot decrypt
+        final String encrypted = encryptAssertions(xml, createKeyPair("RSA"));
         assertThat(encrypted, not(equalTo(xml)));
 
         final String signed = signDoc(encrypted);
@@ -369,8 +386,8 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final Instant now = clock.instant();
         final String xml = getSimpleResponse(now);
 
-        // Encrypting with idp cert instead of sp cert will mean that the SP cannot decrypt
-        final String encrypted = encryptAttributes(xml, idpCertificatePair);
+        // Encrypting with different cert instead of sp cert will mean that the SP cannot decrypt
+        final String encrypted = encryptAttributes(xml, createKeyPair("RSA"));
         assertThat(encrypted, not(equalTo(xml)));
 
         final String signed = signDoc(encrypted);
@@ -913,10 +930,10 @@ public class SamlAuthenticatorTests extends SamlTestCase {
                 "</proto:Response>";
 
         // check that the content is valid when signed by the correct key-pair
-        assertThat(authenticator.authenticate(token(signer.transform(xml, idpCertificatePair))), notNullValue());
+        assertThat(authenticator.authenticate(token(signer.transform(xml, idpSigningCertificatePair))), notNullValue());
 
         // check is rejected when signed by a different key-pair
-        final Tuple<X509Certificate, PrivateKey> wrongKey = createKeyPair();
+        final Tuple<X509Certificate, PrivateKey> wrongKey = createKeyPair(randomSigningAlgorithm());
         final ElasticsearchSecurityException exception = expectThrows(ElasticsearchSecurityException.class,
                 () -> authenticator.authenticate(token(signer.transform(xml, wrongKey))));
         assertThat(exception.getMessage(), containsString("SAML Signature"));
@@ -929,12 +946,12 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final CryptoTransform signer = randomBoolean() ? this::signDoc : this::signAssertions;
         final String xml = getSimpleResponse(Instant.now());
 
-        assertThat(authenticator.authenticate(token(signer.transform(xml, idpCertificatePair))), notNullValue());
+        assertThat(authenticator.authenticate(token(signer.transform(xml, idpSigningCertificatePair))), notNullValue());
 
-        final Tuple<X509Certificate, PrivateKey> oldKeyPair = idpCertificatePair;
-        idpCertificatePair = createKeyPair();
-        assertThat(idpCertificatePair.v2(), not(equalTo(oldKeyPair.v2())));
-        assertThat(authenticator.authenticate(token(signer.transform(xml, idpCertificatePair))), notNullValue());
+        final Tuple<X509Certificate, PrivateKey> oldKeyPair = idpSigningCertificatePair;
+        idpSigningCertificatePair = createKeyPair(randomSigningAlgorithm());
+        assertThat(idpSigningCertificatePair.v2(), not(equalTo(oldKeyPair.v2())));
+        assertThat(authenticator.authenticate(token(signer.transform(xml, idpSigningCertificatePair))), notNullValue());
     }
 
     public void testParsingRejectsTamperedContent() throws Exception {
@@ -975,7 +992,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
                 "</proto:Response>";
 
         // check that the original signed content is valid
-        final String signed = signer.transform(xml, idpCertificatePair);
+        final String signed = signer.transform(xml, idpSigningCertificatePair);
         assertThat(authenticator.authenticate(token(signed)), notNullValue());
 
         // but altered content is rejected
@@ -992,7 +1009,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final List<Tuple<X509Certificate, PrivateKey>> keys = new ArrayList<>(numberOfKeys);
         final List<Credential> credentials = new ArrayList<>(numberOfKeys);
         for (int i = 0; i < numberOfKeys; i++) {
-            final Tuple<X509Certificate, PrivateKey> key = createKeyPair();
+            final Tuple<X509Certificate, PrivateKey> key = createKeyPair(randomSigningAlgorithm());
             keys.add(key);
             credentials.add(buildOpenSamlCredential(key));
         }
@@ -1048,11 +1065,11 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         assertThat(unsigned.isSigned(), equalTo(false));
         assertThat(unsigned.getAssertions().get(0).isSigned(), equalTo(false));
 
-        final Response signedDoc = toResponse(signDoc(xml, idpCertificatePair));
+        final Response signedDoc = toResponse(signDoc(xml, idpSigningCertificatePair));
         assertThat(signedDoc.isSigned(), equalTo(true));
         assertThat(signedDoc.getAssertions().get(0).isSigned(), equalTo(false));
 
-        final Response signedAssertions = toResponse(signAssertions(xml, idpCertificatePair));
+        final Response signedAssertions = toResponse(signAssertions(xml, idpSigningCertificatePair));
         assertThat(signedAssertions.isSigned(), equalTo(false));
         assertThat(signedAssertions.getAssertions().get(0).isSigned(), equalTo(true));
     }
@@ -1075,12 +1092,12 @@ public class SamlAuthenticatorTests extends SamlTestCase {
             }
         }
 
-        final Response encryptedAssertion = toResponse(encryptAssertions(xml, spCertificatePair));
+        final Response encryptedAssertion = toResponse(encryptAssertions(xml, spEncryptionCertificatePair));
         // Expect EncryptedAssertion
         assertThat(encryptedAssertion.getAssertions(), iterableWithSize(0));
         assertThat(encryptedAssertion.getEncryptedAssertions(), iterableWithSize(1));
 
-        final Response encryptedAttributes = toResponse(encryptAttributes(xml, spCertificatePair));
+        final Response encryptedAttributes = toResponse(encryptAttributes(xml, spEncryptionCertificatePair));
         // Expect Assertion > AttributeStatement (x2) > EncryptedAttribute
         assertThat(encryptedAttributes.getAssertions(), iterableWithSize(1));
         assertThat(encryptedAttributes.getEncryptedAssertions(), iterableWithSize(0));
@@ -1188,7 +1205,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     public void testSignatureWrappingAttackOne() throws Exception {
         final Instant now = clock.instant();
         final String xml = getSimpleResponse(now);
-        final Document legitimateDocument = parseDocument(signDoc(xml, idpCertificatePair));
+        final Document legitimateDocument = parseDocument(signDoc(xml, idpSigningCertificatePair));
         // First verify that the correct SAML Response can be consumed
         final SamlToken legitimateToken = token(SamlUtils.toString(legitimateDocument.getDocumentElement()));
         final SamlAttributes attributes = authenticator.authenticate(legitimateToken);
@@ -1224,7 +1241,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     public void testSignatureWrappingAttackTwo() throws Exception {
         final Instant now = clock.instant();
         final String xml = getSimpleResponse(now);
-        final Document legitimateDocument = parseDocument(signDoc(xml, idpCertificatePair));
+        final Document legitimateDocument = parseDocument(signDoc(xml, idpSigningCertificatePair));
         // First verify that the correct SAML Response can be consumed
         final SamlToken legitimateToken = token(SamlUtils.toString(legitimateDocument.getDocumentElement()));
         final SamlAttributes attributes = authenticator.authenticate(legitimateToken);
@@ -1262,7 +1279,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     public void testSignatureWrappingAttackThree() throws Exception {
         final Instant now = clock.instant();
         final String xml = getSimpleResponse(now);
-        final Document legitimateDocument = parseDocument(signAssertions(xml, idpCertificatePair));
+        final Document legitimateDocument = parseDocument(signAssertions(xml, idpSigningCertificatePair));
         // First verify that the correct SAML Response can be consumed
         final SamlToken legitimateToken = token(SamlUtils.toString(legitimateDocument.getDocumentElement()));
         final SamlAttributes attributes = authenticator.authenticate(legitimateToken);
@@ -1301,7 +1318,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     public void testSignatureWrappingAttackFour() throws Exception {
         final Instant now = clock.instant();
         final String xml = getSimpleResponse(now);
-        final Document legitimateDocument = parseDocument(signAssertions(xml, idpCertificatePair));
+        final Document legitimateDocument = parseDocument(signAssertions(xml, idpSigningCertificatePair));
         // First verify that the correct SAML Response can be consumed
         final SamlToken legitimateToken = token(SamlUtils.toString(legitimateDocument.getDocumentElement()));
         final SamlAttributes attributes = authenticator.authenticate(legitimateToken);
@@ -1339,7 +1356,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     public void testSignatureWrappingAttackFive() throws Exception {
         final Instant now = clock.instant();
         final String xml = getSimpleResponse(now);
-        final Document legitimateDocument = parseDocument(signAssertions(xml, idpCertificatePair));
+        final Document legitimateDocument = parseDocument(signAssertions(xml, idpSigningCertificatePair));
         // First verify that the correct SAML Response can be consumed
         final SamlToken legitimateToken = token(SamlUtils.toString(legitimateDocument.getDocumentElement()));
         final SamlAttributes attributes = authenticator.authenticate(legitimateToken);
@@ -1377,7 +1394,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     public void testSignatureWrappingAttackSix() throws Exception {
         final Instant now = clock.instant();
         final String xml = getSimpleResponse(now);
-        final Document legitimateDocument = parseDocument(signAssertions(xml, idpCertificatePair));
+        final Document legitimateDocument = parseDocument(signAssertions(xml, idpSigningCertificatePair));
         // First verify that the correct SAML Response can be consumed
         final SamlToken legitimateToken = token(SamlUtils.toString(legitimateDocument.getDocumentElement()));
         final SamlAttributes attributes = authenticator.authenticate(legitimateToken);
@@ -1421,7 +1438,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     public void testSignatureWrappingAttackSeven() throws Exception {
         final Instant now = clock.instant();
         final String xml = getSimpleResponse(now);
-        final Document legitimateDocument = parseDocument(signAssertions(xml, idpCertificatePair));
+        final Document legitimateDocument = parseDocument(signAssertions(xml, idpSigningCertificatePair));
         // First verify that the correct SAML Response can be consumed
         final SamlToken legitimateToken = token(SamlUtils.toString(legitimateDocument.getDocumentElement()));
         final SamlAttributes attributes = authenticator.authenticate(legitimateToken);
@@ -1460,7 +1477,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     public void testSignatureWrappingAttackEight() throws Exception {
         final Instant now = clock.instant();
         final String xml = getSimpleResponse(now);
-        final Document legitimateDocument = parseDocument(signAssertions(xml, idpCertificatePair));
+        final Document legitimateDocument = parseDocument(signAssertions(xml, idpSigningCertificatePair));
         // First verify that the correct SAML Response can be consumed
         final SamlToken legitimateToken = token(SamlUtils.toString(legitimateDocument.getDocumentElement()));
         final SamlAttributes attributes = authenticator.authenticate(legitimateToken);
@@ -1571,7 +1588,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         assertThat(exception.getMessage(), containsString("SAML Signature"));
         assertThat(exception.getMessage(), containsString("could not be validated"));
         //Restore the authenticator with credentials for the rest of the test cases
-        authenticator = buildAuthenticator(() -> singletonList(buildOpenSamlCredential(idpCertificatePair)));
+        authenticator = buildAuthenticator(() -> singletonList(buildOpenSamlCredential(idpSigningCertificatePair)));
     }
 
     public void testFailureWhenIdPCredentialsAreNull() throws Exception {
@@ -1583,7 +1600,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         assertThat(exception.getMessage(), containsString("SAML Signature"));
         assertThat(exception.getMessage(), containsString("could not be validated"));
         //Restore the authenticator with credentials for the rest of the test cases
-        authenticator = buildAuthenticator(() -> singletonList(buildOpenSamlCredential(idpCertificatePair)));
+        authenticator = buildAuthenticator(() -> singletonList(buildOpenSamlCredential(idpSigningCertificatePair)));
     }
 
     private interface CryptoTransform {
@@ -1591,7 +1608,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     }
 
     private String signDoc(String xml) throws Exception {
-        return signDoc(xml, EXCLUSIVE, SamlAuthenticatorTests.idpCertificatePair);
+        return signDoc(xml, EXCLUSIVE, SamlAuthenticatorTests.idpSigningCertificatePair);
     }
 
     private String signDoc(String xml, Tuple<X509Certificate, PrivateKey> keyPair) throws Exception {
@@ -1599,7 +1616,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     }
 
     private String signDoc(String xml, String c14nMethod) throws Exception {
-        return signDoc(xml, c14nMethod, SamlAuthenticatorTests.idpCertificatePair);
+        return signDoc(xml, c14nMethod, SamlAuthenticatorTests.idpSigningCertificatePair);
     }
 
     private String signDoc(String xml, String c14nMethod, Tuple<X509Certificate, PrivateKey> keyPair) throws Exception {
@@ -1661,6 +1678,35 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         signElement(parent, keyPair, EXCLUSIVE);
     }
 
+    /**
+     * Randomly selects digital signature algorithm URI for given private key
+     * algorithm ({@link PrivateKey#getAlgorithm()}).
+     *
+     * @param key
+     *            {@link PrivateKey}
+     * @return algorithm URI
+     */
+    private String getSignatureAlgorithmURI(PrivateKey key) {
+        String algoUri = null;
+        switch (key.getAlgorithm()) {
+        case "RSA":
+            algoUri = randomFrom("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
+                    "http://www.w3.org/2001/04/xmldsig-more#rsa-sha512");
+            break;
+        case "DSA":
+            algoUri = "http://www.w3.org/2009/xmldsig11#dsa-sha256";
+            break;
+        case "EC":
+            algoUri = randomFrom("http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha256",
+                    "http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha512");
+            break;
+        default:
+            throw new IllegalArgumentException("Unsupported algorithm : " + key.getAlgorithm()
+                    + " for signature, allowed values for private key algorithm are [RSA, DSA, EC]");
+        }
+        return algoUri;
+    }
+
     private void signElement(Element parent, Tuple<X509Certificate, PrivateKey> keyPair, String c14nMethod) throws Exception {
         //We need to explicitly set the Id attribute, "ID" is just our convention
         parent.setIdAttribute("ID", true);
@@ -1668,12 +1714,12 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final X509Certificate certificate = keyPair.v1();
         final PrivateKey privateKey = keyPair.v2();
         final XMLSignatureFactory fac = XMLSignatureFactory.getInstance("DOM");
-        final DigestMethod digestMethod = fac.newDigestMethod(DigestMethod.SHA256, null);
+        final DigestMethod digestMethod = fac.newDigestMethod(randomFrom(DigestMethod.SHA256, DigestMethod.SHA512), null);
         final Transform transform = fac.newTransform(ENVELOPED, (TransformParameterSpec) null);
         // We don't "have to" set the reference explicitly since we're using enveloped signatures, but it helps with
         // creating the XSW test cases
         final Reference reference = fac.newReference(refID, digestMethod, singletonList(transform), null, null);
-        final SignatureMethod signatureMethod = fac.newSignatureMethod("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256", null);
+        final SignatureMethod signatureMethod = fac.newSignatureMethod(getSignatureAlgorithmURI(privateKey), null);
         final CanonicalizationMethod canonicalizationMethod = fac.newCanonicalizationMethod(c14nMethod, (C14NMethodParameterSpec) null);
 
         final SignedInfo signedInfo = fac.newSignedInfo(canonicalizationMethod, signatureMethod, singletonList(reference));
@@ -1769,12 +1815,12 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final Key aesKey = aesGenerator.generateKey();
 
         // Encrypt the AES key with the public key of the recipient
-        final XMLCipher keyCipher = XMLCipher.getInstance(XMLCipher.RSA_OAEP);
+        final XMLCipher keyCipher = XMLCipher.getInstance(randomFrom(XMLCipher.RSA_OAEP, XMLCipher.RSA_OAEP_11));
         keyCipher.init(XMLCipher.WRAP_MODE, certificate.getPublicKey());
         final EncryptedKey encryptedKey = keyCipher.encryptKey(document, aesKey);
 
         // Encryption context for actual content
-        final XMLCipher xmlCipher = XMLCipher.getInstance(XMLCipher.AES_128);
+        final XMLCipher xmlCipher = XMLCipher.getInstance(randomFrom(supportedAesTransformations));
         xmlCipher.init(XMLCipher.ENCRYPT_MODE, aesKey);
 
         final String keyElementId = randomId();

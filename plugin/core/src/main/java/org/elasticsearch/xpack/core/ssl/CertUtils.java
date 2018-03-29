@@ -38,6 +38,7 @@ import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequestBuilder;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.InetAddressHelper;
@@ -417,33 +418,98 @@ public class CertUtils {
      */
     public static X509Certificate generateCACertificate(X500Principal x500Principal, KeyPair keyPair, int days)
             throws OperatorCreationException, CertificateException, CertIOException, NoSuchAlgorithmException {
-        return generateSignedCertificate(x500Principal, null, keyPair, null, null, true, days);
+        return generateSignedCertificate(x500Principal, null, keyPair, null, null, true, days, null);
     }
 
     /**
-     * Generates a signed certificate using the provided CA private key and information from the CA certificate
+     * Generates a signed certificate using the provided CA private key and
+     * information from the CA certificate
+     *
+     * @param principal
+     *            the principal of the certificate; commonly referred to as the
+     *            distinguished name (DN)
+     * @param subjectAltNames
+     *            the subject alternative names that should be added to the
+     *            certificate as an X509v3 extension. May be {@code null}
+     * @param keyPair
+     *            the key pair that will be associated with the certificate
+     * @param caCert
+     *            the CA certificate. If {@code null}, this results in a self signed
+     *            certificate
+     * @param caPrivKey
+     *            the CA private key. If {@code null}, this results in a self signed
+     *            certificate
+     * @param days
+     *            no of days certificate will be valid from now
+     * @return a signed {@link X509Certificate}
      */
     public static X509Certificate generateSignedCertificate(X500Principal principal, GeneralNames subjectAltNames, KeyPair keyPair,
                                                             X509Certificate caCert, PrivateKey caPrivKey, int days)
             throws OperatorCreationException, CertificateException, CertIOException, NoSuchAlgorithmException {
-        return generateSignedCertificate(principal, subjectAltNames, keyPair, caCert, caPrivKey, false, days);
+        return generateSignedCertificate(principal, subjectAltNames, keyPair, caCert, caPrivKey, false, days, null);
+    }
+
+    /**
+     * Generates a signed certificate using the provided CA private key and
+     * information from the CA certificate
+     *
+     * @param principal
+     *            the principal of the certificate; commonly referred to as the
+     *            distinguished name (DN)
+     * @param subjectAltNames
+     *            the subject alternative names that should be added to the
+     *            certificate as an X509v3 extension. May be {@code null}
+     * @param keyPair
+     *            the key pair that will be associated with the certificate
+     * @param caCert
+     *            the CA certificate. If {@code null}, this results in a self signed
+     *            certificate
+     * @param caPrivKey
+     *            the CA private key. If {@code null}, this results in a self signed
+     *            certificate
+     * @param days
+     *            no of days certificate will be valid from now
+     * @param signatureAlgorithm
+     *            algorithm used for signing certificate. If {@code null} or
+     *            empty, then use default algorithm {@link CertUtils#getDefaultSignatureAlgorithm(PrivateKey)}
+     * @return a signed {@link X509Certificate}
+     */
+    public static X509Certificate generateSignedCertificate(X500Principal principal, GeneralNames subjectAltNames, KeyPair keyPair,
+            X509Certificate caCert, PrivateKey caPrivKey, int days, String signatureAlgorithm)
+            throws OperatorCreationException, CertificateException, CertIOException, NoSuchAlgorithmException {
+        return generateSignedCertificate(principal, subjectAltNames, keyPair, caCert, caPrivKey, false, days, signatureAlgorithm);
     }
 
     /**
      * Generates a signed certificate
      *
-     * @param principal       the principal of the certificate; commonly referred to as the distinguished name (DN)
-     * @param subjectAltNames the subject alternative names that should be added to the certificate as an X509v3 extension. May be
-     *                        {@code null}
-     * @param keyPair         the key pair that will be associated with the certificate
-     * @param caCert          the CA certificate. If {@code null}, this results in a self signed certificate
-     * @param caPrivKey       the CA private key. If {@code null}, this results in a self signed certificate
-     * @param isCa            whether or not the generated certificate is a CA
+     * @param principal
+     *            the principal of the certificate; commonly referred to as the
+     *            distinguished name (DN)
+     * @param subjectAltNames
+     *            the subject alternative names that should be added to the
+     *            certificate as an X509v3 extension. May be {@code null}
+     * @param keyPair
+     *            the key pair that will be associated with the certificate
+     * @param caCert
+     *            the CA certificate. If {@code null}, this results in a self signed
+     *            certificate
+     * @param caPrivKey
+     *            the CA private key. If {@code null}, this results in a self signed
+     *            certificate
+     * @param isCa
+     *            whether or not the generated certificate is a CA
+     * @param days
+     *            no of days certificate will be valid from now
+     * @param signatureAlgorithm
+     *            algorithm used for signing certificate. If {@code null} or
+     *            empty, then use default algorithm {@link CertUtils#getDefaultSignatureAlgorithm(PrivateKey)}
      * @return a signed {@link X509Certificate}
      */
     private static X509Certificate generateSignedCertificate(X500Principal principal, GeneralNames subjectAltNames, KeyPair keyPair,
-                                                             X509Certificate caCert, PrivateKey caPrivKey, boolean isCa, int days)
+            X509Certificate caCert, PrivateKey caPrivKey, boolean isCa, int days, String signatureAlgorithm)
             throws NoSuchAlgorithmException, CertificateException, CertIOException, OperatorCreationException {
+        Objects.requireNonNull(keyPair, "Key-Pair must not be null");
         final DateTime notBefore = new DateTime(DateTimeZone.UTC);
         if (days < 1) {
             throw new IllegalArgumentException("the certificate must be valid for at least one day");
@@ -478,9 +544,38 @@ public class CertUtils {
         builder.addExtension(Extension.basicConstraints, isCa, new BasicConstraints(isCa));
 
         PrivateKey signingKey = caPrivKey != null ? caPrivKey : keyPair.getPrivate();
-        ContentSigner signer = new JcaContentSignerBuilder("SHA256withRSA").build(signingKey);
+        ContentSigner signer = new JcaContentSignerBuilder(
+                (Strings.isNullOrEmpty(signatureAlgorithm)) ? getDefaultSignatureAlgorithm(signingKey) : signatureAlgorithm)
+                        .setProvider(CertUtils.BC_PROV).build(signingKey);
         X509CertificateHolder certificateHolder = builder.build(signer);
         return new JcaX509CertificateConverter().getCertificate(certificateHolder);
+    }
+
+    /**
+     * Based on the private key algorithm {@link PrivateKey#getAlgorithm()}
+     * determines default signing algorithm used by CertUtils
+     *
+     * @param key
+     *            {@link PrivateKey}
+     * @return algorithm
+     */
+    private static String getDefaultSignatureAlgorithm(PrivateKey key) {
+        String signatureAlgorithm = null;
+        switch (key.getAlgorithm()) {
+            case "RSA":
+                signatureAlgorithm = "SHA256withRSA";
+                break;
+            case "DSA":
+                signatureAlgorithm = "SHA256withDSA";
+                break;
+            case "EC":
+                signatureAlgorithm = "SHA256withECDSA";
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported algorithm : " + key.getAlgorithm()
+                        + " for signature, allowed values for private key algorithm are [RSA, DSA, EC]");
+        }
+        return signatureAlgorithm;
     }
 
     /**

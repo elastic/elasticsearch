@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.job.config.Connective;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
@@ -47,7 +48,7 @@ public class ScheduledEventTests extends AbstractSerializingTestCase<ScheduledEv
 
     @Override
     protected ScheduledEvent doParseInstance(XContentParser parser) throws IOException {
-        return ScheduledEvent.PARSER.apply(parser, null).build();
+        return ScheduledEvent.STRICT_PARSER.apply(parser, null).build();
     }
 
     public void testToDetectionRule() {
@@ -106,5 +107,22 @@ public class ScheduledEventTests extends AbstractSerializingTestCase<ScheduledEv
 
         e = expectThrows(ElasticsearchStatusException.class, builder::build);
         assertThat(e.getMessage(), containsString("must come before end time"));
+    }
+
+    public void testStrictParser() throws IOException {
+        String json = "{\"foo\":\"bar\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                    () -> ScheduledEvent.STRICT_PARSER.apply(parser, null));
+
+            assertThat(e.getMessage(), containsString("unknown field [foo]"));
+        }
+    }
+
+    public void testLenientParser() throws IOException {
+        String json = "{\"foo\":\"bar\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            ScheduledEvent.LENIENT_PARSER.apply(parser, null);
+        }
     }
 }

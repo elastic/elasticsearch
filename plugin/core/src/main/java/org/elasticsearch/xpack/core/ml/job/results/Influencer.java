@@ -34,7 +34,6 @@ public class Influencer implements ToXContentObject, Writeable {
      * ThrottlerField names
      */
     public static final ParseField PROBABILITY = new ParseField("probability");
-    public static final ParseField SEQUENCE_NUM = new ParseField("sequence_num");
     public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
     public static final ParseField INFLUENCER_FIELD_NAME = new ParseField("influencer_field_name");
     public static final ParseField INFLUENCER_FIELD_VALUE = new ParseField("influencer_field_value");
@@ -44,15 +43,16 @@ public class Influencer implements ToXContentObject, Writeable {
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("influencers");
 
-    public static final ConstructingObjectParser<Influencer, Void> PARSER = new ConstructingObjectParser<>(
-            RESULT_TYPE_FIELD.getPreferredName(), true, a -> new Influencer((String) a[0], (String) a[1], (String) a[2],
-            (Date) a[3], (long) a[4]));
+    // Influencers contain data fields, thus we always parse them leniently
+    public static final ConstructingObjectParser<Influencer, Void> LENIENT_PARSER = new ConstructingObjectParser<>(
+            RESULT_TYPE_FIELD.getPreferredName(), true,
+            a -> new Influencer((String) a[0], (String) a[1], (String) a[2], (Date) a[3], (long) a[4]));
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), INFLUENCER_FIELD_NAME);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), INFLUENCER_FIELD_VALUE);
-        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
+        LENIENT_PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
+        LENIENT_PARSER.declareString(ConstructingObjectParser.constructorArg(), INFLUENCER_FIELD_NAME);
+        LENIENT_PARSER.declareString(ConstructingObjectParser.constructorArg(), INFLUENCER_FIELD_VALUE);
+        LENIENT_PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
             if (p.currentToken() == Token.VALUE_NUMBER) {
                 return new Date(p.longValue());
             } else if (p.currentToken() == Token.VALUE_STRING) {
@@ -61,14 +61,12 @@ public class Influencer implements ToXContentObject, Writeable {
             throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for ["
                     + Result.TIMESTAMP.getPreferredName() + "]");
         }, Result.TIMESTAMP, ValueType.VALUE);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
-        PARSER.declareString((influencer, s) -> {}, Result.RESULT_TYPE);
-        PARSER.declareDouble(Influencer::setProbability, PROBABILITY);
-        PARSER.declareDouble(Influencer::setInfluencerScore, INFLUENCER_SCORE);
-        PARSER.declareDouble(Influencer::setInitialInfluencerScore, INITIAL_INFLUENCER_SCORE);
-        PARSER.declareBoolean(Influencer::setInterim, Result.IS_INTERIM);
-        // For bwc with 5.4
-        PARSER.declareInt((influencer, sequenceNum) -> {}, SEQUENCE_NUM);
+        LENIENT_PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
+        LENIENT_PARSER.declareString((influencer, s) -> {}, Result.RESULT_TYPE);
+        LENIENT_PARSER.declareDouble(Influencer::setProbability, PROBABILITY);
+        LENIENT_PARSER.declareDouble(Influencer::setInfluencerScore, INFLUENCER_SCORE);
+        LENIENT_PARSER.declareDouble(Influencer::setInitialInfluencerScore, INITIAL_INFLUENCER_SCORE);
+        LENIENT_PARSER.declareBoolean(Influencer::setInterim, Result.IS_INTERIM);
     }
 
     private final String jobId;

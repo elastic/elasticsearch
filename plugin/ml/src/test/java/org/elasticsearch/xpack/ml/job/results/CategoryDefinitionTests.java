@@ -7,10 +7,14 @@ package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 
+import java.io.IOException;
 import java.util.Arrays;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class CategoryDefinitionTests extends AbstractSerializingTestCase<CategoryDefinition> {
 
@@ -36,7 +40,7 @@ public class CategoryDefinitionTests extends AbstractSerializingTestCase<Categor
 
     @Override
     protected CategoryDefinition doParseInstance(XContentParser parser) {
-        return CategoryDefinition.PARSER.apply(parser, null);
+        return CategoryDefinition.STRICT_PARSER.apply(parser, null);
     }
 
     public void testEquals_GivenSameObject() {
@@ -120,5 +124,22 @@ public class CategoryDefinitionTests extends AbstractSerializingTestCase<Categor
         category.addExample("foo");
         category.addExample("bar");
         return category;
+    }
+
+    public void testStrictParser() throws IOException {
+        String json = "{\"job_id\":\"job_1\", \"foo\":\"bar\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                    () -> CategoryDefinition.STRICT_PARSER.apply(parser, null));
+
+            assertThat(e.getMessage(), containsString("unknown field [foo]"));
+        }
+    }
+
+    public void testLenientParser() throws IOException {
+        String json = "{\"job_id\":\"job_1\", \"foo\":\"bar\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            CategoryDefinition.LENIENT_PARSER.apply(parser, null);
+        }
     }
 }

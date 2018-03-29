@@ -39,20 +39,21 @@ public class BucketInfluencer implements ToXContentObject, Writeable {
     public static final ParseField RAW_ANOMALY_SCORE = new ParseField("raw_anomaly_score");
     public static final ParseField PROBABILITY = new ParseField("probability");
     public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
-    public static final ParseField SEQUENCE_NUM = new ParseField("sequence_num");
 
     /**
      * The influencer field name used for time influencers
      */
     public static final String BUCKET_TIME = "bucket_time";
 
-    public static final ConstructingObjectParser<BucketInfluencer, Void> PARSER =
-            new ConstructingObjectParser<>(RESULT_TYPE_FIELD.getPreferredName(), a -> new BucketInfluencer((String) a[0],
-                    (Date) a[1], (long) a[2]));
+    public static final ConstructingObjectParser<BucketInfluencer, Void> STRICT_PARSER = createParser(false);
+    public static final ConstructingObjectParser<BucketInfluencer, Void> LENIENT_PARSER = createParser(true);
 
-    static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
-        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
+    private static ConstructingObjectParser<BucketInfluencer, Void> createParser(boolean ignoreUnknownFields) {
+        ConstructingObjectParser<BucketInfluencer, Void> parser = new ConstructingObjectParser<>(RESULT_TYPE_FIELD.getPreferredName(),
+                ignoreUnknownFields, a -> new BucketInfluencer((String) a[0], (Date) a[1], (long) a[2]));
+
+        parser.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
+        parser.declareField(ConstructingObjectParser.constructorArg(), p -> {
             if (p.currentToken() == Token.VALUE_NUMBER) {
                 return new Date(p.longValue());
             } else if (p.currentToken() == Token.VALUE_STRING) {
@@ -61,16 +62,16 @@ public class BucketInfluencer implements ToXContentObject, Writeable {
             throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for ["
                     + Result.TIMESTAMP.getPreferredName() + "]");
         }, Result.TIMESTAMP, ValueType.VALUE);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
-        PARSER.declareString((bucketInfluencer, s) -> {}, Result.RESULT_TYPE);
-        PARSER.declareString(BucketInfluencer::setInfluencerFieldName, INFLUENCER_FIELD_NAME);
-        PARSER.declareDouble(BucketInfluencer::setInitialAnomalyScore, INITIAL_ANOMALY_SCORE);
-        PARSER.declareDouble(BucketInfluencer::setAnomalyScore, ANOMALY_SCORE);
-        PARSER.declareDouble(BucketInfluencer::setRawAnomalyScore, RAW_ANOMALY_SCORE);
-        PARSER.declareDouble(BucketInfluencer::setProbability, PROBABILITY);
-        PARSER.declareBoolean(BucketInfluencer::setIsInterim, Result.IS_INTERIM);
-        // For bwc with 5.4
-        PARSER.declareInt((bucketInfluencer, sequenceNum) -> {}, SEQUENCE_NUM);
+        parser.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
+        parser.declareString((bucketInfluencer, s) -> {}, Result.RESULT_TYPE);
+        parser.declareString(BucketInfluencer::setInfluencerFieldName, INFLUENCER_FIELD_NAME);
+        parser.declareDouble(BucketInfluencer::setInitialAnomalyScore, INITIAL_ANOMALY_SCORE);
+        parser.declareDouble(BucketInfluencer::setAnomalyScore, ANOMALY_SCORE);
+        parser.declareDouble(BucketInfluencer::setRawAnomalyScore, RAW_ANOMALY_SCORE);
+        parser.declareDouble(BucketInfluencer::setProbability, PROBABILITY);
+        parser.declareBoolean(BucketInfluencer::setIsInterim, Result.IS_INTERIM);
+
+        return parser;
     }
 
     private final String jobId;

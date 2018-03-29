@@ -8,9 +8,13 @@ package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
+import java.io.IOException;
 import java.util.Date;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class QuantilesTests extends AbstractSerializingTestCase<Quantiles> {
 
@@ -78,6 +82,23 @@ public class QuantilesTests extends AbstractSerializingTestCase<Quantiles> {
 
     @Override
     protected Quantiles doParseInstance(XContentParser parser) {
-        return Quantiles.PARSER.apply(parser, null);
+        return Quantiles.STRICT_PARSER.apply(parser, null);
+    }
+
+    public void testStrictParser() throws IOException {
+        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123456789, \"quantile_state\":\"...\", \"foo\":\"bar\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                    () -> Quantiles.STRICT_PARSER.apply(parser, null));
+
+            assertThat(e.getMessage(), containsString("unknown field [foo]"));
+        }
+    }
+
+    public void testLenientParser() throws IOException {
+        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123456789, \"quantile_state\":\"...\", \"foo\":\"bar\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            Quantiles.LENIENT_PARSER.apply(parser, null);
+        }
     }
 }

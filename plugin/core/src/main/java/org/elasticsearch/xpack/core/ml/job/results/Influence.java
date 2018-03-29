@@ -30,15 +30,18 @@ public class Influence implements ToXContentObject, Writeable {
     public static final ParseField INFLUENCER_FIELD_NAME = new ParseField("influencer_field_name");
     public static final ParseField INFLUENCER_FIELD_VALUES = new ParseField("influencer_field_values");
 
-    @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<Influence, Void> PARSER = new ConstructingObjectParser<>(
-            INFLUENCER.getPreferredName(), a -> new Influence((String) a[0], (List<String>) a[1]));
+    public static final ConstructingObjectParser<Influence, Void> STRICT_PARSER = createParser(false);
+    public static final ConstructingObjectParser<Influence, Void> LENIENT_PARSER = createParser(true);
 
-    static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), INFLUENCER_FIELD_NAME);
-        PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), INFLUENCER_FIELD_VALUES);
+    private static ConstructingObjectParser<Influence, Void> createParser(boolean ignoreUnknownFields) {
+        ConstructingObjectParser<Influence, Void> parser = new ConstructingObjectParser<>(INFLUENCER.getPreferredName(),
+                ignoreUnknownFields, a -> new Influence((String) a[0], (List<String>) a[1]));
+
+        parser.declareString(ConstructingObjectParser.constructorArg(), INFLUENCER_FIELD_NAME);
+        parser.declareStringArray(ConstructingObjectParser.constructorArg(), INFLUENCER_FIELD_VALUES);
+
+        return parser;
     }
-
     private String field;
     private List<String> fieldValues;
 

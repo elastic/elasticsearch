@@ -82,8 +82,6 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
-import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder.InfluencersQuery;
-import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
@@ -100,6 +98,8 @@ import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlIndicesUtils;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder.InfluencersQuery;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -459,15 +459,15 @@ public class JobProvider {
         if (DataCounts.documentId(jobId).equals(hitId)) {
             paramsBuilder.setDataCounts(parseSearchHit(hit, DataCounts.PARSER, errorHandler));
         } else if (hitId.startsWith(ModelSizeStats.documentIdPrefix(jobId))) {
-            ModelSizeStats.Builder modelSizeStats = parseSearchHit(hit, ModelSizeStats.PARSER, errorHandler);
+            ModelSizeStats.Builder modelSizeStats = parseSearchHit(hit, ModelSizeStats.LENIENT_PARSER, errorHandler);
             paramsBuilder.setModelSizeStats(modelSizeStats == null ? null : modelSizeStats.build());
         } else if (hitId.startsWith(ModelSnapshot.documentIdPrefix(jobId))) {
-            ModelSnapshot.Builder modelSnapshot = parseSearchHit(hit, ModelSnapshot.PARSER, errorHandler);
+            ModelSnapshot.Builder modelSnapshot = parseSearchHit(hit, ModelSnapshot.LENIENT_PARSER, errorHandler);
             paramsBuilder.setModelSnapshot(modelSnapshot == null ? null : modelSnapshot.build());
         } else if (Quantiles.documentId(jobId).equals(hit.getId())) {
-            paramsBuilder.setQuantiles(parseSearchHit(hit, Quantiles.PARSER, errorHandler));
+            paramsBuilder.setQuantiles(parseSearchHit(hit, Quantiles.LENIENT_PARSER, errorHandler));
         } else if (hitId.startsWith(MlFilter.DOCUMENT_ID_PREFIX)) {
-            paramsBuilder.addFilter(parseSearchHit(hit, MlFilter.PARSER, errorHandler).build());
+            paramsBuilder.addFilter(parseSearchHit(hit, MlFilter.LENIENT_PARSER, errorHandler).build());
         } else {
             errorHandler.accept(new IllegalStateException("Unexpected Id [" + hitId + "]"));
         }
@@ -530,7 +530,7 @@ public class JobProvider {
                         try (InputStream stream = source.streamInput();
                              XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(source))
                                      .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
-                            Bucket bucket = Bucket.PARSER.apply(parser, null);
+                            Bucket bucket = Bucket.LENIENT_PARSER.apply(parser, null);
                             results.add(bucket);
                         } catch (IOException e) {
                             throw new ElasticsearchParseException("failed to parse bucket", e);
@@ -662,7 +662,7 @@ public class JobProvider {
                         try (InputStream stream = source.streamInput();
                              XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(source))
                                      .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
-                            CategoryDefinition categoryDefinition = CategoryDefinition.PARSER.apply(parser, null);
+                            CategoryDefinition categoryDefinition = CategoryDefinition.LENIENT_PARSER.apply(parser, null);
                             results.add(categoryDefinition);
                         } catch (IOException e) {
                             throw new ElasticsearchParseException("failed to parse category definition", e);
@@ -697,7 +697,7 @@ public class JobProvider {
                         try (InputStream stream = source.streamInput();
                              XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(source))
                                      .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
-                            results.add(AnomalyRecord.PARSER.apply(parser, null));
+                            results.add(AnomalyRecord.LENIENT_PARSER.apply(parser, null));
                         } catch (IOException e) {
                             throw new ElasticsearchParseException("failed to parse records", e);
                         }
@@ -746,7 +746,7 @@ public class JobProvider {
                         try (InputStream stream = source.streamInput();
                              XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(source))
                                      .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
-                            influencers.add(Influencer.PARSER.apply(parser, null));
+                            influencers.add(Influencer.LENIENT_PARSER.apply(parser, null));
                         } catch (IOException e) {
                             throw new ElasticsearchParseException("failed to parse influencer", e);
                         }
@@ -779,7 +779,7 @@ public class JobProvider {
         }
         String resultsIndex = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         SearchRequestBuilder search = createDocIdSearch(resultsIndex, ModelSnapshot.documentId(jobId, modelSnapshotId));
-        searchSingleResult(jobId, ModelSnapshot.TYPE.getPreferredName(), search, ModelSnapshot.PARSER,
+        searchSingleResult(jobId, ModelSnapshot.TYPE.getPreferredName(), search, ModelSnapshot.LENIENT_PARSER,
                 result -> handler.accept(result.result == null ? null : new Result<ModelSnapshot>(result.index, result.result.build())),
                 errorHandler, () -> null);
     }
@@ -891,7 +891,7 @@ public class JobProvider {
             try (InputStream stream = source.streamInput();
                  XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(source))
                          .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
-                ModelPlot modelPlot = ModelPlot.PARSER.apply(parser, null);
+                ModelPlot modelPlot = ModelPlot.LENIENT_PARSER.apply(parser, null);
                 results.add(modelPlot);
             } catch (IOException e) {
                 throw new ElasticsearchParseException("failed to parse modelPlot", e);
@@ -909,7 +909,7 @@ public class JobProvider {
 
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         searchSingleResult(jobId, ModelSizeStats.RESULT_TYPE_VALUE, createLatestModelSizeStatsSearch(indexName),
-                ModelSizeStats.PARSER,
+                ModelSizeStats.LENIENT_PARSER,
                 result -> handler.accept(result.result.build()), errorHandler,
                 () -> new ModelSizeStats.Builder(jobId));
     }
@@ -1076,7 +1076,7 @@ public class JobProvider {
                             List<ScheduledEvent> events = new ArrayList<>();
                             SearchHit[] hits = response.getHits().getHits();
                             for (SearchHit hit : hits) {
-                                ScheduledEvent.Builder event = parseSearchHit(hit, ScheduledEvent.PARSER, handler::onFailure);
+                                ScheduledEvent.Builder event = parseSearchHit(hit, ScheduledEvent.LENIENT_PARSER, handler::onFailure);
                                 event.eventId(hit.getId());
                                 events.add(event.build());
                             }
@@ -1094,7 +1094,7 @@ public class JobProvider {
         GetRequest getRequest = new GetRequest(indexName, ElasticsearchMappings.DOC_TYPE,
                 ForecastRequestStats.documentId(jobId, forecastId));
 
-        getResult(jobId, ForecastRequestStats.RESULTS_FIELD.getPreferredName(), getRequest, ForecastRequestStats.PARSER,
+        getResult(jobId, ForecastRequestStats.RESULTS_FIELD.getPreferredName(), getRequest, ForecastRequestStats.LENIENT_PARSER,
                 result -> handler.accept(result.result), errorHandler, () -> null);
     }
 
@@ -1159,7 +1159,7 @@ public class JobProvider {
                             List<Calendar> calendars = new ArrayList<>();
                             SearchHit[] hits = response.getHits().getHits();
                             for (SearchHit hit : hits) {
-                                calendars.add(parseSearchHit(hit, Calendar.PARSER, listener::onFailure).build());
+                                calendars.add(parseSearchHit(hit, Calendar.LENIENT_PARSER, listener::onFailure).build());
                             }
 
                             listener.onResponse(new QueryPage<Calendar>(calendars, response.getHits().getTotalHits(),
@@ -1228,7 +1228,7 @@ public class JobProvider {
                                      XContentFactory.xContent(XContentHelper.xContentType(docSource))
                                              .createParser(NamedXContentRegistry.EMPTY,
                                                      LoggingDeprecationHandler.INSTANCE, stream)) {
-                            Calendar calendar = Calendar.PARSER.apply(parser, null).build();
+                            Calendar calendar = Calendar.LENIENT_PARSER.apply(parser, null).build();
                             listener.onResponse(calendar);
                         }
                     } else {

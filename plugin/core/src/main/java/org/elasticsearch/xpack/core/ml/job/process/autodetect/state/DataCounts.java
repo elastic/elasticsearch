@@ -73,10 +73,10 @@ public class DataCounts implements ToXContentObject, Writeable {
 
     public static final ParseField TYPE = new ParseField("data_counts");
 
-    public static final ConstructingObjectParser<DataCounts, Void> PARSER =
-            new ConstructingObjectParser<>("data_counts", a -> new DataCounts((String) a[0], (long) a[1], (long) a[2], (long) a[3],
-                    (long) a[4], (long) a[5], (long) a[6], (long) a[7], (long) a[8], (long) a[9], (long) a[10],
-                    (Date) a[11], (Date) a[12], (Date) a[13], (Date) a[14], (Date) a[15]));
+    public static final ConstructingObjectParser<DataCounts, Void> PARSER = new ConstructingObjectParser<>("data_counts", true,
+            a -> new DataCounts((String) a[0], (long) a[1], (long) a[2], (long) a[3], (long) a[4], (long) a[5], (long) a[6],
+                    (long) a[7], (long) a[8], (long) a[9], (long) a[10], (Date) a[11], (Date) a[12], (Date) a[13], (Date) a[14],
+                    (Date) a[15]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
@@ -123,7 +123,7 @@ public class DataCounts implements ToXContentObject, Writeable {
             } else if (p.currentToken() == Token.VALUE_STRING) {
                 return new Date(TimeUtils.dateStringToEpoch(p.text()));
             }
-            throw new IllegalArgumentException(        
+            throw new IllegalArgumentException(
                     "unexpected token [" + p.currentToken() + "] for [" + LATEST_EMPTY_BUCKET_TIME.getPreferredName() + "]");
         }, LATEST_EMPTY_BUCKET_TIME, ValueType.VALUE);
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {

@@ -7,12 +7,16 @@ package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MlFilterTests extends AbstractSerializingTestCase<MlFilter> {
@@ -38,7 +42,7 @@ public class MlFilterTests extends AbstractSerializingTestCase<MlFilter> {
 
     @Override
     protected MlFilter doParseInstance(XContentParser parser) {
-        return MlFilter.PARSER.apply(parser, null).build();
+        return MlFilter.STRICT_PARSER.apply(parser, null).build();
     }
 
     public void testNullId() {
@@ -54,5 +58,22 @@ public class MlFilterTests extends AbstractSerializingTestCase<MlFilter> {
 
     public void testDocumentId() {
         assertThat(MlFilter.documentId("foo"), equalTo("filter_foo"));
+    }
+
+    public void testStrictParser() throws IOException {
+        String json = "{\"filter_id\":\"filter_1\", \"items\": [], \"foo\":\"bar\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                    () -> MlFilter.STRICT_PARSER.apply(parser, null));
+
+            assertThat(e.getMessage(), containsString("unknown field [foo]"));
+        }
+    }
+
+    public void testLenientParser() throws IOException {
+        String json = "{\"filter_id\":\"filter_1\", \"items\": [], \"foo\":\"bar\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            MlFilter.LENIENT_PARSER.apply(parser, null);
+        }
     }
 }

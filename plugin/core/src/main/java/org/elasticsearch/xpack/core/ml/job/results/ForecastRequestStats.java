@@ -47,30 +47,35 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
     public static final ParseField STATUS = new ParseField("forecast_status");
     public static final ParseField MEMORY_USAGE = new ParseField("forecast_memory_bytes");
 
-    public static final ConstructingObjectParser<ForecastRequestStats, Void> PARSER =
-            new ConstructingObjectParser<>(RESULT_TYPE_VALUE, a -> new ForecastRequestStats((String) a[0], (String) a[1]));
+    public static final ConstructingObjectParser<ForecastRequestStats, Void> STRICT_PARSER = createParser(false);
+    public static final ConstructingObjectParser<ForecastRequestStats, Void> LENIENT_PARSER = createParser(true);
 
-    static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), FORECAST_ID);
+    private static ConstructingObjectParser<ForecastRequestStats, Void> createParser(boolean ignoreUnknownFields) {
+        ConstructingObjectParser<ForecastRequestStats, Void> parser = new ConstructingObjectParser<>(RESULT_TYPE_VALUE, ignoreUnknownFields,
+                a -> new ForecastRequestStats((String) a[0], (String) a[1]));
 
-        PARSER.declareString((modelForecastRequestStats, s) -> {}, Result.RESULT_TYPE);
-        PARSER.declareLong(ForecastRequestStats::setRecordCount, PROCESSED_RECORD_COUNT);
-        PARSER.declareStringArray(ForecastRequestStats::setMessages, MESSAGES);
-        PARSER.declareField(ForecastRequestStats::setTimeStamp,
+        parser.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
+        parser.declareString(ConstructingObjectParser.constructorArg(), FORECAST_ID);
+
+        parser.declareString((modelForecastRequestStats, s) -> {}, Result.RESULT_TYPE);
+        parser.declareLong(ForecastRequestStats::setRecordCount, PROCESSED_RECORD_COUNT);
+        parser.declareStringArray(ForecastRequestStats::setMessages, MESSAGES);
+        parser.declareField(ForecastRequestStats::setTimeStamp,
                 p -> Instant.ofEpochMilli(p.longValue()), Result.TIMESTAMP, ValueType.LONG);
-        PARSER.declareField(ForecastRequestStats::setStartTime,
+        parser.declareField(ForecastRequestStats::setStartTime,
                 p -> Instant.ofEpochMilli(p.longValue()), START_TIME, ValueType.LONG);
-        PARSER.declareField(ForecastRequestStats::setEndTime,
+        parser.declareField(ForecastRequestStats::setEndTime,
                 p -> Instant.ofEpochMilli(p.longValue()), END_TIME, ValueType.LONG);
-        PARSER.declareField(ForecastRequestStats::setCreateTime,
+        parser.declareField(ForecastRequestStats::setCreateTime,
                 p -> Instant.ofEpochMilli(p.longValue()), CREATE_TIME, ValueType.LONG);
-        PARSER.declareField(ForecastRequestStats::setExpiryTime,
+        parser.declareField(ForecastRequestStats::setExpiryTime,
                 p -> Instant.ofEpochMilli(p.longValue()), EXPIRY_TIME, ValueType.LONG);
-        PARSER.declareDouble(ForecastRequestStats::setProgress, PROGRESS);
-        PARSER.declareLong(ForecastRequestStats::setProcessingTime, PROCESSING_TIME_MS);
-        PARSER.declareField(ForecastRequestStats::setStatus, p -> ForecastRequestStatus.fromString(p.text()), STATUS, ValueType.STRING);
-        PARSER.declareLong(ForecastRequestStats::setMemoryUsage, MEMORY_USAGE);
+        parser.declareDouble(ForecastRequestStats::setProgress, PROGRESS);
+        parser.declareLong(ForecastRequestStats::setProcessingTime, PROCESSING_TIME_MS);
+        parser.declareField(ForecastRequestStats::setStatus, p -> ForecastRequestStatus.fromString(p.text()), STATUS, ValueType.STRING);
+        parser.declareLong(ForecastRequestStats::setMemoryUsage, MEMORY_USAGE);
+
+        return parser;
     }
 
     public enum ForecastRequestStatus implements Writeable {

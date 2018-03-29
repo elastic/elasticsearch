@@ -8,11 +8,14 @@ package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats.MemoryStatus;
 
+import java.io.IOException;
 import java.util.Date;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class ModelSizeStatsTests extends AbstractSerializingTestCase<ModelSizeStats> {
 
@@ -83,11 +86,28 @@ public class ModelSizeStatsTests extends AbstractSerializingTestCase<ModelSizeSt
 
     @Override
     protected ModelSizeStats doParseInstance(XContentParser parser) {
-        return ModelSizeStats.PARSER.apply(parser, null).build();
+        return ModelSizeStats.STRICT_PARSER.apply(parser, null).build();
     }
 
     public void testId() {
         ModelSizeStats stats = new ModelSizeStats.Builder("job-foo").setLogTime(new Date(100)).build();
         assertEquals("job-foo_model_size_stats_100", stats.getId());
+    }
+
+    public void testStrictParser() throws IOException {
+        String json = "{\"job_id\":\"job_1\", \"foo\":\"bar\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                    () -> ModelSizeStats.STRICT_PARSER.apply(parser, null));
+
+            assertThat(e.getMessage(), containsString("unknown field [foo]"));
+        }
+    }
+
+    public void testLenientParser() throws IOException {
+        String json = "{\"job_id\":\"job_1\", \"foo\":\"bar\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            ModelSizeStats.LENIENT_PARSER.apply(parser, null);
+        }
     }
 }

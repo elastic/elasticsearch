@@ -42,18 +42,19 @@ public class AutodetectResult implements ToXContentObject, Writeable {
                     (Forecast) a[7], (ForecastRequestStats) a[8], (CategoryDefinition) a[9], (FlushAcknowledgement) a[10]));
 
     static {
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), Bucket.PARSER, Bucket.RESULT_TYPE_FIELD);
-        PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), AnomalyRecord.PARSER, AnomalyRecord.RESULTS_FIELD);
-        PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), Influencer.PARSER, Influencer.RESULTS_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), Quantiles.PARSER, Quantiles.TYPE);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ModelSnapshot.PARSER, ModelSnapshot.TYPE);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ModelSizeStats.PARSER,
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), Bucket.STRICT_PARSER, Bucket.RESULT_TYPE_FIELD);
+        PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), AnomalyRecord.STRICT_PARSER,
+                AnomalyRecord.RESULTS_FIELD);
+        PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), Influencer.LENIENT_PARSER, Influencer.RESULTS_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), Quantiles.STRICT_PARSER, Quantiles.TYPE);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ModelSnapshot.STRICT_PARSER, ModelSnapshot.TYPE);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ModelSizeStats.STRICT_PARSER,
                 ModelSizeStats.RESULT_TYPE_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ModelPlot.PARSER, ModelPlot.RESULTS_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), Forecast.PARSER, Forecast.RESULTS_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ForecastRequestStats.PARSER,
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ModelPlot.STRICT_PARSER, ModelPlot.RESULTS_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), Forecast.STRICT_PARSER, Forecast.RESULTS_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ForecastRequestStats.STRICT_PARSER,
                 ForecastRequestStats.RESULTS_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), CategoryDefinition.PARSER, CategoryDefinition.TYPE);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), CategoryDefinition.STRICT_PARSER, CategoryDefinition.TYPE);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), FlushAcknowledgement.PARSER, FlushAcknowledgement.TYPE);
     }
 

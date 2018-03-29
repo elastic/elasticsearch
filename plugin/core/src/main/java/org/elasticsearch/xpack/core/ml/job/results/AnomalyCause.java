@@ -45,23 +45,30 @@ public class AnomalyCause implements ToXContentObject, Writeable {
      */
     public static final ParseField FIELD_NAME = new ParseField("field_name");
 
-    public static final ObjectParser<AnomalyCause, Void> PARSER = new ObjectParser<>(ANOMALY_CAUSE.getPreferredName(),
-            AnomalyCause::new);
-    static {
-        PARSER.declareDouble(AnomalyCause::setProbability, PROBABILITY);
-        PARSER.declareString(AnomalyCause::setByFieldName, BY_FIELD_NAME);
-        PARSER.declareString(AnomalyCause::setByFieldValue, BY_FIELD_VALUE);
-        PARSER.declareString(AnomalyCause::setCorrelatedByFieldValue, CORRELATED_BY_FIELD_VALUE);
-        PARSER.declareString(AnomalyCause::setPartitionFieldName, PARTITION_FIELD_NAME);
-        PARSER.declareString(AnomalyCause::setPartitionFieldValue, PARTITION_FIELD_VALUE);
-        PARSER.declareString(AnomalyCause::setFunction, FUNCTION);
-        PARSER.declareString(AnomalyCause::setFunctionDescription, FUNCTION_DESCRIPTION);
-        PARSER.declareDoubleArray(AnomalyCause::setTypical, TYPICAL);
-        PARSER.declareDoubleArray(AnomalyCause::setActual, ACTUAL);
-        PARSER.declareString(AnomalyCause::setFieldName, FIELD_NAME);
-        PARSER.declareString(AnomalyCause::setOverFieldName, OVER_FIELD_NAME);
-        PARSER.declareString(AnomalyCause::setOverFieldValue, OVER_FIELD_VALUE);
-        PARSER.declareObjectArray(AnomalyCause::setInfluencers, Influence.PARSER, INFLUENCERS);
+    public static final ObjectParser<AnomalyCause, Void> STRICT_PARSER = createParser(false);
+    public static final ObjectParser<AnomalyCause, Void> LENIENT_PARSER = createParser(true);
+
+    private static ObjectParser<AnomalyCause, Void> createParser(boolean ignoreUnknownFields) {
+        ObjectParser<AnomalyCause, Void> parser = new ObjectParser<>(ANOMALY_CAUSE.getPreferredName(), ignoreUnknownFields,
+                AnomalyCause::new);
+
+        parser.declareDouble(AnomalyCause::setProbability, PROBABILITY);
+        parser.declareString(AnomalyCause::setByFieldName, BY_FIELD_NAME);
+        parser.declareString(AnomalyCause::setByFieldValue, BY_FIELD_VALUE);
+        parser.declareString(AnomalyCause::setCorrelatedByFieldValue, CORRELATED_BY_FIELD_VALUE);
+        parser.declareString(AnomalyCause::setPartitionFieldName, PARTITION_FIELD_NAME);
+        parser.declareString(AnomalyCause::setPartitionFieldValue, PARTITION_FIELD_VALUE);
+        parser.declareString(AnomalyCause::setFunction, FUNCTION);
+        parser.declareString(AnomalyCause::setFunctionDescription, FUNCTION_DESCRIPTION);
+        parser.declareDoubleArray(AnomalyCause::setTypical, TYPICAL);
+        parser.declareDoubleArray(AnomalyCause::setActual, ACTUAL);
+        parser.declareString(AnomalyCause::setFieldName, FIELD_NAME);
+        parser.declareString(AnomalyCause::setOverFieldName, OVER_FIELD_NAME);
+        parser.declareString(AnomalyCause::setOverFieldValue, OVER_FIELD_VALUE);
+        parser.declareObjectArray(AnomalyCause::setInfluencers, ignoreUnknownFields ? Influence.LENIENT_PARSER : Influence.STRICT_PARSER,
+                INFLUENCERS);
+
+        return parser;
     }
 
     private double probability;

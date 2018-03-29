@@ -30,8 +30,7 @@ public class AuditMessage implements ToXContentObject, Writeable {
     public static final ParseField TIMESTAMP = new ParseField("timestamp");
     public static final ParseField NODE_NAME = new ParseField("node_name");
 
-    public static final ObjectParser<AuditMessage, Void> PARSER = new ObjectParser<>(TYPE.getPreferredName(),
-            AuditMessage::new);
+    public static final ObjectParser<AuditMessage, Void> PARSER = new ObjectParser<>(TYPE.getPreferredName(), true, AuditMessage::new);
 
     static {
         PARSER.declareString(AuditMessage::setJobId, Job.ID);

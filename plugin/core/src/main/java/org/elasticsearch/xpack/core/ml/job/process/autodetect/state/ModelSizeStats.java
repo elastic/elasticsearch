@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -46,18 +47,21 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
     public static final ParseField LOG_TIME_FIELD = new ParseField("log_time");
     public static final ParseField TIMESTAMP_FIELD = new ParseField("timestamp");
 
-    public static final ConstructingObjectParser<Builder, Void> PARSER = new ConstructingObjectParser<>(
-            RESULT_TYPE_FIELD.getPreferredName(), a -> new Builder((String) a[0]));
+    public static final ConstructingObjectParser<Builder, Void> STRICT_PARSER = createParser(false);
+    public static final ConstructingObjectParser<Builder, Void> LENIENT_PARSER = createParser(true);
 
-    static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
-        PARSER.declareString((modelSizeStat, s) -> {}, Result.RESULT_TYPE);
-        PARSER.declareLong(Builder::setModelBytes, MODEL_BYTES_FIELD);
-        PARSER.declareLong(Builder::setBucketAllocationFailuresCount, BUCKET_ALLOCATION_FAILURES_COUNT_FIELD);
-        PARSER.declareLong(Builder::setTotalByFieldCount, TOTAL_BY_FIELD_COUNT_FIELD);
-        PARSER.declareLong(Builder::setTotalOverFieldCount, TOTAL_OVER_FIELD_COUNT_FIELD);
-        PARSER.declareLong(Builder::setTotalPartitionFieldCount, TOTAL_PARTITION_FIELD_COUNT_FIELD);
-        PARSER.declareField(Builder::setLogTime, p -> {
+    private static ConstructingObjectParser<Builder, Void> createParser(boolean ignoreUnknownFields) {
+        ConstructingObjectParser<Builder, Void> parser = new ConstructingObjectParser<>(RESULT_TYPE_FIELD.getPreferredName(),
+                ignoreUnknownFields, a -> new Builder((String) a[0]));
+
+        parser.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
+        parser.declareString((modelSizeStat, s) -> {}, Result.RESULT_TYPE);
+        parser.declareLong(Builder::setModelBytes, MODEL_BYTES_FIELD);
+        parser.declareLong(Builder::setBucketAllocationFailuresCount, BUCKET_ALLOCATION_FAILURES_COUNT_FIELD);
+        parser.declareLong(Builder::setTotalByFieldCount, TOTAL_BY_FIELD_COUNT_FIELD);
+        parser.declareLong(Builder::setTotalOverFieldCount, TOTAL_OVER_FIELD_COUNT_FIELD);
+        parser.declareLong(Builder::setTotalPartitionFieldCount, TOTAL_PARTITION_FIELD_COUNT_FIELD);
+        parser.declareField(Builder::setLogTime, p -> {
             if (p.currentToken() == Token.VALUE_NUMBER) {
                 return new Date(p.longValue());
             } else if (p.currentToken() == Token.VALUE_STRING) {
@@ -66,7 +70,7 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
             throw new IllegalArgumentException(
                     "unexpected token [" + p.currentToken() + "] for [" + LOG_TIME_FIELD.getPreferredName() + "]");
         }, LOG_TIME_FIELD, ValueType.VALUE);
-        PARSER.declareField(Builder::setTimestamp, p -> {
+        parser.declareField(Builder::setTimestamp, p -> {
             if (p.currentToken() == Token.VALUE_NUMBER) {
                 return new Date(p.longValue());
             } else if (p.currentToken() == Token.VALUE_STRING) {
@@ -75,7 +79,9 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
             throw new IllegalArgumentException(
                     "unexpected token [" + p.currentToken() + "] for [" + TIMESTAMP_FIELD.getPreferredName() + "]");
         }, TIMESTAMP_FIELD, ValueType.VALUE);
-        PARSER.declareField(Builder::setMemoryStatus, p -> MemoryStatus.fromString(p.text()), MEMORY_STATUS_FIELD, ValueType.STRING);
+        parser.declareField(Builder::setMemoryStatus, p -> MemoryStatus.fromString(p.text()), MEMORY_STATUS_FIELD, ValueType.STRING);
+
+        return parser;
     }
 
     /**

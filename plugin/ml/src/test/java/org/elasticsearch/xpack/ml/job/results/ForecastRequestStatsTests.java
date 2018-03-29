@@ -7,13 +7,17 @@ package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats.ForecastRequestStatus;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class ForecastRequestStatsTests extends AbstractSerializingTestCase<ForecastRequestStats> {
 
@@ -74,6 +78,23 @@ public class ForecastRequestStatsTests extends AbstractSerializingTestCase<Forec
 
     @Override
     protected ForecastRequestStats doParseInstance(XContentParser parser) {
-        return ForecastRequestStats.PARSER.apply(parser, null);
+        return ForecastRequestStats.STRICT_PARSER.apply(parser, null);
+    }
+
+    public void testStrictParser() throws IOException {
+        String json = "{\"job_id\":\"job_1\", \"forecast_id\":\"forecast_1\", \"foo\":\"bar\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                    () -> ForecastRequestStats.STRICT_PARSER.apply(parser, null));
+
+            assertThat(e.getMessage(), containsString("unknown field [foo]"));
+        }
+    }
+
+    public void testLenientParser() throws IOException {
+        String json = "{\"job_id\":\"job_1\", \"forecast_id\":\"forecast_1\", \"foo\":\"bar\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            ForecastRequestStats.LENIENT_PARSER.apply(parser, null);
+        }
     }
 }

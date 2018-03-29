@@ -49,7 +49,7 @@ public class PutCalendarAction extends Action<PutCalendarAction.Request, PutCale
     public static class Request extends ActionRequest implements ToXContentObject {
 
         public static Request parseRequest(String calendarId, XContentParser parser) {
-            Calendar.Builder builder = Calendar.PARSER.apply(parser, null);
+            Calendar.Builder builder = Calendar.STRICT_PARSER.apply(parser, null);
             if (builder.getId() == null) {
                 builder.setId(calendarId);
             } else if (!Strings.isNullOrEmpty(calendarId) && !calendarId.equals(builder.getId())) {

@@ -165,7 +165,7 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         try {
             XContentParser parser = JsonXContent.jsonXContent
                     .createParser(null, LoggingDeprecationHandler.INSTANCE, hits.getAt(0).getSourceAsString());
-            return Quantiles.PARSER.apply(parser, null);
+            return Quantiles.LENIENT_PARSER.apply(parser, null);
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }

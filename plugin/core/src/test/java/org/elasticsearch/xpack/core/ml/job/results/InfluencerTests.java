@@ -7,12 +7,10 @@ package org.elasticsearch.xpack.core.ml.job.results;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
@@ -42,7 +40,7 @@ public class InfluencerTests extends AbstractSerializingTestCase<Influencer> {
 
     @Override
     protected Influencer doParseInstance(XContentParser parser) {
-        return Influencer.PARSER.apply(parser, null);
+        return Influencer.LENIENT_PARSER.apply(parser, null);
     }
 
     public void testToXContentIncludesNameValueField() throws IOException {
@@ -70,15 +68,11 @@ public class InfluencerTests extends AbstractSerializingTestCase<Influencer> {
         assertEquals("job-foo_influencer_1000_300_host_" + valueHash + "_" + influencerFieldValue.length(), influencer.getId());
     }
 
-    public void testParsingv54WithSequenceNumField() throws IOException {
-        Influencer influencer = createTestInstance();
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        builder.startObject();
-        builder.field(Influencer.SEQUENCE_NUM.getPreferredName(), 1);
-        influencer.innerToXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-        XContentParser parser = createParser(builder);
-        Influencer serialised = doParseInstance(parser);
-        assertEquals(influencer, serialised);
+    public void testLenientParser() throws IOException {
+        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123544456, \"bucket_span\": 3600," +
+                "\"influencer_field_name\":\"foo_1\", \"influencer_field_value\": \"foo_2\", \"foo\":\"bar\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            Influencer.LENIENT_PARSER.apply(parser, null);
+        }
     }
 }

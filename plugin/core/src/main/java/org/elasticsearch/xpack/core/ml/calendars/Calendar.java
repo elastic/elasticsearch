@@ -39,13 +39,18 @@ public class Calendar implements ToXContentObject, Writeable {
     // For QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("calendars");
 
-    public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(ID.getPreferredName(), Builder::new);
+    public static final ObjectParser<Builder, Void> STRICT_PARSER = createParser(false);
+    public static final ObjectParser<Builder, Void> LENIENT_PARSER = createParser(true);
 
-    static {
-        PARSER.declareString(Builder::setId, ID);
-        PARSER.declareStringArray(Builder::setJobIds, JOB_IDS);
-        PARSER.declareString((builder, s) -> {}, TYPE);
-        PARSER.declareStringOrNull(Builder::setDescription, DESCRIPTION);
+    private static ObjectParser<Builder, Void> createParser(boolean ignoreUnknownFields) {
+        ObjectParser<Builder, Void> parser = new ObjectParser<>(ID.getPreferredName(), ignoreUnknownFields, Builder::new);
+
+        parser.declareString(Builder::setId, ID);
+        parser.declareStringArray(Builder::setJobIds, JOB_IDS);
+        parser.declareString((builder, s) -> {}, TYPE);
+        parser.declareStringOrNull(Builder::setDescription, DESCRIPTION);
+
+        return parser;
     }
 
     public static String documentId(String calendarId) {

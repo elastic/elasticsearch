@@ -6,15 +6,14 @@
 package org.elasticsearch.xpack.core.ml.job.results;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Date;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class BucketInfluencerTests extends AbstractSerializingTestCase<BucketInfluencer> {
 
@@ -50,7 +49,7 @@ public class BucketInfluencerTests extends AbstractSerializingTestCase<BucketInf
 
     @Override
     protected BucketInfluencer doParseInstance(XContentParser parser) {
-        return BucketInfluencer.PARSER.apply(parser, null);
+        return BucketInfluencer.STRICT_PARSER.apply(parser, null);
     }
 
     public void testEquals_GivenNull() {
@@ -144,16 +143,20 @@ public class BucketInfluencerTests extends AbstractSerializingTestCase<BucketInf
         assertEquals("job-foo_bucket_influencer_1000_300_field-with-influence", influencer.getId());
     }
 
-    public void testParsingv54WithSequenceNumField() throws IOException {
-        BucketInfluencer bucketInfluencer = createTestInstance();
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        builder.startObject();
-        builder.field(BucketInfluencer.SEQUENCE_NUM.getPreferredName(), 1);
-        bucketInfluencer.innerToXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-        XContentParser parser = createParser(builder);
-        BucketInfluencer serialised = doParseInstance(parser);
-        assertEquals(bucketInfluencer, serialised);
+    public void testStrictParser() throws IOException {
+        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123544456, \"bucket_span\": 3600, \"foo\":\"bar\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                    () -> BucketInfluencer.STRICT_PARSER.apply(parser, null));
+
+            assertThat(e.getMessage(), containsString("unknown field [foo]"));
+        }
     }
 
+    public void testLenientParser() throws IOException {
+        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123544456, \"bucket_span\": 3600, \"foo\":\"bar\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            BucketInfluencer.LENIENT_PARSER.apply(parser, null);
+        }
+    }
 }

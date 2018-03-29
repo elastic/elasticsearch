@@ -25,16 +25,20 @@ public class PartitionScore implements ToXContentObject, Writeable {
     private double recordScore;
     private double probability;
 
-    public static final ConstructingObjectParser<PartitionScore, Void> PARSER = new ConstructingObjectParser<>(
-            PARTITION_SCORE.getPreferredName(), a -> new PartitionScore((String) a[0], (String) a[1], (Double) a[2], (Double) a[3],
-            (Double) a[4]));
+    public static final ConstructingObjectParser<PartitionScore, Void> STRICT_PARSER = createParser(false);
+    public static final ConstructingObjectParser<PartitionScore, Void> LENIENT_PARSER = createParser(true);
 
-    static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), AnomalyRecord.PARTITION_FIELD_NAME);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), AnomalyRecord.PARTITION_FIELD_VALUE);
-        PARSER.declareDouble(ConstructingObjectParser.constructorArg(), AnomalyRecord.INITIAL_RECORD_SCORE);
-        PARSER.declareDouble(ConstructingObjectParser.constructorArg(), AnomalyRecord.RECORD_SCORE);
-        PARSER.declareDouble(ConstructingObjectParser.constructorArg(), AnomalyRecord.PROBABILITY);
+    private static ConstructingObjectParser<PartitionScore, Void> createParser(boolean ignoreUnknownFields) {
+        ConstructingObjectParser<PartitionScore, Void> parser = new ConstructingObjectParser<>(PARTITION_SCORE.getPreferredName(),
+                ignoreUnknownFields, a -> new PartitionScore((String) a[0], (String) a[1], (Double) a[2], (Double) a[3], (Double) a[4]));
+
+        parser.declareString(ConstructingObjectParser.constructorArg(), AnomalyRecord.PARTITION_FIELD_NAME);
+        parser.declareString(ConstructingObjectParser.constructorArg(), AnomalyRecord.PARTITION_FIELD_VALUE);
+        parser.declareDouble(ConstructingObjectParser.constructorArg(), AnomalyRecord.INITIAL_RECORD_SCORE);
+        parser.declareDouble(ConstructingObjectParser.constructorArg(), AnomalyRecord.RECORD_SCORE);
+        parser.declareDouble(ConstructingObjectParser.constructorArg(), AnomalyRecord.PROBABILITY);
+
+        return parser;
     }
 
     public PartitionScore(String fieldName, String fieldValue, double initialRecordScore, double recordScore, double probability) {

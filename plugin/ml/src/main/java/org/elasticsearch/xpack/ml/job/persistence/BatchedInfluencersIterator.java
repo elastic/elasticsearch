@@ -31,7 +31,7 @@ class BatchedInfluencersIterator extends BatchedResultsIterator<Influencer> {
         try (InputStream stream = source.streamInput();
              XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(source)).createParser(NamedXContentRegistry.EMPTY,
                      LoggingDeprecationHandler.INSTANCE, stream)) {
-            Influencer influencer = Influencer.PARSER.apply(parser, null);
+            Influencer influencer = Influencer.LENIENT_PARSER.apply(parser, null);
             return new Result<>(hit.getIndex(), influencer);
         } catch (IOException e) {
             throw new ElasticsearchParseException("failed to parser influencer", e);

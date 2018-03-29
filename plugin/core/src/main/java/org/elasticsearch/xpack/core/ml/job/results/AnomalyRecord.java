@@ -44,7 +44,6 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
     /**
      * Result fields (all detector types)
      */
-    public static final ParseField SEQUENCE_NUM = new ParseField("sequence_num");
     public static final ParseField PROBABILITY = new ParseField("probability");
     public static final ParseField BY_FIELD_NAME = new ParseField("by_field_name");
     public static final ParseField BY_FIELD_VALUE = new ParseField("by_field_value");
@@ -79,13 +78,18 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
     public static final ParseField RECORD_SCORE = new ParseField("record_score");
     public static final ParseField INITIAL_RECORD_SCORE = new ParseField("initial_record_score");
 
-    public static final ConstructingObjectParser<AnomalyRecord, Void> PARSER =
-            new ConstructingObjectParser<>(RESULT_TYPE_VALUE, true,
-                    a -> new AnomalyRecord((String) a[0], (Date) a[1], (long) a[2]));
+    public static final ConstructingObjectParser<AnomalyRecord, Void> STRICT_PARSER = createParser(false);
+    public static final ConstructingObjectParser<AnomalyRecord, Void> LENIENT_PARSER = createParser(true);
 
-    static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
-        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
+
+    private static ConstructingObjectParser<AnomalyRecord, Void> createParser(boolean ignoreUnknownFields) {
+        // As a record contains fields named after the data fields, the parser for the record should always ignore unknown fields.
+        // However, it makes sense to offer strict/lenient parsing for other members, e.g. influences, anomaly causes, etc.
+        ConstructingObjectParser<AnomalyRecord, Void> parser = new ConstructingObjectParser<>(RESULT_TYPE_VALUE, true,
+                a -> new AnomalyRecord((String) a[0], (Date) a[1], (long) a[2]));
+
+        parser.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
+        parser.declareField(ConstructingObjectParser.constructorArg(), p -> {
             if (p.currentToken() == Token.VALUE_NUMBER) {
                 return new Date(p.longValue());
             } else if (p.currentToken() == Token.VALUE_STRING) {
@@ -94,29 +98,31 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
             throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for ["
                     + Result.TIMESTAMP.getPreferredName() + "]");
         }, Result.TIMESTAMP, ValueType.VALUE);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
-        PARSER.declareString((anomalyRecord, s) -> {}, Result.RESULT_TYPE);
-        PARSER.declareDouble(AnomalyRecord::setProbability, PROBABILITY);
-        PARSER.declareDouble(AnomalyRecord::setRecordScore, RECORD_SCORE);
-        PARSER.declareDouble(AnomalyRecord::setInitialRecordScore, INITIAL_RECORD_SCORE);
-        PARSER.declareInt(AnomalyRecord::setDetectorIndex, Detector.DETECTOR_INDEX);
-        PARSER.declareBoolean(AnomalyRecord::setInterim, Result.IS_INTERIM);
-        PARSER.declareString(AnomalyRecord::setByFieldName, BY_FIELD_NAME);
-        PARSER.declareString(AnomalyRecord::setByFieldValue, BY_FIELD_VALUE);
-        PARSER.declareString(AnomalyRecord::setCorrelatedByFieldValue, CORRELATED_BY_FIELD_VALUE);
-        PARSER.declareString(AnomalyRecord::setPartitionFieldName, PARTITION_FIELD_NAME);
-        PARSER.declareString(AnomalyRecord::setPartitionFieldValue, PARTITION_FIELD_VALUE);
-        PARSER.declareString(AnomalyRecord::setFunction, FUNCTION);
-        PARSER.declareString(AnomalyRecord::setFunctionDescription, FUNCTION_DESCRIPTION);
-        PARSER.declareDoubleArray(AnomalyRecord::setTypical, TYPICAL);
-        PARSER.declareDoubleArray(AnomalyRecord::setActual, ACTUAL);
-        PARSER.declareString(AnomalyRecord::setFieldName, FIELD_NAME);
-        PARSER.declareString(AnomalyRecord::setOverFieldName, OVER_FIELD_NAME);
-        PARSER.declareString(AnomalyRecord::setOverFieldValue, OVER_FIELD_VALUE);
-        PARSER.declareObjectArray(AnomalyRecord::setCauses, AnomalyCause.PARSER, CAUSES);
-        PARSER.declareObjectArray(AnomalyRecord::setInfluencers, Influence.PARSER, INFLUENCERS);
-        // For bwc with 5.4
-        PARSER.declareInt((anomalyRecord, sequenceNum) -> {}, SEQUENCE_NUM);
+        parser.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
+        parser.declareString((anomalyRecord, s) -> {}, Result.RESULT_TYPE);
+        parser.declareDouble(AnomalyRecord::setProbability, PROBABILITY);
+        parser.declareDouble(AnomalyRecord::setRecordScore, RECORD_SCORE);
+        parser.declareDouble(AnomalyRecord::setInitialRecordScore, INITIAL_RECORD_SCORE);
+        parser.declareInt(AnomalyRecord::setDetectorIndex, Detector.DETECTOR_INDEX);
+        parser.declareBoolean(AnomalyRecord::setInterim, Result.IS_INTERIM);
+        parser.declareString(AnomalyRecord::setByFieldName, BY_FIELD_NAME);
+        parser.declareString(AnomalyRecord::setByFieldValue, BY_FIELD_VALUE);
+        parser.declareString(AnomalyRecord::setCorrelatedByFieldValue, CORRELATED_BY_FIELD_VALUE);
+        parser.declareString(AnomalyRecord::setPartitionFieldName, PARTITION_FIELD_NAME);
+        parser.declareString(AnomalyRecord::setPartitionFieldValue, PARTITION_FIELD_VALUE);
+        parser.declareString(AnomalyRecord::setFunction, FUNCTION);
+        parser.declareString(AnomalyRecord::setFunctionDescription, FUNCTION_DESCRIPTION);
+        parser.declareDoubleArray(AnomalyRecord::setTypical, TYPICAL);
+        parser.declareDoubleArray(AnomalyRecord::setActual, ACTUAL);
+        parser.declareString(AnomalyRecord::setFieldName, FIELD_NAME);
+        parser.declareString(AnomalyRecord::setOverFieldName, OVER_FIELD_NAME);
+        parser.declareString(AnomalyRecord::setOverFieldValue, OVER_FIELD_VALUE);
+        parser.declareObjectArray(AnomalyRecord::setCauses, ignoreUnknownFields ? AnomalyCause.LENIENT_PARSER : AnomalyCause.STRICT_PARSER,
+                CAUSES);
+        parser.declareObjectArray(AnomalyRecord::setInfluencers, ignoreUnknownFields ? Influence.LENIENT_PARSER : Influence.STRICT_PARSER,
+                INFLUENCERS);
+
+        return parser;
     }
 
     private final String jobId;

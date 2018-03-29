@@ -35,12 +35,17 @@ public class MlFilter implements ToXContentObject, Writeable {
     // For QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("filters");
 
-    public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(TYPE.getPreferredName(), Builder::new);
+    public static final ObjectParser<Builder, Void> STRICT_PARSER = createParser(false);
+    public static final ObjectParser<Builder, Void> LENIENT_PARSER = createParser(true);
 
-    static {
-        PARSER.declareString((builder, s) -> {}, TYPE);
-        PARSER.declareString(Builder::setId, ID);
-        PARSER.declareStringArray(Builder::setItems, ITEMS);
+    private static ObjectParser<Builder, Void> createParser(boolean ignoreUnknownFields) {
+        ObjectParser<Builder, Void> parser = new ObjectParser<>(TYPE.getPreferredName(), ignoreUnknownFields, Builder::new);
+
+        parser.declareString((builder, s) -> {}, TYPE);
+        parser.declareString(Builder::setId, ID);
+        parser.declareStringArray(Builder::setItems, ITEMS);
+
+        return parser;
     }
 
     private final String id;

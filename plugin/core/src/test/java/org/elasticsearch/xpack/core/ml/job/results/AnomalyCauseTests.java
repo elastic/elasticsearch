@@ -7,12 +7,14 @@ package org.elasticsearch.xpack.core.ml.job.results;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.job.results.AnomalyCause;
-import org.elasticsearch.xpack.core.ml.job.results.Influence;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class AnomalyCauseTests extends AbstractSerializingTestCase<AnomalyCause> {
 
@@ -91,7 +93,23 @@ public class AnomalyCauseTests extends AbstractSerializingTestCase<AnomalyCause>
 
     @Override
     protected AnomalyCause doParseInstance(XContentParser parser) {
-        return AnomalyCause.PARSER.apply(parser, null);
+        return AnomalyCause.STRICT_PARSER.apply(parser, null);
     }
 
+    public void testStrictParser() throws IOException {
+        String json = "{\"foo\":\"bar\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                    () -> AnomalyCause.STRICT_PARSER.apply(parser, null));
+
+            assertThat(e.getMessage(), containsString("unknown field [foo]"));
+        }
+    }
+
+    public void testLenientParser() throws IOException {
+        String json = "{\"foo\":\"bar\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            AnomalyCause.LENIENT_PARSER.apply(parser, null);
+        }
+    }
 }

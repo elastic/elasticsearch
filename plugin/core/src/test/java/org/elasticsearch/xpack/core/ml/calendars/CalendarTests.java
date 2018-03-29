@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.ml.calendars;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 
@@ -15,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CalendarTests extends AbstractSerializingTestCase<Calendar> {
@@ -48,7 +50,7 @@ public class CalendarTests extends AbstractSerializingTestCase<Calendar> {
 
     @Override
     protected Calendar doParseInstance(XContentParser parser) throws IOException {
-        return Calendar.PARSER.apply(parser, null).build();
+        return Calendar.STRICT_PARSER.apply(parser, null).build();
     }
 
     public void testNullId() {
@@ -58,5 +60,22 @@ public class CalendarTests extends AbstractSerializingTestCase<Calendar> {
 
     public void testDocumentId() {
         assertThat(Calendar.documentId("foo"), equalTo("calendar_foo"));
+    }
+
+    public void testStrictParser() throws IOException {
+        String json = "{\"foo\":\"bar\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                    () -> Calendar.STRICT_PARSER.apply(parser, null));
+
+            assertThat(e.getMessage(), containsString("unknown field [foo]"));
+        }
+    }
+
+    public void testLenientParser() throws IOException {
+        String json = "{\"foo\":\"bar\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            Calendar.LENIENT_PARSER.apply(parser, null);
+        }
     }
 }

@@ -32,7 +32,7 @@ class BatchedBucketsIterator extends BatchedResultsIterator<Bucket> {
         try (InputStream stream = source.streamInput();
              XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(source)).createParser(NamedXContentRegistry.EMPTY,
                      LoggingDeprecationHandler.INSTANCE, stream)) {
-            Bucket bucket = Bucket.PARSER.apply(parser, null);
+            Bucket bucket = Bucket.LENIENT_PARSER.apply(parser, null);
             return new Result<>(hit.getIndex(), bucket);
         } catch (IOException e) {
             throw new ElasticsearchParseException("failed to parse bucket", e);

@@ -47,7 +47,7 @@ public class PutFilterAction extends Action<PutFilterAction.Request, PutFilterAc
     public static class Request extends ActionRequest implements ToXContentObject {
 
         public static Request parseRequest(String filterId, XContentParser parser) {
-            MlFilter.Builder filter = MlFilter.PARSER.apply(parser, null);
+            MlFilter.Builder filter = MlFilter.STRICT_PARSER.apply(parser, null);
             if (filter.getId() == null) {
                 filter.setId(filterId);
             } else if (!Strings.isNullOrEmpty(filterId) && !filterId.equals(filter.getId())) {

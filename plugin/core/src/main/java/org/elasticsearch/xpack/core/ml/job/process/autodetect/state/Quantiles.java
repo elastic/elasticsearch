@@ -35,13 +35,18 @@ public class Quantiles implements ToXContentObject, Writeable {
      */
     public static final ParseField TYPE = new ParseField("quantiles");
 
-    public static final ConstructingObjectParser<Quantiles, Void> PARSER = new ConstructingObjectParser<>(
-            TYPE.getPreferredName(), a -> new Quantiles((String) a[0], (Date) a[1], (String) a[2]));
+    public static final ConstructingObjectParser<Quantiles, Void> STRICT_PARSER = createParser(false);
+    public static final ConstructingObjectParser<Quantiles, Void> LENIENT_PARSER = createParser(true);
 
-    static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> new Date(p.longValue()), TIMESTAMP, ValueType.LONG);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), QUANTILE_STATE);
+    private static ConstructingObjectParser<Quantiles, Void> createParser(boolean ignoreUnknownFields) {
+        ConstructingObjectParser<Quantiles, Void> parser = new ConstructingObjectParser<>(TYPE.getPreferredName(), ignoreUnknownFields,
+                a -> new Quantiles((String) a[0], (Date) a[1], (String) a[2]));
+
+        parser.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
+        parser.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> new Date(p.longValue()), TIMESTAMP, ValueType.LONG);
+        parser.declareString(ConstructingObjectParser.constructorArg(), QUANTILE_STATE);
+
+        return parser;
     }
 
     public static String documentId(String jobId) {

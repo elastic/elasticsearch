@@ -56,7 +56,7 @@ public class PostCalendarEventsAction extends Action<PostCalendarEventsAction.Re
         private static final ObjectParser<List<ScheduledEvent.Builder>, Void> PARSER = new ObjectParser<>(NAME, ArrayList::new);
 
         static {
-            PARSER.declareObjectArray(List::addAll, (p, c) -> ScheduledEvent.PARSER.apply(p, null), ScheduledEvent.RESULTS_FIELD);
+            PARSER.declareObjectArray(List::addAll, (p, c) -> ScheduledEvent.STRICT_PARSER.apply(p, null), ScheduledEvent.RESULTS_FIELD);
         }
 
         public static Request parseRequest(String calendarId, XContentParser parser) throws IOException {

@@ -32,7 +32,7 @@ class BatchedRecordsIterator extends BatchedResultsIterator<AnomalyRecord> {
         try (InputStream stream = source.streamInput();
              XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(source)).createParser(NamedXContentRegistry.EMPTY,
                 LoggingDeprecationHandler.INSTANCE, stream)){
-            AnomalyRecord record = AnomalyRecord.PARSER.apply(parser, null);
+            AnomalyRecord record = AnomalyRecord.LENIENT_PARSER.apply(parser, null);
             return new Result<>(hit.getIndex(), record);
         } catch (IOException e) {
             throw new ElasticsearchParseException("failed to parse record", e);

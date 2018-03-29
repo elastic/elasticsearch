@@ -8,12 +8,20 @@ package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Date;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapshot> {
@@ -171,7 +179,7 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
 
     @Override
     protected ModelSnapshot doParseInstance(XContentParser parser) {
-        return ModelSnapshot.PARSER.apply(parser, null).build();
+        return ModelSnapshot.STRICT_PARSER.apply(parser, null).build();
     }
 
     public void testDocumentId() {
@@ -193,5 +201,22 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
         ModelSnapshot snapshot = new ModelSnapshot.Builder("foo").setSnapshotId("123456789").setSnapshotDocCount(3).build();
         assertThat(snapshot.stateDocumentIds(),
                 equalTo(Arrays.asList("foo_model_state_123456789#1", "foo_model_state_123456789#2", "foo_model_state_123456789#3")));
+    }
+
+    public void testStrictParser() throws IOException {
+        String json = "{\"foo\":\"bar\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                    () -> ModelSnapshot.STRICT_PARSER.apply(parser, null));
+
+            assertThat(e.getMessage(), containsString("unknown field [foo]"));
+        }
+    }
+
+    public void testLenientParser() throws IOException {
+        String json = "{\"foo\":\"bar\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            ModelSnapshot.LENIENT_PARSER.apply(parser, null);
+        }
     }
 }

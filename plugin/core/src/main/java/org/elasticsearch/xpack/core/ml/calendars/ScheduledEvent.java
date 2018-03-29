@@ -47,12 +47,14 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
     public static final String SCHEDULED_EVENT_TYPE = "scheduled_event";
     public static final String DOCUMENT_ID_PREFIX = "event_";
 
-    public static final ObjectParser<ScheduledEvent.Builder, Void> PARSER =
-            new ObjectParser<>("scheduled_event", Builder::new);
+    public static final ObjectParser<ScheduledEvent.Builder, Void> STRICT_PARSER = createParser(false);
+    public static final ObjectParser<ScheduledEvent.Builder, Void> LENIENT_PARSER = createParser(true);
 
-    static {
-        PARSER.declareString(ScheduledEvent.Builder::description, DESCRIPTION);
-        PARSER.declareField(ScheduledEvent.Builder::startTime, p -> {
+    private static ObjectParser<ScheduledEvent.Builder, Void> createParser(boolean ignoreUnknownFields) {
+        ObjectParser<ScheduledEvent.Builder, Void> parser = new ObjectParser<>("scheduled_event", ignoreUnknownFields, Builder::new);
+
+        parser.declareString(ScheduledEvent.Builder::description, DESCRIPTION);
+        parser.declareField(ScheduledEvent.Builder::startTime, p -> {
             if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
                 return ZonedDateTime.ofInstant(Instant.ofEpochMilli(p.longValue()), ZoneOffset.UTC);
             } else if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
@@ -61,7 +63,7 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
             throw new IllegalArgumentException(
                     "unexpected token [" + p.currentToken() + "] for [" + START_TIME.getPreferredName() + "]");
         }, START_TIME, ObjectParser.ValueType.VALUE);
-        PARSER.declareField(ScheduledEvent.Builder::endTime, p -> {
+        parser.declareField(ScheduledEvent.Builder::endTime, p -> {
             if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
                 return ZonedDateTime.ofInstant(Instant.ofEpochMilli(p.longValue()), ZoneOffset.UTC);
             } else if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
@@ -71,8 +73,10 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
                     "unexpected token [" + p.currentToken() + "] for [" + END_TIME.getPreferredName() + "]");
         }, END_TIME, ObjectParser.ValueType.VALUE);
 
-        PARSER.declareString(ScheduledEvent.Builder::calendarId, Calendar.ID);
-        PARSER.declareString((builder, s) -> {}, TYPE);
+        parser.declareString(ScheduledEvent.Builder::calendarId, Calendar.ID);
+        parser.declareString((builder, s) -> {}, TYPE);
+
+        return parser;
     }
 
     public static String documentId(String eventId) {

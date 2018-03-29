@@ -46,13 +46,15 @@ public class ModelPlot implements ToXContentObject, Writeable {
     public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
     public static final ParseField DETECTOR_INDEX = new ParseField("detector_index");
 
-    public static final ConstructingObjectParser<ModelPlot, Void> PARSER =
-            new ConstructingObjectParser<>(RESULT_TYPE_VALUE, a ->
-            new ModelPlot((String) a[0], (Date) a[1], (long) a[2], (int) a[3]));
+    public static final ConstructingObjectParser<ModelPlot, Void> STRICT_PARSER = createParser(false);
+    public static final ConstructingObjectParser<ModelPlot, Void> LENIENT_PARSER = createParser(true);
 
-    static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
-        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
+    private static ConstructingObjectParser<ModelPlot, Void> createParser(boolean ignoreUnknownFields) {
+        ConstructingObjectParser<ModelPlot, Void> parser = new ConstructingObjectParser<>(RESULT_TYPE_VALUE, ignoreUnknownFields,
+                a -> new ModelPlot((String) a[0], (Date) a[1], (long) a[2], (int) a[3]));
+
+        parser.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
+        parser.declareField(ConstructingObjectParser.constructorArg(), p -> {
             if (p.currentToken() == Token.VALUE_NUMBER) {
                 return new Date(p.longValue());
             } else if (p.currentToken() == Token.VALUE_STRING) {
@@ -61,20 +63,22 @@ public class ModelPlot implements ToXContentObject, Writeable {
             throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for ["
                     + Result.TIMESTAMP.getPreferredName() + "]");
         }, Result.TIMESTAMP, ValueType.VALUE);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), DETECTOR_INDEX);
-        PARSER.declareString((modelPlot, s) -> {}, Result.RESULT_TYPE);
-        PARSER.declareString(ModelPlot::setPartitionFieldName, PARTITION_FIELD_NAME);
-        PARSER.declareString(ModelPlot::setPartitionFieldValue, PARTITION_FIELD_VALUE);
-        PARSER.declareString(ModelPlot::setOverFieldName, OVER_FIELD_NAME);
-        PARSER.declareString(ModelPlot::setOverFieldValue, OVER_FIELD_VALUE);
-        PARSER.declareString(ModelPlot::setByFieldName, BY_FIELD_NAME);
-        PARSER.declareString(ModelPlot::setByFieldValue, BY_FIELD_VALUE);
-        PARSER.declareString(ModelPlot::setModelFeature, MODEL_FEATURE);
-        PARSER.declareDouble(ModelPlot::setModelLower, MODEL_LOWER);
-        PARSER.declareDouble(ModelPlot::setModelUpper, MODEL_UPPER);
-        PARSER.declareDouble(ModelPlot::setModelMedian, MODEL_MEDIAN);
-        PARSER.declareDouble(ModelPlot::setActual, ACTUAL);
+        parser.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
+        parser.declareInt(ConstructingObjectParser.constructorArg(), DETECTOR_INDEX);
+        parser.declareString((modelPlot, s) -> {}, Result.RESULT_TYPE);
+        parser.declareString(ModelPlot::setPartitionFieldName, PARTITION_FIELD_NAME);
+        parser.declareString(ModelPlot::setPartitionFieldValue, PARTITION_FIELD_VALUE);
+        parser.declareString(ModelPlot::setOverFieldName, OVER_FIELD_NAME);
+        parser.declareString(ModelPlot::setOverFieldValue, OVER_FIELD_VALUE);
+        parser.declareString(ModelPlot::setByFieldName, BY_FIELD_NAME);
+        parser.declareString(ModelPlot::setByFieldValue, BY_FIELD_VALUE);
+        parser.declareString(ModelPlot::setModelFeature, MODEL_FEATURE);
+        parser.declareDouble(ModelPlot::setModelLower, MODEL_LOWER);
+        parser.declareDouble(ModelPlot::setModelUpper, MODEL_UPPER);
+        parser.declareDouble(ModelPlot::setModelMedian, MODEL_MEDIAN);
+        parser.declareDouble(ModelPlot::setActual, ACTUAL);
+
+        return parser;
     }
 
     private final String jobId;

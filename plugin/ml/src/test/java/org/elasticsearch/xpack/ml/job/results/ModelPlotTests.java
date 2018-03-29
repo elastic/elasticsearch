@@ -68,7 +68,7 @@ public class ModelPlotTests extends AbstractSerializingTestCase<ModelPlot> {
 
     @Override
     protected ModelPlot doParseInstance(XContentParser parser) {
-        return ModelPlot.PARSER.apply(parser, null);
+        return ModelPlot.STRICT_PARSER.apply(parser, null);
     }
 
     public void testEquals_GivenSameObject() {
@@ -243,6 +243,23 @@ public class ModelPlotTests extends AbstractSerializingTestCase<ModelPlot> {
         assertEquals("job-foo_model_plot_100_60_33_" + valuesHash + "_" + length, plot.getId());
     }
 
+    public void testStrictParser() throws IOException {
+        String json = "{\"job_id\":\"job_1\", \"timestamp\":12354667, \"bucket_span\": 3600, \"detector_index\":3, \"foo\":\"bar\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                    () -> ModelPlot.STRICT_PARSER.apply(parser, null));
+
+            assertThat(e.getMessage(), containsString("unknown field [foo]"));
+        }
+    }
+
+    public void testLenientParser() throws IOException {
+        String json = "{\"job_id\":\"job_1\", \"timestamp\":12354667, \"bucket_span\": 3600, \"detector_index\":3, \"foo\":\"bar\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            ModelPlot.LENIENT_PARSER.apply(parser, null);
+        }
+    }
+
     private ModelPlot createFullyPopulated() {
         ModelPlot modelPlot = new ModelPlot("foo", new Date(12345678L), 360L, 22);
         modelPlot.setByFieldName("by");
@@ -256,5 +273,4 @@ public class ModelPlotTests extends AbstractSerializingTestCase<ModelPlot> {
         modelPlot.setActual(100.0);
         return modelPlot;
     }
-
 }

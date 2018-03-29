@@ -25,6 +25,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.persistent.PersistentTaskParams;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksNodeService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -81,9 +84,6 @@ import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
-import org.elasticsearch.persistent.PersistentTaskParams;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.persistent.PersistentTasksNodeService;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
 
@@ -359,7 +359,7 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
             XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
                     NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
                     hits.getHits()[0].getSourceRef().streamInput());
-            return ForecastRequestStats.PARSER.apply(parser, null);
+            return ForecastRequestStats.STRICT_PARSER.apply(parser, null);
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }
@@ -378,7 +378,7 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
             try {
                 XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
                         NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, hit.getSourceRef().streamInput());
-                forecastStats.add(ForecastRequestStats.PARSER.apply(parser, null));
+                forecastStats.add(ForecastRequestStats.STRICT_PARSER.apply(parser, null));
             } catch (IOException e) {
                 throw new IllegalStateException(e);
             }
@@ -413,7 +413,7 @@ abstract class MlNativeAutodetectIntegTestCase extends ESIntegTestCase {
                 XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
                         NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
                         hit.getSourceRef().streamInput());
-                forecasts.add(Forecast.PARSER.apply(parser, null));
+                forecasts.add(Forecast.STRICT_PARSER.apply(parser, null));
             } catch (IOException e) {
                 throw new IllegalStateException(e);
             }

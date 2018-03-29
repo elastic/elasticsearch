@@ -46,9 +46,6 @@ public class Bucket implements ToXContentObject, Writeable {
     public static final ParseField PARTITION_SCORES = new ParseField("partition_scores");
     public static final ParseField SCHEDULED_EVENTS = new ParseField("scheduled_events");
 
-    // Only exists for backwards compatibility; no longer added to mappings
-    private static final ParseField RECORD_COUNT = new ParseField("record_count");
-
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("buckets");
 
@@ -58,12 +55,15 @@ public class Bucket implements ToXContentObject, Writeable {
     public static final String RESULT_TYPE_VALUE = "bucket";
     public static final ParseField RESULT_TYPE_FIELD = new ParseField(RESULT_TYPE_VALUE);
 
-    public static final ConstructingObjectParser<Bucket, Void> PARSER =
-            new ConstructingObjectParser<>(RESULT_TYPE_VALUE, a -> new Bucket((String) a[0], (Date) a[1], (long) a[2]));
+    public static final ConstructingObjectParser<Bucket, Void> STRICT_PARSER = createParser(false);
+    public static final ConstructingObjectParser<Bucket, Void> LENIENT_PARSER = createParser(true);
 
-    static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), JOB_ID);
-        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
+    private static ConstructingObjectParser<Bucket, Void> createParser(boolean ignoreUnknownFields) {
+        ConstructingObjectParser<Bucket, Void> parser = new ConstructingObjectParser<>(RESULT_TYPE_VALUE, ignoreUnknownFields,
+                a -> new Bucket((String) a[0], (Date) a[1], (long) a[2]));
+
+        parser.declareString(ConstructingObjectParser.constructorArg(), JOB_ID);
+        parser.declareField(ConstructingObjectParser.constructorArg(), p -> {
             if (p.currentToken() == Token.VALUE_NUMBER) {
                 return new Date(p.longValue());
             } else if (p.currentToken() == Token.VALUE_STRING) {
@@ -72,19 +72,22 @@ public class Bucket implements ToXContentObject, Writeable {
             throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for ["
                     + Result.TIMESTAMP.getPreferredName() + "]");
         }, Result.TIMESTAMP, ValueType.VALUE);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
-        PARSER.declareDouble(Bucket::setAnomalyScore, ANOMALY_SCORE);
-        PARSER.declareDouble(Bucket::setInitialAnomalyScore, INITIAL_ANOMALY_SCORE);
-        PARSER.declareBoolean(Bucket::setInterim, Result.IS_INTERIM);
-        PARSER.declareLong(Bucket::setEventCount, EVENT_COUNT);
-        PARSER.declareObjectArray(Bucket::setRecords, AnomalyRecord.PARSER, RECORDS);
-        PARSER.declareObjectArray(Bucket::setBucketInfluencers, BucketInfluencer.PARSER, BUCKET_INFLUENCERS);
-        PARSER.declareLong(Bucket::setProcessingTimeMs, PROCESSING_TIME_MS);
-        PARSER.declareObjectArray(Bucket::setPartitionScores, PartitionScore.PARSER, PARTITION_SCORES);
-        PARSER.declareString((bucket, s) -> {}, Result.RESULT_TYPE);
-        // For bwc with 5.4
-        PARSER.declareInt((bucket, recordCount) -> {}, RECORD_COUNT);
-        PARSER.declareStringArray(Bucket::setScheduledEvents, SCHEDULED_EVENTS);
+        parser.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
+        parser.declareDouble(Bucket::setAnomalyScore, ANOMALY_SCORE);
+        parser.declareDouble(Bucket::setInitialAnomalyScore, INITIAL_ANOMALY_SCORE);
+        parser.declareBoolean(Bucket::setInterim, Result.IS_INTERIM);
+        parser.declareLong(Bucket::setEventCount, EVENT_COUNT);
+        parser.declareObjectArray(Bucket::setRecords, ignoreUnknownFields ? AnomalyRecord.LENIENT_PARSER : AnomalyRecord.STRICT_PARSER,
+                RECORDS);
+        parser.declareObjectArray(Bucket::setBucketInfluencers, ignoreUnknownFields ?
+                BucketInfluencer.LENIENT_PARSER : BucketInfluencer.STRICT_PARSER, BUCKET_INFLUENCERS);
+        parser.declareLong(Bucket::setProcessingTimeMs, PROCESSING_TIME_MS);
+        parser.declareObjectArray(Bucket::setPartitionScores, ignoreUnknownFields ?
+                PartitionScore.LENIENT_PARSER : PartitionScore.STRICT_PARSER, PARTITION_SCORES);
+        parser.declareString((bucket, s) -> {}, Result.RESULT_TYPE);
+        parser.declareStringArray(Bucket::setScheduledEvents, SCHEDULED_EVENTS);
+
+        return parser;
     }
 
     private final String jobId;

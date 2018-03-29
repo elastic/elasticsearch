@@ -43,14 +43,15 @@ public class Forecast implements ToXContentObject, Writeable {
     public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
     public static final ParseField DETECTOR_INDEX = new ParseField("detector_index");
 
-    public static final ConstructingObjectParser<Forecast, Void> PARSER =
-            new ConstructingObjectParser<>(RESULT_TYPE_VALUE, a ->
-            new Forecast((String) a[0], (String) a[1], (Date) a[2], (long) a[3], (int) a[4]));
+    public static final ConstructingObjectParser<Forecast, Void> STRICT_PARSER = createParser(false);
 
-    static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), FORECAST_ID);
-        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
+    private static ConstructingObjectParser<Forecast, Void> createParser(boolean ignoreUnknownFields) {
+        ConstructingObjectParser<Forecast, Void> parser = new ConstructingObjectParser<>(RESULT_TYPE_VALUE, ignoreUnknownFields,
+                a -> new Forecast((String) a[0], (String) a[1], (Date) a[2], (long) a[3], (int) a[4]));
+
+        parser.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
+        parser.declareString(ConstructingObjectParser.constructorArg(), FORECAST_ID);
+        parser.declareField(ConstructingObjectParser.constructorArg(), p -> {
             if (p.currentToken() == Token.VALUE_NUMBER) {
                 return new Date(p.longValue());
             } else if (p.currentToken() == Token.VALUE_STRING) {
@@ -59,17 +60,19 @@ public class Forecast implements ToXContentObject, Writeable {
             throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for ["
                     + Result.TIMESTAMP.getPreferredName() + "]");
         }, Result.TIMESTAMP, ValueType.VALUE);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), DETECTOR_INDEX);
-        PARSER.declareString((modelForecast, s) -> {}, Result.RESULT_TYPE);
-        PARSER.declareString(Forecast::setPartitionFieldName, PARTITION_FIELD_NAME);
-        PARSER.declareString(Forecast::setPartitionFieldValue, PARTITION_FIELD_VALUE);
-        PARSER.declareString(Forecast::setByFieldName, BY_FIELD_NAME);
-        PARSER.declareString(Forecast::setByFieldValue, BY_FIELD_VALUE);
-        PARSER.declareString(Forecast::setModelFeature, MODEL_FEATURE);
-        PARSER.declareDouble(Forecast::setForecastLower, FORECAST_LOWER);
-        PARSER.declareDouble(Forecast::setForecastUpper, FORECAST_UPPER);
-        PARSER.declareDouble(Forecast::setForecastPrediction, FORECAST_PREDICTION);
+        parser.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
+        parser.declareInt(ConstructingObjectParser.constructorArg(), DETECTOR_INDEX);
+        parser.declareString((modelForecast, s) -> {}, Result.RESULT_TYPE);
+        parser.declareString(Forecast::setPartitionFieldName, PARTITION_FIELD_NAME);
+        parser.declareString(Forecast::setPartitionFieldValue, PARTITION_FIELD_VALUE);
+        parser.declareString(Forecast::setByFieldName, BY_FIELD_NAME);
+        parser.declareString(Forecast::setByFieldValue, BY_FIELD_VALUE);
+        parser.declareString(Forecast::setModelFeature, MODEL_FEATURE);
+        parser.declareDouble(Forecast::setForecastLower, FORECAST_LOWER);
+        parser.declareDouble(Forecast::setForecastUpper, FORECAST_UPPER);
+        parser.declareDouble(Forecast::setForecastPrediction, FORECAST_PREDICTION);
+
+        return parser;
     }
 
     private final String jobId;

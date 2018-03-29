@@ -56,24 +56,29 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
      */
     public static final ParseField TYPE = new ParseField("model_snapshot");
 
-    public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(TYPE.getPreferredName(), Builder::new);
+    public static final ObjectParser<Builder, Void> STRICT_PARSER = createParser(false);
+    public static final ObjectParser<Builder, Void> LENIENT_PARSER = createParser(true);
 
-    static {
-        PARSER.declareString(Builder::setJobId, Job.ID);
-        PARSER.declareString(Builder::setMinVersion, MIN_VERSION);
-        PARSER.declareField(Builder::setTimestamp, p -> {
+    private static ObjectParser<Builder, Void> createParser(boolean ignoreUnknownFields) {
+        ObjectParser<Builder, Void> parser = new ObjectParser<>(TYPE.getPreferredName(), ignoreUnknownFields, Builder::new);
+
+        parser.declareString(Builder::setJobId, Job.ID);
+        parser.declareString(Builder::setMinVersion, MIN_VERSION);
+        parser.declareField(Builder::setTimestamp, p -> {
             if (p.currentToken() == Token.VALUE_NUMBER) {
                 return new Date(p.longValue());
             } else if (p.currentToken() == Token.VALUE_STRING) {
                 return new Date(TimeUtils.dateStringToEpoch(p.text()));
             }
-            throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for [" + TIMESTAMP.getPreferredName() + "]");
+            throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for ["
+                    + TIMESTAMP.getPreferredName() + "]");
         }, TIMESTAMP, ValueType.VALUE);
-        PARSER.declareString(Builder::setDescription, DESCRIPTION);
-        PARSER.declareString(Builder::setSnapshotId, ModelSnapshotField.SNAPSHOT_ID);
-        PARSER.declareInt(Builder::setSnapshotDocCount, SNAPSHOT_DOC_COUNT);
-        PARSER.declareObject(Builder::setModelSizeStats, ModelSizeStats.PARSER, ModelSizeStats.RESULT_TYPE_FIELD);
-        PARSER.declareField(Builder::setLatestRecordTimeStamp, p -> {
+        parser.declareString(Builder::setDescription, DESCRIPTION);
+        parser.declareString(Builder::setSnapshotId, ModelSnapshotField.SNAPSHOT_ID);
+        parser.declareInt(Builder::setSnapshotDocCount, SNAPSHOT_DOC_COUNT);
+        parser.declareObject(Builder::setModelSizeStats, ignoreUnknownFields ? ModelSizeStats.LENIENT_PARSER : ModelSizeStats.STRICT_PARSER,
+                ModelSizeStats.RESULT_TYPE_FIELD);
+        parser.declareField(Builder::setLatestRecordTimeStamp, p -> {
             if (p.currentToken() == Token.VALUE_NUMBER) {
                 return new Date(p.longValue());
             } else if (p.currentToken() == Token.VALUE_STRING) {
@@ -82,7 +87,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
             throw new IllegalArgumentException(
                     "unexpected token [" + p.currentToken() + "] for [" + LATEST_RECORD_TIME.getPreferredName() + "]");
         }, LATEST_RECORD_TIME, ValueType.VALUE);
-        PARSER.declareField(Builder::setLatestResultTimeStamp, p -> {
+        parser.declareField(Builder::setLatestResultTimeStamp, p -> {
             if (p.currentToken() == Token.VALUE_NUMBER) {
                 return new Date(p.longValue());
             } else if (p.currentToken() == Token.VALUE_STRING) {
@@ -91,8 +96,10 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
             throw new IllegalArgumentException(
                     "unexpected token [" + p.currentToken() + "] for [" + LATEST_RESULT_TIME.getPreferredName() + "]");
         }, LATEST_RESULT_TIME, ValueType.VALUE);
-        PARSER.declareObject(Builder::setQuantiles, Quantiles.PARSER, QUANTILES);
-        PARSER.declareBoolean(Builder::setRetain, RETAIN);
+        parser.declareObject(Builder::setQuantiles, ignoreUnknownFields ? Quantiles.LENIENT_PARSER : Quantiles.STRICT_PARSER, QUANTILES);
+        parser.declareBoolean(Builder::setRetain, RETAIN);
+
+        return parser;
     }
 
 
@@ -340,7 +347,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         try (InputStream stream = bytesReference.streamInput();
              XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(bytesReference))
                 .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
-            return PARSER.apply(parser, null).build();
+            return LENIENT_PARSER.apply(parser, null).build();
         } catch (IOException e) {
             throw new ElasticsearchParseException("failed to parse modelSnapshot", e);
         }

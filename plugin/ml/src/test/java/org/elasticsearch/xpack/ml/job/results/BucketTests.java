@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecordTests;
@@ -14,6 +15,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.core.ml.job.results.PartitionScore;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -21,6 +23,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class BucketTests extends AbstractSerializingTestCase<Bucket> {
@@ -95,7 +98,7 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
 
     @Override
     protected Bucket doParseInstance(XContentParser parser) {
-        return Bucket.PARSER.apply(parser, null);
+        return Bucket.STRICT_PARSER.apply(parser, null);
     }
 
     public void testEquals_GivenDifferentClass() {
@@ -295,6 +298,23 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
             Bucket bucket = createTestInstance();
             Bucket copy = new Bucket(bucket);
             assertThat(copy, equalTo(bucket));
+        }
+    }
+
+    public void testStrictParser() throws IOException {
+        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123544456, \"bucket_span\": 3600, \"foo\":\"bar\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                    () -> Bucket.STRICT_PARSER.apply(parser, null));
+
+            assertThat(e.getMessage(), containsString("unknown field [foo]"));
+        }
+    }
+
+    public void testLenientParser() throws IOException {
+        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123544456, \"bucket_span\": 3600, \"foo\":\"bar\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            Bucket.LENIENT_PARSER.apply(parser, null);
         }
     }
 }

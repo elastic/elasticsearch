@@ -5,14 +5,13 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
@@ -23,6 +22,8 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecord> {
 
@@ -86,7 +87,7 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
 
     @Override
     protected AnomalyRecord doParseInstance(XContentParser parser) {
-        return AnomalyRecord.PARSER.apply(parser, null);
+        return AnomalyRecord.STRICT_PARSER.apply(parser, null);
     }
 
     @SuppressWarnings("unchecked")
@@ -189,15 +190,27 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
         assertEquals("test-job_record_1000_60_0_" + valuesHash + "_" + length, record.getId());
     }
 
-    public void testParsingv54WithSequenceNumField() throws IOException {
-        AnomalyRecord record = createTestInstance();
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        builder.startObject();
-        builder.field(AnomalyRecord.SEQUENCE_NUM.getPreferredName(), 1);
-        record.innerToXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-        XContentParser parser = createParser(builder);
-        AnomalyRecord serialised = doParseInstance(parser);
-        assertEquals(record, serialised);
+    public void testStrictParser_IsLenientOnTopLevelFields() throws IOException {
+        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123544456, \"bucket_span\": 3600, \"foo\":\"bar\"}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            AnomalyRecord.STRICT_PARSER.apply(parser, null);
+        }
+    }
+
+    public void testStrictParser_IsStrictOnNestedFields() throws IOException {
+        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123544456, \"bucket_span\": 3600, \"foo\":\"bar\"," +
+                " \"causes\":[{\"cause_foo\":\"bar\"}]}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            ParsingException e = expectThrows(ParsingException.class, () -> AnomalyRecord.STRICT_PARSER.apply(parser, null));
+            assertThat(e.getCause().getMessage(), containsString("[anomaly_cause] unknown field [cause_foo]"));
+        }
+    }
+
+    public void testLenientParser() throws IOException {
+        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123544456, \"bucket_span\": 3600, \"foo\":\"bar\"," +
+                " \"causes\":[{\"cause_foo\":\"bar\"}]}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            AnomalyRecord.LENIENT_PARSER.apply(parser, null);
+        }
     }
 }

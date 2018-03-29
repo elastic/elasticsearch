@@ -38,16 +38,21 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("categories");
 
-    public static final ConstructingObjectParser<CategoryDefinition, Void> PARSER =
-            new ConstructingObjectParser<>(TYPE.getPreferredName(), a -> new CategoryDefinition((String) a[0]));
+    public static final ConstructingObjectParser<CategoryDefinition, Void> STRICT_PARSER = createParser(false);
+    public static final ConstructingObjectParser<CategoryDefinition, Void> LENIENT_PARSER = createParser(true);
 
-    static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
-        PARSER.declareLong(CategoryDefinition::setCategoryId, CATEGORY_ID);
-        PARSER.declareString(CategoryDefinition::setTerms, TERMS);
-        PARSER.declareString(CategoryDefinition::setRegex, REGEX);
-        PARSER.declareLong(CategoryDefinition::setMaxMatchingLength, MAX_MATCHING_LENGTH);
-        PARSER.declareStringArray(CategoryDefinition::setExamples, EXAMPLES);
+    private static ConstructingObjectParser<CategoryDefinition, Void> createParser(boolean ignoreUnknownFields) {
+        ConstructingObjectParser<CategoryDefinition, Void> parser = new ConstructingObjectParser<>(TYPE.getPreferredName(),
+                ignoreUnknownFields, a -> new CategoryDefinition((String) a[0]));
+
+        parser.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
+        parser.declareLong(CategoryDefinition::setCategoryId, CATEGORY_ID);
+        parser.declareString(CategoryDefinition::setTerms, TERMS);
+        parser.declareString(CategoryDefinition::setRegex, REGEX);
+        parser.declareLong(CategoryDefinition::setMaxMatchingLength, MAX_MATCHING_LENGTH);
+        parser.declareStringArray(CategoryDefinition::setExamples, EXAMPLES);
+
+        return parser;
     }
 
     private final String jobId;

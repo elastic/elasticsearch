@@ -182,7 +182,12 @@ If this is not specified, an anonymous bind will be attempted.
 Defaults to Empty.
 
 `bind_password`::
-The password for the user that will be used to bind to the LDAP.
+The password for the user that will be used to bind to the LDAP directory.
+Defaults to Empty.
+*Deprecated.* Use `secure_bind_password` instead. 
+
+`secure_bind_password` (<<secure-settings,Secure>>)::
+The password for the user that will be used to bind to the LDAP directory.
 Defaults to Empty.
 
 `user_dn_templates`::
@@ -408,6 +413,11 @@ The DN of the user that will be used to bind to Active Directory and perform sea
 Defaults to Empty.
 
 `bind_password`::
+The password for the user that will be used to bind to Active Directory.
+Defaults to Empty.
+*Deprecated.* Use `secure_bind_password` instead. 
+
+`secure_bind_password` (<<secure-settings,Secure>>)::
 The password for the user that will be used to bind to Active Directory.
 Defaults to Empty.
 

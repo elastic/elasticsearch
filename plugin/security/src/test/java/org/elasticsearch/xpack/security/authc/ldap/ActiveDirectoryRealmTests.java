@@ -14,7 +14,9 @@ import com.unboundid.ldap.sdk.schema.Schema;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
@@ -63,12 +65,12 @@ import static org.mockito.Mockito.verify;
 
 /**
  * Active Directory Realm tests that use the UnboundID In Memory Directory Server
- *
+ * <p>
  * AD is not LDAPv3 compliant so a workaround is needed
  * AD realm binds with userPrincipalName but this is not a valid DN, so we have to add a second userPrincipalName to the
  * users in the ldif in the form of CN=user@domain.com or a set the sAMAccountName to CN=user when testing authentication
  * with the sAMAccountName field.
- *
+ * <p>
  * The username used to authenticate then has to be in the form of CN=user. Finally the username needs to be added as an
  * additional bind DN with a password in the test setup since it really is not a DN in the ldif file
  */
@@ -248,11 +250,18 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
     }
 
     private void doUnauthenticatedLookup(boolean pooled) throws Exception {
-        Settings settings = settings(Settings.builder()
+        final Settings.Builder builder = Settings.builder()
                 .put(ActiveDirectorySessionFactorySettings.POOL_ENABLED.getKey(), pooled)
-                .put(PoolingSessionFactorySettings.BIND_DN.getKey(), "CN=ironman@ad.test.elasticsearch.com")
-                .put(PoolingSessionFactorySettings.BIND_PASSWORD.getKey(), PASSWORD)
-                .build());
+                .put(PoolingSessionFactorySettings.BIND_DN.getKey(), "CN=ironman@ad.test.elasticsearch.com");
+        final boolean useLegacyBindPassword = randomBoolean();
+        if (useLegacyBindPassword) {
+            builder.put(PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD.getKey(), PASSWORD);
+        } else {
+            final MockSecureSettings secureSettings = new MockSecureSettings();
+            secureSettings.setString(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD.getKey(), PASSWORD);
+            builder.setSecureSettings(secureSettings);
+        }
+        Settings settings = settings(builder.build());
         RealmConfig config = new RealmConfig("testUnauthenticatedLookupWithConnectionPool", settings, globalSettings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
         try (ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool)) {

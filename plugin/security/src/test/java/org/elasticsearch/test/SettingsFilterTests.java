@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.test;
 
-import org.bouncycastle.operator.OperatorCreationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Guice;
 import org.elasticsearch.common.inject.Injector;
@@ -14,17 +13,13 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
-import org.elasticsearch.xpack.security.Security;
 import org.hamcrest.Matcher;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
-import javax.security.auth.DestroyFailedException;
-import java.io.IOException;
-import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -40,6 +35,8 @@ public class SettingsFilterTests extends ESTestCase {
     private MockSecureSettings mockSecureSettings = new MockSecureSettings();
 
     public void testFiltering() throws Exception {
+        final boolean useLegacyLdapBindPassword = randomBoolean();
+
         configureUnfilteredSetting("xpack.security.authc.realms.file.type", "file");
 
         // ldap realm filtering
@@ -48,7 +45,11 @@ public class SettingsFilterTests extends ESTestCase {
         configureUnfilteredSetting("xpack.security.authc.realms.ldap1.url", "ldap://host.domain");
         configureFilteredSetting("xpack.security.authc.realms.ldap1.hostname_verification", Boolean.toString(randomBoolean()));
         configureFilteredSetting("xpack.security.authc.realms.ldap1.bind_dn", randomAlphaOfLength(5));
-        configureFilteredSetting("xpack.security.authc.realms.ldap1.bind_password", randomAlphaOfLength(5));
+        if (useLegacyLdapBindPassword) {
+            configureFilteredSetting("xpack.security.authc.realms.ldap1.bind_password", randomAlphaOfLength(5));
+        } else {
+            configureSecureSetting("xpack.security.authc.realms.ldap1.secure_bind_password", randomAlphaOfLengthBetween(3, 8));
+        }
 
         // active directory filtering
         configureUnfilteredSetting("xpack.security.authc.realms.ad1.type", "active_directory");
@@ -93,7 +94,7 @@ public class SettingsFilterTests extends ESTestCase {
 
         // custom settings, potentially added by a plugin
         configureFilteredSetting("foo.bar", "_secret");
-        configureFilteredSetting("foo.baz", "_secret");;
+        configureFilteredSetting("foo.baz", "_secret");
         configureFilteredSetting("bar.baz", "_secret");
         configureUnfilteredSetting("baz.foo", "_not_a_secret");
         configureFilteredSetting("xpack.security.hide_settings", "foo.*,bar.baz");
@@ -123,6 +124,10 @@ public class SettingsFilterTests extends ESTestCase {
         Settings filteredSettings = settingsFilter.filter(settings);
         for (Map.Entry<String, Matcher> entry : settingsMatcherMap.entrySet()) {
             assertThat(filteredSettings.get(entry.getKey()), entry.getValue());
+        }
+
+        if (useLegacyLdapBindPassword) {
+            assertSettingDeprecationsAndWarnings(new Setting<?>[]{PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD});
         }
     }
 

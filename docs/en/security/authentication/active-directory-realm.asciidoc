@@ -93,7 +93,7 @@ connections to Active Directory. These pooled connection reduce the number of
 resources that must be created and destroyed with every user authentication.
 
 The following example shows the configuration of a bind user through the user of the
-`bind_dn` and `bind_password` settings.
+`bind_dn` and `secure_bind_password` settings.
 
 [source, yaml]
 ------------------------------------------------------------
@@ -107,11 +107,19 @@ xpack:
           domain_name: ad.example.com
           url: ldaps://ad.example.com:636
           bind_dn: es_svc_user@ad.example.com <1>
-          bind_password: es_svc_user_password
 ------------------------------------------------------------
 <1> This is the user that all Active Directory search requests are executed as.
     Without a bind user configured, all requests run as the user that is authenticating
     with Elasticsearch.
+
+The password for the `bind_dn` user should be configured by adding the appropriate
+`secure_bind_password` setting to the {es} keystore.
+For example, the following command adds the password for the example realm above:
+
+[source, shell]
+------------------------------------------------------------
+bin/elasticsearch-keystore add xpack.security.authc.realms.active_directory.secure_bind_password
+------------------------------------------------------------
 
 When a bind user is configured, connection pooling is enabled by default.
 Connection pooling can be disabled using the `user_search.pool.enabled` setting.
@@ -223,6 +231,9 @@ operation are supported: failover and load balancing
                                           Active Directory. Due to its potential security impact,
                                           `bind_password` is not exposed via the
                                           {ref}/cluster-nodes-info.html#cluster-nodes-info[nodes info API].
+                                          *Deprecated.* Use `secure_bind_password` instead. 
+| `secure_bind_password`     | no       | ({ref}/secure-settings.html[Secure])
+                                          The password for the user that is used to bind to Active Directory.
 | `load_balance.type`        | no       | The behavior to use when there are multiple LDAP URLs defined.
                                           For supported values see <<ad-load-balancing>>.
 | `load_balance.cache_ttl`   | no       | When using `dns_failover` or `dns_round_robin` as the load

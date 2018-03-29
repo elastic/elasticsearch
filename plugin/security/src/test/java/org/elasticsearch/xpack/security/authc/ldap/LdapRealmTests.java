@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.security.authc.ldap;
 import com.unboundid.ldap.sdk.LDAPURL;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -229,7 +231,7 @@ public class LdapRealmTests extends LdapTestCase {
                 .putList(URLS_SETTING, ldapUrls())
                 .put("user_search.base_dn", "")
                 .put("bind_dn", "cn=Thomas Masterman Hardy,ou=people,o=sevenSeas")
-                .put("bind_password", PASSWORD)
+                .setSecureSettings(secureSettings("secure_bind_password", PASSWORD))
                 .put("group_search.base_dn", groupSearchBase)
                 .put("group_search.scope", LdapSearchScope.SUB_TREE)
                 .put("ssl.verification_mode", VerificationMode.CERTIFICATE)
@@ -241,6 +243,12 @@ public class LdapRealmTests extends LdapTestCase {
         } finally {
             ((LdapUserSearchSessionFactory)sessionFactory).close();
         }
+    }
+
+    private MockSecureSettings secureSettings(String key, String value) {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(key, value);
+        return secureSettings;
     }
 
     public void testLdapRealmThrowsExceptionForUserTemplateAndSearchSettings() throws Exception {

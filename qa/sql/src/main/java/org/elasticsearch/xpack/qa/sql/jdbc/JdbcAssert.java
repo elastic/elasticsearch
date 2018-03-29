@@ -132,7 +132,7 @@ public class JdbcAssert {
                     }
                     // then timestamp
                     else if (type == Types.TIMESTAMP || type == Types.TIMESTAMP_WITH_TIMEZONE) {
-                        assertEquals(msg, getTime(expected, column), getTime(actual, column));
+                        assertEquals(msg, expected.getTimestamp(column), actual.getTimestamp(column));
                     }
                     // and floats/doubles
                     else if (type == Types.DOUBLE) {
@@ -161,7 +161,4 @@ public class JdbcAssert {
         }
     }
 
-    private static Object getTime(ResultSet rs, int column) throws SQLException {
-        return rs.getTime(column, UTC_CALENDAR).getTime();
-    }
 }

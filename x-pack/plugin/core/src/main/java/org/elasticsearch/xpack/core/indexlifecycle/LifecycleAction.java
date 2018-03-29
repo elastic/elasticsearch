@@ -28,8 +28,4 @@ public interface LifecycleAction extends ToXContentObject, NamedWriteable {
      * @return an ordered list of steps that represent the execution plan of the action
      */
     List<Step> toSteps(Client client, String phase, @Nullable Step.StepKey nextStepKey);
-
-    default boolean indexSurvives() {
-        return true;
-    }
 }

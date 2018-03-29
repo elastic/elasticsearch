@@ -149,10 +149,6 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
     public List<Step> toSteps(Client client, LongSupplier nowSupplier) {
         List<Step> steps = new ArrayList<>();
         List<Phase> orderedPhases = type.getOrderedPhases(phases);
-        logger.error("checking phases[" + orderedPhases.size() + "]");
-        for (Phase t : orderedPhases) {
-            logger.error(t);
-        }
         ListIterator<Phase> phaseIterator = orderedPhases.listIterator(orderedPhases.size());
         Step.StepKey lastStepKey = null;
         // add steps for each phase, in reverse
@@ -172,10 +168,18 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
                 }
             }
             Step.StepKey afterStepKey = new Step.StepKey(phase.getName(), null, "after");
-            steps.add(new PhaseAfterStep(nowSupplier, phase.getAfter(), afterStepKey, lastStepKey));
+            Step phaseAfterStep = new PhaseAfterStep(nowSupplier, phase.getAfter(), afterStepKey, lastStepKey);
+            steps.add(phaseAfterStep);
+            lastStepKey = phaseAfterStep.getKey();
         }
 
+        steps.add(new InitializePolicyContextStep(new Step.StepKey("", "", ""), lastStepKey));
+
         Collections.reverse(steps);
+        logger.error("STEP COUNT: " + steps.size());
+        for (Step step : steps) {
+            logger.error(step.getKey() + " -> " + step.getNextStepKey());
+        }
         return steps;
     }
 

@@ -40,7 +40,8 @@ public class PolicyStepsRegistry {
     @SuppressWarnings("unchecked")
     public void update(ClusterState currentState, Client client, LongSupplier nowSupplier) {
         IndexLifecycleMetadata meta = currentState.metaData().custom(IndexLifecycleMetadata.TYPE);
-        Diff<Map<String, LifecyclePolicy>> diff = DiffableUtils.diff(lifecyclePolicyMap, meta.getPolicies(), DiffableUtils.getStringKeySerializer());
+        Diff<Map<String, LifecyclePolicy>> diff = DiffableUtils.diff(lifecyclePolicyMap, meta.getPolicies(),
+            DiffableUtils.getStringKeySerializer());
         DiffableUtils.MapDiff<String, LifecyclePolicy, DiffableUtils.KeySerializer<String>> mapDiff = (DiffableUtils.MapDiff) diff;
         if (mapDiff.getUpserts().isEmpty() == false) {
             for (LifecyclePolicy policy : mapDiff.getUpserts().values()) {

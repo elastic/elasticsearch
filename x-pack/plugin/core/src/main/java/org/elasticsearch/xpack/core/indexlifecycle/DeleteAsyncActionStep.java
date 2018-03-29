@@ -15,8 +15,14 @@ public class DeleteAsyncActionStep extends AsyncActionStep {
         super(key, nextStepKey, client);
     }
 
+    @Override
     public void performAction(Index index, Listener listener) {
         getClient().admin().indices().prepareDelete(index.getName())
             .execute(ActionListener.wrap(response -> listener.onResponse(true) , listener::onFailure));
+    }
+
+    @Override
+    public boolean indexSurvives() {
+        return false;
     }
 }

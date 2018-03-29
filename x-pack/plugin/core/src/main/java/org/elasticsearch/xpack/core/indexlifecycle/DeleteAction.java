@@ -63,11 +63,6 @@ public class DeleteAction implements LifecycleAction {
     }
 
     @Override
-    public boolean indexSurvives() {
-        return false;
-    }
-
-    @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
         Step.StepKey deleteStepKey = new Step.StepKey(phase, NAME, "delete-step");
         return Collections.singletonList(new DeleteAsyncActionStep(deleteStepKey, nextStepKey, client));

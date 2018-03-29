@@ -28,8 +28,8 @@ public abstract class Step {
         return nextStepKey;
     }
 
-    public boolean hasNextStep() {
-        return nextStepKey != null;
+    public boolean indexSurvives() {
+        return true;
     }
 
     public static class StepKey {

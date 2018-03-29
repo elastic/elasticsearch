@@ -5,11 +5,13 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.index.Index;
@@ -22,7 +24,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 public class IndexLifecycleRunner {
-
+    private static final Logger logger = ESLoggerFactory.getLogger(IndexLifecycleRunner.class);
     private PolicyStepsRegistry stepRegistry;
     private ClusterService clusterService;
 
@@ -33,6 +35,7 @@ public class IndexLifecycleRunner {
 
     public void runPolicy(String policy, Index index, Settings indexSettings, Cause cause) {
         Step currentStep = getCurrentStep(policy, indexSettings);
+        logger.warn("running policy with current-step[" + currentStep.getKey() + "]");
         if (currentStep instanceof ClusterStateActionStep || currentStep instanceof ClusterStateWaitStep) {
             if (cause != Cause.SCHEDULE_TRIGGER) {
                 executeClusterStateSteps(index, policy, currentStep);
@@ -43,6 +46,7 @@ public class IndexLifecycleRunner {
     
                     @Override
                     public void onResponse(boolean conditionMet) {
+                        logger.error("cs-change-async-wait-callback. current-step:" + currentStep.getKey());
                         if (conditionMet) {
                             moveToStep(index, policy, currentStep.getKey(), currentStep.getNextStepKey(), Cause.CALLBACK);
                         }
@@ -61,7 +65,8 @@ public class IndexLifecycleRunner {
     
                     @Override
                     public void onResponse(boolean complete) {
-                        if (complete) {
+                        logger.error("cs-change-async-action-callback. current-step:" + currentStep.getKey());
+                        if (complete && currentStep.indexSurvives()) {
                             moveToStep(index, policy, currentStep.getKey(), currentStep.getNextStepKey(), Cause.CALLBACK);
                         }
                     }
@@ -87,53 +92,10 @@ public class IndexLifecycleRunner {
 
     private void executeClusterStateSteps(Index index, String policy, Step step) {
         assert step instanceof ClusterStateActionStep || step instanceof ClusterStateWaitStep;
-        clusterService.submitStateUpdateTask("ILM", new ClusterStateUpdateTask() {
-
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                Step currentStep = step;
-                if (currentStep.equals(getCurrentStep(policy, currentState.getMetaData().index(index).getSettings()))) {
-                    // We can do cluster state steps all together until we
-                    // either get to a step that isn't a cluster state step or a
-                    // cluster state wait step returns not completed
-                    while (currentStep instanceof ClusterStateActionStep || currentStep instanceof ClusterStateWaitStep) {
-                        if (currentStep instanceof ClusterStateActionStep) {
-                            // cluster state action step so do the action and
-                            // move
-                            // the cluster state to the next step
-                            currentState = ((ClusterStateActionStep) currentStep).performAction(index, currentState);
-                            currentState = moveClusterStateToNextStep(index, currentState, currentStep.getNextStepKey());
-                        } else {
-                            // cluster state wait step so evaluate the
-                            // condition, if the condition is met move to the
-                            // next step, if its not met return the current
-                            // cluster state so it can be applied and we will
-                            // wait for the next trigger to evaluate the
-                            // condition again
-                            boolean complete = ((ClusterStateWaitStep) currentStep).isConditionMet(index, currentState);
-                            if (complete) {
-                                currentState = moveClusterStateToNextStep(index, currentState, currentStep.getNextStepKey());
-                            } else {
-                                return currentState;
-                            }
-                        }
-                        currentStep = stepRegistry.getStep(policy, currentStep.getNextStepKey());
-                    }
-                    return currentState;
-                } else {
-                    // either we are no longer the master or the step is now
-                    // not the same as when we submitted the update task. In
-                    // either case we don't want to do anything now
-                    return currentState;
-                }
-            }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                throw new RuntimeException(e); // NORELEASE implement error handling
-            }
-
-        });
+        clusterService.submitStateUpdateTask("ILM", new ExecuteStepsUpdateTask(index, step,
+            (currentState) -> getCurrentStep(policy, currentState.getMetaData().index(index).getSettings()),
+            (currentState, currentStep) -> moveClusterStateToNextStep(index, currentState, currentStep.getNextStepKey()),
+            (stepKey) -> stepRegistry.getStep(policy, stepKey)));
     }
 
     private StepKey getCurrentStepKey(Settings indexSettings) {
@@ -165,9 +127,6 @@ public class IndexLifecycleRunner {
         IndexMetaData idxMeta = clusterState.getMetaData().index(index);
         Builder indexSettings = Settings.builder().put(idxMeta.getSettings()).put(LifecycleSettings.LIFECYCLE_PHASE, nextStep.getPhase())
                 .put(LifecycleSettings.LIFECYCLE_ACTION, nextStep.getAction()).put(LifecycleSettings.LIFECYCLE_STEP, nextStep.getName());
-        if (indexSettings.keys().contains(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE) == false) {
-            indexSettings.put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE_SETTING.getKey(), idxMeta.getCreationDate());
-        }
         newClusterStateBuilder.metaData(MetaData.builder(clusterState.getMetaData()).put(IndexMetaData
                 .builder(clusterState.getMetaData().index(index))
                 .settings(indexSettings)));
@@ -175,40 +134,14 @@ public class IndexLifecycleRunner {
     }
 
     private void moveToStep(Index index, String policy, StepKey currentStepKey, StepKey nextStepKey, Cause cause) {
-        clusterService.submitStateUpdateTask("ILM", new ClusterStateUpdateTask() {
-
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                Settings indexSettings = currentState.getMetaData().index(index).getSettings();
-                if (policy.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings))
-                        && currentStepKey.equals(getCurrentStepKey(indexSettings))) {
-                    return moveClusterStateToNextStep(index, currentState, nextStepKey);
-                } else {
-                    // either the policy has changed or the step is now
-                    // not the same as when we submitted the update task. In
-                    // either case we don't want to do anything now
-                    return currentState;
-                }
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                // if the new cluster state is different from the old one then
-                // we moved to the new step in the execute method so we should
-                // execute the next step
-                if (oldState != newState) {
-                    runPolicy(index, newState, cause);
-                }
-            }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                throw new RuntimeException(e); // NORELEASE implement error handling
-            }
-        });
+        logger.error("moveToStep[" + policy + "] [" + index.getName() + "]" + currentStepKey + " -> "
+            + nextStepKey + ". because:" + cause.name());
+        clusterService.submitStateUpdateTask("ILM", new MoveToNextStepUpdateTask(index, policy,
+            currentStepKey, (c) -> moveClusterStateToNextStep(index, c, nextStepKey),
+            (s) -> getCurrentStepKey(s), (c) -> runPolicy(index, c, cause)));
     }
 
-    public static enum Cause {
+    public enum Cause {
         CLUSTER_STATE_CHANGE, SCHEDULE_TRIGGER, CALLBACK;
     }
 }

@@ -28,7 +28,15 @@
             client: "integration_test"
 
   - match: { acknowledged: true }
-  
+
+  # Get repository
+  - do:
+      snapshot.get_repository:
+        repository: repository
+
+  - match: {repository.settings.bucket : "bucket_test"}
+  - match: {repository.settings.client : "integration_test"}
+
   # Index documents
   - do:
       bulk:
@@ -180,7 +188,3 @@
   - do:
      snapshot.delete_repository:
        repository: repository
-
-
-      
-      

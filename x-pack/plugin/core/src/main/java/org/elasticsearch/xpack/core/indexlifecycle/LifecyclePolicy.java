@@ -24,11 +24,13 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -144,14 +146,36 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         return builder;
     }
 
-    public List<Step> toSteps() {
+    public List<Step> toSteps(Client client, LongSupplier nowSupplier) {
         List<Step> steps = new ArrayList<>();
-        for (Phase phase : type.getOrderedPhases(phases)) {
-            for (LifecycleAction action : type.getOrderedActions(phase)) {
-                // TODO(talevy): correctly set `nextStep` between actions and phases
-                steps.addAll(action.toSteps(phase.getName()));
-            }
+        List<Phase> orderedPhases = type.getOrderedPhases(phases);
+        logger.error("checking phases[" + orderedPhases.size() + "]");
+        for (Phase t : orderedPhases) {
+            logger.error(t);
         }
+        ListIterator<Phase> phaseIterator = orderedPhases.listIterator(orderedPhases.size());
+        Step.StepKey lastStepKey = null;
+        // add steps for each phase, in reverse
+        while (phaseIterator.hasPrevious()) {
+            Phase phase = phaseIterator.previous();
+            List<LifecycleAction> orderedActions = type.getOrderedActions(phase);
+            ListIterator<LifecycleAction> actionIterator = orderedActions.listIterator(orderedActions.size());
+            // add steps for each action, in reverse
+            while (actionIterator.hasPrevious()) {
+                LifecycleAction action = actionIterator.previous();
+                List<Step> actionSteps = action.toSteps(client, phase.getName(), lastStepKey);
+                ListIterator<Step> actionStepsIterator = actionSteps.listIterator(actionSteps.size());
+                while (actionStepsIterator.hasPrevious()) {
+                    Step step = actionStepsIterator.previous();
+                    steps.add(step);
+                    lastStepKey = step.getKey();
+                }
+            }
+            Step.StepKey afterStepKey = new Step.StepKey(phase.getName(), null, "after");
+            steps.add(new PhaseAfterStep(nowSupplier, phase.getAfter(), afterStepKey, lastStepKey));
+        }
+
+        Collections.reverse(steps);
         return steps;
     }
 

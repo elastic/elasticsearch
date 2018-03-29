@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -69,11 +70,11 @@ public class TestLifecycleType implements LifecycleType {
 
     @Override
     public List<Phase> getOrderedPhases(Map<String, Phase> phases) {
-        return null;
+        return new ArrayList<>(phases.values());
     }
 
     @Override
     public List<LifecycleAction> getOrderedActions(Phase phase) {
-        return null;
+        return new ArrayList<>(phase.getActions().values());
     }
 }

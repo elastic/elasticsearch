@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -145,7 +146,7 @@ public class RolloverAction implements LifecycleAction {
     }
 
     @Override
-    public List<Step> toSteps(String phase) {
+    public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
         return Collections.emptyList();
 //        ConditionalWaitStep wait = new ConditionalWaitStep(clusterService, "wait_for_rollover", index.getName(), phase, action, (clusterState) -> {
 //            // TODO(talevy): actually, needs to RolloverRequest with dryrun to get the appropriate data; clusterState is not enough...

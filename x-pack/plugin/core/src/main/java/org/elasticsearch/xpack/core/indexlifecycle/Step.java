@@ -11,29 +11,18 @@ import java.util.Objects;
  * A {@link LifecycleAction} which deletes the index.
  */
 public abstract class Step {
-    private final String name;
-    private final String action;
-    private final String phase;
+    private final StepKey key;
     private final StepKey nextStepKey;
 
-    public Step(String name, String action, String phase, StepKey nextStepKey) {
-        this.name = name;
-        this.action = action;
-        this.phase = phase;
+    public Step(StepKey key, StepKey nextStepKey) {
+        this.key = key;
         this.nextStepKey = nextStepKey;
     }
 
-    public String getName() {
-        return name;
+    public StepKey getKey() {
+        return key;
     }
 
-    public String getAction() {
-        return action;
-    }
-
-    public String getPhase() {
-        return phase;
-    }
 
     public StepKey getNextStepKey() {
         return nextStepKey;
@@ -82,6 +71,11 @@ public abstract class Step {
             }
             StepKey other = (StepKey) obj;
             return Objects.equals(phase, other.phase) && Objects.equals(action, other.action) && Objects.equals(name, other.name);
+        }
+
+        @Override
+        public String toString() {
+            return String.format("[%s][%s][%s]", phase, action, name);
         }
     }
 }

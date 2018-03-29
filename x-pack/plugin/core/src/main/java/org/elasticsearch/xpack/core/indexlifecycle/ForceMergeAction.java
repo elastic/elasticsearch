@@ -97,7 +97,7 @@ public class ForceMergeAction implements LifecycleAction {
     }
 
     @Override
-    public List<Step> toSteps(String phase) {
+    public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
 //        ClusterStateUpdateStep readOnlyStep = new ClusterStateUpdateStep(
 //            "read_only", NAME, phase, index.getName(), (currentState) -> {
 //            Settings readOnlySettings = Settings.builder().put(IndexMetaData.SETTING_BLOCKS_WRITE, true).build();

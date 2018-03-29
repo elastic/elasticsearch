@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -18,6 +19,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.LongSupplier;
 
 public class PolicyStepsRegistry {
 
@@ -36,19 +38,20 @@ public class PolicyStepsRegistry {
     }
 
     @SuppressWarnings("unchecked")
-    public void update(ClusterState currentState) {
+    public void update(ClusterState currentState, Client client, LongSupplier nowSupplier) {
         IndexLifecycleMetadata meta = currentState.metaData().custom(IndexLifecycleMetadata.TYPE);
         Diff<Map<String, LifecyclePolicy>> diff = DiffableUtils.diff(lifecyclePolicyMap, meta.getPolicies(), DiffableUtils.getStringKeySerializer());
         DiffableUtils.MapDiff<String, LifecyclePolicy, DiffableUtils.KeySerializer<String>> mapDiff = (DiffableUtils.MapDiff) diff;
         if (mapDiff.getUpserts().isEmpty() == false) {
             for (LifecyclePolicy policy : mapDiff.getUpserts().values()) {
                 lifecyclePolicyMap.put(policy.getName(), policy);
-                List<Step> policyAsSteps = policy.toSteps();
+                List<Step> policyAsSteps = policy.toSteps(client, nowSupplier);
                 if (policyAsSteps.isEmpty() == false) {
                     firstStepMap.put(policy.getName(), policyAsSteps.get(0));
-                    Map<Step.StepKey, Step> stepMapForPolicy = stepMap.put(policy.getName(), new HashMap<>());
+                    stepMap.put(policy.getName(), new HashMap<>());
+                    Map<Step.StepKey, Step> stepMapForPolicy = stepMap.get(policy.getName());
                     for (Step step : policyAsSteps) {
-                        stepMapForPolicy.put(new Step.StepKey(step.getPhase(), step.getAction(), step.getName()), step);
+                        stepMapForPolicy.put(step.getKey(), step);
                     }
                 }
             }

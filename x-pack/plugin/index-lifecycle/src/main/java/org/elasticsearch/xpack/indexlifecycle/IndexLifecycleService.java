@@ -82,7 +82,7 @@ public class IndexLifecycleService extends AbstractComponent
 
             if (lifecycleMetadata != null && event.changedCustomMetaDataSet().contains(IndexLifecycleMetadata.TYPE)) {
                 // update policy steps registry
-                policyRegistry.update(event.state());
+                policyRegistry.update(event.state(), client, nowSupplier);
             }
 
             if (lifecycleMetadata == null) { // no lifecycle metadata, install initial empty metadata state

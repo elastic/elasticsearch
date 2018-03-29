@@ -5,13 +5,26 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.Index;
 
-public class PhaseAfterStep extends Step {
+import java.util.function.LongSupplier;
+
+public class PhaseAfterStep extends ClusterStateWaitStep {
     private final TimeValue after;
+    private final LongSupplier nowSupplier;
 
-    public PhaseAfterStep(String phase, String action, String name, TimeValue after, StepKey nextStepKey) {
-        super(name, action, phase, nextStepKey);
+    PhaseAfterStep(LongSupplier nowSupplier, TimeValue after, StepKey key, StepKey nextStepKey) {
+        super(key, nextStepKey);
+        this.nowSupplier = nowSupplier;
         this.after = after;
+    }
+
+    @Override
+    public boolean isConditionMet(Index index, ClusterState clusterState) {
+        long lifecycleDate = clusterState.metaData().settings()
+            .getAsLong(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, -1L);
+        return nowSupplier.getAsLong() >= lifecycleDate + after.getMillis();
     }
 }

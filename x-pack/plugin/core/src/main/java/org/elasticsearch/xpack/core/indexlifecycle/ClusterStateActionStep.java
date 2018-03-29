@@ -10,8 +10,8 @@ import org.elasticsearch.index.Index;
 
 public abstract class ClusterStateActionStep extends Step {
 
-    public ClusterStateActionStep(String name, String action, String phase, StepKey nextStepKey) {
-        super(name, action, phase, nextStepKey);
+    public ClusterStateActionStep(StepKey key, StepKey nextStepKey) {
+        super(key, nextStepKey);
     }
 
     public abstract ClusterState performAction(Index index, ClusterState clusterState);

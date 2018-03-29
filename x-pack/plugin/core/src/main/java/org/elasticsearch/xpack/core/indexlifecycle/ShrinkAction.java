@@ -104,7 +104,7 @@ public class ShrinkAction implements LifecycleAction {
     }
 
     @Override
-    public List<Step> toSteps(String phase) {
+    public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
 //        String shrunkenIndexName = SHRUNK_INDEX_NAME_PREFIX + index.getName();
 //        // TODO(talevy): magical node.name to allocate to
 //        String nodeName = "MAGIC";

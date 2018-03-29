@@ -24,7 +24,9 @@ import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
+import java.util.Arrays;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.is;
 
@@ -57,9 +59,41 @@ public abstract class SamlTestCase extends ESTestCase {
         }
     }
 
+    /**
+     * Generates signed certificate and associates with generated key pair.
+     * @see #createKeyPair(String)
+     * @return X509Certificate a signed certificate, it's PrivateKey {@link Tuple}
+     * @throws Exception
+     */
     protected static Tuple<X509Certificate, PrivateKey> createKeyPair() throws Exception {
-        KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-        keyPairGenerator.initialize(2048);
+        return createKeyPair("RSA");
+    }
+
+    /**
+     * Generates key pair for given algorithm and then associates with a certificate.
+     * For testing, for "EC" algorithm 256 key size is used, others use 2048 as default.
+     * @param algorithm
+     * @return X509Certificate a signed certificate, it's PrivateKey {@link Tuple}
+     * @throws Exception
+     */
+    protected static Tuple<X509Certificate, PrivateKey> createKeyPair(String algorithm) throws Exception {
+        KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance(algorithm);
+        final boolean useBigKeySizes = rarely();
+        switch (algorithm) {
+            case "EC":
+                keyPairGenerator.initialize(randomFrom(256, 384));
+                break;
+            case "RSA":
+                keyPairGenerator.initialize(randomFrom(Arrays.stream(new int[] { 1024, 2048, 4096 }).boxed()
+                        .filter((ksize) -> (ksize <= 2048 || useBigKeySizes)).collect(Collectors.toList())));
+                break;
+            case "DSA":
+                keyPairGenerator.initialize(randomFrom(Arrays.stream(new int[] { 1024, 2048, 3072 }).boxed()
+                        .filter((ksize) -> (ksize <= 2048 || useBigKeySizes)).collect(Collectors.toList())));
+                break;
+            default:
+                keyPairGenerator.initialize(randomFrom(1024, 2048));
+        }
         final KeyPair pair = keyPairGenerator.generateKeyPair();
         final String name = randomAlphaOfLength(8);
         final X509Certificate cert = CertUtils.generateSignedCertificate(new X500Principal("CN=test-" + name), null, pair, null, null, 30);

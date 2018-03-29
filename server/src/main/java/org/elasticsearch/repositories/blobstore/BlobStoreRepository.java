@@ -481,11 +481,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public MetaData getSnapshotMetaData(SnapshotInfo snapshot, List<IndexId> indices) throws IOException {
-        return readSnapshotMetaData(snapshot.snapshotId(), snapshot.version(), indices, false);
-    }
-
-    @Override
     public SnapshotInfo getSnapshotInfo(final SnapshotId snapshotId) {
         try {
             return snapshotFormat.read(snapshotsBlobContainer, snapshotId.getUUID());
@@ -496,38 +491,59 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    private MetaData readSnapshotMetaData(SnapshotId snapshotId, Version snapshotVersion, List<IndexId> indices, boolean ignoreIndexErrors) throws IOException {
-        MetaData metaData;
+    @Override
+    public MetaData getSnapshotGlobalMetaData(final SnapshotId snapshotId) {
+        try {
+            return globalMetaDataFormat.read(snapshotsBlobContainer, snapshotId.getUUID());
+        } catch (NoSuchFileException ex) {
+            throw new SnapshotMissingException(metadata.name(), snapshotId, ex);
+        } catch (IOException ex) {
+            throw new SnapshotException(metadata.name(), snapshotId, "failed to read global metadata", ex);
+        }
+    }
+
+    @Override
+    public IndexMetaData getSnapshotIndexMetaData(final SnapshotId snapshotId, final IndexId index) throws IOException {
+        final BlobPath indexPath = basePath().add("indices").add(index.getId());
+        return indexMetaDataFormat.read(blobStore().blobContainer(indexPath), snapshotId.getUUID());
+    }
+
+    /**
+     * Returns the global metadata associated with the snapshot.
+     * <p>
+     * The returned meta data contains global metadata as well as metadata
+     * for all indices listed in the indices parameter.
+     */
+    private MetaData readSnapshotMetaData(final SnapshotId snapshotId,
+                                          final Version snapshotVersion,
+                                          final List<IndexId> indices,
+                                          final boolean ignoreErrors) throws IOException {
         if (snapshotVersion == null) {
             // When we delete corrupted snapshots we might not know which version we are dealing with
             // We can try detecting the version based on the metadata file format
-            assert ignoreIndexErrors;
+            assert ignoreErrors;
             if (globalMetaDataFormat.exists(snapshotsBlobContainer, snapshotId.getUUID()) == false) {
                 throw new SnapshotMissingException(metadata.name(), snapshotId);
             }
         }
-        try {
-            metaData = globalMetaDataFormat.read(snapshotsBlobContainer, snapshotId.getUUID());
-        } catch (NoSuchFileException ex) {
-            throw new SnapshotMissingException(metadata.name(), snapshotId, ex);
-        } catch (IOException ex) {
-            throw new SnapshotException(metadata.name(), snapshotId, "failed to get snapshots", ex);
-        }
-        MetaData.Builder metaDataBuilder = MetaData.builder(metaData);
-        for (IndexId index : indices) {
-            BlobPath indexPath = basePath().add("indices").add(index.getId());
-            BlobContainer indexMetaDataBlobContainer = blobStore().blobContainer(indexPath);
-            try {
-                metaDataBuilder.put(indexMetaDataFormat.read(indexMetaDataBlobContainer, snapshotId.getUUID()), false);
-            } catch (ElasticsearchParseException | IOException ex) {
-                if (ignoreIndexErrors) {
-                    logger.warn(() -> new ParameterizedMessage("[{}] [{}] failed to read metadata for index", snapshotId, index.getName()), ex);
-                } else {
-                    throw ex;
+
+        final MetaData.Builder metaData = MetaData.builder(getSnapshotGlobalMetaData(snapshotId));
+        if (indices != null) {
+            for (IndexId index : indices) {
+                try {
+                    metaData.put(getSnapshotIndexMetaData(snapshotId, index), false);
+                } catch (ElasticsearchParseException | IOException ex) {
+                    if (ignoreErrors == false) {
+                        throw new SnapshotException(metadata.name(), snapshotId,
+                            "[" + index.getName() + "] failed to read metadata for index", ex);
+                    } else {
+                        logger.warn(() ->
+                            new ParameterizedMessage("[{}] [{}] failed to read metadata for index", snapshotId, index.getName()), ex);
+                    }
                 }
             }
         }
-        return metaDataBuilder.build();
+        return metaData.build();
     }
 
     /**

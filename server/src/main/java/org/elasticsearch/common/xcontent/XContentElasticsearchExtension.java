@@ -23,13 +23,23 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.joda.time.Instant;
+import org.joda.time.MutableDateTime;
+import org.joda.time.ReadableInstant;
+import org.joda.time.format.DateTimeFormatter;
+import org.joda.time.format.ISODateTimeFormat;
 import org.joda.time.tz.CachedDateTimeZone;
 import org.joda.time.tz.FixedDateTimeZone;
 
+import java.util.Calendar;
+import java.util.Date;
+import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * SPI extensions for Elasticsearch-specific classes (like the Lucene or Joda
@@ -37,6 +47,8 @@ import java.util.Objects;
  * specific way.
  */
 public class XContentElasticsearchExtension implements XContentBuilderExtension {
+
+    public static final DateTimeFormatter DEFAULT_DATE_PRINTER = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
 
     @Override
     public Map<Class<?>, XContentBuilder.Writer> getXContentWriters() {
@@ -47,6 +59,8 @@ public class XContentElasticsearchExtension implements XContentBuilderExtension 
         writers.put(DateTimeZone.class, (b, v) -> b.value(Objects.toString(v)));
         writers.put(CachedDateTimeZone.class, (b, v) -> b.value(Objects.toString(v)));
         writers.put(FixedDateTimeZone.class, (b, v) -> b.value(Objects.toString(v)));
+        writers.put(MutableDateTime.class, XContentBuilder::timeValue);
+        writers.put(DateTime.class, XContentBuilder::timeValue);
 
         writers.put(BytesReference.class, (b, v) -> {
             if (v == null) {
@@ -73,6 +87,20 @@ public class XContentElasticsearchExtension implements XContentBuilderExtension 
         Map<Class<?>, XContentBuilder.HumanReadableTransformer> transformers = new HashMap<>();
         transformers.put(TimeValue.class, v -> ((TimeValue) v).millis());
         transformers.put(ByteSizeValue.class, v -> ((ByteSizeValue) v).getBytes());
+        return transformers;
+    }
+
+    @Override
+    public Map<Class<?>, Function<Object, Object>> getDateTransformers() {
+        Map<Class<?>, Function<Object, Object>> transformers = new HashMap<>();
+        transformers.put(Date.class, d -> DEFAULT_DATE_PRINTER.print(((Date) d).getTime()));
+        transformers.put(DateTime.class, d -> DEFAULT_DATE_PRINTER.print((DateTime) d));
+        transformers.put(MutableDateTime.class, d -> DEFAULT_DATE_PRINTER.print((MutableDateTime) d));
+        transformers.put(ReadableInstant.class, d -> DEFAULT_DATE_PRINTER.print((ReadableInstant) d));
+        transformers.put(Long.class, d -> DEFAULT_DATE_PRINTER.print((long) d));
+        transformers.put(Calendar.class, d -> DEFAULT_DATE_PRINTER.print(((Calendar) d).getTimeInMillis()));
+        transformers.put(GregorianCalendar.class, d -> DEFAULT_DATE_PRINTER.print(((Calendar) d).getTimeInMillis()));
+        transformers.put(Instant.class, d -> DEFAULT_DATE_PRINTER.print((Instant) d));
         return transformers;
     }
 }

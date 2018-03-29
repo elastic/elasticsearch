@@ -91,7 +91,7 @@ subprojects {
 
   String buildMetadataKey = "bwc_refspec_${project.path.substring(1)}"
   task checkoutBwcBranch(type: LoggedExec) {
-    String refspec = System.getProperty("tests.bwc.refspec", buildMetadata.get(buildMetadataKey, "${remote}/${bwcBranch}"))
+    String refspec = System.getProperty("tests.bwc.refspec.${bwcBranch}", buildMetadata.get(buildMetadataKey, "${remote}/${bwcBranch}"))
     dependsOn fetchLatest
     workingDir = checkoutDir
     commandLine = ['git', 'checkout', refspec]

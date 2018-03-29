@@ -1596,8 +1596,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     // note that we can't just use IndexCommit.delete() as we really want to make sure that those files won't be used
                     // even if a virus scanner causes the files not to be used.
 
-                    // TODO: speak to @s1monw about the fact that we can' use  getUserData(writer) as that uses that last's commit user
-                    // data rather then the starting commit.
+                    // The new commit will use segment files from the starting commit but userData from the last commit by default.
+                    // Thus, we need to manually set the userData from the starting commit to the new commit.
                     writer.setLiveCommitData(startingIndexCommit.getUserData().entrySet());
                     writer.commit();
                 }

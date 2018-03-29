@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.security.authz.accesscontrol;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -31,6 +33,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -247,6 +250,23 @@ public class IndicesPermissionTests extends ESTestCase {
 
         assertTrue(core.check(SearchAction.NAME));
         assertFalse(core.check("unknown"));
+    }
+
+    public void testErrorMessageIfIndexPatternIsTooComplex() {
+        final IndicesPermission.Group[] groups = new IndicesPermission.Group[26];
+        for (int i = 0; i < 26; i++) {
+            final char ch = (char) ('a' + i);
+            String index = Character.toString(ch);
+            for (int j = 0; j < 250; j++) {
+                index += "*" + ch;
+            }
+            groups[i] = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, index);
+        }
+        final IndicesPermission permission = new IndicesPermission(groups);
+        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
+                () -> permission.allowedIndicesMatcher(GetAction.NAME));
+        assertThat(e.getMessage(), containsString("a*a*a*a*a"));
+        assertThat(e.getMessage(), containsString("too complex to evaluate"));
     }
 
     private static FieldPermissionsDefinition fieldPermissionDef(String[] granted, String[] denied) {

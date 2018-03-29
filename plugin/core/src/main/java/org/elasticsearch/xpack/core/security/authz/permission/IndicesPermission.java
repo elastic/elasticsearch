@@ -6,11 +6,15 @@
 package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -55,8 +59,21 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
                     indices.addAll(Arrays.asList(group.indices));
                 }
             }
-            return Automatons.predicate(indices);
+            return indexMatcher(indices);
         };
+    }
+
+    static Predicate<String> indexMatcher(List<String> indices) {
+        try {
+            return Automatons.predicate(indices);
+        } catch (TooComplexToDeterminizeException e) {
+            Loggers.getLogger(IndicesPermission.class).debug("Index pattern automaton [{}] is too complex", indices);
+            String description = Strings.collectionToCommaDelimitedString(indices);
+            if (description.length() > 80) {
+                description = Strings.cleanTruncate(description, 80) + "...";
+            }
+            throw new ElasticsearchSecurityException("The set of permitted index patterns [{}] is too complex to evaluate", e, description);
+        }
     }
 
     @Override
@@ -198,7 +215,7 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
             this.privilege = privilege;
             this.actionMatcher = privilege.predicate();
             this.indices = indices;
-            this.indexNameMatcher = Automatons.predicate(indices);
+            this.indexNameMatcher = indexMatcher(Arrays.asList(indices));
             this.fieldPermissions = Objects.requireNonNull(fieldPermissions);
             this.query = query;
         }

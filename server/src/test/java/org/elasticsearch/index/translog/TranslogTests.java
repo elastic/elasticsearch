@@ -2500,7 +2500,7 @@ public class TranslogTests extends ESTestCase {
         int totalOperations = 0;
         int seqNo = 0;
         final List<Long> primaryTerms = new ArrayList<>();
-        primaryTerms.add(0L); // We always create an empty translog.
+        primaryTerms.add(primaryTerm.get()); // We always create an empty translog.
         primaryTerms.add(primaryTerm.get());
         for (int i = 0; i < rolls; i++) {
             final int operations = randomIntBetween(1, 128);

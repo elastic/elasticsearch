@@ -19,64 +19,35 @@
 
 package org.elasticsearch.action.admin.indices.settings.put;
 
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
-import java.util.function.Predicate;
 
-import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
-import static org.hamcrest.Matchers.equalTo;
+public class UpdateSettingsRequestTests extends AbstractXContentTestCase<UpdateSettingsRequest> {
 
-public class UpdateSettingsRequestTests extends ESTestCase {
-
-    public void testXContent() throws IOException {
-        doToFromXContentWithEnclosingSettingsField(false);
+    @Override
+    protected UpdateSettingsRequest createTestInstance() {
+        return UpdateSettingsRequestStreamableTests.createTestItem();
     }
 
-    // test that enclosing the setting in "settings" will be correctly parsed
-    public void testXContentWithEnclosingSettingsField() throws IOException {
-        doToFromXContentWithEnclosingSettingsField(true);
+    @Override
+    protected UpdateSettingsRequest doParseInstance(XContentParser parser) throws IOException {
+        return new UpdateSettingsRequest().fromXContent(parser);
     }
 
-    private void doToFromXContentWithEnclosingSettingsField(boolean addSettingsField) throws IOException {
-        final UpdateSettingsRequest request = UpdateSettingsRequestStreamableTests.createTestItem();
-        boolean humanReadable = randomBoolean();
-        final XContentType xContentType = randomFrom(XContentType.values());
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
 
-        BytesReference bytesRef;
-        if (addSettingsField) {
-            UpdateSettingsRequest requestWithEnclosingSettings = new UpdateSettingsRequest(request.settings()) {
-                public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                    builder.startObject();
-                    builder.startObject("settings");
-                    this.settings().toXContent(builder, params);
-                    builder.endObject();
-                    builder.endObject();
-                    return builder;
-                }
-            };
-            BytesReference originalBytes = toShuffledXContent(requestWithEnclosingSettings, xContentType, ToXContent.EMPTY_PARAMS,
-                    humanReadable);
-            if (randomBoolean()) {
-                Predicate<String> excludeFilter = (s) -> s.startsWith("settings");
-                bytesRef = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
-            } else {
-                bytesRef = originalBytes;
-            }
-        } else {
-            bytesRef = toShuffledXContent(request, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
-        }
-
-        XContentParser parser = createParser(xContentType.xContent(), bytesRef);
-        UpdateSettingsRequest parsedRequest = new UpdateSettingsRequest().fromXContent(parser);
-
-        assertNull(parser.nextToken());
-        assertThat(parsedRequest.settings(), equalTo(request.settings()));
+    @Override
+    protected void assertEqualInstances(UpdateSettingsRequest expectedInstance, UpdateSettingsRequest newInstance) {
+        newInstance.indices(expectedInstance.indices());
+        newInstance.indicesOptions(expectedInstance.indicesOptions());
+        newInstance.setPreserveExisting(expectedInstance.isPreserveExisting());
+        newInstance.flatSettings(expectedInstance.flatSettings());
+        super.assertEqualInstances(expectedInstance, newInstance);
     }
 
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.settings.put;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -51,9 +52,12 @@ public class UpdateSettingsRequestStreamableTests extends AbstractStreamableTest
     }
 
     public static UpdateSettingsRequest createTestItem() {
-        return randomBoolean()
-                ? new UpdateSettingsRequest(randomSettings(0, 2))
+        UpdateSettingsRequest request = randomBoolean() ? new UpdateSettingsRequest(randomSettings(0, 2))
                 : new UpdateSettingsRequest(randomSettings(0, 2), randomIndicesNames(0, 2));
+        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+        request.setPreserveExisting(randomBoolean());
+        request.flatSettings(randomBoolean());
+        return request;
     }
 
     private static Settings mutateSettings(Settings settings) {

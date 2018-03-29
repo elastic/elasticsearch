@@ -234,7 +234,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
 
     @Override
     public String toString() {
-        return "indices : " + Arrays.toString(indices) + ",\n" + Strings.toString(this);
+        return "indices : " + Arrays.toString(indices) + "," + Strings.toString(this);
     }
 
     @Override
@@ -244,7 +244,6 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
             return Objects.equals(settings, that.settings)
                     && Objects.equals(indicesOptions, that.indicesOptions)
                     && Objects.equals(preserveExisting, that.preserveExisting)
-                    && Objects.equals(flatSettings, that.flatSettings)
                     && Arrays.equals(indices, that.indices);
         }
         return false;
@@ -252,7 +251,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), settings, indicesOptions, preserveExisting, flatSettings, Arrays.hashCode(indices));
+        return Objects.hash(super.hashCode(), settings, indicesOptions, preserveExisting, Arrays.hashCode(indices));
     }
 
 }

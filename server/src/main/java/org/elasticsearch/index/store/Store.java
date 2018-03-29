@@ -1559,7 +1559,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         metadataLock.writeLock().lock();
         try {
             final List<IndexCommit> existingCommits = DirectoryReader.listCommits(directory);
-            if (existingCommits.size() == 0) {
+            if (existingCommits.isEmpty()) {
                 throw new IllegalArgumentException("No index found to trim");
             }
             final String translogUUID = existingCommits.get(existingCommits.size() - 1).getUserData().get(Translog.TRANSLOG_UUID_KEY);

@@ -41,7 +41,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -59,6 +58,7 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqN
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -70,7 +70,6 @@ import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
@@ -78,8 +77,6 @@ import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -180,15 +177,13 @@ public class InternalEngine extends Engine {
             mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
             throttle = new IndexThrottle();
             try {
-                final IndexCommit startingCommit = getStartingCommitPoint();
-                assert startingCommit != null : "Starting commit should be non-null";
-                this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier, startingCommit);
-                translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier(), startingCommit);
+                translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier());
                 assert translog.getGeneration() != null;
                 this.translog = translog;
-                this.combinedDeletionPolicy = new CombinedDeletionPolicy(
-                    logger, translogDeletionPolicy, translog::getLastSyncedGlobalCheckpoint, startingCommit);
-                writer = createWriter(startingCommit);
+                this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
+                this.combinedDeletionPolicy =
+                    new CombinedDeletionPolicy(logger, translogDeletionPolicy, translog::getLastSyncedGlobalCheckpoint);
+                writer = createWriter();
                 bootstrapAppendOnlyInfoFromWriter(writer);
                 historyUUID = Objects.requireNonNull(loadOrGenerateHistoryUUID(writer), "history uuid should not be null");
                 indexWriter = writer;
@@ -231,10 +226,11 @@ public class InternalEngine extends Engine {
     }
 
     private LocalCheckpointTracker createLocalCheckpointTracker(
-        BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier, IndexCommit startingCommit) throws IOException {
+        BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier) throws IOException {
         final long maxSeqNo;
         final long localCheckpoint;
-        final SequenceNumbers.CommitInfo seqNoStats = Store.loadSeqNoInfo(startingCommit);
+        final SequenceNumbers.CommitInfo seqNoStats =
+            SequenceNumbers.loadSeqNoInfoFromLuceneCommit(store.readLastCommittedSegmentsInfo().userData.entrySet());
         maxSeqNo = seqNoStats.maxSeqNo;
         localCheckpoint = seqNoStats.localCheckpoint;
         logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);
@@ -394,38 +390,6 @@ public class InternalEngine extends Engine {
         pendingTranslogRecovery.set(false); // we are good - now we can commit
     }
 
-    private IndexCommit getStartingCommitPoint() throws IOException {
-        final IndexCommit startingIndexCommit;
-        final Path translogPath = engineConfig.getTranslogConfig().getTranslogPath();
-        final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
-        final long lastSyncedGlobalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
-        final List<IndexCommit> existingCommits = DirectoryReader.listCommits(store.directory());
-        // We may not have a safe commit if an index was create before v6.2; and if there is a snapshotted commit whose translog
-        // are not retained but max_seqno is at most the global checkpoint, we may mistakenly select it as a starting commit.
-        // To avoid this issue, we only select index commits whose translog are fully retained.
-        if (engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_6_2_0)) {
-            final long minRetainedTranslogGen = Translog.readMinReferencedGen(translogPath);
-            // If we don't have min_translog_gen in translog checkpoint, we can not determine whether a commit point has all
-            // its required translog or not. It's safer if we just fallback to start from the last commit until we have a new checkpoint.
-            if (minRetainedTranslogGen == SequenceNumbers.NO_OPS_PERFORMED) {
-                return existingCommits.get(existingCommits.size() - 1);
-            }
-            final List<IndexCommit> recoverableCommits = new ArrayList<>();
-            for (IndexCommit commit : existingCommits) {
-                if (minRetainedTranslogGen <= Long.parseLong(commit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY))) {
-                    recoverableCommits.add(commit);
-                }
-            }
-            assert recoverableCommits.isEmpty() == false : "No commit point with translog found; " +
-                "commits [" + existingCommits + "], minRetainedTranslogGen [" + minRetainedTranslogGen + "]";
-            startingIndexCommit = CombinedDeletionPolicy.findSafeCommitPoint(recoverableCommits, lastSyncedGlobalCheckpoint);
-        } else {
-            // TODO: Asserts the starting commit is a safe commit once peer-recovery sets global checkpoint.
-            startingIndexCommit = CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, lastSyncedGlobalCheckpoint);
-        }
-        return startingIndexCommit;
-    }
-
     private void recoverFromTranslogInternal() throws IOException {
         Translog.TranslogGeneration translogGeneration = translog.getGeneration();
         final int opsRecovered;
@@ -449,14 +413,14 @@ public class InternalEngine extends Engine {
         translog.trimUnreferencedReaders();
     }
 
-    private Translog openTranslog(EngineConfig engineConfig, TranslogDeletionPolicy translogDeletionPolicy, LongSupplier globalCheckpointSupplier, IndexCommit startingCommit) throws IOException {
+    private Translog openTranslog(EngineConfig engineConfig, TranslogDeletionPolicy translogDeletionPolicy, LongSupplier globalCheckpointSupplier) throws IOException {
         final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
-        final Map<String, String> commitUserData = startingCommit.getUserData();
-        final String translogUUID = commitUserData.get(Translog.TRANSLOG_UUID_KEY);
+        final String translogUUID = loadTranslogUUIDFromLastCommit();
         // A translog checkpoint from 5.x index does not have translog_generation_key and Translog's ctor will read translog gen values
         // from translogDeletionPolicy. We need to bootstrap these values from the recovering commit before calling Translog ctor.
         if (engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0)) {
-            final long minRequiredTranslogGen = Long.parseLong(startingCommit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
+            final SegmentInfos lastCommitInfo = store.readLastCommittedSegmentsInfo();
+            final long minRequiredTranslogGen = Long.parseLong(lastCommitInfo.userData.get(Translog.TRANSLOG_GENERATION_KEY));
             translogDeletionPolicy.setTranslogGenerationOfLastCommit(minRequiredTranslogGen);
             translogDeletionPolicy.setMinTranslogGenerationForRecovery(minRequiredTranslogGen);
         }
@@ -500,6 +464,18 @@ public class InternalEngine extends Engine {
     @Override
     public long getWritingBytes() {
         return writingBytes.get();
+    }
+
+    /**
+     * Reads the current stored translog ID from the last commit data.
+     */
+    @Nullable
+    private String loadTranslogUUIDFromLastCommit() throws IOException {
+        final Map<String, String> commitUserData = store.readLastCommittedSegmentsInfo().getUserData();
+        if (commitUserData.containsKey(Translog.TRANSLOG_GENERATION_KEY) == false) {
+            throw new IllegalStateException("commit doesn't contain translog generation id");
+        }
+        return commitUserData.get(Translog.TRANSLOG_UUID_KEY);
     }
 
     /**
@@ -1945,9 +1921,9 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private IndexWriter createWriter(IndexCommit startingCommit) throws IOException {
+    private IndexWriter createWriter() throws IOException {
         try {
-            final IndexWriterConfig iwc = getIndexWriterConfig(startingCommit);
+            final IndexWriterConfig iwc = getIndexWriterConfig();
             return createWriter(store.directory(), iwc);
         } catch (LockObtainFailedException ex) {
             logger.warn("could not lock IndexWriter", ex);
@@ -1960,11 +1936,10 @@ public class InternalEngine extends Engine {
         return new IndexWriter(directory, iwc);
     }
 
-    private IndexWriterConfig getIndexWriterConfig(IndexCommit startingCommit) {
+    private IndexWriterConfig getIndexWriterConfig() {
         final IndexWriterConfig iwc = new IndexWriterConfig(engineConfig.getAnalyzer());
         iwc.setCommitOnClose(false); // we by default don't commit on close
         iwc.setOpenMode(IndexWriterConfig.OpenMode.APPEND);
-        iwc.setIndexCommit(startingCommit);
         iwc.setIndexDeletionPolicy(combinedDeletionPolicy);
         // with tests.verbose, lucene sets this up: plumb to align with filesystem stream
         boolean verbose = false;
@@ -2147,13 +2122,15 @@ public class InternalEngine extends Engine {
      * @throws IOException if an I/O exception occurs committing the specfied writer
      */
     protected void commitIndexWriter(final IndexWriter writer, final Translog translog, @Nullable final String syncId) throws IOException {
-        final long localCheckpoint = localCheckpointTracker.getCheckpoint();
-        final Translog.TranslogGeneration translogGeneration = translog.getMinGenerationForSeqNo(localCheckpoint + 1);
-        final String translogFileGeneration = Long.toString(translogGeneration.translogFileGeneration);
-        final String translogUUID = translogGeneration.translogUUID;
-        final String localCheckpointValue = Long.toString(localCheckpoint);
+        ensureCanFlush();
+        try {
+            final long localCheckpoint = localCheckpointTracker.getCheckpoint();
+            final Translog.TranslogGeneration translogGeneration = translog.getMinGenerationForSeqNo(localCheckpoint + 1);
+            final String translogFileGeneration = Long.toString(translogGeneration.translogFileGeneration);
+            final String translogUUID = translogGeneration.translogUUID;
+            final String localCheckpointValue = Long.toString(localCheckpoint);
 
-        final Iterable<Map.Entry<String, String>> commitIterable = () -> {
+            writer.setLiveCommitData(() -> {
                 /*
                  * The user data captured above (e.g. local checkpoint) contains data that must be evaluated *before* Lucene flushes
                  * segments, including the local checkpoint amongst other values. The maximum sequence number is different, we never want
@@ -2163,38 +2140,21 @@ public class InternalEngine extends Engine {
                  * {@link IndexWriter#commit()} call flushes all documents, we defer computation of the maximum sequence number to the time
                  * of invocation of the commit data iterator (which occurs after all documents have been flushed to Lucene).
                  */
-            final Map<String, String> commitData = new HashMap<>(6);
-            commitData.put(Translog.TRANSLOG_GENERATION_KEY, translogFileGeneration);
-            commitData.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
-            commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, localCheckpointValue);
-            if (syncId != null) {
-                commitData.put(Engine.SYNC_COMMIT_ID, syncId);
-            }
-            commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
-            commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
-            commitData.put(HISTORY_UUID_KEY, historyUUID);
-            logger.trace("committing writer with commit data [{}]", commitData);
-            return commitData.entrySet().iterator();
-        };
-        commitIndexWriter(writer, commitIterable);
-    }
+                final Map<String, String> commitData = new HashMap<>(6);
+                commitData.put(Translog.TRANSLOG_GENERATION_KEY, translogFileGeneration);
+                commitData.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
+                commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, localCheckpointValue);
+                if (syncId != null) {
+                    commitData.put(Engine.SYNC_COMMIT_ID, syncId);
+                }
+                commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
+                commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
+                commitData.put(HISTORY_UUID_KEY, historyUUID);
+                logger.trace("committing writer with commit data [{}]", commitData);
+                return commitData.entrySet().iterator();
+            });
 
-    private void commitIndexWriter(IndexWriter writer, Iterable<Map.Entry<String, String>> userData) throws IOException {
-        try {
-            ensureCanFlush();
-            writer.setLiveCommitData(userData);
             writer.commit();
-            // assert we don't loose key entries
-            assert commitDataAsMap(writer).containsKey(Translog.TRANSLOG_UUID_KEY) : "commit misses translog uuid";
-            assert commitDataAsMap(writer).containsKey(Translog.TRANSLOG_GENERATION_KEY) : "commit misses translog generation";
-            assert commitDataAsMap(writer).containsKey(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID) ||
-                config().getIndexSettings().getIndexVersionCreated().before(Version.V_5_5_0): "commit misses max unsafe timestamp";
-            assert commitDataAsMap(writer).containsKey(HISTORY_UUID_KEY) : "commit misses a history uuid";
-            assert commitDataAsMap(writer).containsKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY) ||
-                config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1): "commit misses local checkpoint";
-            assert commitDataAsMap(writer).containsKey(SequenceNumbers.MAX_SEQ_NO) ||
-                config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1) : "commit misses max seq no";
-
         } catch (final Exception ex) {
             try {
                 failEngine("lucene commit failed", ex);

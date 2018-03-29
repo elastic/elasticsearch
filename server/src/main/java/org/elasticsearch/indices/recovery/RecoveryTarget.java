@@ -438,7 +438,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         try {
             store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetaData);
             if (indexShard.indexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1)) {
-                store.ensureIndexHasHistoryUUID();
+                store.ensureIndexHasHistoryUUIDAndSeqNo();
             }
             // TODO: Assign the global checkpoint to the max_seqno of the safe commit if the index version >= 6.2
             final String translogUUID =

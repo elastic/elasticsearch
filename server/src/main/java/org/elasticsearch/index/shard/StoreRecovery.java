@@ -397,6 +397,9 @@ final class StoreRecovery {
                 store.associateIndexWithNewTranslog(translogUUID);
             } else if (indexShouldExists) {
                 // since we recover from local, just fill the files and size
+                if (indexShard.indexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1)) {
+                    store.ensureIndexHasHistoryUUIDAndSeqNo();
+                }
                 try {
                     final RecoveryState.Index index = recoveryState.getIndex();
                     if (si != null) {

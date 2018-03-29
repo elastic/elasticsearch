@@ -63,6 +63,7 @@ import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
@@ -93,6 +94,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -1074,36 +1076,63 @@ public class StoreTests extends ESTestCase {
         store.close();
     }
 
-    public void testEnsureIndexHasHistoryUUID() throws IOException {
+    public void testEnsureIndexHasHistoryUUIDAndSeqNo() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
         try (Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId))) {
-
             store.createEmpty();
-
-            // remove the history uuid
-            IndexWriterConfig iwc = new IndexWriterConfig(null)
-                .setCommitOnClose(false)
-                // we don't want merges to happen here - we call maybe merge on the engine
-                // later once we stared it up otherwise we would need to wait for it here
-                // we also don't specify a codec here and merges should use the engines for this index
-                .setMergePolicy(NoMergePolicy.INSTANCE)
-                .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
-            try (IndexWriter writer = new IndexWriter(store.directory(), iwc)) {
+            // remove the history uuid, seqno markers
+            try (IndexWriter writer = openWriter(store)) {
                 Map<String, String> newCommitData = new HashMap<>();
-                for (Map.Entry<String, String> entry : writer.getLiveCommitData()) {
-                    if (entry.getKey().equals(Engine.HISTORY_UUID_KEY) == false) {
-                        newCommitData.put(entry.getKey(), entry.getValue());
-                    }
-                }
+                writer.getLiveCommitData().forEach(e -> newCommitData.put(e.getKey(), e.getValue()));
+                newCommitData.remove(Engine.HISTORY_UUID_KEY);
+                newCommitData.remove(SequenceNumbers.LOCAL_CHECKPOINT_KEY);
+                newCommitData.remove(SequenceNumbers.MAX_SEQ_NO);
                 writer.setLiveCommitData(newCommitData.entrySet());
                 writer.commit();
             }
 
-            store.ensureIndexHasHistoryUUID();
-
+            store.ensureIndexHasHistoryUUIDAndSeqNo();
             SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
             assertThat(segmentInfos.getUserData(), hasKey(Engine.HISTORY_UUID_KEY));
+            assertThat(segmentInfos.getUserData(), hasEntry(equalTo(SequenceNumbers.LOCAL_CHECKPOINT_KEY), equalTo("-1")));
+            assertThat(segmentInfos.getUserData(), hasEntry(equalTo(SequenceNumbers.MAX_SEQ_NO), equalTo("-1")));
+
+            // Keep existing seqno.
+            final long maxSeqno = randomNonNegativeLong();
+            final long localCheckpoint = randomLongBetween(0, maxSeqno);
+            final String historyUUID = segmentInfos.userData.get(Engine.HISTORY_UUID_KEY);
+            try (IndexWriter writer = openWriter(store)) {
+                Map<String, String> newCommitData = new HashMap<>();
+                writer.getLiveCommitData().forEach(e -> newCommitData.put(e.getKey(), e.getValue()));
+                newCommitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
+                newCommitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqno));
+                writer.setLiveCommitData(newCommitData.entrySet());
+                writer.commit();
+            }
+            store.ensureIndexHasHistoryUUIDAndSeqNo();
+            segmentInfos = Lucene.readSegmentInfos(store.directory());
+            assertThat(segmentInfos.getUserData(),
+                hasEntry(equalTo(Engine.HISTORY_UUID_KEY), equalTo(historyUUID)));
+            assertThat(segmentInfos.getUserData(),
+                hasEntry(equalTo(SequenceNumbers.LOCAL_CHECKPOINT_KEY), equalTo(Long.toString(localCheckpoint))));
+            assertThat(segmentInfos.getUserData(),
+                hasEntry(equalTo(SequenceNumbers.MAX_SEQ_NO), equalTo(Long.toString(maxSeqno))));
+
+            try (IndexWriter writer = openWriter(store)) {
+                Map<String, String> newCommitData = new HashMap<>();
+                writer.getLiveCommitData().forEach(e -> newCommitData.put(e.getKey(), e.getValue()));
+                newCommitData.remove(Engine.HISTORY_UUID_KEY);
+                writer.setLiveCommitData(newCommitData.entrySet());
+                writer.commit();
+            }
+            store.ensureIndexHasHistoryUUIDAndSeqNo();
+            segmentInfos = Lucene.readSegmentInfos(store.directory());
+            assertThat(segmentInfos.getUserData(), hasKey(Engine.HISTORY_UUID_KEY));
+            assertThat(segmentInfos.getUserData(),
+                hasEntry(equalTo(SequenceNumbers.LOCAL_CHECKPOINT_KEY), equalTo(Long.toString(localCheckpoint))));
+            assertThat(segmentInfos.getUserData(),
+                hasEntry(equalTo(SequenceNumbers.MAX_SEQ_NO), equalTo(Long.toString(maxSeqno))));
         }
     }
 
@@ -1124,5 +1153,17 @@ public class StoreTests extends ESTestCase {
             assertThat(segmentInfos.getUserData(), hasKey(Engine.HISTORY_UUID_KEY));
             assertThat(segmentInfos.getUserData().get(Engine.HISTORY_UUID_KEY), not(equalTo(oldHistoryUUID)));
         }
+    }
+
+    IndexWriter openWriter(Store store) throws IOException {
+        // remove the history uuid
+        IndexWriterConfig iwc = new IndexWriterConfig(null)
+            .setCommitOnClose(false)
+            // we don't want merges to happen here - we call maybe merge on the engine
+            // later once we stared it up otherwise we would need to wait for it here
+            // we also don't specify a codec here and merges should use the engines for this index
+            .setMergePolicy(NoMergePolicy.INSTANCE)
+            .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+        return new IndexWriter(store.directory(), iwc);
     }
 }

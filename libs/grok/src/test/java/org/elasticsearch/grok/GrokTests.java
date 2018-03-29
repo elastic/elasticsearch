@@ -22,12 +22,12 @@ package org.elasticsearch.grok;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -202,6 +202,98 @@ public class GrokTests extends ESTestCase {
         expected.put("EXCITED_NAME_0", "!!!Tal!!!");
         expected.put("NAME_21", "Tal");
         expected.put("NAME_22", "Tal");
+        assertEquals(expected, actual);
+    }
+
+    public void testCircularReference() {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> {
+            Map<String, String> bank = new HashMap<>();
+            bank.put("NAME", "!!!%{NAME}!!!");
+            String pattern = "%{NAME}";
+            new Grok(bank, pattern, false);
+        });
+        assertEquals("circular reference in pattern [NAME][!!!%{NAME}!!!]", e.getMessage());
+
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            Map<String, String> bank = new HashMap<>();
+            bank.put("NAME", "!!!%{NAME:name}!!!");
+            String pattern = "%{NAME}";
+            new Grok(bank, pattern, false);
+        });
+        assertEquals("circular reference in pattern [NAME][!!!%{NAME:name}!!!]", e.getMessage());
+
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            Map<String, String> bank = new HashMap<>();
+            bank.put("NAME", "!!!%{NAME:name:int}!!!");
+            String pattern = "%{NAME}";
+            new Grok(bank, pattern, false);
+        });
+        assertEquals("circular reference in pattern [NAME][!!!%{NAME:name:int}!!!]", e.getMessage());
+
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            Map<String, String> bank = new TreeMap<>();
+            bank.put("NAME1", "!!!%{NAME2}!!!");
+            bank.put("NAME2", "!!!%{NAME1}!!!");
+            String pattern = "%{NAME1}";
+            new Grok(bank, pattern, false);
+        });
+        assertEquals("circular reference in pattern [NAME2][!!!%{NAME1}!!!] back to pattern [NAME1]", e.getMessage());
+
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            Map<String, String> bank = new TreeMap<>();
+            bank.put("NAME1", "!!!%{NAME2}!!!");
+            bank.put("NAME2", "!!!%{NAME3}!!!");
+            bank.put("NAME3", "!!!%{NAME1}!!!");
+            String pattern = "%{NAME1}";
+            new Grok(bank, pattern, false);
+        });
+        assertEquals("circular reference in pattern [NAME3][!!!%{NAME1}!!!] back to pattern [NAME1] via patterns [NAME2]",
+            e.getMessage());
+
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            Map<String, String> bank = new TreeMap<>();
+            bank.put("NAME1", "!!!%{NAME2}!!!");
+            bank.put("NAME2", "!!!%{NAME3}!!!");
+            bank.put("NAME3", "!!!%{NAME4}!!!");
+            bank.put("NAME4", "!!!%{NAME5}!!!");
+            bank.put("NAME5", "!!!%{NAME1}!!!");
+            String pattern = "%{NAME1}";
+            new Grok(bank, pattern, false);
+        });
+        assertEquals("circular reference in pattern [NAME5][!!!%{NAME1}!!!] back to pattern [NAME1] " +
+            "via patterns [NAME2=>NAME3=>NAME4]", e.getMessage());
+    }
+
+    public void testBooleanCaptures() {
+        Map<String, String> bank = new HashMap<>();
+
+        String pattern = "%{WORD:name}=%{WORD:status:boolean}";
+        Grok g = new Grok(basePatterns, pattern);
+
+        String text = "active=true";
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("name", "active");
+        expected.put("status", true);
+        Map<String, Object> actual = g.captures(text);
+
+        assertEquals(expected, actual);
+    }
+
+    public void testNumericCaptures() {
+        Map<String, String> bank = new HashMap<>();
+        bank.put("BASE10NUM", "(?<![0-9.+-])(?>[+-]?(?:(?:[0-9]+(?:\\.[0-9]+)?)|(?:\\.[0-9]+)))");
+        bank.put("NUMBER", "(?:%{BASE10NUM})");
+
+        String pattern = "%{NUMBER:bytes:float} %{NUMBER:id:long} %{NUMBER:rating:double}";
+        Grok g = new Grok(bank, pattern);
+
+        String text = "12009.34 20000000000 4820.092";
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("bytes", 12009.34f);
+        expected.put("id", 20000000000L);
+        expected.put("rating", 4820.092);
+        Map<String, Object> actual = g.captures(text);
+
         assertEquals(expected, actual);
     }
 

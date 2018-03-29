@@ -22,8 +22,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.seqno.LocalCheckpointTracker;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -38,11 +36,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-import java.util.NavigableSet;
 import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.Queue;
-import java.util.TreeSet;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -266,7 +262,6 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
         final Queue<Translog.Operation> orderedOps = new PriorityQueue<>(Comparator.comparingLong(Translog.Operation::seqNo));
 
         final List<Translog.Operation> operations = new ArrayList<>();
-        final LocalCheckpointTracker tracker = new LocalCheckpointTracker(maxSeqNo, minSeqNo);
         try (Translog.Snapshot snapshot = indexShard.getTranslog().getSnapshotBetween(minSeqNo, maxSeqNo)) {
             for (Translog.Operation unorderedOp = snapshot.next(); unorderedOp != null; unorderedOp = snapshot.next()) {
                 if (unorderedOp.seqNo() < minSeqNo || unorderedOp.seqNo() > maxSeqNo) {
@@ -280,7 +275,6 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
                         nextExpectedSeqNo++;
                         seenBytes += orderedOp.estimateSize();
                         operations.add(orderedOp);
-                        tracker.markSeqNoAsCompleted(orderedOp.seqNo());
                         if (nextExpectedSeqNo > maxSeqNo) {
                             return new Response(operations.toArray(EMPTY_OPERATIONS_ARRAY));
                         }
@@ -291,11 +285,11 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
             }
         }
 
-        if (tracker.getCheckpoint() == maxSeqNo) {
+        if (nextExpectedSeqNo >= maxSeqNo) {
             return new Response(operations.toArray(EMPTY_OPERATIONS_ARRAY));
         } else {
             String message = "Not all operations between min_seq_no [" + minSeqNo + "] and max_seq_no [" + maxSeqNo +
-                    "] found, tracker checkpoint [" + tracker.getCheckpoint() + "]";
+                    "] found, tracker checkpoint [" + nextExpectedSeqNo + "]";
             throw new IllegalStateException(message);
         }
     }

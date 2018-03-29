@@ -96,7 +96,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     }
 
     public GetResult getForUpdate(String type, String id, long version, VersionType versionType) {
-        return get(type, id, new String[]{RoutingFieldMapper.NAME, ParentFieldMapper.NAME}, true, version, versionType,
+        return get(type, id, new String[]{RoutingFieldMapper.NAME}, true, version, versionType,
             FetchSourceContext.FETCH_SOURCE, true);
     }
 

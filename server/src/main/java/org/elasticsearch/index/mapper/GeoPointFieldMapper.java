@@ -144,8 +144,8 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
                     builder.ignoreMalformed(XContentMapValues.nodeBooleanValue(propNode, name + "." + Names.IGNORE_MALFORMED));
                     iterator.remove();
                 } else if (propName.equals(Names.IGNORE_Z_VALUE.getPreferredName())) {
-                    builder.ignoreZValue(TypeParsers.nodeBooleanValue(propName, Names.IGNORE_Z_VALUE.getPreferredName(),
-                        propNode, parserContext));
+                    builder.ignoreZValue(XContentMapValues.nodeBooleanValue(propNode,
+                            name + "." + Names.IGNORE_Z_VALUE.getPreferredName()));
                     iterator.remove();
                 }
             }

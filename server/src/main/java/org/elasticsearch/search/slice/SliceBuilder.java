@@ -22,6 +22,7 @@ package org.elasticsearch.search.slice;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -90,14 +91,23 @@ public class SliceBuilder implements Writeable, ToXContentObject {
     }
 
     public SliceBuilder(StreamInput in) throws IOException {
-        this.field = in.readString();
+        String field = in.readString();
+        if (in.getVersion().before(Version.V_7_0_0_alpha1) && "_uid".equals(field)) {
+            field = IdFieldMapper.NAME;
+        }
+        this.field = field;
         this.id = in.readVInt();
         this.max = in.readVInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(field);
+        // 6.x doesn't support slicing on _id, but it does on _uid
+        if (out.getVersion().before(Version.V_7_0_0_alpha1) && IdFieldMapper.NAME.equals(field)) {
+            out.writeString("_uid");
+        } else {
+            out.writeString(field);
+        }
         out.writeVInt(id);
         out.writeVInt(max);
     }

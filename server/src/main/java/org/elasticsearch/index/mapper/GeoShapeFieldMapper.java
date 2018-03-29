@@ -228,8 +228,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
                     builder.coerce(XContentMapValues.nodeBooleanValue(fieldNode, name + "." + Names.COERCE));
                     iterator.remove();
                 } else if (GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName().equals(fieldName)) {
-                    builder.ignoreZValue(TypeParsers.nodeBooleanValue(fieldName, GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName(),
-                        fieldNode, parserContext));
+                    builder.ignoreZValue(XContentMapValues.nodeBooleanValue(fieldNode, name + "." + GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName()));
                     iterator.remove();
                 } else if (Names.STRATEGY_POINTS_ONLY.equals(fieldName)
                     && builder.fieldType().strategyName.equals(SpatialStrategy.TERM.getStrategyName()) == false) {

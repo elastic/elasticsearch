@@ -739,7 +739,8 @@ public final class XContentBuilder implements Closeable, Flushable {
             //Path implements Iterable<Path> and causes endless recursion and a StackOverFlow if treated as an Iterable here
             value((Path) value);
         } else if (value instanceof Map) {
-            @SuppressWarnings("unchecked") final Map<String, ?> valueMap = (Map<String, ?>) value;
+            @SuppressWarnings("unchecked")
+            final Map<String, ?> valueMap = (Map<String, ?>) value;
             map(valueMap, ensureNoSelfReferences);
         } else if (value instanceof Iterable) {
             value((Iterable<?>) value, ensureNoSelfReferences);

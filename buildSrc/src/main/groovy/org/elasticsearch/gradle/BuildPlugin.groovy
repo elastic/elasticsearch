@@ -58,7 +58,7 @@ import java.time.ZonedDateTime
 class BuildPlugin implements Plugin<Project> {
 
     static final JavaVersion minimumRuntimeVersion = JavaVersion.VERSION_1_8
-    static final JavaVersion minimumCompilerVersion = JavaVersion.VERSION_1_9
+    static final JavaVersion minimumCompilerVersion = JavaVersion.VERSION_1_10
 
     @Override
     void apply(Project project) {
@@ -311,8 +311,8 @@ class BuildPlugin implements Plugin<Project> {
     /** Adds repositories used by ES dependencies */
     static void configureRepositories(Project project) {
         RepositoryHandler repos = project.repositories
-        if (System.getProperty("repos.mavenlocal") != null) {
-            // with -Drepos.mavenlocal=true we can force checking the local .m2 repo which is
+        if (System.getProperty("repos.mavenLocal") != null) {
+            // with -Drepos.mavenLocal=true we can force checking the local .m2 repo which is
             // useful for development ie. bwc tests where we install stuff in the local repository
             // such that we don't have to pass hardcoded files to gradle
             repos.mavenLocal()
@@ -475,14 +475,18 @@ class BuildPlugin implements Plugin<Project> {
     }
 
     static void configureJavadoc(Project project) {
-        project.tasks.withType(Javadoc) {
-            executable = new File(project.compilerJavaHome, 'bin/javadoc')
+        // remove compiled classes from the Javadoc classpath: http://mail.openjdk.java.net/pipermail/javadoc-dev/2018-January/000400.html
+        final List<File> classes = new ArrayList<>()
+        project.tasks.withType(JavaCompile) { javaCompile ->
+            classes.add(javaCompile.destinationDir)
+        }
+        project.tasks.withType(Javadoc) { javadoc ->
+            javadoc.executable = new File(project.compilerJavaHome, 'bin/javadoc')
+            javadoc.classpath = javadoc.getClasspath().filter { f ->
+                return classes.contains(f) == false
+            }
         }
         configureJavadocJar(project)
-        if (project.compilerJavaVersion == JavaVersion.VERSION_1_10) {
-            project.tasks.withType(Javadoc) { it.enabled = false }
-            project.tasks.getByName('javadocJar').each { it.enabled = false }
-        }
     }
 
     /** Adds a javadocJar task to generate a jar containing javadocs. */

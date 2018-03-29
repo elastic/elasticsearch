@@ -139,6 +139,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
 
     public HasParentQueryBuilder innerHit(InnerHitBuilder innerHit) {
         this.innerHitBuilder = innerHit;
+        innerHitBuilder.setIgnoreUnmapped(ignoreUnmapped);
         return this;
     }
 
@@ -149,6 +150,9 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
      */
     public HasParentQueryBuilder ignoreUnmapped(boolean ignoreUnmapped) {
         this.ignoreUnmapped = ignoreUnmapped;
+        if (innerHitBuilder != null) {
+            innerHitBuilder.setIgnoreUnmapped(ignoreUnmapped);
+        }
         return this;
     }
 

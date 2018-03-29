@@ -22,7 +22,6 @@ package org.elasticsearch.index.translog;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -237,9 +236,9 @@ public class TranslogTests extends ESTestCase {
         return new TranslogConfig(shardId, path, indexSettings, NON_RECYCLING_INSTANCE, bufferSize);
     }
 
-    private void addToTranslogAndList(Translog translog, List<Translog.Operation> list, Translog.Operation op) throws IOException {
+    private Location addToTranslogAndList(Translog translog, List<Translog.Operation> list, Translog.Operation op) throws IOException {
         list.add(op);
-        translog.add(op);
+        return translog.add(op);
     }
 
     public void testIdParsingFromFile() {
@@ -502,10 +501,10 @@ public class TranslogTests extends ESTestCase {
                 translog.rollGeneration();
                 operationsInLastGen = 0;
             }
-            assertThat(translog.uncommittedOperations(), equalTo(uncommittedOps));
+            assertThat(translog.stats().getUncommittedOperations(), equalTo(uncommittedOps));
             if (frequently()) {
                 markCurrentGenAsCommitted(translog);
-                assertThat(translog.uncommittedOperations(), equalTo(operationsInLastGen));
+                assertThat(translog.stats().getUncommittedOperations(), equalTo(operationsInLastGen));
                 uncommittedOps = operationsInLastGen;
             }
         }
@@ -579,6 +578,19 @@ public class TranslogTests extends ESTestCase {
             assertThat(snapshot1, SnapshotMatchers.size(1));
             assertThat(snapshot1.totalOperations(), equalTo(1));
         }
+    }
+
+    public void testReadLocation() throws IOException {
+        ArrayList<Translog.Operation> ops = new ArrayList<>();
+        ArrayList<Translog.Location> locs = new ArrayList<>();
+        locs.add(addToTranslogAndList(translog, ops, new Translog.Index("test", "1", 0, new byte[]{1})));
+        locs.add(addToTranslogAndList(translog, ops, new Translog.Index("test", "2", 1, new byte[]{1})));
+        locs.add(addToTranslogAndList(translog, ops, new Translog.Index("test", "3", 2, new byte[]{1})));
+        int i = 0;
+        for (Translog.Operation op : ops) {
+            assertEquals(op, translog.readOperation(locs.get(i++)));
+        }
+        assertNull(translog.readOperation(new Location(100, 0, 0)));
     }
 
     public void testSnapshotWithNewTranslog() throws IOException {
@@ -691,6 +703,9 @@ public class TranslogTests extends ESTestCase {
                 Translog.Operation op = snapshot.next();
                 assertNotNull(op);
                 Translog.Operation expectedOp = locationOperation.operation;
+                if (randomBoolean()) {
+                    assertEquals(expectedOp, translog.readOperation(locationOperation.location));
+                }
                 assertEquals(expectedOp.opType(), op.opType());
                 switch (op.opType()) {
                     case INDEX:
@@ -921,7 +936,7 @@ public class TranslogTests extends ESTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("--> writer [{}] had an error", threadName), e);
+                    logger.error(() -> new ParameterizedMessage("--> writer [{}] had an error", threadName), e);
                     errors.add(e);
                 }
             }, threadName);
@@ -936,7 +951,7 @@ public class TranslogTests extends ESTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("--> reader [{}] had an error", threadId), e);
+                    logger.error(() -> new ParameterizedMessage("--> reader [{}] had an error", threadId), e);
                     errors.add(e);
                     try {
                         closeRetentionLock();
@@ -1645,6 +1660,9 @@ public class TranslogTests extends ESTestCase {
 
                     Translog.Location loc = add(op);
                     writtenOperations.add(new LocationOperation(op, loc));
+                    if (rarely()) { // lets verify we can concurrently read this
+                        assertEquals(op, translog.readOperation(loc));
+                    }
                     afterAdd();
                 }
             } catch (Exception t) {
@@ -2500,7 +2518,7 @@ public class TranslogTests extends ESTestCase {
         long minGenForRecovery = randomLongBetween(generation, generation + rolls);
         commit(translog, minGenForRecovery, generation + rolls);
         assertThat(translog.currentFileGeneration(), equalTo(generation + rolls));
-        assertThat(translog.uncommittedOperations(), equalTo(0));
+        assertThat(translog.stats().getUncommittedOperations(), equalTo(0));
         if (longRetention) {
             for (int i = 0; i <= rolls; i++) {
                 assertFileIsPresent(translog, generation + i);

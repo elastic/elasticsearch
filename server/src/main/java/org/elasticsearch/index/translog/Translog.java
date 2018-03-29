@@ -20,7 +20,6 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
@@ -260,7 +259,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 try {
                     Files.delete(tempFile);
                 } catch (IOException ex) {
-                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to delete temp file {}", tempFile), ex);
+                    logger.warn(() -> new ParameterizedMessage("failed to delete temp file {}", tempFile), ex);
                 }
             }
         }
@@ -354,26 +353,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-
-    /**
-     * Returns the number of operations in the translog files that aren't committed to lucene.
-     */
-    public int uncommittedOperations() {
-        return totalOperations(deletionPolicy.getTranslogGenerationOfLastCommit());
-    }
-
-    /**
-     * Returns the size in bytes of the translog files that aren't committed to lucene.
-     */
-    public long uncommittedSizeInBytes() {
-        return sizeInBytesByMinGen(deletionPolicy.getTranslogGenerationOfLastCommit());
-    }
-
     /**
      * Returns the number of operations in the translog files
      */
     public int totalOperations() {
-        return totalOperations(-1);
+        return totalOperationsByMinGen(-1);
     }
 
     /**
@@ -404,9 +388,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Returns the number of operations in the transaction files that aren't committed to lucene..
+     * Returns the number of operations in the translog files at least the given generation
      */
-    private int totalOperations(long minGeneration) {
+    public int totalOperationsByMinGen(long minGeneration) {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             return Stream.concat(readers.stream(), Stream.of(current))
@@ -427,25 +411,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Returns the size in bytes of the translog files above the given generation
+     * Returns the size in bytes of the translog files at least the given generation
      */
-    private long sizeInBytesByMinGen(long minGeneration) {
+    public long sizeInBytesByMinGen(long minGeneration) {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             return Stream.concat(readers.stream(), Stream.of(current))
                 .filter(r -> r.getGeneration() >= minGeneration)
                 .mapToLong(BaseTranslogReader::sizeInBytes)
                 .sum();
-        }
-    }
-
-    /**
-     * Returns the size in bytes of the translog files with ops above the given seqNo
-     */
-    public long sizeOfGensAboveSeqNoInBytes(long minSeqNo) {
-        try (ReleasableLock ignored = readLock.acquire()) {
-            ensureOpen();
-            return readersAboveMinSeqNo(minSeqNo).mapToLong(BaseTranslogReader::sizeInBytes).sum();
         }
     }
 
@@ -593,6 +567,33 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 .map(BaseTranslogReader::newSnapshot).toArray(TranslogSnapshot[]::new);
             return newMultiSnapshot(snapshots);
         }
+    }
+
+    /**
+     * Reads and returns the operation from the given location if the generation it references is still available. Otherwise
+     * this method will return <code>null</code>.
+     */
+    public Operation readOperation(Location location) throws IOException {
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
+            if (location.generation < getMinFileGeneration()) {
+                return null;
+            }
+            if (current.generation == location.generation) {
+                // no need to fsync here the read operation will ensure that buffers are written to disk
+                // if they are still in RAM and we are reading onto that position
+                return current.read(location);
+            } else {
+                // read backwards - it's likely we need to read on that is recent
+                for (int i = readers.size() - 1; i >= 0; i--) {
+                    TranslogReader translogReader = readers.get(i);
+                    if (translogReader.generation == location.generation) {
+                        return translogReader.read(location);
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     public Snapshot newSnapshotFromMinSeqNo(long minSeqNo) throws IOException {
@@ -756,7 +757,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public TranslogStats stats() {
         // acquire lock to make the two numbers roughly consistent (no file change half way)
         try (ReleasableLock lock = readLock.acquire()) {
-            return new TranslogStats(totalOperations(), sizeInBytes(), uncommittedOperations(), uncommittedSizeInBytes(), earliestLastModifiedAge());
+            final long uncommittedGen = deletionPolicy.getTranslogGenerationOfLastCommit();
+            return new TranslogStats(totalOperations(), sizeInBytes(), totalOperationsByMinGen(uncommittedGen), sizeInBytesByMinGen(uncommittedGen), earliestLastModifiedAge());
         }
     }
 

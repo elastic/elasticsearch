@@ -19,37 +19,33 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.joda.time.DateTimeZone;
-import org.joda.time.ReadableInstant;
-import org.joda.time.format.DateTimeFormatter;
-import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.ByteArrayOutputStream;
+import java.io.Closeable;
 import java.io.Flushable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
+import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * A utility to build XContent (ie json).
  */
-public final class XContentBuilder implements Releasable, Flushable {
+public final class XContentBuilder implements Closeable, Flushable {
 
     /**
      * Create a new {@link XContentBuilder} using the given {@link XContent} content.
@@ -82,17 +78,15 @@ public final class XContentBuilder implements Releasable, Flushable {
         return new XContentBuilder(xContent, new ByteArrayOutputStream(), includes, excludes);
     }
 
-    public static final DateTimeFormatter DEFAULT_DATE_PRINTER = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
-
     private static final Map<Class<?>, Writer> WRITERS;
     private static final Map<Class<?>, HumanReadableTransformer> HUMAN_READABLE_TRANSFORMERS;
+    private static final Map<Class<?>, Function<Object, Object>> DATE_TRANSFORMERS;
     static {
         Map<Class<?>, Writer> writers = new HashMap<>();
         writers.put(Boolean.class, (b, v) -> b.value((Boolean) v));
         writers.put(Byte.class, (b, v) -> b.value((Byte) v));
         writers.put(byte[].class, (b, v) -> b.value((byte[]) v));
-        writers.put(BytesRef.class, (b, v) -> b.binaryValue((BytesRef) v));
-        writers.put(Date.class, (b, v) -> b.value((Date) v));
+        writers.put(Date.class, XContentBuilder::timeValue);
         writers.put(Double.class, (b, v) -> b.value((Double) v));
         writers.put(double[].class, (b, v) -> b.values((double[]) v));
         writers.put(Float.class, (b, v) -> b.value((Float) v));
@@ -105,29 +99,40 @@ public final class XContentBuilder implements Releasable, Flushable {
         writers.put(short[].class, (b, v) -> b.values((short[]) v));
         writers.put(String.class, (b, v) -> b.value((String) v));
         writers.put(String[].class, (b, v) -> b.values((String[]) v));
+        writers.put(Locale.class, (b, v) -> b.value(v.toString()));
+        writers.put(Class.class, (b, v) -> b.value(v.toString()));
+        writers.put(ZonedDateTime.class, (b, v) -> b.value(v.toString()));
+        writers.put(Calendar.class, XContentBuilder::timeValue);
+        writers.put(GregorianCalendar.class, XContentBuilder::timeValue);
 
 
         Map<Class<?>, HumanReadableTransformer> humanReadableTransformer = new HashMap<>();
-        // These will be moved to a different class at a later time to decouple them from XContentBuilder
-        humanReadableTransformer.put(TimeValue.class, v -> ((TimeValue) v).millis());
-        humanReadableTransformer.put(ByteSizeValue.class, v -> ((ByteSizeValue) v).getBytes());
+        Map<Class<?>, Function<Object, Object>> dateTransformers = new HashMap<>();
+
+        // treat strings as already converted
+        dateTransformers.put(String.class, Function.identity());
 
         // Load pluggable extensions
         for (XContentBuilderExtension service : ServiceLoader.load(XContentBuilderExtension.class)) {
             Map<Class<?>, Writer> addlWriters = service.getXContentWriters();
             Map<Class<?>, HumanReadableTransformer> addlTransformers = service.getXContentHumanReadableTransformers();
+            Map<Class<?>, Function<Object, Object>> addlDateTransformers = service.getDateTransformers();
 
             addlWriters.forEach((key, value) -> Objects.requireNonNull(value,
                 "invalid null xcontent writer for class " + key));
             addlTransformers.forEach((key, value) -> Objects.requireNonNull(value,
                 "invalid null xcontent transformer for human readable class " + key));
+            dateTransformers.forEach((key, value) -> Objects.requireNonNull(value,
+                "invalid null xcontent date transformer for class " + key));
 
             writers.putAll(addlWriters);
             humanReadableTransformer.putAll(addlTransformers);
+            dateTransformers.putAll(addlDateTransformers);
         }
 
         WRITERS = Collections.unmodifiableMap(writers);
         HUMAN_READABLE_TRANSFORMERS = Collections.unmodifiableMap(humanReadableTransformer);
+        DATE_TRANSFORMERS = Collections.unmodifiableMap(dateTransformers);
     }
 
     @FunctionalInterface
@@ -613,110 +618,63 @@ public final class XContentBuilder implements Releasable, Flushable {
     }
 
     /**
-     * Writes the binary content of the given {@link BytesRef}.
-     *
-     * Use {@link org.elasticsearch.common.xcontent.XContentParser#binaryValue()} to read the value back
-     */
-    public XContentBuilder field(String name, BytesRef value) throws IOException {
-        return field(name).binaryValue(value);
-    }
-
-    /**
-     * Writes the binary content of the given {@link BytesRef} as UTF-8 bytes.
+     * Writes the binary content of the given byte array as UTF-8 bytes.
      *
      * Use {@link XContentParser#charBuffer()} to read the value back
      */
-    public XContentBuilder utf8Field(String name, BytesRef value) throws IOException {
-        return field(name).utf8Value(value);
-    }
-
-    /**
-     * Writes the binary content of the given {@link BytesRef}.
-     *
-     * Use {@link org.elasticsearch.common.xcontent.XContentParser#binaryValue()} to read the value back
-     */
-    public XContentBuilder binaryValue(BytesRef value) throws IOException {
-        if (value == null) {
-            return nullValue();
-        }
-        value(value.bytes, value.offset, value.length);
+    public XContentBuilder utf8Value(byte[] bytes, int offset, int length) throws IOException {
+        generator.writeUTF8String(bytes, offset, length);
         return this;
     }
 
-    /**
-     * Writes the binary content of the given {@link BytesRef} as UTF-8 bytes.
-     *
-     * Use {@link XContentParser#charBuffer()} to read the value back
-     */
-    public XContentBuilder utf8Value(BytesRef value) throws IOException {
-        if (value == null) {
-            return nullValue();
-        }
-        generator.writeUTF8String(value.bytes, value.offset, value.length);
-        return this;
-    }
 
     ////////////////////////////////////////////////////////////////////////////
     // Date
     //////////////////////////////////
 
-    public XContentBuilder field(String name, ReadableInstant value) throws IOException {
-        return field(name).value(value);
+    /**
+     * Write a time-based field and value, if the passed timeValue is null a
+     * null value is written, otherwise a date transformers lookup is performed.
+
+     * @throws IllegalArgumentException if there is no transformers for the type of object
+     */
+    public XContentBuilder timeField(String name, Object timeValue) throws IOException {
+        return field(name).timeValue(timeValue);
     }
 
-    public XContentBuilder field(String name, ReadableInstant value, DateTimeFormatter formatter) throws IOException {
-        return field(name).value(value, formatter);
-    }
-
-    public XContentBuilder value(ReadableInstant value) throws IOException {
-        return value(value, DEFAULT_DATE_PRINTER);
-    }
-
-    public XContentBuilder value(ReadableInstant value, DateTimeFormatter formatter) throws IOException {
-        if (value == null) {
-            return nullValue();
-        }
-        ensureFormatterNotNull(formatter);
-        return value(formatter.print(value));
-    }
-
-    public XContentBuilder field(String name, Date value) throws IOException {
-        return field(name).value(value);
-    }
-
-    public XContentBuilder field(String name, Date value, DateTimeFormatter formatter) throws IOException {
-        return field(name).value(value, formatter);
-    }
-
-    public XContentBuilder value(Date value) throws IOException {
-        return value(value, DEFAULT_DATE_PRINTER);
-    }
-
-    public XContentBuilder value(Date value, DateTimeFormatter formatter) throws IOException {
-        if (value == null) {
-            return nullValue();
-        }
-        return value(formatter, value.getTime());
-    }
-
-    public XContentBuilder dateField(String name, String readableName, long value) throws IOException {
+    /**
+     * If the {@code humanReadable} flag is set, writes both a formatted and
+     * unformatted version of the time value using the date transformer for the
+     * {@link Long} class.
+     */
+    public XContentBuilder timeField(String name, String readableName, long value) throws IOException {
         if (humanReadable) {
-            field(readableName).value(DEFAULT_DATE_PRINTER, value);
+            Function<Object, Object> longTransformer = DATE_TRANSFORMERS.get(Long.class);
+            if (longTransformer == null) {
+                throw new IllegalArgumentException("cannot write time value xcontent for unknown value of type Long");
+            }
+            field(readableName).value(longTransformer.apply(value));
         }
         field(name, value);
         return this;
     }
 
-    XContentBuilder value(Calendar value) throws IOException {
-        if (value == null) {
-            return nullValue();
-        }
-        return value(DEFAULT_DATE_PRINTER, value.getTimeInMillis());
-    }
+    /**
+     * Write a time-based value, if the value is null a null value is written,
+     * otherwise a date transformers lookup is performed.
 
-    XContentBuilder value(DateTimeFormatter formatter, long value) throws IOException {
-        ensureFormatterNotNull(formatter);
-        return value(formatter.print(value));
+     * @throws IllegalArgumentException if there is no transformers for the type of object
+     */
+    public XContentBuilder timeValue(Object timeValue) throws IOException {
+        if (timeValue == null) {
+            return nullValue();
+        } else {
+            Function<Object, Object> transformer = DATE_TRANSFORMERS.get(timeValue.getClass());
+            if (transformer == null) {
+                throw new IllegalArgumentException("cannot write time value xcontent for unknown value of type " + timeValue.getClass());
+            }
+            return value(transformer.apply(timeValue));
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -787,16 +745,13 @@ public final class XContentBuilder implements Releasable, Flushable {
             value((Iterable<?>) value, ensureNoSelfReferences);
         } else if (value instanceof Object[]) {
             values((Object[]) value, ensureNoSelfReferences);
-        } else if (value instanceof Calendar) {
-            value((Calendar) value);
-        } else if (value instanceof ReadableInstant) {
-            value((ReadableInstant) value);
         } else if (value instanceof ToXContent) {
             value((ToXContent) value);
-        } else {
-            // This is a "value" object (like enum, DistanceUnit, etc) just toString() it
-            // (yes, it can be misleading when toString a Java class, but really, jackson should be used in that case)
+        } else if (value instanceof Enum<?>) {
+            // Write out the Enum toString
             value(Objects.toString(value));
+        } else {
+            throw new IllegalArgumentException("cannot write xcontent for unknown value of type " + value.getClass());
         }
     }
 
@@ -920,14 +875,6 @@ public final class XContentBuilder implements Releasable, Flushable {
         return this;
     }
 
-    public XContentBuilder byteSizeField(String rawFieldName, String readableFieldName, long rawSize) throws IOException {
-        if (humanReadable) {
-            field(readableFieldName, new ByteSizeValue(rawSize).toString());
-        }
-        field(rawFieldName, rawSize);
-        return this;
-    }
-
     ////////////////////////////////////////////////////////////////////////////
     // Raw fields
     //////////////////////////////////
@@ -983,10 +930,6 @@ public final class XContentBuilder implements Releasable, Flushable {
 
     static void ensureNameNotNull(String name) {
         ensureNotNull(name, "Field name cannot be null");
-    }
-
-    static void ensureFormatterNotNull(DateTimeFormatter formatter) {
-        ensureNotNull(formatter, "DateTimeFormatter cannot be null");
     }
 
     static void ensureNotNull(Object value, String message) {

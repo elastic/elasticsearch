@@ -249,7 +249,7 @@ on a per-operation basis using the `routing` parameter. For example:
 
 [source,js]
 --------------------------------------------------
-POST twitter/tweet?routing=kimchy
+POST twitter/_doc?routing=kimchy
 {
     "user" : "kimchy",
     "post_date" : "2009-11-15T14:12:12",

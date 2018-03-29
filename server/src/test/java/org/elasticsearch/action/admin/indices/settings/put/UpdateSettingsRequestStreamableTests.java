@@ -52,7 +52,8 @@ public class UpdateSettingsRequestStreamableTests extends AbstractStreamableTest
     }
 
     public static UpdateSettingsRequest createTestItem() {
-        UpdateSettingsRequest request = randomBoolean() ? new UpdateSettingsRequest(randomSettings(0, 2))
+        UpdateSettingsRequest request = randomBoolean()
+                ? new UpdateSettingsRequest(randomSettings(0, 2))
                 : new UpdateSettingsRequest(randomSettings(0, 2), randomIndicesNames(0, 2));
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
         request.setPreserveExisting(randomBoolean());

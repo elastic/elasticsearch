@@ -19,16 +19,34 @@
 
 package org.elasticsearch.action.admin.indices.settings.put;
 
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
 public class UpdateSettingsRequestTests extends AbstractXContentTestCase<UpdateSettingsRequest> {
 
+    private boolean enclosedSettings = randomBoolean();
+
     @Override
     protected UpdateSettingsRequest createTestInstance() {
-        return UpdateSettingsRequestStreamableTests.createTestItem();
+        UpdateSettingsRequest testRequest = UpdateSettingsRequestStreamableTests.createTestItem();
+        if (enclosedSettings) {
+            UpdateSettingsRequest requestWithEnclosingSettings = new UpdateSettingsRequest(testRequest.settings()) {
+                public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                    builder.startObject();
+                    builder.startObject("settings");
+                    this.settings().toXContent(builder, params);
+                    builder.endObject();
+                    builder.endObject();
+                    return builder;
+                }
+            };
+            return requestWithEnclosingSettings;
+        }
+        return testRequest;
     }
 
     @Override
@@ -38,16 +56,27 @@ public class UpdateSettingsRequestTests extends AbstractXContentTestCase<UpdateS
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return enclosedSettings;
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        if (enclosedSettings) {
+            return field -> field.startsWith("settings");
+        }
+        return field -> true;
     }
 
     @Override
     protected void assertEqualInstances(UpdateSettingsRequest expectedInstance, UpdateSettingsRequest newInstance) {
-        newInstance.indices(expectedInstance.indices());
-        newInstance.indicesOptions(expectedInstance.indicesOptions());
-        newInstance.setPreserveExisting(expectedInstance.isPreserveExisting());
-        newInstance.flatSettings(expectedInstance.flatSettings());
-        super.assertEqualInstances(expectedInstance, newInstance);
+        super.assertEqualInstances(new UpdateSettingsRequest(expectedInstance.settings()),
+                new UpdateSettingsRequest(newInstance.settings()));
+    }
+
+    @Override
+    protected boolean assertToXContentEquivalence() {
+        // if enclosedSettings are used, disable the XContentEquivalence check as the parser.toXContent is not equal to the test instance
+        return !enclosedSettings;
     }
 
 }

@@ -763,6 +763,7 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             }
             initialEngine.close();
+            trimUnsafeCommits(initialEngine.config());
             recoveringEngine = new InternalEngine(initialEngine.config());
             recoveringEngine.recoverFromTranslog();
             try (Engine.Searcher searcher = recoveringEngine.acquireSearcher("test")) {
@@ -1168,6 +1169,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine.index(indexForDoc(doc));
         EngineConfig config = engine.config();
         engine.close();
+        trimUnsafeCommits(config);
         engine = new InternalEngine(config);
         engine.recoverFromTranslog();
         assertNull("Sync ID must be gone since we have a document to replay", engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID));
@@ -3581,7 +3583,7 @@ public class InternalEngineTests extends EngineTestCase {
         } finally {
             IOUtils.close(initialEngine);
         }
-
+        trimUnsafeCommits(initialEngine.config());
         try (Engine recoveringEngine = new InternalEngine(initialEngine.config())) {
             recoveringEngine.recoverFromTranslog();
             recoveringEngine.fillSeqNoGaps(2);
@@ -3933,6 +3935,7 @@ public class InternalEngineTests extends EngineTestCase {
 
         // now do it again to make sure we preserve values etc.
         try {
+            trimUnsafeCommits(replicaEngine.config());
             recoveringEngine = new InternalEngine(copy(replicaEngine.config(), globalCheckpoint::get));
             if (flushed) {
                 assertThat(recoveringEngine.getTranslog().stats().getUncommittedOperations(), equalTo(0));
@@ -4253,31 +4256,6 @@ public class InternalEngineTests extends EngineTestCase {
             // check it's clean up
             engine.flush(true, true);
             assertThat(DirectoryReader.listCommits(engine.store.directory()), hasSize(1));
-        }
-    }
-
-    public void testOpenIndexAndTranslogKeepOnlySafeCommit() throws Exception {
-        IOUtils.close(engine);
-        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-        final EngineConfig config = copy(engine.config(), globalCheckpoint::get);
-        final IndexCommit safeCommit;
-        try (InternalEngine engine = createEngine(config)) {
-            final int numDocs = between(5, 50);
-            for (int i = 0; i < numDocs; i++) {
-                index(engine, i);
-                if (randomBoolean()) {
-                    engine.flush();
-                }
-            }
-            // Selects a starting commit and advances and persists the global checkpoint to that commit.
-            final List<IndexCommit> commits = DirectoryReader.listCommits(engine.store.directory());
-            safeCommit = randomFrom(commits);
-            globalCheckpoint.set(Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)));
-            engine.getTranslog().sync();
-        }
-        try (InternalEngine engine = new InternalEngine(config)) {
-            final List<IndexCommit> existingCommits = DirectoryReader.listCommits(engine.store.directory());
-            assertThat("safe commit should be kept", existingCommits, contains(safeCommit));
         }
     }
 
@@ -4615,4 +4593,64 @@ public class InternalEngineTests extends EngineTestCase {
             false, randomNonNegativeLong(), localCheckpointTracker.generateSeqNo()));
         assertThat(engine.getNumVersionLookups(), equalTo(lookupTimes));
     }
+
+    public void testTrimUnsafeCommits() throws Exception {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        final int maxSeqNo = 40;
+        final List<Long> seqNos = LongStream.rangeClosed(0, maxSeqNo).boxed().collect(Collectors.toList());
+        Collections.shuffle(seqNos, random());
+        try (Store store = createStore()) {
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
+            final List<Long> commitMaxSeqNo = new ArrayList<>();
+            final long minTranslogGen;
+            try (InternalEngine engine = createEngine(config)) {
+                for (int i = 0; i < seqNos.size(); i++) {
+                    ParsedDocument doc = testParsedDocument(Long.toString(seqNos.get(i)), null, testDocument(), new BytesArray("{}"), null);
+                    Engine.Index index = new Engine.Index(newUid(doc), doc, seqNos.get(i), 0,
+                        1, VersionType.EXTERNAL, REPLICA, System.nanoTime(), -1, false);
+                    engine.index(index);
+                    if (randomBoolean()) {
+                        engine.flush();
+                        final Long maxSeqNoInCommit = seqNos.subList(0, i + 1).stream().max(Long::compareTo).orElse(-1L);
+                        commitMaxSeqNo.add(maxSeqNoInCommit);
+                    }
+                }
+                globalCheckpoint.set(randomInt(maxSeqNo));
+                engine.syncTranslog();
+                minTranslogGen = engine.getTranslog().getMinFileGeneration();
+            }
+
+            store.trimUnsafeCommits(globalCheckpoint.get(), minTranslogGen,config.getIndexSettings().getIndexVersionCreated());
+            long safeMaxSeqNo =
+                commitMaxSeqNo.stream().filter(s -> s <= globalCheckpoint.get())
+                    .reduce((s1, s2) -> s2) // get the last one.
+                    .orElse(SequenceNumbers.NO_OPS_PERFORMED);
+            final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
+            assertThat(commits, hasSize(1));
+            assertThat(commits.get(0).getUserData().get(SequenceNumbers.MAX_SEQ_NO), equalTo(Long.toString(safeMaxSeqNo)));
+            try (IndexReader reader = DirectoryReader.open(commits.get(0))) {
+                for (LeafReaderContext context: reader.leaves()) {
+                    final NumericDocValues values = context.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+                    if (values != null) {
+                        for (int docID = 0; docID < context.reader().maxDoc(); docID++) {
+                            if (values.advanceExact(docID) == false) {
+                                throw new AssertionError("Document does not have a seq number: " + docID);
+                            }
+                            assertThat(values.longValue(), lessThanOrEqualTo(globalCheckpoint.get()));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static void trimUnsafeCommits(EngineConfig config) throws IOException {
+        final Store store = config.getStore();
+        final TranslogConfig translogConfig = config.getTranslogConfig();
+        final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+        final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
+        final long minRetainedTranslogGen = Translog.readMinTranslogGeneration(translogConfig.getTranslogPath(), translogUUID);
+        store.trimUnsafeCommits(globalCheckpoint, minRetainedTranslogGen, config.getIndexSettings().getIndexVersionCreated());
+    }
+
 }

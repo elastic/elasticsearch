@@ -36,7 +36,6 @@ publishing {
 dependencies {
     compile "org.elasticsearch:elasticsearch-core:${version}"
 
-    // json and yaml
     compile "org.yaml:snakeyaml:${versions.snakeyaml}"
     compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
     compile "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${versions.jackson}"

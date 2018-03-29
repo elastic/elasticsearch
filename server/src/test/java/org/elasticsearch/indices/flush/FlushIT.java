@@ -46,6 +46,7 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -244,6 +245,12 @@ public class FlushIT extends ESIntegTestCase {
         assertThat(indexResult.getFailure(), nullValue());
     }
 
+    private String syncedFlushDescription(ShardsSyncedFlushResult result) {
+        return result.shardResponses().entrySet().stream()
+            .map(e -> "Shard [" + e.getKey() + "], result [" + e.getValue() + "]")
+            .collect(Collectors.joining(","));
+    }
+
     public void testSyncedFlushSkipOutOfSyncReplicas() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(between(2, 3));
         final int numberOfReplicas = internalCluster().numDataNodes() - 1;
@@ -269,6 +276,7 @@ public class FlushIT extends ESIntegTestCase {
             indexDoc(IndexShardTestCase.getEngine(outOfSyncReplica), "extra_" + i);
         }
         final ShardsSyncedFlushResult partialResult = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), shardId);
+        logger.info("Partial seal: {}", syncedFlushDescription(partialResult));
         assertThat(partialResult.totalShards(), equalTo(numberOfReplicas + 1));
         assertThat(partialResult.successfulShards(), equalTo(numberOfReplicas));
         assertThat(partialResult.shardResponses().get(outOfSyncReplica.routingEntry()).failureReason, equalTo(
@@ -284,6 +292,7 @@ public class FlushIT extends ESIntegTestCase {
         assertThat(fullResult.successfulShards(), equalTo(numberOfReplicas + 1));
     }
 
+    @TestLogging("_root:DEBUG")
     public void testDoNotRenewSyncedFlushWhenAllSealed() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(between(2, 3));
         final int numberOfReplicas = internalCluster().numDataNodes() - 1;
@@ -300,9 +309,11 @@ public class FlushIT extends ESIntegTestCase {
             index("test", "doc", Integer.toString(i));
         }
         final ShardsSyncedFlushResult firstSeal = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), shardId);
+        logger.info("First seal: {}", syncedFlushDescription(firstSeal));
         assertThat(firstSeal.successfulShards(), equalTo(numberOfReplicas + 1));
         // Do not renew synced-flush
         final ShardsSyncedFlushResult secondSeal = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), shardId);
+        logger.info("Second seal: {}", syncedFlushDescription(secondSeal));
         assertThat(secondSeal.successfulShards(), equalTo(numberOfReplicas + 1));
         assertThat(secondSeal.syncId(), equalTo(firstSeal.syncId()));
         // Shards were updated, renew synced flush.
@@ -311,6 +322,7 @@ public class FlushIT extends ESIntegTestCase {
             index("test", "doc", Integer.toString(i));
         }
         final ShardsSyncedFlushResult thirdSeal = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), shardId);
+        logger.info("Third seal: {}", syncedFlushDescription(thirdSeal));
         assertThat(thirdSeal.successfulShards(), equalTo(numberOfReplicas + 1));
         assertThat(thirdSeal.syncId(), not(equalTo(firstSeal.syncId())));
         // Manually remove or change sync-id, renew synced flush.
@@ -326,6 +338,7 @@ public class FlushIT extends ESIntegTestCase {
             assertThat(shard.commitStats().syncId(), nullValue());
         }
         final ShardsSyncedFlushResult forthSeal = SyncedFlushUtil.attemptSyncedFlush(internalCluster(), shardId);
+        logger.info("Forth seal: {}", syncedFlushDescription(forthSeal));
         assertThat(forthSeal.successfulShards(), equalTo(numberOfReplicas + 1));
         assertThat(forthSeal.syncId(), not(equalTo(thirdSeal.syncId())));
     }

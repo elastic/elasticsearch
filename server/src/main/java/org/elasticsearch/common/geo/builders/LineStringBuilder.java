@@ -92,6 +92,15 @@ public class LineStringBuilder extends ShapeBuilder<JtsGeometry, LineStringBuild
     }
 
     @Override
+    public int numDimensions() {
+        if (coordinates == null || coordinates.isEmpty()) {
+            throw new IllegalStateException("unable to get number of dimensions, " +
+                "LineString has not yet been initialized");
+        }
+        return Double.isNaN(coordinates.get(0).z) ? 2 : 3;
+    }
+
+    @Override
     public JtsGeometry build() {
         Coordinate[] coordinates = this.coordinates.toArray(new Coordinate[this.coordinates.size()]);
         Geometry geometry;

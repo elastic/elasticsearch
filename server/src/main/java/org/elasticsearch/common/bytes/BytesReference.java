@@ -23,6 +23,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.ByteArrayOutputStream;
@@ -37,7 +38,7 @@ import java.util.function.ToIntBiFunction;
 /**
  * A reference to bytes.
  */
-public abstract class BytesReference implements Accountable, Comparable<BytesReference> {
+public abstract class BytesReference implements Accountable, Comparable<BytesReference>, ToXContentFragment {
 
     private Integer hash = null; // we cache the hash of this reference since it can be quite costly to re-calculated it
 
@@ -333,5 +334,11 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
         public long skip(long n) throws IOException {
             return input.skip(n);
         }
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        BytesRef bytes = toBytesRef();
+        return builder.value(bytes.bytes, bytes.offset, bytes.length);
     }
 }

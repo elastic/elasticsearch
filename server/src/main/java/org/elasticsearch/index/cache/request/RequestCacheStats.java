@@ -92,7 +92,7 @@ public class RequestCacheStats implements Streamable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.REQUEST_CACHE_STATS);
-        builder.byteSizeField(Fields.MEMORY_SIZE_IN_BYTES, Fields.MEMORY_SIZE, memorySize);
+        builder.humanReadableField(Fields.MEMORY_SIZE_IN_BYTES, Fields.MEMORY_SIZE, getMemorySize());
         builder.field(Fields.EVICTIONS, getEvictions());
         builder.field(Fields.HIT_COUNT, getHitCount());
         builder.field(Fields.MISS_COUNT, getMissCount());

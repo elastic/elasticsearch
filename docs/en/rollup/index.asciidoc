@@ -18,7 +18,6 @@ for analysis, but at a fraction of the storage cost of raw data.
 * <<rollup-getting-started,Getting Started>>
 * <<rollup-api-quickref, API Quick Reference>>
 * <<rollup-understanding-groups,Understanding Rollup Grouping>>
-* <<rollup-timezones,Dealing with Timezones>>
 * <<rollup-search-limitations,Limitations of Rollup Search>>
 
 
@@ -28,5 +27,4 @@ include::overview.asciidoc[]
 include::api-quickref.asciidoc[]
 include::rollup-getting-started.asciidoc[]
 include::understanding-groups.asciidoc[]
-include::timezones.asciidoc[]
 include::rollup-search-limitations.asciidoc[]

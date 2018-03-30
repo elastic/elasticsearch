@@ -52,7 +52,6 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
         this.container = Repository.CONTAINER_SETTING.get(metadata.settings());
         this.clientName = Repository.CLIENT_NAME.get(metadata.settings());
         this.service = service;
-
         // locationMode is set per repository, not per client
         this.locationMode = Repository.LOCATION_MODE_SETTING.get(metadata.settings());
         final Map<String, AzureStorageSettings> prevSettings = this.service.updateClientsSettings(emptyMap());

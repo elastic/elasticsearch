@@ -269,7 +269,6 @@ public class AzureStorageServiceTests extends ESTestCase {
     class AzureStorageServiceMockForSettings extends AzureStorageServiceImpl {
         AzureStorageServiceMockForSettings(Settings settings) {
             super(settings);
-            updateClientsSettings(AzureStorageSettings.load(settings));
         }
 
         // We fake the client here

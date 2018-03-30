@@ -59,6 +59,13 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
 
     public AzureStorageServiceImpl(Settings settings) {
         super(settings);
+        // eagerly load client settings so that secure settings are read
+        final Map<String, AzureStorageSettings> clientsSettings = AzureStorageSettings.load(settings);
+        if (clientsSettings.isEmpty()) {
+            throw new IllegalArgumentException("If you want to use an azure repository, you need to define a client configuration.");
+        }
+        assert clientsSettings.containsKey("default") : "always have 'default'";
+        updateClientsSettings(clientsSettings);
     }
 
     @Override
@@ -108,10 +115,6 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
 
     @Override
     public Map<String, AzureStorageSettings> updateClientsSettings(Map<String, AzureStorageSettings> clientsSettings) {
-        if (clientsSettings.isEmpty()) {
-            throw new IllegalArgumentException("If you want to use an azure repository, you need to define a client configuration.");
-        }
-        assert clientsSettings.containsKey("default") : "always have 'default'";
         final Map<String, AzureStorageSettings> prevSettings = this.storageSettings;
         this.storageSettings = MapBuilder.newMapBuilder(clientsSettings).immutableMap();
         // clients are built lazily by {@link client(String)}

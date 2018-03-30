@@ -40,16 +40,9 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     // protected for testing
     final AzureStorageService azureStoreService;
 
-    // overridable for tests
-    protected AzureStorageService createStorageService(Settings settings) {
-        return new AzureStorageServiceImpl(settings);
-    }
-
     public AzureRepositoryPlugin(Settings settings) {
-        this.azureStoreService = createStorageService(settings);
         // eagerly load client settings so that secure settings are read
-        final Map<String, AzureStorageSettings> clientsSettings = AzureStorageSettings.load(settings);
-        this.azureStoreService.updateClientsSettings(clientsSettings);
+        this.azureStoreService = new AzureStorageServiceImpl(settings);
     }
 
     @Override

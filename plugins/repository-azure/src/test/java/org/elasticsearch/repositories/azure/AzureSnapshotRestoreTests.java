@@ -21,7 +21,6 @@ package org.elasticsearch.repositories.azure;
 
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;

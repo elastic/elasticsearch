@@ -5,12 +5,9 @@
  */
 package org.elasticsearch.transport;
 
-import java.util.Collection;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
@@ -23,13 +20,6 @@ public class SecurityServerTransportServiceTests extends SecurityIntegTestCase {
                 .put(super.transportClientSettings())
                 .put(XPackSettings.SECURITY_ENABLED.getKey(), true)
                 .build();
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getMockPlugins() {
-        Collection<Class<? extends Plugin>> mockPlugins = super.getMockPlugins();
-        // no handler wrapping here we check the requestHandlers below and this plugin wraps it
-        return mockPlugins.stream().filter(p -> p != AssertingTransportInterceptor.TestPlugin.class).collect(Collectors.toList());
     }
 
     public void testSecurityServerTransportServiceWrapsAllHandlers() {

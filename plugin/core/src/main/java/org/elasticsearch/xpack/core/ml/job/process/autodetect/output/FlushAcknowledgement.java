@@ -26,7 +26,7 @@ import java.util.Objects;
  */
 public class FlushAcknowledgement implements ToXContentObject, Writeable {
     /**
-     * ThrottlerField Names
+     * Field Names
      */
     public static final ParseField TYPE = new ParseField("flush");
     public static final ParseField ID = new ParseField("id");

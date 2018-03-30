@@ -31,7 +31,7 @@ public class Influencer implements ToXContentObject, Writeable {
     public static final ParseField RESULT_TYPE_FIELD = new ParseField(RESULT_TYPE_VALUE);
 
     /*
-     * ThrottlerField names
+     * Field names
      */
     public static final ParseField PROBABILITY = new ParseField("probability");
     public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");

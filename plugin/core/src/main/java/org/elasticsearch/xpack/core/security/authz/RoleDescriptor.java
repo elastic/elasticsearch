@@ -320,11 +320,11 @@ public class RoleDescriptor implements ToXContentObject {
             }
             if (indexPrivileges != null) {
                 if (Arrays.stream(indexPrivileges).anyMatch(IndicesPrivileges::isUsingFieldLevelSecurity)) {
-                    throw new ElasticsearchParseException("ThrottlerField [{}] is not supported in a has_privileges request",
+                    throw new ElasticsearchParseException("Field [{}] is not supported in a has_privileges request",
                             RoleDescriptor.Fields.FIELD_PERMISSIONS);
                 }
                 if (Arrays.stream(indexPrivileges).anyMatch(IndicesPrivileges::isUsingDocumentLevelSecurity)) {
-                    throw new ElasticsearchParseException("ThrottlerField [{}] is not supported in a has_privileges request", Fields.QUERY);
+                    throw new ElasticsearchParseException("Field [{}] is not supported in a has_privileges request", Fields.QUERY);
                 }
             }
             return new RoleDescriptor(description, clusterPrivileges, indexPrivileges, null);

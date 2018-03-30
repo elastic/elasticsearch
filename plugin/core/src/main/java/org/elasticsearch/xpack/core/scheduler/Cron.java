@@ -47,7 +47,7 @@ import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArg
  * <table cellspacing="8">
  * <caption>Fields in cron expressions</caption>
  * <tr>
- * <th align="left">ThrottlerField Name</th>
+ * <th align="left">Field Name</th>
  * <th align="left">&nbsp;</th>
  * <th align="left">Allowed Values</th>
  * <th align="left">&nbsp;</th>

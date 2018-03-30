@@ -364,7 +364,7 @@ public class Detector implements ToXContentObject, Writeable {
      * Segments the analysis along another field to have completely
      * independent baselines for each instance of partitionfield
      *
-     * @return The Partition ThrottlerField
+     * @return The Partition Field
      */
     public String getPartitionFieldName() {
         return partitionFieldName;

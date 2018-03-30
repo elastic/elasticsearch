@@ -31,7 +31,7 @@ public class BucketInfluencer implements ToXContentObject, Writeable {
     public static final ParseField RESULT_TYPE_FIELD = new ParseField(RESULT_TYPE_VALUE);
 
     /**
-     * ThrottlerField names
+     * Field names
      */
     public static final ParseField INFLUENCER_FIELD_NAME = new ParseField("influencer_field_name");
     public static final ParseField INITIAL_ANOMALY_SCORE = new ParseField("initial_anomaly_score");

@@ -25,7 +25,7 @@ import java.util.Objects;
 public class Quantiles implements ToXContentObject, Writeable {
 
     /**
-     * ThrottlerField Names
+     * Field Names
      */
     public static final ParseField TIMESTAMP = new ParseField("timestamp");
     public static final ParseField QUANTILE_STATE = new ParseField("quantile_state");

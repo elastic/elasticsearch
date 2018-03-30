@@ -37,7 +37,7 @@ import java.util.Objects;
  */
 public class ModelSnapshot implements ToXContentObject, Writeable {
     /**
-     * ThrottlerField Names
+     * Field Names
      */
     public static final ParseField TIMESTAMP = new ParseField("timestamp");
     public static final ParseField DESCRIPTION = new ParseField("description");

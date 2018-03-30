@@ -96,7 +96,7 @@ public class XPackLicenseState {
                         return new String[] {
                             "The following X-Pack security functionality will be disabled: authentication, authorization, " +
                                 "ip filtering, and auditing. Please restart your node after applying the license.",
-                            "ThrottlerField and document level access control will be disabled.",
+                            "Field and document level access control will be disabled.",
                             "Custom realms will be ignored."
                         };
                 }
@@ -109,7 +109,7 @@ public class XPackLicenseState {
                     case TRIAL:
                     case PLATINUM:
                         return new String[] {
-                            "ThrottlerField and document level access control will be disabled.",
+                            "Field and document level access control will be disabled.",
                             "Custom realms will be ignored."
                         };
                 }
@@ -124,7 +124,7 @@ public class XPackLicenseState {
                         return new String[] {
                             "Authentication will be limited to the native realms.",
                             "IP filtering and auditing will be disabled.",
-                            "ThrottlerField and document level access control will be disabled.",
+                            "Field and document level access control will be disabled.",
                             "Custom realms will be ignored."
                         };
                 }
@@ -322,7 +322,7 @@ public class XPackLicenseState {
     }
 
     /**
-     * Determine if Document Level Security (DLS) and ThrottlerField Level Security (FLS) should be enabled.
+     * Determine if Document Level Security (DLS) and Field Level Security (FLS) should be enabled.
      * <p>
      * DLS and FLS are only disabled when the mode is not:
      * <ul>

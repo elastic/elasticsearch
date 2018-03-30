@@ -80,7 +80,7 @@ import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
  * <p>
  * Based on the {@link ThreadContext} this class will enable field and/or document level security.
  * <p>
- * ThrottlerField level security is enabled by wrapping the original {@link DirectoryReader} in a {@link FieldSubsetReader}
+ * Field level security is enabled by wrapping the original {@link DirectoryReader} in a {@link FieldSubsetReader}
  * in the {@link #wrap(DirectoryReader)} method.
  * <p>
  * Document level security is enabled by wrapping the original {@link DirectoryReader} in a {@link DocumentSubsetReader}

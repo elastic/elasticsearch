@@ -104,5 +104,4 @@ final class TranslogSnapshot extends BaseTranslogReader {
                 ", reusableBuffer=" + reusableBuffer +
                 '}';
     }
-
 }

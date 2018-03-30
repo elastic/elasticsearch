@@ -42,6 +42,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
@@ -75,10 +76,15 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     }
 
     public GetResult get(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType, FetchSourceContext fetchSourceContext) {
+        return get(type, id, gFields, realtime, version, versionType, fetchSourceContext, false);
+    }
+
+    private GetResult get(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType,
+            FetchSourceContext fetchSourceContext, boolean readFromTranslog) {
         currentMetric.inc();
         try {
             long now = System.nanoTime();
-            GetResult getResult = innerGet(type, id, gFields, realtime, version, versionType, fetchSourceContext);
+            GetResult getResult = innerGet(type, id, gFields, realtime, version, versionType, fetchSourceContext, readFromTranslog);
 
             if (getResult.isExists()) {
                 existsMetric.inc(System.nanoTime() - now);
@@ -89,6 +95,11 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         } finally {
             currentMetric.dec();
         }
+    }
+
+    public GetResult getForUpdate(String type, String id, long version, VersionType versionType) {
+        return get(type, id, new String[]{RoutingFieldMapper.NAME, ParentFieldMapper.NAME}, true, version, versionType,
+            FetchSourceContext.FETCH_SOURCE, true);
     }
 
     /**
@@ -137,7 +148,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         return FetchSourceContext.DO_NOT_FETCH_SOURCE;
     }
 
-    private GetResult innerGet(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType, FetchSourceContext fetchSourceContext) {
+    private GetResult innerGet(String type, String id, String[] gFields, boolean realtime, long version, VersionType versionType,
+                               FetchSourceContext fetchSourceContext, boolean readFromTranslog) {
         fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
         final Collection<String> types;
         if (type == null || type.equals("_all")) {
@@ -150,7 +162,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         for (String typeX : types) {
             Term uidTerm = mapperService.createUidTerm(typeX, id);
             if (uidTerm != null) {
-                get = indexShard.get(new Engine.Get(realtime, typeX, id, uidTerm)
+                get = indexShard.get(new Engine.Get(realtime, readFromTranslog, typeX, id, uidTerm)
                         .version(version).versionType(versionType));
                 if (get.exists()) {
                     type = typeX;
@@ -180,7 +192,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         FieldsVisitor fieldVisitor = buildFieldsVisitors(gFields, fetchSourceContext);
         if (fieldVisitor != null) {
             try {
-                docIdAndVersion.context.reader().document(docIdAndVersion.docId, fieldVisitor);
+                docIdAndVersion.reader.document(docIdAndVersion.docId, fieldVisitor);
             } catch (IOException e) {
                 throw new ElasticsearchException("Failed to get type [" + type + "] and id [" + id + "]", e);
             }
@@ -197,7 +209,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
         DocumentMapper docMapper = mapperService.documentMapper(type);
         if (docMapper.parentFieldMapper().active()) {
-            String parentId = ParentFieldSubFetchPhase.getParentId(docMapper.parentFieldMapper(), docIdAndVersion.context.reader(), docIdAndVersion.docId);
+            String parentId = ParentFieldSubFetchPhase.getParentId(docMapper.parentFieldMapper(), docIdAndVersion.reader, docIdAndVersion.docId);
             if (fields == null) {
                 fields = new HashMap<>(1);
             }

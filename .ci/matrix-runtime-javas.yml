@@ -8,5 +8,4 @@
 ES_RUNTIME_JAVA:
   - java8
   - java10
-  - openjdk8
   - openjdk10

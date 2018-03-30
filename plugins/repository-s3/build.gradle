@@ -66,6 +66,12 @@ test {
   exclude '**/*CredentialsTests.class'
 }
 
+forbiddenApisTest {
+  // we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
+  bundledSignatures -= 'jdk-non-portable'
+  bundledSignatures += 'jdk-internal'
+}
+
 /** A task to start the AmazonS3Fixture which emulates a S3 service **/
 task s3Fixture(type: AntFixture) {
   dependsOn compileTestJava

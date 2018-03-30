@@ -32,16 +32,14 @@ import java.util.function.Consumer;
 public class TransportStopRollupAction extends TransportTasksAction<RollupJobTask, StopRollupJobAction.Request,
         StopRollupJobAction.Response, StopRollupJobAction.Response> {
 
-    private final XPackLicenseState licenseState;
 
     @Inject
     public TransportStopRollupAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                           ClusterService clusterService, XPackLicenseState licenseState) {
+                           ClusterService clusterService) {
 
         super(settings, StopRollupJobAction.NAME, threadPool, clusterService, transportService, actionFilters,
                 indexNameExpressionResolver, StopRollupJobAction.Request::new, StopRollupJobAction.Response::new, ThreadPool.Names.SAME);
-        this.licenseState = licenseState;
     }
 
     @Override
@@ -51,12 +49,6 @@ public class TransportStopRollupAction extends TransportTasksAction<RollupJobTas
 
     @Override
     protected void doExecute(Task task, StopRollupJobAction.Request request, ActionListener<StopRollupJobAction.Response> listener) {
-
-        if (!licenseState.isRollupAllowed()) {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackField.ROLLUP));
-            return;
-        }
-
         super.doExecute(task, request, listener);
     }
 

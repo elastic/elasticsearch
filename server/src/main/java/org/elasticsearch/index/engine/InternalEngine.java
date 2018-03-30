@@ -41,10 +41,8 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
@@ -59,6 +57,7 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqN
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -70,7 +69,6 @@ import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
@@ -78,7 +76,6 @@ import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -145,6 +142,7 @@ public class InternalEngine extends Engine {
      * being indexed/deleted.
      */
     private final AtomicLong writingBytes = new AtomicLong();
+    private final AtomicBoolean trackTranslogLocation = new AtomicBoolean(false);
 
     @Nullable
     private final String historyUUID;
@@ -181,12 +179,10 @@ public class InternalEngine extends Engine {
                 translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier());
                 assert translog.getGeneration() != null;
                 this.translog = translog;
-                final IndexCommit startingCommit = getStartingCommitPoint();
-                assert startingCommit != null : "Starting commit should be non-null";
-                this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier, startingCommit);
-                this.combinedDeletionPolicy = new CombinedDeletionPolicy(logger, translogDeletionPolicy,
-                    translog::getLastSyncedGlobalCheckpoint, startingCommit);
-                writer = createWriter(startingCommit);
+                this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
+                this.combinedDeletionPolicy =
+                    new CombinedDeletionPolicy(logger, translogDeletionPolicy, translog::getLastSyncedGlobalCheckpoint);
+                writer = createWriter();
                 bootstrapAppendOnlyInfoFromWriter(writer);
                 historyUUID = loadOrGenerateHistoryUUID(writer);
                 Objects.requireNonNull(historyUUID, "history uuid should not be null");
@@ -230,10 +226,11 @@ public class InternalEngine extends Engine {
     }
 
     private LocalCheckpointTracker createLocalCheckpointTracker(
-        BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier, IndexCommit startingCommit) throws IOException {
+        BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier) throws IOException {
         final long maxSeqNo;
         final long localCheckpoint;
-        final SequenceNumbers.CommitInfo seqNoStats = Store.loadSeqNoInfo(startingCommit);
+        final SequenceNumbers.CommitInfo seqNoStats =
+            SequenceNumbers.loadSeqNoInfoFromLuceneCommit(store.readLastCommittedSegmentsInfo().userData.entrySet());
         maxSeqNo = seqNoStats.maxSeqNo;
         localCheckpoint = seqNoStats.localCheckpoint;
         logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);
@@ -393,31 +390,6 @@ public class InternalEngine extends Engine {
         pendingTranslogRecovery.set(false); // we are good - now we can commit
     }
 
-    private IndexCommit getStartingCommitPoint() throws IOException {
-        final IndexCommit startingIndexCommit;
-        final long lastSyncedGlobalCheckpoint = translog.getLastSyncedGlobalCheckpoint();
-        final long minRetainedTranslogGen = translog.getMinFileGeneration();
-        final List<IndexCommit> existingCommits = DirectoryReader.listCommits(store.directory());
-        // We may not have a safe commit if an index was create before v6.2; and if there is a snapshotted commit whose translog
-        // are not retained but max_seqno is at most the global checkpoint, we may mistakenly select it as a starting commit.
-        // To avoid this issue, we only select index commits whose translog are fully retained.
-        if (engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_6_2_0)) {
-            final List<IndexCommit> recoverableCommits = new ArrayList<>();
-            for (IndexCommit commit : existingCommits) {
-                if (minRetainedTranslogGen <= Long.parseLong(commit.getUserData().get(Translog.TRANSLOG_GENERATION_KEY))) {
-                    recoverableCommits.add(commit);
-                }
-            }
-            assert recoverableCommits.isEmpty() == false : "No commit point with translog found; " +
-                "commits [" + existingCommits + "], minRetainedTranslogGen [" + minRetainedTranslogGen + "]";
-            startingIndexCommit = CombinedDeletionPolicy.findSafeCommitPoint(recoverableCommits, lastSyncedGlobalCheckpoint);
-        } else {
-            // TODO: Asserts the starting commit is a safe commit once peer-recovery sets global checkpoint.
-            startingIndexCommit = CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, lastSyncedGlobalCheckpoint);
-        }
-        return startingIndexCommit;
-    }
-
     private void recoverFromTranslogInternal() throws IOException {
         Translog.TranslogGeneration translogGeneration = translog.getGeneration();
         final int opsRecovered;
@@ -557,6 +529,27 @@ public class InternalEngine extends Engine {
                     if (get.versionType().isVersionConflictForReads(versionValue.version, get.version())) {
                         throw new VersionConflictEngineException(shardId, get.type(), get.id(),
                             get.versionType().explainConflictForReads(versionValue.version, get.version()));
+                    }
+                    if (get.isReadFromTranslog()) {
+                        // this is only used for updates - API _GET calls will always read form a reader for consistency
+                        // the update call doesn't need the consistency since it's source only + _parent but parent can go away in 7.0
+                        if (versionValue.getLocation() != null) {
+                            try {
+                                Translog.Operation operation = translog.readOperation(versionValue.getLocation());
+                                if (operation != null) {
+                                    // in the case of a already pruned translog generation we might get null here - yet very unlikely
+                                    TranslogLeafReader reader = new TranslogLeafReader((Translog.Index) operation, engineConfig
+                                        .getIndexSettings().getIndexVersionCreated());
+                                    return new GetResult(new Searcher("realtime_get", new IndexSearcher(reader)),
+                                        new VersionsAndSeqNoResolver.DocIdAndVersion(0, ((Translog.Index) operation).version(), reader, 0));
+                                }
+                            } catch (IOException e) {
+                                maybeFailEngine("realtime_get", e); // lets check if the translog has failed with a tragic event
+                                throw new EngineException(shardId, "failed to read operation from translog", e);
+                            }
+                        } else {
+                            trackTranslogLocation.set(true);
+                        }
                     }
                     refresh("realtime_get", SearcherScope.INTERNAL);
                 }
@@ -790,6 +783,10 @@ public class InternalEngine extends Engine {
                     }
                     indexResult.setTranslogLocation(location);
                 }
+                if (plan.indexIntoLucene && indexResult.hasFailure() == false) {
+                    versionMap.maybePutUnderLock(index.uid().bytes(),
+                        getVersionValue(plan.versionForIndexing, plan.seqNoForIndexing, index.primaryTerm(), indexResult.getTranslogLocation()));
+                }
                 if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                     localCheckpointTracker.markSeqNoAsCompleted(indexResult.getSeqNo());
                 }
@@ -916,8 +913,6 @@ public class InternalEngine extends Engine {
                 assert assertDocDoesNotExist(index, canOptimizeAddDocument(index) == false);
                 index(index.docs(), indexWriter);
             }
-            versionMap.maybePutUnderLock(index.uid().bytes(),
-                new VersionValue(plan.versionForIndexing, plan.seqNoForIndexing, index.primaryTerm()));
             return new IndexResult(plan.versionForIndexing, plan.seqNoForIndexing, plan.currentNotFoundOrDeleted);
         } catch (Exception ex) {
             if (indexWriter.getTragicException() == null) {
@@ -939,6 +934,13 @@ public class InternalEngine extends Engine {
                 throw ex;
             }
         }
+    }
+
+    private VersionValue getVersionValue(long version, long seqNo, long term, Translog.Location location) {
+        if (location != null && trackTranslogLocation.get()) {
+            return new TranslogVersionValue(location, version, seqNo, term);
+        }
+        return new VersionValue(version, seqNo, term);
     }
 
     /**
@@ -1875,9 +1877,9 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private IndexWriter createWriter(IndexCommit startingCommit) throws IOException {
+    private IndexWriter createWriter() throws IOException {
         try {
-            final IndexWriterConfig iwc = getIndexWriterConfig(startingCommit);
+            final IndexWriterConfig iwc = getIndexWriterConfig();
             return createWriter(store.directory(), iwc);
         } catch (LockObtainFailedException ex) {
             logger.warn("could not lock IndexWriter", ex);
@@ -1890,11 +1892,10 @@ public class InternalEngine extends Engine {
         return new IndexWriter(directory, iwc);
     }
 
-    private IndexWriterConfig getIndexWriterConfig(IndexCommit startingCommit) {
+    private IndexWriterConfig getIndexWriterConfig() {
         final IndexWriterConfig iwc = new IndexWriterConfig(engineConfig.getAnalyzer());
         iwc.setCommitOnClose(false); // we by default don't commit on close
         iwc.setOpenMode(IndexWriterConfig.OpenMode.APPEND);
-        iwc.setIndexCommit(startingCommit);
         iwc.setIndexDeletionPolicy(combinedDeletionPolicy);
         // with tests.verbose, lucene sets this up: plumb to align with filesystem stream
         boolean verbose = false;

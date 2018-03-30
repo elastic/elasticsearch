@@ -1317,6 +1317,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         assertMaxUnsafeAutoIdInCommit();
 
+        final long minRetainedTranslogGen = Translog.readMinTranslogGeneration(translogConfig.getTranslogPath(), translogUUID);
+        store.trimUnsafeCommits(globalCheckpoint, minRetainedTranslogGen, config.getIndexSettings().getIndexVersionCreated());
+
         createNewEngine(config);
         verifyNotClosed();
         // We set active because we are now writing operations to the engine; this way, if we go idle after some time and become inactive,

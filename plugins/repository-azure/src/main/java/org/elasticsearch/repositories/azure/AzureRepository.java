@@ -89,11 +89,10 @@ public class AzureRepository extends BlobStoreRepository {
         this.blobStore = new AzureBlobStore(metadata, environment.settings(), storageService);
         this.chunkSize = Repository.CHUNK_SIZE_SETTING.get(metadata.settings());
         this.compress = Repository.COMPRESS_SETTING.get(metadata.settings());
-        final Boolean forcedReadonly = Repository.READONLY_SETTING.get(metadata.settings());
         // If the user explicitly did not define a readonly value, we set it by ourselves depending on the location mode setting.
         // For secondary_only setting, the repository should be read only
-        if (forcedReadonly) {
-            this.readonly = forcedReadonly;
+        if (Repository.READONLY_SETTING.exists(metadata.settings())) {
+            this.readonly = Repository.READONLY_SETTING.get(metadata.settings());
         } else {
             this.readonly = this.blobStore.getLocationMode() == LocationMode.SECONDARY_ONLY;
         }

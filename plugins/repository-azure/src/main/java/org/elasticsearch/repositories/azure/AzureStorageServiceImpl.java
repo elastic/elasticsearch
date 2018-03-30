@@ -65,7 +65,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
     public Tuple<CloudBlobClient, Supplier<OperationContext>> client(String clientName) {
         final AzureStorageSettings azureStorageSettings = this.storageSettings.get(clientName);
         if (azureStorageSettings == null) {
-            throw new IllegalArgumentException("Cannot find an azure client by the name [" + clientName + "]");
+            throw new IllegalArgumentException("Cannot find an azure client by the name [" + clientName + "]. Check your settings.");
         }
         logger.trace((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
                 "creating new Azure storage client using account [{}], endpoint suffix [{}]",
@@ -74,13 +74,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
     }
 
     protected CloudBlobClient buildClient(AzureStorageSettings azureStorageSettings) {
-        final CloudBlobClient client;
-        try {
-            client = CloudStorageAccount.parse(azureStorageSettings.getConnectionString()).createCloudBlobClient();
-        } catch (InvalidKeyException | URISyntaxException e) {
-            throw new SettingsException("Invalid azure client [" + azureStorageSettings.getAccount() + "] settings.", e);
-        }
-
+        final CloudBlobClient client = createClient(azureStorageSettings);
         // Set timeout option if the user sets cloud.azure.storage.timeout or
         // cloud.azure.storage.xxx.timeout (it's negative by default)
         final long timeout = azureStorageSettings.getTimeout().getMillis();
@@ -90,14 +84,21 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
             }
             client.getDefaultRequestOptions().setTimeoutIntervalInMs((int) timeout);
         }
-
         // We define a default exponential retry policy
         client.getDefaultRequestOptions()
                 .setRetryPolicyFactory(new RetryExponentialRetry(RetryPolicy.DEFAULT_CLIENT_BACKOFF, azureStorageSettings.getMaxRetries()));
 
         client.getDefaultRequestOptions().setLocationMode(azureStorageSettings.getLocationMode());
-
         return client;
+    }
+
+    protected CloudBlobClient createClient(AzureStorageSettings azureStorageSettings) {
+        try {
+            final String connectionString = azureStorageSettings.getConnectionString();
+            return CloudStorageAccount.parse(connectionString).createCloudBlobClient();
+        } catch (InvalidKeyException | URISyntaxException e) {
+            throw new SettingsException("Invalid azure client [" + azureStorageSettings.getAccount() + "] settings.", e);
+        }
     }
 
     protected OperationContext buildOperationContext(AzureStorageSettings azureStorageSettings) {
@@ -108,7 +109,10 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
 
     @Override
     public Map<String, AzureStorageSettings> updateClientsSettings(Map<String, AzureStorageSettings> clientsSettings) {
-        assert clientsSettings.containsKey("default") : "always at least have 'default'";
+        if (clientsSettings.isEmpty()) {
+            throw new IllegalArgumentException("If you want to use an azure repository, you need to define a client configuration.");
+        }
+        assert clientsSettings.containsKey("default") : "always have 'default'";
         final Map<String, AzureStorageSettings> prevSettings = this.storageSettings;
         this.storageSettings = MapBuilder.newMapBuilder(clientsSettings).immutableMap();
         // clients are built lazily by {@link client(String)}

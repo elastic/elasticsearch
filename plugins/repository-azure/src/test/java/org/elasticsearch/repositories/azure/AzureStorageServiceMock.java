@@ -44,6 +44,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyMap;
+
 /**
  * In memory storage for unit tests
  */
@@ -209,6 +211,6 @@ public class AzureStorageServiceMock extends AbstractComponent implements AzureS
 
     @Override
     public Map<String, AzureStorageSettings> updateClientsSettings(Map<String, AzureStorageSettings> clientsSettings) {
-        return null;
+        return emptyMap();
     }
 }

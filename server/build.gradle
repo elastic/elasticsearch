@@ -63,7 +63,7 @@ dependencies {
 
   compile "org.elasticsearch:elasticsearch-core:${version}"
   compile "org.elasticsearch:elasticsearch-secure-sm:${version}"
-  compile "org.elasticsearch:elasticsearch-xcontent:${version}"
+  compile "org.elasticsearch:elasticsearch-x-content:${version}"
 
   compileOnly project(':libs:plugin-classloader')
   testRuntime project(':libs:plugin-classloader')

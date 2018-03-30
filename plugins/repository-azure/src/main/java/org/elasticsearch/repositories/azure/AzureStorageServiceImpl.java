@@ -67,8 +67,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         if (azureStorageSettings == null) {
             throw new IllegalArgumentException("Cannot find an azure client by the name [" + clientName + "]. Check your settings.");
         }
-        logger.trace((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
-                "creating new Azure storage client using account [{}], endpoint suffix [{}]",
+        logger.trace(() -> new ParameterizedMessage("creating new Azure storage client using account [{}], endpoint suffix [{}]",
                 azureStorageSettings.getAccount(), azureStorageSettings.getEndpointSuffix()));
         return new Tuple<>(buildClient(azureStorageSettings), () -> buildOperationContext(azureStorageSettings));
     }
@@ -130,7 +129,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
     public void removeContainer(String account, String container) throws URISyntaxException, StorageException {
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
-        logger.trace((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage("removing container [{}]", container));
+        logger.trace(() -> new ParameterizedMessage("removing container [{}]", container));
         SocketAccess.doPrivilegedException(() -> blobContainer.deleteIfExists(null, null, client.v2().get()));
     }
 
@@ -139,10 +138,10 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         try {
             final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
             final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
-            logger.trace((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage("creating container [{}]", container));
+            logger.trace(() -> new ParameterizedMessage("creating container [{}]", container));
             SocketAccess.doPrivilegedException(() -> blobContainer.createIfNotExists(null, null, client.v2().get()));
         } catch (final IllegalArgumentException e) {
-            logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed creating container [{}]", container), e);
+            logger.trace(() -> new ParameterizedMessage("failed creating container [{}]", container), e);
             throw new RepositoryException(container, e.getMessage(), e);
         }
     }
@@ -152,16 +151,14 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
         // container name must be lower case.
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
-        logger.trace((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage("delete files container [{}], path [{}]",
-                container, path));
+        logger.trace(() -> new ParameterizedMessage("delete files container [{}], path [{}]", container, path));
         SocketAccess.doPrivilegedVoidException(() -> {
             if (blobContainer.exists()) {
                 // list the blobs using a flat blob listing mode
                 for (final ListBlobItem blobItem : blobContainer.listBlobs(path, true, EnumSet.noneOf(BlobListingDetails.class), null,
                         client.v2().get())) {
                     final String blobName = blobNameFromUri(blobItem.getUri());
-                    logger.trace((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
-                            "removing blob [{}] full URI was [{}]", blobName, blobItem.getUri()));
+                    logger.trace(() -> new ParameterizedMessage("removing blob [{}] full URI was [{}]", blobName, blobItem.getUri()));
                     // don't call {@code #deleteBlob}, use the same client
                     final CloudBlockBlob azureBlob = blobContainer.getBlockBlobReference(blobName);
                     azureBlob.delete(DeleteSnapshotsOption.NONE, null, null, client.v2().get());
@@ -210,13 +207,11 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
         // Container name must be lower case.
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
-        logger.trace((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage("delete blob for container [{}], blob [{}]",
-                container, blob));
+        logger.trace(() -> new ParameterizedMessage("delete blob for container [{}], blob [{}]", container, blob));
         SocketAccess.doPrivilegedVoidException(() -> {
             if (blobContainer.exists(null, null, client.v2().get())) {
                 final CloudBlockBlob azureBlob = blobContainer.getBlockBlobReference(blob);
-                logger.trace((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
-                        "container [{}]: blob [{}] found. removing.", container, blob));
+                logger.trace(() -> new ParameterizedMessage("container [{}]: blob [{}] found. removing.", container, blob));
                 azureBlob.delete(DeleteSnapshotsOption.NONE, null, null, client.v2().get());
             }
         });
@@ -227,8 +222,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         StorageException {
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
         final CloudBlockBlob blockBlobReference = client.v1().getContainerReference(container).getBlockBlobReference(blob);
-        logger.trace((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage("reading container [{}], blob [{}]",
-                container, blob));
+        logger.trace(() -> new ParameterizedMessage("reading container [{}], blob [{}]", container, blob));
         final BlobInputStream is = SocketAccess.doPrivilegedException(() ->
         blockBlobReference.openInputStream(null, null, client.v2().get()));
         return AzureStorageService.giveSocketPermissionsToStream(is);
@@ -244,21 +238,19 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         final EnumSet<BlobListingDetails> enumBlobListingDetails = EnumSet.of(BlobListingDetails.METADATA);
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
-        logger.trace((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
-                "listing container [{}], keyPath [{}], prefix [{}]", container, keyPath, prefix));
+        logger.trace(() -> new ParameterizedMessage("listing container [{}], keyPath [{}], prefix [{}]", container, keyPath, prefix));
         SocketAccess.doPrivilegedVoidException(() -> {
             if (blobContainer.exists()) {
                 for (final ListBlobItem blobItem : blobContainer.listBlobs(keyPath + (prefix == null ? "" : prefix), false,
                         enumBlobListingDetails, null, client.v2().get())) {
                     final URI uri = blobItem.getUri();
-                    logger.trace((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage("blob url [{}]", uri));
+                    logger.trace(() -> new ParameterizedMessage("blob url [{}]", uri));
                     // uri.getPath is of the form /container/keyPath.* and we want to strip off the /container/
                     // this requires 1 + container.length() + 1, with each 1 corresponding to one of the /
                     final String blobPath = uri.getPath().substring(1 + container.length() + 1);
                     final BlobProperties properties = ((CloudBlockBlob) blobItem).getProperties();
                     final String name = blobPath.substring(keyPath.length());
-                    logger.trace((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
-                            "blob url [{}], name [{}], size [{}]", uri, name, properties.getLength()));
+                    logger.trace(() -> new ParameterizedMessage("blob url [{}], name [{}], size [{}]", uri, name, properties.getLength()));
                     blobsBuilder.put(name, new PlainBlobMetaData(name, properties.getLength()));
                 }
             }
@@ -272,15 +264,15 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
         final CloudBlockBlob blobSource = blobContainer.getBlockBlobReference(sourceBlob);
-        logger.trace((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
-                "moveBlob container [{}], sourceBlob [{}], targetBlob [{}]", container, sourceBlob, targetBlob));
+        logger.trace(() -> new ParameterizedMessage("moveBlob container [{}], sourceBlob [{}], targetBlob [{}]", container, sourceBlob,
+                targetBlob));
         SocketAccess.doPrivilegedVoidException(() -> {
             if (blobSource.exists(null, null, client.v2().get())) {
                 final CloudBlockBlob blobTarget = blobContainer.getBlockBlobReference(targetBlob);
                 blobTarget.startCopy(blobSource, null, null, null, client.v2().get());
                 blobSource.delete(DeleteSnapshotsOption.NONE, null, null, client.v2().get());
-                logger.trace((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
-                        "moveBlob container [{}], sourceBlob [{}], targetBlob [{}] -> done", container, sourceBlob, targetBlob));
+                logger.trace(() -> new ParameterizedMessage("moveBlob container [{}], sourceBlob [{}], targetBlob [{}] -> done", container,
+                        sourceBlob, targetBlob));
             }
         });
     }
@@ -291,11 +283,9 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
         final CloudBlockBlob blob = blobContainer.getBlockBlobReference(blobName);
-        logger.trace((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage("writeBlob({}, stream, {})", blobName,
-                blobSize));
+        logger.trace(() -> new ParameterizedMessage("writeBlob({}, stream, {})", blobName, blobSize));
         SocketAccess.doPrivilegedVoidException(() -> blob.upload(inputStream, blobSize, null, null, client.v2().get()));
-        logger.trace((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage("writeBlob({}, stream, {}) - done",
-                blobName, blobSize));
+        logger.trace(() -> new ParameterizedMessage("writeBlob({}, stream, {}) - done", blobName, blobSize));
     }
 
 }

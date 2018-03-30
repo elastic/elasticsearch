@@ -68,6 +68,10 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     public boolean reinit(Settings settings) {
         // secure settings should be readable
         final Map<String, AzureStorageSettings> clientsSettings = AzureStorageSettings.load(settings);
+        if (clientsSettings.isEmpty()) {
+            throw new IllegalArgumentException("If you want to use an azure repository, you need to define a client configuration.");
+        }
+        assert clientsSettings.containsKey("default") : "always have 'default'";
         azureStoreService.updateClientsSettings(clientsSettings);
         return true;
     }

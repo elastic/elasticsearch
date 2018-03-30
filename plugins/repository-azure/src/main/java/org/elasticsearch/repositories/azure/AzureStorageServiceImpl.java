@@ -76,10 +76,14 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         }
         logger.trace(() -> new ParameterizedMessage("creating new Azure storage client using account [{}], endpoint suffix [{}]",
                 azureStorageSettings.getAccount(), azureStorageSettings.getEndpointSuffix()));
-        return new Tuple<>(buildClient(azureStorageSettings), () -> buildOperationContext(azureStorageSettings));
+        try {
+            return new Tuple<>(buildClient(azureStorageSettings), () -> buildOperationContext(azureStorageSettings));
+        } catch (InvalidKeyException | URISyntaxException | IllegalArgumentException e) {
+            throw new SettingsException("Invalid azure client [" + clientName + "] settings.", e);
+        }
     }
 
-    protected CloudBlobClient buildClient(AzureStorageSettings azureStorageSettings) {
+    protected CloudBlobClient buildClient(AzureStorageSettings azureStorageSettings) throws InvalidKeyException, URISyntaxException {
         final CloudBlobClient client = createClient(azureStorageSettings);
         // Set timeout option if the user sets cloud.azure.storage.timeout or
         // cloud.azure.storage.xxx.timeout (it's negative by default)
@@ -93,18 +97,13 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         // We define a default exponential retry policy
         client.getDefaultRequestOptions()
                 .setRetryPolicyFactory(new RetryExponentialRetry(RetryPolicy.DEFAULT_CLIENT_BACKOFF, azureStorageSettings.getMaxRetries()));
-
         client.getDefaultRequestOptions().setLocationMode(azureStorageSettings.getLocationMode());
         return client;
     }
 
-    protected CloudBlobClient createClient(AzureStorageSettings azureStorageSettings) {
-        try {
-            final String connectionString = azureStorageSettings.getConnectionString();
-            return CloudStorageAccount.parse(connectionString).createCloudBlobClient();
-        } catch (InvalidKeyException | URISyntaxException e) {
-            throw new SettingsException("Invalid azure client [" + azureStorageSettings.getAccount() + "] settings.", e);
-        }
+    protected CloudBlobClient createClient(AzureStorageSettings azureStorageSettings) throws InvalidKeyException, URISyntaxException {
+        final String connectionString = azureStorageSettings.getConnectionString();
+        return CloudStorageAccount.parse(connectionString).createCloudBlobClient();
     }
 
     protected OperationContext buildOperationContext(AzureStorageSettings azureStorageSettings) {
@@ -178,14 +177,12 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
      */
     static String blobNameFromUri(URI uri) {
         final String path = uri.getPath();
-
         // We remove the container name from the path
         // The 3 magic number cames from the fact if path is /container/path/to/myfile
         // First occurrence is empty "/"
         // Second occurrence is "container
         // Last part contains "path/to/myfile" which is what we want to get
         final String[] splits = path.split("/", 3);
-
         // We return the remaining end of the string
         return splits[2];
     }

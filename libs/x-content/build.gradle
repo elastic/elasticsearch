@@ -81,3 +81,5 @@ thirdPartyAudit.excludes = [
 dependencyLicenses {
   mapping from: /jackson-.*/, to: 'jackson'
 }
+
+jarHell.enabled = false

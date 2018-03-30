@@ -19,215 +19,177 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.AmazonClientException;
-import com.amazonaws.AmazonServiceException;
-import com.amazonaws.SdkClientException;
 import com.amazonaws.services.s3.AbstractAmazonS3;
+import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.CopyObjectRequest;
-import com.amazonaws.services.s3.model.CopyObjectResult;
-import com.amazonaws.services.s3.model.DeleteObjectRequest;
-import com.amazonaws.services.s3.model.GetObjectMetadataRequest;
-import com.amazonaws.services.s3.model.GetObjectRequest;
-import com.amazonaws.services.s3.model.ListObjectsRequest;
+import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
-import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.model.PutObjectResult;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectInputStream;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
+import org.elasticsearch.common.io.Streams;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
-import java.net.InetAddress;
-import java.net.Socket;
-import java.util.ArrayList;
-import java.util.List;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static org.junit.Assert.assertTrue;
+import static java.util.Collections.emptyMap;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class MockAmazonS3 extends AbstractAmazonS3 {
 
-    private final int mockSocketPort;
+    static final Map<String, Map<String, byte[]>> BUCKETS = new ConcurrentHashMap<>();
 
-    private Map<String, InputStream> blobs = new ConcurrentHashMap<>();
-
-    // in ESBlobStoreContainerTestCase.java, the maximum
-    // length of the input data is 100 bytes
-    private byte[] byteCounter = new byte[100];
-
-
-    MockAmazonS3(int mockSocketPort) {
-        this.mockSocketPort = mockSocketPort;
+    private MockAmazonS3() {
     }
 
-    // Simulate a socket connection to check that SocketAccess.doPrivileged() is used correctly.
-    // Any method of AmazonS3 might potentially open a socket to the S3 service. Firstly, a call
-    // to any method of AmazonS3 has to be wrapped by SocketAccess.doPrivileged().
-    // Secondly, each method on the stack from doPrivileged to opening the socket has to be
-    // located in a jar that is provided by the plugin.
-    // Thirdly, a SocketPermission has to be configured in plugin-security.policy.
-    // By opening a socket in each method of MockAmazonS3 it is ensured that in production AmazonS3
-    // is able to to open a socket to the S3 Service without causing a SecurityException
-    private void simulateS3SocketConnection() {
-        try (Socket socket = new Socket(InetAddress.getByName("127.0.0.1"), mockSocketPort)) {
-            assertTrue(socket.isConnected()); // NOOP to keep static analysis happy
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
+    public static AmazonS3 createClient(final String bucket,
+                                        final boolean serverSideEncryption,
+                                        final String cannedACL,
+                                        final String storageClass) {
 
+        final AmazonS3 mockedClient = mock(AmazonS3.class);
 
-    @Override
-    public boolean doesBucketExist(String bucket) {
-        return true;
-    }
+        // Create or erase the bucket
+        BUCKETS.put(bucket, new ConcurrentHashMap<>());
 
-    @Override
-    public boolean doesObjectExist(String bucketName, String objectName) throws AmazonServiceException, SdkClientException {
-        simulateS3SocketConnection();
-        return blobs.containsKey(objectName);
-    }
+        // Bucket exists?
+        when(mockedClient.doesBucketExist(any(String.class))).thenAnswer(invocation -> {
+            String bucketName = (String) invocation.getArguments()[0];
+            assertThat(bucketName, equalTo(bucket));
+            return BUCKETS.containsKey(bucketName);
+        });
 
-    @Override
-    public ObjectMetadata getObjectMetadata(
-            GetObjectMetadataRequest getObjectMetadataRequest)
-            throws AmazonClientException, AmazonServiceException {
-        simulateS3SocketConnection();
-        String blobName = getObjectMetadataRequest.getKey();
+        // Blob exists?
+        when(mockedClient.doesObjectExist(any(String.class), any(String.class))).thenAnswer(invocation -> {
+            String bucketName = (String) invocation.getArguments()[0];
+            String objectName = (String) invocation.getArguments()[1];
+            assertThat(bucketName, equalTo(bucket));
+            return BUCKETS.getOrDefault(bucketName, emptyMap()).containsKey(objectName);
+        });
 
-        if (!blobs.containsKey(blobName)) {
-            throw new AmazonS3Exception("[" + blobName + "] does not exist.");
-        }
+        // Write blob
+        when(mockedClient.putObject(any(PutObjectRequest.class))).thenAnswer(invocation -> {
+            PutObjectRequest request = (PutObjectRequest) invocation.getArguments()[0];
+            assertThat(request.getBucketName(), equalTo(bucket));
+            assertThat(request.getMetadata().getSSEAlgorithm(), serverSideEncryption ? equalTo("AES256") : nullValue());
+            assertThat(request.getCannedAcl(), notNullValue());
+            assertThat(request.getCannedAcl().toString(), cannedACL != null ? equalTo(cannedACL) : equalTo("private"));
+            assertThat(request.getStorageClass(), storageClass != null ? equalTo(storageClass) : equalTo("STANDARD"));
 
-        return new ObjectMetadata(); // nothing is done with it
-    }
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            Streams.copy(request.getInputStream(), out);
+            assertThat((long) out.size(), equalTo(request.getMetadata().getContentLength()));
 
-    @Override
-    public PutObjectResult putObject(PutObjectRequest putObjectRequest)
-            throws AmazonClientException, AmazonServiceException {
-        simulateS3SocketConnection();
-        String blobName = putObjectRequest.getKey();
+            BUCKETS.computeIfAbsent(request.getBucketName(), s -> new ConcurrentHashMap<>()).put(request.getKey(), out.toByteArray());
+            return null;
+        });
 
-        if (blobs.containsKey(blobName)) {
-            throw new AmazonS3Exception("[" + blobName + "] already exists.");
-        }
+        // Read blob
+        when(mockedClient.getObject(any(String.class), any(String.class))).thenAnswer(invocation -> {
+            String bucketName = (String) invocation.getArguments()[0];
+            String objectName = (String) invocation.getArguments()[1];
+            assertThat(bucketName, equalTo(bucket));
 
-        blobs.put(blobName, putObjectRequest.getInputStream());
-        return new PutObjectResult();
-    }
-
-    @Override
-    public S3Object getObject(GetObjectRequest getObjectRequest)
-            throws AmazonClientException, AmazonServiceException {
-        simulateS3SocketConnection();
-        // in ESBlobStoreContainerTestCase.java, the prefix is empty,
-        // so the key and blobName are equivalent to each other
-        String blobName = getObjectRequest.getKey();
-
-        if (!blobs.containsKey(blobName)) {
-            throw new AmazonS3Exception("[" + blobName + "] does not exist.");
-        }
-
-        // the HTTP request attribute is irrelevant for reading
-        S3ObjectInputStream stream = new S3ObjectInputStream(
-                blobs.get(blobName), null, false);
-        S3Object s3Object = new S3Object();
-        s3Object.setObjectContent(stream);
-        return s3Object;
-    }
-
-    @Override
-    public ObjectListing listObjects(ListObjectsRequest listObjectsRequest)
-            throws AmazonClientException, AmazonServiceException {
-        simulateS3SocketConnection();
-        MockObjectListing list = new MockObjectListing();
-        list.setTruncated(false);
-
-        String blobName;
-        String prefix = listObjectsRequest.getPrefix();
-
-        ArrayList<S3ObjectSummary> mockObjectSummaries = new ArrayList<>();
-
-        for (Map.Entry<String, InputStream> blob : blobs.entrySet()) {
-            blobName = blob.getKey();
-            S3ObjectSummary objectSummary = new S3ObjectSummary();
-
-            if (prefix.isEmpty() || blobName.startsWith(prefix)) {
-                objectSummary.setKey(blobName);
-
-                try {
-                    objectSummary.setSize(getSize(blob.getValue()));
-                } catch (IOException e) {
-                    throw new AmazonS3Exception("Object listing " +
-                            "failed for blob [" + blob.getKey() + "]");
-                }
-
-                mockObjectSummaries.add(objectSummary);
+            byte[] blob = BUCKETS.getOrDefault(bucketName, emptyMap()).get(objectName);
+            if(blob == null){
+                AmazonS3Exception exception = new AmazonS3Exception("Blob not found");
+                exception.setStatusCode(404);
+                throw exception;
             }
-        }
 
-        list.setObjectSummaries(mockObjectSummaries);
-        return list;
-    }
+            S3Object response = new S3Object();
+            response.setObjectContent(new S3ObjectInputStream(new ByteArrayInputStream(blob), null, false));
+            return response;
+        });
 
-    @Override
-    public CopyObjectResult copyObject(CopyObjectRequest copyObjectRequest)
-            throws AmazonClientException, AmazonServiceException {
-        simulateS3SocketConnection();
-        String sourceBlobName = copyObjectRequest.getSourceKey();
-        String targetBlobName = copyObjectRequest.getDestinationKey();
+        // Copy blob
+        when(mockedClient.copyObject(any(CopyObjectRequest.class))).thenAnswer(invocation -> {
+            CopyObjectRequest request = (CopyObjectRequest) invocation.getArguments()[0];
+            assertThat(request.getSourceBucketName(), equalTo(bucket));
+            assertThat(request.getDestinationBucketName(), equalTo(bucket));
 
-        if (!blobs.containsKey(sourceBlobName)) {
-            throw new AmazonS3Exception("Source blob [" +
-                    sourceBlobName + "] does not exist.");
-        }
+            Map<String, byte[]> blobsInBucket = BUCKETS.getOrDefault(bucket, emptyMap());
+            byte[] blob = blobsInBucket.get(request.getSourceKey());
+            if(blob != null) {
+                blobsInBucket.put(request.getDestinationKey(), blob);
+            } else {
+                AmazonS3Exception exception = new AmazonS3Exception("Blob not found");
+                exception.setStatusCode(404);
+                throw exception;
+            }
+            return null;
+        });
 
-        if (blobs.containsKey(targetBlobName)) {
-            throw new AmazonS3Exception("Target blob [" +
-                    targetBlobName + "] already exists.");
-        }
+        // List BUCKETS
+        when(mockedClient.listObjects(any(String.class), any(String.class))).thenAnswer(invocation -> {
+            String bucketName = (String) invocation.getArguments()[0];
+            String prefix = (String) invocation.getArguments()[1];
 
-        blobs.put(targetBlobName, blobs.get(sourceBlobName));
-        return new CopyObjectResult(); // nothing is done with it
-    }
+            assertThat(bucketName, equalTo(bucket));
+            ObjectListing listing = new ObjectListing();
+            listing.setBucketName(bucketName);
+            listing.setPrefix(prefix);
+            for (Map.Entry<String, byte[]> blob : BUCKETS.getOrDefault(bucketName, emptyMap()).entrySet()) {
+                if (blob.getKey().startsWith(prefix)) {
+                    S3ObjectSummary summary = new S3ObjectSummary();
+                    summary.setBucketName(bucketName);
+                    summary.setKey(blob.getKey());
+                    summary.setSize(blob.getValue().length);
+                    listing.getObjectSummaries().add(summary);
+                }
+            }
+            return listing;
+        });
 
-    @Override
-    public void deleteObject(DeleteObjectRequest deleteObjectRequest)
-            throws AmazonClientException, AmazonServiceException {
-        simulateS3SocketConnection();
-        String blobName = deleteObjectRequest.getKey();
+        // List next batch of BUCKETS
+        when(mockedClient.listNextBatchOfObjects(any(ObjectListing.class))).thenAnswer(invocation -> {
+            ObjectListing objectListing = (ObjectListing) invocation.getArguments()[0];
+            assertThat(objectListing.getBucketName(), equalTo(bucket));
+            return new ObjectListing();
+        });
 
-        if (!blobs.containsKey(blobName)) {
-            throw new AmazonS3Exception("[" + blobName + "] does not exist.");
-        }
+        // Delete blob
+        doAnswer(invocation -> {
+            String bucketName = (String) invocation.getArguments()[0];
+            String objectName = (String) invocation.getArguments()[1];
+            assertThat(bucketName, equalTo(bucket));
 
-        blobs.remove(blobName);
-    }
+            Map<String, byte[]> blobsInBucket = BUCKETS.getOrDefault(bucketName, emptyMap());
+            if(blobsInBucket.remove(objectName) == null){
+                AmazonS3Exception exception = new AmazonS3Exception("Blob not found");
+                exception.setStatusCode(404);
+                throw exception;
+            }
+            return null;
+        }).when(mockedClient).deleteObject(any(String.class), any(String.class));
 
-    private int getSize(InputStream stream) throws IOException {
-        int size = stream.read(byteCounter);
-        stream.reset(); // in case we ever need the size again
-        return size;
-    }
+        // Delete multiple BUCKETS
+        doAnswer(invocation -> {
+            DeleteObjectsRequest deleteObjectsRequest = (DeleteObjectsRequest) invocation.getArguments()[0];
+            assertThat(deleteObjectsRequest.getBucketName(), equalTo(bucket));
 
-    private class MockObjectListing extends ObjectListing {
-        // the objectSummaries attribute in ObjectListing.java
-        // is read-only, but we need to be able to write to it,
-        // so we create a mock of it to work around this
-        private List<S3ObjectSummary> mockObjectSummaries;
+            Map<String, byte[]> blobsInBucket = BUCKETS.getOrDefault(deleteObjectsRequest.getBucketName(), emptyMap());
+            for (DeleteObjectsRequest.KeyVersion key : deleteObjectsRequest.getKeys()) {
+                if(blobsInBucket.remove(key.getKey()) == null){
+                    AmazonS3Exception exception = new AmazonS3Exception("Blob not found");
+                    exception.setStatusCode(404);
+                    throw exception;
+                }
+            }
+            return null;
+        }).when(mockedClient).deleteObjects(any(DeleteObjectsRequest.class));
 
-        @Override
-        public List<S3ObjectSummary> getObjectSummaries() {
-            return mockObjectSummaries;
-        }
-
-        private void setObjectSummaries(List<S3ObjectSummary> objectSummaries) {
-            mockObjectSummaries = objectSummaries;
-        }
+        return mockedClient;
     }
 }

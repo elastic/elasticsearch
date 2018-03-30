@@ -34,6 +34,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.joda.DateMathParser;
+import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
@@ -96,6 +98,33 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
         assertEquals(getExpectedRangeQuery(relation, from, to, includeLower, includeUpper),
             ft.rangeQuery(from, to, includeLower, includeUpper, relation, null, null, context));
+    }
+
+    public void testRangeQueryUsingMappingFormat() throws Exception {
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
+        QueryShardContext context = new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
+            writableRegistry(), null, null, () -> nowInMillis, null);
+
+        Version version = randomFrom(Version.V_5_0_0_alpha1, Version.V_6_0_0_beta1, Version.CURRENT);
+        RangeFieldMapper.RangeFieldType ft = new RangeFieldMapper.RangeFieldType(RangeType.DATE, version);
+        ft.setName(FIELDNAME);
+        ft.setIndexOptions(IndexOptions.DOCS);
+
+        FormatDateTimeFormatter formatter = Joda.forPattern( "yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis");
+        ft.setDateTimeFormatter(formatter);
+        ShapeRelation relation = RandomPicks.randomFrom(random(), ShapeRelation.values());
+        boolean includeLower = random().nextBoolean();
+        boolean includeUpper = random().nextBoolean();
+        Object from = nextFrom();
+        Object to = nextTo(from);
+
+        boolean hasDocValues = version.onOrAfter(Version.V_6_0_0_beta1);
+        assertEquals(
+            RangeType.DATE.rangeQuery(FIELDNAME, hasDocValues, from, to, includeLower,
+                includeUpper, relation, null, ft.dateMathParser(), context),
+            ft.rangeQuery(from, to, includeLower, includeUpper, relation, null, ft.dateMathParser(), context));
     }
 
     private Query getExpectedRangeQuery(ShapeRelation relation, Object from, Object to, boolean includeLower, boolean includeUpper) {

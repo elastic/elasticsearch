@@ -92,7 +92,7 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
     @Override
     public boolean equals(Object o) {
         if (super.equals(o)) {
-            AcknowledgedRequest<Request> that = (AcknowledgedRequest<Request>) o;
+            AcknowledgedRequest<?> that = (AcknowledgedRequest<?>) o;
             return Objects.equals(timeout, that.timeout);
         }
         return false;

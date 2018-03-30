@@ -41,9 +41,10 @@ import java.util.function.Supplier;
 public interface AzureStorageService {
 
     /**
-     * Creates a {@code CloudBlobClient} on each invocation from the current client
-     * settings. CloudBlobClient is not thread safe and the settings can change so
-     * the instance is not cache-able. The {@code OperationContext} is used to
+     * Creates a {@code CloudBlobClient} on each invocation using the current client
+     * settings. CloudBlobClient is not thread safe and the settings can change,
+     * therefore the instance is not cache-able and should only be reused inside a
+     * thread for logically coupled ops. The {@code OperationContext} is used to
      * specify the proxy, but a new context is *required* for each call.
      */
     Tuple<CloudBlobClient, Supplier<OperationContext>> client(String clientName);

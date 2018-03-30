@@ -37,7 +37,8 @@ import java.util.Map;
  */
 public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, ReInitializablePlugin {
 
-    private final AzureStorageService azureStoreService;
+    // protected for testing
+    final AzureStorageService azureStoreService;
 
     // overridable for tests
     protected AzureStorageService createStorageService(Settings settings) {

@@ -54,24 +54,11 @@ import static java.util.Collections.emptyMap;
 
 public class AzureStorageServiceImpl extends AbstractComponent implements AzureStorageService {
 
-    private volatile Map<String, AzureStorageSettings> storageSettings = emptyMap();
+    // 'package' for testing
+    volatile Map<String, AzureStorageSettings> storageSettings = emptyMap();
 
     public AzureStorageServiceImpl(Settings settings) {
         super(settings);
-//        this.storageSettings = storageSettings;
-//
-//        if (storageSettings.isEmpty()) {
-//            // If someone did not register any settings, they basically can't use the plugin
-//            throw new IllegalArgumentException("If you want to use an azure repository, you need to define a client configuration.");
-//        }
-//
-//        logger.debug("starting azure storage client instance");
-//
-//        // We register all regular azure clients
-//        for (Map.Entry<String, AzureStorageSettings> azureStorageSettingsEntry : this.storageSettings.entrySet()) {
-//            logger.debug("registering regular client for account [{}]", azureStorageSettingsEntry.getKey());
-//            createClient(azureStorageSettingsEntry.getValue());
-//        }
     }
 
     @Override
@@ -83,34 +70,40 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         logger.trace((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
                 "creating new Azure storage client using account [{}], endpoint suffix [{}]",
                 azureStorageSettings.getAccount(), azureStorageSettings.getEndpointSuffix()));
+        return new Tuple<>(buildClient(azureStorageSettings), () -> buildOperationContext(azureStorageSettings));
+    }
 
+    protected CloudBlobClient buildClient(AzureStorageSettings azureStorageSettings) {
         final CloudBlobClient client;
         try {
             client = CloudStorageAccount.parse(azureStorageSettings.getConnectionString()).createCloudBlobClient();
         } catch (InvalidKeyException | URISyntaxException e) {
-            throw new SettingsException("Invalid azure client [" + clientName + "] settings.", e);
+            throw new SettingsException("Invalid azure client [" + azureStorageSettings.getAccount() + "] settings.", e);
         }
 
-        // Set timeout option if the user sets cloud.azure.storage.timeout or cloud.azure.storage.xxx.timeout (it's negative by default)
+        // Set timeout option if the user sets cloud.azure.storage.timeout or
+        // cloud.azure.storage.xxx.timeout (it's negative by default)
         final long timeout = azureStorageSettings.getTimeout().getMillis();
         if (timeout > 0) {
             if (timeout > Integer.MAX_VALUE) {
                 throw new IllegalArgumentException("Timeout [" + azureStorageSettings.getTimeout() + "] exceeds 2,147,483,647ms.");
             }
-            client.getDefaultRequestOptions().setTimeoutIntervalInMs((int)timeout);
+            client.getDefaultRequestOptions().setTimeoutIntervalInMs((int) timeout);
         }
 
         // We define a default exponential retry policy
-        client.getDefaultRequestOptions().setRetryPolicyFactory(
-            new RetryExponentialRetry(RetryPolicy.DEFAULT_CLIENT_BACKOFF, azureStorageSettings.getMaxRetries()));
+        client.getDefaultRequestOptions()
+                .setRetryPolicyFactory(new RetryExponentialRetry(RetryPolicy.DEFAULT_CLIENT_BACKOFF, azureStorageSettings.getMaxRetries()));
 
         client.getDefaultRequestOptions().setLocationMode(azureStorageSettings.getLocationMode());
 
-        return new Tuple<>(client, () -> {
-            final OperationContext context = new OperationContext();
-            context.setProxy(azureStorageSettings.getProxy());
-            return context;
-        });
+        return client;
+    }
+
+    protected OperationContext buildOperationContext(AzureStorageSettings azureStorageSettings) {
+        final OperationContext context = new OperationContext();
+        context.setProxy(azureStorageSettings.getProxy());
+        return context;
     }
 
     @Override
@@ -121,79 +114,6 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         // clients are built lazily by {@link client(String)}
         return prevSettings;
     }
-//
-//    void createClient(AzureStorageSettings azureStorageSettings) {
-//        try {
-//            logger.trace("creating new Azure storage client using account [{}], key [{}], endpoint suffix [{}]",
-//                azureStorageSettings.getAccount(), azureStorageSettings.getKey(), azureStorageSettings.getEndpointSuffix());
-//
-//            String storageConnectionString =
-//                "DefaultEndpointsProtocol=https;"
-//                    + "AccountName=" + azureStorageSettings.getAccount() + ";"
-//                    + "AccountKey=" + azureStorageSettings.getKey();
-//
-//            String endpointSuffix = azureStorageSettings.getEndpointSuffix();
-//            if (endpointSuffix != null && !endpointSuffix.isEmpty()) {
-//                storageConnectionString += ";EndpointSuffix=" + endpointSuffix;
-//            }
-//            // Retrieve storage account from connection-string.
-//            CloudStorageAccount storageAccount = CloudStorageAccount.parse(storageConnectionString);
-//
-//            // Create the blob client.
-//            CloudBlobClient client = storageAccount.createCloudBlobClient();
-//
-//            // Register the client
-//            this.clients.put(azureStorageSettings.getAccount(), client);
-//        } catch (Exception e) {
-//            logger.error("can not create azure storage client: {}", e.getMessage());
-//        }
-//    }
-//
-//    CloudBlobClient getSelectedClient(String clientName, LocationMode mode) {
-//        logger.trace("selecting a client named [{}], mode [{}]", clientName, mode.name());
-//        AzureStorageSettings azureStorageSettings = this.storageSettings.get(clientName);
-//        if (azureStorageSettings == null) {
-//            throw new IllegalArgumentException("Can not find named azure client [" + clientName + "]. Check your settings.");
-//        }
-//
-//        CloudBlobClient client = this.clients.get(azureStorageSettings.getAccount());
-//
-//        if (client == null) {
-//            throw new IllegalArgumentException("Can not find an azure client named [" + azureStorageSettings.getAccount() + "]");
-//        }
-//
-//        // NOTE: for now, just set the location mode in case it is different;
-//        // only one mode per storage clientName can be active at a time
-//        client.getDefaultRequestOptions().setLocationMode(mode);
-//
-//        // Set timeout option if the user sets cloud.azure.storage.timeout or cloud.azure.storage.xxx.timeout (it's negative by default)
-//        if (azureStorageSettings.getTimeout().getSeconds() > 0) {
-//            try {
-//                int timeout = (int) azureStorageSettings.getTimeout().getMillis();
-//                client.getDefaultRequestOptions().setTimeoutIntervalInMs(timeout);
-//            } catch (ClassCastException e) {
-//                throw new IllegalArgumentException("Can not convert [" + azureStorageSettings.getTimeout() +
-//                    "]. It can not be longer than 2,147,483,647ms.");
-//            }
-//        }
-//
-//        // We define a default exponential retry policy
-//        client.getDefaultRequestOptions().setRetryPolicyFactory(
-//            new RetryExponentialRetry(RetryPolicy.DEFAULT_CLIENT_BACKOFF, azureStorageSettings.getMaxRetries()));
-//
-//        return client;
-//    }
-//
-//    private OperationContext generateOperationContext(String clientName) {
-//        final OperationContext context = new OperationContext();
-//        final AzureStorageSettings azureStorageSettings = this.storageSettings.get(clientName);
-//
-//        if (azureStorageSettings.getProxy() != null) {
-//            context.setProxy(azureStorageSettings.getProxy());
-//        }
-//
-//        return context;
-//    }
 
     @Override
     public boolean doesContainerExist(String account, String container) throws URISyntaxException, StorageException {

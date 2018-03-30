@@ -62,7 +62,6 @@ public class AzureRepository extends BlobStoreRepository {
     public static final String TYPE = "azure";
 
     public static final class Repository {
-
         @Deprecated // Replaced by client
         public static final Setting<String> ACCOUNT_SETTING = new Setting<>("account", "default", Function.identity(),
             Property.NodeScope, Property.Deprecated);

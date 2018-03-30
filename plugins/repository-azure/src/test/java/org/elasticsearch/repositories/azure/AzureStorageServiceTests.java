@@ -93,11 +93,11 @@ public class AzureStorageServiceTests extends ESTestCase {
         secureSettings.setString("azure.client.azure2.key", Base64.encode("mykey2".getBytes(StandardCharsets.UTF_8)));
         Settings settings = Settings.builder().setSecureSettings(secureSettings)
             .put("azure.client.azure1.endpoint_suffix", "my_endpoint_suffix").build();
-        AzureStorageServiceImpl azureStorageService = new AzureStorageServiceImpl(settings, AzureStorageSettings.load(settings));
-        CloudBlobClient client1 = azureStorageService.getSelectedClient("azure1", LocationMode.PRIMARY_ONLY);
+        AzureStorageServiceImpl azureStorageService = (AzureStorageServiceImpl)new AzureRepositoryPlugin(settings).azureStoreService;
+        CloudBlobClient client1 = azureStorageService.client("azure1").v1();
         assertThat(client1.getEndpoint().toString(), equalTo("https://myaccount1.blob.my_endpoint_suffix"));
 
-        CloudBlobClient client2 = azureStorageService.getSelectedClient("azure2", LocationMode.PRIMARY_ONLY);
+        CloudBlobClient client2 = azureStorageService.client("azure2").v1();
         assertThat(client2.getEndpoint().toString(), equalTo("https://myaccount2.blob.core.windows.net"));
     }
 
@@ -113,7 +113,7 @@ public class AzureStorageServiceTests extends ESTestCase {
     public void testGetSelectedClientNonExisting() {
         AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMockForSettings(buildSettings());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            azureStorageService.getSelectedClient("azure4", LocationMode.PRIMARY_ONLY);
+            azureStorageService.client("azure4");
         });
         assertThat(e.getMessage(), is("Can not find named azure client [azure4]. Check your settings."));
     }
@@ -124,21 +124,21 @@ public class AzureStorageServiceTests extends ESTestCase {
             .put("azure.client.azure3.timeout", "30s")
             .build();
         AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMockForSettings(timeoutSettings);
-        CloudBlobClient client1 = azureStorageService.getSelectedClient("azure1", LocationMode.PRIMARY_ONLY);
+        CloudBlobClient client1 = azureStorageService.client("azure1").v1();
         assertThat(client1.getDefaultRequestOptions().getTimeoutIntervalInMs(), nullValue());
-        CloudBlobClient client3 = azureStorageService.getSelectedClient("azure3", LocationMode.PRIMARY_ONLY);
+        CloudBlobClient client3 = azureStorageService.client("azure3").v1();
         assertThat(client3.getDefaultRequestOptions().getTimeoutIntervalInMs(), is(30 * 1000));
     }
 
     public void testGetSelectedClientNoTimeout() {
         AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMockForSettings(buildSettings());
-        CloudBlobClient client1 = azureStorageService.getSelectedClient("azure1", LocationMode.PRIMARY_ONLY);
+        CloudBlobClient client1 = azureStorageService.client("azure1").v1();
         assertThat(client1.getDefaultRequestOptions().getTimeoutIntervalInMs(), is(nullValue()));
     }
 
     public void testGetSelectedClientBackoffPolicy() {
         AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMockForSettings(buildSettings());
-        CloudBlobClient client1 = azureStorageService.getSelectedClient("azure1", LocationMode.PRIMARY_ONLY);
+        CloudBlobClient client1 = azureStorageService.client("azure1").v1();
         assertThat(client1.getDefaultRequestOptions().getRetryPolicyFactory(), is(notNullValue()));
         assertThat(client1.getDefaultRequestOptions().getRetryPolicyFactory(), instanceOf(RetryExponentialRetry.class));
     }
@@ -150,7 +150,7 @@ public class AzureStorageServiceTests extends ESTestCase {
             .build();
 
         AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMockForSettings(timeoutSettings);
-        CloudBlobClient client1 = azureStorageService.getSelectedClient("azure1", LocationMode.PRIMARY_ONLY);
+        CloudBlobClient client1 = azureStorageService.client("azure1").v1();
         assertThat(client1.getDefaultRequestOptions().getRetryPolicyFactory(), is(notNullValue()));
         assertThat(client1.getDefaultRequestOptions().getRetryPolicyFactory(), instanceOf(RetryExponentialRetry.class));
     }
@@ -270,14 +270,14 @@ public class AzureStorageServiceTests extends ESTestCase {
      */
     class AzureStorageServiceMockForSettings extends AzureStorageServiceImpl {
         AzureStorageServiceMockForSettings(Settings settings) {
-            super(settings, AzureStorageSettings.load(settings));
+            super(settings);
+            updateClientsSettings(AzureStorageSettings.load(settings));
         }
 
         // We fake the client here
         @Override
-        void createClient(AzureStorageSettings azureStorageSettings) {
-            this.clients.put(azureStorageSettings.getAccount(),
-                    new CloudBlobClient(URI.create("https://" + azureStorageSettings.getAccount())));
+        protected CloudBlobClient buildClient(AzureStorageSettings azureStorageSettings) {
+            return new CloudBlobClient(URI.create("https://" + azureStorageSettings.getAccount()));
         }
     }
 

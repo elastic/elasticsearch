@@ -89,7 +89,7 @@ public class AutodetectResultsParser extends AbstractComponent {
                 consumeAndCloseStream(in);
                 return false;
             } else if (token != XContentParser.Token.START_OBJECT) {
-                logger.error("Expecting Json ThrottlerField name token after the Start Object token");
+                logger.error("Expecting Json Field name token after the Start Object token");
                 consumeAndCloseStream(in);
                 throw new ElasticsearchParseException("unexpected token [" + token + "]");
             }

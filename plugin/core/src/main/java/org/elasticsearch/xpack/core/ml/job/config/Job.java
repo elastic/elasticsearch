@@ -58,7 +58,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     public static final String ANOMALY_DETECTOR_JOB_TYPE = "anomaly_detector";
 
     /*
-     * ThrottlerField names used in serialization
+     * Field names used in serialization
      */
     public static final ParseField ID = new ParseField("job_id");
     public static final ParseField JOB_TYPE = new ParseField("job_type");

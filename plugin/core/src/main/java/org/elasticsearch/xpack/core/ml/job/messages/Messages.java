@@ -134,10 +134,10 @@ public final class Messages {
     public static final String JOB_CONFIG_INVALID_CREATE_SETTINGS =
             "The job is configured with fields [{0}] that are illegal to set at job creation";
     public static final String JOB_CONFIG_INVALID_FIELDNAME_CHARS =
-            "Invalid field name ''{0}''. ThrottlerField names including over, by and partition " +
+            "Invalid field name ''{0}''. Field names including over, by and partition " +
                     "fields cannot contain any of these characters: {1}";
     public static final String JOB_CONFIG_INVALID_FIELDNAME =
-            "Invalid field name ''{0}''. ThrottlerField names including over, by and partition fields cannot be ''{1}''";
+            "Invalid field name ''{0}''. Field names including over, by and partition fields cannot be ''{1}''";
     public static final String JOB_CONFIG_INVALID_TIMEFORMAT = "Invalid Time format string ''{0}''";
     public static final String JOB_CONFIG_MISSING_ANALYSISCONFIG = "An analysis_config must be set";
     public static final String JOB_CONFIG_MISSING_DATA_DESCRIPTION = "A data_description must be set";

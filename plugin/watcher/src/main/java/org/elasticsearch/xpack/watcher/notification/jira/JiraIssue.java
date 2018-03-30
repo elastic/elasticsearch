@@ -169,7 +169,7 @@ public class JiraIssue implements ToXContentObject {
                     } else if (Field.ERRORS.match(currentFieldName, parser.getDeprecationHandler())) {
                         Map<String, Object> fieldErrors = parser.mapOrdered();
                         for (Map.Entry<String, Object> entry : fieldErrors.entrySet()) {
-                            errors.add("ThrottlerField [" + entry.getKey() + "] has error [" + String.valueOf(entry.getValue()) + "]");
+                            errors.add("Field [" + entry.getKey() + "] has error [" + String.valueOf(entry.getValue()) + "]");
                         }
                     } else if (Field.ERROR_MESSAGES.match(currentFieldName, parser.getDeprecationHandler())) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {

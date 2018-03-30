@@ -32,7 +32,7 @@ import java.util.Optional;
  */
 public class Bucket implements ToXContentObject, Writeable {
     /*
-     * ThrottlerField Names
+     * Field Names
      */
     private static final ParseField JOB_ID = Job.ID;
 

@@ -36,7 +36,7 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
     public static final ParseField RESULT_TYPE_FIELD = new ParseField(RESULT_TYPE_VALUE);
 
     /**
-     * ThrottlerField Names
+     * Field Names
      */
     public static final ParseField MODEL_BYTES_FIELD = new ParseField("model_bytes");
     public static final ParseField TOTAL_BY_FIELD_COUNT_FIELD = new ParseField("total_by_field_count");

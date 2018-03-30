@@ -28,7 +28,7 @@ import java.util.function.Predicate;
 
 public class UpdateSettingsRequestTests extends AbstractXContentTestCase<UpdateSettingsRequest> {
 
-    private boolean enclosedSettings = randomBoolean();
+    private final boolean enclosedSettings = randomBoolean();
 
     @Override
     protected UpdateSettingsRequest createTestInstance() {
@@ -56,6 +56,8 @@ public class UpdateSettingsRequestTests extends AbstractXContentTestCase<UpdateS
 
     @Override
     protected boolean supportsUnknownFields() {
+        // if the settings are enclose as a "settings" object
+        // then all other top-level elements will be ignored during the parsing
         return enclosedSettings;
     }
 
@@ -69,13 +71,16 @@ public class UpdateSettingsRequestTests extends AbstractXContentTestCase<UpdateS
 
     @Override
     protected void assertEqualInstances(UpdateSettingsRequest expectedInstance, UpdateSettingsRequest newInstance) {
+        // here only the settings should be tested, as this test covers explicitly only the XContent parsing
+        // the rest of the request fields are tested by the StreamableTests
         super.assertEqualInstances(new UpdateSettingsRequest(expectedInstance.settings()),
                 new UpdateSettingsRequest(newInstance.settings()));
     }
 
     @Override
     protected boolean assertToXContentEquivalence() {
-        // if enclosedSettings are used, disable the XContentEquivalence check as the parser.toXContent is not equal to the test instance
+        // if enclosedSettings are used, disable the XContentEquivalence check as the
+        // parsed.toXContent is not equivalent to the test instance
         return !enclosedSettings;
     }
 

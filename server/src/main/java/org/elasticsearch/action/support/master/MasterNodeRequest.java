@@ -86,7 +86,7 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        MasterNodeRequest<Request> that = (MasterNodeRequest<Request>) o;
+        MasterNodeRequest<?> that = (MasterNodeRequest<?>) o;
         return Objects.equals(masterNodeTimeout, that.masterNodeTimeout);
     }
 

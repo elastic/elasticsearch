@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
@@ -31,7 +32,8 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
  * Abstract class that allows to mark action requests that support acknowledgements.
  * Facilitates consistency across different api.
  */
-public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Request>> extends MasterNodeRequest<Request> implements AckedRequest {
+public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Request>> extends MasterNodeRequest<Request>
+        implements AckedRequest {
 
     public static final TimeValue DEFAULT_ACK_TIMEOUT = timeValueSeconds(30);
 
@@ -85,6 +87,20 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         timeout.writeTo(out);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (super.equals(o)) {
+            AcknowledgedRequest<?> that = (AcknowledgedRequest<?>) o;
+            return Objects.equals(timeout, that.timeout);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), timeout);
     }
 
 }

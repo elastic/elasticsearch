@@ -266,4 +266,53 @@ public class RecoveryIT extends ESRestTestCase {
         }
     }
 
+    public void testSearchGeoPoints() throws Exception {
+        final String index = "geo_index";
+        if (clusterType == CLUSTER_TYPE.OLD) {
+            Settings.Builder settings = Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                // if the node with the replica is the first to be restarted, while a replica is still recovering
+                // then delayed allocation will kick in. When the node comes back, the master will search for a copy
+                // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
+                // before timing out
+                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms");
+            createIndex(index, settings.build(), "\"doc\": {\"properties\": {\"location\": {\"type\": \"geo_point\"}}}");
+            assertOK(client().performRequest("PUT", index + "/doc/1", emptyMap(),
+                new StringEntity("{\"location\": { \"lat\": 42.358056, \"lon\": -71.063611 }, \"foo\": \"bar\"}", ContentType.APPLICATION_JSON)));
+            assertOK(client().performRequest("PUT", index + "/doc/2", emptyMap(),
+                new StringEntity("{\"location\": { \"lat\": 37.783333, \"lon\": -122.416667 }, \"foo\": \"bar\"}", ContentType.APPLICATION_JSON)));
+            assertOK(client().performRequest("POST", index + "/_refresh"));
+            ensureGreen(index);
+        } else if (clusterType == CLUSTER_TYPE.MIXED) {
+            ensureGreen(index);
+            String requestBody = "{\n" +
+                "  \"query\": {\n" +
+                "    \"bool\": {\n" +
+                "      \"should\": [\n" +
+                "        {\n" +
+                "          \"geo_distance\": {\n" +
+                "            \"distance\": \"1000km\",\n" +
+                "            \"location\": {\n" +
+                "              \"lat\": 40,\n" +
+                "              \"lon\": -70\n" +
+                "            }\n" +
+                "          }\n" +
+                "        },\n" +
+                "        {\"match_all\": {}}\n" +
+                "      ]\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+
+            // we need to make sure that requests are routed from a new node to the old node so we are sending the request a few times
+            for (int i = 0; i < 10; i++) {
+                Response response = client().performRequest("GET", index + "/_search",
+                    Collections.singletonMap("preference", "_only_nodes:gen:old"), // Make sure we only send this request to old nodes
+                    new StringEntity(requestBody, ContentType.APPLICATION_JSON));
+                assertOK(response);
+            }
+        }
+    }
+
 }

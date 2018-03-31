@@ -43,6 +43,7 @@ for (Version version : bwcVersions.wireCompatible) {
     numNodes = 2
     clusterName = 'rolling-upgrade'
     setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+    setting 'node.attr.gen', 'old'
     if (version.onOrAfter('5.3.0')) {
       setting 'http.content_type.required', 'true'
     }
@@ -64,6 +65,7 @@ for (Version version : bwcVersions.wireCompatible) {
      * just stopped's data directory. */
     dataDir = { nodeNumber -> oldClusterTest.nodes[1].dataDir }
     setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+    setting 'node.attr.gen', 'new'
   }
 
   Task mixedClusterTestRunner = tasks.getByName("${baseName}#mixedClusterTestRunner")
@@ -83,6 +85,7 @@ for (Version version : bwcVersions.wireCompatible) {
      * just stopped's data directory. */
     dataDir = { nodeNumber -> oldClusterTest.nodes[0].dataDir}
     setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
+    setting 'node.attr.gen', 'new'
   }
 
   Task upgradedClusterTestRunner = tasks.getByName("${baseName}#upgradedClusterTestRunner")

@@ -91,16 +91,19 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
 
     @Override
     public boolean equals(Object o) {
-        if (super.equals(o)) {
-            AcknowledgedRequest<?> that = (AcknowledgedRequest<?>) o;
-            return Objects.equals(timeout, that.timeout);
+        if (this == o) {
+            return true;
         }
-        return false;
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        AcknowledgedRequest<?> that = (AcknowledgedRequest<?>) o;
+        return Objects.equals(timeout, that.timeout);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), timeout);
+        return Objects.hash(timeout);
     }
 
 }

@@ -109,4 +109,5 @@ public class UpdateSettingsRequestStreamableTests extends AbstractStreamableTest
         }
         return indices;
     }
+
 }

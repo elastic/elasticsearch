@@ -78,21 +78,4 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
         masterNodeTimeout = new TimeValue(in);
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        MasterNodeRequest<?> that = (MasterNodeRequest<?>) o;
-        return Objects.equals(masterNodeTimeout, that.masterNodeTimeout);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(masterNodeTimeout);
-    }
-
 }

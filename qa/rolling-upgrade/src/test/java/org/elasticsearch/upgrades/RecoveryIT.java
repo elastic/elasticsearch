@@ -278,11 +278,6 @@ public class RecoveryIT extends ESRestTestCase {
                 // before timing out
                 .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms");
             createIndex(index, settings.build(), "\"doc\": {\"properties\": {\"location\": {\"type\": \"geo_point\"}}}");
-            assertOK(client().performRequest("PUT", index + "/doc/1", emptyMap(),
-                new StringEntity("{\"location\": { \"lat\": 42.358056, \"lon\": -71.063611 }, \"foo\": \"bar\"}", ContentType.APPLICATION_JSON)));
-            assertOK(client().performRequest("PUT", index + "/doc/2", emptyMap(),
-                new StringEntity("{\"location\": { \"lat\": 37.783333, \"lon\": -122.416667 }, \"foo\": \"bar\"}", ContentType.APPLICATION_JSON)));
-            assertOK(client().performRequest("POST", index + "/_refresh"));
             ensureGreen(index);
         } else if (clusterType == CLUSTER_TYPE.MIXED) {
             ensureGreen(index);

@@ -163,7 +163,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private volatile TimeValue defaultSearchTimeout;
 
     private volatile boolean defaultAllowPartialSearchResults;
-
+    
     private volatile boolean lowLevelCancellation;
 
     private final Cancellable keepAliveReaper;
@@ -233,7 +233,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public boolean defaultAllowPartialSearchResults() {
         return defaultAllowPartialSearchResults;
     }
-    
+
     private void setLowLevelCancellation(Boolean lowLevelCancellation) {
         this.lowLevelCancellation = lowLevelCancellation;
     }
@@ -568,7 +568,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     final SearchContext createContext(ShardSearchRequest request) throws IOException {
         final DefaultSearchContext context = createSearchContext(request, defaultSearchTimeout);
-        System.out.println("----activecontexts----" + activeContexts.size());
         if (activeContexts.size() >= Node.MAX_SEARCH_CONTEXT_SETTING.get(settings)) {
             throw new IllegalStateException(
                 "Trying to create too many search contexts. Must be less than or equal to: [" +

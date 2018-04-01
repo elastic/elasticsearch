@@ -1524,7 +1524,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      *
      * @return <code>true</code> if a new commit is flushed, otherwise return false
      */
-    public boolean ensureIndexHasHistoryUUIDAndSeqNo() throws IOException {
+    public boolean ensureIndexHas6xCommitTags() throws IOException {
         metadataLock.writeLock().lock();
         try (IndexWriter writer = newIndexWriter(IndexWriterConfig.OpenMode.APPEND, directory, null)) {
             final Map<String, String> userData = getUserData(writer);
@@ -1537,6 +1537,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     "Inconsistent sequence number markers in commit [" + userData + "]";
                 maps.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(SequenceNumbers.NO_OPS_PERFORMED));
                 maps.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(SequenceNumbers.NO_OPS_PERFORMED));
+            }
+            if (userData.containsKey(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID) == false) {
+                userData.put(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, "-1");
             }
             if (maps.isEmpty() == false) {
                 updateCommitData(writer, maps);

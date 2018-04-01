@@ -397,7 +397,7 @@ final class StoreRecovery {
                 store.associateIndexWithNewTranslog(translogUUID);
             } else if (indexShouldExists) {
                 if (indexShard.indexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1)) {
-                    if (store.ensureIndexHasHistoryUUIDAndSeqNo()) {
+                    if (store.ensureIndexHas6xCommitTags()) {
                         si = store.readLastCommittedSegmentsInfo(); // new commit is flushed - refresh SegmentInfo.
                     }
                 }

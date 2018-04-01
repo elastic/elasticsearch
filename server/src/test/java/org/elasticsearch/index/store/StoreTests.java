@@ -1092,7 +1092,7 @@ public class StoreTests extends ESTestCase {
                 writer.commit();
             }
 
-            store.ensureIndexHasHistoryUUIDAndSeqNo();
+            store.ensureIndexHas6xCommitTags();
             SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
             assertThat(segmentInfos.getUserData(), hasKey(Engine.HISTORY_UUID_KEY));
             assertThat(segmentInfos.getUserData(), hasEntry(equalTo(SequenceNumbers.LOCAL_CHECKPOINT_KEY), equalTo("-1")));
@@ -1110,7 +1110,7 @@ public class StoreTests extends ESTestCase {
                 writer.setLiveCommitData(newCommitData.entrySet());
                 writer.commit();
             }
-            store.ensureIndexHasHistoryUUIDAndSeqNo();
+            store.ensureIndexHas6xCommitTags();
             segmentInfos = Lucene.readSegmentInfos(store.directory());
             assertThat(segmentInfos.getUserData(),
                 hasEntry(equalTo(Engine.HISTORY_UUID_KEY), equalTo(historyUUID)));
@@ -1126,7 +1126,7 @@ public class StoreTests extends ESTestCase {
                 writer.setLiveCommitData(newCommitData.entrySet());
                 writer.commit();
             }
-            store.ensureIndexHasHistoryUUIDAndSeqNo();
+            store.ensureIndexHas6xCommitTags();
             segmentInfos = Lucene.readSegmentInfos(store.directory());
             assertThat(segmentInfos.getUserData(), hasKey(Engine.HISTORY_UUID_KEY));
             assertThat(segmentInfos.getUserData(),

@@ -1517,13 +1517,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
-
     /**
-     * A 5.x index does not have either historyUUDID or sequence number markers as both markers are introduced in 6.0+.
+     * A 5.x index does not have either historyUUDID or sequence number markers as these markers are introduced in 6.0+.
      * This method should be called only in local store recovery or file-based recovery to ensure an index has proper
      * historyUUID and sequence number markers before opening an engine.
+     *
+     * @return <code>true</code> if a new commit is flushed, otherwise return false
      */
-    public void ensureIndexHasHistoryUUIDAndSeqNo() throws IOException {
+    public boolean ensureIndexHasHistoryUUIDAndSeqNo() throws IOException {
         metadataLock.writeLock().lock();
         try (IndexWriter writer = newIndexWriter(IndexWriterConfig.OpenMode.APPEND, directory, null)) {
             final Map<String, String> userData = getUserData(writer);
@@ -1539,10 +1540,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             }
             if (maps.isEmpty() == false) {
                 updateCommitData(writer, maps);
+                return true;
             }
         } finally {
             metadataLock.writeLock().unlock();
         }
+        return false;
     }
 
     /**

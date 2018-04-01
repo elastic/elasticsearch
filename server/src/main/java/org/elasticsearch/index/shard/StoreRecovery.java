@@ -396,10 +396,12 @@ final class StoreRecovery {
                 final String translogUUID = Translog.createEmptyTranslog(indexShard.shardPath().resolveTranslog(), maxSeqNo, shardId);
                 store.associateIndexWithNewTranslog(translogUUID);
             } else if (indexShouldExists) {
-                // since we recover from local, just fill the files and size
                 if (indexShard.indexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1)) {
-                    store.ensureIndexHasHistoryUUIDAndSeqNo();
+                    if (store.ensureIndexHasHistoryUUIDAndSeqNo()) {
+                        si = store.readLastCommittedSegmentsInfo(); // new commit is flushed - refresh SegmentInfo.
+                    }
                 }
+                // since we recover from local, just fill the files and size
                 try {
                     final RecoveryState.Index index = recoveryState.getIndex();
                     if (si != null) {

@@ -34,6 +34,7 @@ import org.elasticsearch.index.store.Store;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 final class LocalShardSnapshot implements Closeable {
@@ -66,7 +67,8 @@ final class LocalShardSnapshot implements Closeable {
     }
 
     long maxUnsafeAutoIdTimestamp() {
-        return Long.parseLong(shard.getEngine().commitStats().getUserData().get(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID));
+        final Map<String, String> commitUserData = shard.getEngine().commitStats().getUserData();
+        return Long.parseLong(commitUserData.getOrDefault(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, "-1"));
     }
 
     Directory getSnapshotDirectory() {

@@ -1539,7 +1539,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 maps.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(SequenceNumbers.NO_OPS_PERFORMED));
             }
             if (userData.containsKey(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID) == false) {
-                userData.put(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, "-1");
+                maps.put(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, "-1");
             }
             if (maps.isEmpty() == false) {
                 updateCommitData(writer, maps);

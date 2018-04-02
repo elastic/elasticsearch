@@ -63,6 +63,7 @@ import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
@@ -1076,7 +1077,7 @@ public class StoreTests extends ESTestCase {
         store.close();
     }
 
-    public void testEnsureIndexHasHistoryUUIDAndSeqNo() throws IOException {
+    public void testEnsureIndexHas6xCommitTags() throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
         try (Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId))) {
@@ -1088,29 +1089,31 @@ public class StoreTests extends ESTestCase {
                 newCommitData.remove(Engine.HISTORY_UUID_KEY);
                 newCommitData.remove(SequenceNumbers.LOCAL_CHECKPOINT_KEY);
                 newCommitData.remove(SequenceNumbers.MAX_SEQ_NO);
+                newCommitData.remove(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID);
                 writer.setLiveCommitData(newCommitData.entrySet());
                 writer.commit();
             }
-
-            store.ensureIndexHas6xCommitTags();
+            assertThat(store.ensureIndexHas6xCommitTags(), equalTo(true));
             SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
             assertThat(segmentInfos.getUserData(), hasKey(Engine.HISTORY_UUID_KEY));
+            assertThat(segmentInfos.getUserData(), hasEntry(equalTo(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID), equalTo("-1")));
             assertThat(segmentInfos.getUserData(), hasEntry(equalTo(SequenceNumbers.LOCAL_CHECKPOINT_KEY), equalTo("-1")));
             assertThat(segmentInfos.getUserData(), hasEntry(equalTo(SequenceNumbers.MAX_SEQ_NO), equalTo("-1")));
-
-            // Keep existing seqno.
+            // Keeps everything
             final long maxSeqno = randomNonNegativeLong();
             final long localCheckpoint = randomLongBetween(0, maxSeqno);
+            final long unsafeTimestamp = randomNonNegativeLong();
             final String historyUUID = segmentInfos.userData.get(Engine.HISTORY_UUID_KEY);
             try (IndexWriter writer = openWriter(store)) {
                 Map<String, String> newCommitData = new HashMap<>();
                 writer.getLiveCommitData().forEach(e -> newCommitData.put(e.getKey(), e.getValue()));
                 newCommitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
                 newCommitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqno));
+                newCommitData.put(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(unsafeTimestamp));
                 writer.setLiveCommitData(newCommitData.entrySet());
                 writer.commit();
             }
-            store.ensureIndexHas6xCommitTags();
+            assertThat(store.ensureIndexHas6xCommitTags(), equalTo(false));
             segmentInfos = Lucene.readSegmentInfos(store.directory());
             assertThat(segmentInfos.getUserData(),
                 hasEntry(equalTo(Engine.HISTORY_UUID_KEY), equalTo(historyUUID)));
@@ -1118,7 +1121,9 @@ public class StoreTests extends ESTestCase {
                 hasEntry(equalTo(SequenceNumbers.LOCAL_CHECKPOINT_KEY), equalTo(Long.toString(localCheckpoint))));
             assertThat(segmentInfos.getUserData(),
                 hasEntry(equalTo(SequenceNumbers.MAX_SEQ_NO), equalTo(Long.toString(maxSeqno))));
-
+            assertThat(segmentInfos.getUserData(),
+                hasEntry(equalTo(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID), equalTo(Long.toString(unsafeTimestamp))));
+            // Generate a new historyUUID but keeps the rest
             try (IndexWriter writer = openWriter(store)) {
                 Map<String, String> newCommitData = new HashMap<>();
                 writer.getLiveCommitData().forEach(e -> newCommitData.put(e.getKey(), e.getValue()));
@@ -1126,13 +1131,15 @@ public class StoreTests extends ESTestCase {
                 writer.setLiveCommitData(newCommitData.entrySet());
                 writer.commit();
             }
-            store.ensureIndexHas6xCommitTags();
+            assertThat(store.ensureIndexHas6xCommitTags(), equalTo(true));
             segmentInfos = Lucene.readSegmentInfos(store.directory());
             assertThat(segmentInfos.getUserData(), hasKey(Engine.HISTORY_UUID_KEY));
             assertThat(segmentInfos.getUserData(),
                 hasEntry(equalTo(SequenceNumbers.LOCAL_CHECKPOINT_KEY), equalTo(Long.toString(localCheckpoint))));
             assertThat(segmentInfos.getUserData(),
                 hasEntry(equalTo(SequenceNumbers.MAX_SEQ_NO), equalTo(Long.toString(maxSeqno))));
+            assertThat(segmentInfos.getUserData(),
+                hasEntry(equalTo(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID), equalTo(Long.toString(unsafeTimestamp))));
         }
     }
 

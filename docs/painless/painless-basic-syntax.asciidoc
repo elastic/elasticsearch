@@ -1,0 +1,392 @@
+[[painless-basic-syntax]]
+== Basic Syntax
+
+[float]
+[[comments]]
+=== Comments
+
+Painless supports both single-line and multi-line comments. You can include
+comments anywhere within a script.
+
+Single-line comments are preceded by two slashes: `// comment`. They can be
+placed anywhere on a line. All characters from the two slashes to the end of
+the line are ignored.
+
+Multi-line comments are preceded by a slash-star `/*` and closed by
+star-slash `*/`. Multi-line comments can start anywhere on a line. All
+characters from the opening `/*` to the closing `*/` are ignored.
+
+*Examples:*
+
+[source,Java]
+----
+// single-line comment
+
+<code> // single-line comment
+
+/* multi-
+   line
+   comment */
+
+<code> /* multi-line
+          comment */ <code>
+
+<code> /* multi-line comment */ <code>
+----
+
+[float]
+[[keywords]]
+=== Keywords
+
+Painless reserves the following keywords for built-in language features.
+These keywords cannot be used used in other contexts, such as identifiers.
+
+[cols="^1,^1,^1,^1,^1"]
+|====
+| if | else | while | do | for
+| in | continue | break | return | new
+| try | catch | throw | this | instanceof
+|====
+
+[[literals]]
+=== Literals
+
+Literals are values that you can specify directly in Painless scripts.
+
+[[integers]]
+==== Integers
+
+Specify integer literals in decimal, octal, or hex notation. Use the following
+single letter designations to specify the primitive type: `l` for `long`, `f`
+for `float`, and `d` for `double`.  If not specified, the type defaults to
+`int` (with the exception of certain assignments described later).
+
+*Grammar:*
+[source,ANTLR4]
+----
+INTEGER: '-'? ( '0' | [1-9] [0-9]* ) [lLfFdD]?;
+OCTAL: '-'? '0' [0-7]+ [lL]?;
+HEX: '-'? '0' [xX] [0-9a-fA-F]+ [lL]?;
+----
+
+*Examples:*
+[source,Java]
+----
+0     // integer literal of 0
+0D    // double literal of 0.0
+1234L // long literal of 1234
+-90F  // float literal of -90.0
+-022  // integer literal of -18 specified in octal
+0xF2A // integer literal of 3882
+----
+
+[[floating-point-values]]
+==== Floating Point Values
+
+Specify floating point literals using the following single letter designations
+for the primitive type: `f` for `float` and `d` for `double`.
+If not specified, the type defaults to `double`.
+
+*Grammar:*
+[source,ANTLR4]
+----
+DECIMAL: '-'? ( '0' | [1-9] [0-9]* ) (DOT [0-9]+)? ( [eE] [+\-]? [0-9]+ )? [fFdD]?;
+----
+
+*Examples:*
+[source,Java]
+----
+0.0      // double value of 0.0
+1E6      // double value of 1000000
+0.977777 // double value of 0.97777
+-126.34  // double value of -126.34
+89.9F    // float value of 89.9
+----
+
+[[strings]]
+==== Strings
+
+Specify literal string with either single or double quotes. In double-quoted
+literal strings, you can escape double-quotes with a backslash to include them
+in the string. Similarly, you escape single quotes with a backslash in
+single-quoted literal strings. Backslashes themselves also need to be
+escaped with a backslash.
+
+*Grammar:*
+[source,ANTLR4]
+----
+STRING: ( '"' ( '\\"' | '\\\\' | ~[\\"] )*? '"' ) | ( '\'' ( '\\\'' | '\\\\' | ~[\\'] )*? '\'' );
+----
+
+*Examples:*
+[source,Java]
+----
+"double-quoted String literal"
+'single-quoted String literal'
+"\"double-quoted String with escaped double-quotes\" and backslash: \\"
+'\'single-quoted String with escaped single-quotes\' and backslash \\'
+"double-quoted String with non-escaped 'single-quotes'"
+'single-quoted String with non-escaped "double-quotes"'
+----
+
+[[char]]
+===== Char
+
+You cannot directly specify character literals in Painless. However, you can
+cast single-character strings to char. Attempting to cast a multi-character
+string to a char throws an error.
+
+*Examples:*
+[source,Java]
+----
+(char)"C"
+(char)'c'
+----
+
+[[variables]]
+=== Variables
+
+Variables in Painless must be declared and can be statically or <<dynamic-types,
+dynamically typed>>.
+
+[[variable-identifiers]]
+==== Variable Identifiers
+
+Specify variable identifiers using the following grammar. Variable identifiers
+must start with a letter or underscore. You cannot use <<keywords, keywords>> or
+<<types, types>> as identifiers.
+
+*Grammar:*
+[source,ANTLR4]
+----
+ID: [_a-zA-Z] [_a-zA-Z-0-9]*;
+----
+
+*Examples:*
+[source,Java]
+----
+_
+a
+Z
+id
+list
+list0
+MAP25
+_map25
+----
+
+[[variable-declaration]]
+==== Variable Declaration
+
+Variables must be declared before you use them. The format is `type-name
+identifier-name`. To declare multiple variables of the same type, specify a
+comma-separated list of identifier names. You can immediately assign a value to
+a variable when you declare it.
+
+*Grammar:*
+[source,ANTLR4]
+----
+type: ID ('[' ']')*;
+declaration : type ID (',' ID)*;
+----
+
+*Examples:*
+[source,Java]
+----
+int x;        // Declare a variable with type int and id x
+List y;       // Declare a variable with type List and id y
+int x, y, z;  // Declare variables with type int and ids x, y, and z
+def[] d;      // Declare the variable d with type def[]
+int i = 10;   // Declare the int variable i and set it to the int literal 10
+----
+
+[[variable-assignment]]
+==== Variable Assignment
+
+Use the equals operator (`=`) to assign a value to a variable. The format is
+`identifier-name = value`. Any value expression can be assigned to any variable
+as long as the types match or the expression's type can be implicitly cast to
+the variable's type. An error occurs if the types do not match.
+
+*Grammar:*
+[source,ANTLR4]
+----
+assignment: ID '=' expression
+----
+
+
+*Examples:*
+
+Assigning a literal of the appropriate type directly to a declared variable.
+
+[source,Java]
+----
+int i;   // Declare an int i
+i = 10;  // Set the int i to the int literal 10
+----
+
+Immediately assigning a value when declaring a variable.
+
+[source,Java]
+----
+int i = 10;     // Declare the int variable i and set it the int literal 1
+double j = 2.0; // Declare the double variable j and set it to the double
+                //   literal 2.0
+----
+
+Assigning a variable of one primitive type to another variable of the same
+type.
+
+[source,Java]
+----
+int i = 10; // Declare the int variable i and set it to the int literal 10
+int j = i;  // Declare the int variable j and set it to the int variable i
+----
+
+Assigning a reference type to a new heap allocation with the `new` operator.
+
+[source,Java]
+----
+ArrayList l = new ArrayList();  // Declare an ArrayList variable l and set it
+                                //   to a newly allocated ArrayList
+Map m = new HashMap();          // Declare a Map variable m and set it
+                                //   to a newly allocated HashMap
+----
+
+Assigning a variable of one reference type to another variable of the same type.
+
+[source,Java]
+----
+List l = new ArrayList(); // Declare List variable l and set it a newly
+                          //    allocated ArrayList
+List k = l;               // Declare List variable k and set it to the
+                          //    value of the List variable l
+List m;                   // Declare List variable m and set it the
+                          //    default value null
+m = k;                    // Set the value of List variable m to the value
+                          //    of List variable k
+----
+
+[[variables]]
+=== Variables
+
+Variables in Painless must be declared and can be statically or <<dynamic-types,
+dynamically typed>>.
+
+[[variable-identifiers]]
+==== Variable Identifiers
+
+Specify variable identifiers using the following grammar. Variable identifiers
+must start with a letter or underscore. You cannot use <<keywords, keywords>> or
+<<types, types>> as identifiers.
+
+*Grammar:*
+[source,ANTLR4]
+----
+ID: [_a-zA-Z] [_a-zA-Z-0-9]*;
+----
+
+*Examples:*
+[source,Java]
+----
+_
+a
+Z
+id
+list
+list0
+MAP25
+_map25
+----
+
+[[variable-declaration]]
+==== Variable Declaration
+
+Variables must be declared before you use them. The format is `type-name
+identifier-name`. To declare multiple variables of the same type, specify a
+comma-separated list of identifier names. You can immediately assign a value to
+a variable when you declare it.
+
+*Grammar:*
+[source,ANTLR4]
+----
+type: ID ('[' ']')*;
+declaration : type ID (',' ID)*;
+----
+
+*Examples:*
+[source,Java]
+----
+int x;        // Declare a variable with type int and id x
+List y;       // Declare a variable with type List and id y
+int x, y, z;  // Declare variables with type int and ids x, y, and z
+def[] d;      // Declare the variable d with type def[]
+int i = 10;   // Declare the int variable i and set it to the int literal 10
+----
+
+[[variable-assignment]]
+==== Variable Assignment
+
+Use the equals operator (`=`) to assign a value to a variable. The format is
+`identifier-name = value`. Any value expression can be assigned to any variable
+as long as the types match or the expression's type can be implicitly cast to
+the variable's type. An error occurs if the types do not match.
+
+*Grammar:*
+[source,ANTLR4]
+----
+assignment: ID '=' expression
+----
+
+
+*Examples:*
+
+Assigning a literal of the appropriate type directly to a declared variable.
+
+[source,Java]
+----
+int i;   // Declare an int i
+i = 10;  // Set the int i to the int literal 10
+----
+
+Immediately assigning a value when declaring a variable.
+
+[source,Java]
+----
+int i = 10;     // Declare the int variable i and set it the int literal 1
+double j = 2.0; // Declare the double variable j and set it to the double
+                //   literal 2.0
+----
+
+Assigning a variable of one primitive type to another variable of the same
+type.
+
+[source,Java]
+----
+int i = 10; // Declare the int variable i and set it to the int literal 10
+int j = i;  // Declare the int variable j and set it to the int variable i
+----
+
+Assigning a reference type to a new heap allocation with the `new` operator.
+
+[source,Java]
+----
+ArrayList l = new ArrayList();  // Declare an ArrayList variable l and set it
+                                //   to a newly allocated ArrayList
+Map m = new HashMap();          // Declare a Map variable m and set it
+                                //   to a newly allocated HashMap
+----
+
+Assigning a variable of one reference type to another variable of the same type.
+
+[source,Java]
+----
+List l = new ArrayList(); // Declare List variable l and set it a newly
+                          //    allocated ArrayList
+List k = l;               // Declare List variable k and set it to the
+                          //    value of the List variable l
+List m;                   // Declare List variable m and set it the
+                          //    default value null
+m = k;                    // Set the value of List variable m to the value
+                          //    of List variable k
+----

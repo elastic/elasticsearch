@@ -43,6 +43,13 @@ case $key in
             "packagingTest"
         )
         ;;
+    packagingTestSample)
+        GRADLE_CLI_ARGS=(
+            "--info"
+            "-Pvagrant.boxes=sample"
+            "packagingTest"
+        )
+        ;;
     bwcTest)
         GRADLE_CLI_ARGS=(
             "--info"

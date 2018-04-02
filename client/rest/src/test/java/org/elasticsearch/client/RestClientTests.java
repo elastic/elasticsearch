@@ -182,7 +182,7 @@ public class RestClientTests extends RestClientTestCase {
                     restClient.performRequest(method, null);
                     fail("path set to null should fail!");
                 } catch (NullPointerException e) {
-                    assertEquals("path must not be null", e.getMessage());
+                    assertEquals("endpoint cannot be null", e.getMessage());
                 }
             }
         }

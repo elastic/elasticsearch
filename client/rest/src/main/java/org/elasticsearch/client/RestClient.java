@@ -144,6 +144,61 @@ public class RestClient implements Closeable {
     }
 
     /**
+     * Sends a request to the Elasticsearch cluster that the client points to.
+     * Blocks until the request is completed and returns its response or fails
+     * by throwing an exception. Selects a host out of the provided ones in a
+     * round-robin fashion. Failing hosts are marked dead and retried after a
+     * certain amount of time (minimum 1 minute, maximum 30 minutes), depending
+     * on how many times they previously failed (the more failures, the later
+     * they will be retried). In case of failures all of the alive nodes (or
+     * dead nodes that deserve a retry) are retried until one responds or none
+     * of them does, in which case an {@link IOException} will be thrown.
+     *
+     * This method works by performing an asynchronous call and waiting
+     * for the result. If the asynchronous call throws an exception we wrap
+     * it and rethrow it so that the stack trace attached to the exception
+     * contains the call site. While we attempt to preserve the original
+     * exception this isn't always possible and likely haven't covered all of
+     * the cases. You can get the original exception from
+     * {@link Exception#getCause()}.
+     *
+     * @param request the request to perform
+     * @return the response returned by Elasticsearch
+     * @throws IOException in case of a problem or the connection was aborted
+     * @throws ClientProtocolException in case of an http protocol error
+     * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
+     */
+    public Response performRequest(Request request) throws IOException {
+        SyncResponseListener listener = new SyncResponseListener(maxRetryTimeoutMillis);
+        performRequestAsyncNoCatch(request, listener);
+        return listener.get();
+    }
+
+    /**
+     * Sends a request to the Elasticsearch cluster that the client points to.
+     * The request is executed asynchronously and the provided
+     * {@link ResponseListener} gets notified upon request completion or
+     * failure. Selects a host out of the provided ones in a round-robin
+     * fashion. Failing hosts are marked dead and retried after a certain
+     * amount of time (minimum 1 minute, maximum 30 minutes), depending on how
+     * many times they previously failed (the more failures, the later they
+     * will be retried). In case of failures all of the alive nodes (or dead
+     * nodes that deserve a retry) are retried until one responds or none of
+     * them does, in which case an {@link IOException} will be thrown.
+     *
+     * @param request the request to perform
+     * @param responseListener the {@link ResponseListener} to notify when the
+     *      request is completed or fails
+     */
+    public void performRequestAsync(Request request, ResponseListener responseListener) {
+        try {
+            performRequestAsyncNoCatch(request, responseListener);
+        } catch (Exception e) {
+            responseListener.onFailure(e);
+        }
+    }
+
+    /**
      * Sends a request to the Elasticsearch cluster that the client points to and waits for the corresponding response
      * to be returned. Shortcut to {@link #performRequest(String, String, Map, HttpEntity, Header...)} but without parameters
      * and request body.
@@ -155,9 +210,13 @@ public class RestClient implements Closeable {
      * @throws IOException in case of a problem or the connection was aborted
      * @throws ClientProtocolException in case of an http protocol error
      * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
+     * @deprecated Prefer {@link #performRequest(Request)}
      */
+    @Deprecated
     public Response performRequest(String method, String endpoint, Header... headers) throws IOException {
-        return performRequest(method, endpoint, Collections.<String, String>emptyMap(), null, headers);
+        Request request = new Request(method, endpoint);
+        request.setHeaders(headers);
+        return performRequest(request);
     }
 
     /**
@@ -172,9 +231,14 @@ public class RestClient implements Closeable {
      * @throws IOException in case of a problem or the connection was aborted
      * @throws ClientProtocolException in case of an http protocol error
      * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
+     * @deprecated Prefer {@link #performRequest(Request)}
      */
+    @Deprecated
     public Response performRequest(String method, String endpoint, Map<String, String> params, Header... headers) throws IOException {
-        return performRequest(method, endpoint, params, (HttpEntity)null, headers);
+        Request request = new Request(method, endpoint);
+        request.setParameters(params);
+        request.setHeaders(headers);
+        return performRequest(request);
     }
 
     /**
@@ -192,10 +256,16 @@ public class RestClient implements Closeable {
      * @throws IOException in case of a problem or the connection was aborted
      * @throws ClientProtocolException in case of an http protocol error
      * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
+     * @deprecated Prefer {@link #performRequest(Request)}
      */
+    @Deprecated
     public Response performRequest(String method, String endpoint, Map<String, String> params,
                                    HttpEntity entity, Header... headers) throws IOException {
-        return performRequest(method, endpoint, params, entity, HttpAsyncResponseConsumerFactory.DEFAULT, headers);
+        Request request = new Request(method, endpoint);
+        request.setParameters(params);
+        request.setEntity(entity);
+        request.setHeaders(headers);
+        return performRequest(request);
     }
 
     /**
@@ -225,14 +295,18 @@ public class RestClient implements Closeable {
      * @throws IOException in case of a problem or the connection was aborted
      * @throws ClientProtocolException in case of an http protocol error
      * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
+     * @deprecated Prefer {@link #performRequest(Request)}
      */
+    @Deprecated
     public Response performRequest(String method, String endpoint, Map<String, String> params,
                                    HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
                                    Header... headers) throws IOException {
-        SyncResponseListener listener = new SyncResponseListener(maxRetryTimeoutMillis);
-        performRequestAsyncNoCatch(method, endpoint, params, entity, httpAsyncResponseConsumerFactory,
-            listener, headers);
-        return listener.get();
+        Request request = new Request(method, endpoint);
+        request.setParameters(params);
+        request.setEntity(entity);
+        request.setHttpAsyncResponseConsumerFactory(httpAsyncResponseConsumerFactory);
+        request.setHeaders(headers);
+        return performRequest(request);
     }
 
     /**
@@ -244,9 +318,13 @@ public class RestClient implements Closeable {
      * @param endpoint the path of the request (without host and port)
      * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
      * @param headers the optional request headers
+     * @deprecated Prefer {@link #performRequestAsync(Request, ResponseListener)}
      */
+    @Deprecated
     public void performRequestAsync(String method, String endpoint, ResponseListener responseListener, Header... headers) {
-        performRequestAsync(method, endpoint, Collections.<String, String>emptyMap(), null, responseListener, headers);
+        Request request = new Request(method, endpoint);
+        request.setHeaders(headers);
+        performRequestAsync(request, responseListener);
     }
 
     /**
@@ -259,10 +337,15 @@ public class RestClient implements Closeable {
      * @param params the query_string parameters
      * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
      * @param headers the optional request headers
+     * @deprecated Prefere {@link #performRequestAsync(Request, ResponseListener)}
      */
+    @Deprecated
     public void performRequestAsync(String method, String endpoint, Map<String, String> params,
                                     ResponseListener responseListener, Header... headers) {
-        performRequestAsync(method, endpoint, params, null, responseListener, headers);
+        Request request = new Request(method, endpoint);
+        request.setParameters(params);
+        request.setHeaders(headers);
+        performRequestAsync(request, responseListener);
     }
 
     /**
@@ -278,10 +361,16 @@ public class RestClient implements Closeable {
      * @param entity the body of the request, null if not applicable
      * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
      * @param headers the optional request headers
+     * @deprecated Prefer {@link #performRequestAsync(Request, ResponseListener)}
      */
+    @Deprecated
     public void performRequestAsync(String method, String endpoint, Map<String, String> params,
                                     HttpEntity entity, ResponseListener responseListener, Header... headers) {
-        performRequestAsync(method, endpoint, params, entity, HttpAsyncResponseConsumerFactory.DEFAULT, responseListener, headers);
+        Request request = new Request(method, endpoint);
+        request.setParameters(params);
+        request.setEntity(entity);
+        request.setHeaders(headers);
+        performRequestAsync(request, responseListener);
     }
 
     /**
@@ -301,28 +390,28 @@ public class RestClient implements Closeable {
      * connection on the client side.
      * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
      * @param headers the optional request headers
+     * @deprecated Prefer {@link #performRequestAsync(Request, ResponseListener)}
      */
+    @Deprecated
     public void performRequestAsync(String method, String endpoint, Map<String, String> params,
                                     HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
                                     ResponseListener responseListener, Header... headers) {
-        try {
-            performRequestAsyncNoCatch(method, endpoint, params, entity, httpAsyncResponseConsumerFactory,
-                responseListener, headers);
-        } catch (Exception e) {
-            responseListener.onFailure(e);
-        }
+        Request request = new Request(method, endpoint);
+        request.setParameters(params);
+        request.setEntity(entity);
+        request.setHttpAsyncResponseConsumerFactory(httpAsyncResponseConsumerFactory);
+        request.setHeaders(headers);
+        performRequestAsync(request, responseListener);
     }
 
-    void performRequestAsyncNoCatch(String method, String endpoint, Map<String, String> params,
-                                    HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
-                                    ResponseListener responseListener, Header... headers) {
-        Objects.requireNonNull(params, "params must not be null");
-        Map<String, String> requestParams = new HashMap<>(params);
+    void performRequestAsyncNoCatch(Request request, ResponseListener listener) {
+        Objects.requireNonNull(request.getParameters(), "params must not be null");
+        Map<String, String> requestParams = new HashMap<>(request.getParameters());
         //ignore is a special parameter supported by the clients, shouldn't be sent to es
         String ignoreString = requestParams.remove("ignore");
         Set<Integer> ignoreErrorCodes;
         if (ignoreString == null) {
-            if (HttpHead.METHOD_NAME.equals(method)) {
+            if (HttpHead.METHOD_NAME.equals(request.getMethod())) {
                 //404 never causes error if returned for a HEAD request
                 ignoreErrorCodes = Collections.singleton(404);
             } else {
@@ -331,7 +420,7 @@ public class RestClient implements Closeable {
         } else {
             String[] ignoresArray = ignoreString.split(",");
             ignoreErrorCodes = new HashSet<>();
-            if (HttpHead.METHOD_NAME.equals(method)) {
+            if (HttpHead.METHOD_NAME.equals(request.getMethod())) {
                 //404 never causes error if returned for a HEAD request
                 ignoreErrorCodes.add(404);
             }
@@ -343,13 +432,13 @@ public class RestClient implements Closeable {
                 }
             }
         }
-        URI uri = buildUri(pathPrefix, endpoint, requestParams);
-        HttpRequestBase request = createHttpRequest(method, uri, entity);
-        setHeaders(request, headers);
-        FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(responseListener);
+        URI uri = buildUri(pathPrefix, request.getEndpoint(), requestParams);
+        HttpRequestBase httpRequest = createHttpRequest(request.getMethod(), uri, request.getEntity());
+        setHeaders(httpRequest, request.getHeaders());
+        FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(listener);
         long startTime = System.nanoTime();
-        performRequestAsync(startTime, nextHost(), request, ignoreErrorCodes, httpAsyncResponseConsumerFactory,
-                failureTrackingResponseListener);
+        performRequestAsync(startTime, nextHost(), httpRequest, ignoreErrorCodes,
+                request.getHttpAsyncResponseConsumerFactory(), failureTrackingResponseListener);
     }
 
     private void performRequestAsync(final long startTime, final HostTuple<Iterator<HttpHost>> hostTuple, final HttpRequestBase request,

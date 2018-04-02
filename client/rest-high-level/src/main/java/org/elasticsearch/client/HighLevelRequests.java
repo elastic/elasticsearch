@@ -86,49 +86,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.StringJoiner;
 
-public final class Request {
-
+final class HighLevelRequests {
     static final XContentType REQUEST_BODY_CONTENT_TYPE = XContentType.JSON;
 
-    private final String method;
-    private final String endpoint;
-    private final Map<String, String> parameters;
-    private final HttpEntity entity;
-
-    public Request(String method, String endpoint, Map<String, String> parameters, HttpEntity entity) {
-        this.method = Objects.requireNonNull(method, "method cannot be null");
-        this.endpoint = Objects.requireNonNull(endpoint, "endpoint cannot be null");
-        this.parameters = Objects.requireNonNull(parameters, "parameters cannot be null");
-        this.entity = entity;
-    }
-
-    public String getMethod() {
-        return method;
-    }
-
-    public String getEndpoint() {
-        return endpoint;
-    }
-
-    public Map<String, String> getParameters() {
-        return parameters;
-    }
-
-    public HttpEntity getEntity() {
-        return entity;
-    }
-
-    @Override
-    public String toString() {
-        return "Request{" +
-                "method='" + method + '\'' +
-                ", endpoint='" + endpoint + '\'' +
-                ", params=" + parameters +
-                ", hasBody=" + (entity != null) +
-                '}';
+    private HighLevelRequests() {
+        // Contains only status utility methods
     }
 
     static Request delete(DeleteRequest deleteRequest) {
@@ -385,7 +349,7 @@ public final class Request {
 
     static Request exists(GetRequest getRequest) {
         Request request = get(getRequest);
-        return new Request(HttpHead.METHOD_NAME, request.endpoint, request.parameters, null);
+        return new Request(HttpHead.METHOD_NAME, request.getEndpoint(), request.getParameters(), null);
     }
 
     static Request get(GetRequest getRequest) {

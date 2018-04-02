@@ -204,8 +204,8 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     private void mockResponse(ToXContent toXContent) throws IOException {
         Response response = mock(Response.class);
-        ContentType contentType = ContentType.parse(Request.REQUEST_BODY_CONTENT_TYPE.mediaType());
-        String requestBody = toXContent(toXContent, Request.REQUEST_BODY_CONTENT_TYPE, false).utf8ToString();
+        ContentType contentType = ContentType.parse(HighLevelRequests.REQUEST_BODY_CONTENT_TYPE.mediaType());
+        String requestBody = toXContent(toXContent, HighLevelRequests.REQUEST_BODY_CONTENT_TYPE, false).utf8ToString();
         when(response.getEntity()).thenReturn(new NStringEntity(requestBody, contentType));
         when(restClient.performRequest(anyString(), anyString(), anyMapOf(String.class, String.class),
                 anyObject(), anyVararg())).thenReturn(response);

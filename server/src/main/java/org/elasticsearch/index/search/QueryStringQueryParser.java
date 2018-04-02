@@ -59,6 +59,7 @@ import org.joda.time.DateTimeZone;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -264,6 +265,16 @@ public class QueryStringQueryParser extends XQueryParser {
             // Filters unsupported fields if a pattern is requested
             // Filters metadata fields if all fields are requested
             return resolveMappingField(context, field, 1.0f, !allFields, !multiFields, quoted ? quoteFieldSuffix : null);
+        } else if (quoted && quoteFieldSuffix != null) {
+            Map<String, Float> newFields = new HashMap<>(fieldsAndWeights.size());
+            for (Map.Entry<String, Float> entry : fieldsAndWeights.entrySet()) {
+                String fieldName = entry.getKey();
+                if (context.fieldMapper(entry.getKey() + quoteFieldSuffix) != null) {
+                    fieldName += quoteFieldSuffix;
+                }
+                newFields.put(fieldName, entry.getValue());
+            }
+            return newFields;
         } else {
             return fieldsAndWeights;
         }

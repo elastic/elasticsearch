@@ -257,9 +257,9 @@ public class LegacyChildQuerySearchIT extends ChildQuerySearchIT {
                 "\n" +
                 "{" +
                 "  \"script\" : {" +
-                "    \"inline\" : \"ctx._source.field2 = 'value2'\"" +
+                "    \"inline\" : \"ctx._source.field2 = 'value2'\"," +
+                "    \"lang\" : \"" + InnerHitsIT.CustomScriptPlugin.NAME + "\"" +
                 "  }," +
-                "  \"lang\" : \"" + InnerHitsIT.CustomScriptPlugin.NAME + "\"," +
                 "  \"upsert\" : {" +
                 "    \"field1\" : \"value1'\"" +
                 "  }" +

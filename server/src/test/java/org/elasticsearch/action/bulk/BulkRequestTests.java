@@ -299,7 +299,7 @@ public class BulkRequestTests extends ESTestCase {
             out.write(xContentType.xContent().streamSeparator());
             try(XContentBuilder builder = XContentFactory.contentBuilder(xContentType, out)) {
                 builder.startObject();
-                builder.field("doc", "{}");
+                builder.startObject("doc").endObject();
                 Map<String,Object> values = new HashMap<>();
                 values.put("version", 2L);
                 values.put("_index", "index");

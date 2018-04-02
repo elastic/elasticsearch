@@ -299,6 +299,17 @@ public class UpdateRequestTests extends ESTestCase {
 
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> request.fromXContent(contentParser));
         assertEquals("[UpdateRequest] unknown field [unknown_field], parser not found", ex.getMessage());
+
+        UpdateRequest request2 = new UpdateRequest("test", "type", "1");
+        XContentParser unknownObject = createParser(XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("script", "ctx.op = ctx._source.views == params.count ? 'delete' : 'none'")
+                    .startObject("params")
+                        .field("count", 1)
+                    .endObject()
+                .endObject());
+        ex = expectThrows(IllegalArgumentException.class, () -> request2.fromXContent(unknownObject));
+        assertEquals("[UpdateRequest] unknown field [params], parser not found", ex.getMessage());
     }
 
     public void testFetchSourceParsing() throws Exception {

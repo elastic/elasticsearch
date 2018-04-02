@@ -48,9 +48,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -73,38 +71,25 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         PARSER.declareField((request, script) -> request.script = script,
             (parser, context) -> Script.parse(parser), SCRIPT_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
         PARSER.declareBoolean(UpdateRequest::scriptedUpsert, SCRIPTED_UPSERT_FIELD);
-
         PARSER.declareObject((request, builder) -> request.safeUpsertRequest().source(builder),
             (parser, context) -> {
                 XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
                 builder.copyCurrentStructure(parser);
                 return builder;
             }, UPSERT_FIELD);
-
         PARSER.declareObject((request, builder) -> request.safeDoc().source(builder),
             (parser, context) -> {
                 XContentBuilder docBuilder = XContentFactory.contentBuilder(parser.contentType());
                 docBuilder.copyCurrentStructure(parser);
                 return docBuilder;
             }, DOC_FIELD);
-
         PARSER.declareBoolean(UpdateRequest::docAsUpsert, DOC_AS_UPSERT_FIELD);
         PARSER.declareBoolean(UpdateRequest::detectNoop, DETECT_NOOP_FIELD);
-        PARSER.declareField((request, fields) -> {
+        PARSER.declareStringArray((request, fields) -> {
                 if (fields != null) {
                     request.fields(fields.toArray(new String[fields.size()]));
                 }
-            },
-            (parser, context) -> {
-                XContentParser.Token token = parser.currentToken();
-                List<Object> fields = null;
-                if (token == XContentParser.Token.START_ARRAY) {
-                    fields = parser.list();
-                } else if (token.isValue()) {
-                    fields = Collections.singletonList(parser.text());
-                }
-                return fields;
-            }, FIELDS_FIELD, ObjectParser.ValueType.STRING_ARRAY);
+            }, FIELDS_FIELD);
         PARSER.declareField(UpdateRequest::fetchSource,
             (parser, context) -> FetchSourceContext.fromXContent(parser), SOURCE_FIELD,
             ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING);

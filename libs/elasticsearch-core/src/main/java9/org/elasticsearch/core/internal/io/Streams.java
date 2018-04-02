@@ -25,8 +25,7 @@ import java.io.OutputStream;
 
 /**
  * Simple utility methods for file and stream copying.
- * All copy methods use a block size of 4096 bytes,
- * and close all affected streams when done.
+ * All copy methods close all affected streams when done.
  * <p>
  * Mainly for use within the framework,
  * but also useful for application code.
@@ -43,6 +42,52 @@ public abstract class Streams {
      * @throws IOException in case of I/O errors
      */
     public static long copy(InputStream in, OutputStream out) throws IOException {
-        return in.transferTo(out);
+        boolean success = false;
+        try {
+            final long byteCount = in.transferTo(out);
+            out.flush();
+            success = true;
+            return byteCount;
+        } finally {
+            if (success) {
+                Exception ex = null;
+                try {
+                    in.close();
+                } catch (IOException | RuntimeException e) {
+                    ex = e;
+                }
+
+                try {
+                    out.close();
+                } catch (IOException | RuntimeException e) {
+                    if (ex == null) {
+                        ex = e;
+                    } else {
+                        ex.addSuppressed(e);
+                    }
+                }
+
+                if (ex != null) {
+                    if (ex instanceof IOException) {
+                        throw (IOException) ex;
+                    } else {
+                        throw (RuntimeException) ex;
+                    }
+                }
+            } else {
+                try {
+                    in.close();
+                } catch (IOException | RuntimeException e) {
+                    // empty
+                }
+
+                try {
+                    out.close();
+                } catch (IOException | RuntimeException e) {
+                    // empty
+                }
+            }
+        }
+
     }
 }

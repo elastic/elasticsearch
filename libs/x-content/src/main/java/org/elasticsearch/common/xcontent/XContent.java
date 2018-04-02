@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.Booleans;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;

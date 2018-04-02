@@ -20,7 +20,6 @@
 package org.elasticsearch.common.xcontent.support.filtering;
 
 import com.fasterxml.jackson.core.filter.TokenFilter;
-import org.elasticsearch.common.util.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -47,7 +46,7 @@ public class FilterPathBasedFilter extends TokenFilter {
     private final boolean inclusive;
 
     public FilterPathBasedFilter(FilterPath[] filters, boolean inclusive) {
-        if (CollectionUtils.isEmpty(filters)) {
+        if (filters == null || filters.length == 0) {
             throw new IllegalArgumentException("filters cannot be null or empty");
         }
         this.inclusive = inclusive;

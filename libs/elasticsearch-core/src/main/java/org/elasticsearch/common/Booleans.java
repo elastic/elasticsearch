@@ -73,6 +73,19 @@ public final class Booleans {
         throw new IllegalArgumentException("Failed to parse value [" + value + "] as only [true] or [false] are allowed.");
     }
 
+    private static boolean hasText(CharSequence str) {
+        if (str == null || str.length() == 0) {
+            return false;
+        }
+        int strLen = str.length();
+        for (int i = 0; i < strLen; i++) {
+            if (!Character.isWhitespace(str.charAt(i))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      *
      * @param value text to parse.
@@ -80,14 +93,14 @@ public final class Booleans {
      * @return see {@link #parseBoolean(String)}
      */
     public static boolean parseBoolean(String value, boolean defaultValue) {
-        if (Strings.hasText(value)) {
+        if (hasText(value)) {
             return parseBoolean(value);
         }
         return defaultValue;
     }
 
     public static Boolean parseBoolean(String value, Boolean defaultValue) {
-        if (Strings.hasText(value)) {
+        if (hasText(value)) {
             return parseBoolean(value);
         }
         return defaultValue;

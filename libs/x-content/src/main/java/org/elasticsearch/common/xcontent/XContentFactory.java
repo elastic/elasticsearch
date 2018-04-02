@@ -21,7 +21,6 @@ package org.elasticsearch.common.xcontent;
 
 import com.fasterxml.jackson.dataformat.cbor.CBORConstants;
 import com.fasterxml.jackson.dataformat.smile.SmileConstants;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.cbor.CborXContent;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
@@ -154,7 +153,8 @@ public class XContentFactory {
             return XContentType.JSON;
         }
         // Should we throw a failure here? Smile idea is to use it in bytes....
-        if (length > 2 && first == SmileConstants.HEADER_BYTE_1 && content.charAt(1) == SmileConstants.HEADER_BYTE_2 && content.charAt(2) == SmileConstants.HEADER_BYTE_3) {
+        if (length > 2 && first == SmileConstants.HEADER_BYTE_1 && content.charAt(1) == SmileConstants.HEADER_BYTE_2 &&
+            content.charAt(2) == SmileConstants.HEADER_BYTE_3) {
             return XContentType.SMILE;
         }
         if (length > 2 && first == '-' && content.charAt(1) == '-' && content.charAt(2) == '-') {
@@ -186,7 +186,7 @@ public class XContentFactory {
     public static XContent xContent(CharSequence content) {
         XContentType type = xContentType(content);
         if (type == null) {
-            throw new ElasticsearchParseException("Failed to derive xcontent");
+            throw new XContentParseException("Failed to derive xcontent");
         }
         return xContent(type);
     }
@@ -213,7 +213,7 @@ public class XContentFactory {
     public static XContent xContent(byte[] data, int offset, int length) {
         XContentType type = xContentType(data, offset, length);
         if (type == null) {
-            throw new ElasticsearchParseException("Failed to derive xcontent");
+            throw new XContentParseException("Failed to derive xcontent");
         }
         return xContent(type);
     }
@@ -278,7 +278,8 @@ public class XContentFactory {
         if (first == '{') {
             return XContentType.JSON;
         }
-        if (length > 2 && first == SmileConstants.HEADER_BYTE_1 && bytes[offset + 1] == SmileConstants.HEADER_BYTE_2 && bytes[offset + 2] == SmileConstants.HEADER_BYTE_3) {
+        if (length > 2 && first == SmileConstants.HEADER_BYTE_1 && bytes[offset + 1] == SmileConstants.HEADER_BYTE_2 &&
+            bytes[offset + 2] == SmileConstants.HEADER_BYTE_3) {
             return XContentType.SMILE;
         }
         if (length > 2 && first == '-' && bytes[offset + 1] == '-' && bytes[offset + 2] == '-') {

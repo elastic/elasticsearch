@@ -1,0 +1,51 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+subprojects {
+    /*
+     * All subprojects are java projects using Elasticsearch's standard build
+     * tools.
+     */
+    apply plugin: 'elasticsearch.build'
+
+    /*
+     * Subprojects may depend on the "core" lib but may not depend on any
+     * other Elasticsearch code. This keeps are dependencies simpler to think
+     * about. We enforce this with a task rather than failing the build on
+     * build start because dependency substitution a chance to kick in.
+     */
+    task checkDependencies {
+        doLast {
+            configurations.all { Configuration conf ->
+                dependencies.all { Dependency dep ->
+                    Project project = dependencyToProject(dep)
+                    if (project != null
+                            && false == project.path.equals(':libs:elasticsearch-core')
+                            && project.path.startsWith(':libs')) {
+                        throw new InvalidUserDataException("projects in :libs "
+                                + "may not depend on other projects libs except "
+                                + ":libs:elasticsearch-core but but this depends "
+                                + "on $project.path")
+                    }
+                }
+            }
+        }
+    }
+    tasks.precommit.dependsOn checkDependencies
+}

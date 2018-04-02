@@ -13,8 +13,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.common.xcontent.XContentUtils;
@@ -102,7 +102,7 @@ public class XContentSource implements ToXContent {
         try (InputStream stream = bytes.streamInput();
              XContentParser parser = parser(NamedXContentRegistry.EMPTY, stream)) {
             parser.nextToken();
-            XContentHelper.copyCurrentStructure(builder.generator(), parser);
+            builder.generator().copyCurrentStructure(parser);
             return builder;
         }
     }

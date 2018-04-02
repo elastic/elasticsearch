@@ -19,8 +19,8 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -376,7 +376,7 @@ public class RoleDescriptor implements ToXContentObject {
             } else if (Fields.QUERY.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token == XContentParser.Token.START_OBJECT) {
                     XContentBuilder builder = JsonXContent.contentBuilder();
-                    XContentHelper.copyCurrentStructure(builder.generator(), parser);
+                    builder.generator().copyCurrentStructure(parser);
                     query = BytesReference.bytes(builder);
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     final String text = parser.text();

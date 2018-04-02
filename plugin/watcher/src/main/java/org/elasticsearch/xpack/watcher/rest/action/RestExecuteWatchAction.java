@@ -10,8 +10,8 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
@@ -105,7 +105,7 @@ public class RestExecuteWatchAction extends WatcherRestHandler implements RestRe
                         builder.setTriggerData(parser.map());
                     } else if (Field.WATCH.match(currentFieldName, parser.getDeprecationHandler())) {
                         XContentBuilder watcherSource = XContentBuilder.builder(parser.contentType().xContent());
-                        XContentHelper.copyCurrentStructure(watcherSource.generator(), parser);
+                        watcherSource.generator().copyCurrentStructure(parser);
                         builder.setWatchSource(BytesReference.bytes(watcherSource), parser.contentType());
                     } else if (Field.ACTION_MODES.match(currentFieldName, parser.getDeprecationHandler())) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

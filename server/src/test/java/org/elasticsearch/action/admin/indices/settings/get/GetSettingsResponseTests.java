@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.junit.Assert;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Base64;
@@ -38,7 +37,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -114,7 +112,7 @@ public class GetSettingsResponseTests extends AbstractStreamableXContentTestCase
         return false;
     }
 
-    private static final GetSettingsResponse getExpectedTest622Response() {
+    private static GetSettingsResponse getExpectedTest622Response() {
     /* This is a fairly direct copy of the code used to generate the base64'd response above -- with the caveat that the constructor
     has been modified so that the code compiles on this version of elasticsearch
      */
@@ -129,7 +127,7 @@ public class GetSettingsResponseTests extends AbstractStreamableXContentTestCase
         return response;
     }
 
-    private static final GetSettingsResponse getResponseWithNewFields() {
+    private static GetSettingsResponse getResponseWithNewFields() {
         HashMap<String, Settings> indexToDefaultSettings = new HashMap<>();
         Settings.Builder builder = Settings.builder();
 
@@ -140,7 +138,6 @@ public class GetSettingsResponseTests extends AbstractStreamableXContentTestCase
         return new GetSettingsResponse(getExpectedTest622Response().getIndexToSettings(), defaultsMap);
     }
 
-    @Test
     public void testCanDecode622Response() throws IOException {
         StreamInput si = StreamInput.wrap(Base64.getDecoder().decode(TEST_6_2_2_RESPONSE_BYTES));
         si.setVersion(Version.V_6_2_2);
@@ -150,7 +147,6 @@ public class GetSettingsResponseTests extends AbstractStreamableXContentTestCase
         Assert.assertEquals(TEST_6_2_2_RESPONSE_INSTANCE, response);
     }
 
-    @Test
     public void testCanOutput622Response() throws IOException {
         GetSettingsResponse responseWithExtraFields = getResponseWithNewFields();
         BytesStreamOutput bso = new BytesStreamOutput();
@@ -162,7 +158,6 @@ public class GetSettingsResponseTests extends AbstractStreamableXContentTestCase
         Assert.assertEquals(TEST_6_2_2_RESPONSE_BYTES, base64OfResponse);
     }
 
-    @Test
     public void testTransportSerdeRoundTripCurrentVersion() throws IOException {
         GetSettingsResponse responseWithExtraFields = getResponseWithNewFields();
         BytesStreamOutput bso = new BytesStreamOutput();
@@ -176,7 +171,7 @@ public class GetSettingsResponseTests extends AbstractStreamableXContentTestCase
 
         Assert.assertEquals(responseWithExtraFields, newResponse);
     }
-    @Test
+
     public void testRoundtrip622DropsDefaults() throws IOException {
         GetSettingsResponse responseWithExtraFields = getResponseWithNewFields();
         BytesStreamOutput bso = new BytesStreamOutput();

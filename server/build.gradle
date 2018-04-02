@@ -63,6 +63,7 @@ dependencies {
 
   compile "org.elasticsearch:elasticsearch-core:${version}"
   compile "org.elasticsearch:elasticsearch-secure-sm:${version}"
+  compile "org.elasticsearch:elasticsearch-x-content:${version}"
 
   compileOnly project(':libs:plugin-classloader')
   testRuntime project(':libs:plugin-classloader')
@@ -90,13 +91,6 @@ dependencies {
 
   // time handling, remove with java 8 time
   compile 'joda-time:joda-time:2.9.9'
-
-  // json and yaml
-  compile "org.yaml:snakeyaml:${versions.snakeyaml}"
-  compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  compile "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${versions.jackson}"
-  compile "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
-  compile "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
 
   // percentiles aggregation
   compile 'com.tdunning:t-digest:3.2'
@@ -295,7 +289,6 @@ if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
 
 dependencyLicenses {
   mapping from: /lucene-.*/, to: 'lucene'
-  mapping from: /jackson-.*/, to: 'jackson'
   dependencies = project.configurations.runtime.fileCollection {
     it.group.startsWith('org.elasticsearch') == false ||
             // keep the following org.elasticsearch jars in

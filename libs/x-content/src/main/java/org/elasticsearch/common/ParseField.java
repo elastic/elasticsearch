@@ -35,6 +35,8 @@ public class ParseField {
     private String allReplacedWith = null;
     private final String[] allNames;
 
+    private static final String[] EMPTY = new String[0];
+
     /**
      * @param name
      *            the primary name for this field. This will be returned by
@@ -46,7 +48,7 @@ public class ParseField {
     public ParseField(String name, String... deprecatedNames) {
         this.name = name;
         if (deprecatedNames == null || deprecatedNames.length == 0) {
-            this.deprecatedNames = Strings.EMPTY_ARRAY;
+            this.deprecatedNames = EMPTY;
         } else {
             final HashSet<String> set = new HashSet<>();
             Collections.addAll(set, deprecatedNames);

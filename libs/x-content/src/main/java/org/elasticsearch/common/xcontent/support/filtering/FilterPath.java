@@ -20,7 +20,7 @@
 
 package org.elasticsearch.common.xcontent.support.filtering;
 
-import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.Glob;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -49,7 +49,7 @@ public class FilterPath {
     }
 
     public FilterPath matchProperty(String name) {
-        if ((next != null) && (simpleWildcard || doubleWildcard || Regex.simpleMatch(segment, name))) {
+        if ((next != null) && (simpleWildcard || doubleWildcard || Glob.globMatch(segment, name))) {
             return next;
         }
         return null;

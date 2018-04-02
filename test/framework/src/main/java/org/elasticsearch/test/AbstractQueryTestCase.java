@@ -25,7 +25,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanBoostQuery;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -56,6 +55,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentGenerator;
@@ -63,6 +63,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
@@ -425,7 +426,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                                 // We reached the place in the object tree where we want to insert a new object level
                                 generator.writeStartObject();
                                 generator.writeFieldName("newField");
-                                XContentHelper.copyCurrentStructure(generator, parser);
+                                generator.copyCurrentStructure(parser);
                                 generator.writeEndObject();
 
                                 if (hasArbitraryContent) {
@@ -447,7 +448,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                         }
 
                         // We are walking through the object tree, so we can safely copy the current node
-                        XContentHelper.copyCurrentEvent(generator, parser);
+                        generator.copyCurrentEvent(parser);
                     }
 
                     if (objectIndex < mutation) {

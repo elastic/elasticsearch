@@ -28,16 +28,15 @@ import com.fasterxml.jackson.core.json.JsonWriteContext;
 import com.fasterxml.jackson.core.util.DefaultIndenter;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 import com.fasterxml.jackson.core.util.JsonGeneratorDelegate;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentGenerator;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.filtering.FilterPathBasedFilter;
+import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -325,7 +324,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         } else {
             writeStartRaw(name);
             flush();
-            Streams.copy(content, os);
+            copyStream(content, os);
             writeEndRaw();
         }
     }
@@ -393,7 +392,40 @@ public class JsonXContentGenerator implements XContentGenerator {
         if (parser instanceof JsonXContentParser) {
             generator.copyCurrentStructure(((JsonXContentParser) parser).parser);
         } else {
-            XContentHelper.copyCurrentStructure(this, parser);
+            copyCurrentStructure(this, parser);
+        }
+    }
+
+    /**
+     * Low level implementation detail of {@link XContentGenerator#copyCurrentStructure(XContentParser)}.
+     */
+    private static void copyCurrentStructure(XContentGenerator destination, XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+
+        // Let's handle field-name separately first
+        if (token == XContentParser.Token.FIELD_NAME) {
+            destination.writeFieldName(parser.currentName());
+            token = parser.nextToken();
+            // fall-through to copy the associated value
+        }
+
+        switch (token) {
+            case START_ARRAY:
+                destination.writeStartArray();
+                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                    copyCurrentStructure(destination, parser);
+                }
+                destination.writeEndArray();
+                break;
+            case START_OBJECT:
+                destination.writeStartObject();
+                while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                    copyCurrentStructure(destination, parser);
+                }
+                destination.writeEndObject();
+                break;
+            default: // others are simple:
+                destination.copyCurrentEvent(parser);
         }
     }
 
@@ -422,5 +454,38 @@ public class JsonXContentGenerator implements XContentGenerator {
     @Override
     public boolean isClosed() {
         return generator.isClosed();
+    }
+
+    /**
+     * Copy the contents of the given InputStream to the given OutputStream.
+     * Closes both streams when done.
+     *
+     * @param in  the stream to copy from
+     * @param out the stream to copy to
+     * @return the number of bytes copied
+     * @throws IOException in case of I/O errors
+     */
+    private static long copyStream(InputStream in, OutputStream out) throws IOException {
+        Objects.requireNonNull(in, "No InputStream specified");
+        Objects.requireNonNull(out, "No OutputStream specified");
+        final byte[] buffer = new byte[8192];
+        boolean success = false;
+        try {
+            long byteCount = 0;
+            int bytesRead;
+            while ((bytesRead = in.read(buffer)) != -1) {
+                out.write(buffer, 0, bytesRead);
+                byteCount += bytesRead;
+            }
+            out.flush();
+            success = true;
+            return byteCount;
+        } finally {
+            if (success) {
+                IOUtils.close(in, out);
+            } else {
+                IOUtils.closeWhileHandlingException(in, out);
+            }
+        }
     }
 }

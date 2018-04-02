@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.util.CollectionUtils;
-
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.Flushable;
@@ -35,6 +33,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -740,7 +739,9 @@ public final class XContentBuilder implements Closeable, Flushable {
             //Path implements Iterable<Path> and causes endless recursion and a StackOverFlow if treated as an Iterable here
             value((Path) value);
         } else if (value instanceof Map) {
-            map((Map<String,?>) value, ensureNoSelfReferences);
+            @SuppressWarnings("unchecked")
+            final Map<String, ?> valueMap = (Map<String, ?>) value;
+            map(valueMap, ensureNoSelfReferences);
         } else if (value instanceof Iterable) {
             value((Iterable<?>) value, ensureNoSelfReferences);
         } else if (value instanceof Object[]) {
@@ -799,7 +800,7 @@ public final class XContentBuilder implements Closeable, Flushable {
         // checks that the map does not contain references to itself because
         // iterating over map entries will cause a stackoverflow error
         if (ensureNoSelfReferences) {
-            CollectionUtils.ensureNoSelfReferences(values);
+            ensureNoSelfReferences(values);
         }
 
         startObject();
@@ -828,7 +829,7 @@ public final class XContentBuilder implements Closeable, Flushable {
             // checks that the iterable does not contain references to itself because
             // iterating over entries will cause a stackoverflow error
             if (ensureNoSelfReferences) {
-                CollectionUtils.ensureNoSelfReferences(values);
+                ensureNoSelfReferences(values);
             }
             startArray();
             for (Object value : values) {
@@ -937,4 +938,39 @@ public final class XContentBuilder implements Closeable, Flushable {
             throw new IllegalArgumentException(message);
         }
     }
+
+    private static void ensureNoSelfReferences(Object value) {
+        Iterable<?> it = convert(value);
+        if (it != null) {
+            ensureNoSelfReferences(it, value, Collections.newSetFromMap(new IdentityHashMap<>()));
+        }
+    }
+
+    private static Iterable<?> convert(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Map) {
+            return ((Map<?,?>) value).values();
+        } else if ((value instanceof Iterable) && (value instanceof Path == false)) {
+            return (Iterable<?>) value;
+        } else if (value instanceof Object[]) {
+            return Arrays.asList((Object[]) value);
+        } else {
+            return null;
+        }
+    }
+
+    private static void ensureNoSelfReferences(final Iterable<?> value, Object originalReference, final Set<Object> ancestors) {
+        if (value != null) {
+            if (ancestors.add(originalReference) == false) {
+                throw new IllegalArgumentException("Iterable object is self-referencing itself");
+            }
+            for (Object o : value) {
+                ensureNoSelfReferences(convert(o), o, ancestors);
+            }
+            ancestors.remove(originalReference);
+        }
+    }
+
 }

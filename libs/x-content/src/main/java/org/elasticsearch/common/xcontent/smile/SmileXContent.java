@@ -53,7 +53,8 @@ public class SmileXContent implements XContent {
 
     static {
         smileFactory = new SmileFactory();
-        smileFactory.configure(SmileGenerator.Feature.ENCODE_BINARY_AS_7BIT, false); // for now, this is an overhead, might make sense for web sockets
+        // for now, this is an overhead, might make sense for web sockets
+        smileFactory.configure(SmileGenerator.Feature.ENCODE_BINARY_AS_7BIT, false);
         smileFactory.configure(SmileFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
         // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.dataformat.smile.SmileGenerator#close() method
         smileFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);

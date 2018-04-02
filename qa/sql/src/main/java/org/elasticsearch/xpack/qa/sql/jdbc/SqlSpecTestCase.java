@@ -24,7 +24,7 @@ public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
     private String query;
 
     @ClassRule
-    public static LocalH2 H2 = new LocalH2();
+    public static LocalH2 H2 = new LocalH2((c) -> c.createStatement().execute("RUNSCRIPT FROM 'classpath:/setup_test_emp.sql'"));
 
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() throws Exception {

@@ -29,6 +29,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -58,6 +59,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
@@ -583,6 +585,22 @@ public final class Request {
         return new Request(HttpPut.METHOD_NAME, "/_cluster/settings", parameters.getParams(), entity);
     }
 
+    static Request clusterHealth(ClusterHealthRequest healthRequest) {
+        Params params = Params.builder();
+        params.withWaitForStatus(healthRequest.waitForStatus());
+        params.withWaitForNoRelocatingShards(healthRequest.waitForNoRelocatingShards());
+        params.withWaitForNoInitializingShards(healthRequest.waitForNoInitializingShards());
+        params.withWaitForActiveShards(healthRequest.waitForActiveShards());
+        params.withWaitForNodes(healthRequest.waitForNodes());
+        params.withTimeout(healthRequest.timeout());
+        params.withMasterTimeout(healthRequest.masterNodeTimeout());
+        params.withLocal(healthRequest.local());
+        params.putParam("level", "shards");
+        String[] indices = healthRequest.indices() == null ? Strings.EMPTY_ARRAY : healthRequest.indices();
+        String endpoint = endpoint(indices, "_cluster/health");
+        return new Request(HttpGet.METHOD_NAME, endpoint, params.getParams(), null);
+    }
+
     static Request rollover(RolloverRequest rolloverRequest) throws IOException {
         Params params = Params.builder();
         params.withTimeout(rolloverRequest.timeout());
@@ -831,6 +849,31 @@ public final class Request {
                 return putParam("include_defaults", Boolean.TRUE.toString());
             }
             return this;
+        }
+
+        Params withWaitForStatus(ClusterHealthStatus status) {
+            if (status != null) {
+                return putParam("wait_for_status", status.name().toLowerCase(Locale.ROOT));
+            }
+            return this;
+        }
+
+        Params withWaitForNoRelocatingShards(boolean waitNoRelocatingShards) {
+            if (waitNoRelocatingShards) {
+                return putParam("wait_for_no_relocating_shards", Boolean.TRUE.toString());
+            }
+            return this;
+        }
+
+        Params withWaitForNoInitializingShards(boolean waitNoInitShards) {
+            if (waitNoInitShards) {
+                return putParam("wait_for_no_initializing_shards", Boolean.TRUE.toString());
+            }
+            return this;
+        }
+
+        Params withWaitForNodes(String waitForNodes) {
+            return putParam("wait_for_nodes", waitForNodes);
         }
 
         Map<String, String> getParams() {

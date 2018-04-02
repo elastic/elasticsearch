@@ -31,6 +31,7 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
@@ -127,6 +128,8 @@ import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomAl
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class RequestTests extends ESTestCase {
@@ -1323,6 +1326,25 @@ public class RequestTests extends ESTestCase {
         assertEquals("/_cluster/settings", expectedRequest.getEndpoint());
         assertEquals(HttpPut.METHOD_NAME, expectedRequest.getMethod());
         assertEquals(expectedParams, expectedRequest.getParameters());
+    }
+
+    public void testClusterHealth() {
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest();
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomLocal(healthRequest, expectedParams);
+        setRandomTimeout(healthRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        setRandomMasterTimeout(healthRequest, expectedParams);
+        expectedParams.put("level", "shards");
+        // Default value in ClusterHealthRequest is NONE but in Request.Params::withWaitForActiveShards is DEFAULT
+        expectedParams.put("wait_for_active_shards", "0");
+        //TODO add random filling for other properties
+
+        Request request = Request.clusterHealth(healthRequest);
+        assertThat(request, is(notNullValue()));
+        assertThat(request.getMethod(), is(HttpGet.METHOD_NAME));
+        assertThat(request.getEntity(), is(nullValue()));
+        assertThat(request.getEndpoint(), is("/_cluster/health"));
+        assertThat(request.getParameters(), is(expectedParams));
     }
 
     public void testRollover() throws IOException {

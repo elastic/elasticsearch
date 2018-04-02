@@ -21,6 +21,8 @@ package org.elasticsearch.client;
 
 import org.apache.http.Header;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 
@@ -62,5 +64,27 @@ public final class ClusterClient {
             ActionListener<ClusterUpdateSettingsResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(clusterUpdateSettingsRequest, Request::clusterPutSettings,
                 ClusterUpdateSettingsResponse::fromXContent, listener, emptySet(), headers);
+    }
+
+    /**
+     * Get cluster health using the Cluster Health API
+     * <p>
+     * See
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-health.html"> Cluster Health API on elastic.co</a>
+     */
+    public ClusterHealthResponse health(ClusterHealthRequest healthRequest, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(healthRequest, Request::clusterHealth, ClusterHealthResponse::fromXContent,
+            emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously get cluster health using the Cluster Health API
+     * <p>
+     * See
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-health.html"> Cluster Health API on elastic.co</a>
+     */
+    public void healthAsync(ClusterHealthRequest healthRequest, ActionListener<ClusterHealthResponse> listener, Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(healthRequest, Request::clusterHealth, ClusterHealthResponse::fromXContent,
+            listener, emptySet(), headers);
     }
 }

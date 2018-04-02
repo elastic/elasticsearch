@@ -24,19 +24,114 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+
+import static java.util.Collections.emptyMap;
+import static org.elasticsearch.common.util.CollectionUtils.isEmpty;
+import static org.elasticsearch.common.util.CollectionUtils.newHashMapWithExpectedSize;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class ClusterHealthResponse extends ActionResponse implements StatusToXContentObject {
+    private static final String CLUSTER_NAME = "cluster_name";
+    private static final String STATUS = "status";
+    private static final String TIMED_OUT = "timed_out";
+    private static final String NUMBER_OF_NODES = "number_of_nodes";
+    private static final String NUMBER_OF_DATA_NODES = "number_of_data_nodes";
+    private static final String NUMBER_OF_PENDING_TASKS = "number_of_pending_tasks";
+    private static final String NUMBER_OF_IN_FLIGHT_FETCH = "number_of_in_flight_fetch";
+    private static final String DELAYED_UNASSIGNED_SHARDS = "delayed_unassigned_shards";
+    private static final String TASK_MAX_WAIT_TIME_IN_QUEUE = "task_max_waiting_in_queue";
+    private static final String TASK_MAX_WAIT_TIME_IN_QUEUE_IN_MILLIS = "task_max_waiting_in_queue_millis";
+    private static final String ACTIVE_SHARDS_PERCENT_AS_NUMBER = "active_shards_percent_as_number";
+    private static final String ACTIVE_SHARDS_PERCENT = "active_shards_percent";
+    private static final String ACTIVE_PRIMARY_SHARDS = "active_primary_shards";
+    private static final String ACTIVE_SHARDS = "active_shards";
+    private static final String RELOCATING_SHARDS = "relocating_shards";
+    private static final String INITIALIZING_SHARDS = "initializing_shards";
+    private static final String UNASSIGNED_SHARDS = "unassigned_shards";
+    private static final String INDICES = "indices";
+
+    private static final ConstructingObjectParser<ClusterHealthResponse, Void> PARSER =
+        new ConstructingObjectParser<>("cluster_health_response", true,
+            a -> {
+                int i = 0;
+                // ClusterStateHealth fields
+                int numberOfNodes = (int) a[i++];
+                int numberOfDataNodes = (int) a[i++];
+                int activeShards = (int) a[i++];
+                int relocatingShards = (int) a[i++];
+                int activePrimaryShards = (int) a[i++];
+                int initializingShards = (int) a[i++];
+                int unassignedShards = (int) a[i++];
+                double activeShardsPercent = (double) a[i++];
+                String statusStr = (String) a[i++];
+                ClusterHealthStatus status = ClusterHealthStatus.fromString(statusStr);
+                List<ClusterIndexHealth> indexList = (List<ClusterIndexHealth>) a[i++];
+                final Map<String, ClusterIndexHealth> indices;
+                if (isEmpty(indexList)) {
+                    indices = emptyMap();
+                } else {
+                    indices = newHashMapWithExpectedSize(indexList.size());
+                    for (ClusterIndexHealth indexHealth : indexList) {
+                        indices.put(indexHealth.getIndex(), indexHealth);
+                    }
+                }
+                ClusterStateHealth stateHealth = new ClusterStateHealth(activePrimaryShards, activeShards, relocatingShards,
+                    initializingShards, unassignedShards, numberOfNodes, numberOfDataNodes, activeShardsPercent, status, indices);
+
+                // ClusterHealthResponse fields
+                String clusterName = (String) a[i++];
+                int numberOfPendingTasks = (int) a[i++];
+                int numberOfInFlightFetch = (int) a[i++];
+                int delayedUnassignedShards = (int) a[i++];
+                long taskMaxWaitingTimeMillis = (long) a[i++];
+                boolean timedOut = (boolean) a[i++];
+                return new ClusterHealthResponse(clusterName, numberOfPendingTasks, numberOfInFlightFetch, delayedUnassignedShards,
+                    TimeValue.timeValueMillis(taskMaxWaitingTimeMillis), timedOut, stateHealth);
+            });
+
+    public static final ObjectParser.NamedObjectParser<ClusterIndexHealth, Void> INDEX_PARSER =
+        (XContentParser p, Void c, String nameIgnored) -> ClusterIndexHealth.fromXContent(p);
+
+    static {
+        // ClusterStateHealth fields
+        PARSER.declareInt(constructorArg(), new ParseField(NUMBER_OF_NODES));
+        PARSER.declareInt(constructorArg(), new ParseField(NUMBER_OF_DATA_NODES));
+        PARSER.declareInt(constructorArg(), new ParseField(ACTIVE_SHARDS));
+        PARSER.declareInt(constructorArg(), new ParseField(RELOCATING_SHARDS));
+        PARSER.declareInt(constructorArg(), new ParseField(ACTIVE_PRIMARY_SHARDS));
+        PARSER.declareInt(constructorArg(), new ParseField(INITIALIZING_SHARDS));
+        PARSER.declareInt(constructorArg(), new ParseField(UNASSIGNED_SHARDS));
+        PARSER.declareDouble(constructorArg(), new ParseField(ACTIVE_SHARDS_PERCENT_AS_NUMBER));
+        PARSER.declareString(constructorArg(),  new ParseField(STATUS));
+        // Can be absent if LEVEL == 'cluster'
+        PARSER.declareNamedObjects(optionalConstructorArg(), INDEX_PARSER, new ParseField(INDICES));
+
+        // ClusterHealthResponse fields
+        PARSER.declareString(constructorArg(), new ParseField(CLUSTER_NAME));
+        PARSER.declareInt(constructorArg(), new ParseField(NUMBER_OF_PENDING_TASKS));
+        PARSER.declareInt(constructorArg(), new ParseField(NUMBER_OF_IN_FLIGHT_FETCH));
+        PARSER.declareInt(constructorArg(), new ParseField(DELAYED_UNASSIGNED_SHARDS));
+        PARSER.declareLong(constructorArg(), new ParseField(TASK_MAX_WAIT_TIME_IN_QUEUE_IN_MILLIS));
+        PARSER.declareBoolean(constructorArg(), new ParseField(TIMED_OUT));
+    }
+
     private String clusterName;
     private int numberOfPendingTasks = 0;
     private int numberOfInFlightFetch = 0;
@@ -60,11 +155,23 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         this.numberOfPendingTasks = numberOfPendingTasks;
         this.numberOfInFlightFetch = numberOfInFlightFetch;
         this.delayedUnassignedShards = delayedUnassignedShards;
+        this.taskMaxWaitingTime = taskMaxWaitingTime;
+        this.clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices);
+        this.clusterHealthStatus = clusterStateHealth.getStatus();
+    }
+
+    /**
+     * For XContent Parser and serialization tests
+     */
+    ClusterHealthResponse(String clusterName, int numberOfPendingTasks, int numberOfInFlightFetch, int delayedUnassignedShards,
+        TimeValue taskMaxWaitingTime, boolean timedOut, ClusterStateHealth clusterStateHealth) {
         this.clusterName = clusterName;
         this.numberOfPendingTasks = numberOfPendingTasks;
         this.numberOfInFlightFetch = numberOfInFlightFetch;
+        this.delayedUnassignedShards = delayedUnassignedShards;
         this.taskMaxWaitingTime = taskMaxWaitingTime;
-        this.clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices);
+        this.timedOut = timedOut;
+        this.clusterStateHealth = clusterStateHealth;
         this.clusterHealthStatus = clusterStateHealth.getStatus();
     }
 
@@ -202,32 +309,22 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return "ClusterHealthResponse{" +
+            "clusterName='" + clusterName + '\'' +
+            ", numberOfPendingTasks=" + numberOfPendingTasks +
+            ", numberOfInFlightFetch=" + numberOfInFlightFetch +
+            ", delayedUnassignedShards=" + delayedUnassignedShards +
+            ", taskMaxWaitingTime=" + taskMaxWaitingTime +
+            ", timedOut=" + timedOut +
+            ", clusterStateHealth=" + clusterStateHealth +
+            ", clusterHealthStatus=" + clusterHealthStatus +
+            '}';
     }
 
     @Override
     public RestStatus status() {
         return isTimedOut() ? RestStatus.REQUEST_TIMEOUT : RestStatus.OK;
     }
-
-    private static final String CLUSTER_NAME = "cluster_name";
-    private static final String STATUS = "status";
-    private static final String TIMED_OUT = "timed_out";
-    private static final String NUMBER_OF_NODES = "number_of_nodes";
-    private static final String NUMBER_OF_DATA_NODES = "number_of_data_nodes";
-    private static final String NUMBER_OF_PENDING_TASKS = "number_of_pending_tasks";
-    private static final String NUMBER_OF_IN_FLIGHT_FETCH = "number_of_in_flight_fetch";
-    private static final String DELAYED_UNASSIGNED_SHARDS = "delayed_unassigned_shards";
-    private static final String TASK_MAX_WAIT_TIME_IN_QUEUE = "task_max_waiting_in_queue";
-    private static final String TASK_MAX_WAIT_TIME_IN_QUEUE_IN_MILLIS = "task_max_waiting_in_queue_millis";
-    private static final String ACTIVE_SHARDS_PERCENT_AS_NUMBER = "active_shards_percent_as_number";
-    private static final String ACTIVE_SHARDS_PERCENT = "active_shards_percent";
-    private static final String ACTIVE_PRIMARY_SHARDS = "active_primary_shards";
-    private static final String ACTIVE_SHARDS = "active_shards";
-    private static final String RELOCATING_SHARDS = "relocating_shards";
-    private static final String INITIALIZING_SHARDS = "initializing_shards";
-    private static final String UNASSIGNED_SHARDS = "unassigned_shards";
-    private static final String INDICES = "indices";
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -262,5 +359,30 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         }
         builder.endObject();
         return builder;
+    }
+
+    public static ClusterHealthResponse fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ClusterHealthResponse that = (ClusterHealthResponse) o;
+        return numberOfPendingTasks == that.numberOfPendingTasks &&
+            numberOfInFlightFetch == that.numberOfInFlightFetch &&
+            delayedUnassignedShards == that.delayedUnassignedShards &&
+            timedOut == that.timedOut &&
+            Objects.equals(clusterName, that.clusterName) &&
+            Objects.equals(taskMaxWaitingTime, that.taskMaxWaitingTime) &&
+            Objects.equals(clusterStateHealth, that.clusterStateHealth) &&
+            clusterHealthStatus == that.clusterHealthStatus;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(clusterName, numberOfPendingTasks, numberOfInFlightFetch, delayedUnassignedShards, taskMaxWaitingTime,
+            timedOut, clusterStateHealth, clusterHealthStatus);
     }
 }

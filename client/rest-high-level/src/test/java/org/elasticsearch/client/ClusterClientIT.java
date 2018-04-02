@@ -20,8 +20,11 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -34,8 +37,10 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -104,5 +109,22 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(exception.getMessage(), equalTo(
                 "Elasticsearch exception [type=illegal_argument_exception, reason=transient setting [" + setting + "], not recognized]"));
+    }
+
+    public void testClusterHealth() throws IOException {
+        ClusterHealthRequest request = new ClusterHealthRequest();
+        ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
+
+        assertThat(response, notNullValue());
+        assertThat(response.isTimedOut(), is(false));
+        assertThat(response.status(), is(RestStatus.OK));
+        assertThat(response.getStatus(), is(ClusterHealthStatus.GREEN));
+        assertThat(response.getIndices(), is(emptyMap()));
+        assertThat(response.getActivePrimaryShards(), is(0));
+        assertThat(response.getActiveShards(), is(0));
+        assertThat(response.getDelayedUnassignedShards(), is(0));
+        assertThat(response.getInitializingShards(), is(0));
+        assertThat(response.getUnassignedShards(), is(0));
+        assertThat(response.getActiveShardsPercent(), is(100d));
     }
 }

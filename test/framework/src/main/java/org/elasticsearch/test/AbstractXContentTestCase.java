@@ -42,18 +42,15 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
     protected static final int NUMBER_OF_TEST_RUNS = 20;
 
     public static <T extends ToXContent> void testFromXContent(int numberOfTestRuns, Supplier<T> instanceSupplier,
-                                                               boolean supportsUnknownFields, String[] shuffleFieldsExceptions,
-                                                               Predicate<String> randomFieldsExcludeFilter,
-                                                               CheckedBiFunction<XContent, BytesReference, XContentParser, IOException>
-                                                                       createParserFunction,
-                                                               CheckedFunction<XContentParser, T, IOException> parseFunction,
-                                                               BiConsumer<T, T> assertEqualsConsumer,
-                                                               boolean assertToXContentEquivalence) throws IOException {
+            boolean supportsUnknownFields, String[] shuffleFieldsExceptions, Predicate<String> randomFieldsExcludeFilter,
+            CheckedBiFunction<XContent, BytesReference, XContentParser, IOException> createParserFunction,
+            CheckedFunction<XContentParser, T, IOException> parseFunction, BiConsumer<T, T> assertEqualsConsumer,
+            boolean assertToXContentEquivalence, ToXContent.Params toXContentParams) throws IOException {
         for (int runs = 0; runs < numberOfTestRuns; runs++) {
             T testInstance = instanceSupplier.get();
             XContentType xContentType = randomFrom(XContentType.values());
-            BytesReference shuffled = toShuffledXContent(testInstance, xContentType, ToXContent.EMPTY_PARAMS, false, createParserFunction,
-                    shuffleFieldsExceptions);
+            BytesReference shuffled = toShuffledXContent(testInstance, xContentType, toXContentParams,false,
+                createParserFunction, shuffleFieldsExceptions);
             BytesReference withRandomFields;
             if (supportsUnknownFields) {
                 // we add a few random fields to check that parser is lenient on new fields
@@ -65,7 +62,8 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
             T parsed = parseFunction.apply(parser);
             assertEqualsConsumer.accept(testInstance, parsed);
             if (assertToXContentEquivalence) {
-                assertToXContentEquivalent(shuffled, XContentHelper.toXContent(parsed, xContentType, false), xContentType);
+                assertToXContentEquivalent(shuffled, XContentHelper.toXContent(parsed, xContentType, toXContentParams,false),
+                    xContentType);
             }
         }
     }
@@ -77,7 +75,7 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
     public final void testFromXContent() throws IOException {
         testFromXContent(NUMBER_OF_TEST_RUNS, this::createTestInstance, supportsUnknownFields(), getShuffleFieldsExceptions(),
                 getRandomFieldsExcludeFilter(), this::createParser, this::parseInstance, this::assertEqualInstances,
-                assertToXContentEquivalence());
+                assertToXContentEquivalence(), getToXContentParams());
     }
 
     /**
@@ -126,5 +124,9 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
      */
     protected String[] getShuffleFieldsExceptions() {
         return Strings.EMPTY_ARRAY;
+    }
+
+    protected ToXContent.Params getToXContentParams() {
+        return ToXContent.EMPTY_PARAMS;
     }
 }

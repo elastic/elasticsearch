@@ -24,13 +24,56 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Locale;
+import java.util.Objects;
 
-public final class ClusterShardHealth implements Writeable {
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+
+public final class ClusterShardHealth implements Writeable, ToXContentFragment {
+    private static final String SHARD_ID = "shard_id";
+    private static final String STATUS = "status";
+    private static final String ACTIVE_SHARDS = "active_shards";
+    private static final String RELOCATING_SHARDS = "relocating_shards";
+    private static final String INITIALIZING_SHARDS = "initializing_shards";
+    private static final String UNASSIGNED_SHARDS = "unassigned_shards";
+    private static final String PRIMARY_ACTIVE = "primary_active";
+
+    public static final ConstructingObjectParser<ClusterShardHealth, Integer> PARSER =
+        new ConstructingObjectParser<>("cluster_shard_health", true,
+            a -> {
+                int i = 0;
+                int shardId = (int) a[i++];
+                boolean primaryActive = (boolean) a[i++];
+                int activeShards = (int) a[i++];
+                int relocatingShards = (int) a[i++];
+                int initializingShards = (int) a[i++];
+                int unassignedShards = (int) a[i++];
+                String statusStr = (String) a[i++];
+                ClusterHealthStatus status = ClusterHealthStatus.fromString(statusStr);
+                return new ClusterShardHealth(shardId, status, activeShards, relocatingShards, initializingShards, unassignedShards,
+                    primaryActive);
+            });
+
+    static {
+        PARSER.declareInt(constructorArg(), new ParseField(SHARD_ID));
+        PARSER.declareBoolean(constructorArg(), new ParseField(PRIMARY_ACTIVE));
+        PARSER.declareInt(constructorArg(), new ParseField(ACTIVE_SHARDS));
+        PARSER.declareInt(constructorArg(), new ParseField(RELOCATING_SHARDS));
+        PARSER.declareInt(constructorArg(), new ParseField(INITIALIZING_SHARDS));
+        PARSER.declareInt(constructorArg(), new ParseField(UNASSIGNED_SHARDS));
+        PARSER.declareString(constructorArg(), new ParseField(STATUS));
+    }
 
     private final int shardId;
     private final ClusterHealthStatus status;
@@ -88,7 +131,21 @@ public final class ClusterShardHealth implements Writeable {
         primaryActive = in.readBoolean();
     }
 
-    public int getId() {
+    /**
+     * For XContent Parser and serialization tests
+     */
+    ClusterShardHealth(int shardId, ClusterHealthStatus status, int activeShards, int relocatingShards, int initializingShards,
+        int unassignedShards, boolean primaryActive) {
+        this.shardId = shardId;
+        this.status = status;
+        this.activeShards = activeShards;
+        this.relocatingShards = relocatingShards;
+        this.initializingShards = initializingShards;
+        this.unassignedShards = unassignedShards;
+        this.primaryActive = primaryActive;
+    }
+
+    public int getShardId() {
         return shardId;
     }
 
@@ -155,4 +212,43 @@ public final class ClusterShardHealth implements Writeable {
         }
     }
 
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(SHARD_ID, getShardId());
+        builder.field(STATUS, getStatus().name().toLowerCase(Locale.ROOT));
+        builder.field(PRIMARY_ACTIVE, isPrimaryActive());
+        builder.field(ACTIVE_SHARDS, getActiveShards());
+        builder.field(RELOCATING_SHARDS, getRelocatingShards());
+        builder.field(INITIALIZING_SHARDS, getInitializingShards());
+        builder.field(UNASSIGNED_SHARDS, getUnassignedShards());
+        return builder;
+    }
+
+    public static ClusterShardHealth fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof ClusterShardHealth)) return false;
+        ClusterShardHealth that = (ClusterShardHealth) o;
+        return shardId == that.shardId &&
+            activeShards == that.activeShards &&
+            relocatingShards == that.relocatingShards &&
+            initializingShards == that.initializingShards &&
+            unassignedShards == that.unassignedShards &&
+            primaryActive == that.primaryActive &&
+            status == that.status;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(shardId, status, activeShards, relocatingShards, initializingShards, unassignedShards, primaryActive);
+    }
 }

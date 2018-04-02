@@ -22,11 +22,18 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTableGenerator;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractSerializingTestCase;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Predicate;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class ClusterIndexHealthTests extends ESTestCase {
+public class ClusterIndexHealthTests extends AbstractSerializingTestCase<ClusterIndexHealth> {
     public void testClusterIndexHealth() {
         RoutingTableGenerator routingTableGenerator = new RoutingTableGenerator();
         int numberOfShards = randomInt(3) + 1;
@@ -36,10 +43,8 @@ public class ClusterIndexHealthTests extends ESTestCase {
         IndexRoutingTable indexRoutingTable = routingTableGenerator.genIndexRoutingTable(indexMetaData, counter);
 
         ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetaData, indexRoutingTable);
-        logger.info("index status: {}, expected {}", indexHealth.getStatus(), counter.status());
         assertIndexHealth(indexHealth, counter, indexMetaData);
     }
-
 
     private void assertIndexHealth(ClusterIndexHealth indexHealth, RoutingTableGenerator.ShardCounter counter, IndexMetaData indexMetaData) {
         assertThat(indexHealth.getStatus(), equalTo(counter.status()));
@@ -56,5 +61,44 @@ public class ClusterIndexHealthTests extends ESTestCase {
         }
 
         assertThat(totalShards, equalTo(indexMetaData.getNumberOfShards() * (1 + indexMetaData.getNumberOfReplicas())));
+    }
+
+    @Override
+    protected ClusterIndexHealth createTestInstance() {
+        return randomIndexHealthWithShards(randomAlphaOfLengthBetween(1, 10));
+    }
+
+    public static ClusterIndexHealth randomIndexHealthWithShards(String indexName) {
+        Map<Integer, ClusterShardHealth> shards = new HashMap<>();
+        for (int i = 0; i < randomIntBetween(1, 10); i++) {
+            shards.put(i, ClusterShardHealthTests.randomShardHealth(i));
+        }
+
+        return new ClusterIndexHealth(indexName, randomInt(1000), randomInt(1000), randomInt(1000), randomInt(1000),
+            randomInt(1000), randomInt(1000), randomInt(1000), randomFrom(ClusterHealthStatus.values()), shards);
+    }
+
+    @Override
+    protected Writeable.Reader<ClusterIndexHealth> instanceReader() {
+        return ClusterIndexHealth::new;
+    }
+
+    @Override
+    protected ClusterIndexHealth doParseInstance(XContentParser parser) {
+        return ClusterIndexHealth.fromXContent(parser);
+    }
+
+    protected ToXContent.Params getToXContentParams() {
+        Map<String, String> map = new HashMap<>();
+        map.put("level", "shards");
+        return new ToXContent.MapParams(map);
+    }
+
+    protected boolean supportsUnknownFields() {
+        return true;
+    }
+
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return "shards"::equals;
     }
 }

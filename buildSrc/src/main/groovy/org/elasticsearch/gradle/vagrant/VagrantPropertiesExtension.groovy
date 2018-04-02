@@ -40,6 +40,9 @@ class VagrantPropertiesExtension {
     @Input
     Boolean inheritTestUtils
 
+    @Input
+    String testMainClass
+
     VagrantPropertiesExtension(List<String> availableBoxes) {
         this.boxes = availableBoxes
         this.batsDir = 'src/test/resources/packaging'

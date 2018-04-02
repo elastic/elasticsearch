@@ -389,7 +389,7 @@ class VagrantTestPlugin implements Plugin<Project> {
                 environmentVars vagrantEnvVars
                 dependsOn up, setupPackagingTest
                 finalizedBy halt
-                args '--command', 'set -e; for jar in $PACKAGING_TESTS/*.jar; do java -jar $jar; done'
+                args '--command', "java -cp \"\$PACKAGING_TESTS/*\" ${-> project.extensions.esvagrant.testMainClass}"
             }
 
             TaskExecutionAdapter groovyPackagingReproListener = createReproListener(project, groovyPackagingTest.path)

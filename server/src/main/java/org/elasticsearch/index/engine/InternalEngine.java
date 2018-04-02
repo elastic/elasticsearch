@@ -184,8 +184,7 @@ public class InternalEngine extends Engine {
                     new CombinedDeletionPolicy(logger, translogDeletionPolicy, translog::getLastSyncedGlobalCheckpoint);
                 writer = createWriter();
                 bootstrapAppendOnlyInfoFromWriter(writer);
-                historyUUID = loadOrGenerateHistoryUUID(writer);
-                Objects.requireNonNull(historyUUID, "history uuid should not be null");
+                historyUUID = loadHistoryUUID(writer);
                 indexWriter = writer;
             } catch (IOException | TranslogCorruptedException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
@@ -275,10 +274,11 @@ public class InternalEngine extends Engine {
             // steal it by calling incRef on the "stolen" reader
             internalSearcherManager.maybeRefreshBlocking();
             IndexSearcher acquire = internalSearcherManager.acquire();
-            final IndexReader previousReader = referenceToRefresh.getIndexReader();
-            assert previousReader instanceof ElasticsearchDirectoryReader:
-                "searcher's IndexReader should be an ElasticsearchDirectoryReader, but got " + previousReader;
             try {
+                final IndexReader previousReader = referenceToRefresh.getIndexReader();
+                assert previousReader instanceof ElasticsearchDirectoryReader:
+                    "searcher's IndexReader should be an ElasticsearchDirectoryReader, but got " + previousReader;
+
                 final IndexReader newReader = acquire.getIndexReader();
                 if (newReader == previousReader) {
                     // nothing has changed - both ref managers share the same instance so we can use reference equality
@@ -473,7 +473,7 @@ public class InternalEngine extends Engine {
     /**
      * Reads the current stored history ID from the IW commit data.
      */
-    private String loadOrGenerateHistoryUUID(final IndexWriter writer) throws IOException {
+    private String loadHistoryUUID(final IndexWriter writer) throws IOException {
         final String uuid = commitDataAsMap(writer).get(HISTORY_UUID_KEY);
         if (uuid == null) {
             throw new IllegalStateException("commit doesn't contain history uuid");

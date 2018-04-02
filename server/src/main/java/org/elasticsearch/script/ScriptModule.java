@@ -48,7 +48,11 @@ public class ScriptModule {
             FilterScript.CONTEXT,
             SimilarityScript.CONTEXT,
             SimilarityWeightScript.CONTEXT,
-            TemplateScript.CONTEXT
+            TemplateScript.CONTEXT,
+            MetricAggScripts.InitScript.CONTEXT,
+            MetricAggScripts.MapScript.CONTEXT,
+            MetricAggScripts.CombineScript.CONTEXT,
+            MetricAggScripts.ReduceScript.CONTEXT
         ).collect(Collectors.toMap(c -> c.name, Function.identity()));
     }
 

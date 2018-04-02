@@ -20,10 +20,10 @@
 package org.elasticsearch.search.aggregations.metrics.scripted;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.MetricAggScripts;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -38,12 +38,12 @@ import java.util.Map;
 
 public class ScriptedMetricAggregator extends MetricsAggregator {
 
-    private final SearchScript.LeafFactory mapScript;
-    private final ExecutableScript combineScript;
+    private final MetricAggScripts.MapScript.LeafFactory mapScript;
+    private final MetricAggScripts.CombineScript combineScript;
     private final Script reduceScript;
     private Map<String, Object> params;
 
-    protected ScriptedMetricAggregator(String name, SearchScript.LeafFactory mapScript, ExecutableScript combineScript,
+    protected ScriptedMetricAggregator(String name, MetricAggScripts.MapScript.LeafFactory mapScript, MetricAggScripts.CombineScript combineScript,
                                        Script reduceScript,
             Map<String, Object> params, SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
@@ -62,13 +62,26 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
             final LeafBucketCollector sub) throws IOException {
-        final SearchScript leafMapScript = mapScript.newInstance(ctx);
+        final MetricAggScripts.MapScript leafMapScript = mapScript.newInstance(ctx);
         return new LeafBucketCollectorBase(sub, leafMapScript) {
+            private Scorer scorer;
+
+            @Override
+            public void setScorer(Scorer scorer) throws IOException {
+                this.scorer = scorer;
+            }
+
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 assert bucket == 0 : bucket;
+
+                double _score = 0.0;
+                if (scorer != null) {
+                    _score = scorer.score();
+                }
+
                 leafMapScript.setDocument(doc);
-                leafMapScript.run();
+                leafMapScript.execute(_score);
             }
         };
     }
@@ -77,7 +90,7 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         Object aggregation;
         if (combineScript != null) {
-            aggregation = combineScript.run();
+            aggregation = combineScript.execute();
             CollectionUtils.ensureNoSelfReferences(aggregation);
         } else {
             aggregation = params.get("_agg");

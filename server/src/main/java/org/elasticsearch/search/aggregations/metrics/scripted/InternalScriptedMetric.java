@@ -22,7 +22,7 @@ package org.elasticsearch.search.aggregations.metrics.scripted;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.MetricAggScripts;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -89,15 +89,16 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
         InternalScriptedMetric firstAggregation = ((InternalScriptedMetric) aggregations.get(0));
         List<Object> aggregation;
         if (firstAggregation.reduceScript != null && reduceContext.isFinalReduce()) {
-            Map<String, Object> vars = new HashMap<>();
-            vars.put("_aggs", aggregationObjects);
+            Map<String, Object> params = new HashMap<>();
             if (firstAggregation.reduceScript.getParams() != null) {
-                vars.putAll(firstAggregation.reduceScript.getParams());
+                params.putAll(firstAggregation.reduceScript.getParams());
             }
-            ExecutableScript.Factory factory = reduceContext.scriptService().compile(
-                firstAggregation.reduceScript, ExecutableScript.AGGS_CONTEXT);
-            ExecutableScript script = factory.newInstance(vars);
-            aggregation = Collections.singletonList(script.run());
+            params.put("_aggs", aggregationObjects);
+
+            MetricAggScripts.ReduceScript.Factory factory = reduceContext.scriptService().compile(
+                firstAggregation.reduceScript, MetricAggScripts.ReduceScript.CONTEXT);
+            MetricAggScripts.ReduceScript script = factory.newInstance(params, aggregationObjects);
+            aggregation = Collections.singletonList(script.execute());
         } else if (reduceContext.isFinalReduce())  {
             aggregation = Collections.singletonList(aggregationObjects);
         } else {

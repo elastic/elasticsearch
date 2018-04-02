@@ -68,6 +68,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -194,12 +195,53 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                 return newAggregation;
             });
 
+            scripts.put("agg.items = new ArrayList()", vars ->
+                aggContextScript(vars, agg -> ((HashMap) agg).put("items", new ArrayList())));
+
+            scripts.put("agg.items.add(1)", vars ->
+                aggContextScript(vars, agg -> {
+                    HashMap aggMap = (HashMap) agg;
+                    List items = (List) aggMap.get("items");
+                    items.add(1);
+                }));
+
+            scripts.put("sum context agg values", vars -> {
+                int sum = 0;
+                HashMap agg = (HashMap) vars.get("agg");
+                List items = (List) agg.get("items");
+
+                for (Object x : items) {
+                    sum += (Integer)x;
+                }
+
+                return sum;
+            });
+
+            scripts.put("sum context aggs of agg values", vars -> {
+                Integer sum = 0;
+
+                List<?> aggs = (List<?>) vars.get("aggs");
+                for (Object agg : (List) aggs) {
+                    sum += ((Number) agg).intValue();
+                }
+
+                return sum;
+            });
+
             return scripts;
         }
 
-        @SuppressWarnings("unchecked")
         static <T> Object aggScript(Map<String, Object> vars, Consumer<T> fn) {
-            T agg = (T) vars.get("_agg");
+            return aggScript(vars, fn, "_agg");
+        }
+
+        static <T> Object aggContextScript(Map<String, Object> vars, Consumer<T> fn) {
+            return aggScript(vars, fn, "agg");
+        }
+
+        @SuppressWarnings("unchecked")
+        private static <T> Object aggScript(Map<String, Object> vars, Consumer<T> fn, String aggVarName) {
+            T agg = (T) vars.get(aggVarName);
             fn.accept(agg);
             return agg;
         }
@@ -1015,5 +1057,38 @@ public class ScriptedMetricIT extends ESIntegTestCase {
 
         SearchPhaseExecutionException ex = expectThrows(SearchPhaseExecutionException.class, builder::get);
         assertThat(ex.getCause().getMessage(), containsString("Parameter name \"param1\" used in both aggregation and script parameters"));
+    }
+
+    public void testAggFromContext() {
+        Script initScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "agg.items = new ArrayList()", Collections.emptyMap());
+        Script mapScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "agg.items.add(1)", Collections.emptyMap());
+        Script combineScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum context agg values", Collections.emptyMap());
+        Script reduceScript =
+            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "sum context aggs of agg values",
+                Collections.emptyMap());
+
+        SearchResponse response = client()
+            .prepareSearch("idx")
+            .setQuery(matchAllQuery())
+            .addAggregation(
+                scriptedMetric("scripted")
+                    .initScript(initScript)
+                    .mapScript(mapScript)
+                    .combineScript(combineScript)
+                    .reduceScript(reduceScript))
+            .get();
+
+        Aggregation aggregation = response.getAggregations().get("scripted");
+        assertThat(aggregation, notNullValue());
+        assertThat(aggregation, instanceOf(ScriptedMetric.class));
+
+        ScriptedMetric scriptedMetricAggregation = (ScriptedMetric) aggregation;
+        assertThat(scriptedMetricAggregation.getName(), equalTo("scripted"));
+        assertThat(scriptedMetricAggregation.aggregation(), notNullValue());
+
+        assertThat(scriptedMetricAggregation.aggregation(), instanceOf(Integer.class));
+        Integer aggResult = (Integer) scriptedMetricAggregation.aggregation();
+        long totalAgg = aggResult.longValue();
+        assertThat(totalAgg, equalTo(numDocs));
     }
 }

@@ -100,7 +100,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             });
         SCRIPTS.put("mapScriptScore", params -> {
             Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
-            ((List<Double>) agg.get("collector")).add(((ScoreAccessor) params.get("_score")).doubleValue());
+            ((List<Double>) agg.get("collector")).add(((Number) params.get("_score")).doubleValue());
             return agg;
         });
         SCRIPTS.put("combineScriptScore", params -> {

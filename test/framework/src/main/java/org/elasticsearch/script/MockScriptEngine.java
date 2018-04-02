@@ -21,20 +21,20 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Doc;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Field;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Query;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Term;
-import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 import static java.util.Collections.emptyMap;
 
@@ -109,6 +109,18 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(SimilarityWeightScript.class)) {
             SimilarityWeightScript.Factory factory = mockCompiled::createSimilarityWeightScript;
             return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(MetricAggScripts.InitScript.class)) {
+            MetricAggScripts.InitScript.Factory factory = mockCompiled::createMetricAggInitScript;
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(MetricAggScripts.MapScript.class)) {
+            MetricAggScripts.MapScript.Factory factory = mockCompiled::createMetricAggMapScript;
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(MetricAggScripts.CombineScript.class)) {
+            MetricAggScripts.CombineScript.Factory factory = mockCompiled::createMetricAggCombineScript;
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(MetricAggScripts.ReduceScript.class)) {
+            MetricAggScripts.ReduceScript.Factory factory = mockCompiled::createMetricAggReduceScript;
+            return context.factoryClazz.cast(factory);
         }
         throw new IllegalArgumentException("mock script engine does not know how to handle context [" + context.name + "]");
     }
@@ -168,6 +180,23 @@ public class MockScriptEngine implements ScriptEngine {
 
         public SimilarityWeightScript createSimilarityWeightScript() {
             return new MockSimilarityWeightScript(script != null ? script : ctx -> 42d);
+        }
+
+        public MetricAggScripts.InitScript createMetricAggInitScript(Map<String, Object> params, Object agg) {
+            return new MockMetricAggInitScript(params, agg, script != null ? script : ctx -> 42d);
+        }
+
+        public MetricAggScripts.MapScript.LeafFactory createMetricAggMapScript(Map<String, Object> params, Object agg,
+                                                                               SearchLookup lookup) {
+            return new MockMetricAggMapScript(params, agg, lookup, script != null ? script : ctx -> 42d);
+        }
+
+        public MetricAggScripts.CombineScript createMetricAggCombineScript(Map<String, Object> params, Object agg) {
+            return new MockMetricAggCombineScript(params, agg, script != null ? script : ctx -> 42d);
+        }
+
+        public MetricAggScripts.ReduceScript createMetricAggReduceScript(Map<String, Object> params, List<Object> aggs) {
+            return new MockMetricAggReduceScript(params, aggs, script != null ? script : ctx -> 42d);
         }
     }
 
@@ -320,6 +349,108 @@ public class MockScriptEngine implements ScriptEngine {
             map.put("field", field);
             map.put("term", term);
             return ((Number) script.apply(map)).doubleValue();
+        }
+    }
+
+    public class MockMetricAggInitScript extends MetricAggScripts.InitScript {
+        private final Function<Map<String, Object>, Object> script;
+
+        MockMetricAggInitScript(Map<String, Object> params, Object agg,
+                                Function<Map<String, Object>, Object> script) {
+            super(params, agg);
+            this.script = script;
+        }
+
+        public void execute() {
+            Map<String, Object> map = new HashMap<>();
+
+            if (getParams() != null) {
+                map.putAll(getParams()); // TODO: remove this once scripts know to look for params under params key
+                map.put("params", getParams());
+            }
+
+            map.put("agg", getAgg());
+            script.apply(map);
+        }
+    }
+
+    public class MockMetricAggMapScript implements MetricAggScripts.MapScript.LeafFactory {
+        private final Map<String, Object> params;
+        private final Object agg;
+        private final SearchLookup lookup;
+        private final Function<Map<String, Object>, Object> script;
+
+        MockMetricAggMapScript(Map<String, Object> params, Object agg, SearchLookup lookup,
+                               Function<Map<String, Object>, Object> script) {
+            this.params = params;
+            this.agg = agg;
+            this.lookup = lookup;
+            this.script = script;
+        }
+
+        @Override
+        public MetricAggScripts.MapScript newInstance(LeafReaderContext context) {
+            return new MetricAggScripts.MapScript(params, agg, lookup, context) {
+                @Override
+                public void execute(double _score) {
+                    Map<String, Object> map = new HashMap<>();
+
+                    if (getParams() != null) {
+                        map.putAll(getParams()); // TODO: remove this once scripts know to look for params under params key
+                        map.put("params", getParams());
+                    }
+
+                    map.put("agg", getAgg());
+                    map.put("doc", getDoc());
+                    map.put("_score", _score);
+
+                    script.apply(map);
+                }
+            };
+        }
+    }
+
+    public class MockMetricAggCombineScript extends MetricAggScripts.CombineScript {
+        private final Function<Map<String, Object>, Object> script;
+
+        MockMetricAggCombineScript(Map<String, Object> params, Object agg,
+                                Function<Map<String, Object>, Object> script) {
+            super(params, agg);
+            this.script = script;
+        }
+
+        public Object execute() {
+            Map<String, Object> map = new HashMap<>();
+
+            if (getParams() != null) {
+                map.putAll(getParams()); // TODO: remove this once scripts know to look for params under params key
+                map.put("params", getParams());
+            }
+
+            map.put("agg", getAgg());
+            return script.apply(map);
+        }
+    }
+
+    public class MockMetricAggReduceScript extends MetricAggScripts.ReduceScript {
+        private final Function<Map<String, Object>, Object> script;
+
+        MockMetricAggReduceScript(Map<String, Object> params, List<Object> aggs,
+                                  Function<Map<String, Object>, Object> script) {
+            super(params, aggs);
+            this.script = script;
+        }
+
+        public Object execute() {
+            Map<String, Object> map = new HashMap<>();
+
+            if (getParams() != null) {
+                map.putAll(getParams()); // TODO: remove this once scripts know to look for params under params key
+                map.put("params", getParams());
+            }
+
+            map.put("aggs", getAggs());
+            return script.apply(map);
         }
     }
 

@@ -36,6 +36,8 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true);
     private String[] names = Strings.EMPTY_ARRAY;
     private boolean humanReadable = false;
+    private boolean includeDefaults = false; //only used by high-level rest client
+    private boolean flatSettings = false; //only used by high-level rest client
 
     @Override
     public GetSettingsRequest indices(String... indices) {
@@ -47,6 +49,28 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
         this.indicesOptions = indicesOptions;
         return this;
     }
+
+    /**
+     * Return settings in a flat format
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/common-options.html#_flat_settings">
+     * Flat Settings flag on elastic.co</a>
+     * This flag is specific to the rest client.
+     */
+    public GetSettingsRequest flatSettings(boolean flatSettings) {
+        this.flatSettings = flatSettings;
+        return this;
+    }
+
+    /**
+     * When include_defaults is set, return default values which are normally suppressed.
+     * This flag is specific to the rest client.
+     */
+    public GetSettingsRequest includeDefaults(boolean includeDefaults) {
+        this.includeDefaults = includeDefaults;
+        return this;
+    }
+
 
     public GetSettingsRequest() {
     }
@@ -94,6 +118,14 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
     public GetSettingsRequest humanReadable(boolean humanReadable) {
         this.humanReadable = humanReadable;
         return this;
+    }
+
+    public boolean flatSettings() {
+        return flatSettings;
+    }
+
+    public boolean includeDefaults() {
+        return includeDefaults;
     }
 
     @Override

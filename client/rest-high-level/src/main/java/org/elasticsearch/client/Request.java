@@ -598,10 +598,10 @@ public final class Request {
         Params params = Params.builder();
         params.withIndicesOptions(getSettingsRequest.indicesOptions());
         params.withLocal(getSettingsRequest.local());
+        params.withFlatSettings(getSettingsRequest.flatSettings());
+        params.withIncludeDefaults(getSettingsRequest.includeDefaults());
+        params.withMasterTimeout(getSettingsRequest.masterNodeTimeout());
 
-        if (getSettingsRequest.indices().length == 0) {
-            throw new IllegalArgumentException("getSettings requires at least one index");
-        }
         String endpoint = endpoint(getSettingsRequest.indices(), "_settings", getSettingsRequest.names());
         return new Request(HttpGet.METHOD_NAME, endpoint, params.getParams(), null);
     }

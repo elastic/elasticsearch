@@ -37,19 +37,23 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 
-import java.util.Map;
+import java.util.Arrays;
 
 public class TransportGetSettingsAction extends TransportMasterNodeReadAction<GetSettingsRequest, GetSettingsResponse> {
 
     private final SettingsFilter settingsFilter;
+    private final IndexScopedSettings indexScopedSettings;
+
 
     @Inject
     public TransportGetSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool, SettingsFilter settingsFilter, ActionFilters actionFilters,
-                                      IndexNameExpressionResolver indexNameExpressionResolver) {
+                                      IndexNameExpressionResolver indexNameExpressionResolver, IndexScopedSettings indexedScopedSettings) {
         super(settings, GetSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters, GetSettingsRequest::new, indexNameExpressionResolver);
         this.settingsFilter = settingsFilter;
+        this.indexScopedSettings = indexedScopedSettings;
     }
 
     @Override
@@ -73,21 +77,27 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
     protected void masterOperation(GetSettingsRequest request, ClusterState state, ActionListener<GetSettingsResponse> listener) {
         Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         ImmutableOpenMap.Builder<String, Settings> indexToSettingsBuilder = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, Settings> indexToDefaultSettingsBuilder = ImmutableOpenMap.builder();
         for (Index concreteIndex : concreteIndices) {
             IndexMetaData indexMetaData = state.getMetaData().index(concreteIndex);
             if (indexMetaData == null) {
                 continue;
             }
 
-            Settings settings = settingsFilter.filter(indexMetaData.getSettings());
+            Settings indexSettings = settingsFilter.filter(indexMetaData.getSettings());
             if (request.humanReadable()) {
-                settings = IndexMetaData.addHumanReadableSettings(settings);
+                indexSettings = IndexMetaData.addHumanReadableSettings(this.settings);
             }
+
             if (CollectionUtils.isEmpty(request.names()) == false) {
-                settings = settings.filter(k -> Regex.simpleMatch(request.names(), k));
+                indexSettings = indexSettings.filter(k -> Regex.simpleMatch(request.names(), k));
             }
-            indexToSettingsBuilder.put(concreteIndex.getName(), settings);
+
+            indexToSettingsBuilder.put(concreteIndex.getName(), indexSettings);
+            if (request.includeDefaults()) {
+                indexToDefaultSettingsBuilder.put(concreteIndex.getName(), indexScopedSettings.diff(indexSettings, this.settings));
+            }
         }
-        listener.onResponse(new GetSettingsResponse(indexToSettingsBuilder.build()));
+        listener.onResponse(new GetSettingsResponse(indexToSettingsBuilder.build(), indexToDefaultSettingsBuilder.build()));
     }
 }

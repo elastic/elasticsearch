@@ -430,22 +430,24 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testGetSettings() throws IOException {
-        String[] indices = randomIndicesNames(1, 5);
-        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(indices);
+        String emptyIndexName = "";
+        String nullIndexName = null;
+        String[] randomIndices = randomIndicesNames(1, 5);
+        String[] indicesUnderTest = java.util.stream.Stream.concat(
+            java.util.Arrays.stream(randomIndices),
+            java.util.stream.Stream.of(emptyIndexName, nullIndexName)
+        ).toArray(String[]::new);
+
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(indicesUnderTest);
 
         Map<String, String> expectedParams = new HashMap<>();
-        /* HELP
         setRandomMasterTimeout(getSettingsRequest, expectedParams);
-        I definitely have some questions here.  Enabling this causes the master timeout
-        parameter *not* to come through on the actual request, but I can't figure out
-        why.  Further, I'm not entirely sure I need it.
-        */
         setRandomIndicesOptions(getSettingsRequest::indicesOptions, getSettingsRequest::indicesOptions, expectedParams);
 
         setRandomLocal(getSettingsRequest, expectedParams);
 
         Request request = Request.getSettings(getSettingsRequest);
-        StringJoiner endpoint = new StringJoiner("/", "/", "").add(String.join(",", indices)).add("_settings");
+        StringJoiner endpoint = new StringJoiner("/", "/", "").add(String.join(",", indicesUnderTest)).add("_settings");
         assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
         assertThat(request.getParameters(), equalTo(expectedParams));
         assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));

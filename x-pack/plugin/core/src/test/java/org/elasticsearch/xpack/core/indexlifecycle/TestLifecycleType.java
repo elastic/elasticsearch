@@ -35,34 +35,6 @@ public class TestLifecycleType implements LifecycleType {
         return TYPE;
     }
 
-//    @Override
-//    public NextActionProvider getActionProvider(IndexLifecycleContext context, Phase phase) {
-//        return a -> Optional.ofNullable(phase.getActions().entrySet().iterator().next()).map(Map.Entry::getValue).orElse(null);
-//    }
-
-//    @Override
-//    public Phase getFirstPhase(Map<String, Phase> phases) {
-//        return phases.values().iterator().next();
-//    }
-//
-//    @Override
-//    public Phase nextPhase(Map<String, Phase> phases, @Nullable Phase currentPhase) {
-//        if (currentPhase == null) {
-//            return getFirstPhase(phases);
-//        }
-//
-//        boolean foundPhase = false;
-//        for (Phase phase : phases.values()) {
-//            if (foundPhase) {
-//                return phase;
-//            } else if (phase.equals(currentPhase)) {
-//                foundPhase = true;
-//            }
-//        }
-//
-//        return null;
-//    }
-
     @Override
     public void validate(Collection<Phase> phases) {
         // always valid

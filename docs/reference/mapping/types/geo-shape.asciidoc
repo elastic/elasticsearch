@@ -154,12 +154,12 @@ are provided:
 [float]
 ===== Accuracy
 
-Geo_shape does not provide 100% accuracy and depending on how it is
-configured it may return some false positives or false negatives for
-certain queries. To mitigate this, it is important to select an
-appropriate value for the tree_levels parameter and to adjust
-expectations accordingly. For example, a point may be near the border of
-a particular grid cell and may thus not match a query that only matches the
+Geo_shape does not provide 100% accuracy and depending on how it is configured
+it may return some false positives for `INTERSECTS`, `WITHIN` and `CONTAINS`
+queries, and some false negatives for `DISJOINT` queries. To mitigate this, it
+is important to select an appropriate value for the tree_levels parameter and
+to adjust expectations accordingly. For example, a point may be near the border
+of a particular grid cell and may thus not match a query that only matches the
 cell right next to it -- even though the shape is very close to the point.
 
 [float]

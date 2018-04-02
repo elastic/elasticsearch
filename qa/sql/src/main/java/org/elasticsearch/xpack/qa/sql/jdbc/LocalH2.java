@@ -5,9 +5,8 @@
  */
 package org.elasticsearch.xpack.qa.sql.jdbc;
 
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.logging.Loggers;
 import org.junit.rules.ExternalResource;
 
 import java.sql.Connection;
@@ -16,7 +15,6 @@ import java.sql.SQLException;
 import java.util.Properties;
 
 public class LocalH2 extends ExternalResource implements CheckedSupplier<Connection, SQLException> {
-    private final Logger logger = Loggers.getLogger(getClass());
 
     static {
         try {
@@ -41,6 +39,8 @@ public class LocalH2 extends ExternalResource implements CheckedSupplier<Connect
     // H2 in-memory will keep the db alive as long as this connection is opened
     private Connection keepAlive;
 
+    private CheckedConsumer<Connection, SQLException> initializer;
+
     /*
      * The syntax on the connection string is fairly particular:
      *      mem:; creates an anonymous database in memory. The `;` is
@@ -52,14 +52,15 @@ public class LocalH2 extends ExternalResource implements CheckedSupplier<Connect
      *              for MySQL and, by default, H2. Our jdbc driver does it.
      */
     // http://www.h2database.com/html/features.html#in_memory_databases
-    public LocalH2() {
+    public LocalH2(CheckedConsumer<Connection, SQLException> initializer) {
         this.url = "jdbc:h2:mem:essql;DATABASE_TO_UPPER=false;ALIAS_COLUMN_NAME=true";
+        this.initializer = initializer;
     }
 
     @Override
     protected void before() throws Throwable {
         keepAlive = get();
-        keepAlive.createStatement().execute("RUNSCRIPT FROM 'classpath:/setup_test_emp.sql'");
+        initializer.accept(keepAlive);
     }
 
     @Override

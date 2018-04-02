@@ -263,6 +263,9 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         // validate max content length
         if (maxContentLength.getBytes() > Integer.MAX_VALUE) {
             logger.warn("maxContentLength[{}] set to high value, resetting it to [100mb]", maxContentLength);
+            deprecationLogger.deprecated(
+                    "out of bounds max content length value [{}] will no longer be truncated to [100mb], you must enter a valid setting",
+                    maxContentLength.getStringRep());
             maxContentLength = new ByteSizeValue(100, ByteSizeUnit.MB);
         }
         this.maxContentLength = maxContentLength;

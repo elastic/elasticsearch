@@ -162,6 +162,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -366,6 +367,24 @@ public class RestHighLevelClient implements Closeable {
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update.html">Update API on elastic.co</a>
      */
+    public final UpdateResponse update(UpdateRequest updateRequest) throws IOException {
+        return update(updateRequest, (Consumer<Request>) null);
+    }
+
+    /**
+     * Updates a document using the Update API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update.html">Update API on elastic.co</a>
+     */
+    public final UpdateResponse update(UpdateRequest updateRequest, Consumer<Request> customizer) throws IOException {
+        return performRequestAndParseEntity(updateRequest, HighLevelRequests::update, customizer, UpdateResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Updates a document using the Update API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update.html">Update API on elastic.co</a>
+     */
     public final UpdateResponse update(UpdateRequest updateRequest, Header... headers) throws IOException {
         return performRequestAndParseEntity(updateRequest, HighLevelRequests::update, UpdateResponse::fromXContent, emptySet(), headers);
     }
@@ -510,24 +529,47 @@ public class RestHighLevelClient implements Closeable {
     }
 
     protected final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
+            CheckedFunction<Req, Request, IOException> requestConverter, Consumer<Request> requestCustomizer,
+            CheckedFunction<XContentParser, Resp, IOException> entityParser, Set<Integer> ignores) throws IOException {
+        return performRequest(request, requestConverter, requestCustomizer, (response) -> parseEntity(response.getEntity(), entityParser), ignores);
+    }
+
+    /**
+     * @deprecated Prefer {@link #performRequestAndParseEntity(ActionRequest, CheckedFunction, Consumer, CheckedFunction, Set)}
+     */
+    @Deprecated
+    protected final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
                                                                             CheckedFunction<Req, Request, IOException> requestConverter,
                                                                             CheckedFunction<XContentParser, Resp, IOException> entityParser,
                                                                             Set<Integer> ignores, Header... headers) throws IOException {
         return performRequest(request, requestConverter, (response) -> parseEntity(response.getEntity(), entityParser), ignores, headers);
     }
 
+    /**
+     * @deprecated Prefer {@link #performRequest(ActionRequest, CheckedFunction, Consumer, CheckedFunction, Set)}
+     */
+    @Deprecated
     protected final <Req extends ActionRequest, Resp> Resp performRequest(Req request,
                                                           CheckedFunction<Req, Request, IOException> requestConverter,
                                                           CheckedFunction<Response, Resp, IOException> responseConverter,
                                                           Set<Integer> ignores, Header... headers) throws IOException {
+        Consumer<Request> requestCustomizer = r -> r.setHeaders(headers);
+        return performRequest(request, requestConverter, requestCustomizer, responseConverter, ignores);
+    }
+
+    protected final <Req extends ActionRequest, Resp> Resp performRequest(Req request,
+            CheckedFunction<Req, Request, IOException> requestConverter, Consumer<Request> requestCustomizer,
+            CheckedFunction<Response, Resp, IOException> responseConverter,
+            Set<Integer> ignores) throws IOException {
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null) {
             throw validationException;
         }
         Request req = requestConverter.apply(request);
+        requestCustomizer.accept(req);
         Response response;
         try {
-            response = client.performRequest(req.getMethod(), req.getEndpoint(), req.getParameters(), req.getEntity(), headers);
+            response = client.performRequest(req.getMethod(), req.getEndpoint(), req.getParameters(), req.getEntity(), req.getHeaders());
         } catch (ResponseException e) {
             if (ignores.contains(e.getResponse().getStatusLine().getStatusCode())) {
                 try {

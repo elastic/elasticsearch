@@ -14,13 +14,14 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
-import org.elasticsearch.xpack.core.indexlifecycle.DeleteAsyncActionStep;
+import org.elasticsearch.xpack.core.indexlifecycle.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleType;
 import org.elasticsearch.xpack.core.indexlifecycle.MockAction;
+import org.elasticsearch.xpack.core.indexlifecycle.MockStep;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
+import org.elasticsearch.xpack.core.indexlifecycle.PhaseAfterStep;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.elasticsearch.xpack.core.indexlifecycle.TestLifecycleType;
 import org.elasticsearch.xpack.core.indexlifecycle.TimeseriesLifecycleType;
@@ -40,15 +41,7 @@ import static org.mockito.Mockito.mock;
 
 public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecyclePolicy> {
 
-    private String indexName;
     private String lifecycleName;
-    private MockAction firstAction;
-    private MockAction secondAction;
-    private MockAction thirdAction;
-    private Phase firstPhase;
-    private Phase secondPhase;
-    private Phase thirdPhase;
-    private LifecyclePolicy policy;
 
     @Override
     protected LifecyclePolicy doParseInstance(XContentParser parser) throws IOException {
@@ -58,14 +51,14 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-                Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new),
+                Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new),
                         new NamedWriteableRegistry.Entry(LifecycleType.class, TestLifecycleType.TYPE, (in) -> TestLifecycleType.INSTANCE)));
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
-        entries.add(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse));
+        entries.add(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(MockAction.NAME), MockAction::parse));
         entries.add(new NamedXContentRegistry.Entry(LifecycleType.class, new ParseField(TestLifecycleType.TYPE),
                 (p) -> TestLifecycleType.INSTANCE));
         return new NamedXContentRegistry(entries);
@@ -73,13 +66,14 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
 
     @Override
     protected LifecyclePolicy createTestInstance() {
+        lifecycleName = randomAlphaOfLengthBetween(1, 20);
         int numberPhases = randomInt(5);
         Map<String, Phase> phases = new HashMap<>(numberPhases);
         for (int i = 0; i < numberPhases; i++) {
             TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
             Map<String, LifecycleAction> actions = new HashMap<>();
             if (randomBoolean()) {
-                DeleteAction action = new DeleteAction();
+                MockAction action = new MockAction(Collections.emptyList());
                 actions.put(action.getWriteableName(), action);
             }
             String phaseName = randomAlphaOfLength(10);
@@ -117,26 +111,64 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         assertSame(TimeseriesLifecycleType.INSTANCE, policy.getType());
     }
 
-    public void testToSteps() throws Exception {
+    public void testToStepsWithOneStep() {
         Client client = mock(Client.class);
         LongSupplier nowSupplier = () -> 0L;
-        Step deleteStep = new DeleteAsyncActionStep(
-            new Step.StepKey("delete", "DELETE", "delete"), null, client);
+        MockStep firstStep = new MockStep(new Step.StepKey("test", "test", "test"), null);
 
-        indexName = randomAlphaOfLengthBetween(1, 20);
         lifecycleName = randomAlphaOfLengthBetween(1, 20);
         Map<String, Phase> phases = new LinkedHashMap<>();
-        firstAction = new MockAction(Arrays.asList(deleteStep));
+        LifecycleAction firstAction = new MockAction(Arrays.asList(firstStep));
         Map<String, LifecycleAction> actions = Collections.singletonMap(MockAction.NAME, firstAction);
-        firstPhase = new Phase("delete", TimeValue.ZERO, actions);
+        Phase firstPhase = new Phase("test", TimeValue.ZERO, actions);
         phases.put(firstPhase.getName(), firstPhase);
-        policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
+        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
 
         List<Step> steps = policy.toSteps(client, nowSupplier);
-        assertThat(steps.size(), equalTo(2));
-        assertThat(steps.get(0).getKey(), equalTo(new Step.StepKey("delete", null, "after")));
-        assertThat(steps.get(0).getNextStepKey(), equalTo(deleteStep.getKey()));
-        assertThat(steps.get(1), equalTo(deleteStep));
-        assertNull(steps.get(1).getNextStepKey());
+        assertThat(steps.size(), equalTo(3));
+        assertThat(steps.get(0).getKey(), equalTo(new Step.StepKey("", "", "")));
+        assertThat(steps.get(0).getNextStepKey(), equalTo(new Step.StepKey("test", null, "after")));
+        assertThat(steps.get(1).getKey(), equalTo(new Step.StepKey("test", null, "after")));
+        assertThat(steps.get(1).getNextStepKey(), equalTo(firstStep.getKey()));
+        assertThat(steps.get(2), equalTo(firstStep));
+        assertNull(steps.get(2).getNextStepKey());
+    }
+
+    public void testToStepsWithTwoPhases() {
+        Client client = mock(Client.class);
+        LongSupplier nowSupplier = () -> 0L;
+        MockStep secondActionStep = new MockStep(new Step.StepKey("second_phase", "test", "test"), null);
+        MockStep secondAfter = new MockStep(new Step.StepKey("second_phase", null, "after"), secondActionStep.getKey());
+        MockStep firstActionAnotherStep = new MockStep(new Step.StepKey("first_phase", "test", "test"), secondAfter.getKey());
+        MockStep firstActionStep = new MockStep(new Step.StepKey("first_phase", "test", "test"), firstActionAnotherStep.getKey());
+        MockStep firstAfter = new MockStep(new Step.StepKey("first_phase", null, "after"), firstActionStep.getKey());
+        MockStep init = new MockStep(new Step.StepKey("", "", ""), firstAfter.getKey());
+
+        lifecycleName = randomAlphaOfLengthBetween(1, 20);
+        Map<String, Phase> phases = new LinkedHashMap<>();
+        LifecycleAction firstAction = new MockAction(Arrays.asList(firstActionStep, firstActionAnotherStep));
+        LifecycleAction secondAction = new MockAction(Arrays.asList(secondActionStep));
+        Map<String, LifecycleAction> firstActions = Collections.singletonMap(MockAction.NAME, firstAction);
+        Map<String, LifecycleAction> secondActions = Collections.singletonMap(MockAction.NAME, secondAction);
+        Phase firstPhase = new Phase("first_phase", TimeValue.ZERO, firstActions);
+        Phase secondPhase = new Phase("second_phase", TimeValue.ZERO, secondActions);
+        phases.put(firstPhase.getName(), firstPhase);
+        phases.put(secondPhase.getName(), secondPhase);
+        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
+
+        List<Step> steps = policy.toSteps(client, nowSupplier);
+        assertThat(steps.size(), equalTo(6));
+        assertThat(steps.get(0).getClass(), equalTo(InitializePolicyContextStep.class));
+        assertThat(steps.get(0).getKey(), equalTo(init.getKey()));
+        assertThat(steps.get(0).getNextStepKey(), equalTo(init.getNextStepKey()));
+        assertThat(steps.get(1).getClass(), equalTo(PhaseAfterStep.class));
+        assertThat(steps.get(1).getKey(), equalTo(firstAfter.getKey()));
+        assertThat(steps.get(1).getNextStepKey(), equalTo(firstAfter.getNextStepKey()));
+        assertThat(steps.get(2), equalTo(firstActionStep));
+        assertThat(steps.get(3), equalTo(firstActionAnotherStep));
+        assertThat(steps.get(4).getClass(), equalTo(PhaseAfterStep.class));
+        assertThat(steps.get(4).getKey(), equalTo(secondAfter.getKey()));
+        assertThat(steps.get(4).getNextStepKey(), equalTo(secondAfter.getNextStepKey()));
+        assertThat(steps.get(5), equalTo(secondActionStep));
     }
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -19,62 +20,39 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicLong;
 
 public class MockAction implements LifecycleAction {
-    public static final ParseField COMPLETED_FIELD = new ParseField("completed");
-    public static final ParseField EXECUTED_COUNT_FIELD = new ParseField("executed_count");
     public static final String NAME = "TEST_ACTION";
-    private SetOnce<Boolean> completed = new SetOnce<>();
-    private final AtomicLong executedCount;
-    private Exception exceptionToThrow = null;
-    private boolean completeOnExecute = false;
-    private final List<Step> steps;
+    private final List<MockStep> steps;
 
     private static final ConstructingObjectParser<MockAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
-            a -> new MockAction(null, (Boolean) a[0], (Long) a[1]));
+            a -> new MockAction((List<MockStep>) a[0]));
+
     static {
-        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), COMPLETED_FIELD);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), EXECUTED_COUNT_FIELD);
+        PARSER.declareField(ConstructingObjectParser.constructorArg(), (p, c) -> p.list(),
+            new ParseField("steps"), ObjectParser.ValueType.OBJECT_ARRAY);
     }
 
     public static MockAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public MockAction(List<Step> steps) {
-        this(steps, null, 0);
-    }
-
-    MockAction(List<Step> steps, Boolean completed, long executedCount) {
+    public MockAction(List<MockStep> steps) {
         this.steps = steps;
-        if (completed != null) {
-            this.completed.set(completed);
-        }
-        this.executedCount = new AtomicLong(executedCount);
     }
 
     public MockAction(StreamInput in) throws IOException {
-        int numSteps = in.readVInt();
-        this.steps = new ArrayList<>();
-        for (int i = 0; i < numSteps; i++) {
-            // TODO(talevy): make Steps implement NamedWriteable
-            steps.add(null);
-        }
-        Boolean executed = in.readOptionalBoolean();
-        if (executed != null) {
-            this.completed.set(executed);
-        }
-        this.executedCount = new AtomicLong(in.readLong());
+        this.steps = in.readList(MockStep::new);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (completed.get() != null) {
-            builder.field(COMPLETED_FIELD.getPreferredName(), completed.get());
+        builder.startArray("steps");
+        for (MockStep step : steps) {
+            step.toXContent(builder, params);
         }
-        builder.field(EXECUTED_COUNT_FIELD.getPreferredName(), executedCount.get());
+        builder.endArray();
         builder.endObject();
         return builder;
     }
@@ -84,40 +62,23 @@ public class MockAction implements LifecycleAction {
         return NAME;
     }
 
-    @Override
-    public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
+    public List<MockStep> getSteps() {
         return steps;
     }
 
-    public void setCompleteOnExecute(boolean completeOnExecute) {
-        this.completeOnExecute = completeOnExecute;
-    }
-
-    public void setExceptionToThrow(Exception exceptionToThrow) {
-        this.exceptionToThrow = exceptionToThrow;
-    }
-
-    public boolean wasCompleted() {
-        return completed.get() != null && completed.get();
-    }
-
-    public void resetCompleted() {
-        completed = new SetOnce<>();
-    }
-
-    public long getExecutedCount() {
-        return executedCount.get();
+    @Override
+    public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
+        return new ArrayList<>(steps);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalBoolean(completed.get());
-        out.writeLong(executedCount.get());
+        out.writeList(steps);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(completed.get(), executedCount.get());
+        return Objects.hash(steps);
     }
 
     @Override
@@ -129,8 +90,7 @@ public class MockAction implements LifecycleAction {
             return false;
         }
         MockAction other = (MockAction) obj;
-        return Objects.equals(completed.get(), other.completed.get()) &&
-                Objects.equals(executedCount.get(), other.executedCount.get());
+        return Objects.equals(steps, other.steps);
     }
 
     @Override

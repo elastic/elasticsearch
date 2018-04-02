@@ -34,7 +34,6 @@ public abstract class Step {
 
     public static class StepKey {
         private final String phase;
-
         private final String action;
         private final String name;
 
@@ -77,5 +76,6 @@ public abstract class Step {
         public String toString() {
             return String.format("[%s][%s][%s]", phase, action, name);
         }
+
     }
 }

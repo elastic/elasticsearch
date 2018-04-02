@@ -5,11 +5,12 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -35,11 +36,17 @@ public class TimeseriesLifecycleType implements LifecycleType {
 
     public static final String TYPE = "timeseries";
     static final List<String> VALID_PHASES = Arrays.asList("hot", "warm", "cold", "delete");
-    static final Set<String> VALID_HOT_ACTIONS = Sets.newHashSet(RolloverAction.NAME);
-    static final Set<String> VALID_WARM_ACTIONS = Sets.newHashSet(AllocateAction.NAME, ReplicasAction.NAME,
-        ShrinkAction.NAME, ForceMergeAction.NAME);
-    static final Set<String> VALID_COLD_ACTIONS = Sets.newHashSet(AllocateAction.NAME, ReplicasAction.NAME);
-    static final Set<String> VALID_DELETE_ACTIONS = Sets.newHashSet(DeleteAction.NAME);
+    static final List<String> ORDERED_VALID_HOT_ACTIONS = Collections.singletonList(RolloverAction.NAME);
+    static final List<String> ORDERED_VALID_WARM_ACTIONS = Arrays.asList(ReadOnlyAction.NAME, AllocateAction.NAME,
+        ReplicasAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME);
+    static final List<String> ORDERED_VALID_COLD_ACTIONS = Arrays.asList(AllocateAction.NAME, ReplicasAction.NAME);
+    static final List<String> ORDERED_VALID_DELETE_ACTIONS = Arrays.asList(DeleteAction.NAME);
+    static final Set<String> VALID_HOT_ACTIONS = Sets.newHashSet(ORDERED_VALID_HOT_ACTIONS);
+    static final Set<String> VALID_WARM_ACTIONS = Sets.newHashSet(ORDERED_VALID_WARM_ACTIONS);
+    static final Set<String> VALID_COLD_ACTIONS = Sets.newHashSet(ORDERED_VALID_COLD_ACTIONS);
+    static final Set<String> VALID_DELETE_ACTIONS = Sets.newHashSet(ORDERED_VALID_DELETE_ACTIONS);
+    private static final Phase EMPTY_WARM_PHASE = new Phase("warm", TimeValue.ZERO,
+        Collections.singletonMap("readonly", ReadOnlyAction.INSTANCE));
 
     private TimeseriesLifecycleType() {
     }
@@ -59,27 +66,42 @@ public class TimeseriesLifecycleType implements LifecycleType {
     }
 
     public List<Phase> getOrderedPhases(Map<String, Phase> phases) {
-        return VALID_PHASES.stream().map(p -> phases.getOrDefault(p, null))
-            .filter(Objects::nonNull).collect(Collectors.toList());
+        List<Phase> orderedPhases = new ArrayList<>(VALID_PHASES.size());
+        for (String phaseName : VALID_PHASES) {
+            Phase phase = phases.get(phaseName);
+            if ("warm".equals(phaseName)) {
+                if (phase == null) {
+                    phase = EMPTY_WARM_PHASE;
+                } else if (phase.getActions().containsKey(ReadOnlyAction.NAME) == false){
+                    Map<String, LifecycleAction> actionMap = new HashMap<>(phase.getActions());
+                    actionMap.put(ReadOnlyAction.NAME, ReadOnlyAction.INSTANCE);
+                    phase = new Phase(phase.getName(), phase.getAfter(), actionMap);
+                }
+            }
+            if (phase != null) {
+                orderedPhases.add(phase);
+            }
+        }
+        return orderedPhases;
     }
 
     public List<LifecycleAction> getOrderedActions(Phase phase) {
         Map<String, LifecycleAction> actions = phase.getActions();
         switch (phase.getName()) {
             case "hot":
-                return Stream.of(RolloverAction.NAME).map(a -> actions.getOrDefault(a, null))
+                return ORDERED_VALID_HOT_ACTIONS.stream().map(a -> actions.getOrDefault(a, null))
                     .filter(Objects::nonNull).collect(Collectors.toList());
             case "warm":
-                return Stream.of(AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME, ReplicasAction.NAME)
-                    .map(a -> actions.getOrDefault(a, null)).filter(Objects::nonNull).collect(Collectors.toList());
+                return ORDERED_VALID_WARM_ACTIONS.stream() .map(a -> actions.getOrDefault(a, null))
+                    .filter(Objects::nonNull).collect(Collectors.toList());
             case "cold":
-                return Stream.of(ReplicasAction.NAME, AllocateAction.NAME).map(a -> actions.getOrDefault(a, null))
+                return ORDERED_VALID_COLD_ACTIONS.stream().map(a -> actions.getOrDefault(a, null))
                     .filter(Objects::nonNull).collect(Collectors.toList());
             case "delete":
-                return Stream.of(DeleteAction.NAME).map(a -> actions.getOrDefault(a, null))
+                return ORDERED_VALID_DELETE_ACTIONS.stream().map(a -> actions.getOrDefault(a, null))
                     .filter(Objects::nonNull).collect(Collectors.toList());
             default:
-                return Collections.emptyList();
+                throw new IllegalArgumentException("lifecycle type[" + TYPE + "] does not support phase[" + phase.getName() + "]");
         }
     }
 

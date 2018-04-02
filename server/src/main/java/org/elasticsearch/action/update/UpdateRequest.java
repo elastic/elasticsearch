@@ -28,6 +28,7 @@ import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -47,7 +48,6 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -63,7 +63,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     private static final ParseField DOC_FIELD = new ParseField("doc");
     private static final ParseField DOC_AS_UPSERT_FIELD = new ParseField("doc_as_upsert");
     private static final ParseField DETECT_NOOP_FIELD = new ParseField("detect_noop");
-    private static final ParseField FIELDS_FIELD = new ParseField("fields");
     private static final ParseField SOURCE_FIELD = new ParseField("_source");
 
     static {
@@ -85,11 +84,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             }, DOC_FIELD);
         PARSER.declareBoolean(UpdateRequest::docAsUpsert, DOC_AS_UPSERT_FIELD);
         PARSER.declareBoolean(UpdateRequest::detectNoop, DETECT_NOOP_FIELD);
-        PARSER.declareStringArray((request, fields) -> {
-                if (fields != null) {
-                    request.fields(fields.toArray(new String[fields.size()]));
-                }
-            }, FIELDS_FIELD);
         PARSER.declareField(UpdateRequest::fetchSource,
             (parser, context) -> FetchSourceContext.fromXContent(parser), SOURCE_FIELD,
             ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING);
@@ -106,7 +100,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     @Nullable
     Script script;
 
-    private String[] fields;
     private FetchSourceContext fetchSourceContext;
 
     private long version = Versions.MATCH_ANY;
@@ -418,16 +411,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     /**
-     * Explicitly specify the fields that will be returned. By default, nothing is returned.
-     * @deprecated Use {@link UpdateRequest#fetchSource(String[], String[])} instead
-     */
-    @Deprecated
-    public UpdateRequest fields(String... fields) {
-        this.fields = fields;
-        return this;
-    }
-
-    /**
      * Indicate that _source should be returned with every hit, with an
      * "include" and/or "exclude" set which can include simple wildcard
      * elements.
@@ -441,7 +424,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      */
     public UpdateRequest fetchSource(@Nullable String include, @Nullable String exclude) {
         FetchSourceContext context = this.fetchSourceContext == null ? FetchSourceContext.FETCH_SOURCE : this.fetchSourceContext;
-        this.fetchSourceContext = new FetchSourceContext(context.fetchSource(), new String[] {include}, new String[]{exclude});
+        String[] includes = include == null ? Strings.EMPTY_ARRAY : new String[]{include};
+        String[] excludes = exclude == null ? Strings.EMPTY_ARRAY : new String[]{exclude};
+        this.fetchSourceContext = new FetchSourceContext(context.fetchSource(), includes, excludes);
         return this;
     }
 
@@ -478,16 +463,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     public UpdateRequest fetchSource(FetchSourceContext context) {
         this.fetchSourceContext = context;
         return this;
-    }
-
-
-    /**
-     * Get the fields to be returned.
-     * @deprecated Use {@link UpdateRequest#fetchSource()} instead
-     */
-    @Deprecated
-    public String[] fields() {
-        return fields;
     }
 
     /**
@@ -797,7 +772,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             doc = new IndexRequest();
             doc.readFrom(in);
         }
-        fields = in.readOptionalStringArray();
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
         if (in.readBoolean()) {
             upsertRequest = new IndexRequest();
@@ -835,7 +809,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             doc.id(id);
             doc.writeTo(out);
         }
-        out.writeOptionalStringArray(fields);
         out.writeOptionalWriteable(fetchSourceContext);
         if (upsertRequest == null) {
             out.writeBoolean(false);
@@ -885,9 +858,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         if (detectNoop == false) {
             builder.field("detect_noop", detectNoop);
         }
-        if (fields != null) {
-            builder.array("fields", fields);
-        }
         if (fetchSourceContext != null) {
             builder.field("_source", fetchSourceContext);
         }
@@ -913,9 +883,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         }
         res.append(", scripted_upsert[").append(scriptedUpsert).append("]");
         res.append(", detect_noop[").append(detectNoop).append("]");
-        if (fields != null) {
-            res.append(", fields[").append(Arrays.toString(fields)).append("]");
-        }
         return res.append("}").toString();
     }
 }

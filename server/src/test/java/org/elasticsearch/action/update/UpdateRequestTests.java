@@ -61,7 +61,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.script.MockScriptEngine.mockInlineScript;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
-import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -277,19 +276,6 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(((Map) doc.get("compound")).get("field2").toString(), equalTo("value2"));
     }
 
-    // Related to issue 15338
-    public void testFieldsParsing() throws Exception {
-        UpdateRequest request = new UpdateRequest("test", "type1", "1").fromXContent(
-                createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"field1\": \"value1\"}, \"fields\": \"_source\"}")));
-        assertThat(request.doc().sourceAsMap().get("field1").toString(), equalTo("value1"));
-        assertThat(request.fields(), arrayContaining("_source"));
-
-        request = new UpdateRequest("test", "type2", "2").fromXContent(createParser(JsonXContent.jsonXContent,
-                new BytesArray("{\"doc\": {\"field2\": \"value2\"}, \"fields\": [\"field1\", \"field2\"]}")));
-        assertThat(request.doc().sourceAsMap().get("field2").toString(), equalTo("value2"));
-        assertThat(request.fields(), arrayContaining("field1", "field2"));
-    }
-
     public void testUnknownFieldParsing() throws Exception {
         UpdateRequest request = new UpdateRequest("test", "type", "1");
         XContentParser contentParser = createParser(XContentFactory.jsonBuilder()
@@ -467,13 +453,6 @@ public class UpdateRequestTests extends ESTestCase {
             updateRequest.upsert(new IndexRequest().source(source, xContentType));
         }
         if (randomBoolean()) {
-            String[] fields = new String[randomIntBetween(0, 5)];
-            for (int i = 0; i < fields.length; i++) {
-                fields[i] = randomAlphaOfLength(5);
-            }
-            updateRequest.fields(fields);
-        }
-        if (randomBoolean()) {
             if (randomBoolean()) {
                 updateRequest.fetchSource(randomBoolean());
             } else {
@@ -509,10 +488,8 @@ public class UpdateRequestTests extends ESTestCase {
 
         assertEquals(updateRequest.detectNoop(), parsedUpdateRequest.detectNoop());
         assertEquals(updateRequest.docAsUpsert(), parsedUpdateRequest.docAsUpsert());
-        assertEquals(updateRequest.docAsUpsert(), parsedUpdateRequest.docAsUpsert());
         assertEquals(updateRequest.script(), parsedUpdateRequest.script());
         assertEquals(updateRequest.scriptedUpsert(), parsedUpdateRequest.scriptedUpsert());
-        assertArrayEquals(updateRequest.fields(), parsedUpdateRequest.fields());
         assertEquals(updateRequest.fetchSource(), parsedUpdateRequest.fetchSource());
 
         BytesReference finalBytes = toXContent(parsedUpdateRequest, xContentType, humanReadable);

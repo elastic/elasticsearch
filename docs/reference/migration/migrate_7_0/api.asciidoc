@@ -22,3 +22,6 @@ The following parameters starting with underscore have been removed:
 Instead of these removed parameters, use their non camel case equivalents without
 starting underscore, e.g. use `version_type` instead of `_version_type` or `versionType`.
 
+
+==== The parameter `fields` deprecated in 6.x has been removed from Bulk request 
+and Update request.

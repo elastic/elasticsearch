@@ -208,7 +208,8 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         String pluginId = arguments.value(options);
-        execute(terminal, pluginId, options.has(batchOption), env);
+        final boolean isBatch = options.has(batchOption);
+        execute(terminal, pluginId, isBatch, env);
     }
 
     // pkg private for testing

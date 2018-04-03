@@ -557,7 +557,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
         @Override
         public boolean equals(Object obj) {
-            return Arrays.equals(attributes, ((AttributesKey) obj).attributes);
+            return obj instanceof AttributesKey && Arrays.equals(attributes, ((AttributesKey) obj).attributes);
         }
     }
 

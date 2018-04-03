@@ -489,6 +489,12 @@ public class GeoUtils {
         }
     }
 
+    /**
+     * Checks that the precision is within range supported by elasticsearch - between 1 and 12
+     *
+     * Returns the precision value if it is in the range and throws an IllegalArgumentException if it
+     * is outside the range.
+     */
     public static int checkPrecisionRange(int precision) {
         if ((precision < 1) || (precision > 12)) {
             throw new IllegalArgumentException("Invalid geohash aggregation precision of " + precision

@@ -2,6 +2,7 @@ import org.elasticsearch.gradle.MavenFilteringHack
 
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
 
 apply plugin: 'elasticsearch.esplugin'
@@ -62,9 +63,12 @@ processResources {
   if (licenseKey != null) {
     println "Using provided license key from ${licenseKey}"
   } else if (snapshot) {
-    licenseKey = 'snapshot.key'
+    licenseKey = Paths.get(project.projectDir.path, 'snapshot.key')
   } else {
     throw new IllegalArgumentException('Property license.key must be set for release build')
+  }
+  if (Files.exists(Paths.get(licenseKey)) == false) {
+    throw new IllegalArgumentException('license.key at specified path [' + licenseKey + '] does not exist')
   }
   from(licenseKey) {
     rename { String filename -> 'public.key' }

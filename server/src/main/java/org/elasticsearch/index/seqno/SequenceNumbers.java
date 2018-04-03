@@ -122,5 +122,13 @@ public class SequenceNumbers {
             this.maxSeqNo = maxSeqNo;
             this.localCheckpoint = localCheckpoint;
         }
+
+        @Override
+        public String toString() {
+            return "CommitInfo{" +
+                "maxSeqNo=" + maxSeqNo +
+                ", localCheckpoint=" + localCheckpoint +
+                '}';
+        }
     }
 }

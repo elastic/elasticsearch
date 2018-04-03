@@ -20,7 +20,6 @@
 package org.elasticsearch.indices.store;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -77,7 +76,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         Setting.positiveTimeSetting("indices.store.delete.shard.timeout", new TimeValue(30, TimeUnit.SECONDS),
             Property.NodeScope);
     public static final String ACTION_SHARD_EXISTS = "internal:index/shard/exists";
-    private static final EnumSet<IndexShardState> ACTIVE_STATES = EnumSet.of(IndexShardState.STARTED, IndexShardState.RELOCATED);
+    private static final EnumSet<IndexShardState> ACTIVE_STATES = EnumSet.of(IndexShardState.STARTED);
     private final IndicesService indicesService;
     private final ClusterService clusterService;
     private final TransportService transportService;
@@ -256,7 +255,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
 
         @Override
         public void handleException(TransportException exp) {
-            logger.debug((Supplier<?>) () -> new ParameterizedMessage("shards active request failed for {}", shardId), exp);
+            logger.debug(() -> new ParameterizedMessage("shards active request failed for {}", shardId), exp);
             if (awaitingResponses.decrementAndGet() == 0) {
                 allNodesResponded();
             }
@@ -288,10 +287,10 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                     try {
                         indicesService.deleteShardStore("no longer used", shardId, currentState);
                     } catch (Exception ex) {
-                        logger.debug((Supplier<?>) () -> new ParameterizedMessage("{} failed to delete unallocated shard, ignoring", shardId), ex);
+                        logger.debug(() -> new ParameterizedMessage("{} failed to delete unallocated shard, ignoring", shardId), ex);
                     }
                 },
-                (source, e) -> logger.error((Supplier<?>) () -> new ParameterizedMessage("{} unexpected error during deletion of unallocated shard", shardId), e)
+                (source, e) -> logger.error(() -> new ParameterizedMessage("{} unexpected error during deletion of unallocated shard", shardId), e)
             );
         }
 
@@ -340,9 +339,9 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                             try {
                                 channel.sendResponse(new ShardActiveResponse(shardActive, clusterService.localNode()));
                             } catch (IOException e) {
-                                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed send response for shard active while trying to delete shard {} - shard will probably not be removed", request.shardId), e);
+                                logger.error(() -> new ParameterizedMessage("failed send response for shard active while trying to delete shard {} - shard will probably not be removed", request.shardId), e);
                             } catch (EsRejectedExecutionException e) {
-                                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed send response for shard active while trying to delete shard {} - shard will probably not be removed", request.shardId), e);
+                                logger.error(() -> new ParameterizedMessage("failed send response for shard active while trying to delete shard {} - shard will probably not be removed", request.shardId), e);
                             }
                         }
                     }, newState -> {

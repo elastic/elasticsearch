@@ -19,15 +19,14 @@
 
 package org.elasticsearch.search.rescore;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -40,9 +39,7 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -58,7 +55,6 @@ import java.io.IOException;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
-import static org.hamcrest.Matchers.containsString;
 
 public class QueryRescorerBuilderTests extends ESTestCase {
 
@@ -220,8 +216,8 @@ public class QueryRescorerBuilderTests extends ESTestCase {
                 "}\n";
         {
             XContentParser parser = createParser(rescoreElement);
-            Exception e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser));
-            assertEquals("Unknown RescorerBuilder [bad_rescorer_name]", e.getMessage());
+            Exception e = expectThrows(NamedObjectNotFoundException.class, () -> RescorerBuilder.parseFromXContent(parser));
+            assertEquals("[3:27] unable to parse RescorerBuilder with name [bad_rescorer_name]: parser not found", e.getMessage());
         }
 
         rescoreElement = "{\n" +

@@ -67,6 +67,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -326,15 +327,11 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     }
 
     public void testBinaryUTF8() throws Exception {
-        assertResult("{'utf8':null}", () -> builder().startObject().utf8Field("utf8", null).endObject());
+        assertResult("{'utf8':null}", () -> builder().startObject().nullField("utf8").endObject());
 
         final BytesRef randomBytesRef = new BytesRef(randomBytes());
         XContentBuilder builder = builder().startObject();
-        if (randomBoolean()) {
-            builder.utf8Field("utf8", randomBytesRef);
-        } else {
-            builder.field("utf8").utf8Value(randomBytesRef);
-        }
+        builder.field("utf8").utf8Value(randomBytesRef.bytes, randomBytesRef.offset, randomBytesRef.length);
         builder.endObject();
 
         XContentParser parser = createParser(xcontentType().xContent(), BytesReference.bytes(builder));
@@ -366,81 +363,73 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     }
 
     public void testReadableInstant() throws Exception {
-        assertResult("{'instant':null}", () -> builder().startObject().field("instant", (ReadableInstant) null).endObject());
-        assertResult("{'instant':null}", () -> builder().startObject().field("instant").value((ReadableInstant) null).endObject());
+        assertResult("{'instant':null}", () -> builder().startObject().timeField("instant", (ReadableInstant) null).endObject());
+        assertResult("{'instant':null}", () -> builder().startObject().field("instant").timeValue((ReadableInstant) null).endObject());
 
         final DateTime t1 = new DateTime(2016, 1, 1, 0, 0, DateTimeZone.UTC);
 
         String expected = "{'t1':'2016-01-01T00:00:00.000Z'}";
-        assertResult(expected, () -> builder().startObject().field("t1", t1).endObject());
-        assertResult(expected, () -> builder().startObject().field("t1").value(t1).endObject());
+        assertResult(expected, () -> builder().startObject().timeField("t1", t1).endObject());
+        assertResult(expected, () -> builder().startObject().field("t1").timeValue(t1).endObject());
 
         final DateTime t2 = new DateTime(2016, 12, 25, 7, 59, 42, 213, DateTimeZone.UTC);
 
         expected = "{'t2':'2016-12-25T07:59:42.213Z'}";
-        assertResult(expected, () -> builder().startObject().field("t2", t2).endObject());
-        assertResult(expected, () -> builder().startObject().field("t2").value(t2).endObject());
+        assertResult(expected, () -> builder().startObject().timeField("t2", t2).endObject());
+        assertResult(expected, () -> builder().startObject().field("t2").timeValue(t2).endObject());
 
         final DateTimeFormatter formatter = randomFrom(ISODateTimeFormat.basicDate(), ISODateTimeFormat.dateTimeNoMillis());
         final DateTime t3 = DateTime.now();
 
         expected = "{'t3':'" + formatter.print(t3) + "'}";
-        assertResult(expected, () -> builder().startObject().field("t3", t3, formatter).endObject());
-        assertResult(expected, () -> builder().startObject().field("t3").value(t3, formatter).endObject());
+        assertResult(expected, () -> builder().startObject().timeField("t3", formatter.print(t3)).endObject());
+        assertResult(expected, () -> builder().startObject().field("t3").value(formatter.print(t3)).endObject());
 
         final DateTime t4 = new DateTime(randomDateTimeZone());
 
         expected = "{'t4':'" + formatter.print(t4) + "'}";
-        assertResult(expected, () -> builder().startObject().field("t4", t4, formatter).endObject());
-        assertResult(expected, () -> builder().startObject().field("t4").value(t4, formatter).endObject());
+        assertResult(expected, () -> builder().startObject().timeField("t4", formatter.print(t4)).endObject());
+        assertResult(expected, () -> builder().startObject().field("t4").value(formatter.print(t4)).endObject());
 
         long date = Math.abs(randomLong() % (2 * (long) 10e11)); // 1970-01-01T00:00:00Z - 2033-05-18T05:33:20.000+02:00
         final DateTime t5 = new DateTime(date, randomDateTimeZone());
 
-        expected = "{'t5':'" + XContentBuilder.DEFAULT_DATE_PRINTER.print(t5) + "'}";
-        assertResult(expected, () -> builder().startObject().field("t5", t5).endObject());
-        assertResult(expected, () -> builder().startObject().field("t5").value(t5).endObject());
+        expected = "{'t5':'" + XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(t5) + "'}";
+        assertResult(expected, () -> builder().startObject().timeField("t5", t5).endObject());
+        assertResult(expected, () -> builder().startObject().field("t5").timeValue(t5).endObject());
 
         expected = "{'t5':'" + formatter.print(t5) + "'}";
-        assertResult(expected, () -> builder().startObject().field("t5", t5, formatter).endObject());
-        assertResult(expected, () -> builder().startObject().field("t5").value(t5, formatter).endObject());
+        assertResult(expected, () -> builder().startObject().timeField("t5", formatter.print(t5)).endObject());
+        assertResult(expected, () -> builder().startObject().field("t5").value(formatter.print(t5)).endObject());
 
         Instant i1 = new Instant(1451606400000L); // 2016-01-01T00:00:00.000Z
         expected = "{'i1':'2016-01-01T00:00:00.000Z'}";
-        assertResult(expected, () -> builder().startObject().field("i1", i1).endObject());
-        assertResult(expected, () -> builder().startObject().field("i1").value(i1).endObject());
+        assertResult(expected, () -> builder().startObject().timeField("i1", i1).endObject());
+        assertResult(expected, () -> builder().startObject().field("i1").timeValue(i1).endObject());
 
         Instant i2 = new Instant(1482652782213L); // 2016-12-25T07:59:42.213Z
         expected = "{'i2':'" + formatter.print(i2) + "'}";
-        assertResult(expected, () -> builder().startObject().field("i2", i2, formatter).endObject());
-        assertResult(expected, () -> builder().startObject().field("i2").value(i2, formatter).endObject());
-
-        expectNonNullFormatterException(() -> builder().startObject().field("t3", t3, null).endObject());
-        expectNonNullFormatterException(() -> builder().startObject().field("t3").value(t3, null).endObject());
+        assertResult(expected, () -> builder().startObject().timeField("i2", formatter.print(i2)).endObject());
+        assertResult(expected, () -> builder().startObject().field("i2").value(formatter.print(i2)).endObject());
     }
 
     public void testDate() throws Exception {
-        assertResult("{'date':null}", () -> builder().startObject().field("date", (Date) null).endObject());
-        assertResult("{'date':null}", () -> builder().startObject().field("date").value((Date) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().timeField("date", (Date) null).endObject());
+        assertResult("{'date':null}", () -> builder().startObject().field("date").timeValue((Date) null).endObject());
 
         final Date d1 = new DateTime(2016, 1, 1, 0, 0, DateTimeZone.UTC).toDate();
-        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().field("d1", d1).endObject());
-        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().field("d1").value(d1).endObject());
+        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().timeField("d1", d1).endObject());
+        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().field("d1").timeValue(d1).endObject());
 
         final Date d2 = new DateTime(2016, 12, 25, 7, 59, 42, 213, DateTimeZone.UTC).toDate();
-        assertResult("{'d2':'2016-12-25T07:59:42.213Z'}", () -> builder().startObject().field("d2", d2).endObject());
-        assertResult("{'d2':'2016-12-25T07:59:42.213Z'}", () -> builder().startObject().field("d2").value(d2).endObject());
+        assertResult("{'d2':'2016-12-25T07:59:42.213Z'}", () -> builder().startObject().timeField("d2", d2).endObject());
+        assertResult("{'d2':'2016-12-25T07:59:42.213Z'}", () -> builder().startObject().field("d2").timeValue(d2).endObject());
 
         final DateTimeFormatter formatter = randomFrom(ISODateTimeFormat.basicDate(), ISODateTimeFormat.dateTimeNoMillis());
         final Date d3 = DateTime.now().toDate();
 
         String expected = "{'d3':'" + formatter.print(d3.getTime()) + "'}";
-        assertResult(expected, () -> builder().startObject().field("d3", d3, formatter).endObject());
-        assertResult(expected, () -> builder().startObject().field("d3").value(d3, formatter).endObject());
-
-        expectNonNullFormatterException(() -> builder().startObject().field("d3", d3, null).endObject());
-        expectNonNullFormatterException(() -> builder().startObject().field("d3").value(d3, null).endObject());
-        expectNonNullFormatterException(() -> builder().value(null, 1L));
+        assertResult(expected, () -> builder().startObject().field("d3").value(formatter.print(d3.getTime())).endObject());
     }
 
     public void testDateField() throws Exception {
@@ -448,12 +437,12 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
         assertResult("{'date_in_millis':1451606400000}", () -> builder()
                 .startObject()
-                    .dateField("date_in_millis", "date", d.getTime())
+                    .timeField("date_in_millis", "date", d.getTime())
                 .endObject());
         assertResult("{'date':'2016-01-01T00:00:00.000Z','date_in_millis':1451606400000}", () -> builder()
                 .humanReadable(true)
                 .startObject
-                        ().dateField("date_in_millis", "date", d.getTime())
+                        ().timeField("date_in_millis", "date", d.getTime())
                 .endObject());
     }
 
@@ -462,7 +451,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertResult("{'calendar':'2016-01-01T00:00:00.000Z'}", () -> builder()
                 .startObject()
                     .field("calendar")
-                    .value(calendar)
+                    .timeValue(calendar)
                 .endObject());
     }
 
@@ -514,7 +503,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         final String paths = Constants.WINDOWS ? "{'objects':['a\\\\b\\\\c','d\\\\e']}" : "{'objects':['a/b/c','d/e']}";
         objects.put(paths, new Object[]{PathUtils.get("a", "b", "c"), PathUtils.get("d", "e")});
 
-        final DateTimeFormatter formatter = XContentBuilder.DEFAULT_DATE_PRINTER;
+        final DateTimeFormatter formatter = XContentElasticsearchExtension.DEFAULT_DATE_PRINTER;
         final Date d1 = new DateTime(2016, 1, 1, 0, 0, DateTimeZone.UTC).toDate();
         final Date d2 = new DateTime(2015, 1, 1, 0, 0, DateTimeZone.UTC).toDate();
         objects.put("{'objects':['" + formatter.print(d1.getTime()) + "','" + formatter.print(d2.getTime()) + "']}", new Object[]{d1, d2});
@@ -562,7 +551,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         final String path = Constants.WINDOWS ? "{'object':'a\\\\b\\\\c'}" : "{'object':'a/b/c'}";
         object.put(path, PathUtils.get("a", "b", "c"));
 
-        final DateTimeFormatter formatter = XContentBuilder.DEFAULT_DATE_PRINTER;
+        final DateTimeFormatter formatter = XContentElasticsearchExtension.DEFAULT_DATE_PRINTER;
         final Date d1 = new DateTime(2016, 1, 1, 0, 0, DateTimeZone.UTC).toDate();
         object.put("{'object':'" + formatter.print(d1.getTime()) + "'}", d1);
 
@@ -846,11 +835,6 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertThat(e.getMessage(), containsString("Field name cannot be null"));
     }
 
-    public void testFormatterNameNotNull() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> XContentBuilder.ensureFormatterNotNull(null));
-        assertThat(e.getMessage(), containsString("DateTimeFormatter cannot be null"));
-    }
-
     public void testEnsureNotNull() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> XContentBuilder.ensureNotNull(null, "message"));
         assertThat(e.getMessage(), containsString("message"));
@@ -1024,22 +1008,20 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         {
             p.nextToken();
             assertEquals("test", p.namedObject(Object.class, "str", null));
-            UnknownNamedObjectException e = expectThrows(UnknownNamedObjectException.class,
+            NamedObjectNotFoundException e = expectThrows(NamedObjectNotFoundException.class,
                     () -> p.namedObject(Object.class, "unknown", null));
-            assertEquals("Unknown Object [unknown]", e.getMessage());
-            assertEquals("java.lang.Object", e.getCategoryClass());
-            assertEquals("unknown", e.getName());
+            assertThat(e.getMessage(), endsWith("unable to parse Object with name [unknown]: parser not found"));
         }
         {
-            Exception e = expectThrows(ElasticsearchException.class, () -> p.namedObject(String.class, "doesn't matter", null));
-            assertEquals("Unknown namedObject category [java.lang.String]", e.getMessage());
+            Exception e = expectThrows(NamedObjectNotFoundException.class, () -> p.namedObject(String.class, "doesn't matter", null));
+            assertEquals("unknown named object category [java.lang.String]", e.getMessage());
         }
         {
             XContentParser emptyRegistryParser = xcontentType().xContent()
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, new byte[] {});
-            Exception e = expectThrows(ElasticsearchException.class,
+            Exception e = expectThrows(NamedObjectNotFoundException.class,
                     () -> emptyRegistryParser.namedObject(String.class, "doesn't matter", null));
-            assertEquals("namedObject is not supported for this parser", e.getMessage());
+            assertEquals("named objects are not supported for this parser", e.getMessage());
         }
     }
 

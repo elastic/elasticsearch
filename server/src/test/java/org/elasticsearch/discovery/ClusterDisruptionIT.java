@@ -20,7 +20,6 @@
 package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
@@ -142,9 +141,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                             } catch (ElasticsearchException e) {
                                 exceptedExceptions.add(e);
                                 final String docId = id;
-                                logger.trace(
-                                    (Supplier<?>)
-                                        () -> new ParameterizedMessage("[{}] failed id [{}] through node [{}]", name, docId, node), e);
+                                logger.trace(() -> new ParameterizedMessage("[{}] failed id [{}] through node [{}]", name, docId, node), e);
                             } finally {
                                 countDownLatchRef.get().countDown();
                                 logger.trace("[{}] decreased counter : {}", name, countDownLatchRef.get().getCount());
@@ -152,9 +149,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                         } catch (InterruptedException e) {
                             // fine - semaphore interrupt
                         } catch (AssertionError | Exception e) {
-                            logger.info(
-                                    (Supplier<?>) () -> new ParameterizedMessage("unexpected exception in background thread of [{}]", node),
-                                    e);
+                            logger.info(() -> new ParameterizedMessage("unexpected exception in background thread of [{}]", node), e);
                         }
                     }
                 });

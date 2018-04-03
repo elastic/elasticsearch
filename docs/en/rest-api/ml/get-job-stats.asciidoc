@@ -18,7 +18,7 @@ This API enables you to retrieve usage information for jobs.
 
 `GET _xpack/ml/anomaly_detectors/_stats` +
 
-`GET _xpack/ml/anomaly_detectors/_stats/_all` +
+`GET _xpack/ml/anomaly_detectors/_all/_stats` +
 
 
 ===== Description

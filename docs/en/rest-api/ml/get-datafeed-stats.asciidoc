@@ -17,7 +17,7 @@ This API enables you to retrieve usage information for {dfeeds}.
 
 `GET _xpack/ml/datafeeds/_stats`  +
 
-`GET _xpack/ml/datafeeds/_stats/_all` +
+`GET _xpack/ml/datafeeds/_all/_stats` +
 
 
 

@@ -20,14 +20,13 @@ package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
@@ -199,8 +198,8 @@ public class ObjectParserTests extends ESTestCase {
         try {
             objectParser.parse(parser, s, null);
             fail("numeric value expected");
-        } catch (ParsingException ex) {
-            assertEquals(ex.getMessage(), "[the_parser] failed to parse field [test]");
+        } catch (XContentParseException ex) {
+            assertThat(ex.getMessage(), containsString("[the_parser] failed to parse field [test]"));
             assertTrue(ex.getCause() instanceof NumberFormatException);
         }
 
@@ -235,7 +234,7 @@ public class ObjectParserTests extends ESTestCase {
         TestStruct s = new TestStruct();
 
         objectParser.declareField((i, c, x) -> c.test = i.text(), new ParseField("numeric_value"), ObjectParser.ValueType.FLOAT);
-        Exception e = expectThrows(ParsingException.class, () -> objectParser.parse(parser, s, null));
+        Exception e = expectThrows(XContentParseException.class, () -> objectParser.parse(parser, s, null));
         assertThat(e.getMessage(), containsString("[foo] numeric_value doesn't support values of type: VALUE_BOOLEAN"));
     }
 
@@ -478,11 +477,11 @@ public class ObjectParserTests extends ESTestCase {
                   "{\"named\": [\n"
                 + "  {\"a\": {}, \"b\": {}}"
                 + "]}");
-        ParsingException e = expectThrows(ParsingException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
-        assertEquals("[named_object_holder] failed to parse field [named]", e.getMessage());
-        assertEquals(
-                "[named] can be a single object with any number of fields or an array where each entry is an object with a single field",
-                e.getCause().getMessage());
+        XContentParseException e = expectThrows(XContentParseException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
+        assertThat(e.getMessage(), containsString("[named_object_holder] failed to parse field [named]"));
+        assertThat(e.getCause().getMessage(),
+                containsString("[named] can be a single object with any number of fields " +
+                    "or an array where each entry is an object with a single field"));
     }
 
     public void testParseNamedObjectNoFieldsInArray() throws IOException {
@@ -490,11 +489,11 @@ public class ObjectParserTests extends ESTestCase {
                   "{\"named\": [\n"
                 + "  {}"
                 + "]}");
-        ParsingException e = expectThrows(ParsingException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
-        assertEquals("[named_object_holder] failed to parse field [named]", e.getMessage());
-        assertEquals(
-                "[named] can be a single object with any number of fields or an array where each entry is an object with a single field",
-                e.getCause().getMessage());
+        XContentParseException e = expectThrows(XContentParseException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
+        assertThat(e.getMessage(), containsString("[named_object_holder] failed to parse field [named]"));
+        assertThat(e.getCause().getMessage(),
+                containsString("[named] can be a single object with any number of fields " +
+                    "or an array where each entry is an object with a single field"));
     }
 
     public void testParseNamedObjectJunkInArray() throws IOException {
@@ -502,11 +501,11 @@ public class ObjectParserTests extends ESTestCase {
                   "{\"named\": [\n"
                 + "  \"junk\""
                 + "]}");
-        ParsingException e = expectThrows(ParsingException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
-        assertEquals("[named_object_holder] failed to parse field [named]", e.getMessage());
-        assertEquals(
-                "[named] can be a single object with any number of fields or an array where each entry is an object with a single field",
-                e.getCause().getMessage());
+        XContentParseException e = expectThrows(XContentParseException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
+        assertThat(e.getMessage(), containsString("[named_object_holder] failed to parse field [named]"));
+        assertThat(e.getCause().getMessage(),
+                containsString("[named] can be a single object with any number of fields " +
+                    "or an array where each entry is an object with a single field"));
     }
 
     public void testParseNamedObjectInOrderNotSupported() throws IOException {
@@ -521,8 +520,8 @@ public class ObjectParserTests extends ESTestCase {
         objectParser.declareNamedObjects(NamedObjectHolder::setNamed, NamedObject.PARSER, new ParseField("named"));
 
         // Now firing the xml through it fails
-        ParsingException e = expectThrows(ParsingException.class, () -> objectParser.apply(parser, null));
-        assertEquals("[named_object_holder] failed to parse field [named]", e.getMessage());
+        XContentParseException e = expectThrows(XContentParseException.class, () -> objectParser.apply(parser, null));
+        assertThat(e.getMessage(), containsString("[named_object_holder] failed to parse field [named]"));
         assertEquals("[named] doesn't support arrays. Use a single object with multiple fields.", e.getCause().getMessage());
     }
 
@@ -535,7 +534,9 @@ public class ObjectParserTests extends ESTestCase {
         }
         b.endObject();
         b = shuffleXContent(b);
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(b));
+        b.flush();
+        byte[] bytes = ((ByteArrayOutputStream) b.getOutputStream()).toByteArray();
+        XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
 
         class TestStruct {
             public String test;
@@ -559,7 +560,9 @@ public class ObjectParserTests extends ESTestCase {
         }
         b.endObject();
         b = shuffleXContent(b);
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(b));
+        b.flush();
+        byte[] bytes = ((ByteArrayOutputStream) b.getOutputStream()).toByteArray();
+        XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
 
         class TestStruct {
             public String test;
@@ -587,7 +590,9 @@ public class ObjectParserTests extends ESTestCase {
         }
         b.endObject();
         b = shuffleXContent(b);
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(b));
+        b.flush();
+        byte[] bytes = ((ByteArrayOutputStream) b.getOutputStream()).toByteArray();
+        XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         class TestStruct {
             public String test;
         }
@@ -646,8 +651,8 @@ public class ObjectParserTests extends ESTestCase {
         // Make sure that we didn't break the null handling in arrays that shouldn't support nulls
         XContentParser parser2 = createParser(JsonXContent.jsonXContent, "{\"int_array\": [1, null, 3]}");
         TestStruct s2 = new TestStruct();
-        ParsingException ex = expectThrows(ParsingException.class, () -> objectParser.parse(parser2, s2, null));
-        assertThat(ex.getMessage(), startsWith("[foo] failed to parse field [int_array]"));
+        XContentParseException ex = expectThrows(XContentParseException.class, () -> objectParser.parse(parser2, s2, null));
+        assertThat(ex.getMessage(), containsString("[foo] failed to parse field [int_array]"));
     }
 
     static class NamedObjectHolder {

@@ -51,6 +51,7 @@ import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 
 public class RatedRequestsTests extends ESTestCase {
@@ -135,7 +136,7 @@ public class RatedRequestsTests extends ESTestCase {
         try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
             Exception exception = expectThrows(Exception.class, () -> RatedRequest.fromXContent(parser));
             if (exception instanceof IllegalArgumentException) {
-                assertThat(exception.getMessage(), startsWith("[request] unknown field"));
+                assertThat(exception.getMessage(), containsString("[request] unknown field"));
             }
             if (exception instanceof ParsingException) {
                 assertThat(exception.getMessage(), startsWith("[request] failed to parse field"));

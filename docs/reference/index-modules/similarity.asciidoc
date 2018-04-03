@@ -86,6 +86,8 @@ Type name: `BM25`
 [[classic-similarity]]
 ==== Classic similarity
 
+deprecated[6.3.0, The quality of the produced scores used to rely on coordination factors, which have been removed. It is advised to use BM25 instead.]
+
 The classic similarity that is based on the TF/IDF model. This
 similarity has the following option:
 
@@ -97,7 +99,7 @@ similarity has the following option:
 Type name: `classic`
 
 [float]
-[[drf]]
+[[dfr]]
 ==== DFR similarity
 
 Similarity that implements the
@@ -510,7 +512,7 @@ PUT /index
     "index": {
       "similarity": {
         "default": {
-          "type": "classic"
+          "type": "boolean"
         }
       }
     }
@@ -532,7 +534,7 @@ PUT /index/_settings
   "index": {
     "similarity": {
       "default": {
-        "type": "classic"
+        "type": "boolean"
       }
     }
   }

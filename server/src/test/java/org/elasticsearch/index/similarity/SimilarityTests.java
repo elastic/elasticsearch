@@ -33,11 +33,14 @@ import org.apache.lucene.search.similarities.LMDirichletSimilarity;
 import org.apache.lucene.search.similarities.LMJelinekMercerSimilarity;
 import org.apache.lucene.search.similarities.LambdaTTF;
 import org.apache.lucene.search.similarities.NormalizationH2;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -47,11 +50,22 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class SimilarityTests extends ESSingleNodeTestCase {
+
+    private static SimilarityService createSimilarityService(Settings settings) {
+        IndexMetaData indexMetadata = new IndexMetaData.Builder("index").settings(
+                Settings.builder()
+                .put("index.version.created", Version.CURRENT)
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 0).build()).build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
+        return new SimilarityService(indexSettings, null, Collections.emptyMap());
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -60,10 +74,13 @@ public class SimilarityTests extends ESSingleNodeTestCase {
 
     public void testResolveDefaultSimilarities() {
         SimilarityService similarityService = createIndex("foo").similarityService();
-        assertThat(similarityService.getSimilarity("classic").get(), instanceOf(ClassicSimilarity.class));
         assertThat(similarityService.getSimilarity("BM25").get(), instanceOf(BM25Similarity.class));
         assertThat(similarityService.getSimilarity("boolean").get(), instanceOf(BooleanSimilarity.class));
+        assertThat(similarityService.getSimilarity("classic").get(), instanceOf(ClassicSimilarity.class));
         assertThat(similarityService.getSimilarity("default"), equalTo(null));
+        assertWarnings("The [classic] similarity is now deprecated in favour of BM25, which is generally "
+                + "accepted as a better alternative. Use the [BM25] similarity or build a custom [scripted] similarity "
+                + "instead.");
     }
 
     public void testResolveSimilaritiesFromMapping_classic() throws IOException {
@@ -79,10 +96,20 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .build();
         IndexService indexService = createIndex("foo", indexSettings);
         DocumentMapper documentMapper = indexService.mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
-        assertThat(documentMapper.mappers().getMapper("field1").fieldType().similarity(), instanceOf(ClassicSimilarityProvider.class));
+        assertThat(documentMapper.mappers().getMapper("field1").fieldType().similarity().get(), instanceOf(ClassicSimilarity.class));
 
         ClassicSimilarity similarity = (ClassicSimilarity) documentMapper.mappers().getMapper("field1").fieldType().similarity().get();
         assertThat(similarity.getDiscountOverlaps(), equalTo(false));
+    }
+
+    public void testResolveSimilaritiesFromMapping_classicIsDeprecated() throws IOException {
+        Settings settings = Settings.builder()
+            .put("index.similarity.my_similarity.type", "classic")
+            .put("index.similarity.my_similarity.discount_overlaps", false)
+            .build();
+        createSimilarityService(settings);
+        assertWarnings("The [classic] similarity is now deprecated in favour of BM25, which is generally accepted as a better alternative. "
+                + "Use the [BM25] similarity or build a custom [scripted] similarity instead.");
     }
 
     public void testResolveSimilaritiesFromMapping_bm25() throws IOException {
@@ -100,7 +127,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .build();
         IndexService indexService = createIndex("foo", indexSettings);
         DocumentMapper documentMapper = indexService.mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
-        assertThat(documentMapper.mappers().getMapper("field1").fieldType().similarity(), instanceOf(BM25SimilarityProvider.class));
+        assertThat(documentMapper.mappers().getMapper("field1").fieldType().similarity().get(), instanceOf(BM25Similarity.class));
 
         BM25Similarity similarity = (BM25Similarity) documentMapper.mappers().getMapper("field1").fieldType().similarity().get();
         assertThat(similarity.getK1(), equalTo(2.0f));
@@ -119,8 +146,8 @@ public class SimilarityTests extends ESSingleNodeTestCase {
         DocumentMapper documentMapper = indexService.mapperService()
             .documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
-        assertThat(documentMapper.mappers().getMapper("field1").fieldType().similarity(),
-            instanceOf(BooleanSimilarityProvider.class));
+        assertThat(documentMapper.mappers().getMapper("field1").fieldType().similarity().get(),
+            instanceOf(BooleanSimilarity.class));
     }
 
     public void testResolveSimilaritiesFromMapping_DFR() throws IOException {
@@ -139,7 +166,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .build();
         IndexService indexService = createIndex("foo", indexSettings);
         DocumentMapper documentMapper = indexService.mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
-        assertThat(documentMapper.mappers().getMapper("field1").fieldType().similarity(), instanceOf(DFRSimilarityProvider.class));
+        assertThat(documentMapper.mappers().getMapper("field1").fieldType().similarity().get(), instanceOf(DFRSimilarity.class));
 
         DFRSimilarity similarity = (DFRSimilarity) documentMapper.mappers().getMapper("field1").fieldType().similarity().get();
         assertThat(similarity.getBasicModel(), instanceOf(BasicModelG.class));
@@ -164,7 +191,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .build();
         IndexService indexService = createIndex("foo", indexSettings);
         DocumentMapper documentMapper = indexService.mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
-        assertThat(documentMapper.mappers().getMapper("field1").fieldType().similarity(), instanceOf(IBSimilarityProvider.class));
+        assertThat(documentMapper.mappers().getMapper("field1").fieldType().similarity().get(), instanceOf(IBSimilarity.class));
 
         IBSimilarity similarity = (IBSimilarity) documentMapper.mappers().getMapper("field1").fieldType().similarity().get();
         assertThat(similarity.getDistribution(), instanceOf(DistributionSPL.class));
@@ -187,7 +214,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("foo", indexSettings);
         DocumentMapper documentMapper = indexService.mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         MappedFieldType fieldType = documentMapper.mappers().getMapper("field1").fieldType();
-        assertThat(fieldType.similarity(), instanceOf(DFISimilarityProvider.class));
+        assertThat(fieldType.similarity().get(), instanceOf(DFISimilarity.class));
         DFISimilarity similarity = (DFISimilarity) fieldType.similarity().get();
         assertThat(similarity.getIndependence(), instanceOf(IndependenceChiSquared.class));
     }
@@ -205,7 +232,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .build();
         IndexService indexService = createIndex("foo", indexSettings);
         DocumentMapper documentMapper = indexService.mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
-        assertThat(documentMapper.mappers().getMapper("field1").fieldType().similarity(), instanceOf(LMDirichletSimilarityProvider.class));
+        assertThat(documentMapper.mappers().getMapper("field1").fieldType().similarity().get(), instanceOf(LMDirichletSimilarity.class));
 
         LMDirichletSimilarity similarity = (LMDirichletSimilarity) documentMapper.mappers().getMapper("field1").fieldType().similarity().get();
         assertThat(similarity.getMu(), equalTo(3000f));
@@ -224,7 +251,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
             .build();
         IndexService indexService = createIndex("foo", indexSettings);
         DocumentMapper documentMapper = indexService.mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
-        assertThat(documentMapper.mappers().getMapper("field1").fieldType().similarity(), instanceOf(LMJelinekMercerSimilarityProvider.class));
+        assertThat(documentMapper.mappers().getMapper("field1").fieldType().similarity().get(), instanceOf(LMJelinekMercerSimilarity.class));
 
         LMJelinekMercerSimilarity similarity = (LMJelinekMercerSimilarity) documentMapper.mappers().getMapper("field1").fieldType().similarity().get();
         assertThat(similarity.getLambda(), equalTo(0.7f));
@@ -244,5 +271,14 @@ public class SimilarityTests extends ESSingleNodeTestCase {
         } catch (MapperParsingException e) {
             assertThat(e.getMessage(), equalTo("Unknown Similarity type [unknown_similarity] for field [field1]"));
         }
+    }
+
+    public void testUnknownParameters() throws IOException {
+        Settings settings = Settings.builder()
+            .put("index.similarity.my_similarity.type", "BM25")
+            .put("index.similarity.my_similarity.z", 2.0f)
+            .build();
+        createSimilarityService(settings);
+        assertWarnings("Unknown settings for similarity of type [BM25]: [z]");
     }
 }

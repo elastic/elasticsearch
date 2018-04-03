@@ -22,7 +22,6 @@ import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
@@ -373,7 +372,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     Node.NODE_INGEST_SETTING,
                     Node.NODE_ATTRIBUTES,
                     Node.NODE_LOCAL_STORAGE_SETTING,
-                    TransportMasterNodeReadAction.FORCE_LOCAL_SETTING,
                     AutoCreateIndex.AUTO_CREATE_INDEX_SETTING,
                     BaseRestHandler.MULTI_ALLOW_EXPLICIT_INDEX,
                     ClusterName.CLUSTER_NAME_SETTING,

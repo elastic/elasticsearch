@@ -45,14 +45,30 @@ if (!isEclipse && !isIdea) {
       }
     }
   }
+  
+  configurations {
+    java9Compile.extendsFrom(compile)
+  }
+  
+  dependencies {
+    java9Compile sourceSets.main.output
+  }
 
   compileJava9Java {
     sourceCompatibility = 9
     targetCompatibility = 9
   }
+  
+  /* Enable this when forbiddenapis was updated to 2.6.
+   * See: https://github.com/elastic/elasticsearch/issues/29292
+  forbiddenApisJava9 {
+    targetCompatibility = 9
+  }
+  */
 
   jar {
-    into('META-INF/versions/9') {
+    metaInf {
+      into 'versions/9'
       from sourceSets.java9.output
     }
     manifest.attributes('Multi-Release': 'true')

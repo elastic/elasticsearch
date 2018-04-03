@@ -164,7 +164,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         indexService2.mapperService().merge("type", objectMapping, MergeReason.MAPPING_UPDATE);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> indexService1.mapperService().merge("type2", objectMapping, MergeReason.MAPPING_UPDATE));
+                () -> indexService1.mapperService().merge("type", objectMapping, MergeReason.MAPPING_UPDATE));
         assertThat(e.getMessage(), containsString("Limit of mapping depth [1] in index [test1] has been exceeded"));
     }
 
@@ -255,7 +255,6 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         // partitioned index cannot have parent/child relationships
         IllegalArgumentException parentException = expectThrows(IllegalArgumentException.class, () -> {
             client().admin().indices().prepareCreate("test-index")
-                    .addMapping("parent", "{\"parent\":{\"_routing\":{\"required\":true}}}", XContentType.JSON)
                     .addMapping("child", "{\"child\": {\"_routing\":{\"required\":true}, \"_parent\": {\"type\": \"parent\"}}}",
                         XContentType.JSON)
                     .setSettings(Settings.builder()

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.chunked;
 
-import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 

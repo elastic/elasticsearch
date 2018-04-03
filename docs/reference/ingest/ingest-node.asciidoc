@@ -1341,7 +1341,7 @@ Here is an example of a pipeline specifying custom pattern definitions:
     {
       "grok": {
         "field": "message",
-        "patterns": ["my %{FAVORITE_DOG:dog} is colored %{RGB:color}"]
+        "patterns": ["my %{FAVORITE_DOG:dog} is colored %{RGB:color}"],
         "pattern_definitions" : {
           "FAVORITE_DOG" : "beagle",
           "RGB" : "RED|GREEN|BLUE"

@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.core.common;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.util.Collections;

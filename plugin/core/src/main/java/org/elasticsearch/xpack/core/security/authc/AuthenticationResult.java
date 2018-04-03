@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.security.authc;
 
-import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Objects;

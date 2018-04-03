@@ -10,8 +10,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.internal.Nullable;
 import org.opensaml.saml.saml2.core.Attribute;
 import org.opensaml.saml.saml2.core.NameIDType;
 

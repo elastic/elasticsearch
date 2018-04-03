@@ -21,7 +21,6 @@ package org.elasticsearch.test.hamcrest;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
@@ -59,7 +58,7 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
             try (XContentBuilder copy = JsonXContent.contentBuilder();
                     XContentParser parser = createParser(original.contentType().xContent(), BytesReference.bytes(original))) {
                 parser.nextToken();
-                XContentHelper.copyCurrentStructure(copy.generator(), parser);
+                copy.generator().copyCurrentStructure(parser);
                 try (XContentBuilder copyShuffled = shuffleXContent(copy) ) {
                     assertToXContentEquivalent(BytesReference.bytes(original), BytesReference.bytes(copyShuffled), original.contentType());
                 }

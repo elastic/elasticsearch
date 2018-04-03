@@ -9,8 +9,11 @@ setup:
                 _parent: { type: "foo" }
 ---
 "Parent":
+  - skip:
+      version: " - 6.99.99"
+      reason:  fields dropped in 7.0
 
- - do:
+  - do:
       catch:      /routing_missing_exception/
       update:
           index:   test_1
@@ -20,7 +23,7 @@ setup:
             doc:        { foo: baz }
             upsert:     { foo: bar }
 
- - do:
+  - do:
       update:
           index:   test_1
           type:    test
@@ -30,7 +33,7 @@ setup:
             doc:        { foo: baz }
             upsert:     { foo: bar }
 
- - do:
+  - do:
       get:
           index:   test_1
           type:    test
@@ -38,10 +41,10 @@ setup:
           parent:  5
           stored_fields:  [_parent, _routing]
 
- - match: { _parent:  "5"}
- - match: { _routing: "5"}
+  - match: { _parent:  "5"}
+  - match: { _routing: "5"}
 
- - do:
+  - do:
       update:
           index:   test_1
           type:    test
@@ -51,7 +54,7 @@ setup:
           body:
             doc:        { foo: baz }
 
- - match: { get._source.foo: baz }
+  - match: { get._source.foo: baz }
 
 ---
 "Parent omitted":

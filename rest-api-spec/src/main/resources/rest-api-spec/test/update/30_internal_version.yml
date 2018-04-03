@@ -1,7 +1,10 @@
 ---
 "Internal version":
+  - skip:
+      version: " - 6.99.99"
+      reason:  fields dropped in 7.0
 
- - do:
+  - do:
       catch:        missing
       update:
           index:    test_1
@@ -11,7 +14,7 @@
           body:
             doc:    { foo: baz }
 
- - do:
+  - do:
       index:
           index:    test_1
           type:     test
@@ -19,7 +22,7 @@
           body:
             doc:    { foo: baz }
 
- - do:
+  - do:
       catch:        conflict
       update:
           index:    test_1

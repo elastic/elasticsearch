@@ -293,8 +293,9 @@ public class UpdateIT extends ESIntegTestCase {
         ensureGreen();
 
         Script fieldIncScript = new Script(ScriptType.INLINE, UPDATE_SCRIPTS, FIELD_INC_SCRIPT, Collections.singletonMap("field", "field"));
-        expectThrows(DocumentMissingException.class,
+        DocumentMissingException ex = expectThrows(DocumentMissingException.class,
             () -> client().prepareUpdate(indexOrAlias(), "type1", "1").setScript(fieldIncScript).execute().actionGet());
+        assertEquals("[type1][1]: document missing", ex.getMessage());
 
         client().prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
 

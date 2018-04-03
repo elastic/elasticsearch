@@ -27,10 +27,6 @@
           "type": "string",
           "description": "Sets the number of shard copies that must be active before proceeding with the update operation. Defaults to 1, meaning the primary shard only. Set to `all` for all shard copies, otherwise set to any non-negative value less than or equal to the total number of copies for the shard (number of replicas + 1)"
         },
-        "fields": {
-          "type": "list",
-          "description": "A comma-separated list of fields to return in the response"
-        },
         "_source": {
           "type" : "list",
           "description" : "True or false to return the _source field or not, or a list of fields to return"

@@ -113,9 +113,10 @@ public class BulkRequestTests extends ESTestCase {
 
     public void testBulkAllowExplicitIndex() throws Exception {
         String bulkAction1 = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk.json");
-        expectThrows(Exception.class,
+        Exception ex = expectThrows(Exception.class,
             () -> new BulkRequest().add(
                 new BytesArray(bulkAction1.getBytes(StandardCharsets.UTF_8)), null, null, false, XContentType.JSON));
+        assertEquals("explicit index in bulk is not allowed", ex.getMessage());
 
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk5.json");
         new BulkRequest().add(new BytesArray(bulkAction.getBytes(StandardCharsets.UTF_8)), "test", null, false, XContentType.JSON);
@@ -172,6 +173,16 @@ public class BulkRequestTests extends ESTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON);
         assertThat(bulkRequest.numberOfActions(), equalTo(9));
+    }
+
+    public void testBulkActionShouldNotContainArray() throws Exception {
+        String bulkAction = "{ \"index\":{\"_index\":[\"index1\", \"index2\"],\"_type\":\"type1\",\"_id\":\"1\"} }\r\n"
+            + "{ \"field1\" : \"value1\" }\r\n";
+        BulkRequest bulkRequest = new BulkRequest();
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON));
+        assertEquals(exc.getMessage(), "Malformed action/metadata line [1]" +
+            ", expected a simple value for field [_index] but found [START_ARRAY]");
     }
 
     public void testBulkEmptyObject() throws Exception {

@@ -27,7 +27,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 
-public final class ByteBufBytesReference extends BytesReference {
+final class ByteBufBytesReference extends BytesReference {
 
     private final ByteBuf buffer;
     private final int length;
@@ -65,7 +65,7 @@ public final class ByteBufBytesReference extends BytesReference {
         buffer.getBytes(offset, os, length);
     }
 
-    public ByteBuf toByteBuf() {
+    ByteBuf toByteBuf() {
         return buffer.duplicate();
     }
 

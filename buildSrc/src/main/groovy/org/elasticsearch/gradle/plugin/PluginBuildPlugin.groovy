@@ -95,7 +95,7 @@ public class PluginBuildPlugin extends BuildPlugin {
             // we "upgrade" these optional deps to provided for plugins, since they will run
             // with a full elasticsearch server that includes optional deps
             compileOnly "org.locationtech.spatial4j:spatial4j:${project.versions.spatial4j}"
-            compileOnly "com.vividsolutions:jts:${project.versions.jts}"
+            compileOnly "org.locationtech.jts:jts-core:${project.versions.jts}"
             compileOnly "org.apache.logging.log4j:log4j-api:${project.versions.log4j}"
             compileOnly "org.apache.logging.log4j:log4j-core:${project.versions.log4j}"
             compileOnly "org.elasticsearch:jna:${project.versions.jna}"

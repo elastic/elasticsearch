@@ -239,19 +239,22 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
 
     @Override
     public boolean equals(Object o) {
-        if (super.equals(o)) {
-            UpdateSettingsRequest that = (UpdateSettingsRequest) o;
-            return Objects.equals(settings, that.settings)
-                    && Objects.equals(indicesOptions, that.indicesOptions)
-                    && Objects.equals(preserveExisting, that.preserveExisting)
-                    && Arrays.equals(indices, that.indices);
+        if (this == o) {
+            return true;
         }
-        return false;
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        UpdateSettingsRequest that = (UpdateSettingsRequest) o;
+        return Objects.equals(settings, that.settings)
+                && Objects.equals(indicesOptions, that.indicesOptions)
+                && Objects.equals(preserveExisting, that.preserveExisting)
+                && Arrays.equals(indices, that.indices);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), settings, indicesOptions, preserveExisting, Arrays.hashCode(indices));
+        return Objects.hash(settings, indicesOptions, preserveExisting, Arrays.hashCode(indices));
     }
 
 }

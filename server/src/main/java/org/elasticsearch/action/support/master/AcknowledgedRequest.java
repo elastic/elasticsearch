@@ -89,21 +89,4 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
         timeout.writeTo(out);
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        AcknowledgedRequest<?> that = (AcknowledgedRequest<?>) o;
-        return Objects.equals(timeout, that.timeout);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(timeout);
-    }
-
 }

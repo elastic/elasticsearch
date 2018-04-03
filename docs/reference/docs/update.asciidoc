@@ -118,8 +118,11 @@ POST test/type1/1/_update
 
 The update API also support passing a partial document,
 which will be merged into the existing document (simple recursive merge,
-inner merging of objects, replacing core "keys/values" and arrays). For
-example:
+inner merging of objects, replacing core "keys/values" and arrays).
+To fully replace the existing document, the <<docs-index_,`index` API>> should
+be used instead.
+The following partial update adds a new field to the
+existing document:
 
 [source,js]
 --------------------------------------------------

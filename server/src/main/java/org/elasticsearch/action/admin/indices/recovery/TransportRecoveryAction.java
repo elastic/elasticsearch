@@ -87,7 +87,7 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
                 shardResponses.get(indexName).add(recoveryState);
             }
         }
-        return new RecoveryResponse(totalShards, successfulShards, failedShards, request.detailed(), shardResponses, shardFailures);
+        return new RecoveryResponse(totalShards, successfulShards, failedShards, shardResponses, shardFailures);
     }
 
     @Override

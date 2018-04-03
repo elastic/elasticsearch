@@ -58,6 +58,12 @@ thirdPartyAudit.excludes = [
         'org.apache.log.Logger',
 ]
 
+forbiddenApisTest {
+  // we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
+  bundledSignatures -= 'jdk-non-portable'
+  bundledSignatures += 'jdk-internal'
+}
+
 /** A task to start the GoogleCloudStorageFixture which emulates a Google Cloud Storage service **/
 task googleCloudStorageFixture(type: AntFixture) {
     dependsOn compileTestJava

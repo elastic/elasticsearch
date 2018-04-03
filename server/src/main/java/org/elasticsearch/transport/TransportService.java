@@ -812,9 +812,7 @@ public class TransportService extends AbstractLifecycleComponent {
     }
 
     protected void traceResponseSent(long requestId, String action, Exception e) {
-        tracerLog.trace(
-            (org.apache.logging.log4j.util.Supplier<?>)
-                () -> new ParameterizedMessage("[{}][{}] sent error response", requestId, action), e);
+        tracerLog.trace(() -> new ParameterizedMessage("[{}][{}] sent error response", requestId, action), e);
     }
 
     /**

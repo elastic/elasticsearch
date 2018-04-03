@@ -158,6 +158,13 @@ public class MeanReciprocalRankTests extends ESTestCase {
         assertEquals(0.0, evaluation.getQualityLevel(), Double.MIN_VALUE);
     }
 
+    public void testNoResults() throws Exception {
+        SearchHit[] hits = new SearchHit[0];
+        EvalQueryQuality evaluated = (new MeanReciprocalRank()).evaluate("id", hits, Collections.emptyList());
+        assertEquals(0.0d, evaluated.getQualityLevel(), 0.00001);
+        assertEquals(-1, ((MeanReciprocalRank.Breakdown) evaluated.getMetricDetails()).getFirstRelevantRank());
+    }
+
     public void testXContentRoundtrip() throws IOException {
         MeanReciprocalRank testItem = createTestItem();
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));

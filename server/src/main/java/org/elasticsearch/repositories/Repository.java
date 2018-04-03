@@ -20,6 +20,7 @@ package org.elasticsearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -78,15 +79,21 @@ public interface Repository extends LifecycleComponent {
     SnapshotInfo getSnapshotInfo(SnapshotId snapshotId);
 
     /**
-     * Returns global metadata associate with the snapshot.
-     * <p>
-     * The returned meta data contains global metadata as well as metadata for all indices listed in the indices parameter.
+     * Returns global metadata associated with the snapshot.
      *
-     * @param snapshot snapshot
-     * @param indices    list of indices
-     * @return information about snapshot
+     * @param snapshotId the snapshot id to load the global metadata from
+     * @return the global metadata about the snapshot
      */
-    MetaData getSnapshotMetaData(SnapshotInfo snapshot, List<IndexId> indices) throws IOException;
+    MetaData getSnapshotGlobalMetaData(SnapshotId snapshotId);
+
+    /**
+     * Returns the index metadata associated with the snapshot.
+     *
+     * @param snapshotId the snapshot id to load the index metadata from
+     * @param index      the {@link IndexId} to load the metadata from
+     * @return the index metadata about the given index for the given snapshot
+     */
+    IndexMetaData getSnapshotIndexMetaData(SnapshotId snapshotId, IndexId index) throws IOException;
 
     /**
      * Returns a {@link RepositoryData} to describe the data in the repository, including the snapshots

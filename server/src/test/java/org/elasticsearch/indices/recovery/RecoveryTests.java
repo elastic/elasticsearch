@@ -306,7 +306,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
         try (ReplicationGroup shards = createGroup(0)) {
             shards.startAll();
             int numDocs = shards.indexDocs(between(10, 100));
-            final long translogSizeOnPrimary = shards.getPrimary().getTranslog().uncommittedSizeInBytes();
+            final long translogSizeOnPrimary = shards.getPrimary().translogStats().getUncommittedSizeInBytes();
             shards.flush();
 
             final IndexShard replica = shards.addReplica();

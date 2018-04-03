@@ -19,14 +19,8 @@
 
 package org.elasticsearch.test.hamcrest;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
@@ -34,32 +28,10 @@ import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
 
-import static java.util.Collections.emptyList;
-import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertVersionSerializable;
 import static org.hamcrest.Matchers.containsString;
 
 public class ElasticsearchAssertionsTests extends ESTestCase {
-    public void testAssertVersionSerializableIsOkWithIllegalArgumentException() {
-        Version version = randomVersion(random());
-        NamedWriteableRegistry registry = new NamedWriteableRegistry(emptyList());
-        Streamable testStreamable = new TestStreamable();
-
-        // Should catch the exception and do nothing.
-        assertVersionSerializable(version, testStreamable, registry);
-    }
-
-    public static class TestStreamable implements Streamable {
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            throw new IllegalArgumentException("Not supported.");
-        }
-    }
 
     public void testAssertXContentEquivalent() throws IOException {
         try (XContentBuilder original = JsonXContent.contentBuilder()) {
@@ -86,7 +58,7 @@ public class ElasticsearchAssertionsTests extends ESTestCase {
             try (XContentBuilder copy = JsonXContent.contentBuilder();
                     XContentParser parser = createParser(original.contentType().xContent(), BytesReference.bytes(original))) {
                 parser.nextToken();
-                XContentHelper.copyCurrentStructure(copy.generator(), parser);
+                copy.generator().copyCurrentStructure(parser);
                 try (XContentBuilder copyShuffled = shuffleXContent(copy) ) {
                     assertToXContentEquivalent(BytesReference.bytes(original), BytesReference.bytes(copyShuffled), original.contentType());
                 }

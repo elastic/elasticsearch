@@ -37,8 +37,6 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -51,6 +49,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -363,9 +362,14 @@ public abstract class EngineTestCase extends ESTestCase {
                                         @Nullable BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
                                         @Nullable ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation,
                                         EngineConfig config) throws IOException {
-        final Directory directory = config.getStore().directory();
+        final Store store = config.getStore();
+        final Directory directory = store.directory();
         if (Lucene.indexExists(directory) == false) {
-            EngineDiskUtils.createEmpty(directory, config.getTranslogConfig().getTranslogPath(), config.getShardId());
+            store.createEmpty();
+            final String translogUuid =
+                Translog.createEmptyTranslog(config.getTranslogConfig().getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId);
+            store.associateIndexWithNewTranslog(translogUuid);
+
         }
         InternalEngine internalEngine = createInternalEngine(indexWriterFactory, localCheckpointTrackerSupplier, seqNoForOperation, config);
         internalEngine.recoverFromTranslog();
@@ -467,7 +471,7 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     protected Engine.Get newGet(boolean realtime, ParsedDocument doc) {
-        return new Engine.Get(realtime, doc.type(), doc.id(), newUid(doc));
+        return new Engine.Get(realtime, false, doc.type(), doc.id(), newUid(doc));
     }
 
     protected Engine.Index indexForDoc(ParsedDocument doc) {
@@ -481,4 +485,8 @@ public abstract class EngineTestCase extends ESTestCase {
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, isRetry);
     }
 
+    protected Engine.Delete replicaDeleteForDoc(String id, long version, long seqNo, long startTime) {
+        return new Engine.Delete("test", id, newUid(id), seqNo, 1, version, VersionType.EXTERNAL,
+            Engine.Operation.Origin.REPLICA, startTime);
+    }
 }

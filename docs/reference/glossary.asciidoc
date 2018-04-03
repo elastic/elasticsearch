@@ -54,6 +54,7 @@
   pairs. The value can be a simple (scalar) value (eg a string, integer,
   date), or a nested structure like an array or an object. A field is
   similar to a column in a table in a relational database.
+  +
   The <<glossary-mapping,mapping>> for each field has a field _type_ (not to
   be confused with document <<glossary-type,type>>) which indicates the type
   of data that can be stored in that field, eg `integer`, `string`,
@@ -65,7 +66,7 @@
   A filter is a non-scoring <<glossary-query,query>>, meaning that it does not score documents.
   It is only concerned about answering the question - "Does this document match?". 
   The answer is always a simple, binary yes or no. This kind of query is said to be made 
-  in a https://www.elastic.co/guide/en/elasticsearch/reference/current/query-filter-context.html["filtering" context], 
+  in a <<https://www.elastic.co/guide/en/elasticsearch/reference/current/query-filter-context.html,"filtering" context>>, 
   hence it is called a filter. Filters are simple checks for set inclusion or exclusion. 
   In most cases, the goal of filtering is to reduce the number of documents that have to be examined.
 
@@ -146,6 +147,7 @@
   the ID of the document or, if the document has a specified parent
   document, from the ID of the parent document (to ensure that child and
   parent documents are stored on the same shard).
+  +
   This value can be overridden by specifying a `routing` value at index
   time, or a <<mapping-routing-field,routing
   field>> in the <<glossary-mapping,mapping>>.
@@ -160,6 +162,7 @@
   Other than defining the number of primary and replica shards that an
   index should have, you never need to refer to shards directly.
   Instead, your code should deal only with an index.
+  +
   Elasticsearch distributes shards amongst all <<glossary-node,nodes>> in the
   <<glossary-cluster,cluster>>, and can move shards automatically from one
   node to another in the case of node failure, or the addition of new

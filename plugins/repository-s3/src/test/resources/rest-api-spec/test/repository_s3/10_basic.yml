@@ -13,9 +13,6 @@
     - match:  { nodes.$master.plugins.0.name: repository-s3  }
 ---
 "Snapshot/Restore with repository-s3":
-  - skip:
-      version: " - 6.3.99"
-      reason: repository-s3 was not testable through YAML tests until 6.4.0
 
   # Register repository
   - do:

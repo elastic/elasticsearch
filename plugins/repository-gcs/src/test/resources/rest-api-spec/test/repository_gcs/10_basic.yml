@@ -13,9 +13,6 @@
     - match:  { nodes.$master.plugins.0.name: repository-gcs  }
 ---
 "Snapshot/Restore with repository-gcs":
-  - skip:
-      version: " - 6.3.0"
-      reason: repository-gcs was not testable through YAML tests until 6.3.0
 
   # Register repository
   - do:

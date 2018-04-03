@@ -82,7 +82,6 @@ task s3Fixture(type: AntFixture) {
 
 integTestCluster {
   dependsOn s3Fixture
-  setupCommand 'create-elasticsearch-keystore', 'bin/elasticsearch-keystore', 'create'
 
   keystoreSetting 's3.client.integration_test.access_key', "s3_integration_test_access_key"
   keystoreSetting 's3.client.integration_test.secret_key', "s3_integration_test_secret_key"

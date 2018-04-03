@@ -409,11 +409,13 @@ public class DiskThresholdDecider extends AllocationDecider {
             // the worst case
             long targetShardSize = 0;
             final Index mergeSourceIndex = metaData.getMergeSourceIndex();
-            final IndexMetaData sourceIndexMeta = allocation.metaData().getIndexSafe(mergeSourceIndex);
-            final Set<ShardId> shardIds = IndexMetaData.selectShrinkShards(shard.id(), sourceIndexMeta, metaData.getNumberOfShards());
-            for (IndexShardRoutingTable shardRoutingTable : allocation.routingTable().index(mergeSourceIndex.getName())) {
-                if (shardIds.contains(shardRoutingTable.shardId())) {
-                    targetShardSize += info.getShardSize(shardRoutingTable.primaryShard(), 0);
+            final IndexMetaData sourceIndexMeta = allocation.metaData().index(mergeSourceIndex);
+            if (sourceIndexMeta != null) {
+                final Set<ShardId> shardIds = IndexMetaData.selectShrinkShards(shard.id(), sourceIndexMeta, metaData.getNumberOfShards());
+                for (IndexShardRoutingTable shardRoutingTable : allocation.routingTable().index(mergeSourceIndex.getName())) {
+                    if (shardIds.contains(shardRoutingTable.shardId())) {
+                        targetShardSize += info.getShardSize(shardRoutingTable.primaryShard(), 0);
+                    }
                 }
             }
             return targetShardSize == 0 ? defaultValue : targetShardSize;

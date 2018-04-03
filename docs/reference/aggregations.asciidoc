@@ -57,6 +57,7 @@ The following snippet captures the basic structure of aggregations:
             <aggregation_body>
         }
         [,"meta" : {  [<meta_data_body>] } ]?
+	[,"filter" : { [<filter_body>] } ]?
         [,"aggregations" : { [<sub_aggregation>]+ } ]?
     }
     [,"<aggregation_name_2>" : { ... } ]*

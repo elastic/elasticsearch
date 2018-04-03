@@ -53,66 +53,62 @@ public class SettingTests extends ESTestCase {
         assertTrue(booleanSetting.get(Settings.builder().put("foo.bar", true).build()));
     }
 
-    public void testByteSize() {
-        {
-            final Setting<ByteSizeValue> byteSizeValueSetting =
-                    Setting.byteSizeSetting("a.byte.size", new ByteSizeValue(1024), Property.Dynamic, Property.NodeScope);
-            assertFalse(byteSizeValueSetting.isGroupSetting());
-            final ByteSizeValue byteSizeValue = byteSizeValueSetting.get(Settings.EMPTY);
-            assertThat(byteSizeValue.getBytes(), equalTo(1024L));
-        }
+    public void testByteSizeSetting() {
+        final Setting<ByteSizeValue> byteSizeValueSetting =
+                Setting.byteSizeSetting("a.byte.size", new ByteSizeValue(1024), Property.Dynamic, Property.NodeScope);
+        assertFalse(byteSizeValueSetting.isGroupSetting());
+        final ByteSizeValue byteSizeValue = byteSizeValueSetting.get(Settings.EMPTY);
+        assertThat(byteSizeValue.getBytes(), equalTo(1024L));
+    }
 
-        // byte size value setting is less than minimum value for setting
-        {
-            final Setting<ByteSizeValue> byteSizeValueSetting =
-                    Setting.byteSizeSetting(
-                            "a.byte.size",
-                            new ByteSizeValue(100, ByteSizeUnit.MB),
-                            new ByteSizeValue(20_000_000, ByteSizeUnit.BYTES),
-                            new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES));
-            final long value = 20_000_000 - randomIntBetween(1, 1024);
-            final Settings settings = Settings.builder().put("a.byte.size", value + "b").build();
-            final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> byteSizeValueSetting.get(settings));
-            final String expectedMessage = "failed to parse value [" + value + "b] for setting [a.byte.size], must be >= [20000000b]";
-            assertThat(e, hasToString(containsString(expectedMessage)));
-        }
+    public void testByteSizeSettingMinValue() {
+        final Setting<ByteSizeValue> byteSizeValueSetting =
+                Setting.byteSizeSetting(
+                        "a.byte.size",
+                        new ByteSizeValue(100, ByteSizeUnit.MB),
+                        new ByteSizeValue(20_000_000, ByteSizeUnit.BYTES),
+                        new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES));
+        final long value = 20_000_000 - randomIntBetween(1, 1024);
+        final Settings settings = Settings.builder().put("a.byte.size", value + "b").build();
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> byteSizeValueSetting.get(settings));
+        final String expectedMessage = "failed to parse value [" + value + "b] for setting [a.byte.size], must be >= [20000000b]";
+        assertThat(e, hasToString(containsString(expectedMessage)));
+    }
 
-        // byte size value setting is more than maximum value for setting
-        {
-            final Setting<ByteSizeValue> byteSizeValueSetting =
-                    Setting.byteSizeSetting(
-                            "a.byte.size",
-                            new ByteSizeValue(100, ByteSizeUnit.MB),
-                            new ByteSizeValue(16, ByteSizeUnit.MB),
-                            new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES));
-            final long value = (1L << 31) - 1 + randomIntBetween(1, 1024);
-            final Settings settings = Settings.builder().put("a.byte.size", value + "b").build();
-            final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> byteSizeValueSetting.get(settings));
-            final String expectedMessage = "failed to parse value [" + value + "b] for setting [a.byte.size], must be <= [2147483647b]";
-            assertThat(e, hasToString(containsString(expectedMessage)));
-        }
+    public void testByteSizeSettingMaxValue() {
+        final Setting<ByteSizeValue> byteSizeValueSetting =
+                Setting.byteSizeSetting(
+                        "a.byte.size",
+                        new ByteSizeValue(100, ByteSizeUnit.MB),
+                        new ByteSizeValue(16, ByteSizeUnit.MB),
+                        new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES));
+        final long value = (1L << 31) - 1 + randomIntBetween(1, 1024);
+        final Settings settings = Settings.builder().put("a.byte.size", value + "b").build();
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> byteSizeValueSetting.get(settings));
+        final String expectedMessage = "failed to parse value [" + value + "b] for setting [a.byte.size], must be <= [2147483647b]";
+        assertThat(e, hasToString(containsString(expectedMessage)));
+    }
 
-        {
-            final Setting<ByteSizeValue> byteSizeValueSetting =
-                    Setting.byteSizeSetting("a.byte.size", s -> "2048b", Property.Dynamic, Property.NodeScope);
-            final ByteSizeValue byteSizeValue = byteSizeValueSetting.get(Settings.EMPTY);
-            assertThat(byteSizeValue.getBytes(), equalTo(2048L));
-            AtomicReference<ByteSizeValue> value = new AtomicReference<>(null);
-            ClusterSettings.SettingUpdater<ByteSizeValue> settingUpdater = byteSizeValueSetting.newUpdater(value::set, logger);
+    public void testByteSizeSettingValidation() {
+        final Setting<ByteSizeValue> byteSizeValueSetting =
+                Setting.byteSizeSetting("a.byte.size", s -> "2048b", Property.Dynamic, Property.NodeScope);
+        final ByteSizeValue byteSizeValue = byteSizeValueSetting.get(Settings.EMPTY);
+        assertThat(byteSizeValue.getBytes(), equalTo(2048L));
+        AtomicReference<ByteSizeValue> value = new AtomicReference<>(null);
+        ClusterSettings.SettingUpdater<ByteSizeValue> settingUpdater = byteSizeValueSetting.newUpdater(value::set, logger);
 
-            final IllegalArgumentException e = expectThrows(
-                    IllegalArgumentException.class,
-                    () -> settingUpdater.apply(Settings.builder().put("a.byte.size", 12).build(), Settings.EMPTY));
-            assertThat(e, hasToString(containsString("illegal value can't update [a.byte.size] from [2048b] to [12]")));
-            assertNotNull(e.getCause());
-            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-            final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
-            final String expected =
-                    "failed to parse setting [a.byte.size] with value [12] as a size in bytes: unit is missing or unrecognized";
-            assertThat(cause, hasToString(containsString(expected)));
-            assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "12b").build(), Settings.EMPTY));
-            assertThat(value.get(), equalTo(new ByteSizeValue(12)));
-        }
+        final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> settingUpdater.apply(Settings.builder().put("a.byte.size", 12).build(), Settings.EMPTY));
+        assertThat(e, hasToString(containsString("illegal value can't update [a.byte.size] from [2048b] to [12]")));
+        assertNotNull(e.getCause());
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
+        final String expected =
+                "failed to parse setting [a.byte.size] with value [12] as a size in bytes: unit is missing or unrecognized";
+        assertThat(cause, hasToString(containsString(expected)));
+        assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "12b").build(), Settings.EMPTY));
+        assertThat(value.get(), equalTo(new ByteSizeValue(12)));
     }
 
     public void testMemorySize() {

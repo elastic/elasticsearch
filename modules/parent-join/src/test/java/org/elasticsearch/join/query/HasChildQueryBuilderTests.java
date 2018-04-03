@@ -336,9 +336,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
             hasChildQuery(CHILD_DOC, new TermQueryBuilder("custom_string", "value"), ScoreMode.None);
         HasChildQueryBuilder.LateParsingQuery query = (HasChildQueryBuilder.LateParsingQuery) hasChildQueryBuilder.toQuery(shardContext);
         Similarity expected = SimilarityService.BUILT_IN.get(similarity)
-            .create(similarity, Settings.EMPTY,
-                    Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build(), null)
-            .get();
+            .apply(Settings.EMPTY, Version.CURRENT, null);
         assertThat(((PerFieldSimilarityWrapper) query.getSimilarity()).get("custom_string"), instanceOf(expected.getClass()));
     }
 

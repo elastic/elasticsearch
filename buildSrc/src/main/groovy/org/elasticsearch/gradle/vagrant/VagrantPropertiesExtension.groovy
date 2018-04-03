@@ -41,7 +41,7 @@ class VagrantPropertiesExtension {
     Boolean inheritTestUtils
 
     @Input
-    String testMainClass
+    String testClass
 
     VagrantPropertiesExtension(List<String> availableBoxes) {
         this.boxes = availableBoxes

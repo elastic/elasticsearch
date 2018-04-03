@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.precommit.PrecommitTasks
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -18,15 +20,15 @@
  */
 
 plugins {
-  id 'groovy'
+  id 'java'
   id 'elasticsearch.build'
   id 'elasticsearch.vagrantsupport'
   id 'elasticsearch.vagrant'
 }
 
 dependencies {
-  compile localGroovy()
-  compile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+  compile "junit:junit:${versions.junit}"
+  compile "org.hamcrest:hamcrest-core:${versions.hamcrest}"
 
   // needs to be on the classpath for JarHell but not actually needed for tests
   runtime project(':libs:elasticsearch-core')
@@ -56,16 +58,18 @@ setupPackagingTest {
 }
 
 esvagrant {
-  testMainClass 'org.elasticsearch.packaging.PackagingMain'
+  testClass 'org.elasticsearch.packaging.PackagingTests'
 }
 
+forbiddenApisMain {
+  signaturesURLs = [
+    PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')
+  ]
+}
+
+// we don't have additional tests for the tests themselves
 tasks.test.enabled = false
 
+// this project doesn't get published
 tasks.dependencyLicenses.enabled = false
 tasks.dependenciesInfo.enabled = false
-
-tasks.thirdPartyAudit.enabled = false
-
-tasks.forbiddenApis.enabled = false
-tasks.forbiddenApisMain.enabled = false
-tasks.forbiddenApisTest.enabled = false

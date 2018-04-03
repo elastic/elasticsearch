@@ -383,24 +383,24 @@ class VagrantTestPlugin implements Plugin<Project> {
                 packagingTest.dependsOn(batsPackagingTest)
             }
 
-            Task groovyPackagingTest = project.tasks.create("vagrant${boxTask}#groovyPackagingTest", VagrantCommandTask) {
+            Task javaPackagingTest = project.tasks.create("vagrant${boxTask}#javaPackagingTest", VagrantCommandTask) {
                 command 'ssh'
                 boxName box
                 environmentVars vagrantEnvVars
                 dependsOn up, setupPackagingTest
                 finalizedBy halt
-                args '--command', "java -cp \"\$PACKAGING_TESTS/*\" ${-> project.extensions.esvagrant.testMainClass}"
+                args '--command', "java -cp \"\$PACKAGING_TESTS/*\" org.junit.runner.JUnitCore ${-> project.extensions.esvagrant.testClass}"
             }
 
-            TaskExecutionAdapter groovyPackagingReproListener = createReproListener(project, groovyPackagingTest.path)
-            groovyPackagingTest.doFirst {
+            TaskExecutionAdapter groovyPackagingReproListener = createReproListener(project, javaPackagingTest.path)
+            javaPackagingTest.doFirst {
                 project.gradle.addListener(groovyPackagingReproListener)
             }
-            groovyPackagingTest.doLast {
+            javaPackagingTest.doLast {
                 project.gradle.removeListener(groovyPackagingReproListener)
             }
             if (project.extensions.esvagrant.boxes.contains(box)) {
-                packagingTest.dependsOn(groovyPackagingTest)
+                packagingTest.dependsOn(javaPackagingTest)
             }
 
             Task platform = project.tasks.create("vagrant${boxTask}#platformTest", VagrantCommandTask) {

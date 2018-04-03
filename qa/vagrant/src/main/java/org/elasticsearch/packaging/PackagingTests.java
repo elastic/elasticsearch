@@ -17,11 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.packaging
+package org.elasticsearch.packaging;
+
+import org.junit.Test;
 
 /**
- * This class doesn't do anything yet
+ * This class doesn't have any tests yet
  */
-class PackagingMain {
-    static void main(String[] args) {}
+public class PackagingTests {
+
+    @Test
+    public void testDummy() {}
 }

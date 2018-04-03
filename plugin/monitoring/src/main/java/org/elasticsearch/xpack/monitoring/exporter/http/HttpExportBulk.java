@@ -123,8 +123,6 @@ class HttpExportBulk extends ExportBulk {
 
     @Override
     protected void doClose(ActionListener<Void> listener) {
-        // nothing serious to do at this stage
-        assert payload == null;
         listener.onResponse(null);
     }
 

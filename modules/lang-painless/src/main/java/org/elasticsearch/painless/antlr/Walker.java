@@ -198,7 +198,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         this.reserved.push(reserved);
         this.debugStream = debugStream;
         this.settings = settings;
-        this.sourceName = Location.computeSourceName(sourceName, sourceText);
+        this.sourceName = Location.computeSourceName(sourceName);
         this.sourceText = sourceText;
         this.globals = new Globals(new BitSet(sourceText.length()));
         this.definition = definition;

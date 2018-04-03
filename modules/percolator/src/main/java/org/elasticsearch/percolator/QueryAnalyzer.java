@@ -143,7 +143,7 @@ final class QueryAnalyzer {
     }
 
     private static BiFunction<Query, Version, Result> matchNoDocsQuery() {
-        return (query, version) -> new Result(true, Collections.emptySet(), 1);
+        return (query, version) -> new Result(true, Collections.emptySet(), 0);
     }
 
     private static BiFunction<Query, Version, Result> matchAllDocsQuery() {
@@ -179,28 +179,28 @@ final class QueryAnalyzer {
             for (BytesRef term = iterator.next(); term != null; term = iterator.next()) {
                 terms.add(new QueryExtraction(new Term(iterator.field(), term)));
             }
-            return new Result(true, terms, 1);
+            return new Result(true, terms, Math.min(1, terms.size()));
         };
     }
 
     private static BiFunction<Query, Version, Result> synonymQuery() {
         return (query, version) -> {
             Set<QueryExtraction> terms = ((SynonymQuery) query).getTerms().stream().map(QueryExtraction::new).collect(toSet());
-            return new Result(true, terms, 1);
+            return new Result(true, terms, Math.min(1, terms.size()));
         };
     }
 
     private static BiFunction<Query, Version, Result> commonTermsQuery() {
         return (query, version) -> {
             Set<QueryExtraction> terms = ((CommonTermsQuery) query).getTerms().stream().map(QueryExtraction::new).collect(toSet());
-            return new Result(false, terms, 1);
+            return new Result(false, terms, Math.min(1, terms.size()));
         };
     }
 
     private static BiFunction<Query, Version, Result> blendedTermQuery() {
         return (query, version) -> {
             Set<QueryExtraction> terms = ((BlendedTermQuery) query).getTerms().stream().map(QueryExtraction::new).collect(toSet());
-            return new Result(true, terms, 1);
+            return new Result(true, terms, Math.min(1, terms.size()));
         };
     }
 
@@ -208,7 +208,7 @@ final class QueryAnalyzer {
         return (query, version) -> {
             Term[] terms = ((PhraseQuery) query).getTerms();
             if (terms.length == 0) {
-                return new Result(true, Collections.emptySet(), 1);
+                return new Result(true, Collections.emptySet(), 0);
             }
 
             if (version.onOrAfter(Version.V_6_1_0)) {
@@ -232,7 +232,7 @@ final class QueryAnalyzer {
         return (query, version) -> {
             Term[][] terms = ((MultiPhraseQuery) query).getTermArrays();
             if (terms.length == 0) {
-                return new Result(true, Collections.emptySet(), 1);
+                return new Result(true, Collections.emptySet(), 0);
             }
 
             if (version.onOrAfter(Version.V_6_1_0)) {
@@ -297,7 +297,7 @@ final class QueryAnalyzer {
             for (SpanQuery clause : spanOrQuery.getClauses()) {
                 terms.addAll(analyze(clause, version).extractions);
             }
-            return new Result(false, terms, 1);
+            return new Result(false, terms, Math.min(1, terms.size()));
         };
     }
 
@@ -334,6 +334,9 @@ final class QueryAnalyzer {
                     numOptionalClauses++;
                 }
             }
+            if (minimumShouldMatch > numOptionalClauses) {
+                return new Result(false, Collections.emptySet(), 0);
+            }
             if (numRequiredClauses > 0) {
                 if (version.onOrAfter(Version.V_6_1_0)) {
                     UnsupportedQueryException uqe = null;
@@ -345,7 +348,12 @@ final class QueryAnalyzer {
                             // since they are completely optional.
 
                             try {
-                                results.add(analyze(clause.getQuery(), version));
+                                Result subResult = analyze(clause.getQuery(), version);
+                                if (subResult.matchAllDocs == false && subResult.extractions.isEmpty()) {
+                                    // doesn't match anything
+                                    return subResult;
+                                }
+                                results.add(subResult);
                             } catch (UnsupportedQueryException e) {
                                 uqe = e;
                             }
@@ -400,7 +408,11 @@ final class QueryAnalyzer {
                             }
                             msm += resultMsm;
 
-                            verified &= result.verified;
+                            if (result.verified == false
+                                    // If some inner extractions are optional, the result can't be verified
+                                    || result.minimumShouldMatch < result.extractions.size()) {
+                                verified = false;
+                            }
                             matchAllDocs &= result.matchAllDocs;
                             extractions.addAll(result.extractions);
                         }
@@ -492,7 +504,7 @@ final class QueryAnalyzer {
             // Need to check whether upper is not smaller than lower, otherwise NumericUtils.subtract(...) fails IAE
             // If upper is really smaller than lower then we deal with like MatchNoDocsQuery. (verified and no extractions)
             if (new BytesRef(lowerPoint).compareTo(new BytesRef(upperPoint)) > 0) {
-                return new Result(true, Collections.emptySet(), 1);
+                return new Result(true, Collections.emptySet(), 0);
             }
 
             byte[] interval = new byte[16];
@@ -537,7 +549,15 @@ final class QueryAnalyzer {
         for (int i = 0; i < disjunctions.size(); i++) {
             Query disjunct = disjunctions.get(i);
             Result subResult = analyze(disjunct, version);
-            verified &= subResult.verified;
+            if (subResult.verified == false
+                    // one of the sub queries requires more than one term to match, we can't
+                    // verify it with a single top-level min_should_match
+                    || subResult.minimumShouldMatch > 1
+                    // One of the inner clauses has multiple extractions, we won't be able to
+                    // verify it with a single top-level min_should_match
+                    || (subResult.extractions.size() > 1 && requiredShouldClauses > 1)) {
+                verified = false;
+            }
             if (subResult.matchAllDocs) {
                 numMatchAllClauses++;
             }
@@ -683,6 +703,10 @@ final class QueryAnalyzer {
         final boolean matchAllDocs;
 
         Result(boolean verified, Set<QueryExtraction> extractions, int minimumShouldMatch) {
+            if (minimumShouldMatch > extractions.size()) {
+                throw new IllegalArgumentException("minimumShouldMatch can't be greater than the number of extractions: "
+                        + minimumShouldMatch + " > " + extractions.size());
+            }
             this.extractions = extractions;
             this.verified = verified;
             this.minimumShouldMatch = minimumShouldMatch;

@@ -39,10 +39,12 @@ import javax.net.ssl.SSLSocket;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -122,7 +124,7 @@ public class SimpleSecurityNioTransportTests extends AbstractSimpleTransportTest
     public void testConnectException() throws UnknownHostException {
         try {
             serviceA.connectToNode(new DiscoveryNode("C", new TransportAddress(InetAddress.getByName("localhost"), 9876),
-                    emptyMap(), emptySet(),Version.CURRENT));
+                    emptyMap(), emptySet(), Version.CURRENT));
             fail("Expected ConnectTransportException");
         } catch (ConnectTransportException e) {
             assertThat(e.getMessage(), containsString("connect_exception"));
@@ -151,7 +153,7 @@ public class SimpleSecurityNioTransportTests extends AbstractSimpleTransportTest
                 transportService.close();
             }
         });
-        assertEquals("Failed to bind to ["+ port + "]", bindTransportException.getMessage());
+        assertEquals("Failed to bind to [" + port + "]", bindTransportException.getMessage());
     }
 
     @SuppressForbidden(reason = "Need to open socket connection")
@@ -164,12 +166,13 @@ public class SimpleSecurityNioTransportTests extends AbstractSimpleTransportTest
             CountDownLatch handshakeLatch = new CountDownLatch(1);
             HandshakeCompletedListener firstListener = event -> handshakeLatch.countDown();
             socket.addHandshakeCompletedListener(firstListener);
-            handshakeLatch.countDown();
+            socket.startHandshake();
+            handshakeLatch.await();
             socket.removeHandshakeCompletedListener(firstListener);
 
             OutputStreamStreamOutput stream = new OutputStreamStreamOutput(socket.getOutputStream());
             stream.writeByte((byte) 'E');
-            stream.writeByte((byte)'S');
+            stream.writeByte((byte) 'S');
             stream.writeInt(-1);
             stream.flush();
 
@@ -177,8 +180,27 @@ public class SimpleSecurityNioTransportTests extends AbstractSimpleTransportTest
             CountDownLatch renegotiationLatch = new CountDownLatch(1);
             HandshakeCompletedListener secondListener = event -> renegotiationLatch.countDown();
             socket.addHandshakeCompletedListener(secondListener);
-            renegotiationLatch.countDown();
+
+            AtomicReference<Exception> error = new AtomicReference<>();
+            CountDownLatch catchReadErrorsLatch = new CountDownLatch(1);
+            Thread renegotiationThread = new Thread(() -> {
+                try {
+                    socket.setSoTimeout(50);
+                    socket.getInputStream().read();
+                } catch (SocketTimeoutException e) {
+                    // Ignore. We expect a timeout.
+                } catch (IOException e) {
+                    error.set(e);
+                } finally {
+                    catchReadErrorsLatch.countDown();
+                }
+            });
+            renegotiationThread.start();
+            renegotiationLatch.await();
             socket.removeHandshakeCompletedListener(secondListener);
+            catchReadErrorsLatch.await();
+
+            assertNull(error.get());
 
             stream.writeByte((byte) 'E');
             stream.writeByte((byte)'S');

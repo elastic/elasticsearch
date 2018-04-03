@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.repositories.gcs;
+package org.elasticsearch.repositories.s3;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -24,7 +24,7 @@ import com.sun.net.httpserver.HttpServer;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.mocksocket.MockHttpServer;
-import org.elasticsearch.repositories.gcs.GoogleCloudStorageTestServer.Response;
+import org.elasticsearch.repositories.s3.AmazonS3TestServer.Response;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -44,17 +44,17 @@ import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 
 /**
- * {@link GoogleCloudStorageFixture} is a fixture that emulates a Google Cloud Storage service.
+ * {@link AmazonS3Fixture} is a fixture that emulates a S3 service.
  * <p>
  * It starts an asynchronous socket server that binds to a random local port. The server parses
- * HTTP requests and uses a {@link GoogleCloudStorageTestServer} to handle them before returning
+ * HTTP requests and uses a {@link AmazonS3TestServer} to handle them before returning
  * them to the client as HTTP responses.
  */
-public class GoogleCloudStorageFixture {
+public class AmazonS3Fixture {
 
     public static void main(String[] args) throws Exception {
         if (args == null || args.length != 2) {
-            throw new IllegalArgumentException("GoogleCloudStorageFixture <working directory> <bucket>");
+            throw new IllegalArgumentException("AmazonS3Fixture <working directory> <bucket>");
         }
 
         final InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
@@ -69,9 +69,9 @@ public class GoogleCloudStorageFixture {
             // Writes the address and port of the http server in a `ports` file located in the working directory
             writeFile(workingDirectory, "ports", addressAndPort);
 
-            // Emulates a Google Cloud Storage server
+            // Emulates S3
             final String storageUrl = "http://" + addressAndPort;
-            final GoogleCloudStorageTestServer storageTestServer = new GoogleCloudStorageTestServer(storageUrl);
+            final AmazonS3TestServer storageTestServer = new AmazonS3TestServer(storageUrl);
             storageTestServer.createBucket(args[1]);
 
             httpServer.createContext("/", new ResponseHandler(storageTestServer));
@@ -107,9 +107,9 @@ public class GoogleCloudStorageFixture {
 
     static class ResponseHandler implements HttpHandler {
 
-        private final GoogleCloudStorageTestServer storageServer;
+        private final AmazonS3TestServer storageServer;
 
-        private ResponseHandler(final GoogleCloudStorageTestServer storageServer) {
+        private ResponseHandler(final AmazonS3TestServer storageServer) {
             this.storageServer = storageServer;
         }
 
@@ -119,7 +119,6 @@ public class GoogleCloudStorageFixture {
             String path = storageServer.getEndpoint() + exchange.getRequestURI().getRawPath();
             String query = exchange.getRequestURI().getRawQuery();
             Map<String, List<String>> headers = exchange.getRequestHeaders();
-
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             Streams.copy(exchange.getRequestBody(), out);
 

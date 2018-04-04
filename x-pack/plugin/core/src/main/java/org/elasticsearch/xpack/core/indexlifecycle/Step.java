@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+
 import java.util.Objects;
 
 /**
@@ -23,13 +26,34 @@ public abstract class Step {
         return key;
     }
 
-
     public StepKey getNextStepKey() {
         return nextStepKey;
     }
 
     public boolean indexSurvives() {
         return true;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(key, nextStepKey);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        Step other = (Step) obj;
+        return Objects.equals(key, other.key) && Objects.equals(nextStepKey, other.nextStepKey);
+    }
+
+    @Override
+    public String toString() {
+        return key + " => " + nextStepKey;
     }
 
     public static class StepKey {
@@ -76,6 +100,5 @@ public abstract class Step {
         public String toString() {
             return String.format("[%s][%s][%s]", phase, action, name);
         }
-
     }
 }

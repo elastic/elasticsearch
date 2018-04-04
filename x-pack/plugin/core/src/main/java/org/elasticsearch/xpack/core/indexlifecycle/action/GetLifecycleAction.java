@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 public class GetLifecycleAction
@@ -51,38 +52,42 @@ public class GetLifecycleAction
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private LifecyclePolicy policy;
+        private List<LifecyclePolicy> policies;
 
         public Response() {
         }
 
-        public Response(LifecyclePolicy policy) {
-            this.policy = policy;
+        public Response(List<LifecyclePolicy> policies) {
+            this.policies = policies;
         }
 
-        public LifecyclePolicy getPolicy() {
-            return policy;
+        public List<LifecyclePolicy> getPolicies() {
+            return policies;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            policy.toXContent(builder, params);
+            builder.startObject();
+            for (LifecyclePolicy policy : policies) {
+                builder.field(policy.getName(), policy);
+            }
+            builder.endObject();
             return builder;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            policy = new LifecyclePolicy(in);
+            policies = in.readList(LifecyclePolicy::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            policy.writeTo(out);
+            out.writeList(policies);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(policy);
+            return Objects.hash(policies);
         }
 
         @Override
@@ -94,7 +99,7 @@ public class GetLifecycleAction
                 return false;
             }
             Response other = (Response) obj;
-            return Objects.equals(policy, other.policy);
+            return Objects.equals(policies, other.policies);
         }
 
         @Override
@@ -105,20 +110,21 @@ public class GetLifecycleAction
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
+        private String[] policyNames;
 
-        public static final ParseField POLICY_FIELD = new ParseField("policy");
-
-        private String policyName;
-
-        public Request(String policyName) {
-            this.policyName = policyName;
+        public Request(String... policyNames) {
+            if (policyNames == null) {
+                throw new IllegalArgumentException("ids cannot be null");
+            }
+            this.policyNames = policyNames;
         }
 
         public Request() {
+            policyNames = Strings.EMPTY_ARRAY;
         }
 
-        public String getPolicyName() {
-            return policyName;
+        public String[] getPolicyNames() {
+            return policyNames;
         }
 
         @Override
@@ -129,18 +135,18 @@ public class GetLifecycleAction
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            policyName = in.readString();
+            policyNames = in.readStringArray();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(policyName);
+            out.writeStringArray(policyNames);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(policyName);
+            return policyNames.hashCode();
         }
 
         @Override
@@ -152,7 +158,7 @@ public class GetLifecycleAction
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(policyName, other.policyName);
+            return Objects.equals(policyNames, other.policyNames);
         }
 
     }

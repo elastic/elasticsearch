@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
@@ -22,20 +23,38 @@ import java.util.TreeMap;
 import java.util.function.LongSupplier;
 
 public class PolicyStepsRegistry {
-
-
     // keeps track of existing policies in the cluster state
-    SortedMap<String, LifecyclePolicy> lifecyclePolicyMap;
+    private SortedMap<String, LifecyclePolicy> lifecyclePolicyMap;
     // keeps track of what the first step in a policy is
-    Map<String, Step> firstStepMap;
+    private Map<String, Step> firstStepMap;
     // keeps track of a mapping from policy/step-name to respective Step
-    Map<String, Map<Step.StepKey, Step>> stepMap;
+    private Map<String, Map<Step.StepKey, Step>> stepMap;
 
     public PolicyStepsRegistry() {
         this.lifecyclePolicyMap = new TreeMap<>();
         this.firstStepMap = new HashMap<>();
         this.stepMap = new HashMap<>();
     }
+
+    PolicyStepsRegistry(SortedMap<String, LifecyclePolicy> lifecyclePolicyMap,
+                        Map<String, Step> firstStepMap, Map<String, Map<Step.StepKey, Step>> stepMap) {
+        this.lifecyclePolicyMap = lifecyclePolicyMap;
+        this.firstStepMap = firstStepMap;
+        this.stepMap = stepMap;
+    }
+
+    SortedMap<String, LifecyclePolicy> getLifecyclePolicyMap() {
+        return lifecyclePolicyMap;
+    }
+
+    Map<String, Step> getFirstStepMap() {
+        return firstStepMap;
+    }
+
+    Map<String, Map<Step.StepKey, Step>> getStepMap() {
+        return stepMap;
+    }
+
 
     @SuppressWarnings("unchecked")
     public void update(ClusterState currentState, Client client, LongSupplier nowSupplier) {
@@ -72,12 +91,16 @@ public class PolicyStepsRegistry {
      * as String values in the cluster state.
      * @param policy the policy from which to fetch the associated steps from
      * @param stepKey the key to the requested {@link Step}
-     * @return
+     * @return step
      */
     public Step getStep(String policy, Step.StepKey stepKey) {
-        Step step = stepMap.getOrDefault(policy, Collections.emptyMap()).get(stepKey);
+        Map<Step.StepKey, Step> steps = stepMap.get(policy);
+        if (steps == null) {
+            throw new IllegalStateException("policy [" + policy + "] does not exist");
+        }
+        Step step = steps.get(stepKey);
         if (step == null) {
-            step = firstStepMap.get(policy);
+            throw new IllegalStateException("step [" + stepKey + "] does not exist");
         }
         return step;
     }

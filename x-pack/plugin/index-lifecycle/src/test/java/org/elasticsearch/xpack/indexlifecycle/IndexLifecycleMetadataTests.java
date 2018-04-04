@@ -88,7 +88,7 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
     @Override
     protected MetaData.Custom mutateInstance(MetaData.Custom instance) {
         IndexLifecycleMetadata metadata = (IndexLifecycleMetadata) instance;
-        SortedMap<String, LifecyclePolicy> policies = metadata.getPolicies();
+        Map<String, LifecyclePolicy> policies = metadata.getPolicies();
         policies = new TreeMap<>(policies);
         String policyName = randomAlphaOfLength(10);
         policies.put(policyName, new LifecyclePolicy(TestLifecycleType.INSTANCE, policyName, Collections.emptyMap()));

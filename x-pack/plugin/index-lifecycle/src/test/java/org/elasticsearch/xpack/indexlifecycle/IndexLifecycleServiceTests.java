@@ -183,7 +183,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
     public void testServiceSetupOnFirstClusterChange() {
         TimeValue pollInterval = TimeValue.timeValueSeconds(randomIntBetween(1, 59));
-        MetaData metaData = MetaData.builder() .persistentSettings(settings(Version.CURRENT)
+        MetaData metaData = MetaData.builder().persistentSettings(settings(Version.CURRENT)
                 .put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), pollInterval).build())
             .build();
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)

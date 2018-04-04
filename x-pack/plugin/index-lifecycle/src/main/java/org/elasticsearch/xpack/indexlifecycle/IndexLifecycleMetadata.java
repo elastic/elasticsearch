@@ -27,7 +27,6 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.SortedMap;
 import java.util.TreeMap;
 
 
@@ -46,10 +45,10 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
                 }, POLICIES_FIELD);
     }
 
-    private final SortedMap<String, LifecyclePolicy> policies;
+    private final Map<String, LifecyclePolicy> policies;
 
-    public IndexLifecycleMetadata(SortedMap<String, LifecyclePolicy> policies) {
-        this.policies = Collections.unmodifiableSortedMap(policies);
+    public IndexLifecycleMetadata(Map<String, LifecyclePolicy> policies) {
+        this.policies = Collections.unmodifiableMap(policies);
     }
 
     public IndexLifecycleMetadata(StreamInput in) throws IOException {
@@ -70,7 +69,7 @@ public class IndexLifecycleMetadata implements MetaData.Custom {
         }
     }
 
-    public SortedMap<String, LifecyclePolicy> getPolicies() {
+    public Map<String, LifecyclePolicy> getPolicies() {
         return policies;
     }
 

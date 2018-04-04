@@ -23,6 +23,6 @@ public class GetLifecycleRequestTests extends AbstractStreamableTestCase<GetLife
 
     @Override
     protected Request mutateInstance(Request request) {
-        return new Request(request.getPolicyName() + randomAlphaOfLengthBetween(1, 10));
+        return new Request(request.getPolicyNames() + randomAlphaOfLengthBetween(1, 10));
     }
 }

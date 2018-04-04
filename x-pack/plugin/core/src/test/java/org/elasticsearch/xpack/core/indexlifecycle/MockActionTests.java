@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -17,17 +18,7 @@ public class MockActionTests extends AbstractSerializingTestCase<MockAction> {
 
     @Override
     protected MockAction createTestInstance() {
-        List<MockStep> steps = new ArrayList<>();
-        int stepCount = randomIntBetween(2, 10);
-        Step.StepKey currentStepKey = randomStepKey();
-        Step.StepKey nextStepKey = null;
-        for (int i = 0; i < stepCount - 1; i++) {
-            nextStepKey = randomStepKey();
-            steps.add(new MockStep(currentStepKey, nextStepKey));
-            currentStepKey = nextStepKey;
-        }
-        steps.add(new MockStep(currentStepKey, null));
-        return new MockAction(steps);
+        return randomMockAction(null);
     }
 
     @Override
@@ -52,7 +43,22 @@ public class MockActionTests extends AbstractSerializingTestCase<MockAction> {
         return new MockAction(steps);
     }
 
-    private Step.StepKey randomStepKey() {
+    // TODO(talevy): design this in a way that we can build up a proper LifecyclePolicy where the steps connect
+    public static MockAction randomMockAction(@Nullable Step.StepKey nextExternalStepKey) {
+        List<MockStep> steps = new ArrayList<>();
+        int stepCount = randomIntBetween(2, 10);
+        Step.StepKey currentStepKey = randomStepKey();
+        Step.StepKey nextStepKey;
+        for (int i = 0; i < stepCount - 1; i++) {
+            nextStepKey = randomStepKey();
+            steps.add(new MockStep(currentStepKey, nextStepKey));
+            currentStepKey = nextStepKey;
+        }
+        steps.add(new MockStep(currentStepKey, nextExternalStepKey));
+        return new MockAction(steps);
+    }
+
+    private static Step.StepKey randomStepKey() {
         return new Step.StepKey(randomAlphaOfLength(5),
             randomAlphaOfLength(5), randomAlphaOfLength(5));
     }

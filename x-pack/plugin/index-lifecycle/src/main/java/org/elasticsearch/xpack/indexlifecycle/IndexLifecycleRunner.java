@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.indexlifecycle;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -34,7 +33,7 @@ public class IndexLifecycleRunner {
     }
 
     public void runPolicy(String policy, Index index, Settings indexSettings, Cause cause) {
-        Step currentStep = getCurrentStep(policy, indexSettings);
+        Step currentStep = getCurrentStep(stepRegistry, policy, indexSettings);
         logger.warn("running policy with current-step[" + currentStep.getKey() + "]");
         if (currentStep instanceof ClusterStateActionStep || currentStep instanceof ClusterStateWaitStep) {
             if (cause != Cause.SCHEDULE_TRIGGER) {
@@ -92,13 +91,10 @@ public class IndexLifecycleRunner {
 
     private void executeClusterStateSteps(Index index, String policy, Step step) {
         assert step instanceof ClusterStateActionStep || step instanceof ClusterStateWaitStep;
-        clusterService.submitStateUpdateTask("ILM", new ExecuteStepsUpdateTask(index, step,
-            (currentState) -> getCurrentStep(policy, currentState.getMetaData().index(index).getSettings()),
-            (currentState, currentStep) -> moveClusterStateToNextStep(index, currentState, currentStep.getNextStepKey()),
-            (stepKey) -> stepRegistry.getStep(policy, stepKey)));
+        clusterService.submitStateUpdateTask("ILM", new ExecuteStepsUpdateTask(policy, index, step, stepRegistry));
     }
 
-    private StepKey getCurrentStepKey(Settings indexSettings) {
+    static StepKey getCurrentStepKey(Settings indexSettings) {
         String currentPhase = LifecycleSettings.LIFECYCLE_PHASE_SETTING.get(indexSettings);
         String currentAction = LifecycleSettings.LIFECYCLE_ACTION_SETTING.get(indexSettings);
         String currentStep = LifecycleSettings.LIFECYCLE_STEP_SETTING.get(indexSettings);
@@ -113,7 +109,7 @@ public class IndexLifecycleRunner {
         }
     }
 
-    private Step getCurrentStep(String policy, Settings indexSettings) {
+    static Step getCurrentStep(PolicyStepsRegistry stepRegistry, String policy, Settings indexSettings) {
         StepKey currentStepKey = getCurrentStepKey(indexSettings);
         if (currentStepKey == null) {
             return stepRegistry.getFirstStep(policy);
@@ -122,7 +118,7 @@ public class IndexLifecycleRunner {
         }
     }
 
-    private ClusterState moveClusterStateToNextStep(Index index, ClusterState clusterState, StepKey nextStep) {
+    static ClusterState moveClusterStateToNextStep(Index index, ClusterState clusterState, StepKey nextStep) {
         ClusterState.Builder newClusterStateBuilder = ClusterState.builder(clusterState);
         IndexMetaData idxMeta = clusterState.getMetaData().index(index);
         Builder indexSettings = Settings.builder().put(idxMeta.getSettings()).put(LifecycleSettings.LIFECYCLE_PHASE, nextStep.getPhase())
@@ -136,9 +132,8 @@ public class IndexLifecycleRunner {
     private void moveToStep(Index index, String policy, StepKey currentStepKey, StepKey nextStepKey, Cause cause) {
         logger.error("moveToStep[" + policy + "] [" + index.getName() + "]" + currentStepKey + " -> "
             + nextStepKey + ". because:" + cause.name());
-        clusterService.submitStateUpdateTask("ILM", new MoveToNextStepUpdateTask(index, policy,
-            currentStepKey, (c) -> moveClusterStateToNextStep(index, c, nextStepKey),
-            (s) -> getCurrentStepKey(s), (c) -> runPolicy(index, c, cause)));
+        clusterService.submitStateUpdateTask("ILM", new MoveToNextStepUpdateTask(index, policy, currentStepKey,
+            nextStepKey, newState -> runPolicy(index, newState, cause)));
     }
 
     public enum Cause {

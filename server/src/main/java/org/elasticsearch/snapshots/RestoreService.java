@@ -66,6 +66,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -91,6 +92,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_UPGRADED;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
+import static org.elasticsearch.snapshots.SnapshotUtils.filterIndices;
 
 /**
  * Service responsible for restoring snapshots
@@ -182,17 +184,34 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
             if (matchingSnapshotId.isPresent() == false) {
                 throw new SnapshotRestoreException(request.repositoryName, request.snapshotName, "snapshot does not exist");
             }
+
             final SnapshotId snapshotId = matchingSnapshotId.get();
             final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
             final Snapshot snapshot = new Snapshot(request.repositoryName, snapshotId);
-            List<String> filteredIndices = SnapshotUtils.filterIndices(snapshotInfo.indices(), request.indices(), request.indicesOptions());
-            final MetaData metaData = repository.getSnapshotMetaData(snapshotInfo, repositoryData.resolveIndices(filteredIndices));
 
             // Make sure that we can restore from this snapshot
             validateSnapshotRestorable(request.repositoryName, snapshotInfo);
 
-            // Find list of indices that we need to restore
-            final Map<String, String> renamedIndices = renamedIndices(request, filteredIndices);
+            // Resolve the indices from the snapshot that need to be restored
+            final List<String> indicesInSnapshot = filterIndices(snapshotInfo.indices(), request.indices(), request.indicesOptions());
+
+            final MetaData.Builder metaDataBuilder;
+            if (request.includeGlobalState()) {
+                metaDataBuilder = MetaData.builder(repository.getSnapshotGlobalMetaData(snapshotId));
+            } else {
+                metaDataBuilder = MetaData.builder();
+            }
+
+            final List<IndexId> indexIdsInSnapshot = repositoryData.resolveIndices(indicesInSnapshot);
+            for (IndexId indexId : indexIdsInSnapshot) {
+                metaDataBuilder.put(repository.getSnapshotIndexMetaData(snapshotId, indexId), false);
+            }
+
+            final MetaData metaData = metaDataBuilder.build();
+
+            // Apply renaming on index names, returning a map of names where
+            // the key is the renamed index and the value is the original name
+            final Map<String, String> indices = renamedIndices(request, indicesInSnapshot);
 
             // Now we can start the actual restore process by adding shards to be recovered in the cluster state
             // and updating cluster metadata (global and index) as needed
@@ -222,12 +241,13 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
                     RoutingTable.Builder rtBuilder = RoutingTable.builder(currentState.routingTable());
                     ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards;
                     Set<String> aliases = new HashSet<>();
-                    if (!renamedIndices.isEmpty()) {
+
+                    if (indices.isEmpty() == false) {
                         // We have some indices to restore
                         ImmutableOpenMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> shardsBuilder = ImmutableOpenMap.builder();
                         final Version minIndexCompatibilityVersion = currentState.getNodes().getMaxNodeVersion()
                             .minimumIndexCompatibilityVersion();
-                        for (Map.Entry<String, String> indexEntry : renamedIndices.entrySet()) {
+                        for (Map.Entry<String, String> indexEntry : indices.entrySet()) {
                             String index = indexEntry.getValue();
                             boolean partial = checkPartial(index);
                             SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(snapshot, snapshotInfo.version(), index);
@@ -304,21 +324,42 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
                         }
 
                         shards = shardsBuilder.build();
-                        RestoreInProgress.Entry restoreEntry = new RestoreInProgress.Entry(snapshot, overallState(RestoreInProgress.State.INIT, shards), Collections.unmodifiableList(new ArrayList<>(renamedIndices.keySet())), shards);
+                        RestoreInProgress.Entry restoreEntry = new RestoreInProgress.Entry(snapshot, overallState(RestoreInProgress.State.INIT, shards), Collections.unmodifiableList(new ArrayList<>(indices.keySet())), shards);
                         builder.putCustom(RestoreInProgress.TYPE, new RestoreInProgress(restoreEntry));
                     } else {
                         shards = ImmutableOpenMap.of();
                     }
 
-                    checkAliasNameConflicts(renamedIndices, aliases);
+                    checkAliasNameConflicts(indices, aliases);
 
                     // Restore global state if needed
-                    restoreGlobalStateIfRequested(mdBuilder);
+                    if (request.includeGlobalState()) {
+                        if (metaData.persistentSettings() != null) {
+                            Settings settings = metaData.persistentSettings();
+                            clusterSettings.validateUpdate(settings);
+                            mdBuilder.persistentSettings(settings);
+                        }
+                        if (metaData.templates() != null) {
+                            // TODO: Should all existing templates be deleted first?
+                            for (ObjectCursor<IndexTemplateMetaData> cursor : metaData.templates().values()) {
+                                mdBuilder.put(cursor.value);
+                            }
+                        }
+                        if (metaData.customs() != null) {
+                            for (ObjectObjectCursor<String, MetaData.Custom> cursor : metaData.customs()) {
+                                if (!RepositoriesMetaData.TYPE.equals(cursor.key)) {
+                                    // Don't restore repositories while we are working with them
+                                    // TODO: Should we restore them at the end?
+                                    mdBuilder.putCustom(cursor.key, cursor.value);
+                                }
+                            }
+                        }
+                    }
 
                     if (completed(shards)) {
                         // We don't have any indices to restore - we are done
                         restoreInfo = new RestoreInfo(snapshotId.getName(),
-                                                      Collections.unmodifiableList(new ArrayList<>(renamedIndices.keySet())),
+                                                      Collections.unmodifiableList(new ArrayList<>(indices.keySet())),
                                                       shards.size(),
                                                       shards.size() - failedShards(shards));
                     }
@@ -425,32 +466,6 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
                         }));
                     return builder.settings(settingsBuilder).build();
                 }
-
-                private void restoreGlobalStateIfRequested(MetaData.Builder mdBuilder) {
-                    if (request.includeGlobalState()) {
-                        if (metaData.persistentSettings() != null) {
-                            Settings settings = metaData.persistentSettings();
-                            clusterSettings.validateUpdate(settings);
-                            mdBuilder.persistentSettings(settings);
-                        }
-                        if (metaData.templates() != null) {
-                            // TODO: Should all existing templates be deleted first?
-                            for (ObjectCursor<IndexTemplateMetaData> cursor : metaData.templates().values()) {
-                                mdBuilder.put(cursor.value);
-                            }
-                        }
-                        if (metaData.customs() != null) {
-                            for (ObjectObjectCursor<String, MetaData.Custom> cursor : metaData.customs()) {
-                                if (!RepositoriesMetaData.TYPE.equals(cursor.key)) {
-                                    // Don't restore repositories while we are working with them
-                                    // TODO: Should we restore them at the end?
-                                    mdBuilder.putCustom(cursor.key, cursor.value);
-                                }
-                            }
-                        }
-                    }
-                }
-
 
                 @Override
                 public void onFailure(String source, Exception e) {
@@ -757,7 +772,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
                         "indices [" + index + "] and [" + previousIndex + "] are renamed into the same index [" + renamedIndex + "]");
             }
         }
-        return renamedIndices;
+        return Collections.unmodifiableMap(renamedIndices);
     }
 
     /**

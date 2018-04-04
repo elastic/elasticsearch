@@ -311,8 +311,8 @@ class BuildPlugin implements Plugin<Project> {
     /** Adds repositories used by ES dependencies */
     static void configureRepositories(Project project) {
         RepositoryHandler repos = project.repositories
-        if (System.getProperty("repos.mavenlocal") != null) {
-            // with -Drepos.mavenlocal=true we can force checking the local .m2 repo which is
+        if (System.getProperty("repos.mavenLocal") != null) {
+            // with -Drepos.mavenLocal=true we can force checking the local .m2 repo which is
             // useful for development ie. bwc tests where we install stuff in the local repository
             // such that we don't have to pass hardcoded files to gradle
             repos.mavenLocal()
@@ -551,7 +551,7 @@ class BuildPlugin implements Plugin<Project> {
                 if (project.licenseFile == null || project.noticeFile == null) {
                     throw new GradleException("Must specify license and notice file for project ${project.path}")
                 }
-                jarTask.into('META-INF') {
+                jarTask.metaInf {
                     from(project.licenseFile.parent) {
                         include project.licenseFile.name
                     }

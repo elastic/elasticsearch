@@ -25,7 +25,7 @@ import org.elasticsearch.test.ESTestCase;
  * Tests for {@link org.elasticsearch.common.geo.GeoHashUtils}
  */
 public class GeoHashTests extends ESTestCase {
-    public void testGeohashAsLongRoutines()  {
+    public void testGeohashAsLongRoutines() {
         final GeoPoint expected = new GeoPoint();
         final GeoPoint actual = new GeoPoint();
         //Ensure that for all points at all supported levels of precision
@@ -69,5 +69,17 @@ public class GeoHashTests extends ESTestCase {
         assertEquals(expectedLonDiff, bbox.maxLon - bbox.minLon, 0.00001);
         assertEquals(expectedLatDiff, bbox.maxLat - bbox.minLat, 0.00001);
         assertEquals(hash, GeoHashUtils.stringEncode(bbox.minLon, bbox.minLat, level));
+    }
+
+    public void testGeohashExtremes() {
+        assertEquals("000000000000", GeoHashUtils.stringEncode(-180, -90));
+        assertEquals("800000000000", GeoHashUtils.stringEncode(-180, 0));
+        assertEquals("bpbpbpbpbpbp", GeoHashUtils.stringEncode(-180, 90));
+        assertEquals("h00000000000", GeoHashUtils.stringEncode(0, -90));
+        assertEquals("s00000000000", GeoHashUtils.stringEncode(0, 0));
+        assertEquals("upbpbpbpbpbp", GeoHashUtils.stringEncode(0, 90));
+        assertEquals("pbpbpbpbpbpb", GeoHashUtils.stringEncode(180, -90));
+        assertEquals("xbpbpbpbpbpb", GeoHashUtils.stringEncode(180, 0));
+        assertEquals("zzzzzzzzzzzz", GeoHashUtils.stringEncode(180, 90));
     }
 }

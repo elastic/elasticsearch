@@ -100,7 +100,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
             if (versions.advanceExact(docID) == false) {
                 throw new IllegalArgumentException("Document [" + docID + "] misses the [" + VersionFieldMapper.NAME + "] field");
             }
-            return new DocIdAndVersion(docID, versions.longValue(), context);
+            return new DocIdAndVersion(docID, versions.longValue(), context.reader(), context.docBase);
         } else {
             return null;
         }

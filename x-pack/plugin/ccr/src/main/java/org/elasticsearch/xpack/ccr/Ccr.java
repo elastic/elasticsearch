@@ -36,6 +36,7 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ccr.action.FollowExistingIndexAction;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
+import org.elasticsearch.xpack.ccr.action.ShardFollowNodeTask;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTasksExecutor;
 import org.elasticsearch.xpack.ccr.action.UnfollowIndexAction;
@@ -112,8 +113,8 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                         ShardFollowTask::new),
 
                 // Task statuses
-                new NamedWriteableRegistry.Entry(Task.Status.class, ShardFollowTask.NAME,
-                        ShardFollowTask.Status::new)
+                new NamedWriteableRegistry.Entry(Task.Status.class, ShardFollowNodeTask.Status.NAME,
+                        ShardFollowNodeTask.Status::new)
         );
     }
 
@@ -124,8 +125,8 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
                         ShardFollowTask::fromXContent),
 
                 // Task statuses
-                new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(ShardFollowTask.NAME),
-                        ShardFollowTask.Status::fromXContent)
+                new NamedXContentRegistry.Entry(ShardFollowNodeTask.Status.class, new ParseField(ShardFollowNodeTask.Status.NAME),
+                        ShardFollowNodeTask.Status::fromXContent)
         );
     }
 

@@ -23,6 +23,8 @@
  */
 package org.elasticsearch.xpack.ccr;
 
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
@@ -36,10 +38,12 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.xpack.ccr.action.FollowExistingIndexAction;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
+import org.elasticsearch.xpack.ccr.action.ShardFollowNodeTask;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.ccr.action.UnfollowIndexAction;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -49,6 +53,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -243,9 +248,28 @@ public class ShardChangesIT extends ESIntegTestCase {
             final PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
             assertThat(tasks.tasks().size(), equalTo(numberOfPrimaryShards));
 
+            ListTasksRequest listTasksRequest = new ListTasksRequest();
+            listTasksRequest.setDetailed(true);
+            listTasksRequest.setActions(ShardFollowTask.NAME + "[c]");
+            ListTasksResponse listTasksResponse = client().admin().cluster().listTasks(listTasksRequest).actionGet();
+            assertThat(listTasksResponse.getNodeFailures().size(), equalTo(0));
+            assertThat(listTasksResponse.getTaskFailures().size(), equalTo(0));
+
+            List<TaskInfo> taskInfos = listTasksResponse.getTasks();
+            assertThat(taskInfos.size(), equalTo(numberOfPrimaryShards));
             for (PersistentTasksCustomMetaData.PersistentTask<?> task : tasks.tasks()) {
                 final ShardFollowTask shardFollowTask = (ShardFollowTask) task.getParams();
-                final ShardFollowTask.Status status = (ShardFollowTask.Status) task.getStatus();
+
+                TaskInfo taskInfo = null;
+                String expectedId = "id=" + task.getId();
+                for (TaskInfo info : taskInfos) {
+                    if (expectedId.equals(info.getDescription())) {
+                        taskInfo = info;
+                        break;
+                    }
+                }
+                assertThat(taskInfo, notNullValue());
+                ShardFollowNodeTask.Status status = (ShardFollowNodeTask.Status) taskInfo.getStatus();
                 assertThat(status, notNullValue());
                 assertThat(
                         status.getProcessedGlobalCheckpoint(),

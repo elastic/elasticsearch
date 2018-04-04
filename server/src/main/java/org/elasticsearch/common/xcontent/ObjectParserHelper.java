@@ -28,8 +28,15 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.function.BiConsumer;
 
+/**
+ * This class provides helpers for {@link ObjectParser} that allow dealing with
+ * classes outside of the xcontent dependencies.
+ */
 public final class ObjectParserHelper<Value, Context> {
 
+    /**
+     * Helper to declare an object that will be parsed into a {@link BytesReference}
+     */
     public void declareRawObject(final AbstractObjectParser<Value, Context> parser,
                                  final BiConsumer<Value, BytesReference> consumer,
                                  final ParseField field) {

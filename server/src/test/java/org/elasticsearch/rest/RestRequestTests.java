@@ -38,6 +38,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class RestRequestTests extends ESTestCase {
     public void testContentParser() throws IOException {
@@ -130,9 +132,15 @@ public class RestRequestTests extends ESTestCase {
 
     public void testMalformedContentTypeHeader() {
         final String type = randomFrom("text", "text/:ain; charset=utf-8", "text/plain\";charset=utf-8", ":", "/", "t:/plain");
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new ContentRestRequest("", Collections.emptyMap(),
-            Collections.singletonMap("Content-Type", Collections.singletonList(type))));
-        assertEquals("invalid Content-Type header [" + type + "]", e.getMessage());
+        final RestRequest.ContentTypeHeaderException e = expectThrows(
+                RestRequest.ContentTypeHeaderException.class,
+                () -> {
+                    final Map<String, List<String>> headers = Collections.singletonMap("Content-Type", Collections.singletonList(type));
+                    new ContentRestRequest("", Collections.emptyMap(), headers);
+                });
+        assertNotNull(e.getCause());
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(e.getMessage(), equalTo("java.lang.IllegalArgumentException: invalid Content-Type header [" + type + "]"));
     }
 
     public void testNoContentTypeHeader() {
@@ -142,9 +150,12 @@ public class RestRequestTests extends ESTestCase {
 
     public void testMultipleContentTypeHeaders() {
         List<String> headers = new ArrayList<>(randomUnique(() -> randomAlphaOfLengthBetween(1, 16), randomIntBetween(2, 10)));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new ContentRestRequest("", Collections.emptyMap(),
-            Collections.singletonMap("Content-Type", headers)));
-        assertEquals("only one Content-Type header should be provided", e.getMessage());
+        final RestRequest.ContentTypeHeaderException e = expectThrows(
+                RestRequest.ContentTypeHeaderException.class,
+                () -> new ContentRestRequest("", Collections.emptyMap(), Collections.singletonMap("Content-Type", headers)));
+        assertNotNull(e.getCause());
+        assertThat(e.getCause(), instanceOf((IllegalArgumentException.class)));
+        assertThat(e.getMessage(), equalTo("java.lang.IllegalArgumentException: only one Content-Type header should be provided"));
     }
 
     public void testRequiredContent() {

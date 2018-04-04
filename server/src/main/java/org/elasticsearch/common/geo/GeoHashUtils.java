@@ -57,11 +57,7 @@ public class GeoHashUtils {
      * 31 bit encoding utils *
      *************************/
     public static long encodeLatLon(final double lat, final double lon) {
-      long result = MortonEncoder.encode(lat, lon);
-      if (result == 0xFFFFFFFFFFFFFFFFL) {
-        return result & 0xC000000000000000L;
-      }
-      return result >>> 2;
+      return MortonEncoder.encode(lat, lon) >>> 2;
     }
 
     /**

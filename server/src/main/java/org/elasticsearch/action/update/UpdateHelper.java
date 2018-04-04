@@ -47,7 +47,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -71,9 +70,8 @@ public class UpdateHelper extends AbstractComponent {
      * Prepares an update request by converting it into an index or delete request or an update response (no action).
      */
     public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis) {
-        final GetResult getResult = indexShard.getService().get(request.type(), request.id(),
-                new String[]{RoutingFieldMapper.NAME, ParentFieldMapper.NAME},
-                true, request.version(), request.versionType(), FetchSourceContext.FETCH_SOURCE);
+        final GetResult getResult = indexShard.getService().getForUpdate(request.type(), request.id(), request.version(),
+            request.versionType());
         return prepare(indexShard.shardId(), request, getResult, nowInMillis);
     }
 

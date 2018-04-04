@@ -26,6 +26,7 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -210,21 +211,21 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                 final MappedFieldType fieldType = types[i].fieldType;
                 if (types[i].clazz == Long.class) {
                     sources[i] = new LongValuesSource(bigArrays, fieldType,
-                        context -> context.reader().getSortedNumericDocValues(fieldType.name()), value -> value,
+                        context -> DocValues.getSortedNumeric(context.reader(), fieldType.name()), value -> value,
                         DocValueFormat.RAW, size, 1);
                 } else if (types[i].clazz == Double.class) {
                     sources[i] = new DoubleValuesSource(bigArrays, fieldType,
-                        context -> FieldData.sortableLongBitsToDoubles(context.reader().getSortedNumericDocValues(fieldType.name())),
+                        context -> FieldData.sortableLongBitsToDoubles(DocValues.getSortedNumeric(context.reader(), fieldType.name())),
                         size, 1);
                 } else if (types[i].clazz == BytesRef.class) {
                     if (forceMerge) {
                         // we don't create global ordinals but we test this mode when the reader has a single segment
                         // since ordinals are global in this case.
                         sources[i] = new GlobalOrdinalValuesSource(bigArrays, fieldType,
-                            context -> context.reader().getSortedSetDocValues(fieldType.name()), size, 1);
+                            context -> DocValues.getSortedSet(context.reader(), fieldType.name()), size, 1);
                     } else {
                         sources[i] = new BinaryValuesSource(fieldType,
-                            context -> FieldData.toString(context.reader().getSortedSetDocValues(fieldType.name())), size, 1);
+                            context -> FieldData.toString(DocValues.getSortedSet(context.reader(), fieldType.name())), size, 1);
                     }
                 } else {
                     assert(false);

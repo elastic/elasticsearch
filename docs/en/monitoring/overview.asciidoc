@@ -7,65 +7,20 @@
 
 {es} is at the core of the {monitoring}. In all cases, {monitoring} documents
 are just ordinary JSON documents built by monitoring each Elastic Stack
-component at some polling interval (`10s` by default), then indexing those
+component at some collection interval (`10s` by default), then indexing those
 documents into the monitoring cluster. Each component in the stack is
 responsible for monitoring itself and then forwarding those documents to {es}
 for both routing and indexing (storage).
 
-For {es}, this process is handled by what are called _collectors_ and
-_exporters_. In the past, collectors and exporters were considered to be part of
-a monitoring "agent", but that term is generally not used anymore.
+For {es}, this process is handled by what are called
+<<es-monitoring-collectors,collectors>> and
+<<es-monitoring-exporters,exporters>>. In the past, collectors and exporters
+were considered to be part of a monitoring "agent", but that term is generally
+not used anymore.
 
-Each collector runs once for each collection interval to obtain data from the
-public APIs in {es} and {xpack} that it chooses to monitor. When the data
-collection is finished, the data is handed in bulk to the exporters to be sent
-to the monitoring clusters.
-
-{monitoring} in {es} also receives monitoring data from other parts of the
-Elastic Stack. In this way, it serves as an unscheduled monitoring data
-collector for the stack. Once data is received, it is forwarded to the exporters
-to be routed to the monitoring cluster like all monitoring data.
-
-WARNING: Because this stack-level "collector" lives outside of the collection
-interval of {monitoring} for {es}, it is not impacted by the
-`xpack.monitoring.collection.interval` setting. Therefore, data is passed to the
-exporters whenever it is received. This behavior can result in indices for {kib},
-Logstash, or Beats being created somewhat unexpectedly.
-
-While the monitoring data is collected and processed, some production cluster
-metadata is added to incoming documents. This metadata enables {kib} to link the
-monitoring data to the appropriate cluster.
-
-NOTE: If this linkage is unimportant to the infrastructure that you're
-monitoring, it might be simpler to configure Logstash to report its monitoring
-data directly to the monitoring cluster. This scenario also prevents the
-production cluster from adding extra overhead related to monitoring data, which
-can be very useful when there are a large number of Logstash nodes.
-
-Regardless of the number of exporters, each collector only runs once per
-monitoring interval.
-
-NOTE: It is possible to configure more than one exporter, but the general and
-default setup is to use a single exporter.
-
-There are two types of exporters in {es}: `local` and `http`. It is the
-responsibility of the exporters to send documents to the monitoring cluster
-that they communicate with. How that happens depends on the exporter, but the
-end result is the same: documents are indexed in what the exporter deems to be
-the monitoring cluster.
-
-Before {monitoring} can actually be used, it is necessary for it to set up
-certain {es} resources. These include templates and ingest pipelines. Exporters
-handle the setup of these resources before ever sending data. If resource setup
-fails (for example, due to security permissions), no data is sent and
-warnings are logged.
-
-IMPORTANT: It is critical that all {es} nodes have their exporters configured in
-the same way. If they do not, some monitoring data might be missing from the
-monitoring cluster.
-
-All settings associated with X-Pack monitoring in {es} must be set in either the
+All settings associated with {monitoring} in {es} must be set in either the
 `elasticsearch.yml` file for each node or, where possible, in the dynamic
 cluster settings. For more information, see <<monitoring-settings>>.
 
 include::collectors.asciidoc[]
+include::exporters.asciidoc[]

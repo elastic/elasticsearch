@@ -1,16 +1,21 @@
 [[indices-aliases]]
 == Index Aliases
 
-APIs in Elasticsearch accept an index name when working against a
-specific index, and several indices when applicable. The index aliases
-API allows aliasing an index with a name, with all APIs automatically
-converting the alias name to the actual index name. An alias can also be
-mapped to more than one index, and when specifying it, the alias will
-automatically expand to the aliased indices. An alias can also be
-associated with a filter that will automatically be applied when
-searching, and routing values. An alias cannot have the same name as an index.
+All Elasticsearch APIs that enable you to target one or more indices also
+support index aliases. An index alias maps a unique name to one or more
+indices. When you invoke an API against an index alias, Elasticsearch
+automatically expands the alias and performs the operation against each of the
+mapped indices.
 
-Here is a sample of associating the alias `alias1` with index `test1`:
+You can use aliases to:
+
+* Transparently switch between indices on a live cluster
+* Group multiple indices, such as the last month's worth of daily indices
+* Target different subsets of a single index
+
+You create and manage index aliases through the _aliases endpoint. For example,
+to create an alias that maps the alias alias1 to the index test1, you use the
+`add` action:
 
 [source,js]
 --------------------------------------------------
@@ -257,7 +262,8 @@ An alias can also be added with the endpoint
 where
 
 [horizontal]
-`index`::   The index the alias refers to. Can be any of `* | _all | glob pattern | name1, name2, …`
+`index`::   The index the alias refers to. Can be any of `* | _all | glob
+pattern | name1, name2, …`
 `name`::   The name of the alias. This is a required option.
 `routing`:: An optional routing that can be associated with an alias.
 `filter`::  An optional filter that can be associated with an alias.

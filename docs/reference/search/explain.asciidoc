@@ -1,12 +1,12 @@
-[[search-explain]]
+￿[[search-explain]]
 == Explain API
 
-The explain api computes a score explanation for a query and a specific
-document. This can give useful feedback whether a document matches or
-didn't match a specific query.
+The explain API calculates the relevance score for a particular document and
+shows what led to that score. This can help you understand why a document is
+(or isn't) showing up in the search results for a particular query.
 
-The `index` and `type` parameters expect a single index and a single
-type respectively.
+You must run explain against a particular document. You cannot specify multiple
+indices, types, or documents.
 
 [float]
 === Usage
@@ -25,7 +25,7 @@ GET /twitter/_doc/0/_explain
 // CONSOLE
 // TEST[setup:twitter]
 
-This will yield the following result:
+This yields the following result:
 
 [source,js]
 --------------------------------------------------
@@ -36,15 +36,18 @@ This will yield the following result:
    "matched": true,
    "explanation": {
       "value": 1.6943599,
-      "description": "weight(message:elasticsearch in 0) [PerFieldSimilarity], result of:",
+      "description": "weight(message:elasticsearch in 0) [PerFieldSimilarity],
+result of:",
       "details": [
          {
             "value": 1.6943599,
-            "description": "score(doc=0,freq=1.0 = termFreq=1.0\n), product of:",
+            "description": "score(doc=0,freq=1.0 = termFreq=1.0\n), product
+of:",
             "details": [
                {
                   "value": 1.3862944,
-                  "description": "idf, computed as log(1 + (docCount - docFreq + 0.5) / (docFreq + 0.5)) from:",
+                  "description": "idf, computed as log(1 + (docCount - docFreq
++ 0.5) / (docFreq + 0.5)) from:",
                   "details": [
                      {
                         "value": 1.0,
@@ -60,7 +63,8 @@ This will yield the following result:
                },
                 {
                   "value": 1.2222223,
-                  "description": "tfNorm, computed as (freq * (k1 + 1)) / (freq + k1 * (1 - b + b * fieldLength / avgFieldLength)) from:",
+                  "description": "tfNorm, computed as (freq * (k1 + 1)) / (freq
++ k1 * (1 - b + b * fieldLength / avgFieldLength)) from:",
                   "details": [
                      {
                         "value": 1.0,
@@ -97,10 +101,9 @@ This will yield the following result:
 --------------------------------------------------
 // TESTRESPONSE
 
-There is also a simpler way of specifying the query via the `q`
-parameter. The specified `q` parameter value is then parsed as if the
-`query_string` query was used. Example usage of the `q` parameter in the
-explain api:
+The q parameter provides a shortcut for specifying the query. The following
+request is equivalent to the full query_string query in the previous example:
+
 
 [source,js]
 --------------------------------------------------
@@ -109,7 +112,7 @@ GET /twitter/_doc/0/_explain?q=message:search
 // CONSOLE
 // TEST[setup:twitter]
 
-This will yield the same result as the previous request.
+This yields the same result as the previous request.
 
 [float]
 === All parameters:
@@ -117,26 +120,25 @@ This will yield the same result as the previous request.
 [horizontal]
 `_source`::
 
-    Set to `true` to retrieve the `_source` of the document explained. You can also
-    retrieve part of the document by using `_source_include` & `_source_exclude` (see <<get-source-filtering,Get API>> for more details)
+    Set to true to retrieve the document _source along with the explanation.
+To retrieve a subset of the document _source, you can
+use _source_include and _source_exclude. For more information, see the
+<<get-source-filtering,Get API>>.
 
 `stored_fields`::
-    Allows to control which stored fields to return as part of the
-    document explained.
+    Specifies which fields to return as part of the explained document.
 
 `routing`::
-    Controls the routing in the case the routing was used
-    during indexing.
+    Controls routing when routing was used during indexing.
 
 `parent`::
     Same effect as setting the routing parameter.
 
 `preference`::
-    Controls on which shard the explain is executed.
+    Specifies the shard on which `explain` is executed.
 
 `source`::
-    Allows the data of the request to be put in the query
-    string of the url.
+    Puts the data of the request in the query string of the url.
 
 `q`::
     The query string (maps to the query_string query).
@@ -150,13 +152,12 @@ This will yield the same result as the previous request.
     string. Defaults to the default search analyzer.
 
 `analyze_wildcard`::
-    Should wildcard and prefix queries be analyzed or
-    not. Defaults to false.
+    Analize wildcard and prefix queries? Defaults to false.
 
 `lenient`::
-    If set to true will cause format based failures (like
-    providing text to a numeric field) to be ignored. Defaults to false.
+    Ignore format-based failures (like providing text to a numeric field)?
+Defaults to false.
 
 `default_operator`::
-    The default operator to be used, can be AND or
+    The default operator to use; can be AND or
     OR. Defaults to OR.

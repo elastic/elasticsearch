@@ -42,7 +42,8 @@ document.
 
 Each field has a data `type` which can be:
 
-* a simple type like <<text,`text`>>, <<keyword,`keyword`>>, <<date,`date`>>, <<number,`long`>>,
+* a simple type like <<text,`text`>>, <<keyword,`keyword`>>, <<date,`date`>>,
+<<number,`long`>>,
   <<number,`double`>>, <<boolean,`boolean`>> or <<ip,`ip`>>.
 * a type which supports the hierarchical nature of JSON such as
   <<object,`object`>> or <<nested,`nested`>>.

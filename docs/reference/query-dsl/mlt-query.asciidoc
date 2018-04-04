@@ -2,10 +2,10 @@
 === More Like This Query
 
 The More Like This Query finds documents that are "like" a given
-set of documents. In order to do so, MLT selects a set of representative terms
-of these input documents, forms a query using these terms, executes the query
-and returns the results. The user controls the input documents, how the terms
-should be selected and how the query is formed.
+set of documents. To do so, MLT selects a set of representative terms
+from these input documents, forms a query using these terms, executes the query
+and returns the results. You control the input documents, how the terms
+should be selected, and how the query is formed.
 
 The simplest use case consists of asking for documents that are similar to a
 provided piece of text. Here, we are asking for all movies that have some text
@@ -60,9 +60,10 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 
-Finally, users can mix some texts, a chosen set of documents but also provide
-documents not necessarily present in the index. To provide documents not
-present in the index, the syntax is similar to <<docs-termvectors-artificial-doc,artificial documents>>.
+Finally, you can mix some texts, a chosen set of documents but also provide
+documents not necessarily present in the index. To include documents not
+present in the index, the syntax is similar to
+<<docs-termvectors-artificial-doc,artificial documents>>.
 
 [source,js]
 --------------------------------------------------
@@ -102,10 +103,13 @@ GET /_search
 Suppose we wanted to find all documents similar to a given input document.
 Obviously, the input document itself should be its best match for that type of
 query. And the reason would be mostly, according to
-link:https://lucene.apache.org/core/4_9_0/core/org/apache/lucene/search/similarities/TFIDFSimilarity.html[Lucene scoring formula],
+link:https://lucene.apache.org/core/4_9_0/core/org/apache/lucene/search/
+similarities/TFIDFSimilarity.html[Lucene
+scoring formula],
 due to the terms with the highest tf-idf. Therefore, the terms of the input
 document that have the highest tf-idf are good representatives of that
-document, and could be used within a disjunctive query (or `OR`) to retrieve similar
+document, and could be used within a disjunctive query (or `OR`) to retrieve
+similar
 documents. The MLT query simply extracts the text from the input document,
 analyzes it, usually using the same analyzer at the field, then selects the
 top K terms with highest tf-idf to form a disjunctive query of these terms.
@@ -116,7 +120,7 @@ IMPORTANT: The fields on which to perform MLT must be indexed and of type
 `term_vector`. In order to speed up analysis, it could help to store term
 vectors at index time.
 
-For example, if we wish to perform MLT on the "title" and "tags.raw" fields,
+For example, to perform MLT on the "title" and "tags.raw" fields,
 we can explicitly store their `term_vector` at index time. We can still
 perform MLT on the "description" and "tags" fields, as `_source` is enabled by
 default, but there will be no speed up on analysis for these fields.
@@ -164,7 +168,7 @@ input, the other one for term selection and for query formation.
 [horizontal]
 `like`::
 The only *required* parameter of the MLT query is `like` and follows a
-versatile syntax, in which the user can specify free form text and/or a single
+versatile syntax, in which you can specify free form text and/or a single
 or multiple documents (see examples above). The syntax to specify documents is
 similar to the one used by the <<docs-multi-get,Multi GET API>>. When
 specifying documents, the text is fetched from `fields` unless overridden in
@@ -176,19 +180,22 @@ Additionally, to provide documents not necessarily present in the index,
 <<docs-termvectors-artificial-doc,artificial documents>> are also supported.
 
 `unlike`::
-The `unlike` parameter is used in conjunction with `like` in order not to
+The `unlike` parameter is used in conjunction with `like` to _not_
 select terms found in a chosen set of documents. In other words, we could ask
 for documents `like: "Apple"`, but `unlike: "cake crumble tree"`. The syntax
 is the same as `like`.
 
 `fields`::
-A list of fields to fetch and analyze the text from.
+The fields that you want to search for similar content. Defaults to the
+`index.query.default_field` index settings, which in turn defaults to all
+searchable fields (*).
 
 `like_text`::
 The text to find documents like it.
 
 `ids` or `docs`::
-A list of documents following the same syntax as the <<docs-multi-get,Multi GET API>>.
+A list of documents following the same syntax as the <<docs-multi-get,Multi GET
+API>>.
 
 [float]
 [[mlt-query-term-selection]]
@@ -228,8 +235,7 @@ explicitly ignore them, as for the purposes of document similarity it seems
 reasonable to assume that "a stop word is never interesting".
 
 `analyzer`::
-The analyzer that is used to analyze the free form text. Defaults to the
-analyzer associated with the first field in `fields`.
+Specifies which analyzer to use on the "like" text.
 
 [float]
 ==== Query Formation Parameters
@@ -238,7 +244,8 @@ analyzer associated with the first field in `fields`.
 `minimum_should_match`::
 After the disjunctive query has been formed, this parameter controls the
 number of terms that must match.
-The syntax is the same as the <<query-dsl-minimum-should-match,minimum should match>>.
+The syntax is the same as the <<query-dsl-minimum-should-match,minimum should
+match>>.
 (Defaults to `"30%"`).
 
 `boost_terms`::

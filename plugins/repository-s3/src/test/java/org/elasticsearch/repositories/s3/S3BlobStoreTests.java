@@ -30,6 +30,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.repositories.ESBlobStoreTestCase;
 
 import java.util.Locale;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -97,7 +98,7 @@ public class S3BlobStoreTests extends ESBlobStoreTestCase {
     /**
      * Creates a new {@link S3BlobStore} with random settings.
      * <p>
-     * The blobstore uses internally a mocked {@link AmazonS3} client.
+     * The blobstore uses a {@link MockAmazonS3} client.
      */
     public static S3BlobStore randomMockS3BlobStore() {
         String bucket = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
@@ -114,8 +115,7 @@ public class S3BlobStoreTests extends ESBlobStoreTestCase {
             storageClass = randomValueOtherThan(StorageClass.Glacier, () -> randomFrom(StorageClass.values())).toString();
         }
 
-        AmazonS3 client = MockAmazonS3.createClient(bucket, serverSideEncryption, cannedACL, storageClass);
-
+        AmazonS3 client = new MockAmazonS3(new ConcurrentHashMap<>(), bucket, serverSideEncryption, cannedACL, storageClass);
         return new S3BlobStore(Settings.EMPTY, client, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass);
     }
 }

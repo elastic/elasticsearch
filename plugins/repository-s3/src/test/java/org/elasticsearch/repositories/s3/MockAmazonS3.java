@@ -19,177 +19,182 @@
 
 package org.elasticsearch.repositories.s3;
 
+import com.amazonaws.AmazonClientException;
+import com.amazonaws.SdkClientException;
 import com.amazonaws.services.s3.AbstractAmazonS3;
-import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.CopyObjectRequest;
+import com.amazonaws.services.s3.model.CopyObjectResult;
+import com.amazonaws.services.s3.model.DeleteObjectRequest;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
+import com.amazonaws.services.s3.model.DeleteObjectsResult;
+import com.amazonaws.services.s3.model.GetObjectRequest;
+import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
+import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
+import com.amazonaws.services.s3.model.PutObjectResult;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectInputStream;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentMap;
 
-import static java.util.Collections.emptyMap;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 class MockAmazonS3 extends AbstractAmazonS3 {
 
-    static final Map<String, Map<String, byte[]>> BUCKETS = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, byte[]> blobs;
+    private final String bucket;
+    private final boolean serverSideEncryption;
+    private final String cannedACL;
+    private final String storageClass;
 
-    private MockAmazonS3() {
+    MockAmazonS3(final ConcurrentMap<String, byte[]> blobs,
+                 final String bucket,
+                 final boolean serverSideEncryption,
+                 final String cannedACL,
+                 final String storageClass) {
+        this.blobs = Objects.requireNonNull(blobs);
+        this.bucket = Objects.requireNonNull(bucket);
+        this.serverSideEncryption = serverSideEncryption;
+        this.cannedACL = cannedACL;
+        this.storageClass = storageClass;
     }
 
-    public static AmazonS3 createClient(final String bucket,
-                                        final boolean serverSideEncryption,
-                                        final String cannedACL,
-                                        final String storageClass) {
+    @Override
+    public boolean doesBucketExist(final String bucket) {
+        return this.bucket.equalsIgnoreCase(bucket);
+    }
 
-        final AmazonS3 mockedClient = mock(AmazonS3.class);
+    @Override
+    public boolean doesObjectExist(final String bucketName, final String objectName) throws SdkClientException {
+        assertThat(bucketName, equalTo(bucket));
+        return blobs.containsKey(objectName);
+    }
 
-        // Create or erase the bucket
-        BUCKETS.put(bucket, new ConcurrentHashMap<>());
+    @Override
+    public PutObjectResult putObject(final PutObjectRequest request) throws AmazonClientException {
+        assertThat(request.getBucketName(), equalTo(bucket));
+        assertThat(request.getBucketName(), equalTo(bucket));
+        assertThat(request.getMetadata().getSSEAlgorithm(), serverSideEncryption ? equalTo("AES256") : nullValue());
+        assertThat(request.getCannedAcl(), notNullValue());
+        assertThat(request.getCannedAcl().toString(), cannedACL != null ? equalTo(cannedACL) : equalTo("private"));
+        assertThat(request.getStorageClass(), storageClass != null ? equalTo(storageClass) : equalTo("STANDARD"));
 
-        // Bucket exists?
-        when(mockedClient.doesBucketExist(any(String.class))).thenAnswer(invocation -> {
-            String bucketName = (String) invocation.getArguments()[0];
-            assertThat(bucketName, equalTo(bucket));
-            return BUCKETS.containsKey(bucketName);
-        });
 
-        // Blob exists?
-        when(mockedClient.doesObjectExist(any(String.class), any(String.class))).thenAnswer(invocation -> {
-            String bucketName = (String) invocation.getArguments()[0];
-            String objectName = (String) invocation.getArguments()[1];
-            assertThat(bucketName, equalTo(bucket));
-            return BUCKETS.getOrDefault(bucketName, emptyMap()).containsKey(objectName);
-        });
-
-        // Write blob
-        when(mockedClient.putObject(any(PutObjectRequest.class))).thenAnswer(invocation -> {
-            PutObjectRequest request = (PutObjectRequest) invocation.getArguments()[0];
-            assertThat(request.getBucketName(), equalTo(bucket));
-            assertThat(request.getMetadata().getSSEAlgorithm(), serverSideEncryption ? equalTo("AES256") : nullValue());
-            assertThat(request.getCannedAcl(), notNullValue());
-            assertThat(request.getCannedAcl().toString(), cannedACL != null ? equalTo(cannedACL) : equalTo("private"));
-            assertThat(request.getStorageClass(), storageClass != null ? equalTo(storageClass) : equalTo("STANDARD"));
-
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
+        final String blobName = request.getKey();
+        final ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try {
             Streams.copy(request.getInputStream(), out);
-            assertThat((long) out.size(), equalTo(request.getMetadata().getContentLength()));
+            blobs.put(blobName, out.toByteArray());
+        } catch (IOException e) {
+            throw new AmazonClientException(e);
+        }
+        return new PutObjectResult();
+    }
 
-            BUCKETS.computeIfAbsent(request.getBucketName(), s -> new ConcurrentHashMap<>()).put(request.getKey(), out.toByteArray());
-            return null;
-        });
+    @Override
+    public S3Object getObject(final GetObjectRequest request) throws AmazonClientException {
+        assertThat(request.getBucketName(), equalTo(bucket));
 
-        // Read blob
-        when(mockedClient.getObject(any(String.class), any(String.class))).thenAnswer(invocation -> {
-            String bucketName = (String) invocation.getArguments()[0];
-            String objectName = (String) invocation.getArguments()[1];
-            assertThat(bucketName, equalTo(bucket));
+        final String blobName = request.getKey();
+        final byte[] content = blobs.get(blobName);
+        if (content == null) {
+            AmazonS3Exception exception = new AmazonS3Exception("[" + blobName + "] does not exist.");
+            exception.setStatusCode(404);
+            throw exception;
+        }
 
-            byte[] blob = BUCKETS.getOrDefault(bucketName, emptyMap()).get(objectName);
-            if(blob == null){
-                AmazonS3Exception exception = new AmazonS3Exception("Blob not found");
+        ObjectMetadata metadata = new ObjectMetadata();
+        metadata.setContentLength(content.length);
+
+        S3Object s3Object = new S3Object();
+        s3Object.setObjectContent(new S3ObjectInputStream(new ByteArrayInputStream(content), null, false));
+        s3Object.setKey(blobName);
+        s3Object.setObjectMetadata(metadata);
+
+        return s3Object;
+    }
+
+    @Override
+    public ObjectListing listObjects(final ListObjectsRequest request) throws AmazonClientException {
+        assertThat(request.getBucketName(), equalTo(bucket));
+
+        final ObjectListing listing = new ObjectListing();
+        listing.setBucketName(request.getBucketName());
+        listing.setPrefix(request.getPrefix());
+
+        for (Map.Entry<String, byte[]> blob : blobs.entrySet()) {
+            if (Strings.isEmpty(request.getPrefix()) || blob.getKey().startsWith(request.getPrefix())) {
+                S3ObjectSummary summary = new S3ObjectSummary();
+                summary.setBucketName(request.getBucketName());
+                summary.setKey(blob.getKey());
+                summary.setSize(blob.getValue().length);
+                listing.getObjectSummaries().add(summary);
+            }
+        }
+        return listing;
+    }
+
+    @Override
+    public CopyObjectResult copyObject(final CopyObjectRequest request) throws AmazonClientException {
+        assertThat(request.getSourceBucketName(), equalTo(bucket));
+        assertThat(request.getDestinationBucketName(), equalTo(bucket));
+
+        final String sourceBlobName = request.getSourceKey();
+
+        final byte[] content = blobs.get(sourceBlobName);
+        if (content == null) {
+            AmazonS3Exception exception = new AmazonS3Exception("[" + sourceBlobName + "] does not exist.");
+            exception.setStatusCode(404);
+            throw exception;
+        }
+
+        blobs.put(request.getDestinationKey(), content);
+        return new CopyObjectResult();
+    }
+
+    @Override
+    public void deleteObject(final DeleteObjectRequest request) throws AmazonClientException {
+        assertThat(request.getBucketName(), equalTo(bucket));
+
+        final String blobName = request.getKey();
+        if (blobs.remove(blobName) == null) {
+            AmazonS3Exception exception = new AmazonS3Exception("[" + blobName + "] does not exist.");
+            exception.setStatusCode(404);
+            throw exception;
+        }
+    }
+
+    @Override
+    public DeleteObjectsResult deleteObjects(DeleteObjectsRequest request) throws SdkClientException {
+        assertThat(request.getBucketName(), equalTo(bucket));
+
+        final List<DeleteObjectsResult.DeletedObject> deletions = new ArrayList<>();
+        for (DeleteObjectsRequest.KeyVersion key : request.getKeys()) {
+            if(blobs.remove(key.getKey()) == null){
+                AmazonS3Exception exception = new AmazonS3Exception("[" + key + "] does not exist.");
                 exception.setStatusCode(404);
                 throw exception;
-            }
-
-            S3Object response = new S3Object();
-            response.setObjectContent(new S3ObjectInputStream(new ByteArrayInputStream(blob), null, false));
-            return response;
-        });
-
-        // Copy blob
-        when(mockedClient.copyObject(any(CopyObjectRequest.class))).thenAnswer(invocation -> {
-            CopyObjectRequest request = (CopyObjectRequest) invocation.getArguments()[0];
-            assertThat(request.getSourceBucketName(), equalTo(bucket));
-            assertThat(request.getDestinationBucketName(), equalTo(bucket));
-
-            Map<String, byte[]> blobsInBucket = BUCKETS.getOrDefault(bucket, emptyMap());
-            byte[] blob = blobsInBucket.get(request.getSourceKey());
-            if(blob != null) {
-                blobsInBucket.put(request.getDestinationKey(), blob);
             } else {
-                AmazonS3Exception exception = new AmazonS3Exception("Blob not found");
-                exception.setStatusCode(404);
-                throw exception;
+                DeleteObjectsResult.DeletedObject deletion = new DeleteObjectsResult.DeletedObject();
+                deletion.setKey(key.getKey());
+                deletions.add(deletion);
             }
-            return null;
-        });
-
-        // List BUCKETS
-        when(mockedClient.listObjects(any(String.class), any(String.class))).thenAnswer(invocation -> {
-            String bucketName = (String) invocation.getArguments()[0];
-            String prefix = (String) invocation.getArguments()[1];
-
-            assertThat(bucketName, equalTo(bucket));
-            ObjectListing listing = new ObjectListing();
-            listing.setBucketName(bucketName);
-            listing.setPrefix(prefix);
-            for (Map.Entry<String, byte[]> blob : BUCKETS.getOrDefault(bucketName, emptyMap()).entrySet()) {
-                if (blob.getKey().startsWith(prefix)) {
-                    S3ObjectSummary summary = new S3ObjectSummary();
-                    summary.setBucketName(bucketName);
-                    summary.setKey(blob.getKey());
-                    summary.setSize(blob.getValue().length);
-                    listing.getObjectSummaries().add(summary);
-                }
-            }
-            return listing;
-        });
-
-        // List next batch of BUCKETS
-        when(mockedClient.listNextBatchOfObjects(any(ObjectListing.class))).thenAnswer(invocation -> {
-            ObjectListing objectListing = (ObjectListing) invocation.getArguments()[0];
-            assertThat(objectListing.getBucketName(), equalTo(bucket));
-            return new ObjectListing();
-        });
-
-        // Delete blob
-        doAnswer(invocation -> {
-            String bucketName = (String) invocation.getArguments()[0];
-            String objectName = (String) invocation.getArguments()[1];
-            assertThat(bucketName, equalTo(bucket));
-
-            Map<String, byte[]> blobsInBucket = BUCKETS.getOrDefault(bucketName, emptyMap());
-            if(blobsInBucket.remove(objectName) == null){
-                AmazonS3Exception exception = new AmazonS3Exception("Blob not found");
-                exception.setStatusCode(404);
-                throw exception;
-            }
-            return null;
-        }).when(mockedClient).deleteObject(any(String.class), any(String.class));
-
-        // Delete multiple BUCKETS
-        doAnswer(invocation -> {
-            DeleteObjectsRequest deleteObjectsRequest = (DeleteObjectsRequest) invocation.getArguments()[0];
-            assertThat(deleteObjectsRequest.getBucketName(), equalTo(bucket));
-
-            Map<String, byte[]> blobsInBucket = BUCKETS.getOrDefault(deleteObjectsRequest.getBucketName(), emptyMap());
-            for (DeleteObjectsRequest.KeyVersion key : deleteObjectsRequest.getKeys()) {
-                if(blobsInBucket.remove(key.getKey()) == null){
-                    AmazonS3Exception exception = new AmazonS3Exception("Blob not found");
-                    exception.setStatusCode(404);
-                    throw exception;
-                }
-            }
-            return null;
-        }).when(mockedClient).deleteObjects(any(DeleteObjectsRequest.class));
-
-        return mockedClient;
+        }
+        return new DeleteObjectsResult(deletions);
     }
 }

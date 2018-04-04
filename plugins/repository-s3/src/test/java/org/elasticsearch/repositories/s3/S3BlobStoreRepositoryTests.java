@@ -35,12 +35,15 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCase {
 
+    private static final ConcurrentMap<String, byte[]> blobs = new ConcurrentHashMap<>();
     private static String bucket;
     private static String client;
     private static ByteSizeValue bufferSize;
@@ -92,7 +95,7 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
                 new S3Repository(metadata, env.settings(), registry, new InternalAwsS3Service(env.settings(), emptyMap()) {
                     @Override
                     public synchronized AmazonS3 client(final Settings repositorySettings) {
-                        return MockAmazonS3.createClient(bucket, serverSideEncryption, cannedACL, storageClass);
+                        return new MockAmazonS3(blobs, bucket, serverSideEncryption, cannedACL, storageClass);
                     }
                 }));
         }

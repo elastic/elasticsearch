@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
@@ -94,17 +95,26 @@ public class IndexLifecycleRunner {
         clusterService.submitStateUpdateTask("ILM", new ExecuteStepsUpdateTask(policy, index, step, stepRegistry));
     }
 
+    /**
+     * Retrieves the current {@link StepKey} from the index settings. Note that
+     * it is illegal for the step to be set with the phase and/or action unset,
+     * or for the step to be unset with the phase and/or action set. All three
+     * settings must be either present or missing.
+     * 
+     * @param indexSettings
+     *            the index settings to extract the {@link StepKey} from.
+     */
     static StepKey getCurrentStepKey(Settings indexSettings) {
         String currentPhase = LifecycleSettings.LIFECYCLE_PHASE_SETTING.get(indexSettings);
         String currentAction = LifecycleSettings.LIFECYCLE_ACTION_SETTING.get(indexSettings);
         String currentStep = LifecycleSettings.LIFECYCLE_STEP_SETTING.get(indexSettings);
-        if (currentStep == null) {
-            assert currentPhase == null : "Current phase is not null: " + currentPhase;
-            assert currentAction == null : "Current action is not null: " + currentAction;
+        if (Strings.isNullOrEmpty(currentStep)) {
+            assert Strings.isNullOrEmpty(currentPhase) : "Current phase is not empty: " + currentPhase;
+            assert Strings.isNullOrEmpty(currentAction) : "Current action is not empty: " + currentAction;
             return null;
         } else {
-            assert currentPhase != null;
-            assert currentAction != null;
+            assert Strings.isNullOrEmpty(currentPhase) == false;
+            assert Strings.isNullOrEmpty(currentAction) == false;
             return new StepKey(currentPhase, currentAction, currentStep);
         }
     }

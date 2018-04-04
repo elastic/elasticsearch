@@ -14,9 +14,6 @@ import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateActionStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 
-import java.util.function.BiFunction;
-import java.util.function.Function;
-
 public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
     private static final Logger logger = ESLoggerFactory.getLogger(ExecuteStepsUpdateTask.class);
     private final String policy;
@@ -29,6 +26,18 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
         this.index = index;
         this.startStep = startStep;
         this.policyStepsRegistry = policyStepsRegistry;
+    }
+
+    String getPolicy() {
+        return policy;
+    }
+
+    Index getIndex() {
+        return index;
+    }
+
+    Step getStartStep() {
+        return startStep;
     }
 
 

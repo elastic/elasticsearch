@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-
 import java.util.Objects;
 
 /**
@@ -28,10 +25,6 @@ public abstract class Step {
 
     public StepKey getNextStepKey() {
         return nextStepKey;
-    }
-
-    public boolean indexSurvives() {
-        return true;
     }
 
     @Override

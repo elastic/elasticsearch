@@ -16,4 +16,8 @@ public abstract class ClusterStateActionStep extends Step {
 
     public abstract ClusterState performAction(Index index, ClusterState clusterState);
 
+    public boolean indexSurvives() {
+        return true;
+    }
+
 }

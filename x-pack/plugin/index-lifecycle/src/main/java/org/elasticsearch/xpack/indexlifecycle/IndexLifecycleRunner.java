@@ -66,7 +66,7 @@ public class IndexLifecycleRunner {
                     @Override
                     public void onResponse(boolean complete) {
                         logger.error("cs-change-async-action-callback. current-step:" + currentStep.getKey());
-                        if (complete && currentStep.indexSurvives()) {
+                        if (complete && ((AsyncActionStep) currentStep).indexSurvives()) {
                             moveToStep(index, policy, currentStep.getKey(), currentStep.getNextStepKey(), Cause.CALLBACK);
                         }
                     }

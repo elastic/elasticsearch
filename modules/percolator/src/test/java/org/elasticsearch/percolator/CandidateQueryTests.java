@@ -210,12 +210,13 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 new BytesRef(randomFrom(stringContent.get(field1)))));
         queryFunctions.add(() -> new TermInSetQuery(field2, new BytesRef(randomFrom(stringContent.get(field1))),
                 new BytesRef(randomFrom(stringContent.get(field1)))));
-        int numRandomBoolQueries = randomIntBetween(16, 32);
+        // many iterations with boolean queries, which are the most complex queries to deal with when nested
+        int numRandomBoolQueries = 1000;
         for (int i = 0; i < numRandomBoolQueries; i++) {
             queryFunctions.add(() -> createRandomBooleanQuery(1, stringFields, stringContent, intFieldType, intValues));
         }
         queryFunctions.add(() -> {
-            int numClauses = randomIntBetween(1, 16);
+            int numClauses = randomIntBetween(1, 1 << randomIntBetween(2, 4));
             List<Query> clauses = new ArrayList<>();
             for (int i = 0; i < numClauses; i++) {
                 String field = randomFrom(stringFields);
@@ -266,7 +267,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
     private BooleanQuery createRandomBooleanQuery(int depth, List<String> fields, Map<String, List<String>> content,
                                                   MappedFieldType intFieldType, List<Integer> intValues) {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        int numClauses = randomIntBetween(1, 16);
+        int numClauses = randomIntBetween(1, 1 << randomIntBetween(2, 4)); // use low numbers of clauses more often
         int numShouldClauses = 0;
         boolean onlyShouldClauses = rarely();
         for (int i = 0; i < numClauses; i++) {
@@ -313,7 +314,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 numShouldClauses++;
             }
         }
-        builder.setMinimumNumberShouldMatch(numShouldClauses);
+        builder.setMinimumNumberShouldMatch(randomIntBetween(0, numShouldClauses));
         return builder.build();
     }
 

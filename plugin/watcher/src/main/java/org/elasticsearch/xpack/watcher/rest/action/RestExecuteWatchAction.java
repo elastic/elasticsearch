@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -26,10 +27,13 @@ import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchResponse;
+import org.elasticsearch.xpack.core.watcher.watch.WatchField;
 import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -38,6 +42,13 @@ import static org.elasticsearch.xpack.watcher.rest.action.RestExecuteWatchAction
 import static org.elasticsearch.xpack.watcher.rest.action.RestExecuteWatchAction.Field.RECORD_EXECUTION;
 
 public class RestExecuteWatchAction extends WatcherRestHandler implements RestRequestFilter {
+
+    private static final List<String> RESERVED_FIELD_NAMES = Arrays.asList(WatchField.TRIGGER.getPreferredName(),
+            WatchField.INPUT.getPreferredName(), WatchField.CONDITION.getPreferredName(),
+            WatchField.ACTIONS.getPreferredName(), WatchField.TRANSFORM.getPreferredName(),
+            WatchField.THROTTLE_PERIOD.getPreferredName(), WatchField.THROTTLE_PERIOD_HUMAN.getPreferredName(),
+            WatchField.METADATA.getPreferredName(), WatchField.STATUS.getPreferredName(),
+            WatchField.VERSION.getPreferredName());
 
     public RestExecuteWatchAction(Settings settings, RestController controller) {
         super(settings);
@@ -104,9 +115,10 @@ public class RestExecuteWatchAction extends WatcherRestHandler implements RestRe
                     } else if (Field.TRIGGER_DATA.match(currentFieldName, parser.getDeprecationHandler())) {
                         builder.setTriggerData(parser.map());
                     } else if (Field.WATCH.match(currentFieldName, parser.getDeprecationHandler())) {
-                        XContentBuilder watcherSource = XContentBuilder.builder(parser.contentType().xContent());
-                        watcherSource.generator().copyCurrentStructure(parser);
-                        builder.setWatchSource(BytesReference.bytes(watcherSource), parser.contentType());
+                        try (XContentBuilder watcherSource = XContentBuilder.builder(parser.contentType().xContent())) {
+                            watcherSource.generator().copyCurrentStructure(parser);
+                            builder.setWatchSource(BytesReference.bytes(watcherSource), parser.contentType());
+                        }
                     } else if (Field.ACTION_MODES.match(currentFieldName, parser.getDeprecationHandler())) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {
@@ -125,8 +137,13 @@ public class RestExecuteWatchAction extends WatcherRestHandler implements RestRe
                             }
                         }
                     } else {
-                        throw new ElasticsearchParseException("could not parse watch execution request. unexpected object field [{}]",
-                                currentFieldName);
+                        if (RESERVED_FIELD_NAMES.contains(currentFieldName)) {
+                            throw new ElasticsearchParseException("please wrap watch including field [{}] inside a \"watch\" field",
+                                    currentFieldName);
+                        } else {
+                            throw new ElasticsearchParseException("could not parse watch execution request. unexpected object field [{}]",
+                                    currentFieldName);
+                        }
                     }
                 } else {
                     throw new ElasticsearchParseException("could not parse watch execution request. unexpected token [{}]", token);

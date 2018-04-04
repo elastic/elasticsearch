@@ -38,7 +38,7 @@ import java.util.function.Consumer;
  * close behavior is required, it should be implemented in this context.
  *
  * The only methods of the context that should ever be called from a non-selector thread are
- * {@link #closeChannel()} and {@link #sendMessage(ByteBuffer[], BiConsumer)}.
+ * {@link #closeChannel()} and {@link #sendMessage(Object, BiConsumer)}.
  */
 public abstract class SocketChannelContext extends ChannelContext<SocketChannel> {
 
@@ -126,6 +126,22 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         return isConnected;
     }
 
+    public void sendMessage(Object message, BiConsumer<Void, Throwable> listener) {
+        if (isClosing.get()) {
+            listener.accept(null, new ClosedChannelException());
+            return;
+        }
+
+        WriteOperation writeOperation = new WriteOperation(this, message, listener);
+        SocketSelector selector = getSelector();
+        if (selector.isOnCurrentThread() == false) {
+            selector.queueWrite(writeOperation);
+            return;
+        }
+
+        selector.queueWriteInChannelBuffer(writeOperation);
+    }
+
     public void queueWriteOperation(WriteOperation writeOperation) {
         getSelector().assertOnSelectorThread();
         flushProducer.produceWrites(writeOperation);
@@ -135,8 +151,6 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     }
 
     public abstract int read() throws IOException;
-
-    public abstract void sendMessage(ByteBuffer[] buffers, BiConsumer<Void, Throwable> listener);
 
     public abstract void flushChannel() throws IOException;
 

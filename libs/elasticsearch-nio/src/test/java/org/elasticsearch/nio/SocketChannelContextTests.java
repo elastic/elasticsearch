@@ -27,7 +27,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.mockito.Matchers.any;
@@ -134,11 +133,6 @@ public class SocketChannelContextTests extends ESTestCase {
             } else {
                 return readFromChannel(ByteBuffer.allocate(10));
             }
-        }
-
-        @Override
-        public void sendMessage(ByteBuffer[] buffers, BiConsumer<Void, Throwable> listener) {
-
         }
 
         @Override

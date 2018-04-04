@@ -20,9 +20,6 @@
 package org.elasticsearch.nio;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.channels.ClosedChannelException;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public class BytesChannelContext extends SocketChannelContext {
@@ -62,23 +59,6 @@ public class BytesChannelContext extends SocketChannelContext {
         }
 
         return bytesRead;
-    }
-
-    @Override
-    public void sendMessage(ByteBuffer[] buffers, BiConsumer<Void, Throwable> listener) {
-        if (isClosing.get()) {
-            listener.accept(null, new ClosedChannelException());
-            return;
-        }
-
-        WriteOperation writeOperation = new WriteOperation(this, buffers, listener);
-        SocketSelector selector = getSelector();
-        if (selector.isOnCurrentThread() == false) {
-            selector.queueWrite(writeOperation);
-            return;
-        }
-
-        selector.queueWriteInChannelBuffer(writeOperation);
     }
 
     @Override

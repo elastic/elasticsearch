@@ -37,6 +37,7 @@ public class SocketEventHandlerTests extends ESTestCase {
 
     private Consumer<Exception> exceptionHandler;
 
+    private SocketChannelContext.FlushProducer flushProducer;
     private SocketEventHandler handler;
     private NioSocketChannel channel;
     private SocketChannel rawChannel;
@@ -46,13 +47,14 @@ public class SocketEventHandlerTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void setUpHandler() throws IOException {
         exceptionHandler = mock(Consumer.class);
+        flushProducer = mock(SocketChannelContext.FlushProducer.class);
         SocketSelector selector = mock(SocketSelector.class);
         handler = new SocketEventHandler(logger);
         rawChannel = mock(SocketChannel.class);
         channel = new NioSocketChannel(rawChannel);
         when(rawChannel.finishConnect()).thenReturn(true);
 
-        context = new DoNotRegisterContext(channel, selector, exceptionHandler, new TestSelectionKey(0));
+        context = new DoNotRegisterContext(channel, selector, exceptionHandler, new TestSelectionKey(0), flushProducer);
         channel.setContext(context);
         handler.handleRegistration(context);
 
@@ -83,6 +85,7 @@ public class SocketEventHandlerTests extends ESTestCase {
     }
 
     public void testRegisterWithPendingWritesAddsOP_CONNECTAndOP_READAndOP_WRITEInterest() throws IOException {
+        when(flushProducer.pollFlushOperation()).thenReturn(mock(FlushOperation.class));
         channel.getContext().queueWriteOperation(mock(WriteOperation.class));
         handler.handleRegistration(context);
         assertEquals(SelectionKey.OP_READ | SelectionKey.OP_CONNECT | SelectionKey.OP_WRITE, context.getSelectionKey().interestOps());
@@ -192,8 +195,8 @@ public class SocketEventHandlerTests extends ESTestCase {
         private final TestSelectionKey selectionKey;
 
         DoNotRegisterContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,
-                             TestSelectionKey selectionKey) {
-            super(channel, selector, exceptionHandler, mock(ReadConsumer.class), mock(FlushProducer.class),
+                             TestSelectionKey selectionKey, FlushProducer flushProducer) {
+            super(channel, selector, exceptionHandler, mock(ReadConsumer.class), flushProducer,
                 InboundChannelBuffer.allocatingInstance());
             this.selectionKey = selectionKey;
         }

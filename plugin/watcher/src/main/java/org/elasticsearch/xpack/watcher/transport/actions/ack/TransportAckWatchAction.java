@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions.ack;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
@@ -22,14 +23,17 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapper;
+import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionSnapshot;
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchResponse;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchField;
+import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.joda.time.DateTime;
@@ -47,21 +51,32 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
 
     private final Clock clock;
     private final WatchParser parser;
+    private ExecutionService executionService;
     private final Client client;
 
     @Inject
     public TransportAckWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
                                    IndexNameExpressionResolver indexNameExpressionResolver, Clock clock, XPackLicenseState licenseState,
-                                   WatchParser parser, Client client) {
+                                   WatchParser parser, ExecutionService executionService, Client client) {
         super(settings, AckWatchAction.NAME, transportService, threadPool, actionFilters, indexNameExpressionResolver,
                 licenseState, AckWatchRequest::new);
         this.clock = clock;
         this.parser = parser;
+        this.executionService = executionService;
         this.client = client;
     }
 
     @Override
     protected void doExecute(AckWatchRequest request, ActionListener<AckWatchResponse> listener) {
+        // if the watch to be acked is running currently, reject this request
+        List<WatchExecutionSnapshot> snapshots = executionService.currentExecutions();
+        boolean isWatchRunning = snapshots.stream().anyMatch(s -> s.watchId().equals(request.getWatchId()));
+        if (isWatchRunning) {
+            listener.onFailure(new ElasticsearchStatusException("watch[{}] is running currently, cannot ack until finished",
+                    RestStatus.CONFLICT, request.getWatchId()));
+            return;
+        }
+
         GetRequest getRequest = new GetRequest(Watch.INDEX, Watch.DOC_TYPE, request.getWatchId())
                 .preference(Preference.LOCAL.type()).realtime(true);
 

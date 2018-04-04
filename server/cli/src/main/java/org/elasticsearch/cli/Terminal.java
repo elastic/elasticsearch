@@ -165,7 +165,7 @@ public abstract class Terminal {
             try {
                 final String line = reader.readLine();
                 if (line == null) {
-                    throw new IllegalStateException("standard input is closed or there is no tty attached");
+                    throw new IllegalStateException("unable to read from standard input; is standard input open and a tty attached?");
                 }
                 return line;
             } catch (IOException ioe) {

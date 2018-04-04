@@ -64,8 +64,16 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             Collections.emptyMap());
     private static final Script COMBINE_SCRIPT_SCORE = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "combineScriptScore",
             Collections.emptyMap());
-    private static final Map<String, Function<Map<String, Object>, Object>> SCRIPTS = new HashMap<>();
 
+    private static final Script INIT_SCRIPT_PARAMS = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "initScriptParams",
+            Collections.singletonMap("initialValue", 24));
+    private static final Script MAP_SCRIPT_PARAMS = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "mapScriptParams",
+            Collections.singletonMap("itemValue", 12));
+    private static final Script COMBINE_SCRIPT_PARAMS = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "combineScriptParams",
+            Collections.singletonMap("divisor", 4));
+    private static final String CONFLICTING_PARAM_NAME = "initialValue";
+
+    private static final Map<String, Function<Map<String, Object>, Object>> SCRIPTS = new HashMap<>();
 
     @BeforeClass
     @SuppressWarnings("unchecked")
@@ -98,6 +106,26 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
         SCRIPTS.put("combineScriptScore", params -> {
             Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
             return ((List<Double>) agg.get("collector")).stream().mapToDouble(Double::doubleValue).sum();
+        });
+
+        SCRIPTS.put("initScriptParams", params -> {
+            Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
+            Integer initialValue = (Integer)params.get("initialValue");
+            ArrayList<Integer> collector = new ArrayList();
+            collector.add(initialValue);
+            agg.put("collector", collector);
+            return agg;
+        });
+        SCRIPTS.put("mapScriptParams", params -> {
+            Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
+            Integer itemValue = (Integer) params.get("itemValue");
+            ((List<Integer>) agg.get("collector")).add(itemValue);
+            return agg;
+        });
+        SCRIPTS.put("combineScriptParams", params -> {
+            Map<String, Object> agg = (Map<String, Object>) params.get("_agg");
+            int divisor = ((Integer) params.get("divisor"));
+            return ((List<Integer>) agg.get("collector")).stream().mapToInt(Integer::intValue).map(i -> i / divisor).sum();
         });
     }
 
@@ -183,6 +211,48 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 assertNotNull(scriptedMetric.aggregation());
                 // all documents have score of 1.0
                 assertEquals((double) numDocs, scriptedMetric.aggregation());
+            }
+        }
+    }
+
+    public void testScriptParamsPassedThrough() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                for (int i = 0; i < 100; i++) {
+                    indexWriter.addDocument(singleton(new SortedNumericDocValuesField("number", i)));
+                }
+            }
+
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                ScriptedMetricAggregationBuilder aggregationBuilder = new ScriptedMetricAggregationBuilder(AGG_NAME);
+                aggregationBuilder.initScript(INIT_SCRIPT_PARAMS).mapScript(MAP_SCRIPT_PARAMS).combineScript(COMBINE_SCRIPT_PARAMS);
+                ScriptedMetric scriptedMetric = search(newSearcher(indexReader, true, true), new MatchAllDocsQuery(), aggregationBuilder);
+
+                // The result value depends on the script params.
+                assertEquals(306, scriptedMetric.aggregation());
+            }
+        }
+    }
+
+    public void testConflictingAggAndScriptParams() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                for (int i = 0; i < 100; i++) {
+                    indexWriter.addDocument(singleton(new SortedNumericDocValuesField("number", i)));
+                }
+            }
+
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                ScriptedMetricAggregationBuilder aggregationBuilder = new ScriptedMetricAggregationBuilder(AGG_NAME);
+                Map<String, Object> aggParams = Collections.singletonMap(CONFLICTING_PARAM_NAME, "blah");
+                aggregationBuilder.params(aggParams).initScript(INIT_SCRIPT_PARAMS).mapScript(MAP_SCRIPT_PARAMS).
+                    combineScript(COMBINE_SCRIPT_PARAMS);
+
+                IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
+                    search(newSearcher(indexReader, true, true), new MatchAllDocsQuery(), aggregationBuilder)
+                );
+                assertEquals("Parameter name \"" + CONFLICTING_PARAM_NAME + "\" used in both aggregation and script parameters",
+                    ex.getMessage());
             }
         }
     }

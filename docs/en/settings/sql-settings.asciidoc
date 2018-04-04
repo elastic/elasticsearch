@@ -5,7 +5,7 @@
 <titleabbrev>SQL Access Settings</titleabbrev>
 ++++
 
-SQL Access is enabled by default when you install {xpack}. You can configure
+SQL Access is enabled by default. You can configure
 these SQL Access settings in the `elasticsearch.yml` file.
 
 [float]
@@ -13,5 +13,3 @@ these SQL Access settings in the `elasticsearch.yml` file.
 ==== General SQL Access Settings
 `xpack.sql.enabled`::
 Set to `false` to disable SQL Access on the node.
-
-

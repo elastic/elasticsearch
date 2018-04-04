@@ -58,6 +58,13 @@ public class RepositoryURLClientYamlTestSuiteIT extends ESClientYamlSuiteTestCas
         return ESClientYamlSuiteTestCase.createParameters();
     }
 
+    /**
+     * This method registers 3 snapshot/restore repositories:
+     * - repository-fs: this FS repository is used to create snapshots.
+     * - repository-url: this URL repository is used to restore snapshots created using the previous repository. It uses
+     * the URLFixture to restore snapshots over HTTP.
+     * - repository-file: similar as the previous repository but using a file:// prefix instead of http://.
+     **/
     @Before
     public void registerRepositories() throws IOException {
         Response clusterSettingsResponse = client().performRequest("GET", "/_cluster/settings?include_defaults=true" +

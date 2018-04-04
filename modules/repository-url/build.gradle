@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.test.AntFixture
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -18,6 +16,7 @@ import org.elasticsearch.gradle.test.AntFixture
  * specific language governing permissions and limitations
  * under the License.
  */
+import org.elasticsearch.gradle.test.AntFixture
 
 esplugin {
     description 'Module for URL repository'
@@ -33,7 +32,7 @@ forbiddenApisTest {
 // This directory is shared between two URL repositories and one FS repository in YAML integration tests
 File repositoryDir = new File(project.buildDir, "shared-repository")
 
-/** A task to start the URLFixture that exposes the repositoryDir over HTTP **/
+/** A task to start the URLFixture which exposes the repositoryDir over HTTP **/
 task urlFixture(type: AntFixture) {
     doFirst {
         repositoryDir.mkdirs()
@@ -47,6 +46,6 @@ integTestCluster {
     dependsOn urlFixture
     // repositoryDir is used by a FS repository to create snapshots
     setting 'path.repo', "${repositoryDir.absolutePath}"
-    // repositoryDir is used by a URL repository to restore snapshots
+    // repositoryDir is used by two URL repositories to restore snapshots
     setting 'repositories.url.allowed_urls', "http://snapshot.test*,http://${ -> urlFixture.addressAndPort }"
 }

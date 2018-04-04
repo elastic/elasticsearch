@@ -31,6 +31,7 @@ import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -44,7 +45,7 @@ import static java.util.Collections.singletonMap;
 
 /**
  * This {@link URLFixture} exposes a filesystem directory over HTTP. It is used in repository-url
- * integration tests to expose a directory populated using a regular FS repository.
+ * integration tests to expose a directory created by a regular FS repository.
  */
 public class URLFixture {
 
@@ -130,7 +131,8 @@ public class URLFixture {
                     response = new Response(RestStatus.FORBIDDEN, emptyMap(), "text/plain", new byte[0]);
                 }
             } else {
-                response = new Response(RestStatus.INTERNAL_SERVER_ERROR, emptyMap(), "text/plain", new byte[0]);
+                response = new Response(RestStatus.INTERNAL_SERVER_ERROR, emptyMap(), "text/plain",
+                    "Unsupported HTTP method".getBytes(StandardCharsets.UTF_8));
             }
             exchange.sendResponseHeaders(response.status.getStatus(), response.body.length);
             if (response.body.length > 0) {

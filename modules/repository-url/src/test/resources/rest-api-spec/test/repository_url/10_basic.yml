@@ -1,4 +1,13 @@
 # Integration tests for repository-url
+#
+# This test is based on 3 repositories, all registered before this
+# test is executed. The repository-fs is used to create snapshots
+# in a shared directory on the filesystem. Then the test uses a URL
+# repository with a "http://" prefix to test the restore of the
+# snapshots. In order to do that it uses a URLFixture that exposes
+# the content of the shared directory over HTTP. A second URL
+# repository is used to test the snapshot restore but this time
+# with a "file://" prefix. 
 setup:
 
   # Ensure that the FS repository is registered, so we can create
@@ -103,7 +112,7 @@ teardown:
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.modules.0.name: repository-url  }
+    - match: { nodes.$master.modules.0.name: repository-url }
 
 ---
 "Restore with repository-url using http://":

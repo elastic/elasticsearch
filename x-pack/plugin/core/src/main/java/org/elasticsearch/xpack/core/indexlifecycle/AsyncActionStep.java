@@ -21,6 +21,10 @@ public abstract class AsyncActionStep extends Step {
         return client;
     }
 
+    public boolean indexSurvives() {
+        return true;
+    }
+
     public abstract void performAction(Index index, Listener listener);
 
     public static interface Listener {

@@ -31,6 +31,22 @@ public class MoveToNextStepUpdateTask extends ClusterStateUpdateTask {
         this.listener = listener;
     }
 
+    Index getIndex() {
+        return index;
+    }
+
+    String getPolicy() {
+        return policy;
+    }
+
+    Step.StepKey getCurrentStepKey() {
+        return currentStepKey;
+    }
+
+    Step.StepKey getNextStepKey() {
+        return nextStepKey;
+    }
+
     @Override
     public ClusterState execute(ClusterState currentState) throws Exception {
         Settings indexSettings = currentState.getMetaData().index(index).getSettings();

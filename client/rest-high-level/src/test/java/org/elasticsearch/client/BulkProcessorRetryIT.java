@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.client;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -46,10 +45,6 @@ public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
 
     private static final String INDEX_NAME = "index";
     private static final String TYPE_NAME = "type";
-
-    static {
-        System.setProperty("tests.rest.cluster", "localhost:9200");
-    }
 
     private static BulkProcessor.Builder initBulkProcessorBuilder(BulkProcessor.Listener listener) {
         return BulkProcessor.builder(highLevelClient()::bulkAsync, listener);
@@ -107,13 +102,13 @@ public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
                     if (bulkItemResponse.isFailed()) {
                         BulkItemResponse.Failure failure = bulkItemResponse.getFailure();
                         if (failure.getStatus() == RestStatus.TOO_MANY_REQUESTS) {
-                            if (!rejectedExecutionExpected) {
-                                Throwable rootCause = ExceptionsHelper.unwrapCause(failure.getCause());
+                            if (rejectedExecutionExpected == false) {
                                 Iterator<TimeValue> backoffState = internalPolicy.backoffStateFor(bulkResponse);
                                 assertNotNull("backoffState is null (indicates a bulk request got rejected without retry)", backoffState);
                                 if (backoffState.hasNext()) {
                                     // we're not expecting that we overwhelmed it even once when we maxed out the number of retries
-                                    throw new AssertionError("Got rejected although backoff policy would allow more retries", rootCause);
+                                    throw new AssertionError("Got rejected although backoff policy would allow more retries",
+                                        failure.getCause());
                                 } else {
                                     rejectedAfterAllRetries = true;
                                     logger.debug("We maxed out the number of bulk retries and got rejected (this is ok).");
@@ -132,12 +127,12 @@ public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
         }
 
         highLevelClient().indices().refresh(new RefreshRequest());
-        int searchResultCount = highLevelClient().multiGet(multiGetRequest).getResponses().length;
+        int multiGetResponsesCount = highLevelClient().multiGet(multiGetRequest).getResponses().length;
 
         if (rejectedAfterAllRetries) {
-            assertThat(searchResultCount, lessThan(numberOfAsyncOps));
+            assertThat(multiGetResponsesCount, lessThan(numberOfAsyncOps));
         } else {
-            assertThat(searchResultCount, equalTo(numberOfAsyncOps));
+            assertThat(multiGetResponsesCount, equalTo(numberOfAsyncOps));
         }
 
     }

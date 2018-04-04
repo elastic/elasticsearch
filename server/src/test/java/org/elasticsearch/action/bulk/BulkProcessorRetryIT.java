@@ -26,7 +26,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.hamcrest.Matcher;
 
 import java.util.Collections;
 import java.util.Iterator;
@@ -38,7 +37,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
 public class BulkProcessorRetryIT extends ESIntegTestCase {
@@ -108,6 +107,7 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
         assertThat(responses.size(), equalTo(numberOfAsyncOps));
 
         // validate all responses
+        boolean rejectedAfterAllRetries = false;
         for (Object response : responses) {
             if (response instanceof BulkResponse) {
                 BulkResponse bulkResponse = (BulkResponse) response;
@@ -123,6 +123,7 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
                                     // we're not expecting that we overwhelmed it even once when we maxed out the number of retries
                                     throw new AssertionError("Got rejected although backoff policy would allow more retries", rootCause);
                                 } else {
+                                    rejectedAfterAllRetries = true;
                                     logger.debug("We maxed out the number of bulk retries and got rejected (this is ok).");
                                 }
                             }
@@ -140,18 +141,18 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
 
         client().admin().indices().refresh(new RefreshRequest()).get();
 
-        // validate we did not create any duplicates due to retries
-        Matcher<Long> searchResultCount;
-        // it is ok if we lost some index operations to rejected executions (which is possible even when backing off although less likely)
-        searchResultCount = lessThanOrEqualTo((long) numberOfAsyncOps);
-
         SearchResponse results = client()
                 .prepareSearch(INDEX_NAME)
                 .setTypes(TYPE_NAME)
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setSize(0)
                 .get();
-        assertThat(results.getHits().getTotalHits(), searchResultCount);
+
+        if (rejectedAfterAllRetries) {
+            assertThat((int) results.getHits().getTotalHits(), lessThan(numberOfAsyncOps));
+        } else {
+            assertThat(results.getHits().getTotalHits(), equalTo(numberOfAsyncOps));
+        }
     }
 
     private static void indexDocs(BulkProcessor processor, int numDocs) {

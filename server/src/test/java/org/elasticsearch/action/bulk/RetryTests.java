@@ -26,7 +26,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.junit.After;
@@ -85,7 +84,7 @@ public class RetryTests extends ESTestCase {
         BackoffPolicy backoff = BackoffPolicy.constantBackoff(DELAY, CALLS_TO_FAIL);
 
         BulkRequest bulkRequest = createBulkRequest();
-        BulkResponse response = new Retry(RestStatus.TOO_MANY_REQUESTS, backoff, bulkClient.threadPool())
+        BulkResponse response = new Retry(backoff, bulkClient.threadPool())
             .withBackoff(bulkClient::bulk, bulkRequest, bulkClient.settings())
             .actionGet();
 
@@ -97,7 +96,7 @@ public class RetryTests extends ESTestCase {
         BackoffPolicy backoff = BackoffPolicy.constantBackoff(DELAY, CALLS_TO_FAIL - 1);
 
         BulkRequest bulkRequest = createBulkRequest();
-        BulkResponse response = new Retry(RestStatus.TOO_MANY_REQUESTS, backoff, bulkClient.threadPool())
+        BulkResponse response = new Retry(backoff, bulkClient.threadPool())
             .withBackoff(bulkClient::bulk, bulkRequest, bulkClient.settings())
             .actionGet();
 
@@ -110,7 +109,7 @@ public class RetryTests extends ESTestCase {
         AssertingListener listener = new AssertingListener();
 
         BulkRequest bulkRequest = createBulkRequest();
-        Retry retry = new Retry(RestStatus.TOO_MANY_REQUESTS, backoff, bulkClient.threadPool());
+        Retry retry = new Retry(backoff, bulkClient.threadPool());
         retry.withBackoff(bulkClient::bulk, bulkRequest, listener, bulkClient.settings());
 
         listener.awaitCallbacksCalled();
@@ -125,7 +124,7 @@ public class RetryTests extends ESTestCase {
         AssertingListener listener = new AssertingListener();
 
         BulkRequest bulkRequest = createBulkRequest();
-        Retry retry = new Retry(RestStatus.TOO_MANY_REQUESTS, backoff, bulkClient.threadPool());
+        Retry retry = new Retry(backoff, bulkClient.threadPool());
         retry.withBackoff(bulkClient::bulk, bulkRequest, listener, bulkClient.settings());
 
         listener.awaitCallbacksCalled();

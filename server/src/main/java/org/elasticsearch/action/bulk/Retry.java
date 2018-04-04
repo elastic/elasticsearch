@@ -40,12 +40,10 @@ import java.util.function.Predicate;
  * Encapsulates synchronous and asynchronous retry logic.
  */
 public class Retry {
-    private final RestStatus retryOnStatus;
     private final BackoffPolicy backoffPolicy;
     private final Scheduler scheduler;
 
-    public Retry(RestStatus retryOnStatus, BackoffPolicy backoffPolicy, Scheduler scheduler) {
-        this.retryOnStatus = retryOnStatus;
+    public Retry(BackoffPolicy backoffPolicy, Scheduler scheduler) {
         this.backoffPolicy = backoffPolicy;
         this.scheduler = scheduler;
     }
@@ -60,7 +58,7 @@ public class Retry {
      */
     public void withBackoff(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BulkRequest bulkRequest,
                             ActionListener<BulkResponse> listener, Settings settings) {
-        RetryHandler r = new RetryHandler(retryOnStatus, backoffPolicy, consumer, listener, settings, scheduler);
+        RetryHandler r = new RetryHandler(backoffPolicy, consumer, listener, settings, scheduler);
         r.execute(bulkRequest);
     }
 
@@ -81,12 +79,13 @@ public class Retry {
     }
 
     static class RetryHandler implements ActionListener<BulkResponse> {
+        private static final RestStatus RETRY_STATUS = RestStatus.TOO_MANY_REQUESTS;
+
         private final Logger logger;
         private final Scheduler scheduler;
         private final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer;
         private final ActionListener<BulkResponse> listener;
         private final Iterator<TimeValue> backoff;
-        private final RestStatus retryOnStatus;
         // Access only when holding a client-side lock, see also #addResponses()
         private final List<BulkItemResponse> responses = new ArrayList<>();
         private final long startTimestampNanos;
@@ -95,10 +94,8 @@ public class Retry {
         private volatile BulkRequest currentBulkRequest;
         private volatile ScheduledFuture<?> scheduledRequestFuture;
 
-        RetryHandler(RestStatus retryOnStatus, BackoffPolicy backoffPolicy,
-                     BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, ActionListener<BulkResponse> listener,
-                     Settings settings, Scheduler scheduler) {
-            this.retryOnStatus = retryOnStatus;
+        RetryHandler(BackoffPolicy backoffPolicy, BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,
+                     ActionListener<BulkResponse> listener, Settings settings, Scheduler scheduler) {
             this.backoff = backoffPolicy.iterator();
             this.consumer = consumer;
             this.listener = listener;
@@ -160,8 +157,8 @@ public class Retry {
             }
             for (BulkItemResponse bulkItemResponse : bulkItemResponses) {
                 if (bulkItemResponse.isFailed()) {
-                    final RestStatus status = bulkItemResponse.getFailure().getStatus();
-                    if (this.retryOnStatus != status) {
+                    final RestStatus status = bulkItemResponse.status();
+                    if (status == RETRY_STATUS) {
                         return false;
                     }
                 }

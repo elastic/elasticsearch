@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.rollup.job;
 
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -13,6 +15,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
@@ -30,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * The configuration object for the metrics portion of a rollup job config
@@ -63,6 +67,9 @@ public class MetricConfig implements Writeable, ToXContentFragment {
     private static final ParseField AVG = new ParseField("avg");
 
     private static List<String> METRIC_WHITELIST = Arrays.asList("min", "max", "sum", "avg");
+    private static final List<String> MAPPER_TYPES = Stream.of(NumberFieldMapper.NumberType.values())
+            .map(NumberFieldMapper.NumberType::typeName)
+            .collect(Collectors.toList());
 
     public static final ConstructingObjectParser<MetricConfig, Void> PARSER = new ConstructingObjectParser<>(
             NAME, a -> new MetricConfig((String)a[0], (List<String>) a[1]));
@@ -130,6 +137,28 @@ public class MetricConfig implements Writeable, ToXContentFragment {
      */
     public List<Map<String, Object>> toAggCap() {
         return metrics.stream().map(metric -> Collections.singletonMap("agg", (Object)metric)).collect(Collectors.toList());
+    }
+
+    public void validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
+                                 ActionRequestValidationException validationException) {
+
+        Map<String, FieldCapabilities> fieldCaps = fieldCapsResponse.get(field);
+        if (fieldCaps != null && fieldCaps.isEmpty() == false) {
+            fieldCaps.forEach((key, value) -> {
+                if (MAPPER_TYPES.contains(key)) {
+                    if (value.isAggregatable() == false) {
+                        validationException.addValidationError("The field [" + field + "] must be aggregatable across all indices, " +
+                                "but is not.");
+                    }
+                } else {
+                    validationException.addValidationError("The field referenced by a metric group must be a [numeric] type, but found " +
+                            fieldCaps.keySet().toString() + " for field [" + field + "]");
+                }
+            });
+        } else {
+            validationException.addValidationError("Could not find a [numeric] field with name [" + field + "] in any of the " +
+                    "indices matching the index pattern.");
+        }
     }
 
     @Override

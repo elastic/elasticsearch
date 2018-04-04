@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.rollup.action;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 public class PutRollupJobAction extends Action<PutRollupJobAction.Request, PutRollupJobAction.Response,
@@ -83,6 +85,19 @@ public class PutRollupJobAction extends Action<PutRollupJobAction.Request, PutRo
 
         @Override
         public ActionRequestValidationException validate() {
+            return null;
+        }
+
+        public ActionRequestValidationException validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse) {
+            ActionRequestValidationException validationException = new ActionRequestValidationException();
+            if (fieldCapsResponse.size() == 0) {
+                validationException.addValidationError("Could not find any fields in the index/index-pattern that were configured in job");
+                return validationException;
+            }
+            config.validateMappings(fieldCapsResponse, validationException);
+            if (validationException.validationErrors().size() > 0) {
+                return validationException;
+            }
             return null;
         }
 

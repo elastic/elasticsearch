@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.rollup.job;
 
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -178,6 +180,28 @@ public class DateHistoGroupConfig implements Writeable, ToXContentFragment {
 
     public Map<String, Object> getMetadata() {
         return Collections.singletonMap(RollupField.formatMetaField(RollupField.INTERVAL), interval.toString());
+    }
+
+    public void validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
+                                                             ActionRequestValidationException validationException) {
+
+        Map<String, FieldCapabilities> fieldCaps = fieldCapsResponse.get(field);
+        if (fieldCaps != null && fieldCaps.isEmpty() == false) {
+            if (fieldCaps.containsKey("date") && fieldCaps.size() == 1) {
+                if (fieldCaps.get("date").isAggregatable()) {
+                    return;
+                } else {
+                    validationException.addValidationError("The field [" + field + "] must be aggregatable across all indices, " +
+                                    "but is not.");
+                }
+
+            } else {
+                validationException.addValidationError("The field referenced by a date_histo group must be a [date] type across all " +
+                        "indices in the index pattern.  Found: " + fieldCaps.keySet().toString() + " for field [" + field + "]");
+            }
+        }
+        validationException.addValidationError("Could not find a [date] field with name [" + field + "] in any of the indices matching " +
+                "the index pattern.");
     }
 
     @Override

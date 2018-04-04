@@ -397,7 +397,9 @@ public abstract class RollupIndexer {
 
         CompositeAggregationBuilder composite = new CompositeAggregationBuilder(AGGREGATION_NAME, builders);
         config.getMetricsConfig().forEach(m -> m.toBuilders().forEach(composite::subAggregation));
-        composite.setMetaData(metadata);
+        if (metadata.isEmpty() == false) {
+            composite.setMetaData(metadata);
+        }
         composite.size(config.getSize());
         return composite;
     }

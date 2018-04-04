@@ -1,9 +1,15 @@
 setup:
   - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.create:
         index: foo
+        body:
+          mappings:
+            doc:
+              properties:
+                the_field:
+                  type: date
+                value_field:
+                  type: integer
 
   - do:
       headers:

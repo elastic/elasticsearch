@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.rollup.job;
 
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -13,6 +15,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -24,6 +28,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -42,7 +47,8 @@ public class TermsGroupConfig implements Writeable, ToXContentFragment {
     public static final ObjectParser<TermsGroupConfig.Builder, Void> PARSER = new ObjectParser<>(NAME, TermsGroupConfig.Builder::new);
 
     private static final ParseField FIELDS = new ParseField("fields");
-
+    private static final List<String> FLOAT_TYPES = Arrays.asList("half_float", "float", "double", "scaled_float");
+    private static final List<String> NATURAL_TYPES = Arrays.asList("byte", "short", "integer", "long");
     private final String[] fields;
 
     static {
@@ -89,6 +95,44 @@ public class TermsGroupConfig implements Writeable, ToXContentFragment {
 
     public Map<String, Object> getMetadata() {
         return Collections.emptyMap();
+    }
+
+    public Set<String> getAllFields() {
+        return Arrays.stream(fields).collect(Collectors.toSet());
+    }
+
+    public void validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
+                                 ActionRequestValidationException validationException) {
+
+        Arrays.stream(fields).forEach(field -> {
+            Map<String, FieldCapabilities> fieldCaps = fieldCapsResponse.get(field);
+            if (fieldCaps != null && fieldCaps.isEmpty() == false) {
+                fieldCaps.forEach((key, value) -> {
+                    if (key.equals(KeywordFieldMapper.CONTENT_TYPE) || key.equals(TextFieldMapper.CONTENT_TYPE)) {
+                        if (value.isAggregatable() == false) {
+                            validationException.addValidationError("The field [" + field + "] must be aggregatable across all indices, " +
+                                    "but is not.");
+                        }
+                    } else if (FLOAT_TYPES.contains(key)) {
+                        if (value.isAggregatable() == false) {
+                            validationException.addValidationError("The field [" + field + "] must be aggregatable across all indices, " +
+                                    "but is not.");
+                        }
+                    } else if (NATURAL_TYPES.contains(key)) {
+                        if (value.isAggregatable() == false) {
+                            validationException.addValidationError("The field [" + field + "] must be aggregatable across all indices, " +
+                                    "but is not.");
+                        }
+                    } else {
+                        validationException.addValidationError("The field referenced by a terms group must be a [numeric] or " +
+                                "[keyword/text] type, but found " + fieldCaps.keySet().toString() + " for field [" + field + "]");
+                    }
+                });
+            } else {
+                validationException.addValidationError("Could not find a [numeric] or [keyword/text] field with name [" + field
+                        + "] in any of the indices matching the index pattern.");
+            }
+        });
     }
 
     @Override

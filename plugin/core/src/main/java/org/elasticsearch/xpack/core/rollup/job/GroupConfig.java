@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.rollup.job;
 
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -16,7 +18,10 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * The configuration object for the groups section in the rollup config.
@@ -70,6 +75,29 @@ public class GroupConfig implements Writeable, ToXContentObject {
 
     public TermsGroupConfig getTerms() {
         return terms;
+    }
+
+    public Set<String> getAllFields() {
+        Set<String> fields = new HashSet<>();
+        fields.add(dateHisto.getField());
+        if (histo != null) {
+            fields.addAll(histo.getAllFields());
+        }
+        if (terms != null) {
+            fields.addAll(terms.getAllFields());
+        }
+        return fields;
+    }
+
+    public void validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
+                                                             ActionRequestValidationException validationException) {
+        dateHisto.validateMappings(fieldCapsResponse, validationException);
+        if (histo != null) {
+            histo.validateMappings(fieldCapsResponse, validationException);
+        }
+        if (terms != null) {
+            terms.validateMappings(fieldCapsResponse, validationException);
+        }
     }
 
 

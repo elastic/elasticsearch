@@ -55,6 +55,7 @@ PUT _xpack/rollup/job/sensor
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:sensor_index]
 
 We give the job the ID of "sensor" (in the url: `PUT _xpack/rollup/job/sensor`), and tell it to rollup the index pattern `"sensor-*"`.
 This job will find and rollup any index that matches that pattern. Rollup summaries are then stored in the `"sensor_rollup"` index.

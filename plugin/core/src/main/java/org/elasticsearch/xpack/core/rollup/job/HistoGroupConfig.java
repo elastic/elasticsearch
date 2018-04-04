@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.rollup.job;
 
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -13,6 +15,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.HistogramValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
@@ -25,7 +28,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * The configuration object for the histograms in the rollup config
@@ -46,6 +51,10 @@ public class HistoGroupConfig implements Writeable, ToXContentFragment {
 
     private static final ParseField INTERVAL = new ParseField("interval");
     private static final ParseField FIELDS = new ParseField("fields");
+    private static final List<String> MAPPER_TYPES = Stream.of(NumberFieldMapper.NumberType.values())
+            .map(NumberFieldMapper.NumberType::typeName)
+            .collect(Collectors.toList());
+
 
     private final long interval;
     private final String[] fields;
@@ -103,6 +112,34 @@ public class HistoGroupConfig implements Writeable, ToXContentFragment {
 
     public Map<String, Object> getMetadata() {
         return Collections.singletonMap(RollupField.formatMetaField(RollupField.INTERVAL), interval);
+    }
+
+    public Set<String> getAllFields() {
+        return Arrays.stream(fields).collect(Collectors.toSet());
+    }
+
+    public void validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
+                                 ActionRequestValidationException validationException) {
+
+        Arrays.stream(fields).forEach(field -> {
+            Map<String, FieldCapabilities> fieldCaps = fieldCapsResponse.get(field);
+            if (fieldCaps != null && fieldCaps.isEmpty() == false) {
+                fieldCaps.forEach((key, value) -> {
+                    if (MAPPER_TYPES.contains(key)) {
+                        if (value.isAggregatable() == false) {
+                            validationException.addValidationError("The field [" + field + "] must be aggregatable across all indices, " +
+                                    "but is not.");
+                        }
+                    } else {
+                        validationException.addValidationError("The field referenced by a histo group must be a [numeric] type, " +
+                                "but found " + fieldCaps.keySet().toString() + " for field [" + field + "]");
+                    }
+                });
+            } else {
+                validationException.addValidationError("Could not find a [numeric] field with name [" + field
+                        + "] in any of the indices matching the index pattern.");
+            }
+        });
     }
 
     @Override

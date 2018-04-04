@@ -569,9 +569,37 @@ setups['sensor_index'] = '''
                   type: float
                 node:
                   type: keyword
+                load:
+                  type: double
+                net_in:
+                  type: long
+                net_out:
+                  type: long
+                hostname:
+                  type: keyword
+                datacenter:
+                  type: keyword
 '''
 
 setups['sensor_prefab_data'] = '''
+  - do:
+      indices.create:
+        index: sensor-1
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            data:
+              properties:
+                timestamp:
+                  type: date
+                temperature:
+                  type: long
+                voltage:
+                  type: float
+                node:
+                  type: keyword
   - do:
       indices.create:
         index: sensor_rollup

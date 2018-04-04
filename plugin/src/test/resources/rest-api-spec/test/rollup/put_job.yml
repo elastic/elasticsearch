@@ -1,3 +1,16 @@
+setup:
+  - do:
+      indices.create:
+        index: foo
+        body:
+          mappings:
+            doc:
+              properties:
+                the_field:
+                  type: date
+                value_field:
+                  type: integer
+
 ---
 "Test basic put_job":
 

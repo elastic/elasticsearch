@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.rollup.job;
 
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -22,8 +24,12 @@ import org.elasticsearch.xpack.core.scheduler.Cron;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * This class holds the configuration details of a rollup job, such as the groupings, metrics, what
@@ -125,6 +131,20 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    public Set<String> getAllFields() {
+        Set<String> fields = new HashSet<>(groupConfig.getAllFields());
+        fields.addAll(metricsConfig.stream().map(MetricConfig::getField).collect(Collectors.toSet()));
+        return fields;
+    }
+
+    public void validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
+                                                             ActionRequestValidationException validationException) {
+        groupConfig.validateMappings(fieldCapsResponse, validationException);
+        for (MetricConfig m : metricsConfig) {
+            m.validateMappings(fieldCapsResponse, validationException);
+        }
     }
 
     @Override

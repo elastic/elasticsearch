@@ -113,14 +113,15 @@ in the table below.
 |Field Name |Alias |Description
 |`type` |`t` |The current (*) type of thread pool (`fixed` or `scaling`)
 |`active` |`a` |The number of active threads in the current thread pool
-|`size` |`s` |The number of threads in the current thread pool
+|`pool_size` |`psz` |The number of threads in the current thread pool
 |`queue` |`q` |The number of tasks in the queue for the current thread pool
 |`queue_size` |`qs` |The maximum number of tasks permitted in the queue for the current thread pool
 |`rejected` |`r` |The number of tasks rejected by the thread pool executor
 |`largest` |`l` |The highest number of active threads in the current thread pool
 |`completed` |`c` |The number of tasks completed by the thread pool executor
-|`min` |`mi` |The configured minimum number of active threads allowed in the current thread pool
-|`max` |`ma` |The configured maximum number of active threads allowed in the current thread pool
+|`core` |`cr` |The configured core number of active threads allowed in the current thread pool
+|`max` |`mx` |The configured maximum number of active threads allowed in the current thread pool
+|`size` |`sz` |The configured fixed number of active threads allowed in the current thread pool
 |`keep_alive` |`k` |The configured keep alive time for threads
 |=======================================================================
 

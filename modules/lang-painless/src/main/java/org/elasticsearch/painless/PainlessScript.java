@@ -91,14 +91,7 @@ public interface PainlessScript {
                 scriptStack.add(element.toString());
             }
         }
-        // build a name for the script:
-        final String name;
-        if (PainlessScriptEngine.INLINE_NAME.equals(getName())) {
-            name = getSource();
-        } else {
-            name = getName();
-        }
-        ScriptException scriptException = new ScriptException("runtime error", t, scriptStack, name, PainlessScriptEngine.NAME);
+        ScriptException scriptException = new ScriptException("runtime error", t, scriptStack, getName(), PainlessScriptEngine.NAME);
         for (Map.Entry<String, List<String>> entry : extraMetadata.entrySet()) {
             scriptException.addMetadata(entry.getKey(), entry.getValue());
         }

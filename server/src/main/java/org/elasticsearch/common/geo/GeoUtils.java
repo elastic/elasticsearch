@@ -462,6 +462,9 @@ public class GeoUtils {
     /**
      * Parse a precision that can be expressed as an integer or a distance measure like "1km", "10m".
      *
+     * The precision is expressed as a number between 1 and 12 and indicates the length of geohash
+     * used to represent geo points.
+     *
      * @param parser {@link XContentParser} to parse the value from
      * @return int representing precision
      */
@@ -473,17 +476,15 @@ public class GeoUtils {
             String precision = parser.text();
             try {
                 // we want to treat simple integer strings as precision levels, not distances
-                return XContentMapValues.nodeIntegerValue(Integer.parseInt(precision));
+                return XContentMapValues.nodeIntegerValue(precision);
             } catch (NumberFormatException e) {
                 // try to parse as a distance value
+                final int parsedPrecision = GeoUtils.geoHashLevelsForPrecision(precision);
                 try {
-                    return checkPrecisionRange(GeoUtils.geoHashLevelsForPrecision(precision));
-                } catch (NumberFormatException e2) {
-                    // can happen when distance unit is unknown, in this case we simply want to know the reason
-                    throw e2;
-                } catch (IllegalArgumentException e3) {
+                    return checkPrecisionRange(parsedPrecision);
+                } catch (IllegalArgumentException e2) {
                     // this happens when distance too small, so precision > 12. We'd like to see the original string
-                    throw new IllegalArgumentException("precision too high [" + precision + "]", e3);
+                    throw new IllegalArgumentException("precision too high [" + precision + "]", e2);
                 }
             }
         }

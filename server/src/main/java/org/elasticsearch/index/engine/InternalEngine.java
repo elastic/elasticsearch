@@ -594,13 +594,12 @@ public class InternalEngine extends Engine {
         VersionValue versionValue = getVersionFromMap(op.uid().bytes());
         assert incrementVersionLookup();
         if (op.seqNo() <= localCheckpointTracker.getCheckpoint()) {
-            /* Subtle point: we already compared the seqNo vs the local checkpoint, but the local checkpoint could have
-             * advanced after that comparison was done. If it did, it may have made some tombstones stale, and if those
-             * tombstones included one for the present op and were cleared before the call to getVersionFromMap() above,
-             * then the present op would appear to be fresh and would be applied a second time. To avoid this, we must
-             * check the local checkpoint again: since the local checkpoint only ever advances, checking it after the
-             * call to getVersionFromMap() gives the correct result.
-             */
+            // Subtle point: we already compared the seqNo vs the local checkpoint, but the local checkpoint could have
+            // advanced after that comparison was done. If it did, it may have made some tombstones stale, and if those
+            // tombstones included one for the present op and were cleared before the call to getVersionFromMap() above,
+            // then the present op would appear to be fresh and would be applied a second time. To avoid this, we must
+            // check the local checkpoint again: since the local checkpoint only ever advances, checking it after the
+            // call to getVersionFromMap() gives the correct result.
             status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
         } else if (versionValue != null) {
             if (op.seqNo() > versionValue.seqNo ||

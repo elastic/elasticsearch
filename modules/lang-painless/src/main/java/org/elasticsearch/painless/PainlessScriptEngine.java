@@ -119,11 +119,6 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
         return NAME;
     }
 
-    /**
-     * When a script is anonymous (inline), we give it this name.
-     */
-    static final String INLINE_NAME = "<inline>";
-
     @Override
     public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
         Compiler compiler = contextsToCompilers.get(context);
@@ -425,7 +420,7 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
             return AccessController.doPrivileged(new PrivilegedAction<Object>() {
                 @Override
                 public Object run() {
-                    String name = scriptName == null ? INLINE_NAME : scriptName;
+                    String name = scriptName == null ? source : scriptName;
                     Constructor<?> constructor = compiler.compile(loader, new MainMethodReserved(), name, source, compilerSettings);
 
                     try {
@@ -488,7 +483,7 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
             AccessController.doPrivileged(new PrivilegedAction<Void>() {
                 @Override
                 public Void run() {
-                    String name = scriptName == null ? INLINE_NAME : scriptName;
+                    String name = scriptName == null ? source : scriptName;
                     compiler.compile(loader, reserved, name, source, compilerSettings);
 
                     return null;

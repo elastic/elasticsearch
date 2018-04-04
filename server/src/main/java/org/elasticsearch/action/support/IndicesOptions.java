@@ -19,7 +19,6 @@
 package org.elasticsearch.action.support;
 
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestRequest;
@@ -119,20 +118,12 @@ public class IndicesOptions {
     public boolean ignoreAliases() {
         return (id & IGNORE_ALIASES) != 0;
     }
-    
+
     public void writeIndicesOptions(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha2)) {
-            out.write(id);
-        } else {
-            // if we are talking to a node that doesn't support the newly added flag (ignoreAliases)
-            // flip to 0 all the bits starting from the 7th
-            out.write(id & 0x3f);
-        }
+        out.write(id);
     }
 
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {
-        //if we read from a node that doesn't support the newly added flag (ignoreAliases)
-        //we just receive the old corresponding value with the new flag set to false (default)
         byte id = in.readByte();
         if (id >= VALUES.length) {
             throw new IllegalArgumentException("No valid missing index type id: " + id);

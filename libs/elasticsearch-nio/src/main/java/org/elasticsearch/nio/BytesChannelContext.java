@@ -22,17 +22,12 @@ package org.elasticsearch.nio;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public class BytesChannelContext extends SocketChannelContext {
 
-    private final ReadConsumer readConsumer;
-    private final FlushProducer writeProducer;
     private final InboundChannelBuffer channelBuffer;
-    private final AtomicBoolean isClosing = new AtomicBoolean(false);
-    private FlushOperation currentFlushOperation;
 
     public BytesChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,
                                ReadConsumer readConsumer, InboundChannelBuffer channelBuffer) {
@@ -41,9 +36,7 @@ public class BytesChannelContext extends SocketChannelContext {
 
     public BytesChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,
                                ReadConsumer readConsumer, FlushProducer writeProducer, InboundChannelBuffer channelBuffer) {
-        super(channel, selector, exceptionHandler);
-        this.readConsumer = readConsumer;
-        this.writeProducer = writeProducer;
+        super(channel, selector, exceptionHandler, readConsumer, writeProducer, channelBuffer);
         this.channelBuffer = channelBuffer;
     }
 
@@ -89,28 +82,19 @@ public class BytesChannelContext extends SocketChannelContext {
     }
 
     @Override
-    public void queueWriteOperation(WriteOperation writeOperation) {
-        getSelector().assertOnSelectorThread();
-        writeProducer.produceWrites(writeOperation);
-        if (currentFlushOperation == null) {
-            currentFlushOperation = writeProducer.pollFlushOperation();
-        }
-    }
-
-    @Override
     public void flushChannel() throws IOException {
         getSelector().assertOnSelectorThread();
         boolean lastOpCompleted = true;
-        while (lastOpCompleted && currentFlushOperation != null) {
+        FlushOperation flushOperation;
+        while (lastOpCompleted && (flushOperation = getPendingFlush()) != null) {
             try {
-                if (singleFlush(currentFlushOperation)) {
-                    lastOpCompleted = true;
-                    currentFlushOperation = writeProducer.pollFlushOperation();
+                if (singleFlush(flushOperation)) {
+                    currentFlushOperationComplete();
                 } else {
                     lastOpCompleted = false;
                 }
             } catch (IOException e) {
-                currentFlushOperation = writeProducer.pollFlushOperation();
+                currentFlushOperationFailed(e);
                 throw e;
             }
         }
@@ -119,7 +103,7 @@ public class BytesChannelContext extends SocketChannelContext {
     @Override
     public boolean hasQueuedWriteOps() {
         getSelector().assertOnSelectorThread();
-        return currentFlushOperation != null;
+        return getPendingFlush() != null;
     }
 
     @Override
@@ -134,55 +118,12 @@ public class BytesChannelContext extends SocketChannelContext {
         return isPeerClosed() || hasIOException() || isClosing.get();
     }
 
-    @Override
-    public void closeFromSelector() throws IOException {
-        getSelector().assertOnSelectorThread();
-        if (channel.isOpen()) {
-            IOException channelCloseException = null;
-            try {
-                super.closeFromSelector();
-            } catch (IOException e) {
-                channelCloseException = e;
-            }
-            // Set to true in order to reject new writes before queuing with selector
-            isClosing.set(true);
-            channelBuffer.close();
-            if (currentFlushOperation != null) {
-                getSelector().executeFailedListener(currentFlushOperation.getListener(), new ClosedChannelException());
-                currentFlushOperation = null;
-            }
-            try {
-                writeProducer.close();
-            } catch (IOException e) {
-                if (channelCloseException == null) {
-                    channelCloseException = e;
-                } else {
-                    channelCloseException.addSuppressed(e);
-                }
-            }
-
-            if (channelCloseException != null) {
-                throw channelCloseException;
-            }
-        }
-    }
-
     /**
      * Returns a boolean indicating if the operation was fully flushed.
      */
-    private boolean singleFlush(FlushOperation headOp) throws IOException {
-        try {
-            int written = flushToChannel(headOp.getBuffersToWrite());
-            headOp.incrementIndex(written);
-        } catch (IOException e) {
-            getSelector().executeFailedListener(headOp.getListener(), e);
-            throw e;
-        }
-
-        boolean fullyFlushed = headOp.isFullyFlushed();
-        if (fullyFlushed) {
-            getSelector().executeListener(headOp.getListener(), null);
-        }
-        return fullyFlushed;
+    private boolean singleFlush(FlushOperation flushOperation) throws IOException {
+        int written = flushToChannel(flushOperation.getBuffersToWrite());
+        flushOperation.incrementIndex(written);
+        return flushOperation.isFullyFlushed();
     }
 }

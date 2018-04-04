@@ -122,7 +122,8 @@ public class SocketChannelContextTests extends ESTestCase {
     private static class TestSocketChannelContext extends SocketChannelContext {
 
         private TestSocketChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler) {
-            super(channel, selector, exceptionHandler);
+            super(channel, selector, exceptionHandler, mock(ReadConsumer.class), mock(FlushProducer.class),
+                InboundChannelBuffer.allocatingInstance());
         }
 
         @Override

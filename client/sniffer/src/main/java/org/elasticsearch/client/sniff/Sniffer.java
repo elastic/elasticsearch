@@ -26,7 +26,6 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.List;
@@ -51,101 +50,72 @@ public class Sniffer implements Closeable {
     private static final Log logger = LogFactory.getLog(Sniffer.class);
     private static final String SNIFFER_THREAD_NAME = "es_rest_client_sniffer";
 
-    private final Task task;
+    private final HostsSniffer hostsSniffer;
+    private final RestClient restClient;
+
+    private final long sniffIntervalMillis;
+    private final long sniffAfterFailureDelayMillis;
+    private final Scheduler scheduler;
+
+    private final AtomicBoolean running = new AtomicBoolean(false);
 
     Sniffer(RestClient restClient, HostsSniffer hostsSniffer, long sniffInterval, long sniffAfterFailureDelay) {
-        this.task = new Task(hostsSniffer, restClient, sniffInterval, sniffAfterFailureDelay);
+        this(restClient, hostsSniffer, new DefaultScheduler(), sniffInterval, sniffAfterFailureDelay);
+    }
+
+    Sniffer(RestClient restClient, HostsSniffer hostsSniffer, Scheduler scheduler,  long sniffInterval, long sniffAfterFailureDelay) {
+        this.hostsSniffer = hostsSniffer;
+        this.restClient = restClient;
+        this.sniffIntervalMillis = sniffInterval;
+        this.sniffAfterFailureDelayMillis = sniffAfterFailureDelay;
+        this.scheduler = scheduler;
+        scheduleNextRun(0);
+    }
+
+    private void scheduleNextRun(long delayMillis) {
+        scheduler.schedule(new Runnable() {
+            @Override
+            public void run() {
+                sniff(null, sniffIntervalMillis);
+            }
+        }, delayMillis);
     }
 
     /**
      * Triggers a new sniffing round and explicitly takes out the failed host provided as argument
      */
     public void sniffOnFailure(HttpHost failedHost) {
-        this.task.sniffOnFailure(failedHost);
+        sniff(failedHost, sniffAfterFailureDelayMillis);
+    }
+
+    private void sniff(HttpHost excludeHost, long nextSniffDelayMillis) {
+        //If a sniffing round is already running nothing happens, it makes no sense to start or wait to start another round
+        if (running.compareAndSet(false, true)) {
+            try {
+                List<HttpHost> sniffedHosts = hostsSniffer.sniffHosts();
+                logger.debug("sniffed hosts: " + sniffedHosts);
+                if (excludeHost != null) {
+                    sniffedHosts.remove(excludeHost);
+                }
+                if (sniffedHosts.isEmpty()) {
+                    logger.warn("no hosts to set, hosts will be updated at the next sniffing round");
+                } else {
+                    this.restClient.setHosts(sniffedHosts.toArray(new HttpHost[sniffedHosts.size()]));
+                }
+            } catch (Exception e) {
+                logger.error("error while sniffing nodes", e);
+            } finally {
+                //TODO potential problem here if this doesn't happen last? though tests become complicated
+                running.set(false);
+                //TODO do we want to also test that this never gets called concurrently?
+                scheduleNextRun(nextSniffDelayMillis);
+            }
+        }
     }
 
     @Override
-    public void close() throws IOException {
-        task.shutdown();
-    }
-
-    private static class Task implements Runnable {
-        private final HostsSniffer hostsSniffer;
-        private final RestClient restClient;
-
-        private final long sniffIntervalMillis;
-        private final long sniffAfterFailureDelayMillis;
-        private final ScheduledExecutorService scheduledExecutorService;
-        private final AtomicBoolean running = new AtomicBoolean(false);
-        private ScheduledFuture<?> scheduledFuture;
-
-        private Task(HostsSniffer hostsSniffer, RestClient restClient, long sniffIntervalMillis, long sniffAfterFailureDelayMillis) {
-            this.hostsSniffer = hostsSniffer;
-            this.restClient = restClient;
-            this.sniffIntervalMillis = sniffIntervalMillis;
-            this.sniffAfterFailureDelayMillis = sniffAfterFailureDelayMillis;
-            SnifferThreadFactory threadFactory = new SnifferThreadFactory(SNIFFER_THREAD_NAME);
-            this.scheduledExecutorService = Executors.newScheduledThreadPool(1, threadFactory);
-            scheduleNextRun(0);
-        }
-
-        synchronized void scheduleNextRun(long delayMillis) {
-            if (scheduledExecutorService.isShutdown() == false) {
-                try {
-                    if (scheduledFuture != null) {
-                        //regardless of when the next sniff is scheduled, cancel it and schedule a new one with updated delay
-                        this.scheduledFuture.cancel(false);
-                    }
-                    logger.debug("scheduling next sniff in " + delayMillis + " ms");
-                    this.scheduledFuture = this.scheduledExecutorService.schedule(this, delayMillis, TimeUnit.MILLISECONDS);
-                } catch(Exception e) {
-                    logger.error("error while scheduling next sniffer task", e);
-                }
-            }
-        }
-
-        @Override
-        public void run() {
-            sniff(null, sniffIntervalMillis);
-        }
-
-        void sniffOnFailure(HttpHost failedHost) {
-            sniff(failedHost, sniffAfterFailureDelayMillis);
-        }
-
-        void sniff(HttpHost excludeHost, long nextSniffDelayMillis) {
-            if (running.compareAndSet(false, true)) {
-                try {
-                    List<HttpHost> sniffedHosts = hostsSniffer.sniffHosts();
-                    logger.debug("sniffed hosts: " + sniffedHosts);
-                    if (excludeHost != null) {
-                        sniffedHosts.remove(excludeHost);
-                    }
-                    if (sniffedHosts.isEmpty()) {
-                        logger.warn("no hosts to set, hosts will be updated at the next sniffing round");
-                    } else {
-                        this.restClient.setHosts(sniffedHosts.toArray(new HttpHost[sniffedHosts.size()]));
-                    }
-                } catch (Exception e) {
-                    logger.error("error while sniffing nodes", e);
-                } finally {
-                    scheduleNextRun(nextSniffDelayMillis);
-                    running.set(false);
-                }
-            }
-        }
-
-        synchronized void shutdown() {
-            scheduledExecutorService.shutdown();
-            try {
-                if (scheduledExecutorService.awaitTermination(1000, TimeUnit.MILLISECONDS)) {
-                    return;
-                }
-                scheduledExecutorService.shutdownNow();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }
+    public void close() {
+        this.scheduler.shutdown();
     }
 
     /**
@@ -158,8 +128,72 @@ public class Sniffer implements Closeable {
         return new SnifferBuilder(restClient);
     }
 
-    private static class SnifferThreadFactory implements ThreadFactory {
+    /**
+     * The Scheduler interface allows to isolate the sniffing scheduling aspects so that we can test
+     * the sniffer by injecting a custom scheduler that is more suited for testing.
+     */
+    interface Scheduler {
+        /**
+         * Schedules the provided {@link Runnable} to run in <code>delayMillis</code> milliseconds
+         */
+        void schedule(Runnable runnable, long delayMillis);
 
+        /**
+         * Shuts this scheduler down
+         */
+        void shutdown();
+    }
+
+    /**
+     * Default implementation of {@link Scheduler}, based on {@link ScheduledExecutorService}
+     */
+    static final class DefaultScheduler implements Scheduler {
+        final ScheduledExecutorService scheduledExecutorService;
+        private ScheduledFuture<?> scheduledFuture;
+
+        DefaultScheduler() {
+            this(Executors.newScheduledThreadPool(1, new SnifferThreadFactory(SNIFFER_THREAD_NAME)));
+        }
+
+        DefaultScheduler(ScheduledExecutorService scheduledExecutorService) {
+            this.scheduledExecutorService = scheduledExecutorService;
+        }
+
+        //TODO test concurrent calls to schedule?
+        @Override
+        public synchronized void schedule(Runnable runnable, long delayMillis) {
+            //TODO maybe this is not even needed, just let it throw rejected execution exception instead?
+            if (scheduledExecutorService.isShutdown() == false) {
+                try {
+                    if (this.scheduledFuture != null) {
+                        //regardless of when the next sniff is scheduled, cancel it and schedule a new one with the latest delay.
+                        //instead of piling up sniff rounds to be run, the last run decides when the following execution will be.
+                        this.scheduledFuture.cancel(false);
+                    }
+                    logger.debug("scheduling next sniff in " + delayMillis + " ms");
+                    this.scheduledFuture = scheduledExecutorService.schedule(runnable, delayMillis, TimeUnit.MILLISECONDS);
+                } catch(Exception e) {
+                    logger.error("error while scheduling next sniffer task", e);
+                }
+            }
+        }
+
+        //TODO test concurrent calls to shutdown?
+        @Override
+        public synchronized void shutdown() {
+            scheduledExecutorService.shutdown();
+            try {
+                if (scheduledExecutorService.awaitTermination(1000, TimeUnit.MILLISECONDS)) {
+                    return;
+                }
+                scheduledExecutorService.shutdownNow();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    static class SnifferThreadFactory implements ThreadFactory {
         private final AtomicInteger threadNumber = new AtomicInteger(1);
         private final String namePrefix;
         private final ThreadFactory originalThreadFactory;

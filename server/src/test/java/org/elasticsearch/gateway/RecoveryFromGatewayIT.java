@@ -20,6 +20,7 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -46,6 +47,7 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSIndexStore;
 
 import java.nio.file.DirectoryStream;
@@ -58,11 +60,13 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -566,5 +570,76 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
         // start another node so cluster consistency checks won't time out due to the lack of state
         internalCluster().startNode();
+    }
+
+    @TestLogging("org.elasticsearch.env.NodeEnvironment:TRACE,org.elasticsearch.gateway.TransportNodesListGatewayStartedShards:TRACE,org.elasticsearch.gateway.MetaDataStateFormat:TRACE,org.elasticsearch.index.shard.IndexShard:TRACE")
+    public void testLoadLatestStateOnClosingShard() throws Exception {
+
+        final String nodeName = internalCluster().startNode();
+        DiscoveryNode node = internalCluster().getInstance(ClusterService.class, nodeName).localNode();
+
+        assertAcked(prepareCreate("test").setSettings(Settings.builder()
+            .put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
+        final ShardId shardId = new ShardId(resolveIndex("test"), 0);
+
+        try (AutoCloseable ignored = new ConcurrentShardLister(shardId, node, 4).start()) {
+            boolean indexExists;
+            do {
+                logger.info("--> deleting index");
+                assertAcked(client().admin().indices().prepareDelete("test"));
+                logger.info("--> checking whether index still exists");
+                GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().setIndices("_all").get();
+                indexExists = getIndexResponse.getSettings().containsKey("test");
+                if (indexExists) {
+                    logger.info("--> index still exists, retrying");
+                }
+            } while (indexExists);
+            logger.info("--> index no longer exists, exiting");
+        }
+        logger.info("--> test done");
+    }
+
+    private class ConcurrentShardLister {
+        private final ShardId shardId;
+        private final DiscoveryNode node;
+        private volatile boolean shouldExit = false;
+        private Exception listerException;
+        private final int concurrentListingThreadCount;
+
+        ConcurrentShardLister(ShardId shardId, DiscoveryNode node, int concurrentListingThreadCount) {
+            this.shardId = shardId;
+            this.node = node;
+            this.concurrentListingThreadCount = concurrentListingThreadCount;
+        }
+
+        public AutoCloseable start() {
+            final Thread[] listingThreads = new Thread[concurrentListingThreadCount];
+            for (int i = 0; i < concurrentListingThreadCount; i++) {
+                listingThreads[i] = new Thread(() -> {
+                    for (int iterations = 0; iterations < 100 && shouldExit == false; iterations++) {
+                        try {
+                            internalCluster().getInstance(TransportNodesListGatewayStartedShards.class)
+                                .execute(new TransportNodesListGatewayStartedShards.Request(shardId, new DiscoveryNode[]{node}))
+                                .get();
+                        } catch (InterruptedException | ExecutionException exception) {
+                            shouldExit = true;
+                            listerException = exception;
+                        }
+                    }
+                });
+                listingThreads[i].setName("ConcurrentShardLister[" + i + "]");
+                listingThreads[i].start();
+            }
+
+            return () -> {
+                shouldExit = true;
+                for (int i = 0; i < concurrentListingThreadCount; i++) {
+                    listingThreads[i].join();
+                }
+                if (listerException != null) {
+                    throw listerException;
+                }
+            };
+        }
     }
 }

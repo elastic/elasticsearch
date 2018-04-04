@@ -1,8 +1,5 @@
 ---
 "Routing":
- - skip:
-      version: " - 6.99.99"
-      reason:  fields dropped in 7.0
 
  - do:
      indices.create:

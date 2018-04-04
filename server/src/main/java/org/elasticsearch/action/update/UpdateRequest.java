@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.update;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -772,6 +773,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             doc = new IndexRequest();
             doc.readFrom(in);
         }
+        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+            String[] fields = in.readOptionalStringArray();
+            if (fields != null) {
+                throw new IllegalArgumentException("[fields] is no longer supported");
+            }
+        }
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
         if (in.readBoolean()) {
             upsertRequest = new IndexRequest();
@@ -808,6 +815,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             doc.type(type);
             doc.id(id);
             doc.writeTo(out);
+        }
+        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+            out.writeOptionalStringArray(null);
         }
         out.writeOptionalWriteable(fetchSourceContext);
         if (upsertRequest == null) {

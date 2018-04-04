@@ -79,28 +79,24 @@
 
 ---
 "refresh=wait_for waits until changes are visible in search":
-  - skip:
-      version: " - 6.99.99"
-      reason:  fields dropped in 7.0
-
-  - do:
+ - do:
       index:
           index:   update_60_refresh_1
           type:    test
           id:      update_60_refresh_id1
           body:    { foo: bar }
           refresh: true
-  - is_true: forced_refresh
+ - is_true: forced_refresh
 
-  - do:
+ - do:
       search:
           index:   update_60_refresh_1
           type:    test
           body:
             query:   { term: { _id: update_60_refresh_id1 }}
-  - match: { hits.total: 1 }
+ - match: { hits.total: 1 }
 
-  - do:
+ - do:
      update:
          index:   update_60_refresh_1
          type:    test
@@ -108,12 +104,12 @@
          refresh: wait_for
          body:
            doc: { test: asdf }
-  - is_false: forced_refresh
+ - is_false: forced_refresh
 
-  - do:
+ - do:
       search:
           index:   update_60_refresh_1
           type:    test
           body:
             query:   { match: { test: asdf } }
-  - match: { hits.total: 1 }
+ - match: { hits.total: 1 }

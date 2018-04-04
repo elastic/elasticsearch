@@ -1,8 +1,5 @@
 ---
 "Update result field":
-  - skip:
-      version: " - 6.99.99"
-      reason:  fields dropped in 7.0
 
   - do:
       update:

@@ -384,7 +384,6 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertThat(terms.get(1).bytes(), equalTo(phraseQuery.getTerms()[1].bytes()));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29363")
     public void testExactMatch_booleanQuery() {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         TermQuery termQuery1 = new TermQuery(new Term("_field", "_term1"));
@@ -419,12 +418,15 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertThat(result.minimumShouldMatch, equalTo(1));
 
         builder = new BooleanQuery.Builder();
-        builder.setMinimumNumberShouldMatch(randomIntBetween(1, 2));
+        int msm = randomIntBetween(2, 3);
+        builder.setMinimumNumberShouldMatch(msm);
+        TermQuery termQuery3 = new TermQuery(new Term("_field", "_term3"));
         builder.add(termQuery1, BooleanClause.Occur.SHOULD);
         builder.add(termQuery2, BooleanClause.Occur.SHOULD);
+        builder.add(termQuery3, BooleanClause.Occur.SHOULD);
         result = analyze(builder.build(), Version.CURRENT);
         assertThat("Minimum match has not impact on whether the result is verified", result.verified, is(true));
-        assertThat("msm is at least two so result.minimumShouldMatch should 2 too", result.minimumShouldMatch, equalTo(2));
+        assertThat("msm is at least two so result.minimumShouldMatch should 2 too", result.minimumShouldMatch, equalTo(msm));
 
         builder = new BooleanQuery.Builder();
         builder.add(termQuery1, randomBoolean() ? BooleanClause.Occur.MUST : BooleanClause.Occur.FILTER);
@@ -453,7 +455,6 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertThat("Prohibited clause, so candidate matches are not verified", result.verified, is(false));
         assertThat(result.minimumShouldMatch, equalTo(1));
 
-        TermQuery termQuery3 = new TermQuery(new Term("_field", "_term3"));
         builder = new BooleanQuery.Builder()
                 .add(new BooleanQuery.Builder()
                         .add(termQuery1, Occur.FILTER)

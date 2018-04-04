@@ -17,25 +17,26 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class MockAction implements LifecycleAction {
     public static final String NAME = "TEST_ACTION";
-    private final List<MockStep> steps;
+    private List<Step> steps;
 
-    private static final ConstructingObjectParser<MockAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
-            a -> new MockAction((List<MockStep>) a[0]));
-
-    static {
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), MockStep.PARSER, new ParseField("steps"));
-    }
+    private static final ObjectParser<MockAction, Void> PARSER = new ObjectParser<>(NAME, MockAction::new);
 
     public static MockAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public MockAction(List<MockStep> steps) {
+    public MockAction() {
+        this.steps = Collections.emptyList();
+    }
+
+    public MockAction(List<Step> steps) {
         this.steps = steps;
     }
 
@@ -46,11 +47,6 @@ public class MockAction implements LifecycleAction {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.startArray("steps");
-        for (MockStep step : steps) {
-            step.toXContent(builder, params);
-        }
-        builder.endArray();
         builder.endObject();
         return builder;
     }
@@ -60,7 +56,7 @@ public class MockAction implements LifecycleAction {
         return NAME;
     }
 
-    public List<MockStep> getSteps() {
+    public List<Step> getSteps() {
         return steps;
     }
 
@@ -71,7 +67,7 @@ public class MockAction implements LifecycleAction {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(steps);
+        out.writeList(steps.stream().map(MockStep::new).collect(Collectors.toList()));
     }
 
     @Override
@@ -89,10 +85,5 @@ public class MockAction implements LifecycleAction {
         }
         MockAction other = (MockAction) obj;
         return Objects.equals(steps, other.steps);
-    }
-
-    @Override
-    public String toString() {
-        return Strings.toString(this, true, true);
     }
 }

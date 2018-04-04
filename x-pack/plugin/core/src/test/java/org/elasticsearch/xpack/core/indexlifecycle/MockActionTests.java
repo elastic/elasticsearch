@@ -33,8 +33,8 @@ public class MockActionTests extends AbstractSerializingTestCase<MockAction> {
 
     @Override
     protected MockAction mutateInstance(MockAction instance) throws IOException {
-        List<MockStep> steps = new ArrayList<>(instance.getSteps());
-        MockStep lastStep = steps.remove(steps.size() - 1);
+        List<Step> steps = new ArrayList<>(instance.getSteps());
+        Step lastStep = steps.remove(steps.size() - 1);
         if (randomBoolean()) {
             Step.StepKey additionalStepKey = randomStepKey();
             steps.add(new MockStep(lastStep.getKey(), additionalStepKey));
@@ -45,7 +45,7 @@ public class MockActionTests extends AbstractSerializingTestCase<MockAction> {
 
     // TODO(talevy): design this in a way that we can build up a proper LifecyclePolicy where the steps connect
     public static MockAction randomMockAction(@Nullable Step.StepKey nextExternalStepKey) {
-        List<MockStep> steps = new ArrayList<>();
+        List<Step> steps = new ArrayList<>();
         int stepCount = randomIntBetween(2, 10);
         Step.StepKey currentStepKey = randomStepKey();
         Step.StepKey nextStepKey;

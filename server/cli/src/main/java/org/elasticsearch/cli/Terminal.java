@@ -163,7 +163,11 @@ public abstract class Terminal {
             getWriter().print(text);
             BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, Charset.defaultCharset()));
             try {
-                return reader.readLine();
+                final String line = reader.readLine();
+                if (line == null) {
+                    throw new IllegalStateException("standard input is closed or there is no tty attached");
+                }
+                return line;
             } catch (IOException ioe) {
                 throw new RuntimeException(ioe);
             }

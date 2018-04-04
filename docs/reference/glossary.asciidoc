@@ -66,7 +66,7 @@
   A filter is a non-scoring <<glossary-query,query>>, meaning that it does not score documents.
   It is only concerned about answering the question - "Does this document match?". 
   The answer is always a simple, binary yes or no. This kind of query is said to be made 
-  in a <<https://www.elastic.co/guide/en/elasticsearch/reference/current/query-filter-context.html,"filtering" context>>, 
+  in a <<https://www.elastic.co/guide/en/elasticsearch/reference/current/query-filter-context.html,filter context>>, 
   hence it is called a filter. Filters are simple checks for set inclusion or exclusion. 
   In most cases, the goal of filtering is to reduce the number of documents that have to be examined.
 

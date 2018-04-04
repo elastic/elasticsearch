@@ -174,6 +174,13 @@ class VagrantTestPlugin implements Plugin<Project> {
             from project.configurations[PACKAGING_TEST_CONFIGURATION]
         }
 
+        Task createTestRunnerScript = project.tasks.create('createTestRunnerScript', FileContentsTask) {
+            dependsOn copyPackagingTests
+            file "${testsDir}/run-tests.sh"
+            contents "java -cp \"*\" org.junit.runner.JUnitCore ${-> project.extensions.esvagrant.testClass}"
+            executable true
+        }
+
         Task createVersionFile = project.tasks.create('createVersionFile', FileContentsTask) {
             dependsOn copyPackagingArchives
             file "${archivesDir}/version"
@@ -224,8 +231,8 @@ class VagrantTestPlugin implements Plugin<Project> {
 
         Task vagrantSetUpTask = project.tasks.create('setupPackagingTest')
         vagrantSetUpTask.dependsOn 'vagrantCheckVersion'
-        vagrantSetUpTask.dependsOn copyPackagingArchives, copyPackagingTests, createVersionFile, createUpgradeFromFile
-        vagrantSetUpTask.dependsOn copyBatsTests, copyBatsUtils
+        vagrantSetUpTask.dependsOn copyPackagingArchives, copyPackagingTests, createTestRunnerScript, createVersionFile,
+                createUpgradeFromFile, copyBatsTests, copyBatsUtils
     }
 
     private static void createPackagingTestTask(Project project) {
@@ -389,7 +396,7 @@ class VagrantTestPlugin implements Plugin<Project> {
                 environmentVars vagrantEnvVars
                 dependsOn up, setupPackagingTest
                 finalizedBy halt
-                args '--command', "java -cp \"\$PACKAGING_TESTS/*\" org.junit.runner.JUnitCore ${-> project.extensions.esvagrant.testClass}"
+                args '--command', "cd \$PACKAGING_TESTS && ./run-tests.sh"
             }
 
             TaskExecutionAdapter groovyPackagingReproListener = createReproListener(project, javaPackagingTest.path)

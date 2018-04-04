@@ -36,6 +36,9 @@ class FileContentsTask extends DefaultTask {
   @Input
   Object contents
 
+  @Input
+  boolean executable = false
+
   /**
    * The file to be built. Takes any objecct and coerces to a file.
    */
@@ -47,5 +50,6 @@ class FileContentsTask extends DefaultTask {
   void setContents() {
     file = file as File
     file.text = contents.toString()
+    file.setExecutable(executable)
   }
 }

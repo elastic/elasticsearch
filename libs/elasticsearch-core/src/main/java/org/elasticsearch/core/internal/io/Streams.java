@@ -43,11 +43,11 @@ public class Streams {
      * @return the number of bytes copied
      * @throws IOException in case of I/O errors
      */
-    public static long copy(InputStream in, OutputStream out) throws IOException {
+    public static long copy(final InputStream in, final OutputStream out) throws IOException {
         Objects.requireNonNull(in, "No InputStream specified");
         Objects.requireNonNull(out, "No OutputStream specified");
         final byte[] buffer = new byte[8192];
-        boolean success = false;
+        Exception err = null;
         try {
             long byteCount = 0;
             int bytesRead;
@@ -56,14 +56,12 @@ public class Streams {
                 byteCount += bytesRead;
             }
             out.flush();
-            success = true;
             return byteCount;
+        } catch (IOException | RuntimeException e) {
+            err = e;
+            throw e;
         } finally {
-            if (success) {
-                IOUtils.close(in, out);
-            } else {
-                IOUtils.closeWhileHandlingException(in, out);
-            }
+            IOUtils.close(err, in, out);
         }
     }
 }

@@ -41,53 +41,17 @@ public abstract class Streams {
      * @return the number of bytes copied
      * @throws IOException in case of I/O errors
      */
-    public static long copy(InputStream in, OutputStream out) throws IOException {
-        boolean success = false;
+    public static long copy(final InputStream in, final OutputStream out) throws IOException {
+        Exception err = null;
         try {
             final long byteCount = in.transferTo(out);
             out.flush();
-            success = true;
             return byteCount;
+        } catch (IOException | RuntimeException e) {
+            err = e;
+            throw e;
         } finally {
-            if (success) {
-                Exception ex = null;
-                try {
-                    in.close();
-                } catch (IOException | RuntimeException e) {
-                    ex = e;
-                }
-
-                try {
-                    out.close();
-                } catch (IOException | RuntimeException e) {
-                    if (ex == null) {
-                        ex = e;
-                    } else {
-                        ex.addSuppressed(e);
-                    }
-                }
-
-                if (ex != null) {
-                    if (ex instanceof IOException) {
-                        throw (IOException) ex;
-                    } else {
-                        throw (RuntimeException) ex;
-                    }
-                }
-            } else {
-                try {
-                    in.close();
-                } catch (IOException | RuntimeException e) {
-                    // empty
-                }
-
-                try {
-                    out.close();
-                } catch (IOException | RuntimeException e) {
-                    // empty
-                }
-            }
+            IOUtils.close(err, in, out);
         }
-
     }
 }

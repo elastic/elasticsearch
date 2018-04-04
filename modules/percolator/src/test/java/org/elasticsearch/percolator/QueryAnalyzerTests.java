@@ -384,6 +384,7 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertThat(terms.get(1).bytes(), equalTo(phraseQuery.getTerms()[1].bytes()));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29363")
     public void testExactMatch_booleanQuery() {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         TermQuery termQuery1 = new TermQuery(new Term("_field", "_term1"));

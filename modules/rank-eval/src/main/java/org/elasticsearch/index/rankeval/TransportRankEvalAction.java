@@ -66,9 +66,9 @@ import static org.elasticsearch.common.xcontent.XContentHelper.createParser;
  * averaged precision at n.
  */
 public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequest, RankEvalResponse> {
-    private Client client;
-    private ScriptService scriptService;
-    private NamedXContentRegistry namedXContentRegistry;
+    private final Client client;
+    private final ScriptService scriptService;
+    private final NamedXContentRegistry namedXContentRegistry;
 
     @Inject
     public TransportRankEvalAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,

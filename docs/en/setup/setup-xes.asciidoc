@@ -5,9 +5,15 @@
 [partintro]
 --
 {xpack} is an Elastic Stack extension that bundles security, alerting,
-monitoring, reporting, machine learning, and graph capabilities into one
-easy-to-install package. To access this functionality, you must
-<<installing-xpack-es,install {xpack} in {es}>>.
+monitoring, reporting, machine learning, and graph capabilities.
+
+* <<installing-xpack-es>>
+* <<configuring-monitoring>>
+* <<configuring-security>>
+* <<setup-xpack-client>>
+* <<settings-xpack>>
+* <<bootstrap-checks-xpack>>
+
 --
 
 include::installing-xes.asciidoc[]

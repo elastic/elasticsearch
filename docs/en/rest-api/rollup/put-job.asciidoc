@@ -83,6 +83,7 @@ PUT _xpack/rollup/job/sensor
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:sensor_index]
 
 When the job is created, you receive the following results:
 

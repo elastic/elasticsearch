@@ -77,7 +77,7 @@ PUT _xpack/rollup/job/sensor
 }
 --------------------------------------------------
 // CONSOLE
-// NOTEST
+// TEST[setup:sensor_index]
 
 This rolls up the `sensor-*` pattern and stores the results in `sensor_rollup`.  To search this rolled up data, we
 need to use the `_rollup_search` endpoint.  However, you'll notice that we can use regular query DSL to search the

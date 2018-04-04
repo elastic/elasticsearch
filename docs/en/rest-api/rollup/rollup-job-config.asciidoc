@@ -45,6 +45,7 @@ PUT _xpack/rollup/job/sensor
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:sensor_index]
 
 ==== Logistical Details
 

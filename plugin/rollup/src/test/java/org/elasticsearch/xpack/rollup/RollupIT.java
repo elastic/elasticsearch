@@ -234,7 +234,7 @@ public class RollupIT extends ESIntegTestCase {
                 .build();
 
         DateHistoGroupConfig.Builder datehistoGroupConfig = new DateHistoGroupConfig.Builder();
-        datehistoGroupConfig.setField("timestamp");
+        datehistoGroupConfig.setField("date_histo");
         datehistoGroupConfig.setInterval(new DateHistogramInterval("1d"));
 
         GroupConfig.Builder groupConfig = new GroupConfig.Builder();
@@ -374,7 +374,7 @@ public class RollupIT extends ESIntegTestCase {
         client().admin().indices().prepareRefresh("test-verify").get();
 
         MetricConfig metricConfig = new MetricConfig.Builder()
-                .setField("foo")
+                .setField("thefield")
                 .setMetrics(Arrays.asList("sum", "min", "max", "avg"))
                 .build();
 

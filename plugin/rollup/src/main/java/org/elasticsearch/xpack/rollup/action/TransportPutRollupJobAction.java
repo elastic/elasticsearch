@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
@@ -17,6 +18,8 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
@@ -33,9 +36,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
@@ -53,6 +56,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
     private final XPackLicenseState licenseState;
     private final PersistentTasksService persistentTasksService;
     private final Client client;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
 
     @Inject
@@ -65,6 +69,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
         this.client = client;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override
@@ -85,11 +90,32 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.ROLLUP));
             return;
         }
-        RollupJob job = createRollupJob(request.getConfig(), threadPool);
-        createIndex(job, listener, persistentTasksService, client, logger);
+
+        FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest()
+                .indices(request.getConfig().getIndexPattern())
+                .fields(request.getConfig().getAllFields().toArray(new String[0]));
+
+        client.fieldCaps(fieldCapsRequest, new ActionListener<FieldCapabilitiesResponse>() {
+            @Override
+            public void onResponse(FieldCapabilitiesResponse fieldCapabilitiesResponse) {
+                ActionRequestValidationException validationException = request.validateMappings(fieldCapabilitiesResponse.get());
+                if (validationException != null) {
+                    listener.onFailure(validationException);
+                    return;
+                }
+
+                RollupJob job = createRollupJob(request.getConfig(), threadPool);
+                createIndex(job, listener, persistentTasksService, client, logger);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
     }
 
-    static RollupJob createRollupJob(RollupJobConfig config, ThreadPool threadPool) {
+    private static RollupJob createRollupJob(RollupJobConfig config, ThreadPool threadPool) {
         // ensure we only filter for the allowed headers
         Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
                 .filter(e -> Rollup.HEADER_FILTERS.contains(e.getKey()))

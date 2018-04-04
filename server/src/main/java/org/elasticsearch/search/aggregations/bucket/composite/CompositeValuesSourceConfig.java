@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
-import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.ValuesSource;

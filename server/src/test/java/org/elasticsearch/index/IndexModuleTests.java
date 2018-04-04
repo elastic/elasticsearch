@@ -59,7 +59,6 @@ import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.IndicesModule;
@@ -287,17 +286,8 @@ public class IndexModuleTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), emptyAnalysisRegistry);
-        module.addSimilarity("test_similarity", (string, providerSettings, indexLevelSettings, scriptService) -> new SimilarityProvider() {
-            @Override
-            public String name() {
-                return string;
-            }
-
-            @Override
-            public Similarity get() {
-                return new TestSimilarity(providerSettings.get("key"));
-            }
-        });
+        module.addSimilarity("test_similarity",
+                (providerSettings, indexCreatedVersion, scriptService) -> new TestSimilarity(providerSettings.get("key")));
 
         IndexService indexService = newIndexService(module);
         SimilarityService similarityService = indexService.similarityService();

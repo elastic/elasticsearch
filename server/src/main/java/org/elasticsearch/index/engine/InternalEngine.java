@@ -580,6 +580,17 @@ public class InternalEngine extends Engine {
     private OpVsLuceneDocStatus compareOpToLuceneDocBasedOnSeqNo(final Operation op) throws IOException {
         assert op.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO : "resolving ops based on seq# but no seqNo is found";
         final OpVsLuceneDocStatus status;
+        if (op.seqNo() <= localCheckpointTracker.getCheckpoint()) {
+            // The operation seq# is lower then the current local checkpoint and thus was already put into Lucene. This
+            // can happen during recovery where older operations are sent from the translog that are already part of the
+            // Lucene commit (either from a peer recovery or a local translog) or due to concurrent indexing & recovery.
+            // For the former it is important to skip Lucene as the operation in question may have been deleted in an
+            // out of order op that is not replayed.
+            // See testRecoverFromStoreWithOutOfOrderDelete for an example of local recovery
+            // See testRecoveryWithOutOfOrderDelete for an example of peer recovery
+            return OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
+        }
+
         VersionValue versionValue = getVersionFromMap(op.uid().bytes());
         assert incrementVersionLookup();
         if (op.seqNo() <= localCheckpointTracker.getCheckpoint()) {

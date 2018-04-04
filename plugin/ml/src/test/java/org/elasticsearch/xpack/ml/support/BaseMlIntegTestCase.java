@@ -81,9 +81,9 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
         settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         settings.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
-//        settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
-//        settings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
-//        settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
+        settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
+        settings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
+        settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
         return settings.build();
     }
 
@@ -92,9 +92,9 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         Settings.Builder settings = Settings.builder().put(super.transportClientSettings());
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
         settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
-//        settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
-//        settings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
-//        settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
+        settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
+        settings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
+        settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
         return settings.build();
     }
 

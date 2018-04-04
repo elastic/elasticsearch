@@ -19,27 +19,25 @@ import java.util.function.Function;
 
 public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
     private static final Logger logger = ESLoggerFactory.getLogger(ExecuteStepsUpdateTask.class);
+    private final String policy;
     private final Index index;
     private final Step startStep;
-    private final Function<ClusterState, Step> getCurrentStepInClusterState;
-    private final Function<Step.StepKey, Step> getStepFromRegistry;
-    private final BiFunction<ClusterState, Step, ClusterState> moveClusterStateToNextStep;
+    private final PolicyStepsRegistry policyStepsRegistry;
 
-    public ExecuteStepsUpdateTask(Index index, Step startStep, Function<ClusterState, Step> getCurrentStepInClusterState,
-                                  BiFunction<ClusterState, Step, ClusterState> moveClusterStateToNextStep,
-                                  Function<Step.StepKey, Step> getStepFromRegistry) {
+    public ExecuteStepsUpdateTask(String policy, Index index, Step startStep, PolicyStepsRegistry policyStepsRegistry) {
+        this.policy = policy;
         this.index = index;
         this.startStep = startStep;
-        this.getCurrentStepInClusterState = getCurrentStepInClusterState;
-        this.moveClusterStateToNextStep = moveClusterStateToNextStep;
-        this.getStepFromRegistry = getStepFromRegistry;
+        this.policyStepsRegistry = policyStepsRegistry;
     }
 
 
     @Override
-    public ClusterState execute(ClusterState currentState) throws Exception {
+    public ClusterState execute(ClusterState currentState) {
         Step currentStep = startStep;
-        if (currentStep.equals(getCurrentStepInClusterState.apply(currentState))) {
+        Step registeredCurrentStep = IndexLifecycleRunner.getCurrentStep(policyStepsRegistry, policy,
+            currentState.metaData().index(index).getSettings());
+        if (currentStep.equals(registeredCurrentStep)) {
             // We can do cluster state steps all together until we
             // either get to a step that isn't a cluster state step or a
             // cluster state wait step returns not completed
@@ -49,7 +47,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                     // move
                     // the cluster state to the next step
                     currentState = ((ClusterStateActionStep) currentStep).performAction(index, currentState);
-                    currentState = moveClusterStateToNextStep.apply(currentState, currentStep);
+                    currentState = IndexLifecycleRunner.moveClusterStateToNextStep(index, currentState, currentStep.getNextStepKey());
                 } else {
                     // cluster state wait step so evaluate the
                     // condition, if the condition is met move to the
@@ -59,13 +57,13 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                     // condition again
                     boolean complete = ((ClusterStateWaitStep) currentStep).isConditionMet(index, currentState);
                     if (complete) {
-                        currentState = moveClusterStateToNextStep.apply(currentState, currentStep);
+                        currentState = IndexLifecycleRunner.moveClusterStateToNextStep(index, currentState, currentStep.getNextStepKey());
                     } else {
                         logger.warn("condition not met, returning existing state");
                         return currentState;
                     }
                 }
-                currentStep = getStepFromRegistry.apply(currentStep.getNextStepKey());
+                currentStep = policyStepsRegistry.getStep(policy, currentStep.getNextStepKey());
             }
             return currentState;
         } else {

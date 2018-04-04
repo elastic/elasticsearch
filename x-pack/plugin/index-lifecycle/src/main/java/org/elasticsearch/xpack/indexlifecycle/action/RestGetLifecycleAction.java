@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.indexlifecycle.action;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -20,8 +21,8 @@ public class RestGetLifecycleAction extends BaseRestHandler {
 
     public RestGetLifecycleAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.GET,
-                IndexLifecycle.BASE_PATH + "{name}", this);
+        controller.registerHandler(RestRequest.Method.GET, IndexLifecycle.BASE_PATH, this);
+        controller.registerHandler(RestRequest.Method.GET, IndexLifecycle.BASE_PATH + "{name}", this);
     }
 
     @Override
@@ -31,8 +32,8 @@ public class RestGetLifecycleAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String lifecycleName = restRequest.param("name");
-        GetLifecycleAction.Request getLifecycleRequest = new GetLifecycleAction.Request(lifecycleName);
+        String[] lifecycleNames = Strings.splitStringByCommaToArray(restRequest.param("name"));
+        GetLifecycleAction.Request getLifecycleRequest = new GetLifecycleAction.Request(lifecycleNames);
         getLifecycleRequest.timeout(restRequest.paramAsTime("timeout", getLifecycleRequest.timeout()));
         getLifecycleRequest.masterNodeTimeout(restRequest.paramAsTime("master_timeout", getLifecycleRequest.masterNodeTimeout()));
 

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -29,8 +28,7 @@ public class MockAction implements LifecycleAction {
             a -> new MockAction((List<MockStep>) a[0]));
 
     static {
-        PARSER.declareField(ConstructingObjectParser.constructorArg(), (p, c) -> p.list(),
-            new ParseField("steps"), ObjectParser.ValueType.OBJECT_ARRAY);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), MockStep.PARSER, new ParseField("steps"));
     }
 
     public static MockAction parse(XContentParser parser) {
@@ -95,6 +93,6 @@ public class MockAction implements LifecycleAction {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(this, true, true);
     }
 }

@@ -24,6 +24,10 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction.Request;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction.Response;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
 public class TransportGetLifecycleAction extends TransportMasterNodeAction<Request, Response> {
 
     @Inject
@@ -47,14 +51,24 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
     protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
         IndexLifecycleMetadata metadata = clusterService.state().metaData().custom(IndexLifecycleMetadata.TYPE);
         if (metadata == null) {
-            listener.onFailure(new ResourceNotFoundException("Lifecycle policy not found: {}", request.getPolicyName()));
+            listener.onFailure(new ResourceNotFoundException("Lifecycle policy not found: {}", Arrays.toString(request.getPolicyNames())));
         } else {
-            LifecyclePolicy policy = metadata.getPolicies().get(request.getPolicyName());
-            if (policy == null) {
-                listener.onFailure(new ResourceNotFoundException("Lifecycle policy not found: {}", request.getPolicyName()));
+            List<LifecyclePolicy> requestedPolicies;
+            // if no policies explicitly provided, behave as if `*` was specified
+            if (request.getPolicyNames().length == 0) {
+                requestedPolicies = new ArrayList<>(metadata.getPolicies().values());
             } else {
-                listener.onResponse(new Response(policy));
+                requestedPolicies = new ArrayList<>(request.getPolicyNames().length);
+                for (String name : request.getPolicyNames()) {
+                    LifecyclePolicy policy = metadata.getPolicies().get(name);
+                    if (policy == null) {
+                        listener.onFailure(new ResourceNotFoundException("Lifecycle policy not found: {}", name));
+                        return;
+                    }
+                    requestedPolicies.add(policy);
+                }
             }
+            listener.onResponse(new Response(requestedPolicies));
         }
     }
 

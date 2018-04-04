@@ -38,8 +38,6 @@ import static org.elasticsearch.xpack.core.indexlifecycle.ObjectParserUtils.conv
  * particular point in the lifecycle of an index.
  */
 public class Phase implements ToXContentObject, Writeable {
-    public static final String PHASE_COMPLETED = "ACTIONS COMPLETED";
-
     private static final Logger logger = ESLoggerFactory.getLogger(Phase.class);
 
     public static final ParseField AFTER_FIELD = new ParseField("after");

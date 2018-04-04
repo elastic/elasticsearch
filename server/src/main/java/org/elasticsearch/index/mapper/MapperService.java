@@ -385,6 +385,16 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             results.put(DEFAULT_MAPPING, defaultMapper);
         }
 
+        if (indexSettings.isSingleType()) {
+            Set<String> actualTypes = new HashSet<>(mappers.keySet());
+            documentMappers.forEach(mapper -> actualTypes.add(mapper.type()));
+            actualTypes.remove(DEFAULT_MAPPING);
+            if (actualTypes.size() > 1) {
+                throw new IllegalArgumentException(
+                    "Rejecting mapping update to [" + index().getName() + "] as the final mapping would have more than 1 type: " + actualTypes);
+            }
+        }
+
         for (DocumentMapper mapper : documentMappers) {
             // check naming
             validateTypeName(mapper.type());
@@ -475,15 +485,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 if (results.containsKey(updatedDocumentMapper.type())) {
                     results.put(updatedDocumentMapper.type(), updatedDocumentMapper);
                 }
-            }
-        }
-
-        if (indexSettings.isSingleType()) {
-            Set<String> actualTypes = new HashSet<>(mappers.keySet());
-            actualTypes.remove(DEFAULT_MAPPING);
-            if (actualTypes.size() > 1) {
-                throw new IllegalArgumentException(
-                        "Rejecting mapping update to [" + index().getName() + "] as the final mapping would have more than 1 type: " + actualTypes);
             }
         }
 

@@ -114,7 +114,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
                                                                         Settings.builder().put("chunk_size", "0").build());
             GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.CHUNK_SIZE, repoMetaData);
         });
-        assertEquals("Failed to parse value [0] for setting [chunk_size] must be >= 1b", e.getMessage());
+        assertEquals("failed to parse value [0] for setting [chunk_size], must be >= [1b]", e.getMessage());
 
         // negative bytes not allowed
         e = expectThrows(IllegalArgumentException.class, () -> {
@@ -122,7 +122,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
                                                                         Settings.builder().put("chunk_size", "-1").build());
             GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.CHUNK_SIZE, repoMetaData);
         });
-        assertEquals("Failed to parse value [-1] for setting [chunk_size] must be >= 1b", e.getMessage());
+        assertEquals("failed to parse value [-1] for setting [chunk_size], must be >= [1b]", e.getMessage());
 
         // greater than max chunk size not allowed
         e = expectThrows(IllegalArgumentException.class, () -> {
@@ -130,6 +130,6 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
                                                                         Settings.builder().put("chunk_size", "101mb").build());
             GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.CHUNK_SIZE, repoMetaData);
         });
-        assertEquals("Failed to parse value [101mb] for setting [chunk_size] must be <= 100mb", e.getMessage());
+        assertEquals("failed to parse value [101mb] for setting [chunk_size], must be <= [100mb]", e.getMessage());
     }
 }

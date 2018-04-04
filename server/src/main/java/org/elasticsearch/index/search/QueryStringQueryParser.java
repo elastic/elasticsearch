@@ -59,7 +59,6 @@ import org.joda.time.DateTimeZone;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -67,6 +66,7 @@ import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfN
 import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
 import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQuery;
 import static org.elasticsearch.index.search.QueryParserHelper.resolveMappingField;
+import static org.elasticsearch.index.search.QueryParserHelper.resolveMappingFields;
 
 /**
  * A {@link XQueryParser} that uses the {@link MapperService} in order to build smarter
@@ -266,15 +266,7 @@ public class QueryStringQueryParser extends XQueryParser {
             // Filters metadata fields if all fields are requested
             return resolveMappingField(context, field, 1.0f, !allFields, !multiFields, quoted ? quoteFieldSuffix : null);
         } else if (quoted && quoteFieldSuffix != null) {
-            Map<String, Float> newFields = new HashMap<>(fieldsAndWeights.size());
-            for (Map.Entry<String, Float> entry : fieldsAndWeights.entrySet()) {
-                String fieldName = entry.getKey();
-                if (context.fieldMapper(entry.getKey() + quoteFieldSuffix) != null) {
-                    fieldName += quoteFieldSuffix;
-                }
-                newFields.put(fieldName, entry.getValue());
-            }
-            return newFields;
+            return resolveMappingFields(context, fieldsAndWeights, quoteFieldSuffix);
         } else {
             return fieldsAndWeights;
         }

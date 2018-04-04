@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.client.Client;
@@ -20,10 +21,11 @@ import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
@@ -33,6 +35,7 @@ import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -40,6 +43,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 
 public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollowTask> {
 
@@ -72,19 +76,21 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     }
 
     @Override
-    protected void nodeOperation(AllocatedPersistentTask task, ShardFollowTask params, Task.Status status) {
-        final ShardFollowTask.Status shardFollowStatus = (ShardFollowTask.Status) status;
-        final long followGlobalCheckPoint;
-        if (shardFollowStatus != null) {
-            followGlobalCheckPoint = shardFollowStatus.getProcessedGlobalCheckpoint();
-        } else {
-            followGlobalCheckPoint = 0;
-        }
-        logger.info("Starting shard following [{}]", params);
-        prepare(task, params, followGlobalCheckPoint);
+    protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
+                                                 PersistentTasksCustomMetaData.PersistentTask<ShardFollowTask> taskInProgress,
+                                                 Map<String, String> headers) {
+        return new ShardFollowNodeTask(id, type, action, getDescription(taskInProgress), parentTaskId, headers);
     }
 
-    void prepare(AllocatedPersistentTask task, ShardFollowTask params, long followGlobalCheckPoint) {
+    @Override
+    protected void nodeOperation(AllocatedPersistentTask task, ShardFollowTask params, Task.Status status) {
+        ShardFollowNodeTask shardFollowNodeTask = (ShardFollowNodeTask) task;
+        logger.info("Starting shard following [{}]", params);
+        fetchGlobalCheckpoint(params.getFollowShardId(),
+                followGlobalCheckPoint -> prepare(shardFollowNodeTask, params, followGlobalCheckPoint), task::markAsFailed);
+    }
+
+    void prepare(ShardFollowNodeTask task, ShardFollowTask params, long followGlobalCheckPoint) {
         if (task.getState() != AllocatedPersistentTask.State.STARTED) {
             // TODO: need better cancellation control
             return;
@@ -92,52 +98,31 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
         final ShardId leaderShard = params.getLeaderShardId();
         final ShardId followerShard = params.getFollowShardId();
-        client.admin().indices().stats(new IndicesStatsRequest().indices(leaderShard.getIndexName()), ActionListener.wrap(r -> {
-            Optional<ShardStats> leaderShardStats = Arrays.stream(r.getIndex(leaderShard.getIndexName()).getShards())
-                    .filter(shardStats -> shardStats.getShardRouting().shardId().equals(leaderShard))
-                    .filter(shardStats -> shardStats.getShardRouting().primary())
-                    .findAny();
-
-            if (leaderShardStats.isPresent()) {
-                // Threat -1 as 0. If no indexing has happened in leader shard then global checkpoint is -1.
-                final long leaderGlobalCheckPoint = Math.max(0, leaderShardStats.get().getSeqNoStats().getGlobalCheckpoint());
-                // TODO: check if both indices have the same history uuid
-                if (leaderGlobalCheckPoint == followGlobalCheckPoint) {
-                    retry(task, params, followGlobalCheckPoint);
-                } else {
-                    assert followGlobalCheckPoint < leaderGlobalCheckPoint : "followGlobalCheckPoint [" + followGlobalCheckPoint +
-                            "] is not below leaderGlobalCheckPoint [" + leaderGlobalCheckPoint + "]";
-                    Executor ccrExecutor = threadPool.executor(Ccr.CCR_THREAD_POOL_NAME);
-                    Consumer<Exception> handler = e -> {
-                        if (e == null) {
-                            ShardFollowTask.Status newStatus = new ShardFollowTask.Status();
-                            newStatus.setProcessedGlobalCheckpoint(leaderGlobalCheckPoint);
-                            task.updatePersistentStatus(newStatus, ActionListener.wrap(
-                                    persistentTask -> logger.debug("[{}] Successfully updated global checkpoint to {}",
-                                            leaderShard, leaderGlobalCheckPoint),
-                                    updateStatusException -> {
-                                        logger.error(new ParameterizedMessage("[{}] Failed to update global checkpoint to {}",
-                                                leaderShard, leaderGlobalCheckPoint), updateStatusException);
-                                        task.markAsFailed(updateStatusException);
-                                    }
-                            ));
-                            prepare(task, params, leaderGlobalCheckPoint);
-                        } else {
-                            task.markAsFailed(e);
-                        }
-                    };
-                    ChunksCoordinator coordinator = new ChunksCoordinator(client, ccrExecutor, params.getMaxChunkSize(),
-                            params.getNumConcurrentChunks(), params.getProcessorMaxTranslogBytes(), leaderShard, followerShard, handler);
-                    coordinator.createChucks(followGlobalCheckPoint, leaderGlobalCheckPoint);
-                    coordinator.start();
-                }
+        fetchGlobalCheckpoint(leaderShard, leaderGlobalCheckPoint -> {
+            // TODO: check if both indices have the same history uuid
+            if (leaderGlobalCheckPoint == followGlobalCheckPoint) {
+                retry(task, params, followGlobalCheckPoint);
             } else {
-                task.markAsFailed(new IllegalArgumentException("Cannot find shard stats for primary leader shard"));
+                assert followGlobalCheckPoint < leaderGlobalCheckPoint : "followGlobalCheckPoint [" + followGlobalCheckPoint +
+                        "] is not below leaderGlobalCheckPoint [" + leaderGlobalCheckPoint + "]";
+                Executor ccrExecutor = threadPool.executor(Ccr.CCR_THREAD_POOL_NAME);
+                Consumer<Exception> handler = e -> {
+                    if (e == null) {
+                        task.updateProcessedGlobalCheckpoint(leaderGlobalCheckPoint);
+                        prepare(task, params, leaderGlobalCheckPoint);
+                    } else {
+                        task.markAsFailed(e);
+                    }
+                };
+                ChunksCoordinator coordinator = new ChunksCoordinator(client, ccrExecutor, params.getMaxChunkSize(),
+                        params.getNumConcurrentChunks(), params.getProcessorMaxTranslogBytes(), leaderShard, followerShard, handler);
+                coordinator.createChucks(followGlobalCheckPoint, leaderGlobalCheckPoint);
+                coordinator.start();
             }
-        }, task::markAsFailed));
+        }, task::markAsFailed);
     }
 
-    private void retry(AllocatedPersistentTask task, ShardFollowTask params, long followGlobalCheckPoint) {
+    private void retry(ShardFollowNodeTask task, ShardFollowTask params, long followGlobalCheckPoint) {
         threadPool.schedule(RETRY_TIMEOUT, Ccr.CCR_THREAD_POOL_NAME, new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
@@ -149,6 +134,24 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 prepare(task, params, followGlobalCheckPoint);
             }
         });
+    }
+
+    private void fetchGlobalCheckpoint(ShardId shardId, LongConsumer handler, Consumer<Exception> errorHandler) {
+        client.admin().indices().stats(new IndicesStatsRequest().indices(shardId.getIndexName()), ActionListener.wrap(r -> {
+            IndexStats indexStats = r.getIndex(shardId.getIndexName());
+            Optional<ShardStats> filteredShardStats = Arrays.stream(indexStats.getShards())
+                    .filter(shardStats -> shardStats.getShardRouting().shardId().equals(shardId))
+                    .filter(shardStats -> shardStats.getShardRouting().primary())
+                    .findAny();
+
+            if (filteredShardStats.isPresent()) {
+                // Treat -1 as 0. If no indexing has happened in leader shard then global checkpoint is -1.
+                final long globalCheckPoint = Math.max(0, filteredShardStats.get().getSeqNoStats().getGlobalCheckpoint());
+                handler.accept(globalCheckPoint);
+            } else {
+                errorHandler.accept(new IllegalArgumentException("Cannot find shard stats for shard " + shardId));
+            }
+        }, errorHandler));
     }
 
     static class ChunksCoordinator {

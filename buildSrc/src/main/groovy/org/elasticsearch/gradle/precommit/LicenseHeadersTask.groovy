@@ -55,7 +55,7 @@ public class LicenseHeadersTask extends AntTask {
      * possibility of inadvertently using the license on our own source files).
      */
     @Input
-    List<String> excludedJavaFiles = []
+    List<String> excludes = []
 
     /**
      * Additional license families that may be found. The key is the license category name (5 characters),
@@ -103,7 +103,7 @@ public class LicenseHeadersTask extends AntTask {
                for (File dir: dirSet.srcDirs) {
                    // sometimes these dirs don't exist, e.g. site-plugin has no actual java src/main...
                    if (dir.exists()) {
-                       ant.fileset(dir: dir, excludes: excludedJavaFiles.join(' '))
+                       ant.fileset(dir: dir, excludes: excludes.join(' '))
                    }
                }
             }

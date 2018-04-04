@@ -21,6 +21,8 @@ package org.elasticsearch.common.collect;
 
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class TupleTests extends ESTestCase {
 
     public void testTuple() {
@@ -30,16 +32,16 @@ public class TupleTests extends ESTestCase {
         Tuple<Long, String> t4 = new Tuple<>(2L, "bar");
         Tuple<Integer, String> t5 = new Tuple<>(2, "foo");
 
-        assertEquals(t1.v1(), Long.valueOf(2L));
-        assertEquals(t1.v2(), "foo");
+        assertThat(t1.v1(), equalTo(Long.valueOf(2L)));
+        assertThat(t1.v2(), equalTo("foo"));
 
-        assertEquals(t1, t2);
+        assertThat(t1, equalTo(t2));
         assertNotEquals(t1, t3);
         assertNotEquals(t2, t3);
         assertNotEquals(t2, t4);
         assertNotEquals(t3, t4);
         assertNotEquals(t1, t5);
 
-        assertEquals(t1.toString(), "Tuple [v1=2, v2=foo]");
+        assertThat(t1.toString(), equalTo("Tuple [v1=2, v2=foo]"));
     }
 }

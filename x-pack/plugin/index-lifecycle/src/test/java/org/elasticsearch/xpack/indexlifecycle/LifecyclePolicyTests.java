@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.MockStep;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.PhaseAfterStep;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
+import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 import org.elasticsearch.xpack.core.indexlifecycle.TestLifecycleType;
 import org.elasticsearch.xpack.core.indexlifecycle.TimeseriesLifecycleType;
 
@@ -133,10 +134,10 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
 
         List<Step> steps = policy.toSteps(client, nowSupplier);
-        assertThat(steps.size(), equalTo(3));
-        assertThat(steps.get(0).getKey(), equalTo(new Step.StepKey("", "", "")));
-        assertThat(steps.get(0).getNextStepKey(), equalTo(new Step.StepKey("test", null, "after")));
-        assertThat(steps.get(1).getKey(), equalTo(new Step.StepKey("test", null, "after")));
+        assertThat(steps.size(), equalTo(4));
+        assertThat(steps.get(0).getKey(), equalTo(new Step.StepKey("pre-phase", "pre-action", "init")));
+        assertThat(steps.get(0).getNextStepKey(), equalTo(new Step.StepKey("test", "pre-action", "after")));
+        assertThat(steps.get(1).getKey(), equalTo(new Step.StepKey("test", "pre-action", "after")));
         assertThat(steps.get(1).getNextStepKey(), equalTo(firstStep.getKey()));
         assertThat(steps.get(2), equalTo(firstStep));
         assertNull(steps.get(2).getNextStepKey());
@@ -146,11 +147,11 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         Client client = mock(Client.class);
         LongSupplier nowSupplier = () -> 0L;
         MockStep secondActionStep = new MockStep(new Step.StepKey("second_phase", "test", "test"), null);
-        MockStep secondAfter = new MockStep(new Step.StepKey("second_phase", null, "after"), secondActionStep.getKey());
+        MockStep secondAfter = new MockStep(new Step.StepKey("second_phase", "pre-action", "after"), secondActionStep.getKey());
         MockStep firstActionAnotherStep = new MockStep(new Step.StepKey("first_phase", "test", "test"), secondAfter.getKey());
         MockStep firstActionStep = new MockStep(new Step.StepKey("first_phase", "test", "test"), firstActionAnotherStep.getKey());
-        MockStep firstAfter = new MockStep(new Step.StepKey("first_phase", null, "after"), firstActionStep.getKey());
-        MockStep init = new MockStep(new Step.StepKey("", "", ""), firstAfter.getKey());
+        MockStep firstAfter = new MockStep(new Step.StepKey("first_phase", "pre-action", "after"), firstActionStep.getKey());
+        MockStep init = new MockStep(new Step.StepKey("pre-phase", "pre-action", "init"), firstAfter.getKey());
 
         lifecycleName = randomAlphaOfLengthBetween(1, 20);
         Map<String, Phase> phases = new LinkedHashMap<>();
@@ -165,7 +166,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
 
         List<Step> steps = policy.toSteps(client, nowSupplier);
-        assertThat(steps.size(), equalTo(6));
+        assertThat(steps.size(), equalTo(7));
         assertThat(steps.get(0).getClass(), equalTo(InitializePolicyContextStep.class));
         assertThat(steps.get(0).getKey(), equalTo(init.getKey()));
         assertThat(steps.get(0).getNextStepKey(), equalTo(init.getNextStepKey()));
@@ -178,5 +179,6 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         assertThat(steps.get(4).getKey(), equalTo(secondAfter.getKey()));
         assertThat(steps.get(4).getNextStepKey(), equalTo(secondAfter.getNextStepKey()));
         assertThat(steps.get(5), equalTo(secondActionStep));
+        assertThat(steps.get(6).getClass(), equalTo(TerminalPolicyStep.class));
     }
 }

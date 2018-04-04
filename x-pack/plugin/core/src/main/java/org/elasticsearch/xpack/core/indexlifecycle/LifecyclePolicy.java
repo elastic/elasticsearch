@@ -143,7 +143,11 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         List<Step> steps = new ArrayList<>();
         List<Phase> orderedPhases = type.getOrderedPhases(phases);
         ListIterator<Phase> phaseIterator = orderedPhases.listIterator(orderedPhases.size());
-        Step.StepKey lastStepKey = null;
+
+        // final step so that policy can properly update cluster-state with last action completed
+        steps.add(TerminalPolicyStep.INSTANCE);
+        Step.StepKey lastStepKey = TerminalPolicyStep.KEY;
+
         // add steps for each phase, in reverse
         while (phaseIterator.hasPrevious()) {
             Phase phase = phaseIterator.previous();
@@ -162,14 +166,15 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
             }
 
             // add `after` step for phase
-            Step.StepKey afterStepKey = new Step.StepKey(phase.getName(), null, "after");
+            Step.StepKey afterStepKey = new Step.StepKey(phase.getName(), "pre-action", "after");
             Step phaseAfterStep = new PhaseAfterStep(nowSupplier, phase.getAfter(), afterStepKey, lastStepKey);
             steps.add(phaseAfterStep);
             lastStepKey = phaseAfterStep.getKey();
         }
 
         // init step so that policy is guaranteed to have
-        steps.add(new InitializePolicyContextStep(new Step.StepKey("", "", ""), lastStepKey));
+        steps.add(new InitializePolicyContextStep(
+            new Step.StepKey("pre-phase", "pre-action", "init"), lastStepKey));
 
         Collections.reverse(steps);
         logger.error("STEP COUNT: " + steps.size());

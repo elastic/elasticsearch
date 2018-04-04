@@ -31,6 +31,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
+import java.util.function.Supplier;
 
 public class IndexLifecycleRunnerTests extends ESTestCase {
 
@@ -582,9 +583,9 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
     }
 
-    private static class MockClusterStateActionStep extends ClusterStateActionStep {
+    static class MockClusterStateActionStep extends ClusterStateActionStep {
 
-        private Exception exception;
+        private RuntimeException exception;
         private boolean willComplete;
         private long executeCount = 0;
 
@@ -592,7 +593,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             super(key, nextStepKey);
         }
 
-        public void setException(Exception exception) {
+        public void setException(RuntimeException exception) {
             this.exception = exception;
         }
 
@@ -606,14 +607,18 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         @Override
         public ClusterState performAction(Index index, ClusterState clusterState) {
-            return null;
+            executeCount++;
+            if (exception != null) {
+                throw exception;
+            }
+            return clusterState;
         }
 
     }
 
-    private static class MockClusterStateWaitStep extends ClusterStateWaitStep {
+    static class MockClusterStateWaitStep extends ClusterStateWaitStep {
 
-        private Exception exception;
+        private RuntimeException exception;
         private boolean willComplete;
         private long executeCount = 0;
 
@@ -621,7 +626,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             super(key, nextStepKey);
         }
 
-        public void setException(Exception exception) {
+        public void setException(RuntimeException exception) {
             this.exception = exception;
         }
 
@@ -635,7 +640,11 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         @Override
         public boolean isConditionMet(Index index, ClusterState clusterState) {
-            return false;
+            executeCount++;
+            if (exception != null) {
+                throw exception;
+            }
+            return willComplete;
         }
 
     }

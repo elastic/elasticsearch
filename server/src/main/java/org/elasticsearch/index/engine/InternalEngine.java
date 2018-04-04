@@ -1136,19 +1136,7 @@ public class InternalEngine extends Engine {
         // unlike the primary, replicas don't really care to about found status of documents
         // this allows to ignore the case where a document was found in the live version maps in
         // a delete state and return true for the found flag in favor of code simplicity
-        final OpVsLuceneDocStatus opVsLucene;
-        if (delete.seqNo() <= localCheckpointTracker.getCheckpoint()) {
-            // the operation seq# is lower then the current local checkpoint and thus was already put into lucene
-            // this can happen during recovery where older operations are sent from the translog that are already
-            // part of the lucene commit (either from a peer recovery or a local translog)
-            // or due to concurrent indexing & recovery. For the former it is important to skip lucene as the operation in
-            // question may have been deleted in an out of order op that is not replayed.
-            // See testRecoverFromStoreWithOutOfOrderDelete for an example of local recovery
-            // See testRecoveryWithOutOfOrderDelete for an example of peer recovery
-            opVsLucene = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
-        } else {
-            opVsLucene = compareOpToLuceneDocBasedOnSeqNo(delete);
-        }
+        final OpVsLuceneDocStatus opVsLucene = compareOpToLuceneDocBasedOnSeqNo(delete);
 
         final DeletionStrategy plan;
         if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_OR_EQUAL) {

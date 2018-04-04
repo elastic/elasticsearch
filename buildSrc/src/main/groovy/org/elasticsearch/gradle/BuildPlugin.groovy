@@ -551,7 +551,7 @@ class BuildPlugin implements Plugin<Project> {
                 if (project.licenseFile == null || project.noticeFile == null) {
                     throw new GradleException("Must specify license and notice file for project ${project.path}")
                 }
-                jarTask.into('META-INF') {
+                jarTask.metaInf {
                     from(project.licenseFile.parent) {
                         include project.licenseFile.name
                     }

@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -135,11 +136,13 @@ public class RatedRequestsTests extends ESTestCase {
         BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, null, random());
         try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
             Exception exception = expectThrows(Exception.class, () -> RatedRequest.fromXContent(parser));
-            if (exception instanceof IllegalArgumentException) {
-                assertThat(exception.getMessage(), containsString("[request] unknown field"));
+            if (exception instanceof XContentParseException) {
+                XContentParseException xcpe = (XContentParseException) exception;
+                assertThat(xcpe.getDetailedMessage(), containsString("unknown field"));
+                assertThat(xcpe.getDetailedMessage(), containsString("parser not found"));
             }
-            if (exception instanceof ParsingException) {
-                assertThat(exception.getMessage(), startsWith("[request] failed to parse field"));
+            if (exception instanceof XContentParseException) {
+                assertThat(exception.getMessage(), containsString("[request] failed to parse field"));
             }
         }
     }

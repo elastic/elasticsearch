@@ -72,11 +72,6 @@ import static org.hamcrest.core.IsNull.notNullValue;
 @ClusterScope(scope = Scope.TEST)
 public class CreateIndexIT extends ESIntegTestCase {
 
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalSettingsPlugin.class); // uses index.version.created
-    }
-
     public void testCreationDateGivenFails() {
         try {
             prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_CREATION_DATE, 4L)).get();
@@ -273,27 +268,6 @@ public class CreateIndexIT extends ESIntegTestCase {
         SearchResponse all = client().prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
         assertEquals(expected + " vs. " + all, expected.getHits().getTotalHits(), all.getHits().getTotalHits());
         logger.info("total: {}", expected.getHits().getTotalHits());
-    }
-
-    /**
-     * Asserts that the root cause of mapping conflicts is readable.
-     */
-    public void testMappingConflictRootCause() throws Exception {
-        CreateIndexRequestBuilder b = prepareCreate("test")
-            .setSettings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED,
-                VersionUtils.randomVersionBetween(random(), Version.V_5_0_0, Version.V_5_6_9)));
-        b.addMapping("type1", jsonBuilder().startObject().startObject("properties")
-                .startObject("text")
-                    .field("type", "text")
-                    .field("analyzer", "standard")
-                    .field("search_analyzer", "whitespace")
-                .endObject().endObject().endObject());
-        b.addMapping("type2", jsonBuilder().humanReadable(true).startObject().startObject("properties")
-                .startObject("text")
-                    .field("type", "text")
-                .endObject().endObject().endObject());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> b.get());
-        assertThat(e.getMessage(), containsString("mapper [text] is used by multiple types"));
     }
 
     public void testRestartIndexCreationAfterFullClusterRestart() throws Exception {

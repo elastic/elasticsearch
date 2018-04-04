@@ -136,6 +136,11 @@ public class InternalEngine extends Engine {
     private final AtomicLong maxSeqNoOfNonAppendOnlyOperations = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
     private final CounterMetric numVersionLookups = new CounterMetric();
     private final CounterMetric numIndexVersionsLookups = new CounterMetric();
+    // Lucene operations since this engine was opened - not include operations from existing segments.
+    private final CounterMetric numDocDeletes = new CounterMetric();
+    private final CounterMetric numDocAppends = new CounterMetric();
+    private final CounterMetric numDocUpdates = new CounterMetric();
+
     /**
      * How many bytes we are currently moving to disk, via either IndexWriter.flush or refresh.  IndexingMemoryController polls this
      * across all shards to decide if throttling is necessary because moving bytes to disk is falling behind vs incoming documents
@@ -907,11 +912,11 @@ public class InternalEngine extends Engine {
         index.parsedDoc().version().setLongValue(plan.versionForIndexing);
         try {
             if (plan.useLuceneUpdateDocument) {
-                update(index.uid(), index.docs(), indexWriter);
+                updateDocs(index.uid(), index.docs(), indexWriter);
             } else {
                 // document does not exists, we can optimize for create, but double check if assertions are running
                 assert assertDocDoesNotExist(index, canOptimizeAddDocument(index) == false);
-                index(index.docs(), indexWriter);
+                addDocs(index.docs(), indexWriter);
             }
             return new IndexResult(plan.versionForIndexing, plan.seqNoForIndexing, plan.currentNotFoundOrDeleted);
         } catch (Exception ex) {
@@ -968,12 +973,13 @@ public class InternalEngine extends Engine {
         return maxSeqNoOfNonAppendOnlyOperations.get();
     }
 
-    private static void index(final List<ParseContext.Document> docs, final IndexWriter indexWriter) throws IOException {
+    private void addDocs(final List<ParseContext.Document> docs, final IndexWriter indexWriter) throws IOException {
         if (docs.size() > 1) {
             indexWriter.addDocuments(docs);
         } else {
             indexWriter.addDocument(docs.get(0));
         }
+        numDocAppends.inc(docs.size());
     }
 
     private static final class IndexingStrategy {
@@ -1054,12 +1060,13 @@ public class InternalEngine extends Engine {
         return true;
     }
 
-    private static void update(final Term uid, final List<ParseContext.Document> docs, final IndexWriter indexWriter) throws IOException {
+    private void updateDocs(final Term uid, final List<ParseContext.Document> docs, final IndexWriter indexWriter) throws IOException {
         if (docs.size() > 1) {
             indexWriter.updateDocuments(uid, docs);
         } else {
             indexWriter.updateDocument(uid, docs.get(0));
         }
+        numDocUpdates.inc(docs.size());
     }
 
     @Override
@@ -1188,6 +1195,7 @@ public class InternalEngine extends Engine {
                 // any exception that comes from this is a either an ACE or a fatal exception there
                 // can't be any document failures  coming from this
                 indexWriter.deleteDocuments(delete.uid());
+                numDocDeletes.inc();
             }
             versionMap.putUnderLock(delete.uid().bytes(),
                 new DeleteVersionValue(plan.versionOfDeletion, plan.seqNoOfDeletion, delete.primaryTerm(),
@@ -2205,13 +2213,28 @@ public class InternalEngine extends Engine {
         return versionMap.isSafeAccessRequired();
     }
 
+    /**
+     * Returns the number of documents have been deleted since this engine was opened.
+     * This count does not include the deletions from the existing segments before opening engine.
+     */
+    long getNumDocDeletes() {
+        return numDocDeletes.count();
+    }
 
     /**
-     * Returns <code>true</code> iff the index writer has any deletions either buffered in memory or
-     * in the index.
+     * Returns the number of documents have been appended since this engine was opened.
+     * This count does not include the appends from the existing segments before opening engine.
      */
-    boolean indexWriterHasDeletions() {
-        return indexWriter.hasDeletions();
+    long getNumDocAppends() {
+        return numDocAppends.count();
+    }
+
+    /**
+     * Returns the number of documents have been updated since this engine was opened.
+     * This count does not include the updates from the existing segments before opening engine.
+     */
+    long getNumDocUpdates() {
+        return numDocUpdates.count();
     }
 
     @Override

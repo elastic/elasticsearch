@@ -70,10 +70,10 @@ public class S3RepositoryTests extends ESTestCase {
         assertValidBuffer(5, 5);
         // buffer < 5mb should fail
         assertInvalidBuffer(4, 10, IllegalArgumentException.class,
-                "Failed to parse value [4mb] for setting [buffer_size] must be >= 5mb");
+                "failed to parse value [4mb] for setting [buffer_size], must be >= [5mb]");
         // chunk > 5tb should fail
         assertInvalidBuffer(5, 6000000, IllegalArgumentException.class,
-                "Failed to parse value [6000000mb] for setting [chunk_size] must be <= 5tb");
+                "failed to parse value [6000000mb] for setting [chunk_size], must be <= [5tb]");
     }
 
     private void assertValidBuffer(long bufferMB, long chunkMB) throws IOException {

@@ -97,7 +97,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        similarity = randomFrom("classic", "BM25");
+        similarity = randomFrom("boolean", "BM25");
         XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties")
             .startObject("join_field")
                 .field("type", "join")

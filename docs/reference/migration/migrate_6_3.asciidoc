@@ -28,4 +28,4 @@ if standard input was closed or there was no TTY attached (e.g., `docker exec
 additional security permissions has been removed. Now, a user must deliberately
 accept these permissions either by keeping standard input open and attaching a
 TTY (i.e., using interactive mode to accept the permissions), or by passing the
-`--batch` flag>>.
+`--batch` flag.

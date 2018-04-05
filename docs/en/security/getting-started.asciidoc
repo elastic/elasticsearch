@@ -1,7 +1,7 @@
 [[security-getting-started]]
 == Getting Started with Security
 
-To secure a cluster, you must install {xpack} on every node in the
+To secure a cluster, you must enable {security} on every node in the
 cluster. Basic authentication is enabled by default--to communicate
 with the cluster, you must specify a username and password.
 Unless you {xpack-ref}/anonymous-access.html[enable anonymous access], all
@@ -14,7 +14,8 @@ does not have a password set by default.
 
 To get started with {security}:
 
-. <<installing-xpack, Install X-Pack>>.
+. Verify that the `xpack.security.enabled` setting is `true`. For more
+information, see {ref}/security-settings.html[Security Settings in {es}].
 
 .  Start {es} and {kib}.
 

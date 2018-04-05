@@ -22,7 +22,9 @@ This feature was added as Beta in {es} `v5.3` with further improvements made in
 
 To use cross cluster search with secured clusters:
 
-* Install {xpack} on every node in each connected cluster.
+* Enable {security} on every node in each connected cluster. For more
+information about the `xpack.security.enabled` setting, see
+{ref}/security-settings.html[Security Settings in {es}].
 
 * Enable encryption globally. To encrypt communications, you must enable
   <<ssl-tls,enable SSL/TLS>> on every node.

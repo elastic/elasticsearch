@@ -86,7 +86,7 @@ Grants the minimum privileges required for any user of {kib}. This role grants
 access to the {kib} indices and grants  monitoring privileges for the cluster.
 
 [[built-in-roles-logstash-admin]] `logstash_admin` ::
-Grants access to the `.logstash*` indices for managing configurations. 
+Grants access to the `.logstash*` indices for managing configurations.
 
 [[built-in-roles-logstash-system]] `logstash_system` ::
 Grants access necessary for the Logstash system user to send system-level data
@@ -101,7 +101,7 @@ suitable for use within a Logstash pipeline.
 
 [[built-in-roles-beats-system]] `beats_system` ::
 Grants access necessary for the Beats system user to send system-level data
-(such as monitoring) to {es}. 
+(such as monitoring) to {es}.
 +
 NOTE: This role should not be assigned to users as the granted permissions may
 change between releases.
@@ -277,10 +277,8 @@ see <<custom-roles-provider, Custom Roles Provider Extension>>.
 [[roles-management-ui]]
 === Role Management UI
 
-If you are a {kib} user, make sure to
-<<installing-xpack, install {xpack} in {kib}>>.
-This enables you to easily manage users and roles from within {kib}. To manage roles,
-log in to {kib} and go to *Management / Elasticsearch / Roles*.
+{security} enables you to easily manage users and roles from within {kib}. To
+manage roles, log in to {kib} and go to *Management / Elasticsearch / Roles*.
 
 [float]
 [[roles-management-api]]

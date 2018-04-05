@@ -45,14 +45,30 @@ if (!isEclipse && !isIdea) {
       }
     }
   }
+  
+  configurations {
+    java9Compile.extendsFrom(compile)
+  }
+  
+  dependencies {
+    java9Compile sourceSets.main.output
+  }
 
   compileJava9Java {
     sourceCompatibility = 9
     targetCompatibility = 9
   }
+  
+  /* Enable this when forbiddenapis was updated to 2.6.
+   * See: https://github.com/elastic/elasticsearch/issues/29292
+  forbiddenApisJava9 {
+    targetCompatibility = 9
+  }
+  */
 
   jar {
-    into('META-INF/versions/9') {
+    metaInf {
+      into 'versions/9'
       from sourceSets.java9.output
     }
     manifest.attributes('Multi-Release': 'true')
@@ -63,6 +79,7 @@ dependencies {
 
   compile "org.elasticsearch:elasticsearch-core:${version}"
   compile "org.elasticsearch:elasticsearch-secure-sm:${version}"
+  compile "org.elasticsearch:elasticsearch-x-content:${version}"
 
   compileOnly project(':libs:plugin-classloader')
   testRuntime project(':libs:plugin-classloader')
@@ -91,13 +108,6 @@ dependencies {
   // time handling, remove with java 8 time
   compile 'joda-time:joda-time:2.9.9'
 
-  // json and yaml
-  compile "org.yaml:snakeyaml:${versions.snakeyaml}"
-  compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  compile "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${versions.jackson}"
-  compile "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
-  compile "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
-
   // percentiles aggregation
   compile 'com.tdunning:t-digest:3.2'
   // precentil ranks aggregation
@@ -105,7 +115,7 @@ dependencies {
 
   // lucene spatial
   compile "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}", optional
-  compile "com.vividsolutions:jts:${versions.jts}", optional
+  compile "org.locationtech.jts:jts-core:${versions.jts}", optional
 
   // logging
   compile "org.apache.logging.log4j:log4j-api:${versions.log4j}"
@@ -287,6 +297,17 @@ thirdPartyAudit.excludes = [
 
   // from org.locationtech.spatial4j.io.GeoJSONReader (spatial4j)
   'org.noggit.JSONParser',
+
+  // from lucene-spatial
+  'com.fasterxml.jackson.databind.JsonSerializer',
+  'com.fasterxml.jackson.databind.JsonDeserializer',
+  'com.fasterxml.jackson.databind.node.ArrayNode',
+  'com.google.common.geometry.S2Cell',
+  'com.google.common.geometry.S2CellId',
+  'com.google.common.geometry.S2Projections',
+  'com.google.common.geometry.S2Point',
+  'com.google.common.geometry.S2$Metric',
+  'com.google.common.geometry.S2LatLng',
 ]
 
 if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
@@ -295,7 +316,6 @@ if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
 
 dependencyLicenses {
   mapping from: /lucene-.*/, to: 'lucene'
-  mapping from: /jackson-.*/, to: 'jackson'
   dependencies = project.configurations.runtime.fileCollection {
     it.group.startsWith('org.elasticsearch') == false ||
             // keep the following org.elasticsearch jars in

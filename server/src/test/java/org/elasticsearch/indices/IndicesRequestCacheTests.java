@@ -445,13 +445,20 @@ public class IndicesRequestCacheTests extends ESTestCase {
     private class TestBytesReference extends BytesReference {
 
         int dummyValue;
-        public TestBytesReference(int dummyValue) {
+        TestBytesReference(int dummyValue) {
             this.dummyValue = dummyValue;
         }
 
         @Override
         public boolean equals(Object other) {
             return other instanceof TestBytesReference && this.dummyValue == ((TestBytesReference) other).dummyValue;
+        }
+
+        @Override
+        public int hashCode() {
+            int result = super.hashCode();
+            result = 31 * result + dummyValue;
+            return result;
         }
 
         @Override

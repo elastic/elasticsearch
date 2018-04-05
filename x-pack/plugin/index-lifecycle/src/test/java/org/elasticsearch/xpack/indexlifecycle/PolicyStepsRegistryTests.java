@@ -76,7 +76,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
     }
 
     public void testUpdateFromNothingToSomethingToNothing() {
-        LifecyclePolicy newPolicy = randomLifecyclePolicy(null);
+        LifecyclePolicy newPolicy = randomLifecyclePolicy(randomAlphaOfLength(5));
         List<Step> policySteps = newPolicy.toSteps(null, () -> 0L);
         Map<String, LifecyclePolicy> policyMap = Collections.singletonMap(newPolicy.getName(), newPolicy);
         MetaData metaData = MetaData.builder()

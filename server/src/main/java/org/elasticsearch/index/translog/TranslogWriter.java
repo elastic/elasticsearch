@@ -396,22 +396,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         Channels.readFromFileChannelWithEofException(channel, position, targetBuffer);
     }
 
-    private static Checkpoint writeCheckpoint(
-            ChannelFactory channelFactory,
-            long syncPosition,
-            int numOperations,
-            long minSeqNo,
-            long maxSeqNo,
-            long globalCheckpoint,
-            long minTranslogGeneration,
-            Path translogFile,
-            long generation) throws IOException {
-        final Checkpoint checkpoint =
-            new Checkpoint(syncPosition, numOperations, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration);
-        writeCheckpoint(channelFactory, translogFile, checkpoint);
-        return checkpoint;
-    }
-
     private static void writeCheckpoint(
             final ChannelFactory channelFactory,
             final Path translogFile,

@@ -59,6 +59,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.IntStream;
 
@@ -579,20 +580,37 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             .put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
         final ShardId shardId = new ShardId(resolveIndex("test"), 0);
 
-        Thread listingThread = new Thread(() -> {
-            try {
-                internalCluster().getInstance(TransportNodesListGatewayStartedShards.class)
-                    .execute(new TransportNodesListGatewayStartedShards.Request(shardId, new DiscoveryNode[]{node}))
-                    .get();
-            } catch (InterruptedException | ExecutionException exception) {
-                // don't care if this fails
-            }
-        });
-        listingThread.start();
+        final int listingThreadCount = 4;
+        final CountDownLatch countDownLatch = new CountDownLatch(listingThreadCount + 1);
+
+        Thread listingThreads[] = new Thread[listingThreadCount];
+        for (int threadIndex = 0; threadIndex < listingThreadCount; threadIndex++) {
+            listingThreads[threadIndex] = new Thread(() -> {
+                try {
+                    countDownLatch.countDown();
+                    countDownLatch.await();
+                    internalCluster().getInstance(TransportNodesListGatewayStartedShards.class)
+                        .execute(new TransportNodesListGatewayStartedShards.Request(shardId, new DiscoveryNode[]{node}))
+                        .get();
+                } catch (InterruptedException | ExecutionException exception) {
+                    // don't care if this fails
+                }
+            });
+        }
+
+        for (final Thread listingThread : listingThreads) {
+            listingThread.start();
+        }
+
+        countDownLatch.countDown();
+        countDownLatch.await();
+
         assertAcked(client().admin().indices().prepareDelete("test"));
         // Asserts that the shard is really deleted - at one time, the concurrent TransportNodesListGatewayStartedShards request
         // might have prevented this.
 
-        listingThread.join();
+        for (final Thread listingThread : listingThreads) {
+            listingThread.join();
+        }
     }
 }

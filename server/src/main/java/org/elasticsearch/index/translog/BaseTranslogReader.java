@@ -106,7 +106,7 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
     /**
      * reads bytes at position into the given buffer, filling it.
      */
-    protected abstract  void readBytes(ByteBuffer buffer, long position) throws IOException;
+    protected abstract void readBytes(ByteBuffer buffer, long position) throws IOException;
 
     @Override
     public String toString() {

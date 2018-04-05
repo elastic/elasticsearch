@@ -97,7 +97,7 @@ public class IndexLifecycleService extends AbstractComponent
                 scheduleJob(pollInterval);
             }
 
-            triggerPolicies(event.state());
+            triggerPolicies(event.state(), true);
         } else {
             cancelJob();
         }
@@ -119,7 +119,7 @@ public class IndexLifecycleService extends AbstractComponent
     public void triggered(SchedulerEngine.Event event) {
         if (event.getJobName().equals(IndexLifecycle.NAME)) {
             logger.info("Job triggered: " + event.getJobName() + ", " + event.getScheduledTime() + ", " + event.getTriggeredTime());
-            triggerPolicies(clusterService.state());
+            triggerPolicies(clusterService.state(), false);
         }
     }
 
@@ -142,14 +142,14 @@ public class IndexLifecycleService extends AbstractComponent
             }));
     }
     
-    public void triggerPolicies(ClusterState clusterState) {
+    public void triggerPolicies(ClusterState clusterState, boolean fromClusterStateChange) {
         // loop through all indices in cluster state and filter for ones that are
         // managed by the Index Lifecycle Service they have a index.lifecycle.name setting
         // associated to a policy
         clusterState.metaData().indices().valuesIt().forEachRemaining((idxMeta) -> {
             String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
             if (Strings.isNullOrEmpty(policyName) == false) {
-                lifecycleRunner.runPolicy(policyName, idxMeta.getIndex(), idxMeta.getSettings());
+                lifecycleRunner.runPolicy(policyName, idxMeta.getIndex(), idxMeta.getSettings(), fromClusterStateChange);
             }
         });
     }

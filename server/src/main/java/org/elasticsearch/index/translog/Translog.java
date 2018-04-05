@@ -600,7 +600,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return null;
     }
 
-    public Snapshot newSnapshotFromMinSeqNo(long minSeqNo) throws IOException {
     /**
      * Returns a snapshot with operations having a sequence number equal to or greater than <code>minSeqNo</code>.
      */

@@ -69,7 +69,6 @@ import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasScore;
 import static org.hamcrest.Matchers.contains;
@@ -245,8 +244,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         int id = numDocs;
         for (CompletionSuggestion.Entry.Option option : options) {
             assertThat(option.getText().toString(), equalTo("suggestion" + id));
-            assertSearchHit(option.getHit(), hasId("" + id));
-            assertSearchHit(option.getHit(), hasScore((id)));
+            assertThat(option.getHit(), hasId("" + id));
+            assertThat(option.getHit(), hasScore((id)));
             assertNotNull(option.getHit().getSourceAsMap());
             id--;
         }
@@ -280,8 +279,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         int id = numDocs;
         for (CompletionSuggestion.Entry.Option option : options) {
             assertThat(option.getText().toString(), equalTo("suggestion" + id));
-            assertSearchHit(option.getHit(), hasId("" + id));
-            assertSearchHit(option.getHit(), hasScore((id)));
+            assertThat(option.getHit(), hasId("" + id));
+            assertThat(option.getHit(), hasScore((id)));
             assertNull(option.getHit().getSourceAsMap());
             id--;
         }
@@ -317,8 +316,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         int id = numDocs;
         for (CompletionSuggestion.Entry.Option option : options) {
             assertThat(option.getText().toString(), equalTo("suggestion" + id));
-            assertSearchHit(option.getHit(), hasId("" + id));
-            assertSearchHit(option.getHit(), hasScore((id)));
+            assertThat(option.getHit(), hasId("" + id));
+            assertThat(option.getHit(), hasScore((id)));
             assertNotNull(option.getHit().getSourceAsMap());
             Set<String> sourceFields = option.getHit().getSourceAsMap().keySet();
             assertThat(sourceFields, contains("a"));

@@ -24,6 +24,7 @@ import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -97,6 +98,10 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         distance = in.readDouble();
         validationMethod = GeoValidationMethod.readFromStream(in);
         center = in.readGeoPoint();
+        if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
+            // optimize bounding box was removed in 6.0
+            in.readOptionalString();
+        }
         geoDistance = GeoDistance.readFromStream(in);
         ignoreUnmapped = in.readBoolean();
     }
@@ -107,6 +112,10 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         out.writeDouble(distance);
         validationMethod.writeTo(out);
         out.writeGeoPoint(center);
+        if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
+            // optimize bounding box was removed in 6.0
+            out.writeOptionalString(null);
+        }
         geoDistance.writeTo(out);
         out.writeBoolean(ignoreUnmapped);
     }

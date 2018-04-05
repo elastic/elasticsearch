@@ -21,7 +21,7 @@ package org.elasticsearch.common.geo.builders;
 
 import java.util.List;
 
-import com.vividsolutions.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Coordinate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 
 /**

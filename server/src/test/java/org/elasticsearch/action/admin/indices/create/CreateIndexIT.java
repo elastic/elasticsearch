@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.create;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -38,11 +39,16 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.VersionUtils;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
@@ -262,25 +268,6 @@ public class CreateIndexIT extends ESIntegTestCase {
         SearchResponse all = client().prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
         assertEquals(expected + " vs. " + all, expected.getHits().getTotalHits(), all.getHits().getTotalHits());
         logger.info("total: {}", expected.getHits().getTotalHits());
-    }
-
-    /**
-     * Asserts that the root cause of mapping conflicts is readable.
-     */
-    public void testMappingConflictRootCause() throws Exception {
-        CreateIndexRequestBuilder b = prepareCreate("test");
-        b.addMapping("type1", jsonBuilder().startObject().startObject("properties")
-                .startObject("text")
-                    .field("type", "text")
-                    .field("analyzer", "standard")
-                    .field("search_analyzer", "whitespace")
-                .endObject().endObject().endObject());
-        b.addMapping("type2", jsonBuilder().humanReadable(true).startObject().startObject("properties")
-                .startObject("text")
-                    .field("type", "text")
-                .endObject().endObject().endObject());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> b.get());
-        assertThat(e.getMessage(), containsString("mapper [text] is used by multiple types"));
     }
 
     public void testRestartIndexCreationAfterFullClusterRestart() throws Exception {

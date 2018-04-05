@@ -24,7 +24,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -39,6 +38,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -713,7 +713,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     continue;
                 case POST_RECOVERY:
                 case STARTED:
-                case RELOCATED:
                     try {
                         shard.trimTranslog();
                     } catch (IndexShardClosedException | AlreadyClosedException ex) {
@@ -733,7 +732,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     case CLOSED:
                     case CREATED:
                     case RECOVERING:
-                    case RELOCATED:
                         continue;
                     case POST_RECOVERY:
                         assert false : "shard " + shard.shardId() + " is in post-recovery but marked as active";

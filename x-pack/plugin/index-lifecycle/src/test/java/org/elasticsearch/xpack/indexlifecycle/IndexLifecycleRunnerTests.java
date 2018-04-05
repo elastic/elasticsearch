@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.MockStep;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
+import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
 
@@ -44,11 +45,24 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         return new PolicyStepsRegistry(lifecyclePolicyMap, firstStepMap, stepMap);
     }
 
+    public void testRunPolicyTerminalPolicyStep() {
+        String policyName = "async_action_policy";
+        TerminalPolicyStep step = TerminalPolicyStep.INSTANCE;
+        PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
+        ClusterService clusterService = Mockito.mock(ClusterService.class);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService);
+        Index index = new Index("my_index", "my_index_id");
+        Settings indexSettings = Settings.builder().build();
+
+        runner.runPolicy(policyName, index, indexSettings, false);
+
+        Mockito.verifyZeroInteractions(clusterService);
+    }
+
     public void testRunPolicyClusterStateActionStep() {
         String policyName = "cluster_state_action_policy";
         StepKey stepKey = new StepKey("phase", "action", "cluster_state_action_step");
         MockClusterStateActionStep step = new MockClusterStateActionStep(stepKey, null);
-        step.setWillComplete(true);
         PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
         ClusterService clusterService = Mockito.mock(ClusterService.class);
         IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService);
@@ -552,7 +566,6 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
     static class MockClusterStateActionStep extends ClusterStateActionStep {
 
         private RuntimeException exception;
-        private boolean willComplete;
         private long executeCount = 0;
 
         public MockClusterStateActionStep(StepKey key, StepKey nextStepKey) {
@@ -561,10 +574,6 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         public void setException(RuntimeException exception) {
             this.exception = exception;
-        }
-
-        public void setWillComplete(boolean willComplete) {
-            this.willComplete = willComplete;
         }
 
         public long getExecuteCount() {

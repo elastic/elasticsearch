@@ -5,19 +5,11 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.index.Index;
-
-public class TerminalPolicyStep extends ClusterStateActionStep {
+public class TerminalPolicyStep extends Step {
     public static final StepKey KEY = new StepKey("completed", "completed", "completed");
     public static final TerminalPolicyStep INSTANCE = new TerminalPolicyStep(KEY, null);
 
     private TerminalPolicyStep(StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);
-    }
-
-    @Override
-    public ClusterState performAction(Index index, ClusterState clusterState) {
-        return clusterState;
     }
 }

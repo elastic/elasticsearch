@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
+import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 
 public class IndexLifecycleRunner {
     private static final Logger logger = ESLoggerFactory.getLogger(IndexLifecycleRunner.class);
@@ -36,7 +37,9 @@ public class IndexLifecycleRunner {
     public void runPolicy(String policy, Index index, Settings indexSettings, boolean fromClusterStateChange) {
         Step currentStep = getCurrentStep(stepRegistry, policy, indexSettings);
         logger.warn("running policy with current-step[" + currentStep.getKey() + "]");
-        if (currentStep instanceof ClusterStateActionStep || currentStep instanceof ClusterStateWaitStep) {
+        if (currentStep instanceof TerminalPolicyStep) {
+            logger.debug("policy [" + policy + "] for index [" + index.getName() + "] complete, skipping execution");
+        } else if (currentStep instanceof ClusterStateActionStep || currentStep instanceof ClusterStateWaitStep) {
             executeClusterStateSteps(index, policy, currentStep);
         } else if (currentStep instanceof AsyncWaitStep) {
             if (fromClusterStateChange == false) {

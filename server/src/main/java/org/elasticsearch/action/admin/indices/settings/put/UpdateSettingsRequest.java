@@ -246,7 +246,9 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
             return false;
         }
         UpdateSettingsRequest that = (UpdateSettingsRequest) o;
-        return Objects.equals(settings, that.settings)
+        return masterNodeTimeout.equals(that.masterNodeTimeout)
+                && timeout.equals(that.timeout)
+                && Objects.equals(settings, that.settings)
                 && Objects.equals(indicesOptions, that.indicesOptions)
                 && Objects.equals(preserveExisting, that.preserveExisting)
                 && Arrays.equals(indices, that.indices);
@@ -254,7 +256,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
 
     @Override
     public int hashCode() {
-        return Objects.hash(settings, indicesOptions, preserveExisting, Arrays.hashCode(indices));
+        return Objects.hash(masterNodeTimeout, timeout, settings, indicesOptions, preserveExisting, Arrays.hashCode(indices));
     }
 
 }

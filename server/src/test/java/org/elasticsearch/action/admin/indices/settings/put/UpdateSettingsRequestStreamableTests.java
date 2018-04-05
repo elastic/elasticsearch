@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -35,10 +36,17 @@ public class UpdateSettingsRequestStreamableTests extends AbstractStreamableTest
 
     @Override
     protected UpdateSettingsRequest mutateInstance(UpdateSettingsRequest request) {
-        if (randomBoolean()) {
-            return new UpdateSettingsRequest(mutateSettings(request.settings()), request.indices());
-        }
-        return new UpdateSettingsRequest(request.settings(), mutateIndices(request.indices()));
+        UpdateSettingsRequest mutation = copyRequest(request);
+        List<Runnable> mutators = new ArrayList<>();
+        mutators.add(() -> mutation.masterNodeTimeout(randomTimeValue()));
+        mutators.add(() -> mutation.timeout(randomTimeValue()));
+        mutators.add(() -> mutation.settings(mutateSettings(request.settings())));
+        mutators.add(() -> mutation.indices(mutateIndices(request.indices())));
+        mutators.add(() -> mutation.indicesOptions(randomValueOtherThan(request.indicesOptions(),
+                () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()))));
+        mutators.add(() -> mutation.setPreserveExisting(!request.isPreserveExisting()));
+        randomFrom(mutators).run();
+        return mutation;
     }
 
     @Override
@@ -55,10 +63,22 @@ public class UpdateSettingsRequestStreamableTests extends AbstractStreamableTest
         UpdateSettingsRequest request = randomBoolean()
                 ? new UpdateSettingsRequest(randomSettings(0, 2))
                 : new UpdateSettingsRequest(randomSettings(0, 2), randomIndicesNames(0, 2));
+        request.masterNodeTimeout(randomTimeValue());
+        request.timeout(randomTimeValue());
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
         request.setPreserveExisting(randomBoolean());
         request.flatSettings(randomBoolean());
         return request;
+    }
+
+    private static UpdateSettingsRequest copyRequest(UpdateSettingsRequest request) {
+        UpdateSettingsRequest result = new UpdateSettingsRequest(request.settings(), request.indices());
+        result.masterNodeTimeout(request.timeout());
+        result.timeout(request.timeout());
+        result.indicesOptions(request.indicesOptions());
+        result.setPreserveExisting(request.isPreserveExisting());
+        result.flatSettings(request.flatSettings());
+        return result;
     }
 
     private static Settings mutateSettings(Settings settings) {

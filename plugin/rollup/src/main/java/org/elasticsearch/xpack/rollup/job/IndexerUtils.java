@@ -65,17 +65,6 @@ class IndexerUtils {
             docId.update(vs, 0, vs.length);
             processMetrics(metrics, doc);
 
-            Set<String> computed = new HashSet<>(keys.size() + metrics.size());
-
-            // Add just the original key/agg names, to facilitate filtering later
-            computed.addAll(keys.entrySet().stream().map(Map.Entry::getKey).collect(Collectors.toList()));
-            computed.addAll(metrics.stream()
-                    .map(m -> m.getName()
-                            .replace("." + RollupField.COUNT_FIELD, "")
-                            .replace("." + RollupField.VALUE, ""))
-                    .collect(Collectors.toList()));
-
-            doc.put(RollupField.ROLLUP_META + "." + Rollup.COMPUTED_ROLLUPS_FIELD, computed);
             doc.put(RollupField.ROLLUP_META + "." + RollupField.VERSION_FIELD, Rollup.ROLLUP_VERSION);
             doc.put(RollupField.ROLLUP_META + "." + RollupField.ID.getPreferredName(), jobId);
 

@@ -85,8 +85,6 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
     public static final String TASK_THREAD_POOL_NAME = RollupField.NAME + "_indexing";
     public static final String SCHEDULE_THREAD_POOL_NAME = RollupField.NAME + "_scheduler";
 
-    public static final String COMPUTED_ROLLUPS_FIELD = "computed";
-
     public static final String MAPPING_METADATA_PLACEHOLDER = "\"ROLLUP_METADATA_PLACEHOLDER\":\"ROLLUP_METADATA_PLACEHOLDER\"";
     public static final String ROLLUP_TEMPLATE_VERSION_FIELD = "rollup-version";
     public static final String ROLLUP_TEMPLATE_VERSION_PATTERN =

@@ -228,6 +228,8 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         // fake term frequency feature (LUCENE-7854)
         .put("delimitedtermfrequency",    Void.class)
 
+        .put("fixedshingle", Void.class)
+
         .immutableMap();
 
     static final Map<String,Class<?>> KNOWN_CHARFILTERS = new MapBuilder<String,Class<?>>()

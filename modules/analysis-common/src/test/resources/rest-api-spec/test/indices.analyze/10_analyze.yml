@@ -11,9 +11,8 @@
           body:
             text: ABc
             explain: true
-            filter: [word_delimiter]
+            filter: [word_delimiter_graph]
 
     - match: { status: 400 }
     - match: { error.type: illegal_argument_exception }
-    - match: { error.reason: "Custom normalizer may not use filter [word_delimiter]" }
-
+    - match: { error.reason: "Custom normalizer may not use filter [word_delimiter_graph]" }

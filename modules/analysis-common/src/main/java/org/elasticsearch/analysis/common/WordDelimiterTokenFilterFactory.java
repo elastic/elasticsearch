@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterIterator;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -57,7 +58,9 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
     public WordDelimiterTokenFilterFactory(IndexSettings indexSettings, Environment env,
             String name, Settings settings) {
         super(indexSettings, name, settings);
-
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
+            throw new IllegalArgumentException("[word_delimiter] was removed after 6.3.0, please use [word_delimiter_graph] instead");
+        }
         // Sample Format for the type table:
         // $ => DIGIT
         // % => DIGIT

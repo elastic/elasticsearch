@@ -7,6 +7,9 @@ The `delimited_payload_filter` is renamed to `delimited_payload`, the old name i
 deprecated and will be removed at some point, so it should be replaced by 
 `delimited_payload`.
 
+==== The `word_delimiter` is removed
+
+The `word_delimiter` is removed in 7.0.0 in favor of `word_delimiter_graph`.
 
 ==== Limiting the number of tokens produced by _analyze
 

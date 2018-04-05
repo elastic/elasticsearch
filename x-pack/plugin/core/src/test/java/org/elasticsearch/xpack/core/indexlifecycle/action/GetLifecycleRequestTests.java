@@ -9,6 +9,8 @@ import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction.Request;
 
+import java.util.Arrays;
+
 public class GetLifecycleRequestTests extends AbstractStreamableTestCase<GetLifecycleAction.Request> {
 
     @Override
@@ -23,6 +25,9 @@ public class GetLifecycleRequestTests extends AbstractStreamableTestCase<GetLife
 
     @Override
     protected Request mutateInstance(Request request) {
-        return new Request(request.getPolicyNames() + randomAlphaOfLengthBetween(1, 10));
+        String[] originalPolicies = request.getPolicyNames();
+        String[] newPolicies = Arrays.copyOf(originalPolicies, originalPolicies.length + 1);
+        newPolicies[originalPolicies.length] = randomAlphaOfLength(5);
+        return new Request(newPolicies);
     }
 }

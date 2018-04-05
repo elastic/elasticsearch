@@ -256,7 +256,8 @@ public class AllocateActionTests extends AbstractSerializingTestCase<AllocateAct
 //
 //        AllocateAction action = new AllocateAction(includes, excludes, requires);
 //
-//        RuntimeException thrownException = expectActionFailure(index, clusterState, null, action, settingsUpdater, RuntimeException.class);
+//        RuntimeException thrownException =
+//          expectActionFailure(index, clusterState, null, action, settingsUpdater, RuntimeException.class);
 //        assertSame(exception, thrownException);
 //
 //    }

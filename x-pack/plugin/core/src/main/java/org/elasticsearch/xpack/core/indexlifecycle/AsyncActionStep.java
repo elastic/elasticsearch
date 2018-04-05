@@ -27,7 +27,7 @@ public abstract class AsyncActionStep extends Step {
 
     public abstract void performAction(Index index, Listener listener);
 
-    public static interface Listener {
+    public interface Listener {
 
         void onResponse(boolean complete);
 

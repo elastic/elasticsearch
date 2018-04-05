@@ -23,7 +23,7 @@ public abstract class AsyncWaitStep extends Step {
 
     public abstract void evaluateCondition(Index index, Listener listener);
 
-    public static interface Listener {
+    public interface Listener {
 
         void onResponse(boolean conditionMet);
 

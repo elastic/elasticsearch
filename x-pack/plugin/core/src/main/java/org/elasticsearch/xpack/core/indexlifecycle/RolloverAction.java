@@ -148,7 +148,8 @@ public class RolloverAction implements LifecycleAction {
     @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
         return Collections.emptyList();
-//        ConditionalWaitStep wait = new ConditionalWaitStep(clusterService, "wait_for_rollover", index.getName(), phase, action, (clusterState) -> {
+//        ConditionalWaitStep wait = new ConditionalWaitStep(clusterService, "wait_for_rollover",
+//                  index.getName(), phase, action, (clusterState) -> {
 //            // TODO(talevy): actually, needs to RolloverRequest with dryrun to get the appropriate data; clusterState is not enough...
 //            // can potentially reduce down to original problem with RolloverRequest...1minute...RolloverRequest...1minute... probably ok?
 //            if (clusterService.state().getMetaData().index(index.getName()).getAliases().containsKey(alias)) {

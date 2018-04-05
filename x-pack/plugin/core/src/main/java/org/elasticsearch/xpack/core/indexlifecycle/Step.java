@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -91,7 +92,7 @@ public abstract class Step {
 
         @Override
         public String toString() {
-            return String.format("[%s][%s][%s]", phase, action, name);
+            return String.format(Locale.ROOT, "[%s][%s][%s]", phase, action, name);
         }
     }
 }

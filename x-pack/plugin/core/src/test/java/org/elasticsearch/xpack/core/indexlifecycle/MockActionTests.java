@@ -18,7 +18,7 @@ public class MockActionTests extends AbstractSerializingTestCase<MockAction> {
 
     @Override
     protected MockAction createTestInstance() {
-        return randomMockAction(null);
+        return new MockAction();
     }
 
     @Override
@@ -34,27 +34,16 @@ public class MockActionTests extends AbstractSerializingTestCase<MockAction> {
     @Override
     protected MockAction mutateInstance(MockAction instance) throws IOException {
         List<Step> steps = new ArrayList<>(instance.getSteps());
-        Step lastStep = steps.remove(steps.size() - 1);
-        if (randomBoolean()) {
-            Step.StepKey additionalStepKey = randomStepKey();
-            steps.add(new MockStep(lastStep.getKey(), additionalStepKey));
-            steps.add(new MockStep(additionalStepKey, null));
+        if (steps.size() > 0) {
+            Step lastStep = steps.remove(steps.size() - 1);
+            if (randomBoolean()) {
+                Step.StepKey additionalStepKey = randomStepKey();
+                steps.add(new MockStep(lastStep.getKey(), additionalStepKey));
+                steps.add(new MockStep(additionalStepKey, null));
+            }
+        } else {
+            steps.add(new MockStep(randomStepKey(), null));
         }
-        return new MockAction(steps);
-    }
-
-    // TODO(talevy): design this in a way that we can build up a proper LifecyclePolicy where the steps connect
-    public static MockAction randomMockAction(@Nullable Step.StepKey nextExternalStepKey) {
-        List<Step> steps = new ArrayList<>();
-        int stepCount = randomIntBetween(2, 10);
-        Step.StepKey currentStepKey = randomStepKey();
-        Step.StepKey nextStepKey;
-        for (int i = 0; i < stepCount - 1; i++) {
-            nextStepKey = randomStepKey();
-            steps.add(new MockStep(currentStepKey, nextStepKey));
-            currentStepKey = nextStepKey;
-        }
-        steps.add(new MockStep(currentStepKey, nextExternalStepKey));
         return new MockAction(steps);
     }
 

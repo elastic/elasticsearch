@@ -5,6 +5,10 @@
 *   The default value for `transpositions` parameter of `fuzzy` query
     has been changed to `true`.
 
+*   The `query_string` options `use_dismax`, `split_on_whitespace`,
+    `all_fields`, `locale`, `auto_generate_phrase_query` and
+    `lowercase_expanded_terms` deprecated in 6.x have been removed.
+
 ==== Adaptive replica selection enabled by default
 
 Adaptive replica selection has been enabled by default. If you wish to return to

@@ -20,7 +20,6 @@
 package org.elasticsearch.threadpool;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
@@ -351,11 +350,11 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
         return new ReschedulingRunnable(command, interval, executor, this,
                 (e) -> {
                     if (logger.isDebugEnabled()) {
-                        logger.debug((Supplier<?>) () -> new ParameterizedMessage("scheduled task [{}] was rejected on thread pool [{}]",
+                        logger.debug(() -> new ParameterizedMessage("scheduled task [{}] was rejected on thread pool [{}]",
                                 command, executor), e);
                     }
                 },
-                (e) -> logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to run scheduled task [{}] on thread pool [{}]",
+                (e) -> logger.warn(() -> new ParameterizedMessage("failed to run scheduled task [{}] on thread pool [{}]",
                         command, executor), e));
     }
 
@@ -443,7 +442,7 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
             try {
                 runnable.run();
             } catch (Exception e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to run {}", runnable.toString()), e);
+                logger.warn(() -> new ParameterizedMessage("failed to run {}", runnable.toString()), e);
                 throw e;
             }
         }

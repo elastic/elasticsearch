@@ -37,6 +37,7 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -230,6 +231,17 @@ public final class Request {
         parameters.withIndicesOptions(flushRequest.indicesOptions());
         parameters.putParam("wait_if_ongoing", Boolean.toString(flushRequest.waitIfOngoing()));
         parameters.putParam("force", Boolean.toString(flushRequest.force()));
+        return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), null);
+    }
+
+    static Request forceMerge(ForceMergeRequest forceMergeRequest) {
+        String[] indices = forceMergeRequest.indices() == null ? Strings.EMPTY_ARRAY : forceMergeRequest.indices();
+        String endpoint = endpoint(indices, "_forcemerge");
+        Params parameters = Params.builder();
+        parameters.withIndicesOptions(forceMergeRequest.indicesOptions());
+        parameters.putParam("max_num_segments", Integer.toString(forceMergeRequest.maxNumSegments()));
+        parameters.putParam("only_expunge_deletes", Boolean.toString(forceMergeRequest.onlyExpungeDeletes()));
+        parameters.putParam("flush", Boolean.toString(forceMergeRequest.flush()));
         return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), null);
     }
 
@@ -531,7 +543,7 @@ public final class Request {
     }
 
     static Request rankEval(RankEvalRequest rankEvalRequest) throws IOException {
-        String endpoint = endpoint(rankEvalRequest.getIndices(), Strings.EMPTY_ARRAY, "_rank_eval");
+        String endpoint = endpoint(rankEvalRequest.indices(), Strings.EMPTY_ARRAY, "_rank_eval");
         HttpEntity entity = createEntity(rankEvalRequest.getRankEvalSpec(), REQUEST_BODY_CONTENT_TYPE);
         return new Request(HttpGet.METHOD_NAME, endpoint, Collections.emptyMap(), entity);
     }

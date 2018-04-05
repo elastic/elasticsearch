@@ -20,7 +20,6 @@
 package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -223,7 +222,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
                     @Override
                     public void onFailure(String source, Exception e) {
-                        logger.warn((Supplier<?>) () -> new ParameterizedMessage("failure [{}]", source), e);
+                        logger.warn(() -> new ParameterizedMessage("failure [{}]", source), e);
                     }
                 });
 

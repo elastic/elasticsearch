@@ -126,4 +126,13 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
     public long getLastModifiedTime() throws IOException {
         return Files.getLastModifiedTime(path).toMillis();
     }
+
+    /**
+     * Reads a single opertation from the given location.
+     */
+    Translog.Operation read(Translog.Location location) throws IOException {
+        assert location.generation == this.generation : "generation mismatch expected: " + generation + " got: " + location.generation;
+        ByteBuffer buffer = ByteBuffer.allocate(location.size);
+        return read(checksummedStream(buffer, location.translogLocation, location.size, null));
+    }
 }

@@ -236,8 +236,8 @@ public class RecoverySourceHandler {
             shard.acquirePrimaryOperationPermit(onAcquired, ThreadPool.Names.SAME, reason);
             try (Releasable ignored = onAcquired.actionGet()) {
                 // check that the IndexShard still has the primary authority. This needs to be checked under operation permit to prevent
-                // races, as IndexShard will change to RELOCATED only when it holds all operation permits, see IndexShard.relocated()
-                if (shard.state() == IndexShardState.RELOCATED) {
+                // races, as IndexShard will switch its authority only when it holds all operation permits, see IndexShard.relocated()
+                if (shard.isPrimaryMode() == false) {
                     throw new IndexShardRelocatedException(shard.shardId());
                 }
                 runnable.run();
@@ -501,9 +501,9 @@ public class RecoverySourceHandler {
         if (request.isPrimaryRelocation()) {
             logger.trace("performing relocation hand-off");
             // this acquires all IndexShard operation permits and will thus delay new recoveries until it is done
-            cancellableThreads.execute(() -> shard.relocated("to " + request.targetNode(), recoveryTarget::handoffPrimaryContext));
+            cancellableThreads.execute(() -> shard.relocated(recoveryTarget::handoffPrimaryContext));
             /*
-             * if the recovery process fails after setting the shard state to RELOCATED, both relocation source and
+             * if the recovery process fails after disabling primary mode on the source shard, both relocation source and
              * target are failed (see {@link IndexShard#updateRoutingEntry}).
              */
         }

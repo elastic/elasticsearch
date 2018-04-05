@@ -88,7 +88,6 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     @Override
     public PutObjectResult putObject(final PutObjectRequest request) throws AmazonClientException {
         assertThat(request.getBucketName(), equalTo(bucket));
-        assertThat(request.getBucketName(), equalTo(bucket));
         assertThat(request.getMetadata().getSSEAlgorithm(), serverSideEncryption ? equalTo("AES256") : nullValue());
         assertThat(request.getCannedAcl(), notNullValue());
         assertThat(request.getCannedAcl().toString(), cannedACL != null ? equalTo(cannedACL) : equalTo("private"));
@@ -185,7 +184,7 @@ class MockAmazonS3 extends AbstractAmazonS3 {
 
         final List<DeleteObjectsResult.DeletedObject> deletions = new ArrayList<>();
         for (DeleteObjectsRequest.KeyVersion key : request.getKeys()) {
-            if(blobs.remove(key.getKey()) == null){
+            if (blobs.remove(key.getKey()) == null) {
                 AmazonS3Exception exception = new AmazonS3Exception("[" + key + "] does not exist.");
                 exception.setStatusCode(404);
                 throw exception;

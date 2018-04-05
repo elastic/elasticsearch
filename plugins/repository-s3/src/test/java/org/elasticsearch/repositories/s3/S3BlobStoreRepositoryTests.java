@@ -29,6 +29,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.util.Collection;
@@ -63,6 +64,11 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
         if (randomBoolean()) {
             storageClass = randomValueOtherThan(StorageClass.Glacier, () -> randomFrom(StorageClass.values())).toString();
         }
+    }
+
+    @AfterClass
+    public static void wipeRepository() {
+        blobs.clear();
     }
 
     @Override

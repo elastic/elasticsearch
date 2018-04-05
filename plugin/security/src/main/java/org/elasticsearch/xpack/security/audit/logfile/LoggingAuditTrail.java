@@ -116,10 +116,10 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     private final Logger logger;
     final EventFilterPolicyRegistry eventFilterPolicyRegistry;
     private final ThreadContext threadContext;
-    // protected for testing
+    // package for testing
     volatile EnumSet<AuditLevel> events;
-    volatile boolean includeRequestBody;
-    volatile LocalNodeInfo localNodeInfo;
+    boolean includeRequestBody;
+    LocalNodeInfo localNodeInfo;
 
     @Override
     public String name() {
@@ -140,16 +140,16 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
         this.eventFilterPolicyRegistry = new EventFilterPolicyRegistry(settings);
         clusterService.addListener(this);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(newSettings -> {
-            this.includeRequestBody = INCLUDE_REQUEST_BODY.get(newSettings);
-        }, Arrays.asList(INCLUDE_REQUEST_BODY));
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(newSettings -> {
-            this.events = parse(INCLUDE_EVENT_SETTINGS.get(newSettings), EXCLUDE_EVENT_SETTINGS.get(newSettings));
-        }, Arrays.asList(INCLUDE_EVENT_SETTINGS, EXCLUDE_EVENT_SETTINGS));
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(newSettings -> {
             final LocalNodeInfo localNodeInfo = this.localNodeInfo;
             final Settings.Builder builder = Settings.builder().put(localNodeInfo.settings).put(newSettings, false);
             this.localNodeInfo = new LocalNodeInfo(builder.build(), localNodeInfo.localNode);
-        }, Arrays.asList(HOST_ADDRESS_SETTING, HOST_NAME_SETTING, NODE_NAME_SETTING));
+            this.includeRequestBody = INCLUDE_REQUEST_BODY.get(newSettings);
+            // `events` is a volatile field! Keep `events` write last so that
+            // `localNodeInfo` and `includeRequestBody` writes happen-before! `events` is
+            // always read before `localNodeInfo` and `includeRequestBody`.
+            this.events = parse(INCLUDE_EVENT_SETTINGS.get(newSettings), EXCLUDE_EVENT_SETTINGS.get(newSettings));
+        }, Arrays.asList(HOST_ADDRESS_SETTING, HOST_NAME_SETTING, NODE_NAME_SETTING, INCLUDE_EVENT_SETTINGS, EXCLUDE_EVENT_SETTINGS,
+                INCLUDE_REQUEST_BODY));
         clusterService.getClusterSettings().addAffixUpdateConsumer(FILTER_POLICY_IGNORE_PRINCIPALS, (policyName, filtersList) -> {
             final Optional<EventFilterPolicy> policy = eventFilterPolicyRegistry.get(policyName);
             final EventFilterPolicy newPolicy = policy.orElse(new EventFilterPolicy(policyName, settings))

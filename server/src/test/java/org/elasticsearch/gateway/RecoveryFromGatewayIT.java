@@ -572,8 +572,13 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         internalCluster().startNode();
     }
 
-    @TestLogging("org.elasticsearch.env.NodeEnvironment:TRACE,org.elasticsearch.gateway.TransportNodesListGatewayStartedShards:TRACE,org.elasticsearch.gateway.MetaDataStateFormat:TRACE,org.elasticsearch.index.shard.IndexShard:TRACE")
     public void testLoadLatestStateWhileClosingShardDoesNotResurrectMetadataDirectory() throws Exception {
+
+        // This test pertains to a race condition in which deleting a shard concurrently with a TransportNodesListGatewayStartedShards
+        // request could resurrect the shard's metadata folder after it was deleted. Here we try and recreate the race, but it is quite
+        // delicate so this test does not always fail. Experimentation showed that setting the thread counts as below would yield a failure
+        // after a reasonable number of iterations: running repeatedly with -Dtests.iters=1000 saw 6 failures out of 10 runs.
+
         final String nodeName = internalCluster().startNode();
         DiscoveryNode node = internalCluster().getInstance(ClusterService.class, nodeName).localNode();
 
@@ -583,6 +588,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
         final int listingThreadCount = 2;
         final int deletingThreadCount = 2;
+
         final CountDownLatch countDownLatch = new CountDownLatch(listingThreadCount + deletingThreadCount);
 
         Thread threads[] = new Thread[listingThreadCount + deletingThreadCount];
@@ -610,8 +616,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             listingThread.start();
         }
 
-        // Deleting an index asserts that it really is gone from disk - at one time, the concurrent
-        // TransportNodesListGatewayStartedShards requests sometimes prevented this.
+        // Deleting an index asserts that it really is gone from disk, so no other assertions are necessary here.
 
         for (final Thread listingThread : threads) {
             listingThread.join();

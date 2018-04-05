@@ -17,6 +17,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
@@ -54,13 +56,13 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
         settings.put(XPackSettings.INDEX_LIFECYCLE_ENABLED.getKey(), true);
-        settings.put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), "1s");
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
         settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         settings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
         settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
         settings.put(XPackSettings.LOGSTASH_ENABLED.getKey(), false);
+        settings.put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s");
         return settings.build();
     }
 
@@ -84,7 +86,7 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(XPackPlugin.class, CommonAnalysisPlugin.class);
+        return Arrays.asList(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class);
     }
 
     @Override

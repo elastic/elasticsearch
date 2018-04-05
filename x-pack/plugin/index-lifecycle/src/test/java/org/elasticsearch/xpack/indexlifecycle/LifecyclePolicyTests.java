@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleType;
 import org.elasticsearch.xpack.core.indexlifecycle.MockAction;
-import org.elasticsearch.xpack.core.indexlifecycle.MockActionTests;
 import org.elasticsearch.xpack.core.indexlifecycle.MockStep;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.PhaseAfterStep;
@@ -47,7 +46,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     private String lifecycleName;
 
     @Override
-    protected LifecyclePolicy doParseInstance(XContentParser parser) throws IOException {
+    protected LifecyclePolicy doParseInstance(XContentParser parser) {
         return LifecyclePolicy.parse(parser, lifecycleName);
     }
 
@@ -69,20 +68,18 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
 
     @Override
     protected LifecyclePolicy createTestInstance() {
-        return randomLifecyclePolicy(null);
+        lifecycleName = randomAlphaOfLength(5);
+        return randomLifecyclePolicy(lifecycleName);
     }
 
     static LifecyclePolicy randomLifecyclePolicy(@Nullable String lifecycleName) {
-        if (lifecycleName == null) {
-            lifecycleName = randomAlphaOfLengthBetween(1, 20);
-        }
         int numberPhases = randomInt(5);
         Map<String, Phase> phases = new HashMap<>(numberPhases);
         for (int i = 0; i < numberPhases; i++) {
             TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
             Map<String, LifecycleAction> actions = new HashMap<>();
             if (randomBoolean()) {
-                MockAction action = MockActionTests.randomMockAction(null);
+                MockAction action = new MockAction();
                 actions.put(action.getWriteableName(), action);
             }
             String phaseName = randomAlphaOfLength(10);

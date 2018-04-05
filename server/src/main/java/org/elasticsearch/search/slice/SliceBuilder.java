@@ -99,6 +99,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
     public SliceBuilder(StreamInput in) throws IOException {
         String field = in.readString();
         if (UidFieldMapper.NAME.equals(field) && in.getVersion().before(Version.V_6_3_0)) {
+            // This is safe because _id and _uid are handled the same way in #toFilter
             field = IdFieldMapper.NAME;
         }
         this.field = field;

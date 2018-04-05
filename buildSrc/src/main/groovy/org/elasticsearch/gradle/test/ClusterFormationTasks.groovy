@@ -494,7 +494,7 @@ class ClusterFormationTasks {
          * the short name requiring the path to already exist.
          */
         final Object esPluginUtil = "${-> node.binPath().resolve('elasticsearch-plugin').toString()}"
-        final Object[] args = [esPluginUtil, 'install', file]
+        final Object[] args = [esPluginUtil, 'install', '--batch', file]
         return configureExecTask(name, project, setup, node, args)
     }
 

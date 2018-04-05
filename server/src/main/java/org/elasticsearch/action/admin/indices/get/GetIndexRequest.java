@@ -28,7 +28,7 @@ import org.elasticsearch.common.util.ArrayUtils;
 import java.io.IOException;
 
 /**
- * A request to delete an index. Best created with {@link org.elasticsearch.client.Requests#deleteIndexRequest(String)}.
+ * A request to retrieve information about an index.
  */
 public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
     public enum Feature {

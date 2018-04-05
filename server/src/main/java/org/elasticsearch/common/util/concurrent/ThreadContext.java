@@ -371,7 +371,6 @@ public final class ThreadContext implements Closeable, Writeable {
         private final Map<String, List<String>> responseHeaders;
         private final boolean isSystemContext;
         private long warningHeadersSize; //saving current warning headers' size not to recalculate the size with every new warning header
-        private boolean isWarningLimitReached;
         private ThreadContextStruct(StreamInput in) throws IOException {
             final int numRequest = in.readVInt();
             Map<String, String> requestHeaders = numRequest == 0 ? Collections.emptyMap() : new HashMap<>(numRequest);
@@ -384,7 +383,6 @@ public final class ThreadContext implements Closeable, Writeable {
             this.transientHeaders = Collections.emptyMap();
             isSystemContext = false; // we never serialize this it's a transient flag
             this.warningHeadersSize = 0L;
-            this.isWarningLimitReached = false;
         }
 
         private ThreadContextStruct setSystemContext() {
@@ -402,19 +400,17 @@ public final class ThreadContext implements Closeable, Writeable {
             this.transientHeaders = transientHeaders;
             this.isSystemContext = isSystemContext;
             this.warningHeadersSize = 0L;
-            this.isWarningLimitReached = false;
         }
 
         private ThreadContextStruct(Map<String, String> requestHeaders,
                                     Map<String, List<String>> responseHeaders,
                                     Map<String, Object> transientHeaders, boolean isSystemContext,
-                                    long warningHeadersSize, boolean isWarningLimitReached) {
+                                    long warningHeadersSize) {
             this.requestHeaders = requestHeaders;
             this.responseHeaders = responseHeaders;
             this.transientHeaders = transientHeaders;
             this.isSystemContext = isSystemContext;
             this.warningHeadersSize = warningHeadersSize;
-            this.isWarningLimitReached = isWarningLimitReached;
         }
 
         /**
@@ -473,14 +469,21 @@ public final class ThreadContext implements Closeable, Writeable {
             assert value != null;
             long newWarningHeaderSize = warningHeadersSize;
             //check if we can add another warning header - if max size within limits
-            if (key.equals("Warning")) {
-                if (isWarningLimitReached) return this; // can't add warning headers - limit reached
+            if (key.equals("Warning") && (maxWarningHeaderSize != -1)) { //if size is NOT unbounded, check its limits
+                if (warningHeadersSize > maxWarningHeaderSize) { // if max size has already been reached before
+                    final String message = "Dropping a warning header, as their total size reached the maximum allowed of [" +
+                        maxWarningHeaderSize + "] bytes set in [" +
+                        HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE.getKey() + "]!";
+                    ESLoggerFactory.getLogger(ThreadContext.class).warn(message);
+                    return this;
+                }
                 newWarningHeaderSize += "Warning".getBytes(StandardCharsets.UTF_8).length + value.getBytes(StandardCharsets.UTF_8).length;
-                //if size is NOT unbounded AND limit is exceeded
-                if ((maxWarningHeaderSize != -1) && (newWarningHeaderSize > maxWarningHeaderSize)) {
-                    logWarningsLimitReached();
-                    return new ThreadContextStruct(requestHeaders, responseHeaders, transientHeaders,
-                        isSystemContext, newWarningHeaderSize, true);
+                if (newWarningHeaderSize > maxWarningHeaderSize) {
+                    final String message = "Dropping a warning header, as their total size reached the maximum allowed of [" +
+                        maxWarningHeaderSize + "] bytes set in [" +
+                        HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE.getKey() + "]!";
+                    ESLoggerFactory.getLogger(ThreadContext.class).warn(message);
+                    return new ThreadContextStruct(requestHeaders, responseHeaders, transientHeaders, isSystemContext, newWarningHeaderSize);
                 }
             }
 
@@ -503,21 +506,13 @@ public final class ThreadContext implements Closeable, Writeable {
             if ((key.equals("Warning")) && (maxWarningHeaderCount != -1)) { //if count is NOT unbounded, check its limits
                 final int warningHeaderCount = newResponseHeaders.containsKey("Warning") ? newResponseHeaders.get("Warning").size() : 0;
                 if (warningHeaderCount > maxWarningHeaderCount) {
-                    logWarningsLimitReached();
-                    return new ThreadContextStruct(requestHeaders, responseHeaders, transientHeaders,
-                        isSystemContext, newWarningHeaderSize, true);
+                    final String message = "Dropping a warning header, as their total count reached the maximum allowed of [" +
+                        maxWarningHeaderCount + "] set in [" + HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT.getKey() + "]!";
+                    ESLoggerFactory.getLogger(ThreadContext.class).warn(message);
+                    return this;
                 }
             }
-            return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders,
-                isSystemContext, newWarningHeaderSize, isWarningLimitReached);
-        }
-
-
-        private void logWarningsLimitReached() {
-            final String message = "There were more warnings, but they were dropped as [" +
-                HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT.getKey() + "] or [" +
-                HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE.getKey() + "] were reached!";
-            ESLoggerFactory.getLogger(ThreadContext.class).warn(message);
+            return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders, isSystemContext, newWarningHeaderSize);
         }
 
 

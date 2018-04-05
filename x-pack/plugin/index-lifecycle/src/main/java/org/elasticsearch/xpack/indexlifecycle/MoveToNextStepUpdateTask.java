@@ -48,7 +48,7 @@ public class MoveToNextStepUpdateTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public ClusterState execute(ClusterState currentState) throws Exception {
+    public ClusterState execute(ClusterState currentState) {
         Settings indexSettings = currentState.getMetaData().index(index).getSettings();
         if (policy.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings))
             && currentStepKey.equals(IndexLifecycleRunner.getCurrentStepKey(indexSettings))) {

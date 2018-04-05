@@ -19,26 +19,33 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.services.s3.AmazonS3;
-
+import com.amazonaws.services.s3.model.CannedAccessControlList;
+import com.amazonaws.services.s3.model.StorageClass;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.admin.cluster.RestGetRepositoriesAction;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -47,35 +54,64 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-import static org.mockito.Matchers.any;
 
-public class S3BlobStoreRepositoryTests extends ESIntegTestCase {
+public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCase {
 
-    private final String bucket = "bucket_" + randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
-    private final String client = "client_" + randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
-    private final String accessKey = "accessKey_" + randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
-    private final String secureKey = "secureKey_" + randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
+    // Static list of blobs shared among all nodes in order to act like a remote repository service:
+    // all nodes must see the same content
+    private static final ConcurrentMap<String, byte[]> blobs = new ConcurrentHashMap<>();
+    private static String bucket;
+    private static String client;
+    private static String accessKey;
+    private static String secureKey;
+    private static ByteSizeValue bufferSize;
+    private static boolean serverSideEncryption;
+    private static String cannedACL;
+    private static String storageClass;
+
+    @BeforeClass
+    public static void setUpRepositorySettings() {
+        bucket = "bucket_" + randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
+        client = "client_" + randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
+        accessKey = "accessKey_" + randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
+        secureKey = "secureKey_" + randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
+        bufferSize = new ByteSizeValue(randomIntBetween(5, 50), ByteSizeUnit.MB);
+        serverSideEncryption = randomBoolean();
+        if (randomBoolean()) {
+            cannedACL = randomFrom(CannedAccessControlList.values()).toString();
+        }
+        if (randomBoolean()) {
+            storageClass = randomValueOtherThan(StorageClass.Glacier, () -> randomFrom(StorageClass.values())).toString();
+        }
+    }
+
+    @AfterClass
+    public static void wipeRepository() {
+        blobs.clear();
+    }
 
     protected void createTestRepository(final String name) {
         assertAcked(client().admin().cluster().preparePutRepository(name)
             .setType(S3Repository.TYPE)
-            .setVerify(false)
             .setSettings(Settings.builder()
                 .put(S3Repository.BUCKET_SETTING.getKey(), bucket)
                 .put(InternalAwsS3Service.CLIENT_NAME.getKey(), client)
+                .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), bufferSize)
+                .put(S3Repository.SERVER_SIDE_ENCRYPTION_SETTING.getKey(), serverSideEncryption)
+                .put(S3Repository.CANNED_ACL_SETTING.getKey(), cannedACL)
+                .put(S3Repository.STORAGE_CLASS_SETTING.getKey(), storageClass)
                 .put(S3Repository.ACCESS_KEY_SETTING.getKey(), accessKey)
                 .put(S3Repository.SECRET_KEY_SETTING.getKey(), secureKey)));
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(EmptyS3RepositoryPlugin.class);
+        return Collections.singletonList(TestS3RepositoryPlugin.class);
     }
 
-    public static class EmptyS3RepositoryPlugin extends S3RepositoryPlugin {
+    public static class TestS3RepositoryPlugin extends S3RepositoryPlugin {
 
-        public EmptyS3RepositoryPlugin(final Settings settings) {
+        public TestS3RepositoryPlugin(final Settings settings) {
             super(settings);
         }
 
@@ -85,9 +121,7 @@ public class S3BlobStoreRepositoryTests extends ESIntegTestCase {
                 new S3Repository(metadata, env.settings(), registry, new InternalAwsS3Service(env.settings(), emptyMap()) {
                     @Override
                     public synchronized AmazonS3 client(final Settings repositorySettings) {
-                        final AmazonS3 client = mock(AmazonS3.class);
-                        when(client.doesBucketExist(any(String.class))).thenReturn(true);
-                        return client;
+                        return new MockAmazonS3(blobs, bucket, serverSideEncryption, cannedACL, storageClass);
                     }
                 }));
         }

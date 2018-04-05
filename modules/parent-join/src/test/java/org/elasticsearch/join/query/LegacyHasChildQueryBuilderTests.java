@@ -87,7 +87,7 @@ public class LegacyHasChildQueryBuilderTests extends AbstractQueryTestCase<HasCh
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        similarity = randomFrom("classic", "BM25");
+        similarity = randomFrom("boolean", "BM25");
         // TODO: use a single type when inner hits have been changed to work with join field,
         // this test randomly generates queries with inner hits
         mapperService.merge(PARENT_TYPE, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(PARENT_TYPE,
@@ -323,9 +323,7 @@ public class LegacyHasChildQueryBuilderTests extends AbstractQueryTestCase<HasCh
             hasChildQuery(CHILD_TYPE, new TermQueryBuilder("custom_string", "value"), ScoreMode.None);
         HasChildQueryBuilder.LateParsingQuery query = (HasChildQueryBuilder.LateParsingQuery) hasChildQueryBuilder.toQuery(shardContext);
         Similarity expected = SimilarityService.BUILT_IN.get(similarity)
-            .create(similarity, Settings.EMPTY,
-                    Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build(), null)
-            .get();
+            .apply(Settings.EMPTY, Version.CURRENT, null);
         assertThat(((PerFieldSimilarityWrapper) query.getSimilarity()).get("custom_string"), instanceOf(expected.getClass()));
     }
 

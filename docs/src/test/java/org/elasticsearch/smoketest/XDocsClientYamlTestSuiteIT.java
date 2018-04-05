@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.smoketest;
 
-import org.apache.http.HttpHost;
 import com.carrotsearch.randomizedtesting.annotations.Name;
+import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.SecureString;
@@ -78,10 +78,24 @@ public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
                 ClientYamlTestResponse response =
                         getAdminExecutionContext().callApi("xpack.watcher.stats", emptyMap(), emptyList(), emptyMap());
                 String state = (String) response.evaluate("stats.0.watcher_state");
-                if (state.equals("started") == false || state.equals("starting") == false) {
-                    getAdminExecutionContext().callApi("xpack.watcher.start", emptyMap(), emptyList(), emptyMap());
+
+                switch (state) {
+                    case "stopped":
+                        ClientYamlTestResponse startResponse =
+                                getAdminExecutionContext().callApi("xpack.watcher.start", emptyMap(), emptyList(), emptyMap());
+                        boolean isAcknowledged = (boolean) startResponse.evaluate("acknowledged");
+                        assertThat(isAcknowledged, is(true));
+                        break;
+                    case "stopping":
+                        throw new AssertionError("waiting until stopping state reached stopped state to start again");
+                    case "starting":
+                        throw new AssertionError("waiting until starting state reached started state");
+                    case "started":
+                        // all good here, we are done
+                        break;
+                    default:
+                        throw new AssertionError("unknown state[" + state + "]");
                 }
-                assertThat(state, is("started"));
             });
         }
     }
@@ -89,7 +103,7 @@ public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
     @Override
     protected boolean isWatcherTest() {
         String testName = getTestName();
-        return testName != null && testName.contains("watcher");
+        return testName != null && testName.contains("watcher/");
     }
 
     @Override

@@ -12,12 +12,6 @@ task copyWatcherRestTests(type: Copy) {
   include 'rest-api-spec/test/watcher/**'
 }
 
-integTestRunner {
-  systemProperty 'tests.rest.blacklist',
-    ['hijack/10_basic/*',
-     'getting_started/10_monitor_cluster_health/Getting started - Monitor cluster health'].join(',')
-}
-
 integTestCluster {
   dependsOn copyWatcherRestTests
   setting 'xpack.monitoring.enabled', 'false'

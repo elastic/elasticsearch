@@ -459,6 +459,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
             String message = String.format(Locale.ROOT, "Expected watcher to be started, but state was %s", currentStatesFromStatsRequest);
             assertThat(message, states, everyItem(is(WatcherState.STARTED)));
+            assertThat(watcherStatsResponse.watcherMetaData().manuallyStopped(), is(false));
         });
 
     }

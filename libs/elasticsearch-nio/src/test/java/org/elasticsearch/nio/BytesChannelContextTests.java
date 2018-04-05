@@ -259,12 +259,13 @@ public class BytesChannelContextTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("varargs")
     public void testQueuedWriteIsFlushedInFlushCall() throws Exception {
         assertFalse(context.hasQueuedWriteOps());
 
         ByteBuffer[] buffers = {ByteBuffer.allocate(10)};
         FlushOperation flushOperation = mock(FlushOperation.class);
-        when(writeProducer.pollFlushOperation()).thenReturn(flushOperation, null);
+        when(writeProducer.pollFlushOperation()).thenReturn(flushOperation, (FlushOperation) null);
         context.queueWriteOperation(mock(WriteOperation.class));
 
         assertTrue(context.hasQueuedWriteOps());
@@ -333,7 +334,7 @@ public class BytesChannelContextTests extends ESTestCase {
 
         ByteBuffer[] buffers = {ByteBuffer.allocate(10)};
         FlushOperation flushOperation = mock(FlushOperation.class);
-        when(writeProducer.pollFlushOperation()).thenReturn(flushOperation,null);
+        when(writeProducer.pollFlushOperation()).thenReturn(flushOperation, (FlushOperation) null);
         context.queueWriteOperation(mock(WriteOperation.class));
 
         assertTrue(context.hasQueuedWriteOps());

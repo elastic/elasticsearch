@@ -33,61 +33,55 @@ public class IndexLifecycleRunner {
         this.clusterService = clusterService;
     }
 
-    public void runPolicy(String policy, Index index, Settings indexSettings, Cause cause) {
+    public void runPolicy(String policy, Index index, Settings indexSettings) {
         Step currentStep = getCurrentStep(stepRegistry, policy, indexSettings);
         logger.warn("running policy with current-step[" + currentStep.getKey() + "]");
         if (currentStep instanceof ClusterStateActionStep || currentStep instanceof ClusterStateWaitStep) {
-            if (cause != Cause.SCHEDULE_TRIGGER) {
-                executeClusterStateSteps(index, policy, currentStep);
-            }
+             executeClusterStateSteps(index, policy, currentStep);
         } else if (currentStep instanceof AsyncWaitStep) {
-            if (cause != Cause.CLUSTER_STATE_CHANGE) {
-                ((AsyncWaitStep) currentStep).evaluateCondition(index, new AsyncWaitStep.Listener() {
-    
-                    @Override
-                    public void onResponse(boolean conditionMet) {
-                        logger.error("cs-change-async-wait-callback. current-step:" + currentStep.getKey());
-                        if (conditionMet) {
-                            moveToStep(index, policy, currentStep.getKey(), currentStep.getNextStepKey(), Cause.CALLBACK);
-                        }
+            ((AsyncWaitStep) currentStep).evaluateCondition(index, new AsyncWaitStep.Listener() {
+
+                @Override
+                public void onResponse(boolean conditionMet) {
+                    logger.error("cs-change-async-wait-callback. current-step:" + currentStep.getKey());
+                    if (conditionMet) {
+                        moveToStep(index, policy, currentStep.getKey(), currentStep.getNextStepKey());
                     }
-    
-                    @Override
-                    public void onFailure(Exception e) {
-                        throw new RuntimeException(e); // NORELEASE implement error handling
-                    }
-                    
-                });
-            }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    throw new RuntimeException(e); // NORELEASE implement error handling
+                }
+                
+            });
         } else if (currentStep instanceof AsyncActionStep) {
-            if (cause != Cause.CLUSTER_STATE_CHANGE) {
-                ((AsyncActionStep) currentStep).performAction(index, new AsyncActionStep.Listener() {
-    
-                    @Override
-                    public void onResponse(boolean complete) {
-                        logger.error("cs-change-async-action-callback. current-step:" + currentStep.getKey());
-                        if (complete && ((AsyncActionStep) currentStep).indexSurvives()) {
-                            moveToStep(index, policy, currentStep.getKey(), currentStep.getNextStepKey(), Cause.CALLBACK);
-                        }
+            ((AsyncActionStep) currentStep).performAction(index, new AsyncActionStep.Listener() {
+
+                @Override
+                public void onResponse(boolean complete) {
+                    logger.error("cs-change-async-action-callback. current-step:" + currentStep.getKey());
+                    if (complete && ((AsyncActionStep) currentStep).indexSurvives()) {
+                        moveToStep(index, policy, currentStep.getKey(), currentStep.getNextStepKey());
                     }
-    
-                    @Override
-                    public void onFailure(Exception e) {
-                        throw new RuntimeException(e); // NORELEASE implement error handling
-                    }
-                });
-            }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    throw new RuntimeException(e); // NORELEASE implement error handling
+                }
+            });
         } else {
             throw new IllegalStateException(
                     "Step with key [" + currentStep.getKey() + "] is not a recognised type: [" + currentStep.getClass().getName() + "]");
         }
     }
 
-    private void runPolicy(Index index, ClusterState clusterState, Cause cause) {
+    private void runPolicy(Index index, ClusterState clusterState) {
         IndexMetaData indexMetaData = clusterState.getMetaData().index(index);
         Settings indexSettings = indexMetaData.getSettings();
         String policy = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings);
-        runPolicy(policy, index, indexSettings, cause);
+        runPolicy(policy, index, indexSettings);
     }
 
     private void executeClusterStateSteps(Index index, String policy, Step step) {
@@ -139,14 +133,10 @@ public class IndexLifecycleRunner {
         return newClusterStateBuilder.build();
     }
 
-    private void moveToStep(Index index, String policy, StepKey currentStepKey, StepKey nextStepKey, Cause cause) {
+    private void moveToStep(Index index, String policy, StepKey currentStepKey, StepKey nextStepKey) {
         logger.error("moveToStep[" + policy + "] [" + index.getName() + "]" + currentStepKey + " -> "
-            + nextStepKey + ". because:" + cause.name());
+                + nextStepKey);
         clusterService.submitStateUpdateTask("ILM", new MoveToNextStepUpdateTask(index, policy, currentStepKey,
-            nextStepKey, newState -> runPolicy(index, newState, cause)));
-    }
-
-    public enum Cause {
-        CLUSTER_STATE_CHANGE, SCHEDULE_TRIGGER, CALLBACK;
+                nextStepKey, newState -> runPolicy(index, newState)));
     }
 }

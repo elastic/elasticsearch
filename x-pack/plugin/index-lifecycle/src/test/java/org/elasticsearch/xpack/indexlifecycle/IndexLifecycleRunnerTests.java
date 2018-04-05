@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.MockStep;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
-import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleRunner.Cause;
 import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
 
@@ -31,7 +30,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
-import java.util.function.Supplier;
 
 public class IndexLifecycleRunnerTests extends ESTestCase {
 
@@ -57,27 +55,11 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Index index = new Index("my_index", "my_index_id");
         Settings indexSettings = Settings.builder().build();
 
-        runner.runPolicy(policyName, index, indexSettings, randomFrom(Cause.CALLBACK, Cause.CLUSTER_STATE_CHANGE));
+        runner.runPolicy(policyName, index, indexSettings);
 
         Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ILM"),
                 Mockito.argThat(new ExecuteStepsUpdateTaskMatcher(index, policyName, step)));
         Mockito.verifyNoMoreInteractions(clusterService);
-    }
-
-    public void testRunPolicyClusterStateActionStepScheduleTriggerIgnored() {
-        String policyName = "cluster_state_action_policy";
-        StepKey stepKey = new StepKey("phase", "action", "cluster_state_action_step");
-        MockClusterStateActionStep step = new MockClusterStateActionStep(stepKey, null);
-        step.setWillComplete(true);
-        PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
-        ClusterService clusterService = Mockito.mock(ClusterService.class);
-        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService);
-        Index index = new Index("my_index", "my_index_id");
-        Settings indexSettings = Settings.builder().build();
-
-        runner.runPolicy(policyName, index, indexSettings, Cause.SCHEDULE_TRIGGER);
-
-        Mockito.verifyZeroInteractions(clusterService);
     }
 
     public void testRunPolicyClusterStateWaitStep() {
@@ -91,27 +73,11 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Index index = new Index("my_index", "my_index_id");
         Settings indexSettings = Settings.builder().build();
 
-        runner.runPolicy(policyName, index, indexSettings, randomFrom(Cause.CALLBACK, Cause.CLUSTER_STATE_CHANGE));
+        runner.runPolicy(policyName, index, indexSettings);
 
         Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ILM"),
                 Mockito.argThat(new ExecuteStepsUpdateTaskMatcher(index, policyName, step)));
         Mockito.verifyNoMoreInteractions(clusterService);
-    }
-
-    public void testRunPolicyClusterStateWaitStepScheduleTriggerIgnored() {
-        String policyName = "cluster_state_action_policy";
-        StepKey stepKey = new StepKey("phase", "action", "cluster_state_action_step");
-        MockClusterStateWaitStep step = new MockClusterStateWaitStep(stepKey, null);
-        step.setWillComplete(true);
-        PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
-        ClusterService clusterService = Mockito.mock(ClusterService.class);
-        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService);
-        Index index = new Index("my_index", "my_index_id");
-        Settings indexSettings = Settings.builder().build();
-
-        runner.runPolicy(policyName, index, indexSettings, Cause.SCHEDULE_TRIGGER);
-
-        Mockito.verifyZeroInteractions(clusterService);
     }
 
     public void testRunPolicyAsyncActionStepCompletes() {
@@ -125,7 +91,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Index index = new Index("my_index", "my_index_id");
         Settings indexSettings = Settings.builder().build();
 
-        runner.runPolicy(policyName, index, indexSettings, randomFrom(Cause.CALLBACK, Cause.SCHEDULE_TRIGGER));
+        runner.runPolicy(policyName, index, indexSettings);
 
         assertEquals(1, step.getExecuteCount());
         Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ILM"),
@@ -145,7 +111,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Index index = new Index("my_index", "my_index_id");
         Settings indexSettings = Settings.builder().build();
 
-        runner.runPolicy(policyName, index, indexSettings, randomFrom(Cause.CALLBACK, Cause.SCHEDULE_TRIGGER));
+        runner.runPolicy(policyName, index, indexSettings);
 
         assertEquals(1, step.getExecuteCount());
         Mockito.verifyZeroInteractions(clusterService);
@@ -162,7 +128,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Index index = new Index("my_index", "my_index_id");
         Settings indexSettings = Settings.builder().build();
 
-        runner.runPolicy(policyName, index, indexSettings, randomFrom(Cause.CALLBACK, Cause.SCHEDULE_TRIGGER));
+        runner.runPolicy(policyName, index, indexSettings);
 
         assertEquals(1, step.getExecuteCount());
         Mockito.verifyZeroInteractions(clusterService);
@@ -181,28 +147,10 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Settings indexSettings = Settings.builder().build();
 
         RuntimeException exception = expectThrows(RuntimeException.class,
-                () -> runner.runPolicy(policyName, index, indexSettings, randomFrom(Cause.CALLBACK, Cause.SCHEDULE_TRIGGER)));
+                () -> runner.runPolicy(policyName, index, indexSettings));
 
         assertSame(expectedException, exception.getCause());
         assertEquals(1, step.getExecuteCount());
-        Mockito.verifyZeroInteractions(clusterService);
-    }
-
-    public void testRunPolicyAsyncActionStepClusterStateChangeIgnored() {
-        String policyName = "async_action_policy";
-        StepKey stepKey = new StepKey("phase", "action", "async_action_step");
-        MockAsyncActionStep step = new MockAsyncActionStep(stepKey, null);
-        Exception expectedException = new RuntimeException();
-        step.setException(expectedException);
-        PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
-        ClusterService clusterService = Mockito.mock(ClusterService.class);
-        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService);
-        Index index = new Index("my_index", "my_index_id");
-        Settings indexSettings = Settings.builder().build();
-
-        runner.runPolicy(policyName, index, indexSettings, Cause.CLUSTER_STATE_CHANGE);
-
-        assertEquals(0, step.getExecuteCount());
         Mockito.verifyZeroInteractions(clusterService);
     }
 
@@ -217,7 +165,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Index index = new Index("my_index", "my_index_id");
         Settings indexSettings = Settings.builder().build();
 
-        runner.runPolicy(policyName, index, indexSettings, randomFrom(Cause.CALLBACK, Cause.SCHEDULE_TRIGGER));
+        runner.runPolicy(policyName, index, indexSettings);
 
         assertEquals(1, step.getExecuteCount());
         Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ILM"),
@@ -236,7 +184,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Index index = new Index("my_index", "my_index_id");
         Settings indexSettings = Settings.builder().build();
 
-        runner.runPolicy(policyName, index, indexSettings, randomFrom(Cause.CALLBACK, Cause.SCHEDULE_TRIGGER));
+        runner.runPolicy(policyName, index, indexSettings);
 
         assertEquals(1, step.getExecuteCount());
         Mockito.verifyZeroInteractions(clusterService);
@@ -255,28 +203,10 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Settings indexSettings = Settings.builder().build();
 
         RuntimeException exception = expectThrows(RuntimeException.class,
-                () -> runner.runPolicy(policyName, index, indexSettings, randomFrom(Cause.CALLBACK, Cause.SCHEDULE_TRIGGER)));
+                () -> runner.runPolicy(policyName, index, indexSettings));
 
         assertSame(expectedException, exception.getCause());
         assertEquals(1, step.getExecuteCount());
-        Mockito.verifyZeroInteractions(clusterService);
-    }
-
-    public void testRunPolicyAsyncWaitStepClusterStateChangeIgnored() {
-        String policyName = "async_wait_policy";
-        StepKey stepKey = new StepKey("phase", "action", "async_wait_step");
-        MockAsyncWaitStep step = new MockAsyncWaitStep(stepKey, null);
-        Exception expectedException = new RuntimeException();
-        step.setException(expectedException);
-        PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
-        ClusterService clusterService = Mockito.mock(ClusterService.class);
-        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService);
-        Index index = new Index("my_index", "my_index_id");
-        Settings indexSettings = Settings.builder().build();
-
-        runner.runPolicy(policyName, index, indexSettings, Cause.CLUSTER_STATE_CHANGE);
-
-        assertEquals(0, step.getExecuteCount());
         Mockito.verifyZeroInteractions(clusterService);
     }
 
@@ -291,7 +221,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Settings indexSettings = Settings.builder().build();
 
         IllegalStateException exception = expectThrows(IllegalStateException.class,
-                () -> runner.runPolicy(policyName, index, indexSettings, Cause.SCHEDULE_TRIGGER));
+                () -> runner.runPolicy(policyName, index, indexSettings));
         assertEquals("Step with key [" + stepKey + "] is not a recognised type: [" + step.getClass().getName() + "]",
                 exception.getMessage());
         Mockito.verifyZeroInteractions(clusterService);

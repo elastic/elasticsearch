@@ -23,7 +23,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
-import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleRunner.Cause;
 
 import java.io.Closeable;
 import java.time.Clock;
@@ -98,7 +97,7 @@ public class IndexLifecycleService extends AbstractComponent
                 scheduleJob(pollInterval);
             }
 
-            triggerPolicies(event.state(), Cause.CLUSTER_STATE_CHANGE);
+            triggerPolicies(event.state());
         } else {
             cancelJob();
         }
@@ -120,7 +119,7 @@ public class IndexLifecycleService extends AbstractComponent
     public void triggered(SchedulerEngine.Event event) {
         if (event.getJobName().equals(IndexLifecycle.NAME)) {
             logger.info("Job triggered: " + event.getJobName() + ", " + event.getScheduledTime() + ", " + event.getTriggeredTime());
-            triggerPolicies(clusterService.state(), Cause.SCHEDULE_TRIGGER);
+            triggerPolicies(clusterService.state());
         }
     }
 
@@ -143,14 +142,14 @@ public class IndexLifecycleService extends AbstractComponent
             }));
     }
     
-    public void triggerPolicies(ClusterState clusterState, Cause cause) {
+    public void triggerPolicies(ClusterState clusterState) {
         // loop through all indices in cluster state and filter for ones that are
         // managed by the Index Lifecycle Service they have a index.lifecycle.name setting
         // associated to a policy
         clusterState.metaData().indices().valuesIt().forEachRemaining((idxMeta) -> {
             String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
             if (Strings.isNullOrEmpty(policyName) == false) {
-                lifecycleRunner.runPolicy(policyName, idxMeta.getIndex(), idxMeta.getSettings(), cause);
+                lifecycleRunner.runPolicy(policyName, idxMeta.getIndex(), idxMeta.getSettings());
             }
         });
     }

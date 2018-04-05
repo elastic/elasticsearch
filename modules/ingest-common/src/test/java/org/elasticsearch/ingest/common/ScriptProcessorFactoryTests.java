@@ -84,7 +84,7 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
 
         XContentParseException exception = expectThrows(XContentParseException.class,
             () -> factory.create(null, randomAlphaOfLength(10), configMap));
-        assertThat(exception.getDetailedMessage(), containsString("[script] failed to parse field [source]"));
+        assertThat(exception.getMessage(), containsString("[script] failed to parse field [source]"));
     }
 
     public void testFactoryValidationAtLeastOneScriptingType() throws Exception {

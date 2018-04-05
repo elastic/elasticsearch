@@ -328,7 +328,7 @@ public class AzureStorageTestServer {
     }
 
     /**
-     * Retrieves the object name from all derives paths named {pathX} where 0 <= X < 10.
+     * Retrieves the object name from all derived paths named {pathX} where 0 <= X < 10.
      *
      * This is the counterpart of {@link #objectsPaths(String)}
      */

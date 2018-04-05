@@ -2,11 +2,12 @@
 [[certgen]]
 == certgen
 
-deprecated[6.1,Replaced by <<certutil,`certutil`>>. ]
+deprecated[6.1,Replaced by <<certutil,`certutil`>>.]
 
 The `certgen` command simplifies the creation of certificate authorities (CA),
 certificate signing requests (CSR), and signed certificates for use with the
-Elastic Stack.
+Elastic Stack. Though this command is deprecated, you do not need to replace CA,
+CSR, or certificates that it created.
 
 [float]
 === Synopsis

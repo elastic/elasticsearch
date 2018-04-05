@@ -16,7 +16,7 @@ import org.gradle.api.tasks.TaskState
 class VagrantTestPlugin implements Plugin<Project> {
 
     /** All available boxes **/
-    static List<String> BOXES = [
+    static List<String> LINUX_BOXES = [
             'centos-6',
             'centos-7',
             'debian-8',
@@ -31,11 +31,20 @@ class VagrantTestPlugin implements Plugin<Project> {
             'ubuntu-1604'
     ]
 
+    /** Windows boxes that are available - map of box names to image IDs **/
+    static Map<String, String> WINDOWS_BOXES = [:]
+
+    /** All available boxes **/
+    static List<String> BOXES
+
     /** Boxes used when sampling the tests **/
     static List<String> SAMPLE = [
             'centos-7',
             'ubuntu-1404',
     ]
+
+    /** extra env vars to pass to vagrant for box configuration **/
+    static Map<String, String> VAGRANT_ENV_VARS = [:]
 
     /** All distributions to bring into test VM, whether or not they are used **/
     static List<String> DISTRIBUTIONS = [
@@ -59,8 +68,10 @@ class VagrantTestPlugin implements Plugin<Project> {
     @Override
     void apply(Project project) {
 
+        collectAvailableBoxes(project)
+
         // Creates the Vagrant extension for the project
-        project.extensions.create('esvagrant', VagrantPropertiesExtension, listVagrantBoxes(project))
+        project.extensions.create('esvagrant', VagrantPropertiesExtension, listSelectedBoxes(project))
 
         // Add required repositories for packaging tests
         configurePackagingArchiveRepositories(project)
@@ -86,14 +97,41 @@ class VagrantTestPlugin implements Plugin<Project> {
         createVagrantBoxesTasks(project)
     }
 
-    private List<String> listVagrantBoxes(Project project) {
+    /**
+     * Enumerate all the boxes that we know about and could possibly choose to test
+     */
+    private static void collectAvailableBoxes(Project project) {
+        String windows_2012r2_box = System.getenv('VAGRANT_WINDOWS_2012R2_BOX')
+        if (windows_2012r2_box != null && windows_2012r2_box.isEmpty() == false) {
+            WINDOWS_BOXES['windows-2012r2'] = windows_2012r2_box
+            VAGRANT_ENV_VARS['VAGRANT_WINDOWS_2012R2_BOX'] = windows_2012r2_box
+        }
+
+        String windows_2016_box = System.getenv('VAGRANT_WINDOWS_2016_BOX')
+        if (windows_2016_box != null && windows_2016_box.isEmpty() == false) {
+            WINDOWS_BOXES['windows-2016'] = windows_2016_box
+            VAGRANT_ENV_VARS['VAGRANT_WINDOWS_2016_BOX'] = windows_2016_box
+        }
+
+        BOXES = LINUX_BOXES + WINDOWS_BOXES.keySet()
+    }
+
+    /**
+     * Enumerate all the boxes that we have chosen to test
+     */
+    private List<String> listSelectedBoxes(Project project) {
         String vagrantBoxes = project.getProperties().get('vagrant.boxes', 'sample')
-        if (vagrantBoxes == 'sample') {
-            return SAMPLE
-        } else if (vagrantBoxes == 'all') {
-            return BOXES
-        } else {
-            return vagrantBoxes.split(',')
+        switch (vagrantBoxes) {
+            case 'sample':
+                return SAMPLE
+            case 'linux-all':
+                return LINUX_BOXES
+            case 'windows-all':
+                return WINDOWS_BOXES.keySet().toList()
+            case 'all':
+                return BOXES
+            default:
+                return vagrantBoxes.split(',')
         }
     }
 
@@ -184,10 +222,18 @@ class VagrantTestPlugin implements Plugin<Project> {
             from project.configurations[PACKAGING_TEST_CONFIGURATION]
         }
 
-        Task createTestRunnerScript = project.tasks.create('createTestRunnerScript', FileContentsTask) {
+        Task createLinuxRunnerScript = project.tasks.create('createLinuxRunnerScript', FileContentsTask) {
             dependsOn copyPackagingTests
             file "${testsDir}/run-tests.sh"
             contents "java -cp \"\$PACKAGING_TESTS/*\" org.junit.runner.JUnitCore ${-> project.extensions.esvagrant.testClass}"
+        }
+        Task createWindowsRunnerScript = project.tasks.create('createWindowsRunnerScript', FileContentsTask) {
+            dependsOn copyPackagingTests
+            file "${testsDir}/run-tests.ps1"
+            contents """\
+                     java -cp "\$Env:PACKAGING_TESTS/*" org.junit.runner.JUnitCore ${-> project.extensions.esvagrant.testClass}
+                     exit \$LASTEXITCODE
+                     """
         }
 
         Task createVersionFile = project.tasks.create('createVersionFile', FileContentsTask) {
@@ -249,10 +295,18 @@ class VagrantTestPlugin implements Plugin<Project> {
         }
 
         Task vagrantSetUpTask = project.tasks.create('setupPackagingTest')
-        vagrantSetUpTask.dependsOn 'vagrantCheckVersion'
-        vagrantSetUpTask.dependsOn copyPackagingArchives, copyPackagingTests, createTestRunnerScript
-        vagrantSetUpTask.dependsOn createVersionFile, createUpgradeFromFile, createUpgradeIsOssFile
-        vagrantSetUpTask.dependsOn copyBatsTests, copyBatsUtils
+        vagrantSetUpTask.dependsOn(
+            'vagrantCheckVersion',
+            copyPackagingArchives,
+            copyPackagingTests,
+            createLinuxRunnerScript,
+            createWindowsRunnerScript,
+            createVersionFile,
+            createUpgradeFromFile,
+            createUpgradeIsOssFile,
+            copyBatsTests,
+            copyBatsUtils
+        )
     }
 
     private static void createPackagingTestTask(Project project) {
@@ -287,6 +341,20 @@ class VagrantTestPlugin implements Plugin<Project> {
         createPlatformTestTask(project)
     }
 
+    private static Map<String, String> vagrantEnvVars(Project project) {
+        /*
+         * We always use the main project.rootDir as Vagrant's current working directory (VAGRANT_CWD)
+         * so that boxes are not duplicated for every Gradle project that use this VagrantTestPlugin.
+         */
+        def vagrantEnvVars = [
+                'VAGRANT_CWD'        : "${project.rootDir.absolutePath}",
+                'VAGRANT_VAGRANTFILE': 'Vagrantfile',
+                'VAGRANT_PROJECT_DIR': "${project.projectDir.absolutePath}"
+        ]
+        vagrantEnvVars.putAll(VAGRANT_ENV_VARS)
+        return vagrantEnvVars
+    }
+
     private static void createVagrantBoxesTasks(Project project) {
         assert project.extensions.esvagrant.boxes != null
 
@@ -311,15 +379,7 @@ class VagrantTestPlugin implements Plugin<Project> {
         assert project.tasks.platformTest != null
         Task platformTest = project.tasks.platformTest
 
-        /*
-         * We always use the main project.rootDir as Vagrant's current working directory (VAGRANT_CWD)
-         * so that boxes are not duplicated for every Gradle project that use this VagrantTestPlugin.
-         */
-        def vagrantEnvVars = [
-                'VAGRANT_CWD'           : "${project.rootDir.absolutePath}",
-                'VAGRANT_VAGRANTFILE'   : 'Vagrantfile',
-                'VAGRANT_PROJECT_DIR'   : "${project.projectDir.absolutePath}"
-        ]
+        def vagrantEnvVars = vagrantEnvVars(project)
 
         // Each box gets it own set of tasks
         for (String box : BOXES) {
@@ -363,6 +423,7 @@ class VagrantTestPlugin implements Plugin<Project> {
             final Task destroy = project.tasks.create("vagrant${boxTask}#destroy", LoggedExec) {
                 commandLine "bash", "-c", "vagrant status ${box} | grep -q \"${box}\\s\\+not created\" || vagrant destroy ${box} --force"
                 workingDir project.rootProject.rootDir
+                environment vagrantEnvVars
             }
             destroy.onlyIf { vagrantDestroy }
             update.mustRunAfter(destroy)
@@ -386,42 +447,55 @@ class VagrantTestPlugin implements Plugin<Project> {
                 environment vagrantEnvVars
                 dependsOn up
                 finalizedBy halt
-                commandLine 'vagrant', 'ssh', box, '--command',
-                        "set -o pipefail && echo 'Hello from ${project.path}' | sed -ue 's/^/    ${box}: /'"
             }
             vagrantSmokeTest.dependsOn(smoke)
-
-            Task batsPackagingTest = project.tasks.create("vagrant${boxTask}#batsPackagingTest", BatsOverVagrantTask) {
-                remoteCommand BATS_TEST_COMMAND
-                boxName box
-                environmentVars vagrantEnvVars
-                dependsOn up, setupPackagingTest
-                finalizedBy halt
+            if (box in LINUX_BOXES) {
+                smoke.commandLine = ['vagrant', 'ssh', box, '--command',
+                    "set -o pipefail && echo 'Hello from ${project.path}' | sed -ue 's/^/    ${box}: /'"]
+            } else {
+                smoke.commandLine = ['vagrant', 'winrm', box, '--command',
+                    "Write-Host '    ${box}: Hello from ${project.path}'"]
             }
 
-            TaskExecutionAdapter batsPackagingReproListener = createReproListener(project, batsPackagingTest.path)
-            batsPackagingTest.doFirst {
-                project.gradle.addListener(batsPackagingReproListener)
-            }
-            batsPackagingTest.doLast {
-                project.gradle.removeListener(batsPackagingReproListener)
-            }
-            if (project.extensions.esvagrant.boxes.contains(box)) {
-                packagingTest.dependsOn(batsPackagingTest)
+            if (box in LINUX_BOXES) {
+                Task batsPackagingTest = project.tasks.create("vagrant${boxTask}#batsPackagingTest", BatsOverVagrantTask) {
+                    remoteCommand BATS_TEST_COMMAND
+                    boxName box
+                    environmentVars vagrantEnvVars
+                    dependsOn up, setupPackagingTest
+                    finalizedBy halt
+                }
+
+                TaskExecutionAdapter batsPackagingReproListener = createReproListener(project, batsPackagingTest.path)
+                batsPackagingTest.doFirst {
+                    project.gradle.addListener(batsPackagingReproListener)
+                }
+                batsPackagingTest.doLast {
+                    project.gradle.removeListener(batsPackagingReproListener)
+                }
+                if (project.extensions.esvagrant.boxes.contains(box)) {
+                    packagingTest.dependsOn(batsPackagingTest)
+                }
             }
 
             Task javaPackagingTest = project.tasks.create("vagrant${boxTask}#javaPackagingTest", VagrantCommandTask) {
-                command 'ssh'
                 boxName box
                 environmentVars vagrantEnvVars
                 dependsOn up, setupPackagingTest
                 finalizedBy halt
-                args '--command', "bash \"\$PACKAGING_TESTS/run-tests.sh\""
             }
 
             // todo remove this onlyIf after all packaging tests are consolidated
             javaPackagingTest.onlyIf {
                 project.extensions.esvagrant.testClass != null
+            }
+
+            if (box in LINUX_BOXES) {
+                javaPackagingTest.command = 'ssh'
+                javaPackagingTest.args = ['--command', 'bash "$PACKAGING_TESTS/run-tests.sh"']
+            } else {
+                javaPackagingTest.command = 'winrm'
+                javaPackagingTest.args = ['--command', 'powershell -File "$Env:PACKAGING_TESTS/run-tests.ps1"']
             }
 
             TaskExecutionAdapter javaPackagingReproListener = createReproListener(project, javaPackagingTest.path)
@@ -435,23 +509,29 @@ class VagrantTestPlugin implements Plugin<Project> {
                 packagingTest.dependsOn(javaPackagingTest)
             }
 
-            Task platform = project.tasks.create("vagrant${boxTask}#platformTest", VagrantCommandTask) {
-                command 'ssh'
-                boxName box
-                environmentVars vagrantEnvVars
-                dependsOn up
-                finalizedBy halt
-                args '--command', PLATFORM_TEST_COMMAND + " -Dtests.seed=${-> project.testSeed}"
-            }
-            TaskExecutionAdapter platformReproListener = createReproListener(project, platform.path)
-            platform.doFirst {
-                project.gradle.addListener(platformReproListener)
-            }
-            platform.doLast {
-                project.gradle.removeListener(platformReproListener)
-            }
-            if (project.extensions.esvagrant.boxes.contains(box)) {
-                platformTest.dependsOn(platform)
+            /*
+             * This test is unmaintained and was created to run on Linux. We won't allow it to run on Windows
+             * until it's been brought back into maintenance
+             */
+            if (box in LINUX_BOXES) {
+                Task platform = project.tasks.create("vagrant${boxTask}#platformTest", VagrantCommandTask) {
+                    command 'ssh'
+                    boxName box
+                    environmentVars vagrantEnvVars
+                    dependsOn up
+                    finalizedBy halt
+                    args '--command', PLATFORM_TEST_COMMAND + " -Dtests.seed=${-> project.testSeed}"
+                }
+                TaskExecutionAdapter platformReproListener = createReproListener(project, platform.path)
+                platform.doFirst {
+                    project.gradle.addListener(platformReproListener)
+                }
+                platform.doLast {
+                    project.gradle.removeListener(platformReproListener)
+                }
+                if (project.extensions.esvagrant.boxes.contains(box)) {
+                    platformTest.dependsOn(platform)
+                }
             }
         }
     }

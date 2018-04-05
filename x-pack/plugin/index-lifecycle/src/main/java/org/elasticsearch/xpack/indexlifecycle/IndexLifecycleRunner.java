@@ -33,44 +33,48 @@ public class IndexLifecycleRunner {
         this.clusterService = clusterService;
     }
 
-    public void runPolicy(String policy, Index index, Settings indexSettings) {
+    public void runPolicy(String policy, Index index, Settings indexSettings, boolean fromClusterStateChange) {
         Step currentStep = getCurrentStep(stepRegistry, policy, indexSettings);
         logger.warn("running policy with current-step[" + currentStep.getKey() + "]");
         if (currentStep instanceof ClusterStateActionStep || currentStep instanceof ClusterStateWaitStep) {
-             executeClusterStateSteps(index, policy, currentStep);
+            executeClusterStateSteps(index, policy, currentStep);
         } else if (currentStep instanceof AsyncWaitStep) {
-            ((AsyncWaitStep) currentStep).evaluateCondition(index, new AsyncWaitStep.Listener() {
-
-                @Override
-                public void onResponse(boolean conditionMet) {
-                    logger.error("cs-change-async-wait-callback. current-step:" + currentStep.getKey());
-                    if (conditionMet) {
-                        moveToStep(index, policy, currentStep.getKey(), currentStep.getNextStepKey());
+            if (fromClusterStateChange == false) {
+                ((AsyncWaitStep) currentStep).evaluateCondition(index, new AsyncWaitStep.Listener() {
+    
+                    @Override
+                    public void onResponse(boolean conditionMet) {
+                        logger.error("cs-change-async-wait-callback. current-step:" + currentStep.getKey());
+                        if (conditionMet) {
+                            moveToStep(index, policy, currentStep.getKey(), currentStep.getNextStepKey());
+                        }
                     }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    throw new RuntimeException(e); // NORELEASE implement error handling
-                }
-                
-            });
+    
+                    @Override
+                    public void onFailure(Exception e) {
+                        throw new RuntimeException(e); // NORELEASE implement error handling
+                    }
+                    
+                });
+            }
         } else if (currentStep instanceof AsyncActionStep) {
-            ((AsyncActionStep) currentStep).performAction(index, new AsyncActionStep.Listener() {
-
-                @Override
-                public void onResponse(boolean complete) {
-                    logger.error("cs-change-async-action-callback. current-step:" + currentStep.getKey());
-                    if (complete && ((AsyncActionStep) currentStep).indexSurvives()) {
-                        moveToStep(index, policy, currentStep.getKey(), currentStep.getNextStepKey());
+            if (fromClusterStateChange == false) {
+                ((AsyncActionStep) currentStep).performAction(index, new AsyncActionStep.Listener() {
+    
+                    @Override
+                    public void onResponse(boolean complete) {
+                        logger.error("cs-change-async-action-callback. current-step:" + currentStep.getKey());
+                        if (complete && ((AsyncActionStep) currentStep).indexSurvives()) {
+                            moveToStep(index, policy, currentStep.getKey(), currentStep.getNextStepKey());
+                        }
                     }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    throw new RuntimeException(e); // NORELEASE implement error handling
-                }
-            });
+    
+                    @Override
+                    public void onFailure(Exception e) {
+                        throw new RuntimeException(e); // NORELEASE implement error handling
+                    }
+                });
+            }
         } else {
             throw new IllegalStateException(
                     "Step with key [" + currentStep.getKey() + "] is not a recognised type: [" + currentStep.getClass().getName() + "]");
@@ -81,7 +85,7 @@ public class IndexLifecycleRunner {
         IndexMetaData indexMetaData = clusterState.getMetaData().index(index);
         Settings indexSettings = indexMetaData.getSettings();
         String policy = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings);
-        runPolicy(policy, index, indexSettings);
+        runPolicy(policy, index, indexSettings, false);
     }
 
     private void executeClusterStateSteps(Index index, String policy, Step step) {

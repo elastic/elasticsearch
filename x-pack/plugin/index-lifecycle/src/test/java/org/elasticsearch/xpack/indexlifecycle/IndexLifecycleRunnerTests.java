@@ -55,7 +55,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Index index = new Index("my_index", "my_index_id");
         Settings indexSettings = Settings.builder().build();
 
-        runner.runPolicy(policyName, index, indexSettings);
+        runner.runPolicy(policyName, index, indexSettings, randomBoolean());
 
         Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ILM"),
                 Mockito.argThat(new ExecuteStepsUpdateTaskMatcher(index, policyName, step)));
@@ -73,7 +73,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Index index = new Index("my_index", "my_index_id");
         Settings indexSettings = Settings.builder().build();
 
-        runner.runPolicy(policyName, index, indexSettings);
+        runner.runPolicy(policyName, index, indexSettings, randomBoolean());
 
         Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ILM"),
                 Mockito.argThat(new ExecuteStepsUpdateTaskMatcher(index, policyName, step)));
@@ -91,7 +91,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Index index = new Index("my_index", "my_index_id");
         Settings indexSettings = Settings.builder().build();
 
-        runner.runPolicy(policyName, index, indexSettings);
+        runner.runPolicy(policyName, index, indexSettings, false);
 
         assertEquals(1, step.getExecuteCount());
         Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ILM"),
@@ -111,7 +111,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Index index = new Index("my_index", "my_index_id");
         Settings indexSettings = Settings.builder().build();
 
-        runner.runPolicy(policyName, index, indexSettings);
+        runner.runPolicy(policyName, index, indexSettings, false);
 
         assertEquals(1, step.getExecuteCount());
         Mockito.verifyZeroInteractions(clusterService);
@@ -128,7 +128,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Index index = new Index("my_index", "my_index_id");
         Settings indexSettings = Settings.builder().build();
 
-        runner.runPolicy(policyName, index, indexSettings);
+        runner.runPolicy(policyName, index, indexSettings, false);
 
         assertEquals(1, step.getExecuteCount());
         Mockito.verifyZeroInteractions(clusterService);
@@ -147,10 +147,28 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Settings indexSettings = Settings.builder().build();
 
         RuntimeException exception = expectThrows(RuntimeException.class,
-                () -> runner.runPolicy(policyName, index, indexSettings));
+                () -> runner.runPolicy(policyName, index, indexSettings, false));
 
         assertSame(expectedException, exception.getCause());
         assertEquals(1, step.getExecuteCount());
+        Mockito.verifyZeroInteractions(clusterService);
+    }
+
+    public void testRunPolicyAsyncActionStepClusterStateChangeIgnored() {
+        String policyName = "async_action_policy";
+        StepKey stepKey = new StepKey("phase", "action", "async_action_step");
+        MockAsyncActionStep step = new MockAsyncActionStep(stepKey, null);
+        Exception expectedException = new RuntimeException();
+        step.setException(expectedException);
+        PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
+        ClusterService clusterService = Mockito.mock(ClusterService.class);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService);
+        Index index = new Index("my_index", "my_index_id");
+        Settings indexSettings = Settings.builder().build();
+
+        runner.runPolicy(policyName, index, indexSettings, true);
+
+        assertEquals(0, step.getExecuteCount());
         Mockito.verifyZeroInteractions(clusterService);
     }
 
@@ -165,7 +183,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Index index = new Index("my_index", "my_index_id");
         Settings indexSettings = Settings.builder().build();
 
-        runner.runPolicy(policyName, index, indexSettings);
+        runner.runPolicy(policyName, index, indexSettings, false);
 
         assertEquals(1, step.getExecuteCount());
         Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ILM"),
@@ -184,7 +202,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Index index = new Index("my_index", "my_index_id");
         Settings indexSettings = Settings.builder().build();
 
-        runner.runPolicy(policyName, index, indexSettings);
+        runner.runPolicy(policyName, index, indexSettings, false);
 
         assertEquals(1, step.getExecuteCount());
         Mockito.verifyZeroInteractions(clusterService);
@@ -203,10 +221,28 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Settings indexSettings = Settings.builder().build();
 
         RuntimeException exception = expectThrows(RuntimeException.class,
-                () -> runner.runPolicy(policyName, index, indexSettings));
+                () -> runner.runPolicy(policyName, index, indexSettings, false));
 
         assertSame(expectedException, exception.getCause());
         assertEquals(1, step.getExecuteCount());
+        Mockito.verifyZeroInteractions(clusterService);
+    }
+
+    public void testRunPolicyAsyncWaitStepClusterStateChangeIgnored() {
+        String policyName = "async_wait_policy";
+        StepKey stepKey = new StepKey("phase", "action", "async_wait_step");
+        MockAsyncWaitStep step = new MockAsyncWaitStep(stepKey, null);
+        Exception expectedException = new RuntimeException();
+        step.setException(expectedException);
+        PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
+        ClusterService clusterService = Mockito.mock(ClusterService.class);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService);
+        Index index = new Index("my_index", "my_index_id");
+        Settings indexSettings = Settings.builder().build();
+
+        runner.runPolicy(policyName, index, indexSettings, true);
+
+        assertEquals(0, step.getExecuteCount());
         Mockito.verifyZeroInteractions(clusterService);
     }
 
@@ -221,7 +257,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Settings indexSettings = Settings.builder().build();
 
         IllegalStateException exception = expectThrows(IllegalStateException.class,
-                () -> runner.runPolicy(policyName, index, indexSettings));
+                () -> runner.runPolicy(policyName, index, indexSettings, randomBoolean()));
         assertEquals("Step with key [" + stepKey + "] is not a recognised type: [" + step.getClass().getName() + "]",
                 exception.getMessage());
         Mockito.verifyZeroInteractions(clusterService);

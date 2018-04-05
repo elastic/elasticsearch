@@ -99,15 +99,12 @@ public class RollupRequestTranslationTests extends ESTestCase {
         assertThat(((SumAggregationBuilder)subAggs.get("test_histo._count")).field(),
                 equalTo("foo.date_histogram._count"));
 
-        assertThat(filterConditions.size(), equalTo(2));
+        assertThat(filterConditions.size(), equalTo(1));
         for (QueryBuilder q : filterConditions) {
             if (q instanceof TermQueryBuilder) {
                 switch (((TermQueryBuilder) q).fieldName()) {
                     case "foo.date_histogram.time_zone":
                         assertThat(((TermQueryBuilder) q).value(), equalTo("UTC"));
-                        break;
-                    case "_rollup.computed":
-                        assertThat(((TermQueryBuilder) q).value(), equalTo("foo.date_histogram"));
                         break;
                     default:
                         fail("Unexpected Term Query in filter conditions: [" + ((TermQueryBuilder) q).fieldName() + "]");
@@ -203,14 +200,12 @@ public class RollupRequestTranslationTests extends ESTestCase {
         assertThat(((SumAggregationBuilder)subAggs.get("test_histo._count")).field(),
                 equalTo("foo.date_histogram._count"));
 
-        assertThat(filterConditions.size(), equalTo(2));
+        assertThat(filterConditions.size(), equalTo(1));
 
         for (QueryBuilder q : filterConditions) {
             if (q instanceof TermQueryBuilder) {
                if (((TermQueryBuilder) q).fieldName().equals("foo.date_histogram.time_zone")) {
                     assertThat(((TermQueryBuilder) q).value(), equalTo("UTC"));
-                } else if (((TermQueryBuilder) q).fieldName().equals("_rollup.computed")) {
-                    assertThat(((TermQueryBuilder) q).value(), equalTo("foo.date_histogram"));
                 } else {
                     fail("Unexpected Term Query in filter conditions: [" + ((TermQueryBuilder) q).fieldName() + "]");
                 }
@@ -255,15 +250,13 @@ public class RollupRequestTranslationTests extends ESTestCase {
         assertThat(((SumAggregationBuilder)subAggs.get("test_histo._count")).field(),
                 equalTo("foo.date_histogram._count"));
 
-        assertThat(filterConditions.size(), equalTo(2));
+        assertThat(filterConditions.size(), equalTo(1));
 
         for (QueryBuilder q : filterConditions) {
             if (q instanceof TermQueryBuilder) {
                 if (((TermQueryBuilder) q).fieldName().equals("foo.date_histogram.time_zone")) {
                     assertThat(((TermQueryBuilder) q).value(), equalTo("UTC"));
-                } else if (((TermQueryBuilder) q).fieldName().equals("_rollup.computed")) {
-                    assertThat(((TermQueryBuilder) q).value(), equalTo("foo.date_histogram"));
-                } else {
+                }  else {
                     fail("Unexpected Term Query in filter conditions: [" + ((TermQueryBuilder) q).fieldName() + "]");
                 }
             } else {
@@ -326,11 +319,7 @@ public class RollupRequestTranslationTests extends ESTestCase {
         assertThat(((SumAggregationBuilder)subAggs.get("test_string_terms._count")).field(),
                 equalTo("foo.terms._count"));
 
-        assertThat(filterConditions.size(), equalTo(1));
-        assertThat(filterConditions.get(0), Matchers.instanceOf(TermQueryBuilder.class));
-        TermQueryBuilder computedFilter = (TermQueryBuilder)filterConditions.get(0);
-        assertThat(computedFilter.fieldName(), equalTo("_rollup.computed"));
-        assertThat(computedFilter.value(), equalTo("foo.terms"));
+        assertThat(filterConditions.size(), equalTo(0));
     }
 
     public void testBasicHisto() {
@@ -369,13 +358,10 @@ public class RollupRequestTranslationTests extends ESTestCase {
         assertThat(((SumAggregationBuilder)subAggs.get("test_histo._count")).field(),
                 equalTo("foo.histogram._count"));
 
-        assertThat(filterConditions.size(), equalTo(1));
+        assertThat(filterConditions.size(), equalTo(0));
         for (QueryBuilder q : filterConditions) {
             if (q instanceof TermQueryBuilder) {
                 switch (((TermQueryBuilder) q).fieldName()) {
-                    case "_rollup.computed":
-                        assertThat(((TermQueryBuilder) q).value(), equalTo("foo.histogram"));
-                        break;
                     default:
                         fail("Unexpected Term Query in filter conditions: [" + ((TermQueryBuilder) q).fieldName() + "]");
                         break;

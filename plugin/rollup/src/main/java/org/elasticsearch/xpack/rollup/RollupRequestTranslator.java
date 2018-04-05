@@ -36,10 +36,6 @@ import java.util.function.Supplier;
  * Documents are expected to follow a convention that looks like:
  * <pre>{@code
  * {
- *   "_rollup.computed": [
- *       "ts.date_histogram", foo.max", "title.terms"
- *     ]
- *   },
  *   "_rollup.version": 1,
  *   "ts.date_histogram.timestamp": 1494796800000,
  *   "ts.date_histogram._count": 1000000000,
@@ -90,9 +86,7 @@ public class RollupRequestTranslator {
      *         "bool" : {
      *           "must" : [
      *             { "term" : { "_rollup.version" : 1   } },
-     *             { "term": {  "_rollup.computed" : "ts.date_histogram"  } },
      *             { "term": {  "ts.date_histogram.interval" : "1d"  } }
-     *             { "term": {  "_rollup.computed" : "foo.max"  } }
      *           ]
      *         }
      *       },
@@ -198,14 +192,6 @@ public class RollupRequestTranslator {
      *         <ul>
      *             <li>Named: `{parent histogram name}._count`</li>
      *             <li>Field: `{timestamp field}.date_histogram._count`</li>
-     *         </ul>
-     *     </li>
-     *     <li>Add a filter condition:</li>
-     *     <li>
-     *         <ul>
-     *             <li>Query type: TermQuery</li>
-     *             <li>Field: `_rollup.computed`</li>
-     *             <li>Value: `{timestamp field}.date_histogram`</li>
      *         </ul>
      *     </li>
      *     <li>Add a filter condition:</li>
@@ -331,14 +317,6 @@ public class RollupRequestTranslator {
      *             <li>Field: `{field name}.terms._count`</li>
      *         </ul>
      *     </li>
-     *     <li>Add a filter condition:</li>
-     *     <li>
-     *         <ul>
-     *             <li>Query type: TermQuery</li>
-     *             <li>Field: `_rollup.computed`</li>
-     *             <li>Value: `{timestamp field}.terms`</li>
-     *         </ul>
-     *     </li>
      * </ul>
      *
      */
@@ -390,11 +368,6 @@ public class RollupRequestTranslator {
                           NamedWriteableRegistry registry, Supplier<T> factory) {
 
         T rolled = factory.get();
-
-        // add the filter condition for this agg, e.g.
-        // "term": { "_rollup.computed": "foo.histogram" }
-        filterConditions.add(new TermQueryBuilder(RollupField.formatMetaField(Rollup.COMPUTED_ROLLUPS_FIELD),
-                RollupField.formatComputed(source.field(), source.getType())));
 
         // Translate all subaggs and add to the newly translated agg
         // NOTE: using for loop instead of stream because compiler explodes with a bug :/
@@ -462,14 +435,6 @@ public class RollupRequestTranslator {
      *     <li>Agg type: same as source agg</li>
      *     <li>Named: same as the source agg</li>
      *     <li>Field: `{agg_type}.{field_name}.value`</li>
-     *     <li>Add a filter condition:</li>
-     *     <li>
-     *         <ul>
-     *             <li>Query type: TermQuery</li>
-     *             <li>Field: `_rollup.computed`</li>
-     *             <li>Value: `{field_name}.{agg_type}`</li>
-     *         </ul>
-     *     </li>
      * </ul>
      *
      * IF the agg is an AvgAgg, the following additional conventions are added:

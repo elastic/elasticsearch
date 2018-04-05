@@ -188,14 +188,6 @@ public class IndexerUtilsTests extends AggregatorTestCase {
             Map<String, Object> map = doc.sourceAsMap();
             assertNotNull( map.get(valueField + "." + MaxAggregationBuilder.NAME + "." + RollupField.VALUE));
             assertThat(map.get("the_histo." + DateHistogramAggregationBuilder.NAME + "." + RollupField.COUNT_FIELD), equalTo(1));
-            Object computed = map.get(RollupField.ROLLUP_META + "." + Rollup.COMPUTED_ROLLUPS_FIELD);
-
-            assertTrue(computed instanceof List);
-
-            @SuppressWarnings("unchecked")
-            List<String> computedList = (ArrayList<String>)computed;
-            assertTrue(computedList.contains("the_histo.date_histogram"));
-            assertTrue(computedList.contains("the_avg.max"));
         }
     }
 
@@ -252,14 +244,6 @@ public class IndexerUtilsTests extends AggregatorTestCase {
             Map<String, Object> map = doc.sourceAsMap();
             assertNotNull( map.get(valueField + "." + MaxAggregationBuilder.NAME + "." + RollupField.VALUE));
             assertThat(map.get("the_terms." + TermsAggregationBuilder.NAME + "." + RollupField.COUNT_FIELD), equalTo(1));
-            Object computed = map.get(RollupField.ROLLUP_META + "." + Rollup.COMPUTED_ROLLUPS_FIELD);
-
-            assertTrue(computed instanceof List);
-
-            @SuppressWarnings("unchecked")
-            List<String> computedList = (ArrayList<String>)computed;
-            assertTrue(computedList.contains("the_terms.terms"));
-            assertTrue(computedList.contains("the_avg.max"));
         }
     }
 
@@ -327,14 +311,6 @@ public class IndexerUtilsTests extends AggregatorTestCase {
             assertNull(map.get("another_field." + AvgAggregationBuilder.NAME + "." + RollupField.VALUE));
             assertNotNull(map.get("another_field." + SumAggregationBuilder.NAME + "." + RollupField.VALUE));
             assertThat(map.get("the_histo." + DateHistogramAggregationBuilder.NAME + "." + RollupField.COUNT_FIELD), equalTo(1));
-            Object computed = map.get(RollupField.ROLLUP_META + "." + Rollup.COMPUTED_ROLLUPS_FIELD);
-
-            assertTrue(computed instanceof List);
-
-            @SuppressWarnings("unchecked")
-            List<String> computedList = (ArrayList<String>)computed;
-            assertTrue(computedList.contains("the_histo.date_histogram"));
-            assertTrue(computedList.contains("another_field.sum"));
         }
     }
 

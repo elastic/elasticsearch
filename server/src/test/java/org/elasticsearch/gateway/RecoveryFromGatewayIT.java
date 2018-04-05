@@ -60,6 +60,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.IntStream;
 
@@ -573,8 +574,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
     }
 
     @TestLogging("org.elasticsearch.env.NodeEnvironment:TRACE,org.elasticsearch.gateway.TransportNodesListGatewayStartedShards:TRACE,org.elasticsearch.gateway.MetaDataStateFormat:TRACE,org.elasticsearch.index.shard.IndexShard:TRACE")
-    public void testLoadLatestStateOnClosingShard() throws Exception {
-
+    public void testLoadLatestStateWhileClosingShardDoesNotResurrectMetadataDirectory() throws Exception {
         final String nodeName = internalCluster().startNode();
         DiscoveryNode node = internalCluster().getInstance(ClusterService.class, nodeName).localNode();
 
@@ -582,64 +582,20 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             .put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
         final ShardId shardId = new ShardId(resolveIndex("test"), 0);
 
-        try (AutoCloseable ignored = new ConcurrentShardLister(shardId, node, 4).start()) {
-            boolean indexExists;
-            do {
-                logger.info("--> deleting index");
-                assertAcked(client().admin().indices().prepareDelete("test"));
-                logger.info("--> checking whether index still exists");
-                GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().setIndices("_all").get();
-                indexExists = getIndexResponse.getSettings().containsKey("test");
-                if (indexExists) {
-                    logger.info("--> index still exists, retrying");
-                }
-            } while (indexExists);
-            logger.info("--> index no longer exists, exiting");
-        }
-        logger.info("--> test done");
-    }
-
-    private class ConcurrentShardLister {
-        private final ShardId shardId;
-        private final DiscoveryNode node;
-        private volatile boolean shouldExit = false;
-        private Exception listerException;
-        private final int concurrentListingThreadCount;
-
-        ConcurrentShardLister(ShardId shardId, DiscoveryNode node, int concurrentListingThreadCount) {
-            this.shardId = shardId;
-            this.node = node;
-            this.concurrentListingThreadCount = concurrentListingThreadCount;
-        }
-
-        public AutoCloseable start() {
-            final Thread[] listingThreads = new Thread[concurrentListingThreadCount];
-            for (int i = 0; i < concurrentListingThreadCount; i++) {
-                listingThreads[i] = new Thread(() -> {
-                    for (int iterations = 0; iterations < 100 && shouldExit == false; iterations++) {
-                        try {
-                            internalCluster().getInstance(TransportNodesListGatewayStartedShards.class)
-                                .execute(new TransportNodesListGatewayStartedShards.Request(shardId, new DiscoveryNode[]{node}))
-                                .get();
-                        } catch (InterruptedException | ExecutionException exception) {
-                            shouldExit = true;
-                            listerException = exception;
-                        }
-                    }
-                });
-                listingThreads[i].setName("ConcurrentShardLister[" + i + "]");
-                listingThreads[i].start();
+        Thread listingThread = new Thread(() -> {
+            try {
+                internalCluster().getInstance(TransportNodesListGatewayStartedShards.class)
+                    .execute(new TransportNodesListGatewayStartedShards.Request(shardId, new DiscoveryNode[]{node}))
+                    .get();
+            } catch (InterruptedException | ExecutionException exception) {
+                // don't care if this fails
             }
+        });
+        listingThread.start();
+        assertAcked(client().admin().indices().prepareDelete("test"));
+        // Asserts that the shard is really deleted - at one time, the concurrent TransportNodesListGatewayStartedShards request
+        // might have prevented this.
 
-            return () -> {
-                shouldExit = true;
-                for (int i = 0; i < concurrentListingThreadCount; i++) {
-                    listingThreads[i].join();
-                }
-                if (listerException != null) {
-                    throw listerException;
-                }
-            };
-        }
+        listingThread.join();
     }
 }

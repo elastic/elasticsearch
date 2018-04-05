@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.snapshots.SnapshotCreationException;
 import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.IOException;
@@ -142,9 +143,13 @@ public class AzureRepository extends BlobStoreRepository {
 
     @Override
     public void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, MetaData clusterMetadata) {
-        if (blobStore.doesContainerExist() == false) {
-            throw new IllegalArgumentException("The bucket [" + blobStore + "] does not exist. Please create it before " +
-                " creating an azure snapshot repository backed by it.");
+        try {
+            if (blobStore.doesContainerExist() == false) {
+                throw new IllegalArgumentException("The bucket [" + blobStore + "] does not exist. Please create it before "
+                        + " creating an azure snapshot repository backed by it.");
+            }
+        } catch (URISyntaxException | StorageException e) {
+            throw new SnapshotCreationException(metadata.name(), snapshotId, e);
         }
         super.initializeSnapshot(snapshotId, indices, clusterMetadata);
     }

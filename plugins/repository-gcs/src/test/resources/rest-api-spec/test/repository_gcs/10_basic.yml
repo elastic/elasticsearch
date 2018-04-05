@@ -13,9 +13,6 @@
     - match:  { nodes.$master.plugins.0.name: repository-gcs  }
 ---
 "Snapshot/Restore with repository-gcs":
-  - skip:
-      version: " - 6.3.0"
-      reason: repository-gcs was not testable through YAML tests until 6.3.0
 
   # Register repository
   - do:
@@ -28,7 +25,15 @@
             client: "integration_test"
 
   - match: { acknowledged: true }
-  
+
+  # Get repository
+  - do:
+      snapshot.get_repository:
+        repository: repository
+
+  - match: {repository.settings.bucket : "bucket_test"}
+  - match: {repository.settings.client : "integration_test"}
+
   # Index documents
   - do:
       bulk:
@@ -180,7 +185,3 @@
   - do:
      snapshot.delete_repository:
        repository: repository
-
-
-      
-      

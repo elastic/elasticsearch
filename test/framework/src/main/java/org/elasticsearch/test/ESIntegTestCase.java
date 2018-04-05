@@ -143,7 +143,6 @@ import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.AssertingTransportInterceptor;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -1920,9 +1919,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
             if (randomBoolean()) {
                 mocks.add(MockSearchService.TestPlugin.class);
-            }
-            if (randomBoolean()) {
-                mocks.add(AssertingTransportInterceptor.TestPlugin.class);
             }
             if (randomBoolean()) {
                 mocks.add(MockFieldFilterPlugin.class);

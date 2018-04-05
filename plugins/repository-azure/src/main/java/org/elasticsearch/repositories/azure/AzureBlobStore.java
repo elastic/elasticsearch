@@ -95,14 +95,8 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
     public void close() {
     }
 
-    public boolean doesContainerExist() {
-        logger.trace("containerExists({})", container);
-        try {
-            return service.doesContainerExist(clientName, container);
-        } catch (URISyntaxException | StorageException e) {
-            logger.warn("cannot access container {{}}: {}", container, e.getMessage());
-        }
-        return false;
+    public boolean doesContainerExist() throws URISyntaxException, StorageException {
+        return service.doesContainerExist(clientName, container);
     }
 
     public boolean blobExists(String blob) throws URISyntaxException, StorageException {

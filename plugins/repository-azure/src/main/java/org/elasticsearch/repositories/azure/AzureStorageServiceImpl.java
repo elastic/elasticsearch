@@ -61,10 +61,6 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
         super(settings);
         // eagerly load client settings so that secure settings are read
         final Map<String, AzureStorageSettings> clientsSettings = AzureStorageSettings.load(settings);
-        if (clientsSettings.isEmpty()) {
-            throw new IllegalArgumentException("If you want to use an azure repository, you need to define a client configuration.");
-        }
-        assert clientsSettings.containsKey("default") : "always have 'default'";
         updateClientsSettings(clientsSettings);
     }
 
@@ -72,10 +68,8 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
     public Tuple<CloudBlobClient, Supplier<OperationContext>> client(String clientName) {
         final AzureStorageSettings azureStorageSettings = this.storageSettings.get(clientName);
         if (azureStorageSettings == null) {
-            throw new IllegalArgumentException("Cannot find an azure client by the name [" + clientName + "]. Check your settings.");
+            throw new SettingsException("Cannot find an azure client by the name [" + clientName + "]. Check your settings.");
         }
-        logger.trace(() -> new ParameterizedMessage("creating new Azure storage client using account [{}], endpoint suffix [{}]",
-                azureStorageSettings.getAccount(), azureStorageSettings.getEndpointSuffix()));
         try {
             return new Tuple<>(buildClient(azureStorageSettings), () -> buildOperationContext(azureStorageSettings));
         } catch (InvalidKeyException | URISyntaxException | IllegalArgumentException e) {
@@ -102,7 +96,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
     }
 
     protected CloudBlobClient createClient(AzureStorageSettings azureStorageSettings) throws InvalidKeyException, URISyntaxException {
-        final String connectionString = azureStorageSettings.getConnectionString();
+        final String connectionString = azureStorageSettings.buildConnectionString();
         return CloudStorageAccount.parse(connectionString).createCloudBlobClient();
     }
 

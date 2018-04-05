@@ -153,7 +153,7 @@ final class AzureStorageSettings {
         return proxy;
     }
 
-    public String getConnectionString() {
+    public String buildConnectionString() {
         final StringBuilder connectionStringBuilder = new StringBuilder();
         connectionStringBuilder.append("DefaultEndpointsProtocol=https")
                 .append(";AccountName=")
@@ -195,12 +195,16 @@ final class AzureStorageSettings {
         for (final String clientName : ACCOUNT_SETTING.getNamespaces(settings)) {
             storageSettings.put(clientName, getClientSettings(settings, clientName));
         }
-        if ((storageSettings.containsKey("default") == false) && (storageSettings.isEmpty() == false)) {
+        if (storageSettings.isEmpty()) {
+            throw new SettingsException("If you want to use an azure repository, you need to define a client configuration.");
+        }
+        if (storageSettings.containsKey("default") == false) {
             // in case no setting named "default" has been set, let's define our "default"
             // as the first named config we get
             final AzureStorageSettings defaultSettings = storageSettings.values().iterator().next();
             storageSettings.put("default", defaultSettings);
         }
+        assert storageSettings.containsKey("default") : "always have 'default'";
         return Collections.unmodifiableMap(storageSettings);
     }
 

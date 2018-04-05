@@ -122,7 +122,7 @@ public class AzureStorageServiceTests extends ESTestCase {
             final CloudBlobClient client12 = azureStorageService.client("azure2").v1();
             assertThat(client12.getEndpoint().toString(), equalTo("https://myaccount12.blob.core.windows.net"));
             // client 3 is missing
-            final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, () -> azureStorageService.client("azure3"));
+            final SettingsException e1 = expectThrows(SettingsException.class, () -> azureStorageService.client("azure3"));
             assertThat(e1.getMessage(), is("Cannot find an azure client by the name [azure3]. Check your settings."));
             // update client settings
             plugin.reinit(settings2);
@@ -134,7 +134,7 @@ public class AzureStorageServiceTests extends ESTestCase {
             // old client 2 not changed
             assertThat(client12.getEndpoint().toString(), equalTo("https://myaccount12.blob.core.windows.net"));
             // new client2 is gone
-            final IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, () -> azureStorageService.client("azure2"));
+            final SettingsException e2 = expectThrows(SettingsException.class, () -> azureStorageService.client("azure2"));
             assertThat(e2.getMessage(), is("Cannot find an azure client by the name [azure2]. Check your settings."));
             // client 3 emerged
             final CloudBlobClient client23 = azureStorageService.client("azure3").v1();
@@ -152,7 +152,7 @@ public class AzureStorageServiceTests extends ESTestCase {
             final CloudBlobClient client11 = azureStorageService.client("azure1").v1();
             assertThat(client11.getEndpoint().toString(), equalTo("https://myaccount1.blob.core.windows.net"));
             // reinit with empty settings
-            final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> plugin.reinit(Settings.EMPTY));
+            final SettingsException e = expectThrows(SettingsException.class, () -> plugin.reinit(Settings.EMPTY));
             assertThat(e.getMessage(), is("If you want to use an azure repository, you need to define a client configuration."));
             // existing client untouched
             assertThat(client11.getEndpoint().toString(), equalTo("https://myaccount1.blob.core.windows.net"));
@@ -175,30 +175,22 @@ public class AzureStorageServiceTests extends ESTestCase {
             final AzureStorageServiceImpl azureStorageService = (AzureStorageServiceImpl) plugin.azureStoreService;
             final CloudBlobClient client11 = azureStorageService.client("azure1").v1();
             assertThat(client11.getEndpoint().toString(), equalTo("https://myaccount1.blob.core.windows.net"));
-            // reinit with empty settings
             plugin.reinit(settings2);
             // existing client untouched
             assertThat(client11.getEndpoint().toString(), equalTo("https://myaccount1.blob.core.windows.net"));
-            // new client also untouched
             final SettingsException e = expectThrows(SettingsException.class, () -> azureStorageService.client("azure1"));
             assertThat(e.getMessage(), is("Invalid azure client [azure1] settings."));
         }
     }
 
     public void testGetSelectedClientWithNoPrimaryAndSecondary() {
-        try {
-            new AzureStorageServiceMockForSettings(Settings.EMPTY);
-            fail("we should have raised an IllegalArgumentException");
-        } catch (final IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("If you want to use an azure repository, you need to define a client configuration."));
-        }
+        final SettingsException e = expectThrows(SettingsException.class, () -> new AzureStorageServiceMockForSettings(Settings.EMPTY));
+        assertThat(e.getMessage(), is("If you want to use an azure repository, you need to define a client configuration."));
     }
 
     public void testGetSelectedClientNonExisting() {
         final AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMockForSettings(buildSettings());
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            azureStorageService.client("azure4");
-        });
+        final SettingsException e = expectThrows(SettingsException.class, () -> azureStorageService.client("azure4"));
         assertThat(e.getMessage(), is("Cannot find an azure client by the name [azure4]. Check your settings."));
     }
 

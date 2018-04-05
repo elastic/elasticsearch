@@ -572,6 +572,8 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         internalCluster().startNode();
     }
 
+    @TestLogging("org.elasticsearch.env.NodeEnvironment:TRACE,org.elasticsearch.gateway.TransportNodesListGatewayStartedShards:TRACE," +
+        "org.elasticsearch.gateway.MetaDataStateFormat:TRACE,org.elasticsearch.index.shard.IndexShard:TRACE")
     public void testLoadLatestStateWhileClosingShardDoesNotResurrectMetadataDirectory() throws Exception {
 
         // This test pertains to a race condition in which deleting a shard concurrently with a TransportNodesListGatewayStartedShards

@@ -7,7 +7,11 @@ package org.elasticsearch.xpack.core.security.support;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.Arrays;
+import java.util.List;
 
 import static org.apache.lucene.util.automaton.Operations.DEFAULT_MAX_DETERMINIZED_STATES;
 import static org.elasticsearch.xpack.core.security.support.Automatons.pattern;
@@ -59,6 +63,36 @@ public class AutomatonsTests extends ESTestCase {
         assertThat(predicate("a.*z").toString(), equalTo("a.*z"));
         assertThat(predicate("a.*z", "A.*Z").toString(), equalTo("a.*z|A.*Z"));
         assertThat(predicate("a.*z", "A.*Z", "Α.*Ω").toString(), equalTo("a.*z|A.*Z|Α.*Ω"));
+    }
+
+    public void testPatternComplexity() {
+        List<String> patterns = Arrays.asList("*", "filebeat*de-tst-chatclassification*",
+                "metricbeat*de-tst-chatclassification*",
+                "packetbeat*de-tst-chatclassification*",
+                "heartbeat*de-tst-chatclassification*",
+                "filebeat*documentationdev*",
+                "metricbeat*documentationdev*",
+                "packetbeat*documentationdev*",
+                "heartbeat*documentationdev*",
+                "filebeat*devsupport-website*",
+                "metricbeat*devsupport-website*",
+                "packetbeat*devsupport-website*",
+                "heartbeat*devsupport-website*",
+                ".kibana-tcloud",
+                ".reporting-tcloud",
+                "filebeat-app-ingress-*",
+                "filebeat-app-tcloud-*",
+                "filebeat*documentationprod*",
+                "metricbeat*documentationprod*",
+                "packetbeat*documentationprod*",
+                "heartbeat*documentationprod*",
+                "filebeat*bender-minio-test-1*",
+                "metricbeat*bender-minio-test-1*",
+                "packetbeat*bender-minio-test-1*",
+                "heartbeat*bender-minio-test-1*");
+        final Automaton automaton = Automatons.patterns(patterns);
+        assertTrue(Operations.isTotal(automaton));
+        assertTrue(automaton.isDeterministic());
     }
 
     private void assertMatch(Automaton automaton, String text) {

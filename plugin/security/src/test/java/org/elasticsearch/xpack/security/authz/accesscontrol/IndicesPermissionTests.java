@@ -12,6 +12,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -29,7 +30,9 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -253,19 +256,15 @@ public class IndicesPermissionTests extends ESTestCase {
     }
 
     public void testErrorMessageIfIndexPatternIsTooComplex() {
-        final IndicesPermission.Group[] groups = new IndicesPermission.Group[26];
-        for (int i = 0; i < 26; i++) {
-            final char ch = (char) ('a' + i);
-            String index = Character.toString(ch);
-            for (int j = 0; j < 250; j++) {
-                index += "*" + ch;
-            }
-            groups[i] = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, index);
+        List<String> indices = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            String prefix = randomAlphaOfLengthBetween(4, 12);
+            String suffixBegin = randomAlphaOfLengthBetween(12, 36);
+            indices.add("*" + prefix + "*" + suffixBegin + "*");
         }
-        final IndicesPermission permission = new IndicesPermission(groups);
         final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-                () -> permission.allowedIndicesMatcher(GetAction.NAME));
-        assertThat(e.getMessage(), containsString("a*a*a*a*a"));
+                () -> new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, indices.toArray(Strings.EMPTY_ARRAY)));
+        assertThat(e.getMessage(), containsString(indices.get(0)));
         assertThat(e.getMessage(), containsString("too complex to evaluate"));
     }
 

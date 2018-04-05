@@ -51,13 +51,11 @@ public final class Automatons {
         }
         Automaton automaton = null;
         for (String pattern : patterns) {
-            if (automaton == null) {
-                automaton = pattern(pattern);
-            } else {
-                automaton = union(automaton, pattern(pattern));
-            }
+            final Automaton patternAutomaton = minimize(pattern(pattern), DEFAULT_MAX_DETERMINIZED_STATES);
+            automaton = automaton == null ? patternAutomaton : unionAndMinimize(Arrays.asList(automaton, patternAutomaton));
         }
-        return minimize(automaton, DEFAULT_MAX_DETERMINIZED_STATES); // minimal is also deterministic
+        // the automaton is always minimized and deterministic
+        return automaton;
     }
 
     /**
@@ -72,8 +70,11 @@ public final class Automatons {
             }
             String regex = pattern.substring(1, pattern.length() - 1);
             return new RegExp(regex).toAutomaton();
+        } else if (pattern.equals("*")) {
+            return MATCH_ALL;
+        } else {
+            return wildcard(pattern);
         }
-        return wildcard(pattern);
     }
 
     /**

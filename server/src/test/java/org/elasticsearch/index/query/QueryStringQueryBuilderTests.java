@@ -1040,6 +1040,37 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertEquals(expectedQuery, query);
     }
 
+    public void testQuoteFieldSuffix() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        QueryShardContext context = createShardContext();
+        assertEquals(new TermQuery(new Term(STRING_FIELD_NAME, "bar")),
+            new QueryStringQueryBuilder("bar")
+                .quoteFieldSuffix("_2")
+                .field(STRING_FIELD_NAME)
+                .doToQuery(context)
+        );
+        assertEquals(new TermQuery(new Term(STRING_FIELD_NAME_2, "bar")),
+            new QueryStringQueryBuilder("\"bar\"")
+                .quoteFieldSuffix("_2")
+                .field(STRING_FIELD_NAME)
+                .doToQuery(context)
+        );
+
+        // Now check what happens if the quote field does not exist
+        assertEquals(new TermQuery(new Term(STRING_FIELD_NAME, "bar")),
+            new QueryStringQueryBuilder("bar")
+                .quoteFieldSuffix(".quote")
+                .field(STRING_FIELD_NAME)
+                .doToQuery(context)
+        );
+        assertEquals(new TermQuery(new Term(STRING_FIELD_NAME, "bar")),
+            new QueryStringQueryBuilder("\"bar\"")
+                .quoteFieldSuffix(".quote")
+                .field(STRING_FIELD_NAME)
+                .doToQuery(context)
+        );
+    }
+
     public void testToFuzzyQuery() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
 

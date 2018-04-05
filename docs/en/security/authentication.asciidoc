@@ -45,23 +45,16 @@ be disabled individually, using the
 [[bootstrap-elastic-passwords]]
 ==== The Elastic Bootstrap Password
 
-When you install {xpack}, if the `elastic` user does not already have a password,
+When you install {es}, if the `elastic` user does not already have a password,
 it uses a default bootstrap password. The bootstrap password is a transient
 password that enables you to run the tools that set all the built-in user passwords.
 
 By default, the bootstrap password is derived from a randomized `keystore.seed`
-setting, which is added to the keystore when you install {xpack}. You do not need
+setting, which is added to the keystore during installation. You do not need
 to know or change this bootstrap password. If you have defined a
 `bootstrap.password` setting in the keystore, however, that value is used instead.
 For more information about interacting with the keystore, see
 {ref}/secure-settings.html[Secure Settings].
-////
-//TBD: Is the following still true?
-As the `elastic` user is stored in the native realm, the password will be
-synced to all the nodes in a cluster. It is safe to bootstrap the password with
-multiple nodes as long as the password is the same. If different passwords are
-set with different nodes, it is unpredictable which password will be bootstrapped.
-////
 
 NOTE: After you <<set-built-in-user-passwords,set passwords for the built-in users>>,
 in particular for the `elastic` user, there is no further use for the bootstrap

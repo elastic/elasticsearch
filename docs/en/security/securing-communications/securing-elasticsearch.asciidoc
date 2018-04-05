@@ -11,7 +11,8 @@ including passwords and will not be able to install a license that enables {secu
 To enable encryption, you need to perform the following steps on each node in
 the cluster:
 
-. <<installing-xpack-es,Install {xpack} into {es}>>.
+. Verify that the `xpack.security.enabled` setting is `true`. For more
+information, see <<security-settings>>. 
 
 . <<node-certificates, Generate a private key and X.509 certificate>>.
 

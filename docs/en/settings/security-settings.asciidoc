@@ -5,6 +5,9 @@
 <titleabbrev>Security Settings</titleabbrev>
 ++++
 
+By default, {security} is disabled when you have a basic or trial license. To
+enable {security}, use the `xpack.security.enabled` setting.
+
 You configure `xpack.security` settings  to
 <<anonymous-access-settings, enable anonymous access>>
 and perform message authentication,
@@ -22,13 +25,12 @@ For more information about creating and updating the {es} keystore, see
 [[general-security-settings]]
 ==== General Security Settings
 `xpack.security.enabled`::
-Set to `true` (default) to enable {security} on the node. +
+Set to `true` to enable {security} on the node. +
 +
-If set to `false` in `elasticsearch.yml`, {security} is disabled. It also
-affects all {kib} instances that connect to this {es} instance; you do not
-need to disable {security} in those `kibana.yml` files. For more information
-about disabling {security} in specific {kib} instances, see
-{kibana-ref}/security-settings-kb.html[{kib} Security Settings].
+If set to `false`, which is the default value for basic and trial licenses,
+{security} is disabled. It also affects all {kib} instances that connect to this
+{es} instance; you do not need to disable {security} in those `kibana.yml` files.
+For more information about disabling {security} in specific {kib} instances, see  {kibana-ref}/security-settings-kb.html[{kib} Security Settings].
 
 `xpack.security.hide_settings`::
 A comma-separated list of settings that are omitted from the results of the

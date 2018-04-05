@@ -572,14 +572,17 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         internalCluster().startNode();
     }
 
-    @TestLogging("org.elasticsearch.env.NodeEnvironment:TRACE,org.elasticsearch.gateway.TransportNodesListGatewayStartedShards:TRACE," +
-        "org.elasticsearch.gateway.MetaDataStateFormat:TRACE,org.elasticsearch.index.shard.IndexShard:TRACE")
     public void testLoadLatestStateWhileClosingShardDoesNotResurrectMetadataDirectory() throws Exception {
 
         // This test pertains to a race condition in which deleting a shard concurrently with a TransportNodesListGatewayStartedShards
         // request could resurrect the shard's metadata folder after it was deleted. Here we try and recreate the race, but it is quite
         // delicate so this test does not always fail. Experimentation showed that setting the thread counts as below would yield a failure
         // after a reasonable number of iterations: running repeatedly with -Dtests.iters=1000 saw 6 failures out of 10 runs.
+        //
+        // NB this experiment was run with
+        // @TestLogging("org.elasticsearch.env.NodeEnvironment:TRACE,org.elasticsearch.gateway.MetaDataStateFormat:TRACE," +
+        //     "org.elasticsearch.gateway.TransportNodesListGatewayStartedShards:TRACE,org.elasticsearch.index.shard.IndexShard:TRACE")
+        // but with less verbose logging the failures seem rarer.
 
         final String nodeName = internalCluster().startNode();
         DiscoveryNode node = internalCluster().getInstance(ClusterService.class, nodeName).localNode();

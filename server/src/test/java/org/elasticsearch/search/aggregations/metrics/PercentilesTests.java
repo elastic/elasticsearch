@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -90,6 +91,6 @@ public class PercentilesTests extends BaseAggregationTestCase<PercentilesAggrega
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
         XContentParseException e = expectThrows(XContentParseException.class,
                 () -> PercentilesAggregationBuilder.parse("myPercentiles", parser));
-        assertThat(e.getDetailedMessage(), containsString("[percentiles] failed to parse field [hdr]"));
+        assertThat(ExceptionsHelper.detailedMessage(e), containsString("[percentiles] failed to parse field [hdr]"));
     }
 }

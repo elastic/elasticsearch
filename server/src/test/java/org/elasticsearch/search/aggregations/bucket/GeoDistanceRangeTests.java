@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -80,7 +81,7 @@ public class GeoDistanceRangeTests extends BaseAggregationTestCase<GeoDistanceAg
         XContentParser parser = createParser(JsonXContent.jsonXContent, rangeAggregation);
         XContentParseException ex = expectThrows(XContentParseException.class,
             () -> GeoDistanceAggregationBuilder.parse("aggregationName", parser));
-        assertThat(ex.getDetailedMessage(), containsString("badField"));
+        assertThat(ExceptionsHelper.detailedMessage(ex), containsString("badField"));
     }
 
     /**

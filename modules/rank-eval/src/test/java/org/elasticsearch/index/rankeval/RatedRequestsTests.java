@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -138,8 +139,8 @@ public class RatedRequestsTests extends ESTestCase {
             Exception exception = expectThrows(Exception.class, () -> RatedRequest.fromXContent(parser));
             if (exception instanceof XContentParseException) {
                 XContentParseException xcpe = (XContentParseException) exception;
-                assertThat(xcpe.getDetailedMessage(), containsString("unknown field"));
-                assertThat(xcpe.getDetailedMessage(), containsString("parser not found"));
+                assertThat(ExceptionsHelper.detailedMessage(xcpe), containsString("unknown field"));
+                assertThat(ExceptionsHelper.detailedMessage(xcpe), containsString("parser not found"));
             }
             if (exception instanceof XContentParseException) {
                 assertThat(exception.getMessage(), containsString("[request] failed to parse field"));

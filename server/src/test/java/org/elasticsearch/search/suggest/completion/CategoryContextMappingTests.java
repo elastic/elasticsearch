@@ -28,6 +28,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -405,7 +406,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         CategoryContextMapping mapping = ContextBuilder.category("cat").build();
 
         XContentParseException e = expectThrows(XContentParseException.class, () -> mapping.parseQueryContext(parser));
-        assertThat(e.getDetailedMessage(), containsString("category context must be an object, string, number or boolean"));
+        assertThat(ExceptionsHelper.detailedMessage(e), containsString("category context must be an object, string, number or boolean"));
     }
 
     public void testQueryContextParsingArray() throws Exception {
@@ -462,7 +463,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         CategoryContextMapping mapping = ContextBuilder.category("cat").build();
 
         XContentParseException e = expectThrows(XContentParseException.class, () -> mapping.parseQueryContext(parser));
-        assertThat(e.getDetailedMessage(), containsString("category context must be an object, string, number or boolean"));
+        assertThat(ExceptionsHelper.detailedMessage(e), containsString("category context must be an object, string, number or boolean"));
     }
 
     public void testQueryContextParsingObject() throws Exception {
@@ -621,7 +622,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         CategoryContextMapping mapping = ContextBuilder.category("cat").build();
 
         XContentParseException e = expectThrows(XContentParseException.class, () -> mapping.parseQueryContext(parser));
-        assertThat(e.getDetailedMessage(), containsString("category context must be a string, number or boolean"));
+        assertThat(ExceptionsHelper.detailedMessage(e), containsString("category context must be a string, number or boolean"));
     }
 
 
@@ -678,7 +679,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
         CategoryContextMapping mapping = ContextBuilder.category("cat").build();
 
         XContentParseException e = expectThrows(XContentParseException.class, () -> mapping.parseQueryContext(parser));
-        assertThat(e.getDetailedMessage(), containsString("category context must be an object, string, number or boolean"));
+        assertThat(ExceptionsHelper.detailedMessage(e), containsString("category context must be an object, string, number or boolean"));
     }
 
     public void testUnknownQueryContextParsing() throws Exception {

@@ -62,23 +62,4 @@ public class XContentParseException extends IllegalArgumentException {
         return location.map(l -> "[" + l.toString() + "] ").orElse("") + super.getMessage();
     }
 
-    /**
-     * Return the detail message, including the message from the nested exception
-     * if there is one.
-     */
-    public String getDetailedMessage() {
-        if (getCause() != null) {
-            StringBuilder sb = new StringBuilder();
-            sb.append(toString()).append("; ");
-            if (getCause() instanceof XContentParseException) {
-                sb.append(((XContentParseException) getCause()).getDetailedMessage());
-            } else {
-                sb.append(getCause());
-            }
-            return sb.toString();
-        } else {
-            return super.toString();
-        }
-    }
-
 }

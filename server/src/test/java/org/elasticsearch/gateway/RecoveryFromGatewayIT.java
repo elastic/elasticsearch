@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -599,7 +600,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                     } else {
                         assertAcked(client().admin().indices().prepareDelete("test"));
                     }
-                } catch (InterruptedException | ExecutionException exception) {
+                } catch (InterruptedException | ExecutionException | IndexNotFoundException ignored) {
                     // don't care if this fails
                 }
             }, (isListingThread ? "Listing" : "Deleting") + "[" + threadIndex + "]");

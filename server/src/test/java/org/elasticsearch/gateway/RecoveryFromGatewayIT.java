@@ -580,12 +580,14 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         final ShardId shardId = new ShardId(resolveIndex("test"), 0);
 
         Thread listingThread = new Thread(() -> {
-            try {
-                internalCluster().getInstance(TransportNodesListGatewayStartedShards.class)
-                    .execute(new TransportNodesListGatewayStartedShards.Request(shardId, new DiscoveryNode[]{node}))
-                    .get();
-            } catch (InterruptedException | ExecutionException exception) {
-                // don't care if this fails
+            for (int i = 0; i < 10; i++) {
+                try {
+                    internalCluster().getInstance(TransportNodesListGatewayStartedShards.class)
+                        .execute(new TransportNodesListGatewayStartedShards.Request(shardId, new DiscoveryNode[]{node}))
+                        .get();
+                } catch (InterruptedException | ExecutionException exception) {
+                    // don't care if this fails
+                }
             }
         });
         listingThread.start();

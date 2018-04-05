@@ -45,6 +45,12 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     private ActiveShardCount waitForActiveShards = ActiveShardCount.NONE;
     private String waitForNodes = "";
     private Priority waitForEvents = null;
+    /**
+     * Only for High-level REST Client
+     * Can be one of 'cluster', 'indices' or 'shards'. Controls the details level of the health information returned.
+     * The default value is 'shards' so it backwards compatible with the transport client behaviour.
+     */
+    private String level = "shards";
 
     public ClusterHealthRequest() {
     }
@@ -240,6 +246,14 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
 
     public Priority waitForEvents() {
         return this.waitForEvents;
+    }
+
+    public void level(String level) {
+        this.level = level;
+    }
+
+    public String level() {
+        return level;
     }
 
     @Override

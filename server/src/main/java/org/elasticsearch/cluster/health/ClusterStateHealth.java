@@ -35,7 +35,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.util.CollectionUtils.newHashMapWithExpectedSize;
 
 public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, Writeable {
 
@@ -137,7 +136,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         numberOfDataNodes = in.readVInt();
         status = ClusterHealthStatus.fromValue(in.readByte());
         int size = in.readVInt();
-        indices = newHashMapWithExpectedSize(size);
+        indices = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
             ClusterIndexHealth indexHealth = new ClusterIndexHealth(in);
             indices.put(indexHealth.getIndex(), indexHealth);

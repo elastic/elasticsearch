@@ -30,7 +30,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
@@ -117,7 +116,7 @@ public class ClusterHealthResponsesTests extends AbstractStreamableXContentTestC
     @Override
     protected ClusterHealthResponse createTestInstance() {
         int indicesSize = randomInt(20);
-        Map<String, ClusterIndexHealth> indices = CollectionUtils.newHashMapWithExpectedSize(indicesSize);
+        Map<String, ClusterIndexHealth> indices = new HashMap<>(indicesSize);
         for (int i = 0; i < indicesSize; i++) {
             String indexName = randomAlphaOfLengthBetween(1, 5) + i;
             indices.put(indexName, ClusterIndexHealthTests.randomIndexHealthWithShards(indexName));

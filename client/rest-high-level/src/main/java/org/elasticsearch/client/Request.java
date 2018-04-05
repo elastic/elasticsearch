@@ -61,6 +61,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -592,12 +593,13 @@ public final class Request {
         params.withWaitForNoInitializingShards(healthRequest.waitForNoInitializingShards());
         params.withWaitForActiveShards(healthRequest.waitForActiveShards());
         params.withWaitForNodes(healthRequest.waitForNodes());
+        params.withWaitForEvents(healthRequest.waitForEvents());
         params.withTimeout(healthRequest.timeout());
         params.withMasterTimeout(healthRequest.masterNodeTimeout());
         params.withLocal(healthRequest.local());
-        params.putParam("level", "shards");
+        params.withLevel(healthRequest.level());
         String[] indices = healthRequest.indices() == null ? Strings.EMPTY_ARRAY : healthRequest.indices();
-        String endpoint = endpoint(indices, "_cluster/health");
+        String endpoint = endpoint("_cluster/health", indices);
         return new Request(HttpGet.METHOD_NAME, endpoint, params.getParams(), null);
     }
 
@@ -659,6 +661,10 @@ public final class Request {
     static String endpoint(String[] indices, String endpoint, String[] suffixes) {
         return new EndpointBuilder().addCommaSeparatedPathParts(indices).addPathPartAsIs(endpoint)
                 .addCommaSeparatedPathParts(suffixes).build();
+    }
+
+    static String endpoint(String endpoint, String[] suffixes) {
+        return new EndpointBuilder().addPathPartAsIs(endpoint).addCommaSeparatedPathParts(suffixes).build();
     }
 
     static String endpoint(String[] indices, String endpoint, String type) {
@@ -874,6 +880,17 @@ public final class Request {
 
         Params withWaitForNodes(String waitForNodes) {
             return putParam("wait_for_nodes", waitForNodes);
+        }
+
+        Params withLevel(String level) {
+            return putParam("level", level);
+        }
+
+        Params withWaitForEvents(Priority waitForEvents) {
+            if (waitForEvents != null) {
+                return putParam("wait_for_events", waitForEvents.name().toLowerCase(Locale.ROOT));
+            }
+            return this;
         }
 
         Map<String, String> getParams() {

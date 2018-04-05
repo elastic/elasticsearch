@@ -25,10 +25,12 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
 import static java.util.Collections.emptySet;
+import static java.util.Collections.singleton;
 
 /**
  * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Cluster API.
@@ -71,10 +73,12 @@ public final class ClusterClient {
      * <p>
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-health.html"> Cluster Health API on elastic.co</a>
+     * <p>
+     * If timeout occurred, {@link ClusterHealthResponse} will have isTimedOut() == true and status() == RestStatus.REQUEST_TIMEOUT
      */
     public ClusterHealthResponse health(ClusterHealthRequest healthRequest, Header... headers) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(healthRequest, Request::clusterHealth, ClusterHealthResponse::fromXContent,
-            emptySet(), headers);
+            singleton(RestStatus.REQUEST_TIMEOUT.getStatus()), headers);
     }
 
     /**
@@ -82,9 +86,10 @@ public final class ClusterClient {
      * <p>
      * See
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-health.html"> Cluster Health API on elastic.co</a>
+     * If timeout occurred, {@link ClusterHealthResponse} will have isTimedOut() == true and status() == RestStatus.REQUEST_TIMEOUT
      */
     public void healthAsync(ClusterHealthRequest healthRequest, ActionListener<ClusterHealthResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(healthRequest, Request::clusterHealth, ClusterHealthResponse::fromXContent,
-            listener, emptySet(), headers);
+            listener, singleton(RestStatus.REQUEST_TIMEOUT.getStatus()), headers);
     }
 }

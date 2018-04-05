@@ -41,8 +41,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.common.util.CollectionUtils.isEmpty;
-import static org.elasticsearch.common.util.CollectionUtils.newHashMapWithExpectedSize;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -74,10 +72,10 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
                 ClusterHealthStatus status = ClusterHealthStatus.fromString(statusStr);
                 List<ClusterShardHealth> shardList = (List<ClusterShardHealth>) a[i++];
                 final Map<Integer, ClusterShardHealth> shards;
-                if (isEmpty(shardList)) {
+                if (shardList == null || shardList.isEmpty()) {
                     shards = emptyMap();
                 } else {
-                    shards = newHashMapWithExpectedSize(shardList.size());
+                    shards = new HashMap<>(shardList.size());
                     for (ClusterShardHealth shardHealth : shardList) {
                         shards.put(shardHealth.getShardId(), shardHealth);
                     }
@@ -172,7 +170,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         status = ClusterHealthStatus.fromValue(in.readByte());
 
         int size = in.readVInt();
-        shards = newHashMapWithExpectedSize(size);
+        shards = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
             ClusterShardHealth shardHealth = new ClusterShardHealth(in);
             shards.put(shardHealth.getShardId(), shardHealth);
@@ -309,14 +307,14 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ClusterIndexHealth that = (ClusterIndexHealth) o;
-        return numberOfShards == that.numberOfShards &&
+        return Objects.equals(index, that.index) &&
+            numberOfShards == that.numberOfShards &&
             numberOfReplicas == that.numberOfReplicas &&
             activeShards == that.activeShards &&
             relocatingShards == that.relocatingShards &&
             initializingShards == that.initializingShards &&
             unassignedShards == that.unassignedShards &&
             activePrimaryShards == that.activePrimaryShards &&
-            Objects.equals(index, that.index) &&
             status == that.status &&
             Objects.equals(shards, that.shards);
     }

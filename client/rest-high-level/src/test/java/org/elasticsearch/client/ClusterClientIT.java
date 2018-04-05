@@ -25,6 +25,8 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterIndexHealth;
+import org.elasticsearch.cluster.health.ClusterShardHealth;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -40,7 +42,6 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -111,20 +112,106 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
                 "Elasticsearch exception [type=illegal_argument_exception, reason=transient setting [" + setting + "], not recognized]"));
     }
 
-    public void testClusterHealth() throws IOException {
+    public void testClusterHealthGreen() throws IOException {
         ClusterHealthRequest request = new ClusterHealthRequest();
+        request.timeout("5s");
         ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
 
         assertThat(response, notNullValue());
-        assertThat(response.isTimedOut(), is(false));
-        assertThat(response.status(), is(RestStatus.OK));
-        assertThat(response.getStatus(), is(ClusterHealthStatus.GREEN));
-        assertThat(response.getIndices(), is(emptyMap()));
-        assertThat(response.getActivePrimaryShards(), is(0));
-        assertThat(response.getActiveShards(), is(0));
-        assertThat(response.getDelayedUnassignedShards(), is(0));
-        assertThat(response.getInitializingShards(), is(0));
-        assertThat(response.getUnassignedShards(), is(0));
-        assertThat(response.getActiveShardsPercent(), is(100d));
+        assertThat(response.isTimedOut(), equalTo(false));
+        assertThat(response.status(), equalTo(RestStatus.OK));
+        assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        emptyClusterAssertion(response);
+    }
+
+    public void testClusterHealthYellow() throws IOException {
+        createIndex("index", Settings.EMPTY);
+        createIndex("index2", Settings.EMPTY);
+        ClusterHealthRequest request = new ClusterHealthRequest();
+        request.timeout("5s");
+        boolean requestOneIndex = randomBoolean();
+        if (requestOneIndex) {
+            request.indices("index");
+        }
+        String level = randomFrom("default-shards", "cluster", "indices", "shards");
+        if (!"default-shards".equals(level)) {
+            request.level(level);
+        }
+        ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
+
+        assertThat(response, notNullValue());
+        assertThat(response.isTimedOut(), equalTo(false));
+        assertThat(response.status(), equalTo(RestStatus.OK));
+        assertThat(response.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
+        assertThat(response.getActivePrimaryShards(), equalTo(requestOneIndex? 5 : 10));
+        assertThat(response.getNumberOfDataNodes(), equalTo(1));
+        assertThat(response.getNumberOfNodes(), equalTo(1));
+        assertThat(response.getActiveShards(), equalTo(requestOneIndex? 5 : 10));
+        assertThat(response.getDelayedUnassignedShards(), equalTo(0));
+        assertThat(response.getInitializingShards(), equalTo(0));
+        assertThat(response.getUnassignedShards(), equalTo(requestOneIndex? 5 : 10));
+        assertThat(response.getActiveShardsPercent(), equalTo(50d));
+        if ("shards".equals(level) || "indices".equals(level) || "default-shards".equals(level)) {
+            assertThat(response.getIndices().size(), equalTo(requestOneIndex ? 1 : 2));
+            for (Map.Entry<String, ClusterIndexHealth> entry : response.getIndices().entrySet()) {
+                indexAssertion(entry.getKey(), entry.getValue(), level);
+            }
+        } else {
+            assertThat(response.getIndices().size(), equalTo(0));
+        }
+    }
+
+    private void indexAssertion(String indexName, ClusterIndexHealth indexHealth, String level) {
+        assertThat(indexHealth, notNullValue());
+        assertThat(indexHealth.getIndex(),equalTo(indexName));
+        assertThat(indexHealth.getActivePrimaryShards(),equalTo(5));
+        assertThat(indexHealth.getActiveShards(),equalTo(5));
+        assertThat(indexHealth.getNumberOfReplicas(),equalTo(1));
+        assertThat(indexHealth.getInitializingShards(),equalTo(0));
+        assertThat(indexHealth.getUnassignedShards(),equalTo(5));
+        assertThat(indexHealth.getRelocatingShards(),equalTo(0));
+        assertThat(indexHealth.getStatus(),equalTo(ClusterHealthStatus.YELLOW));
+        if ("shards".equals(level) || "default-shards".equals(level)) {
+            assertThat(indexHealth.getShards().size(), equalTo(5));
+            for (Map.Entry<Integer, ClusterShardHealth> entry : indexHealth.getShards().entrySet()) {
+                shardAssertion(entry.getKey(), entry.getValue());
+            }
+        } else {
+            assertThat(indexHealth.getShards().size(), equalTo(0));
+        }
+    }
+
+    private void shardAssertion(int shardId, ClusterShardHealth shardHealth) {
+        assertThat(shardHealth, notNullValue());
+        assertThat(shardHealth.getShardId(), equalTo(shardId));
+        assertThat(shardHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
+        assertThat(shardHealth.getActiveShards(), equalTo(1));
+        assertThat(shardHealth.getInitializingShards(), equalTo(0));
+        assertThat(shardHealth.getUnassignedShards(), equalTo(1));
+        assertThat(shardHealth.getRelocatingShards(), equalTo(0));
+    }
+
+    public void testClusterHealthNotFoundIndex() throws IOException {
+        ClusterHealthRequest request = new ClusterHealthRequest("notexisted-index");
+        request.timeout("5s");
+        ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
+
+        assertThat(response, notNullValue());
+        assertThat(response.isTimedOut(), equalTo(true));
+        assertThat(response.status(), equalTo(RestStatus.REQUEST_TIMEOUT));
+        assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
+        emptyClusterAssertion(response);
+    }
+
+    public static void emptyClusterAssertion(ClusterHealthResponse response) {
+        assertThat(response.getIndices(), equalTo(emptyMap()));
+        assertThat(response.getActivePrimaryShards(), equalTo(0));
+        assertThat(response.getNumberOfDataNodes(), equalTo(1));
+        assertThat(response.getNumberOfNodes(), equalTo(1));
+        assertThat(response.getActiveShards(), equalTo(0));
+        assertThat(response.getDelayedUnassignedShards(), equalTo(0));
+        assertThat(response.getInitializingShards(), equalTo(0));
+        assertThat(response.getUnassignedShards(), equalTo(0));
+        assertThat(response.getActiveShardsPercent(), equalTo(100d));
     }
 }

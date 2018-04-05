@@ -33,7 +33,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -44,10 +43,6 @@ import java.util.Set;
 
 /** Collections-related utility methods. */
 public class CollectionUtils {
-    /**
-     * The largest power of two that can be represented as an {@code int}.
-     */
-    public static final int MAX_POWER_OF_TWO = 1 << (Integer.SIZE - 2);
 
     public static void sort(final long[] array, int len) {
         new IntroSorter() {
@@ -148,18 +143,6 @@ public class CollectionUtils {
      */
     public static boolean isEmpty(Object[] array) {
         return array == null || array.length == 0;
-    }
-
-    /**
-     * Null-safe check if the specified collection is empty.
-     * <p>
-     * Null returns true.
-     *
-     * @param coll  the collection to check, may be null
-     * @return true if empty or null
-     */
-    public static boolean isEmpty(final Collection<?> coll) {
-        return coll == null || coll.isEmpty();
     }
 
     /**
@@ -443,42 +426,5 @@ public class CollectionUtils {
         }
 
         return result;
-    }
-
-    /**
-     * Creates a {@code HashMap} instance, with a high enough "initial capacity" that it <i>should</i> hold
-     * {@code expectedSize} elements without growth. This behavior cannot be broadly guaranteed, but it is observed
-     * to be true for OpenJDK 1.7.
-     * It also can't be guaranteed that the method isn't inadvertently <i>oversizing</i> the returned map.
-     *
-     * <p>From Guava 24.1-jre. <b>com.google.common.collect.Maps </b></p>
-     *
-     * @param expectedSize the number of entries you expect to add to the returned map
-     * @return a new, empty {@code HashMap} with enough capacity to hold {@code expectedSize} entries without resizing
-     * @throws IllegalArgumentException if {@code expectedSize} is negative
-     */
-    public static <K, V> HashMap<K, V> newHashMapWithExpectedSize(int expectedSize) {
-        return new HashMap<>(capacity(expectedSize));
-    }
-
-    /**
-     * Returns a capacity that is sufficient to keep the map from being resized as long as it grows no larger
-     * than expectedSize and the load factor is ≥ its default (0.75).
-     *
-     * <p>From Guava 24.1-jre. <b>com.google.common.collect.Maps </b></p>
-     */
-    static int capacity(int expectedSize) {
-        if (expectedSize < 3) {
-            if (expectedSize < 0) {
-                throw new IllegalArgumentException("expectedSize cannot be negative but was: " + expectedSize);
-            }
-            return expectedSize + 1;
-        }
-        if (expectedSize < MAX_POWER_OF_TWO) {
-            // This is the calculation used in JDK8,9,10 to resize when a putAll happens.
-            // It seems to be the most conservative calculation we can make. 0.75 is the default load factor.
-            return (int) ((float) expectedSize / 0.75F + 1.0F);
-        }
-        return Integer.MAX_VALUE; // any large value
     }
 }

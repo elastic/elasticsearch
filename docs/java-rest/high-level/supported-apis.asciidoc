@@ -93,5 +93,7 @@ include::indices/exists_alias.asciidoc[]
 The Java High Level REST Client supports the following Cluster APIs:
 
 * <<java-rest-high-cluster-put-settings>>
+* <<java-rest-high-cluster-health>>
 
 include::cluster/put_settings.asciidoc[]
+include::cluster/health.asciidoc[]

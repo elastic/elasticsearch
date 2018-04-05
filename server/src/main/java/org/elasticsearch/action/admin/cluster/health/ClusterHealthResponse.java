@@ -36,14 +36,13 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.common.util.CollectionUtils.isEmpty;
-import static org.elasticsearch.common.util.CollectionUtils.newHashMapWithExpectedSize;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -84,10 +83,10 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
                 ClusterHealthStatus status = ClusterHealthStatus.fromString(statusStr);
                 List<ClusterIndexHealth> indexList = (List<ClusterIndexHealth>) a[i++];
                 final Map<String, ClusterIndexHealth> indices;
-                if (isEmpty(indexList)) {
+                if (indexList == null || indexList.isEmpty()) {
                     indices = emptyMap();
                 } else {
-                    indices = newHashMapWithExpectedSize(indexList.size());
+                    indices = new HashMap<>(indexList.size());
                     for (ClusterIndexHealth indexHealth : indexList) {
                         indices.put(indexHealth.getIndex(), indexHealth);
                     }
@@ -370,12 +369,12 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ClusterHealthResponse that = (ClusterHealthResponse) o;
-        return numberOfPendingTasks == that.numberOfPendingTasks &&
+        return Objects.equals(clusterName, that.clusterName) &&
+            numberOfPendingTasks == that.numberOfPendingTasks &&
             numberOfInFlightFetch == that.numberOfInFlightFetch &&
             delayedUnassignedShards == that.delayedUnassignedShards &&
-            timedOut == that.timedOut &&
-            Objects.equals(clusterName, that.clusterName) &&
             Objects.equals(taskMaxWaitingTime, that.taskMaxWaitingTime) &&
+            timedOut == that.timedOut &&
             Objects.equals(clusterStateHealth, that.clusterStateHealth) &&
             clusterHealthStatus == that.clusterHealthStatus;
     }

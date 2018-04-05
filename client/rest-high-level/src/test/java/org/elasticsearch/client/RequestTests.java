@@ -68,8 +68,10 @@ import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -128,7 +130,6 @@ import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomAl
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -1332,19 +1333,72 @@ public class RequestTests extends ESTestCase {
         ClusterHealthRequest healthRequest = new ClusterHealthRequest();
         Map<String, String> expectedParams = new HashMap<>();
         setRandomLocal(healthRequest, expectedParams);
-        setRandomTimeout(healthRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-        setRandomMasterTimeout(healthRequest, expectedParams);
-        expectedParams.put("level", "shards");
-        // Default value in ClusterHealthRequest is NONE but in Request.Params::withWaitForActiveShards is DEFAULT
-        expectedParams.put("wait_for_active_shards", "0");
-        //TODO add random filling for other properties
+        if (randomBoolean()) {
+            String timeout = randomTimeValue();
+            healthRequest.timeout(timeout);
+            expectedParams.put("timeout", timeout);
+            if (randomBoolean()) {
+                String masterTimeout = randomTimeValue();
+                healthRequest.masterNodeTimeout(masterTimeout);
+                expectedParams.put("master_timeout", masterTimeout);
+            } else {
+                // If Master Timeout  wasn't set it uses the same value as Timeout
+                expectedParams.put("master_timeout", timeout);
+            }
+        } else {
+            expectedParams.put("timeout", "30s");
+            expectedParams.put("master_timeout", "30s");
+        }
+        setRandomWaitForActiveShards(healthRequest::waitForActiveShards, expectedParams);
+        if (!expectedParams.containsKey("wait_for_active_shards")) {
+            expectedParams.put("wait_for_active_shards", "0");
+        }
+        if (randomBoolean()) {
+            String level = randomFrom("cluster", "indices", "shards");
+            healthRequest.level(level);
+            expectedParams.put("level", level);
+        } else {
+            expectedParams.put("level", "shards");
+        }
+        if (randomBoolean()) {
+            Priority priority = randomFrom(Priority.values());
+            healthRequest.waitForEvents(priority);
+            expectedParams.put("wait_for_events", priority.name().toLowerCase(Locale.ROOT));
+        }
+        if (randomBoolean()) {
+            ClusterHealthStatus status = randomFrom(ClusterHealthStatus.values());
+            healthRequest.waitForStatus(status);
+            expectedParams.put("wait_for_status", status.name().toLowerCase(Locale.ROOT));
+        }
+        if (randomBoolean()) {
+            boolean waitForNoInitializingShards = randomBoolean();
+            healthRequest.waitForNoInitializingShards(waitForNoInitializingShards);
+            if (waitForNoInitializingShards) {
+                expectedParams.put("wait_for_no_initializing_shards", Boolean.TRUE.toString());
+            }
+        }
+        if (randomBoolean()) {
+            boolean waitForNoRelocatingShards = randomBoolean();
+            healthRequest.waitForNoRelocatingShards(waitForNoRelocatingShards);
+            if (waitForNoRelocatingShards) {
+                expectedParams.put("wait_for_no_relocating_shards", Boolean.TRUE.toString());
+            }
+        }
+        String[] indices = randomIndicesNames(0, 5);
+        if (indices.length > 0) {
+            healthRequest.indices(indices);
+        }
 
         Request request = Request.clusterHealth(healthRequest);
-        assertThat(request, is(notNullValue()));
-        assertThat(request.getMethod(), is(HttpGet.METHOD_NAME));
-        assertThat(request.getEntity(), is(nullValue()));
-        assertThat(request.getEndpoint(), is("/_cluster/health"));
-        assertThat(request.getParameters(), is(expectedParams));
+        assertThat(request, notNullValue());
+        assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
+        assertThat(request.getEntity(), nullValue());
+        if (indices.length > 0) {
+            assertThat(request.getEndpoint(), equalTo("/_cluster/health/" + String.join(",", indices)));
+        } else {
+            assertThat(request.getEndpoint(), equalTo("/_cluster/health"));
+        }
+        assertThat(request.getParameters(), equalTo(expectedParams));
     }
 
     public void testRollover() throws IOException {
@@ -1523,6 +1577,7 @@ public class RequestTests extends ESTestCase {
                 new String[]{"type1", "type2"}, "_endpoint"));
         assertEquals("/index1,index2/_endpoint/suffix1,suffix2", Request.endpoint(new String[]{"index1", "index2"},
                 "_endpoint", new String[]{"suffix1", "suffix2"}));
+        assertEquals("/_endpoint/suffix1,suffix2", Request.endpoint("_endpoint", new String[]{"suffix1", "suffix2"}));
     }
 
     public void testCreateContentType() {

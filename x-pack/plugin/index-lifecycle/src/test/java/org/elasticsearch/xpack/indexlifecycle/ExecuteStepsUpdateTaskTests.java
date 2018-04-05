@@ -81,7 +81,8 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
                 .put(LifecycleSettings.LIFECYCLE_NAME, mixedPolicyName)
             .put(LifecycleSettings.LIFECYCLE_PHASE, "pre-phase")
                 .put(LifecycleSettings.LIFECYCLE_ACTION, "pre-action")
-                .put(LifecycleSettings.LIFECYCLE_STEP, "init")) .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+                .put(LifecycleSettings.LIFECYCLE_STEP, "init"))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         index = indexMetadata.getIndex();
 
         MetaData metaData = MetaData.builder()

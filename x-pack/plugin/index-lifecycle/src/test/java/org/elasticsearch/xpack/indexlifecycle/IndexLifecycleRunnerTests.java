@@ -492,15 +492,15 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         private boolean indexSurvives = true;
         private long executeCount = 0;
 
-        public MockAsyncActionStep(StepKey key, StepKey nextStepKey) {
+        MockAsyncActionStep(StepKey key, StepKey nextStepKey) {
             super(key, nextStepKey, null);
         }
 
-        public void setException(Exception exception) {
+        void setException(Exception exception) {
             this.exception = exception;
         }
 
-        public void setIndexSurvives(boolean indexSurvives) {
+        void setIndexSurvives(boolean indexSurvives) {
             this.indexSurvives = indexSurvives;
         }
 
@@ -509,11 +509,11 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             return indexSurvives;
         }
 
-        public void setWillComplete(boolean willComplete) {
+        void setWillComplete(boolean willComplete) {
             this.willComplete = willComplete;
         }
 
-        public long getExecuteCount() {
+        long getExecuteCount() {
             return executeCount;
         }
 
@@ -535,19 +535,19 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         private boolean willComplete;
         private long executeCount = 0;
 
-        public MockAsyncWaitStep(StepKey key, StepKey nextStepKey) {
+        MockAsyncWaitStep(StepKey key, StepKey nextStepKey) {
             super(key, nextStepKey, null);
         }
 
-        public void setException(Exception exception) {
+        void setException(Exception exception) {
             this.exception = exception;
         }
 
-        public void setWillComplete(boolean willComplete) {
+        void setWillComplete(boolean willComplete) {
             this.willComplete = willComplete;
         }
 
-        public long getExecuteCount() {
+        long getExecuteCount() {
             return executeCount;
         }
 
@@ -568,7 +568,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         private RuntimeException exception;
         private long executeCount = 0;
 
-        public MockClusterStateActionStep(StepKey key, StepKey nextStepKey) {
+        MockClusterStateActionStep(StepKey key, StepKey nextStepKey) {
             super(key, nextStepKey);
         }
 
@@ -597,7 +597,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         private boolean willComplete;
         private long executeCount = 0;
 
-        public MockClusterStateWaitStep(StepKey key, StepKey nextStepKey) {
+        MockClusterStateWaitStep(StepKey key, StepKey nextStepKey) {
             super(key, nextStepKey);
         }
 
@@ -631,7 +631,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         private StepKey currentStepKey;
         private StepKey nextStepKey;
 
-        public MoveToNextStepUpdateTaskMatcher(Index index, String policy, StepKey currentStepKey, StepKey nextStepKey) {
+        MoveToNextStepUpdateTaskMatcher(Index index, String policy, StepKey currentStepKey, StepKey nextStepKey) {
             this.index = index;
             this.policy = policy;
             this.currentStepKey = currentStepKey;
@@ -658,7 +658,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         private String policy;
         private Step startStep;
 
-        public ExecuteStepsUpdateTaskMatcher(Index index, String policy, Step startStep) {
+        ExecuteStepsUpdateTaskMatcher(Index index, String policy, Step startStep) {
             this.index = index;
             this.policy = policy;
             this.startStep = startStep;

@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -146,7 +147,7 @@ public class GetLifecycleAction
 
         @Override
         public int hashCode() {
-            return policyNames.hashCode();
+            return Arrays.hashCode(policyNames);
         }
 
         @Override
@@ -158,7 +159,7 @@ public class GetLifecycleAction
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(policyNames, other.policyNames);
+            return Arrays.equals(policyNames, other.policyNames);
         }
 
     }

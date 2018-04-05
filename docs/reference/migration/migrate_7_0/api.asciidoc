@@ -37,3 +37,13 @@ parameter is called `size`, reflecting the fixed number of threads in the
 pool. This discrepancy between the API and the configuration parameters has been
 rectified. Now, the API will report `core` and `max` for scaling thread pools,
 and `size` for fixed thread pools.
+
+Similarly, in the cat thread pool API the existing `size` output has been
+renamed to `pool_size` which reflects the number of threads currently in the
+pool; the shortcut for this value has been changed from `s` to `psz`.  The `min`
+output has been renamed to `core` with a shortcut of `cr`, the shortcut for
+`max` has been changed to `mx`, and the `size` output with a shortcut of `sz`
+has been reused to report the configured number of threads in the pool.  This
+aligns the output of the API with the configuration values for thread
+pools. Note that `core` and `max` will be populated for scaling thread pools,
+and `size` will be populated for fixed thread pools.

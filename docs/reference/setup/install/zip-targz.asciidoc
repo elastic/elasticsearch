@@ -14,6 +14,14 @@ NOTE: Elasticsearch requires Java 8 or later. Use the
 http://www.oracle.com/technetwork/java/javase/downloads/index.html[official Oracle distribution]
 or an open-source distribution such as http://openjdk.java.net[OpenJDK].
 
+. Download and install either the <<install-zip,`.zip`>> or
+<<install-targz,`.tar.gz`>> package.
+include::{xes-repo-dir}/setup/xpack-tls.asciidoc[]
+. <<zip-targz-running,Start {es}>>. You can optionally
+<<setup-installation-daemon, run it as a daemon>>.
+. <<zip-targz-check-running,Check that {es} is running>>.
+include::{xes-repo-dir}/setup/xpack-passwords.asciidoc[]
+
 [[install-zip]]
 ==== Download and install the `.zip` package
 
@@ -88,6 +96,7 @@ that supports arrays and assume that Bash is available at `/bin/bash`.
 As such, Bash should be available at this path either directly or via a
 symbolic link.
 
+[[zip-targz-check-running]]
 include::check-running.asciidoc[]
 
 Log printing to `stdout` can be disabled using the `-q` or `--quiet`

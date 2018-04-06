@@ -13,6 +13,14 @@ NOTE: Elasticsearch requires Java 8 or later. Use the
 http://www.oracle.com/technetwork/java/javase/downloads/index.html[official Oracle distribution]
 or an open-source distribution such as http://openjdk.java.net[OpenJDK].
 
+. <<deb-key,Import the {es} PGP key>>.
+. Download and install {es} <<install-deb,from our website>> or
+<<deb-repo,from our APT repository>>.
+include::{xes-repo-dir}/setup/xpack-tls.asciidoc[]
+. <<deb-running,Start {es}>>.
+. <<deb-check-running,Check that {es} is running>>.
+include::{xes-repo-dir}/setup/xpack-passwords.asciidoc[]
+
 [[deb-key]]
 ==== Import the Elasticsearch PGP Key
 
@@ -128,6 +136,7 @@ sudo dpkg -i elasticsearch-{version}.deb
 
 endif::[]
 
+[[deb-running]]
 include::init-systemd.asciidoc[]
 
 [[deb-running-init]]

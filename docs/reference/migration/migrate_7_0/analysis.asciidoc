@@ -1,19 +1,11 @@
 [[breaking_70_analysis_changes]]
 === Analysis changes
 
-==== The `delimited_payload_filter` is renamed
-
-The `delimited_payload_filter` is renamed to `delimited_payload`, the old name is 
-deprecated and will be removed at some point, so it should be replaced by 
-`delimited_payload`.
-
-
 ==== Limiting the number of tokens produced by _analyze
 
 To safeguard against out of memory errors, the number of tokens that can be produced
 using the `_analyze` endpoint has been limited to 10000. This default limit can be changed
 for a particular index with the index setting `index.analyze.max_token_count`.
-
 
 ==== Limiting the length of an analyzed text during highlighting
 
@@ -23,3 +15,10 @@ For large texts this analysis may take substantial amount of time and memory.
 To protect against this, the maximum number of characters that will be analyzed has been
 limited to 1000000. This default limit can be changed
 for a particular index with the index setting `index.highlight.max_analyzed_offset`.
+
+==== `delimited_payload_filter` renaming
+
+The `delimited_payload_filter` was deprecated and renamed to `delimited_payload` in 6.2.
+Using it in indices created before 7.0 will issue deprecation warnings. Using the old
+name in new indices created in 7.0 will throw an error. Use the new name `delimited_payload`
+instead.

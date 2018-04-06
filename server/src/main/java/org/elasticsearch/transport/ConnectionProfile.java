@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.transport;
 
-import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.ArrayList;
@@ -41,7 +41,7 @@ public final class ConnectionProfile {
      */
     public static ConnectionProfile buildSingleChannelProfile(TransportRequestOptions.Type channelType,
                                                               @Nullable TimeValue connectTimeout,
-                                                               @Nullable TimeValue handshakeTimeout) {
+                                                              @Nullable TimeValue handshakeTimeout) {
         Builder builder = new Builder();
         builder.addConnections(1, channelType);
         final EnumSet<TransportRequestOptions.Type> otherTypes = EnumSet.allOf(TransportRequestOptions.Type.class);

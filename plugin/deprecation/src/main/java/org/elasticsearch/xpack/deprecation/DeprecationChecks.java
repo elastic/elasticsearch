@@ -37,7 +37,6 @@ public class DeprecationChecks {
             // STUB
         ));
 
-    @SuppressWarnings("unchecked")
     static List<Function<IndexMetaData, DeprecationIssue>> INDEX_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
             IndexDeprecationChecks::baseSimilarityDefinedCheck,
@@ -45,6 +44,7 @@ public class DeprecationChecks {
             IndexDeprecationChecks::dynamicTemplateWithMatchMappingTypeCheck,
             IndexDeprecationChecks::indexSharedFileSystemCheck,
             IndexDeprecationChecks::indexStoreTypeCheck,
-            IndexDeprecationChecks::storeThrottleSettingsCheck));
+            IndexDeprecationChecks::storeThrottleSettingsCheck,
+            IndexDeprecationChecks::delimitedPayloadFilterCheck));
 
 }

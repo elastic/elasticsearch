@@ -65,8 +65,8 @@ public class MetricConfig implements Writeable, ToXContentFragment {
     private static final ParseField MAX = new ParseField("max");
     private static final ParseField SUM = new ParseField("sum");
     private static final ParseField AVG = new ParseField("avg");
+    private static final ParseField VALUE_COUNT = new ParseField("value_count");
 
-    private static List<String> METRIC_WHITELIST = Arrays.asList("min", "max", "sum", "avg");
     private static final List<String> MAPPER_TYPES = Stream.of(NumberFieldMapper.NumberType.values())
             .map(NumberFieldMapper.NumberType::typeName)
             .collect(Collectors.toList());
@@ -123,6 +123,11 @@ public class MetricConfig implements Writeable, ToXContentFragment {
                 aggs.add(countBuilder);
             } else if (metric.equals(SUM.getPreferredName())) {
                 newBuilder = new SumAggregationBuilder(RollupField.formatFieldName(field, SumAggregationBuilder.NAME, RollupField.VALUE));
+            } else if (metric.equals(VALUE_COUNT.getPreferredName())) {
+                // TODO allow non-numeric value_counts.
+                // Hardcoding this is fine for now since the job validation guarantees that all metric fields are numerics
+                newBuilder = new ValueCountAggregationBuilder(
+                        RollupField.formatFieldName(field, ValueCountAggregationBuilder.NAME, RollupField.VALUE), ValueType.NUMERIC);
             } else {
                 throw new IllegalArgumentException("Unsupported metric type [" + metric + "]");
             }
@@ -240,9 +245,9 @@ public class MetricConfig implements Writeable, ToXContentFragment {
                         + "] must be a non-null, non-empty array of strings.");
             }
             metrics.forEach(m -> {
-                if (METRIC_WHITELIST.contains(m) == false) {
+                if (RollupField.SUPPORTED_METRICS.contains(m) == false) {
                     throw new IllegalArgumentException("Unsupported metric [" + m + "].  " +
-                            "Supported metrics include: " + METRIC_WHITELIST);
+                            "Supported metrics include: " + RollupField.SUPPORTED_METRICS);
                 }
             });
             return new MetricConfig(field, metrics);

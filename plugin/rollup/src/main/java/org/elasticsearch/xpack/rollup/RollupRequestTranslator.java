@@ -131,7 +131,7 @@ public class RollupRequestTranslator {
             return translateDateHistogram((DateHistogramAggregationBuilder) source, filterConditions, registry);
         } else if (source.getWriteableName().equals(HistogramAggregationBuilder.NAME)) {
             return translateHistogram((HistogramAggregationBuilder) source, filterConditions, registry);
-        } else if (Rollup.SUPPORTED_METRICS.contains(source.getWriteableName())) {
+        } else if (RollupField.SUPPORTED_METRICS.contains(source.getWriteableName())) {
             return translateVSLeaf((ValuesSourceAggregationBuilder.LeafOnly)source, registry);
         } else if (source.getWriteableName().equals(TermsAggregationBuilder.NAME)) {
             return translateTerms((TermsAggregationBuilder)source, filterConditions, registry);

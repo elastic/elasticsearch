@@ -69,6 +69,9 @@ public class ConfigTestHelpers {
         if (ESTestCase.randomBoolean()) {
             metrics.add("avg");
         }
+        if (ESTestCase.randomBoolean()) {
+            metrics.add("value_count");
+        }
         if (metrics.size() == 0) {
             metrics.add("min");
         }

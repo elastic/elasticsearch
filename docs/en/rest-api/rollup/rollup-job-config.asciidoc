@@ -211,7 +211,7 @@ The `metrics` configuration accepts an array of objects, where each object has t
   The field to collect metrics for.  This must be a numeric of some kind
 
 `metrics` (required)::
-  An array of metrics to collect for the field.  At least one metric must be configured.  Acceptable metrics are min/max/sum/avg.
+  An array of metrics to collect for the field.  At least one metric must be configured.  Acceptable metrics are min/max/sum/avg/value_count.
 
 
 

@@ -217,6 +217,6 @@ public class ConfigTests extends ESTestCase {
         MetricConfig.Builder config = ConfigTestHelpers.getMetricConfig();
         config.setMetrics(Arrays.asList("max","foo"));
         Exception e = expectThrows(IllegalArgumentException.class, config::build);
-        assertThat(e.getMessage(), equalTo("Unsupported metric [foo].  Supported metrics include: [min, max, sum, avg]"));
+        assertThat(e.getMessage(), equalTo("Unsupported metric [foo].  Supported metrics include: [max, min, sum, avg, value_count]"));
     }
 }

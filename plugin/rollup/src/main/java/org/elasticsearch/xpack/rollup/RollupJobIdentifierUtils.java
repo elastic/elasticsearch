@@ -71,7 +71,7 @@ public class RollupJobIdentifierUtils {
             checkDateHisto((DateHistogramAggregationBuilder) source, jobCaps, bestCaps);
         } else if (source.getWriteableName().equals(HistogramAggregationBuilder.NAME)) {
             checkHisto((HistogramAggregationBuilder) source, jobCaps, bestCaps);
-        } else if (Rollup.SUPPORTED_METRICS.contains(source.getWriteableName())) {
+        } else if (RollupField.SUPPORTED_METRICS.contains(source.getWriteableName())) {
             checkVSLeaf((ValuesSourceAggregationBuilder.LeafOnly) source, jobCaps, bestCaps);
         } else if (source.getWriteableName().equals(TermsAggregationBuilder.NAME)) {
             checkTerms((TermsAggregationBuilder)source, jobCaps, bestCaps);

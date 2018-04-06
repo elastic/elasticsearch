@@ -6,7 +6,15 @@
 package org.elasticsearch.xpack.core.rollup;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
+
+import java.util.Arrays;
+import java.util.List;
 
 public class RollupField {
     // Fields that are used both in core Rollup actions and Rollup plugin
@@ -22,6 +30,8 @@ public class RollupField {
     public static final String NAME = "rollup";
     public static final String AGG = "agg";
     public static final String ROLLUP_MISSING = "ROLLUP_MISSING_40710B25931745D4B0B8B310F6912A69";
+    public static final List<String> SUPPORTED_METRICS = Arrays.asList(MaxAggregationBuilder.NAME, MinAggregationBuilder.NAME,
+            SumAggregationBuilder.NAME, AvgAggregationBuilder.NAME, ValueCountAggregationBuilder.NAME);
 
     /**
      * Format to the appropriate Rollup field name convention

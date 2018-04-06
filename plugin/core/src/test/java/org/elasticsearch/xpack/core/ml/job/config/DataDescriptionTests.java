@@ -11,6 +11,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -202,7 +203,7 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
         BytesArray json = new BytesArray("{ \"format\":\"INEXISTENT_FORMAT\" }");
         XContentParser parser = JsonXContent.jsonXContent
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json.streamInput());
-        ParsingException ex = expectThrows(ParsingException.class,
+        XContentParseException ex = expectThrows(XContentParseException.class,
                 () -> DataDescription.CONFIG_PARSER.apply(parser, null));
         assertThat(ex.getMessage(), containsString("[data_description] failed to parse field [format]"));
         Throwable cause = ex.getCause();
@@ -216,7 +217,7 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
         BytesArray json = new BytesArray("{ \"field_delimiter\":\",,\" }");
         XContentParser parser = JsonXContent.jsonXContent
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json.streamInput());
-        ParsingException ex = expectThrows(ParsingException.class,
+        XContentParseException ex = expectThrows(XContentParseException.class,
                 () -> DataDescription.CONFIG_PARSER.apply(parser, null));
         assertThat(ex.getMessage(), containsString("[data_description] failed to parse field [field_delimiter]"));
         Throwable cause = ex.getCause();
@@ -230,7 +231,7 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
         BytesArray json = new BytesArray("{ \"quote_character\":\"''\" }");
         XContentParser parser = JsonXContent.jsonXContent
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json.streamInput());
-        ParsingException ex = expectThrows(ParsingException.class,
+        XContentParseException ex = expectThrows(XContentParseException.class,
                 () -> DataDescription.CONFIG_PARSER.apply(parser, null));
         assertThat(ex.getMessage(), containsString("[data_description] failed to parse field [quote_character]"));
         Throwable cause = ex.getCause();

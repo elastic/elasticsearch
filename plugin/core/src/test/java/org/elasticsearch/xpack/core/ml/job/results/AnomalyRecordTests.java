@@ -9,6 +9,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -201,7 +202,8 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
         String json = "{\"job_id\":\"job_1\", \"timestamp\": 123544456, \"bucket_span\": 3600, \"foo\":\"bar\"," +
                 " \"causes\":[{\"cause_foo\":\"bar\"}]}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-            ParsingException e = expectThrows(ParsingException.class, () -> AnomalyRecord.STRICT_PARSER.apply(parser, null));
+            XContentParseException e = expectThrows(XContentParseException.class,
+                    () -> AnomalyRecord.STRICT_PARSER.apply(parser, null));
             assertThat(e.getCause().getMessage(), containsString("[anomaly_cause] unknown field [cause_foo]"));
         }
     }

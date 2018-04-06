@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -277,7 +278,7 @@ public class CppLogMessageHandler implements Closeable {
             } else {
                 LOGGER.log(level, "[{}/{}] [{}@{}] {}", msg.getLogger(), latestPid, msg.getFile(), msg.getLine(), latestMessage);
             }
-        } catch (ParsingException e) {
+        } catch (XContentParseException e) {
             String upstreamMessage = "Fatal error: '" + bytesRef.utf8ToString() + "'";
             if (upstreamMessage.contains("bad_alloc")) {
                 upstreamMessage += ", process ran out of memory.";

@@ -24,9 +24,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ReInitializablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
-
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -35,24 +35,20 @@ import java.util.Map;
 /**
  * A plugin to add a repository type that writes to and from the Azure cloud storage service.
  */
-public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin {
+public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, ReInitializablePlugin {
 
-    private final Map<String, AzureStorageSettings> clientsSettings;
-
-    // overridable for tests
-    protected AzureStorageService createStorageService(Settings settings) {
-        return new AzureStorageServiceImpl(settings, clientsSettings);
-    }
+    // protected for testing
+    final AzureStorageService azureStoreService;
 
     public AzureRepositoryPlugin(Settings settings) {
         // eagerly load client settings so that secure settings are read
-        clientsSettings = AzureStorageSettings.load(settings);
+        this.azureStoreService = new AzureStorageServiceImpl(settings);
     }
 
     @Override
     public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
         return Collections.singletonMap(AzureRepository.TYPE,
-            (metadata) -> new AzureRepository(metadata, env, namedXContentRegistry, createStorageService(env.settings())));
+                (metadata) -> new AzureRepository(metadata, env, namedXContentRegistry, azureStoreService));
     }
 
     @Override
@@ -66,5 +62,13 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin {
             AzureStorageSettings.PROXY_HOST_SETTING,
             AzureStorageSettings.PROXY_PORT_SETTING
         );
+    }
+
+    @Override
+    public boolean reinit(Settings settings) {
+        // secure settings should be readable
+        final Map<String, AzureStorageSettings> clientsSettings = AzureStorageSettings.load(settings);
+        azureStoreService.updateClientsSettings(clientsSettings);
+        return true;
     }
 }

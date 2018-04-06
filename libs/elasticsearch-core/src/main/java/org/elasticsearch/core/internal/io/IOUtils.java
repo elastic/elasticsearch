@@ -86,7 +86,7 @@ public final class IOUtils {
      *
      * @see #close(Closeable...)
      */
-    public static void close(Exception ex, final Iterable<? extends Closeable> objects) throws IOException {
+    public static void close(final Exception ex, final Iterable<? extends Closeable> objects) throws IOException {
         for (final Closeable object : objects) {
             try {
                 if (object != null) {

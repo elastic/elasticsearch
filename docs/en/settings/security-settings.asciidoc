@@ -760,7 +760,8 @@ ends in ".p12", ".pfx" or "pkcs12", otherwise uses "jks".
 
 `signing.keystore.alias`::
 Specifies the alias of the key within the keystore that should be
-used for SAML message signing. Defaults to `key`.
+used for SAML message signing. Must be specified if the keystore
+contains more than one private key.
 
 `signing.keystore.secure_password` (<<secure-settings,Secure>>)::
 The password to the keystore (`signing.keystore.path`).
@@ -794,7 +795,8 @@ ends in ".p12", ".pfx" or "pkcs12", otherwise uses "jks".
 
 `encryption.keystore.alias`::
 Specifies the alias of the key within the keystore (`encryption.keystore.path`)
-that should be used for SAML message decryption. Defaults to `key`.
+that should be used for SAML message decryption. Must be specified if the
+keystore contains more than one private key.
 
 `encryption.keystore.secure_password` (<<secure-settings,Secure>>)::
 The password to the keystore (`encryption.keystore.path`).

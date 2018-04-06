@@ -84,11 +84,14 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
@@ -295,19 +298,54 @@ public final class SamlRealm extends Realm implements Releasable {
         }
     }
 
-    private static X509Credential buildCredential(RealmConfig config, X509KeyPairSettings keyPairSettings, Setting<String> aliasSetting) {
+    private static X509Credential buildCredential(RealmConfig config, X509KeyPairSettings keyPairSettings,
+            Setting<String> aliasSetting) {
         final X509KeyManager keyManager = CertUtils.getKeyManager(keyPairSettings, config.settings(), null, config.env());
         if (keyManager == null) {
             return null;
         }
-        final String alias = aliasSetting.get(config.settings());
-        if (keyManager.getPrivateKey(alias) == null) {
-            throw new IllegalArgumentException("The configured encryption store for "
-                    + RealmSettings.getFullSettingKey(config, keyPairSettings.getPrefix())
-                    + " does not have a key with alias [" + alias + "] (from setting " +
-                    RealmSettings.getFullSettingKey(config, aliasSetting)
-                    + ")");
+
+        String alias = aliasSetting.get(config.settings());
+        if (Strings.isNullOrEmpty(alias)) {
+
+            final Set<String> aliases = new HashSet<>();
+            final String[] serverAliases = keyManager.getServerAliases("RSA", null);
+            if (serverAliases != null) {
+                aliases.addAll(Arrays.asList(serverAliases));
+            }
+
+            if (aliases.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "The configured key store for " + RealmSettings.getFullSettingKey(config, keyPairSettings.getPrefix())
+                                + " does not contain any RSA key pairs");
+            } else if (aliases.size() > 1) {
+                /*
+                 * TODO bizybot : We need to fix this, for encryption we want to support
+                 * multiple keys Refer: #3980
+                 */
+                throw new IllegalArgumentException(
+                        "The configured key store for " + RealmSettings.getFullSettingKey(config, keyPairSettings.getPrefix())
+                                + " has multiple keys but no alias has been specified (from setting "
+                                + RealmSettings.getFullSettingKey(config, aliasSetting) + ")");
+            } else {
+                alias = aliases.iterator().next();
+            }
         }
+
+        if (keyManager.getPrivateKey(alias) == null) {
+            throw new IllegalArgumentException(
+                    "The configured key store for " + RealmSettings.getFullSettingKey(config, keyPairSettings.getPrefix())
+                            + " does not have a certificate key pair associated with alias [" + alias + "] " + "(from setting "
+                            + RealmSettings.getFullSettingKey(config, aliasSetting) + ")");
+        }
+
+        final String keyType = keyManager.getPrivateKey(alias).getAlgorithm();
+        if (keyType.equals("RSA") == false) {
+            throw new IllegalArgumentException("The key associated with alias [" + alias + "] " + "(from setting "
+                    + RealmSettings.getFullSettingKey(config, aliasSetting) + ") uses unsupported key algorithm type [" + keyType
+                    + "], only RSA is supported");
+        }
+
         return new X509KeyManagerX509CredentialAdapter(keyManager, alias);
     }
 

@@ -20,6 +20,7 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.ssl.CertUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -49,12 +50,14 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.KeyStore;
 import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
 import java.security.PrivilegedActionException;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -316,7 +319,7 @@ public class SamlRealmTests extends SamlTestCase {
         assertThat(credential.getPublicKey(), equalTo(pair.getPublic()));
     }
 
-    public void testCreateCredentialFromKeyStore() throws Exception {
+    public void testCreateEncryptionCredentialFromKeyStore() throws Exception {
         final Path dir = createTempDir();
         final Settings.Builder builder = Settings.builder()
                 .put(REALM_SETTINGS_PREFIX + ".type", "saml")
@@ -346,6 +349,140 @@ public class SamlRealmTests extends SamlTestCase {
         assertThat(credential, notNullValue());
         assertThat(credential.getPrivateKey(), equalTo(pair.getPrivate()));
         assertThat(credential.getPublicKey(), equalTo(pair.getPublic()));
+    }
+
+    public void testCreateSigningCredentialFromKeyStoreSuccessScenarios() throws Exception {
+        final Path dir = createTempDir();
+        final Settings.Builder builder = Settings.builder().put(REALM_SETTINGS_PREFIX + ".type", "saml").put("path.home", dir);
+        final Path ksFile = dir.resolve("cred.p12");
+        final Tuple<X509Certificate, PrivateKey> certKeyPair1 = createKeyPair("RSA");
+        final Tuple<X509Certificate, PrivateKey> certKeyPair2 = createKeyPair("EC");
+
+        final KeyStore ks = KeyStore.getInstance("PKCS12");
+        ks.load(null);
+        ks.setKeyEntry(getAliasName(certKeyPair1), certKeyPair1.v2(), "key-password".toCharArray(),
+                new Certificate[] { certKeyPair1.v1() });
+        ks.setKeyEntry(getAliasName(certKeyPair2), certKeyPair2.v2(), "key-password".toCharArray(),
+                new Certificate[] { certKeyPair2.v1() });
+        try (OutputStream out = Files.newOutputStream(ksFile)) {
+            ks.store(out, "ks-password".toCharArray());
+        }
+        builder.put(REALM_SETTINGS_PREFIX + ".signing.keystore.path", ksFile.toString());
+        builder.put(REALM_SETTINGS_PREFIX + ".signing.keystore.type", "PKCS12");
+        final boolean isSigningKeyStoreAliasSet = randomBoolean();
+        if (isSigningKeyStoreAliasSet) {
+            builder.put(REALM_SETTINGS_PREFIX + ".signing.keystore.alias", getAliasName(certKeyPair1));
+        }
+
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(REALM_SETTINGS_PREFIX + ".signing.keystore.secure_password", "ks-password");
+        secureSettings.setString(REALM_SETTINGS_PREFIX + ".signing.keystore.secure_key_password", "key-password");
+        builder.setSecureSettings(secureSettings);
+
+        final Settings settings = builder.build();
+        final RealmConfig realmConfig = realmConfigFromGlobalSettings(settings);
+
+        // Should build signing credential and use the key from KS.
+        final SigningConfiguration signingConfig = SamlRealm.buildSigningConfiguration(realmConfig);
+        final Credential credential = signingConfig.getCredential();
+        assertThat(credential, notNullValue());
+        assertThat(credential.getPrivateKey(), equalTo(certKeyPair1.v2()));
+        assertThat(credential.getPublicKey(), equalTo(certKeyPair1.v1().getPublicKey()));
+    }
+
+    public void testCreateSigningCredentialFromKeyStoreFailureScenarios() throws Exception {
+        final Path dir = createTempDir();
+        final Settings.Builder builder = Settings.builder().put(REALM_SETTINGS_PREFIX + ".type", "saml").put("path.home", dir);
+        final Path ksFile = dir.resolve("cred.p12");
+        final Tuple<X509Certificate, PrivateKey> certKeyPair1 = createKeyPair("RSA");
+        final Tuple<X509Certificate, PrivateKey> certKeyPair2 = createKeyPair("RSA");
+        final Tuple<X509Certificate, PrivateKey> certKeyPair3 = createKeyPair("EC");
+
+        final KeyStore ks = KeyStore.getInstance("PKCS12");
+        ks.load(null);
+        final boolean noRSAKeysInKS = randomBoolean();
+        if (noRSAKeysInKS == false) {
+            ks.setKeyEntry(getAliasName(certKeyPair1), certKeyPair1.v2(), "key-password".toCharArray(),
+                    new Certificate[] { certKeyPair1.v1() });
+            ks.setKeyEntry(getAliasName(certKeyPair2), certKeyPair2.v2(), "key-password".toCharArray(),
+                    new Certificate[] { certKeyPair2.v1() });
+        }
+        ks.setKeyEntry(getAliasName(certKeyPair3), certKeyPair3.v2(), "key-password".toCharArray(),
+                new Certificate[] { certKeyPair3.v1() });
+        try (OutputStream out = Files.newOutputStream(ksFile)) {
+            ks.store(out, "ks-password".toCharArray());
+        }
+
+        builder.put(REALM_SETTINGS_PREFIX + ".signing.keystore.path", ksFile.toString());
+        builder.put(REALM_SETTINGS_PREFIX + ".signing.keystore.type", "PKCS12");
+        final boolean isSigningKeyStoreAliasSet = randomBoolean();
+        final Tuple<X509Certificate, PrivateKey> chosenAliasCertKeyPair;
+        final String unknownAlias = randomAlphaOfLength(5);
+        if (isSigningKeyStoreAliasSet) {
+            chosenAliasCertKeyPair = randomFrom(Arrays.asList(certKeyPair3, null));
+            if (chosenAliasCertKeyPair == null) {
+                // Unknown alias
+                builder.put(REALM_SETTINGS_PREFIX + ".signing.keystore.alias", unknownAlias);
+            } else {
+                builder.put(REALM_SETTINGS_PREFIX + ".signing.keystore.alias", getAliasName(chosenAliasCertKeyPair));
+            }
+        } else {
+            chosenAliasCertKeyPair = null;
+        }
+
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(REALM_SETTINGS_PREFIX + ".signing.keystore.secure_password", "ks-password");
+        secureSettings.setString(REALM_SETTINGS_PREFIX + ".signing.keystore.secure_key_password", "key-password");
+        builder.setSecureSettings(secureSettings);
+
+        final Settings settings = builder.build();
+        final RealmConfig realmConfig = realmConfigFromGlobalSettings(settings);
+
+        if (isSigningKeyStoreAliasSet) {
+            if (chosenAliasCertKeyPair == null) {
+                // Unknown alias, this must throw exception
+                final IllegalArgumentException illegalArgumentException =
+                        expectThrows(IllegalArgumentException.class, () -> SamlRealm.buildSigningConfiguration(realmConfig));
+                final String expectedErrorMessage = "The configured key store for "
+                        + RealmSettings.getFullSettingKey(realmConfig, SamlRealmSettings.SIGNING_SETTINGS.getPrefix())
+                        + " does not have a certificate key pair associated with alias [" + unknownAlias + "] " + "(from setting "
+                        + RealmSettings.getFullSettingKey(realmConfig, SamlRealmSettings.SIGNING_KEY_ALIAS) + ")";
+                assertEquals(expectedErrorMessage, illegalArgumentException.getLocalizedMessage());
+            } else {
+                final String chosenAliasName = getAliasName(chosenAliasCertKeyPair);
+                // Since this is unsupported key type, this must throw exception
+                final IllegalArgumentException illegalArgumentException =
+                        expectThrows(IllegalArgumentException.class, () -> SamlRealm.buildSigningConfiguration(realmConfig));
+                final String expectedErrorMessage = "The key associated with alias [" + chosenAliasName + "] " + "(from setting "
+                        + RealmSettings.getFullSettingKey(realmConfig, SamlRealmSettings.SIGNING_KEY_ALIAS)
+                        + ") uses unsupported key algorithm type [" + chosenAliasCertKeyPair.v2().getAlgorithm()
+                        + "], only RSA is supported";
+                assertEquals(expectedErrorMessage, illegalArgumentException.getLocalizedMessage());
+            }
+        } else {
+            if (noRSAKeysInKS) {
+                // Should throw exception as no RSA keys in the keystore
+                final IllegalArgumentException illegalArgumentException =
+                        expectThrows(IllegalArgumentException.class, () -> SamlRealm.buildSigningConfiguration(realmConfig));
+                final String expectedErrorMessage = "The configured key store for "
+                        + RealmSettings.getFullSettingKey(realmConfig, SamlRealmSettings.SIGNING_SETTINGS.getPrefix())
+                        + " does not contain any RSA key pairs";
+                assertEquals(expectedErrorMessage, illegalArgumentException.getLocalizedMessage());
+            } else {
+                // Should throw exception when multiple signing keys found and alias not set
+                final IllegalArgumentException illegalArgumentException =
+                        expectThrows(IllegalArgumentException.class, () -> SamlRealm.buildSigningConfiguration(realmConfig));
+                final String expectedErrorMessage = "The configured key store for "
+                        + RealmSettings.getFullSettingKey(realmConfig, SamlRealmSettings.SIGNING_SETTINGS.getPrefix())
+                        + " has multiple keys but no alias has been specified (from setting "
+                        + RealmSettings.getFullSettingKey(realmConfig, SamlRealmSettings.SIGNING_KEY_ALIAS) + ")";
+                assertEquals(expectedErrorMessage, illegalArgumentException.getLocalizedMessage());
+            }
+        }
+    }
+
+    private String getAliasName(final Tuple<X509Certificate, PrivateKey> certKeyPair) {
+        return certKeyPair.v1().getSubjectX500Principal().getName().toLowerCase(Locale.US) + "-alias";
     }
 
     public void testBuildLogoutRequest() throws Exception {

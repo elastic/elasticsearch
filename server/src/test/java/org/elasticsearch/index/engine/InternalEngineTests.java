@@ -1384,11 +1384,26 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(indexResult.getFailure(), instanceOf(VersionConflictEngineException.class));
     }
 
-    protected List<Engine.Operation> generateSingleDocHistory(boolean forReplica, VersionType versionType,
-                                                              boolean partialOldPrimary, long primaryTerm,
-                                                              int minOpCount, int maxOpCount) {
+    private class DocHistoryEntry {
+        final Engine.Operation op;
+        final boolean refreshAfterOperation;
+        final boolean flushAfterOperation;
+        final boolean gcDeletesAfterOperation;
+
+        private DocHistoryEntry(Engine.Operation op, boolean refreshAfterOperation,
+                                boolean flushAfterOperation, boolean gcDeletesAfterOperation) {
+            this.op = op;
+            this.refreshAfterOperation = refreshAfterOperation;
+            this.flushAfterOperation = flushAfterOperation;
+            this.gcDeletesAfterOperation = gcDeletesAfterOperation;
+        }
+    }
+
+    protected List<DocHistoryEntry> generateSingleDocHistory(boolean forReplica, VersionType versionType,
+                                                             boolean partialOldPrimary, long primaryTerm,
+                                                             int minOpCount, int maxOpCount) {
         final int numOfOps = randomIntBetween(minOpCount, maxOpCount);
-        final List<Engine.Operation> ops = new ArrayList<>();
+        final List<DocHistoryEntry> ops = new ArrayList<>();
         final Term id = newUid("1");
         final int startWithSeqNo;
         if (partialOldPrimary) {
@@ -1435,19 +1450,19 @@ public class InternalEngineTests extends EngineTestCase {
                     forReplica ? REPLICA : PRIMARY,
                     System.currentTimeMillis());
             }
-            ops.add(op);
+            ops.add(new DocHistoryEntry(op, randomBoolean(), randomBoolean(), rarely()));
         }
         return ops;
     }
 
     public void testOutOfOrderDocsOnReplica() throws IOException {
-        final List<Engine.Operation> ops = generateSingleDocHistory(true,
+        final List<DocHistoryEntry> ops = generateSingleDocHistory(true,
             randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE, VersionType.FORCE), false, 2, 2, 20);
         assertOpsOnReplica(ops, replicaEngine, true);
     }
 
-    private void assertOpsOnReplica(List<Engine.Operation> ops, InternalEngine replicaEngine, boolean shuffleOps) throws IOException {
-        final Engine.Operation lastOp = ops.get(ops.size() - 1);
+    private void assertOpsOnReplica(List<DocHistoryEntry> ops, InternalEngine replicaEngine, boolean shuffleOps) throws IOException {
+        final Engine.Operation lastOp = ops.get(ops.size() - 1).op;
         final String lastFieldValue;
         if (lastOp instanceof Engine.Index) {
             Engine.Index index = (Engine.Index) lastOp;
@@ -1458,7 +1473,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
         if (shuffleOps) {
             int firstOpWithSeqNo = 0;
-            while (firstOpWithSeqNo < ops.size() && ops.get(firstOpWithSeqNo).seqNo() < 0) {
+            while (firstOpWithSeqNo < ops.size() && ops.get(firstOpWithSeqNo).op.seqNo() < 0) {
                 firstOpWithSeqNo++;
             }
             // shuffle ops but make sure legacy ops are first
@@ -1466,7 +1481,8 @@ public class InternalEngineTests extends EngineTestCase {
             shuffle(ops.subList(firstOpWithSeqNo, ops.size()), random());
         }
         boolean firstOp = true;
-        for (Engine.Operation op : ops) {
+        for (final DocHistoryEntry docHistoryEntry : ops) {
+            final Engine.Operation op = docHistoryEntry.op;
             logger.info("performing [{}], v [{}], seq# [{}], term [{}]",
                 op.operationType().name().charAt(0), op.version(), op.seqNo(), op.primaryTerm());
             if (op instanceof Engine.Index) {
@@ -1491,13 +1507,14 @@ public class InternalEngineTests extends EngineTestCase {
                 assertThat(result.getVersion(), equalTo(op.version()));
                 assertThat(result.hasFailure(), equalTo(false));
             }
-            if (randomBoolean()) {
+            if (docHistoryEntry.refreshAfterOperation) {
                 engine.refresh("test");
             }
-            if (randomBoolean()) {
+            if (docHistoryEntry.flushAfterOperation) {
                 engine.flush();
                 engine.refresh("test");
             }
+            // TODO GC deletes?
             firstOp = false;
         }
 
@@ -1512,8 +1529,8 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testConcurrentOutOfDocsOnReplica() throws IOException, InterruptedException {
-        final List<Engine.Operation> ops = generateSingleDocHistory(true, randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL), false, 2, 100, 300);
-        final Engine.Operation lastOp = ops.get(ops.size() - 1);
+        final List<DocHistoryEntry> ops = generateSingleDocHistory(true, randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL), false, 2, 100, 300);
+        final Engine.Operation lastOp = ops.get(ops.size() - 1).op;
         final String lastFieldValue;
         if (lastOp instanceof Engine.Index) {
             Engine.Index index = (Engine.Index) lastOp;
@@ -1535,7 +1552,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    private void concurrentlyApplyOps(List<Engine.Operation> ops, InternalEngine engine) throws InterruptedException {
+    private void concurrentlyApplyOps(List<DocHistoryEntry> ops, InternalEngine engine) throws InterruptedException {
         Thread[] thread = new Thread[randomIntBetween(3, 5)];
         CountDownLatch startGun = new CountDownLatch(thread.length);
         AtomicInteger offset = new AtomicInteger(-1);
@@ -1550,15 +1567,21 @@ public class InternalEngineTests extends EngineTestCase {
                 int docOffset;
                 while ((docOffset = offset.incrementAndGet()) < ops.size()) {
                     try {
-                        final Engine.Operation op = ops.get(docOffset);
+                        final DocHistoryEntry docHistoryEntry = ops.get(docOffset);
+                        final Engine.Operation op = docHistoryEntry.op;
                         if (op instanceof Engine.Index) {
                             engine.index((Engine.Index) op);
                         } else {
                             engine.delete((Engine.Delete) op);
                         }
-                        if ((docOffset + 1) % 4 == 0) {
+                        if (docHistoryEntry.refreshAfterOperation) {
                             engine.refresh("test");
                         }
+                        if (docHistoryEntry.flushAfterOperation) {
+                            engine.flush();
+                            engine.refresh("test");
+                        }
+                        // TODO GC deletes?
                     } catch (IOException e) {
                         throw new AssertionError(e);
                     }
@@ -1572,11 +1595,11 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testInternalVersioningOnPrimary() throws IOException {
-        final List<Engine.Operation> ops = generateSingleDocHistory(false, VersionType.INTERNAL, false, 2, 2, 20);
+        final List<DocHistoryEntry> ops = generateSingleDocHistory(false, VersionType.INTERNAL, false, 2, 2, 20);
         assertOpsOnPrimary(ops, Versions.NOT_FOUND, true, engine);
     }
 
-    private int assertOpsOnPrimary(List<Engine.Operation> ops, long currentOpVersion, boolean docDeleted, InternalEngine engine)
+    private int assertOpsOnPrimary(List<DocHistoryEntry> ops, long currentOpVersion, boolean docDeleted, InternalEngine engine)
         throws IOException {
         String lastFieldValue = null;
         int opsPerformed = 0;
@@ -1586,7 +1609,8 @@ public class InternalEngineTests extends EngineTestCase {
             index.getAutoGeneratedIdTimestamp(), index.isRetry());
         BiFunction<Long, Engine.Delete, Engine.Delete> delWithVersion = (version, delete) -> new Engine.Delete(delete.type(), delete.id(),
             delete.uid(), delete.seqNo(), delete.primaryTerm(), version, delete.versionType(), delete.origin(), delete.startTime());
-        for (Engine.Operation op : ops) {
+        for (final DocHistoryEntry docHistoryEntry : ops) {
+            final Engine.Operation op = docHistoryEntry.op;
             final boolean versionConflict = rarely();
             final boolean versionedOp = versionConflict || randomBoolean();
             final long conflictingVersion = docDeleted || randomBoolean() ?
@@ -1650,12 +1674,14 @@ public class InternalEngineTests extends EngineTestCase {
                     }
                 }
             }
-            if (randomBoolean()) {
+
+            // TODO pure refresh?
+            if (docHistoryEntry.flushAfterOperation) {
                 engine.flush();
                 engine.refresh("test");
             }
 
-            if (rarely()) {
+            if (docHistoryEntry.gcDeletesAfterOperation) {
                 // simulate GC deletes
                 engine.refresh("gc_simulation", Engine.SearcherScope.INTERNAL);
                 engine.clearDeletedTombstones();
@@ -1680,8 +1706,8 @@ public class InternalEngineTests extends EngineTestCase {
         final Set<VersionType> nonInternalVersioning = new HashSet<>(Arrays.asList(VersionType.values()));
         nonInternalVersioning.remove(VersionType.INTERNAL);
         final VersionType versionType = randomFrom(nonInternalVersioning);
-        final List<Engine.Operation> ops = generateSingleDocHistory(false, versionType, false, 2, 2, 20);
-        final Engine.Operation lastOp = ops.get(ops.size() - 1);
+        final List<DocHistoryEntry> ops = generateSingleDocHistory(false, versionType, false, 2, 2, 20);
+        final Engine.Operation lastOp = ops.get(ops.size() - 1).op;
         final String lastFieldValue;
         if (lastOp instanceof Engine.Index) {
             Engine.Index index = (Engine.Index) lastOp;
@@ -1697,7 +1723,8 @@ public class InternalEngineTests extends EngineTestCase {
         long highestOpVersion = Versions.NOT_FOUND;
         long seqNo = -1;
         boolean docDeleted = true;
-        for (Engine.Operation op : ops) {
+        for (final DocHistoryEntry docHistoryEntry : ops) {
+            final Engine.Operation op = docHistoryEntry.op;
             logger.info("performing [{}], v [{}], seq# [{}], term [{}]",
                 op.operationType().name().charAt(0), op.version(), op.seqNo(), op.primaryTerm());
             if (op instanceof Engine.Index) {
@@ -1737,13 +1764,14 @@ public class InternalEngineTests extends EngineTestCase {
                     assertThat(result.getFailure(), instanceOf(VersionConflictEngineException.class));
                 }
             }
-            if (randomBoolean()) {
+            if (docHistoryEntry.refreshAfterOperation) {
                 engine.refresh("test");
             }
-            if (randomBoolean()) {
+            if (docHistoryEntry.flushAfterOperation) {
                 engine.flush();
                 engine.refresh("test");
             }
+            // TODO GC deletes?
         }
 
         assertVisibleCount(engine, docDeleted ? 0 : 1);
@@ -1758,9 +1786,9 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testVersioningPromotedReplica() throws IOException {
-        final List<Engine.Operation> replicaOps = generateSingleDocHistory(true, VersionType.INTERNAL, false, 1, 2, 20);
-        List<Engine.Operation> primaryOps = generateSingleDocHistory(false, VersionType.INTERNAL, false, 2, 2, 20);
-        Engine.Operation lastReplicaOp = replicaOps.get(replicaOps.size() - 1);
+        final List<DocHistoryEntry> replicaOps = generateSingleDocHistory(true, VersionType.INTERNAL, false, 1, 2, 20);
+        List<DocHistoryEntry> primaryOps = generateSingleDocHistory(false, VersionType.INTERNAL, false, 2, 2, 20);
+        Engine.Operation lastReplicaOp = replicaOps.get(replicaOps.size() - 1).op;
         final boolean deletedOnReplica = lastReplicaOp instanceof Engine.Delete;
         final long finalReplicaVersion = lastReplicaOp.version();
         final long finalReplicaSeqNo = lastReplicaOp.seqNo();
@@ -1779,8 +1807,8 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testConcurrentExternalVersioningOnPrimary() throws IOException, InterruptedException {
-        final List<Engine.Operation> ops = generateSingleDocHistory(false, VersionType.EXTERNAL, false, 2, 100, 300);
-        final Engine.Operation lastOp = ops.get(ops.size() - 1);
+        final List<DocHistoryEntry> ops = generateSingleDocHistory(false, VersionType.EXTERNAL, false, 2, 100, 300);
+        final Engine.Operation lastOp = ops.get(ops.size() - 1).op;
         final String lastFieldValue;
         if (lastOp instanceof Engine.Index) {
             Engine.Index index = (Engine.Index) lastOp;

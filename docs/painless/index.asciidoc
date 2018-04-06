@@ -7,6 +7,6 @@ include::painless-getting-started.asciidoc[]
 
 include::painless-lang-spec.asciidoc[]
 
-include::painless-syntax.asciidoc[]
+include::painless-general-syntax.asciidoc[]
 
 include::painless-api-reference.asciidoc[]

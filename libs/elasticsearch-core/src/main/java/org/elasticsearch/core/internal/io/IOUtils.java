@@ -87,26 +87,27 @@ public final class IOUtils {
      * @see #close(Closeable...)
      */
     public static void close(final Exception ex, final Iterable<? extends Closeable> objects) throws IOException {
+        Exception error = ex;
         for (final Closeable object : objects) {
             try {
                 if (object != null) {
                     object.close();
                 }
             } catch (final IOException | RuntimeException e) {
-                if (ex == null) {
-                    ex = e;
+                if (error == null) {
+                    error = e;
                 } else {
-                    ex.addSuppressed(e);
+                    error.addSuppressed(e);
                 }
             }
         }
 
-        if (ex != null) {
-            if (ex instanceof IOException) {
-                throw (IOException) ex;
+        if (error != null) {
+            if (error instanceof IOException) {
+                throw (IOException) error;
             } else {
                 // since we only assigned an IOException or a RuntimeException to ex above, in this case ex must be a RuntimeException
-                throw (RuntimeException) ex;
+                throw (RuntimeException) error;
             }
         }
     }

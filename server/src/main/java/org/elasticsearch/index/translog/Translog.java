@@ -587,7 +587,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 try {
                     return current.read(location);
                 } catch (final IOException e) {
-                    closeOnTragicEvent(e);
+                    try {
+                        closeOnTragicEvent(e);
+                    } catch (final Exception inner) {
+                        e.addSuppressed(inner);
+                    }
                     throw e;
                 }
             } else {

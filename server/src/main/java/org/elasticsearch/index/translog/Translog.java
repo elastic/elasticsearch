@@ -584,7 +584,16 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (current.generation == location.generation) {
                 // no need to fsync here the read operation will ensure that buffers are written to disk
                 // if they are still in RAM and we are reading onto that position
-                return current.read(location);
+                try {
+                    return current.read(location);
+                } catch (final IOException e) {
+                    try {
+                        closeOnTragicEvent(e);
+                    } catch (final Exception inner) {
+                        e.addSuppressed(inner);
+                    }
+                    throw e;
+                }
             } else {
                 // read backwards - it's likely we need to read on that is recent
                 for (int i = readers.size() - 1; i >= 0; i--) {

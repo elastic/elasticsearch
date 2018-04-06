@@ -66,6 +66,8 @@ public class AzureStorageServiceMock extends AbstractComponent implements AzureS
 
     @Override
     public void deleteFiles(String account, LocationMode mode, String container, String path) {
+        final Map<String, BlobMetaData> blobs = listBlobsByPrefix(account, mode, container, path, null);
+        blobs.keySet().forEach(key -> deleteBlob(account, mode, container, key));
     }
 
     @Override

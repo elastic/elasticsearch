@@ -9,9 +9,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.Index;
 
-public class DeleteAsyncActionStep extends AsyncActionStep {
+public class DeleteStep extends AsyncActionStep {
 
-    public DeleteAsyncActionStep(StepKey key, StepKey nextStepKey, Client client) {
+    public DeleteStep(StepKey key, StepKey nextStepKey, Client client) {
         super(key, nextStepKey, client);
     }
 

@@ -6,11 +6,7 @@
 package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,14 +14,10 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.LongSupplier;
 
 /**
  * A {@link LifecycleAction} which deletes the index.
@@ -65,7 +57,7 @@ public class DeleteAction implements LifecycleAction {
     @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
         Step.StepKey deleteStepKey = new Step.StepKey(phase, NAME, "delete-step");
-        return Collections.singletonList(new DeleteAsyncActionStep(deleteStepKey, nextStepKey, client));
+        return Collections.singletonList(new DeleteStep(deleteStepKey, nextStepKey, client));
     }
 
     @Override

@@ -28,15 +28,8 @@ public class PhaseAfterStep extends ClusterStateWaitStep {
     @Override
     public boolean isConditionMet(Index index, ClusterState clusterState) {
         IndexMetaData indexMetaData = clusterState.metaData().index(index);
-        logger.warn("checking phase[" + indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_PHASE) + "]"
-           + " after[" + after + "]");
         long lifecycleDate = indexMetaData.getSettings()
             .getAsLong(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, -1L);
-        if (lifecycleDate < 0) {
-            // TODO(talevy): make sure this setting is set before we find ourselves here
-            logger.warn("index-lifecycle-setting for index" + index.getName() + "] not set");
-            lifecycleDate = indexMetaData.getCreationDate();
-        }
         return nowSupplier.getAsLong() >= lifecycleDate + after.getMillis();
     }
 }

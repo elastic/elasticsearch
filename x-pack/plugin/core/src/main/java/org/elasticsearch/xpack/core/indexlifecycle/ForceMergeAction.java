@@ -98,13 +98,7 @@ public class ForceMergeAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
-//        ClusterStateUpdateStep readOnlyStep = new ClusterStateUpdateStep(
-//            "read_only", NAME, phase, index.getName(), (currentState) -> {
-//            Settings readOnlySettings = Settings.builder().put(IndexMetaData.SETTING_BLOCKS_WRITE, true).build();
-//            return ClusterState.builder(currentState).metaData(MetaData.builder(currentState.metaData())
-//                .updateSettings(readOnlySettings, index.getName())).build();
-//        });
-//
+
 //        ClientStep<IndicesSegmentsRequestBuilder, IndicesSegmentResponse> segmentCount = new ClientStep<>( "segment_count",
 //            NAME, phase, index.getName(),
 //            client.admin().indices().prepareSegments(index.getName()),
@@ -118,13 +112,7 @@ public class ForceMergeAction implements LifecycleAction {
 //            NAME, phase, index.getName(),
 //            client.admin().indices().prepareForceMerge(index.getName()).setMaxNumSegments(maxNumSegments),
 //            currentState -> false, response -> RestStatus.OK.equals(response.getStatus()));
-//
-//        ClusterStateUpdateStep readWriteStep = new ClusterStateUpdateStep(
-//            "read_only", NAME, phase, index.getName(), (currentState) -> {
-//            Settings readOnlySettings = Settings.builder().put(IndexMetaData.SETTING_BLOCKS_WRITE, false).build();
-//            return ClusterState.builder(currentState).metaData(MetaData.builder(currentState.metaData())
-//                .updateSettings(readOnlySettings, index.getName())).build();
-//        });
+//    just forceMerge... then wait to see whether segmentCount matches condition
 
         return Arrays.asList();
     }

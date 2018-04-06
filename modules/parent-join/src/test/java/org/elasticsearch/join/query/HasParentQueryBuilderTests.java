@@ -24,6 +24,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -60,7 +61,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
 public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQueryBuilder> {
-    private static final String TYPE = "doc";
+    private static final String TYPE = "_doc";
     private static final String PARENT_DOC = "parent";
     private static final String CHILD_DOC = "child";
 
@@ -81,7 +82,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("doc").startObject("properties")
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties")
             .startObject("join_field")
                 .field("type", "join")
                 .startObject("relations")
@@ -112,7 +113,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
             .endObject().endObject().endObject();
 
         mapperService.merge(TYPE,
-            new CompressedXContent(mapping.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+            new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     /**

@@ -89,6 +89,11 @@ The cluster health API accepts the following request parameters:
     for the cluster to have no shard relocations. Defaults to false, which means
     it will not wait for relocating shards.
 
+`wait_for_no_initializing_shards`::
+    A boolean value which controls whether to wait (until the timeout provided)
+    for the cluster to have no shard initializations. Defaults to false, which means
+    it will not wait for initializing shards.
+
 `wait_for_active_shards`::
     A number controlling to how many active shards to wait for, `all` to wait
     for all shards in the cluster to be active, or `0` to not wait. Defaults to `0`.

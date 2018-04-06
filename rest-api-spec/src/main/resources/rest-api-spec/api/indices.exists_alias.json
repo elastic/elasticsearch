@@ -12,6 +12,7 @@
         },
         "name": {
           "type" : "list",
+          "required" : true,
           "description" : "A comma-separated list of alias names to return"
         }
       },

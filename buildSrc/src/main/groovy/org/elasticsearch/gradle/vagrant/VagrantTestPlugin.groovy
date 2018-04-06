@@ -1,7 +1,9 @@
 package org.elasticsearch.gradle.vagrant
 
 import com.carrotsearch.gradle.junit4.RandomizedTestingPlugin
+import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.FileContentsTask
+import org.elasticsearch.gradle.LoggedExec
 import org.gradle.api.*
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.execution.TaskExecutionAdapter
@@ -19,8 +21,8 @@ class VagrantTestPlugin implements Plugin<Project> {
             'centos-7',
             'debian-8',
             'debian-9',
-            'fedora-25',
             'fedora-26',
+            'fedora-27',
             'oel-6',
             'oel-7',
             'opensuse-42',
@@ -43,7 +45,7 @@ class VagrantTestPlugin implements Plugin<Project> {
 
     private static final BATS = 'bats'
     private static final String BATS_TEST_COMMAND ="cd \$BATS_ARCHIVES && sudo bats --tap \$BATS_TESTS/*.$BATS"
-    private static final String PLATFORM_TEST_COMMAND ="rm -rf ~/elasticsearch && rsync -r /elasticsearch/ ~/elasticsearch && cd ~/elasticsearch && \$GRADLE_HOME/bin/gradle test integTest"
+    private static final String PLATFORM_TEST_COMMAND ="rm -rf ~/elasticsearch && rsync -r /elasticsearch/ ~/elasticsearch && cd ~/elasticsearch && ./gradlew test integTest"
 
     @Override
     void apply(Project project) {
@@ -107,12 +109,18 @@ class VagrantTestPlugin implements Plugin<Project> {
         if (upgradeFromVersion == null) {
             String firstPartOfSeed = project.rootProject.testSeed.tokenize(':').get(0)
             final long seed = Long.parseUnsignedLong(firstPartOfSeed, 16)
-            upgradeFromVersion = project.indexCompatVersions[new Random(seed).nextInt(project.indexCompatVersions.size())]
+            final def indexCompatVersions = project.bwcVersions.indexCompatible
+            upgradeFromVersion = indexCompatVersions[new Random(seed).nextInt(indexCompatVersions.size())]
         }
 
         DISTRIBUTION_ARCHIVES.each {
             // Adds a dependency for the current version
-            project.dependencies.add(BATS, project.dependencies.project(path: ":distribution:${it}", configuration: 'archives'))
+            if (it == 'tar') {
+                it = 'archives:tar'
+            } else {
+                it = "packages:${it}"
+            }
+            project.dependencies.add(BATS, project.dependencies.project(path: ":distribution:${it}", configuration: 'default'))
         }
 
         UPGRADE_FROM_ARCHIVES.each {
@@ -302,15 +310,35 @@ class VagrantTestPlugin implements Plugin<Project> {
             }
             update.mustRunAfter(setupBats)
 
+            /*
+             * Destroying before every execution can be annoying while iterating on tests locally. Therefore, we provide a flag
+             * vagrant.destroy that defaults to true that can be used to control whether or not to destroy any test boxes before test
+             * execution.
+             */
+            final String vagrantDestroyProperty = project.getProperties().get('vagrant.destroy', 'true')
+            final boolean vagrantDestroy
+            if ("true".equals(vagrantDestroyProperty)) {
+                vagrantDestroy = true;
+            } else if ("false".equals(vagrantDestroyProperty)) {
+                vagrantDestroy = false
+            } else {
+                throw new GradleException("[vagrant.destroy] must be [true] or [false] but was [" + vagrantDestroyProperty + "]")
+            }
+            /*
+             * Some versions of Vagrant will fail destroy if the box does not exist. Therefore we check if the box exists before attempting
+             * to destroy the box.
+             */
+            final Task destroy = project.tasks.create("vagrant${boxTask}#destroy", LoggedExec) {
+                commandLine "bash", "-c", "vagrant status ${box} | grep -q \"${box}\\s\\+not created\" || vagrant destroy ${box} --force"
+                workingDir project.rootProject.rootDir
+            }
+            destroy.onlyIf { vagrantDestroy }
+            update.mustRunAfter(destroy)
+
             Task up = project.tasks.create("vagrant${boxTask}#up", VagrantCommandTask) {
                 command 'up'
                 boxName box
                 environmentVars vagrantEnvVars
-                /* Its important that we try to reprovision the box even if it already
-                  exists. That way updates to the vagrant configuration take automatically.
-                  That isn't to say that the updates will always be compatible. Its ok to
-                  just destroy the boxes if they get busted but that is a manual step
-                  because its slow-ish. */
                 /* We lock the provider to virtualbox because the Vagrantfile specifies
                   lots of boxes that only work properly in virtualbox. Virtualbox is
                   vagrant's default but its possible to change that default and folks do.
@@ -319,7 +347,7 @@ class VagrantTestPlugin implements Plugin<Project> {
                 args '--provision', '--provider', 'virtualbox'
                 /* It'd be possible to check if the box is already up here and output
                   SKIPPED but that would require running vagrant status which is slow! */
-                dependsOn update
+                dependsOn destroy, update
             }
 
             Task smoke = project.tasks.create("vagrant${boxTask}#smoketest", Exec) {
@@ -342,8 +370,9 @@ class VagrantTestPlugin implements Plugin<Project> {
             TaskExecutionAdapter packagingReproListener = new TaskExecutionAdapter() {
                 @Override
                 void afterExecute(Task task, TaskState state) {
+                    final String gradlew = Os.isFamily(Os.FAMILY_WINDOWS) ? "gradlew" : "./gradlew"
                     if (state.failure != null) {
-                        println "REPRODUCE WITH: gradle ${packaging.path} " +
+                        println "REPRODUCE WITH: ${gradlew} ${packaging.path} " +
                             "-Dtests.seed=${project.testSeed} "
                     }
                 }

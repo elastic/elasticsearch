@@ -39,6 +39,7 @@ dependencies {
   compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
   compile "org.elasticsearch.plugin:parent-join-client:${version}"
   compile "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}"
+  compile "org.elasticsearch.plugin:rank-eval-client:${version}"
 
   testCompile "org.elasticsearch.client:test:${version}"
   testCompile "org.elasticsearch.test:framework:${version}"

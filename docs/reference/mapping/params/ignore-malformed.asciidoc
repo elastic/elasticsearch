@@ -17,7 +17,7 @@ For example:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "number_one": {
           "type": "integer",
@@ -31,13 +31,13 @@ PUT my_index
   }
 }
 
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "text":       "Some text value",
   "number_one": "foo" <1>
 }
 
-PUT my_index/my_type/2
+PUT my_index/_doc/2
 {
   "text":       "Some text value",
   "number_two": "foo" <2>
@@ -67,7 +67,7 @@ PUT my_index
     "index.mapping.ignore_malformed": true <1>
   },
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "number_one": { <1>
           "type": "byte"

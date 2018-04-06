@@ -44,13 +44,13 @@ relevance `_score` of each document:
 
 [source,js]
 -------------------------------------
-PUT my_index/my_type/1?refresh
+PUT my_index/_doc/1?refresh
 {
   "text": "quick brown fox",
   "popularity": 1
 }
 
-PUT my_index/my_type/2?refresh
+PUT my_index/_doc/2?refresh
 {
   "text": "quick fox",
   "popularity": 5
@@ -89,7 +89,7 @@ store, enabled by default on all fields except for <<text,analyzed `text` fields
 
 [source,js]
 -------------------------------
-PUT my_index/my_type/1?refresh
+PUT my_index/_doc/1?refresh
 {
   "cost_price": 100
 }
@@ -164,7 +164,7 @@ For instance:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "title": { <1>
           "type": "text"
@@ -182,7 +182,7 @@ PUT my_index
   }
 }
 
-PUT my_index/my_type/1?refresh
+PUT my_index/_doc/1?refresh
 {
   "title": "Mr",
   "first_name": "Barry",

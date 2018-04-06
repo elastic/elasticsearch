@@ -22,7 +22,7 @@ For example, the following script is used in a search request to return a
 
 [source,js]
 -------------------------------------
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "my_field": 5
 }

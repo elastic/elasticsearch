@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.transport.netty4;
 
-import io.netty.channel.Channel;
 import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -31,12 +30,14 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 
@@ -90,6 +91,7 @@ public class Netty4TransportIT extends ESNetty4IntegTestCase {
 
             @Override
             public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                                  PageCacheRecycler pageCacheRecycler,
                                                                   CircuitBreakerService circuitBreakerService,
                                                                   NamedWriteableRegistry namedWriteableRegistry,
                                                                   NetworkService networkService) {
@@ -109,7 +111,8 @@ public class Netty4TransportIT extends ESNetty4IntegTestCase {
             super(settings, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService);
         }
 
-        protected String handleRequest(Channel channel, String profileName,
+        @Override
+        protected String handleRequest(TcpChannel channel, String profileName,
                                        StreamInput stream, long requestId, int messageLengthBytes, Version version,
                                        InetSocketAddress remoteAddress, byte status) throws IOException {
             String action = super.handleRequest(channel, profileName, stream, requestId, messageLengthBytes, version,

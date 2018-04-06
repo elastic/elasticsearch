@@ -30,6 +30,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -48,6 +50,7 @@ import org.elasticsearch.transport.TransportService;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -66,7 +69,7 @@ public class MockNode extends Node {
     }
 
     public MockNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins, Path configPath) {
-        this(InternalSettingsPreparer.prepareEnvironment(settings, null, Collections.emptyMap(), configPath), classpathPlugins);
+        this(InternalSettingsPreparer.prepareEnvironment(settings, Collections.emptyMap(), configPath), classpathPlugins);
     }
 
     public MockNode(Environment environment, Collection<Class<? extends Plugin>> classpathPlugins) {
@@ -82,11 +85,19 @@ public class MockNode extends Node {
     }
 
     @Override
-    protected BigArrays createBigArrays(Settings settings, CircuitBreakerService circuitBreakerService) {
+    protected BigArrays createBigArrays(PageCacheRecycler pageCacheRecycler, CircuitBreakerService circuitBreakerService) {
         if (getPluginsService().filterPlugins(NodeMocksPlugin.class).isEmpty()) {
-            return super.createBigArrays(settings, circuitBreakerService);
+            return super.createBigArrays(pageCacheRecycler, circuitBreakerService);
         }
-        return new MockBigArrays(settings, circuitBreakerService);
+        return new MockBigArrays(pageCacheRecycler, circuitBreakerService);
+    }
+
+    @Override
+    PageCacheRecycler createPageCacheRecycler(Settings settings) {
+        if (getPluginsService().filterPlugins(NodeMocksPlugin.class).isEmpty()) {
+            return super.createPageCacheRecycler(settings);
+        }
+        return new MockPageCacheRecycler(settings);
     }
 
 
@@ -105,15 +116,15 @@ public class MockNode extends Node {
     protected TransportService newTransportService(Settings settings, Transport transport, ThreadPool threadPool,
                                                    TransportInterceptor interceptor,
                                                    Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
-                                                   ClusterSettings clusterSettings) {
+                                                   ClusterSettings clusterSettings, Set<String> taskHeaders) {
         // we use the MockTransportService.TestPlugin class as a marker to create a network
         // module with this MockNetworkService. NetworkService is such an integral part of the systme
         // we don't allow to plug it in from plugins or anything. this is a test-only override and
         // can't be done in a production env.
         if (getPluginsService().filterPlugins(MockTransportService.TestPlugin.class).isEmpty()) {
-            return super.newTransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings);
+            return super.newTransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders);
         } else {
-            return new MockTransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings);
+            return new MockTransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders);
         }
     }
 

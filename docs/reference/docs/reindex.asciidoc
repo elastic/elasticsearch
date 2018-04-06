@@ -144,7 +144,7 @@ POST _reindex
 {
   "source": {
     "index": "twitter",
-    "type": "tweet",
+    "type": "_doc",
     "query": {
       "term": {
         "user": "kimchy"
@@ -160,9 +160,9 @@ POST _reindex
 // TEST[setup:twitter]
 
 `index` and `type` in `source` can both be lists, allowing you to copy from
-lots of sources in one request. This will copy documents from the `tweet` and
+lots of sources in one request. This will copy documents from the `_doc` and
 `post` types in the `twitter` and `blog` index. It'd include the `post` type in
-the `twitter` index and the `tweet` type in the `blog` index. If you want to be
+the `twitter` index and the `_doc` type in the `blog` index. If you want to be
 more specific you'll need to use the `query`. It also makes no effort to handle
 ID collisions. The target index will remain valid but it's not easy to predict
 which document will survive because the iteration order isn't well defined.
@@ -173,7 +173,7 @@ POST _reindex
 {
   "source": {
     "index": ["twitter", "blog"],
-    "type": ["tweet", "post"]
+    "type": ["_doc", "post"]
   },
   "dest": {
     "index": "all_together"
@@ -236,7 +236,7 @@ POST _reindex
 {
   "source": {
     "index": "twitter",
-    "_source": ["user", "tweet"]
+    "_source": ["user", "_doc"]
   },
   "dest": {
     "index": "new_twitter"
@@ -512,8 +512,8 @@ POST _reindex
 === URL Parameters
 
 In addition to the standard parameters like `pretty`, the Reindex API also
-supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, `timeout`, and
-`requests_per_second`.
+supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, `timeout`,
+`scroll` and `requests_per_second`.
 
 Sending the `refresh` url parameter will cause all indexes to which the request
 wrote to be refreshed. This is different than the Index API's `refresh`
@@ -531,7 +531,9 @@ Elasticsearch can reclaim the space it uses.
 before proceeding with the reindexing. See <<index-wait-for-active-shards,here>>
 for details. `timeout` controls how long each write request waits for unavailable
 shards to become available. Both work exactly how they work in the
-<<docs-bulk,Bulk API>>.
+<<docs-bulk,Bulk API>>. As `_reindex` uses scroll search, you can also specify
+the `scroll` parameter to control how long it keeps the "search context" alive,
+eg `?scroll=10m`, by default it's 5 minutes.
 
 `requests_per_second` can be set to any positive decimal number (`1.4`, `6`,
 `1000`, etc) and throttles rate at which reindex issues batches of index
@@ -796,7 +798,7 @@ create an index containing documents that look like this:
 
 [source,js]
 --------------------------------------------------
-POST test/test/1?refresh
+POST test/_doc/1?refresh
 {
   "text": "words words",
   "flag": "foo"
@@ -829,7 +831,7 @@ Now you can get the new document:
 
 [source,js]
 --------------------------------------------------
-GET test2/test/1
+GET test2/_doc/1
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -842,7 +844,7 @@ and it'll look like:
   "found": true,
   "_id": "1",
   "_index": "test2",
-  "_type": "test",
+  "_type": "_doc",
   "_version": 1,
   "_source": {
     "text": "words words",
@@ -1023,14 +1025,14 @@ Assuming you have indices consisting of documents as following:
 
 [source,js]
 ----------------------------------------------------------------
-PUT metricbeat-2016.05.30/beat/1?refresh
+PUT metricbeat-2016.05.30/_doc/1?refresh
 {"system.cpu.idle.pct": 0.908}
-PUT metricbeat-2016.05.31/beat/1?refresh
+PUT metricbeat-2016.05.31/_doc/1?refresh
 {"system.cpu.idle.pct": 0.105}
 ----------------------------------------------------------------
 // CONSOLE
 
-The new template for the `metricbeat-*` indices is already loaded into elasticsearch
+The new template for the `metricbeat-*` indices is already loaded into Elasticsearch
 but it applies only to the newly created indices. Painless can be used to reindex
 the existing documents and apply the new template.
 
@@ -1061,8 +1063,8 @@ All documents from the previous metricbeat indices now can be found in the `*-1`
 
 [source,js]
 ----------------------------------------------------------------
-GET metricbeat-2016.05.30-1/beat/1
-GET metricbeat-2016.05.31-1/beat/1
+GET metricbeat-2016.05.30-1/_doc/1
+GET metricbeat-2016.05.31-1/_doc/1
 ----------------------------------------------------------------
 // CONSOLE
 // TEST[continued]

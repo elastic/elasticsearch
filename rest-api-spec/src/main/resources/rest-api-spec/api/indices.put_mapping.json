@@ -38,10 +38,6 @@
           "options" : ["open","closed","none","all"],
           "default" : "open",
           "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
-        },
-        "update_all_types": {
-          "type": "boolean",
-          "description": "Whether to update the mapping for all fields with the same name across all types or not"
         }
       }
     },

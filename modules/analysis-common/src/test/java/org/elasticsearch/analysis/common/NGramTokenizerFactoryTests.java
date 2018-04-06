@@ -76,7 +76,8 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
     public void testNoTokenChars() throws IOException {
         final Index index = new Index("test", "_na_");
         final String name = "ngr";
-        final Settings indexSettings = newAnalysisSettingsBuilder().build();
+        final Settings indexSettings = newAnalysisSettingsBuilder().put(IndexSettings.MAX_NGRAM_DIFF_SETTING.getKey(), 2).build();
+
         final Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 4)
             .putList("token_chars", new String[0]).build();
         Tokenizer tokenizer = new NGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings)
@@ -151,6 +152,31 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
         }
     }
 
+
+    /*`
+    * test that throws an error when trying to get a NGramTokenizer where difference between max_gram and min_gram
+    * is greater than the allowed value of max_ngram_diff
+     */
+    public void testMaxNGramDiffException() throws Exception{
+        final Index index = new Index("test", "_na_");
+        final String name = "ngr";
+        final Settings indexSettings = newAnalysisSettingsBuilder().build();
+        IndexSettings indexProperties = IndexSettingsModule.newIndexSettings(index, indexSettings);
+
+        int maxAllowedNgramDiff = indexProperties.getMaxNgramDiff();
+        int ngramDiff = maxAllowedNgramDiff + 1;
+        int min_gram = 2;
+        int max_gram = min_gram + ngramDiff;
+
+        final Settings settings = newAnalysisSettingsBuilder().put("min_gram", min_gram).put("max_gram", max_gram).build();
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
+            new NGramTokenizerFactory(indexProperties, null, name, settings).create());
+        assertEquals(
+            "The difference between max_gram and min_gram in NGram Tokenizer must be less than or equal to: ["
+                + maxAllowedNgramDiff + "] but was [" + ngramDiff + "]. This limit can be set by changing the ["
+                + IndexSettings.MAX_NGRAM_DIFF_SETTING.getKey() + "] index level setting.",
+            ex.getMessage());
+    }
 
     private Version randomVersion(Random random) throws IllegalArgumentException, IllegalAccessException {
         Field[] declaredFields = Version.class.getFields();

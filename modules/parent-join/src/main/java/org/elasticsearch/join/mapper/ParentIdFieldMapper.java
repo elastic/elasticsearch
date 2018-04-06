@@ -27,6 +27,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
@@ -39,6 +40,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -124,6 +126,11 @@ public final class ParentIdFieldMapper extends FieldMapper {
             BytesRef binaryValue = (BytesRef) value;
             return binaryValue.utf8ToString();
         }
+
+        @Override
+        public Query existsQuery(QueryShardContext context) {
+            return new DocValuesFieldExistsQuery(name());
+        }
     }
 
     private final String parentName;
@@ -187,8 +194,8 @@ public final class ParentIdFieldMapper extends FieldMapper {
 
 
     @Override
-    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
-        super.doMerge(mergeWith, updateAllTypes);
+    protected void doMerge(Mapper mergeWith) {
+        super.doMerge(mergeWith);
         ParentIdFieldMapper parentMergeWith = (ParentIdFieldMapper) mergeWith;
         this.children = parentMergeWith.children;
     }

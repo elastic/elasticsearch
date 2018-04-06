@@ -29,6 +29,7 @@ import org.apache.tika.parser.ParserDecorator;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.bootstrap.FilePermissionUtils;
 import org.elasticsearch.bootstrap.JarHell;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 
@@ -50,7 +51,7 @@ import java.security.PrivilegedExceptionAction;
 import java.security.ProtectionDomain;
 import java.security.SecurityPermission;
 import java.util.Arrays;
-import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.PropertyPermission;
 import java.util.Set;
@@ -63,7 +64,15 @@ import java.util.Set;
 final class TikaImpl {
 
     /** Exclude some formats */
-    private static final Set<MediaType> EXCLUDES = Collections.singleton(MediaType.application("x-tika-ooxml"));
+    private static final Set<MediaType> EXCLUDES = new HashSet<>(Arrays.asList(
+        MediaType.application("vnd.ms-visio.drawing"),
+        MediaType.application("vnd.ms-visio.drawing.macroenabled.12"),
+        MediaType.application("vnd.ms-visio.stencil"),
+        MediaType.application("vnd.ms-visio.stencil.macroenabled.12"),
+        MediaType.application("vnd.ms-visio.template"),
+        MediaType.application("vnd.ms-visio.template.macroenabled.12"),
+        MediaType.application("vnd.ms-visio.drawing")
+    ));
 
     /** subset of parsers for types we support */
     private static final Parser PARSERS[] = new Parser[] {
@@ -90,7 +99,6 @@ final class TikaImpl {
     /**
      * parses with tika, throwing any exception hit while parsing the document
      */
-    // only package private for testing!
     static String parse(final byte content[], final Metadata metadata, final int limit) throws TikaException, IOException {
         // check that its not unprivileged code like a script
         SpecialPermission.check();
@@ -153,6 +161,15 @@ final class TikaImpl {
         perms.add(new ReflectPermission("suppressAccessChecks"));
         // xmlbeans, use by POI, needs to get the context classloader
         perms.add(new RuntimePermission("getClassLoader"));
+        // ZipFile needs accessDeclaredMembers on JDK 10; cf. https://bugs.openjdk.java.net/browse/JDK-8187485
+        if (JavaVersion.current().compareTo(JavaVersion.parse("10")) >= 0) {
+            /*
+             * See if this permission can be removed in JDK 11, bump the version here to 12 if not. If this permission can be removed, also
+             * remove the grant in the plugin-security.policy.
+             */
+            assert JavaVersion.current().compareTo(JavaVersion.parse("11")) < 0;
+            perms.add(new RuntimePermission("accessDeclaredMembers"));
+        }
         perms.setReadOnly();
         return perms;
     }

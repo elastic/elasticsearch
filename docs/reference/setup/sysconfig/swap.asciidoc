@@ -42,7 +42,7 @@ Another option available on Linux systems is to ensure that the sysctl value
 should not lead to swapping under normal circumstances, while still allowing the
 whole system to swap in emergency conditions.
 
-[[mlockall]]
+[[bootstrap-memory_lock]]
 ==== Enable `bootstrap.memory_lock`
 
 Another option is to use

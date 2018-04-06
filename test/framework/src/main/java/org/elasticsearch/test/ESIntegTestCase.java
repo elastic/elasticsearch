@@ -26,13 +26,12 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.http.HttpHost;
 import org.apache.lucene.search.Sort;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -62,6 +61,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
@@ -110,6 +110,7 @@ import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
@@ -120,6 +121,7 @@ import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MockFieldFilterPlugin;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
@@ -427,9 +429,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             if (randomBoolean()) {
                 randomSettingsBuilder.put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), randomBoolean());
-            }
-            if (randomBoolean()) {
-                randomSettingsBuilder.put(IndexModule.INDEX_QUERY_CACHE_TERM_QUERIES_SETTING.getKey(), randomBoolean());
             }
             PutIndexTemplateRequestBuilder putTemplate = client().admin().indices()
                 .preparePutTemplate("random_index_template")
@@ -740,6 +739,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
+     * creates an index with the given setting
+     */
+    public final void createIndex(String name, Settings indexSettings) {
+        assertAcked(prepareCreate(name).setSettings(indexSettings));
+    }
+
+    /**
      * Creates a new {@link CreateIndexRequestBuilder} with the settings obtained from {@link #indexSettings()}.
      */
     public final CreateIndexRequestBuilder prepareCreate(String index) {
@@ -904,17 +910,26 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * @param timeout time out value to set on {@link org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest}
      */
     public ClusterHealthStatus ensureGreen(TimeValue timeout, String... indices) {
-        return ensureColor(ClusterHealthStatus.GREEN, timeout, indices);
+        return ensureColor(ClusterHealthStatus.GREEN, timeout, false, indices);
     }
 
     /**
      * Ensures the cluster has a yellow state via the cluster health API.
      */
     public ClusterHealthStatus ensureYellow(String... indices) {
-        return ensureColor(ClusterHealthStatus.YELLOW, TimeValue.timeValueSeconds(30), indices);
+        return ensureColor(ClusterHealthStatus.YELLOW, TimeValue.timeValueSeconds(30), false, indices);
     }
 
-    private ClusterHealthStatus ensureColor(ClusterHealthStatus clusterHealthStatus, TimeValue timeout, String... indices) {
+    /**
+     * Ensures the cluster has a yellow state via the cluster health API and ensures the that cluster has no initializing shards
+     * for the given indices
+     */
+    public ClusterHealthStatus ensureYellowAndNoInitializingShards(String... indices) {
+        return ensureColor(ClusterHealthStatus.YELLOW, TimeValue.timeValueSeconds(30), true, indices);
+    }
+
+    private ClusterHealthStatus ensureColor(ClusterHealthStatus clusterHealthStatus, TimeValue timeout, boolean waitForNoInitializingShards,
+                                            String... indices) {
         String color = clusterHealthStatus.name().toLowerCase(Locale.ROOT);
         String method = "ensure" + Strings.capitalize(color);
 
@@ -923,6 +938,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             .waitForStatus(clusterHealthStatus)
             .waitForEvents(Priority.LANGUID)
             .waitForNoRelocatingShards(true)
+            .waitForNoInitializingShards(waitForNoInitializingShards)
             // We currently often use ensureGreen or ensureYellow to check whether the cluster is back in a good state after shutting down
             // a node. If the node that is stopped is the master node, another node will become master and publish a cluster state where it
             // is master but where the node that was stopped hasn't been removed yet from the cluster state. It will only subsequently
@@ -1070,7 +1086,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     public void logSegmentsState(String... indices) throws Exception {
         IndicesSegmentResponse segsRsp = client().admin().indices().prepareSegments(indices).get();
         logger.debug("segments {} state: \n{}", indices.length == 0 ? "[_all]" : indices,
-            segsRsp.toXContent(JsonXContent.contentBuilder().prettyPrint(), ToXContent.EMPTY_PARAMS).string());
+            Strings.toString(segsRsp.toXContent(JsonXContent.contentBuilder().prettyPrint(), ToXContent.EMPTY_PARAMS)));
     }
 
     /**
@@ -1269,7 +1285,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     protected final FlushResponse flush(String... indices) {
         waitForRelocation();
         FlushResponse actionGet = client().admin().indices().prepareFlush(indices).execute().actionGet();
-        for (ShardOperationFailedException failure : actionGet.getShardFailures()) {
+        for (DefaultShardOperationFailedException failure : actionGet.getShardFailures()) {
             assertThat("unexpected flush failure " + failure.reason(), failure.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
         return actionGet;
@@ -1908,6 +1924,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
             if (randomBoolean()) {
                 mocks.add(AssertingTransportInterceptor.TestPlugin.class);
             }
+            if (randomBoolean()) {
+                mocks.add(MockFieldFilterPlugin.class);
+            }
         }
 
         if (addMockTransportService()) {
@@ -1971,7 +1990,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Returns path to a random directory that can be used to create a temporary file system repo
      */
     public static Path randomRepoPath(Settings settings) {
-        Environment environment = new Environment(settings);
+        Environment environment = TestEnvironment.newEnvironment(settings);
         Path[] repoFiles = environment.repoFiles();
         assert repoFiles.length > 0;
         Path path;
@@ -2074,7 +2093,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             try {
                 INSTANCE.printTestMessage("cleaning up after");
                 INSTANCE.afterInternal(true);
-                checkStaticState();
+                checkStaticState(true);
             } finally {
                 INSTANCE = null;
             }

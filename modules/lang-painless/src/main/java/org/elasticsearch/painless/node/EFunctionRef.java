@@ -33,7 +33,6 @@ import org.objectweb.asm.Type;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.painless.Definition.VOID_TYPE;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 
 /**
@@ -60,33 +59,33 @@ public final class EFunctionRef extends AExpression implements ILambda {
     void analyze(Locals locals) {
         if (expected == null) {
             ref = null;
-            actual = locals.getDefinition().getType("String");
+            actual = String.class;
             defPointer = "S" + type + "." + call + ",0";
         } else {
             defPointer = null;
             try {
                 if ("this".equals(type)) {
                     // user's own function
-                    Method interfaceMethod = expected.struct.getFunctionalMethod();
+                    Method interfaceMethod = locals.getDefinition().ClassToType(expected).struct.functionalMethod;
                     if (interfaceMethod == null) {
                         throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
-                                                           "to [" + expected.name + "], not a functional interface");
+                                                           "to [" + Definition.ClassToName(expected) + "], not a functional interface");
                     }
                     Method delegateMethod = locals.getMethod(new MethodKey(call, interfaceMethod.arguments.size()));
                     if (delegateMethod == null) {
                         throw new IllegalArgumentException("Cannot convert function reference [" + type + "::" + call + "] " +
-                                                           "to [" + expected.name + "], function not found");
+                                                           "to [" + Definition.ClassToName(expected) + "], function not found");
                     }
                     ref = new FunctionRef(expected, interfaceMethod, delegateMethod, 0);
 
                     // check casts between the interface method and the delegate method are legal
                     for (int i = 0; i < interfaceMethod.arguments.size(); ++i) {
-                        Definition.Type from = interfaceMethod.arguments.get(i);
-                        Definition.Type to = delegateMethod.arguments.get(i);
+                        Class<?> from = interfaceMethod.arguments.get(i);
+                        Class<?> to = delegateMethod.arguments.get(i);
                         AnalyzerCaster.getLegalCast(location, from, to, false, true);
                     }
 
-                    if (interfaceMethod.rtn != VOID_TYPE) {
+                    if (interfaceMethod.rtn != void.class) {
                         AnalyzerCaster.getLegalCast(location, delegateMethod.rtn, interfaceMethod.rtn, false, true);
                     }
                 } else {

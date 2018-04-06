@@ -1,0 +1,232 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.tools.ant.taskdefs.condition.Os
+import org.apache.tools.ant.filters.FixCrLfFilter
+import org.elasticsearch.gradle.BuildPlugin
+import org.elasticsearch.gradle.EmptyDirTask
+import org.elasticsearch.gradle.LoggedExec
+import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.plugin.PluginBuildPlugin
+
+// need this so Zip/Tar tasks get basic defaults...
+apply plugin: 'base'
+
+// CopySpec does not make it easy to create an empty directory so we
+// create the directory that we want, and then point CopySpec to its
+// parent to copy to the root of the distribution
+ext.logsDir = new File(buildDir, 'logs-hack/logs')
+task createLogsDir(type: EmptyDirTask) {
+  dir "${logsDir}"
+  dirMode 0755
+}
+ext.pluginsDir= new File(buildDir, 'plugins-hack/plugins')
+task createPluginsDir(type: EmptyDirTask) {
+  dir "${pluginsDir}"
+  dirMode 0755
+}
+
+CopySpec archiveFiles(CopySpec... innerFiles) {
+  return copySpec {
+    into("elasticsearch-${version}") {
+      with libFiles
+      into('config') {
+        dirMode 0750
+        fileMode 0660
+        with configFiles('def')
+      }
+      into('bin') {
+        with copySpec {
+          with binFiles('def')
+          from('../src/bin') {
+            include '*.bat'
+            filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
+          }
+          MavenFilteringHack.filter(it, expansionsForDistribution('def'))
+        }
+      }
+      into('') {
+        from {
+          dirMode 0755
+          logsDir.getParent()
+        }
+      }
+      into('') {
+        from {
+          dirMode 0755
+          pluginsDir.getParent()
+        }
+      }
+      with commonFiles
+      with noticeFile
+      from('../src') {
+        include 'bin/*.exe'
+      }
+      for (CopySpec files : innerFiles) {
+        with files
+      }
+    }
+  }
+}
+
+task buildIntegTestZip(type: Zip) {
+  dependsOn createLogsDir, createPluginsDir
+  destinationDir = file('integ-test-zip/build/distributions')
+  baseName = 'elasticsearch'
+  with archiveFiles(transportModulesFiles)
+}
+
+task buildZip(type: Zip) {
+  dependsOn createLogsDir, createPluginsDir
+  destinationDir = file('zip/build/distributions')
+  baseName = 'elasticsearch'
+  with archiveFiles(modulesFiles)
+}
+
+task buildTar(type: Tar) {
+  dependsOn createLogsDir, createPluginsDir
+  destinationDir = file('tar/build/distributions')
+  baseName = 'elasticsearch'
+  extension = 'tar.gz'
+  compression = Compression.GZIP
+  dirMode 0755
+  fileMode 0644
+  with archiveFiles(modulesFiles)
+}
+
+// This configures the default artifact for the distribution specific
+// subprojects. We have subprojects for two reasons:
+// 1. Gradle project substitutions can only bind to the default
+//    configuration of a project
+// 2. The integ-test-zip and zip distributions have the exact same
+//    filename, so they must be placed in different directories.
+subprojects {
+  apply plugin: 'distribution'
+
+  archivesBaseName = 'elasticsearch'
+
+  String buildTask = "build${it.name.replaceAll(/-[a-z]/) { it.substring(1).toUpperCase() }.capitalize()}"
+  ext.buildDist = parent.tasks.getByName(buildTask)
+  artifacts {
+    'default' buildDist
+  }
+
+  // sanity checks if a archives can be extracted
+  File extractionDir = new File(buildDir, 'extracted')
+  task testExtraction(type: LoggedExec) {
+    dependsOn buildDist
+    doFirst {
+      project.delete(extractionDir)
+      extractionDir.mkdirs()
+    }
+  }
+  if (project.name.contains('zip')) {
+    testExtraction {
+      onlyIf { new File('/bin/unzip').exists() || new File('/usr/bin/unzip').exists() || new File('/usr/local/bin/unzip').exists() }
+      commandLine 'unzip', "${-> buildDist.outputs.files.singleFile}", '-d', extractionDir
+    }
+  } else { // tar
+    testExtraction {
+      onlyIf { new File('/bin/tar').exists() || new File('/usr/bin/tar').exists() || new File('/usr/local/bin/tar').exists() }
+      commandLine 'tar', '-xvzf', "${-> buildDist.outputs.files.singleFile}", '-C', extractionDir
+    }
+  }
+  check.dependsOn testExtraction
+}
+
+/*****************************************************************************
+ *                            Rest test config                               *
+ *****************************************************************************/
+configure(subprojects.findAll { it.name == 'integ-test-zip' }) {
+  apply plugin: 'elasticsearch.standalone-rest-test'
+  apply plugin: 'elasticsearch.rest-test'
+
+  integTest {
+    includePackaged true
+  }
+
+  integTestCluster {
+    dependsOn assemble
+    distribution = project.name
+  }
+  integTestRunner {
+    if (Os.isFamily(Os.FAMILY_WINDOWS) && System.getProperty('tests.timeoutSuite') == null) {
+      // override the suite timeout to 30 mins for windows, because it has the most inefficient filesystem known to man
+      systemProperty 'tests.timeoutSuite', '1800000!'
+    }
+  }
+
+  processTestResources {
+    inputs.properties(project(':distribution').restTestExpansions)
+    MavenFilteringHack.filter(it, project(':distribution').restTestExpansions)
+  }
+}
+
+/*****************************************************************************
+ *                              Maven config                                 *
+ *****************************************************************************/
+configure(subprojects.findAll { it.name.contains('zip') }) {
+  // only zip distributions go to maven
+  BuildPlugin.configurePomGeneration(project)
+  apply plugin: 'nebula.info-scm'
+  apply plugin: 'nebula.maven-base-publish'
+  apply plugin: 'nebula.maven-scm'
+
+  // note: the group must be correct before applying the nexus plugin, or
+  // it will capture the wrong value...
+  project.group = "org.elasticsearch.distribution.${project.name}"
+
+  publishing {
+    publications {
+      nebula {
+        artifactId 'elasticsearch'
+        artifact buildDist
+      }
+      /*
+       * HUGE HACK: the underlying maven publication library refuses to
+       * deploy any attached artifacts when the packaging type is set to
+       * 'pom'. But Sonatype's OSS repositories require source files for
+       * artifacts that are of type 'zip'. We already publish the source
+       * and javadoc for Elasticsearch under the various other subprojects.
+       * So here we create another publication using the same name that
+       * has the "real" pom, and rely on the fact that gradle will execute
+       * the publish tasks in alphabetical order. This lets us publish the
+       * zip file and even though the pom says the type is 'pom' instead of
+       * 'zip'. We cannot setup a dependency between the tasks because the
+       * publishing tasks are created *extremely* late in the configuration
+       * phase, so that we cannot get ahold of the actual task. Furthermore,
+       * this entire hack only exists so we can make publishing to maven
+       * local work, since we publish to maven central externally.
+       */
+      nebulaRealPom(MavenPublication) {
+        artifactId 'elasticsearch'
+        pom.packaging = 'pom'
+        pom.withXml { XmlProvider xml ->
+          Node root = xml.asNode()
+          root.appendNode('name', 'Elasticsearch')
+          root.appendNode('description', 'A Distributed RESTful Search Engine')
+          root.appendNode('url', PluginBuildPlugin.urlFromOrigin(project.scminfo.origin))
+          Node scmNode = root.appendNode('scm')
+          scmNode.appendNode('url', project.scminfo.origin)
+        }
+      }
+    }
+  }
+}
+

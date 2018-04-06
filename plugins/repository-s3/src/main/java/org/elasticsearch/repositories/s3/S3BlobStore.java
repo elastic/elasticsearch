@@ -93,8 +93,8 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
         return serverSideEncryption;
     }
 
-    public int bufferSizeInBytes() {
-        return bufferSize.bytesAsInt();
+    public long bufferSizeInBytes() {
+        return bufferSize.getBytes();
     }
 
     @Override

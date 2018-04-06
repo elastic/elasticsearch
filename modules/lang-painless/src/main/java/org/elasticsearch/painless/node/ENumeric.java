@@ -19,15 +19,13 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Objects;
 import java.util.Set;
-
-import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents a non-decimal numeric constant.
@@ -62,7 +60,7 @@ public final class ENumeric extends AExpression {
 
             try {
                 constant = Double.parseDouble(value.substring(0, value.length() - 1));
-                actual = Definition.DOUBLE_TYPE;
+                actual = double.class;
             } catch (NumberFormatException exception) {
                 throw createError(new IllegalArgumentException("Invalid double constant [" + value + "]."));
             }
@@ -73,34 +71,34 @@ public final class ENumeric extends AExpression {
 
             try {
                 constant = Float.parseFloat(value.substring(0, value.length() - 1));
-                actual = Definition.FLOAT_TYPE;
+                actual = float.class;
             } catch (NumberFormatException exception) {
                 throw createError(new IllegalArgumentException("Invalid float constant [" + value + "]."));
             }
         } else if (value.endsWith("l") || value.endsWith("L")) {
             try {
                 constant = Long.parseLong(value.substring(0, value.length() - 1), radix);
-                actual = Definition.LONG_TYPE;
+                actual = long.class;
             } catch (NumberFormatException exception) {
                 throw createError(new IllegalArgumentException("Invalid long constant [" + value + "]."));
             }
         } else {
             try {
-                Class<?> sort = expected == null ? int.class : expected.clazz;
+                Class<?> sort = expected == null ? int.class : expected;
                 int integer = Integer.parseInt(value, radix);
 
                 if (sort == byte.class && integer >= Byte.MIN_VALUE && integer <= Byte.MAX_VALUE) {
                     constant = (byte)integer;
-                    actual = Definition.BYTE_TYPE;
+                    actual = byte.class;
                 } else if (sort == char.class && integer >= Character.MIN_VALUE && integer <= Character.MAX_VALUE) {
                     constant = (char)integer;
-                    actual = Definition.CHAR_TYPE;
+                    actual = char.class;
                 } else if (sort == short.class && integer >= Short.MIN_VALUE && integer <= Short.MAX_VALUE) {
                     constant = (short)integer;
-                    actual = Definition.SHORT_TYPE;
+                    actual = short.class;
                 } else {
                     constant = integer;
-                    actual = Definition.INT_TYPE;
+                    actual = int.class;
                 }
             } catch (NumberFormatException exception) {
                 try {

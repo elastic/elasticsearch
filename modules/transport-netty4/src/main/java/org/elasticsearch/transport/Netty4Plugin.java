@@ -25,6 +25,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
@@ -76,6 +77,7 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
 
     @Override
     public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                          PageCacheRecycler pageCacheRecycler,
                                                           CircuitBreakerService circuitBreakerService,
                                                           NamedWriteableRegistry namedWriteableRegistry,
                                                           NetworkService networkService) {

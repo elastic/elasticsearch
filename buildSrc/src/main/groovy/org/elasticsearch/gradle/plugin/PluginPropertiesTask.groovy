@@ -80,6 +80,7 @@ class PluginPropertiesTask extends Copy {
             'elasticsearchVersion': stringSnap(VersionProperties.elasticsearch),
             'javaVersion': project.targetCompatibility as String,
             'classname': extension.classname,
+            'extendedPlugins': extension.extendedPlugins.join(','),
             'hasNativeController': extension.hasNativeController,
             'requiresKeystore': extension.requiresKeystore
         ]

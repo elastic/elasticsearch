@@ -23,7 +23,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.env.Environment;
@@ -38,7 +37,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -66,8 +64,6 @@ class FileBasedUnicastHostsProvider extends AbstractComponent implements Unicast
     private final ExecutorService executorService;
 
     private final Path unicastHostsFilePath;
-
-    private final AtomicLong nodeIdGenerator = new AtomicLong(); // generates unique ids for the node
 
     private final TimeValue resolveTimeout;
 

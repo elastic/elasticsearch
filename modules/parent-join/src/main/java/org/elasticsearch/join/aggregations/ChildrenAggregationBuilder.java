@@ -31,6 +31,8 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.join.mapper.ParentIdFieldMapper;
 import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.FieldContext;
@@ -43,6 +45,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 public class ChildrenAggregationBuilder
@@ -66,6 +69,19 @@ public class ChildrenAggregationBuilder
             throw new IllegalArgumentException("[childType] must not be null: [" + name + "]");
         }
         this.childType = childType;
+    }
+
+    protected ChildrenAggregationBuilder(ChildrenAggregationBuilder clone,
+                                         Builder factoriesBuilder, Map<String, Object> metaData) {
+        super(clone, factoriesBuilder, metaData);
+        this.childType = clone.childType;
+        this.childFilter = clone.childFilter;
+        this.parentFilter = clone.parentFilter;
+    }
+
+    @Override
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+        return new ChildrenAggregationBuilder(this, factoriesBuilder, metaData);
     }
 
     /**

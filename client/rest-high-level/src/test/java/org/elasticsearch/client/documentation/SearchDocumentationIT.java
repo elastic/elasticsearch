@@ -20,6 +20,7 @@
 package org.elasticsearch.client.documentation;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -75,6 +76,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -86,8 +88,8 @@ import static org.hamcrest.Matchers.greaterThan;
  * This class is used to generate the Java High Level REST Client Search API documentation.
  * <p>
  * You need to wrap your code between two tags like:
- * // tag::example[]
- * // end::example[]
+ * // tag::example
+ * // end::example
  * <p>
  * Where example is your tag name.
  * <p>
@@ -96,11 +98,15 @@ import static org.hamcrest.Matchers.greaterThan;
  * --------------------------------------------------
  * include-tagged::{doc-tests}/SearchDocumentationIT.java[example]
  * --------------------------------------------------
+ * <p>
+ * The column width of the code block is 84. If the code contains a line longer
+ * than 84, the line will be cut and a horizontal scroll bar will be displayed.
+ * (the code indentation of the tag is not included in the width)
  */
 public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
-    @SuppressWarnings({ "unused", "unchecked" })
-    public void testSearch() throws IOException {
+    @SuppressWarnings({"unused", "unchecked"})
+    public void testSearch() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
             BulkRequest request = new BulkRequest();
@@ -123,6 +129,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             SearchRequest searchRequest = new SearchRequest(); // <1>
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder(); // <2>
             searchSourceBuilder.query(QueryBuilders.matchAllQuery()); // <3>
+            searchRequest.source(searchSourceBuilder); // <4>
             // end::search-request-basic
         }
         {
@@ -174,8 +181,8 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             SearchResponse searchResponse = client.search(searchRequest);
             // end::search-execute
 
-            // tag::search-execute-async
-            client.searchAsync(searchRequest, new ActionListener<SearchResponse>() {
+            // tag::search-execute-listener
+            ActionListener<SearchResponse> listener = new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
                     // <1>
@@ -185,8 +192,18 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
                 public void onFailure(Exception e) {
                     // <2>
                 }
-            });
+            };
+            // end::search-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::search-execute-async
+            client.searchAsync(searchRequest, listener); // <1>
             // end::search-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
 
             // tag::search-response-1
             RestStatus status = searchResponse.status();
@@ -230,7 +247,8 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
                 Map<String, Object> sourceAsMap = hit.getSourceAsMap();
                 String documentTitle = (String) sourceAsMap.get("title");
                 List<Object> users = (List<Object>) sourceAsMap.get("user");
-                Map<String, Object> innerObject = (Map<String, Object>) sourceAsMap.get("innerObject");
+                Map<String, Object> innerObject =
+                        (Map<String, Object>) sourceAsMap.get("innerObject");
                 // end::search-hits-singleHit-source
             }
             assertEquals(3, totalHits);
@@ -343,7 +361,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    @SuppressWarnings({ "unused", "rawtypes" })
+    @SuppressWarnings({"unused", "rawtypes"})
     public void testSearchRequestSuggestions() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
@@ -449,6 +467,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void testSearchRequestProfiling() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
@@ -470,8 +489,9 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
             SearchResponse searchResponse = client.search(searchRequest);
             // tag::search-request-profiling-get
-            Map<String, ProfileShardResult> profilingResults = searchResponse.getProfileResults(); // <1>
-            for (Map.Entry<String, ProfileShardResult> profilingResult : profilingResults.entrySet()) {  // <2>
+            Map<String, ProfileShardResult> profilingResults =
+                    searchResponse.getProfileResults(); // <1>
+            for (Map.Entry<String, ProfileShardResult> profilingResult : profilingResults.entrySet()) { // <2>
                 String key = profilingResult.getKey(); // <3>
                 ProfileShardResult profileShardResult = profilingResult.getValue(); // <4>
             }
@@ -481,7 +501,8 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             assertNotNull(profileShardResult);
 
             // tag::search-request-profiling-queries
-            List<QueryProfileShardResult> queryProfileShardResults = profileShardResult.getQueryProfileResults(); // <1>
+            List<QueryProfileShardResult> queryProfileShardResults =
+                    profileShardResult.getQueryProfileResults(); // <1>
             for (QueryProfileShardResult queryProfileResult : queryProfileShardResults) { // <2>
 
             }
@@ -506,7 +527,8 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             }
 
             // tag::search-request-profiling-aggs
-            AggregationProfileShardResult aggsProfileResults = profileShardResult.getAggregationProfileResults(); // <1>
+            AggregationProfileShardResult aggsProfileResults =
+                    profileShardResult.getAggregationProfileResults(); // <1>
             for (ProfileResult profileResult : aggsProfileResults.getProfileResults()) { // <2>
                 String aggName = profileResult.getQueryName(); // <3>
                 long aggTimeInMillis = profileResult.getTime(); // <4>
@@ -517,7 +539,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    public void testScroll() throws IOException {
+    public void testScroll() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
             BulkRequest request = new BulkRequest();
@@ -587,8 +609,9 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             assertEquals(0, searchResponse.getFailedShards());
             assertEquals(3L, searchResponse.getHits().getTotalHits());
 
-            // tag::search-scroll-execute-async
-            client.searchScrollAsync(scrollRequest, new ActionListener<SearchResponse>() {
+            // tag::search-scroll-execute-listener
+            ActionListener<SearchResponse> scrollListener =
+                    new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
                     // <1>
@@ -598,8 +621,18 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
                 public void onFailure(Exception e) {
                     // <2>
                 }
-            });
+            };
+            // end::search-scroll-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            scrollListener = new LatchedActionListener<>(scrollListener, latch);
+
+            // tag::search-scroll-execute-async
+            client.searchScrollAsync(scrollRequest, scrollListener); // <1>
             // end::search-scroll-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
 
             // tag::clear-scroll-request
             ClearScrollRequest request = new ClearScrollRequest(); // <1>
@@ -627,8 +660,9 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(success);
             assertThat(released, greaterThan(0));
 
-            // tag::clear-scroll-execute-async
-            client.clearScrollAsync(request, new ActionListener<ClearScrollResponse>() {
+            // tag::clear-scroll-execute-listener
+            ActionListener<ClearScrollResponse> listener =
+                    new ActionListener<ClearScrollResponse>() {
                 @Override
                 public void onResponse(ClearScrollResponse clearScrollResponse) {
                     // <1>
@@ -638,8 +672,18 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
                 public void onFailure(Exception e) {
                     // <2>
                 }
-            });
+            };
+            // end::clear-scroll-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch clearScrollLatch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, clearScrollLatch);
+
+            // tag::clear-scroll-execute-async
+            client.clearScrollAsync(request, listener); // <1>
             // end::clear-scroll-execute-async
+
+            assertTrue(clearScrollLatch.await(30L, TimeUnit.SECONDS));
         }
         {
             // tag::search-scroll-example

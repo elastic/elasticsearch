@@ -93,7 +93,7 @@ import static org.objectweb.asm.Opcodes.H_NEWINVOKESPECIAL;
  *         private $$Lambda0(List arg$0) {
  *             this.arg$0 = arg$0;
  *         }
- *         
+ *
  *         public static Consumer create$lambda(List arg$0) {
  *             return new $$Lambda0(arg$0);
  *         }
@@ -212,7 +212,7 @@ public final class LambdaBootstrap {
         ClassWriter cw = beginLambdaClass(lambdaClassName, factoryMethodType.returnType());
         Capture[] captures = generateCaptureFields(cw, factoryMethodType);
         generateLambdaConstructor(cw, lambdaClassType, factoryMethodType, captures);
-        
+
         // Handles the special case where a method reference refers to a ctor (we need a static wrapper method):
         if (delegateInvokeType == H_NEWINVOKESPECIAL) {
             assert CTOR_METHOD_NAME.equals(delegateMethodName);
@@ -226,7 +226,7 @@ public final class LambdaBootstrap {
         generateInterfaceMethod(cw, factoryMethodType, lambdaClassType, interfaceMethodName,
             interfaceMethodType, delegateClassType, delegateInvokeType,
             delegateMethodName, delegateMethodType, captures);
-        
+
         endLambdaClass(cw);
 
         Class<?> lambdaClass = createLambdaClass(loader, cw, lambdaClassType);
@@ -321,7 +321,7 @@ public final class LambdaBootstrap {
 
         constructor.returnValue();
         constructor.endMethod();
-        
+
         // Add a factory method, if lambda takes captures.
         // @uschindler says: I talked with Rémi Forax about this. Technically, a plain ctor
         // and a MethodHandle to the ctor would be enough - BUT: Hotspot is unable to
@@ -337,10 +337,10 @@ public final class LambdaBootstrap {
     /**
      * Generates a factory method to delegate to constructors.
      */
-    private static void generateStaticCtorDelegator(ClassWriter cw, int access, String delegatorMethodName, 
+    private static void generateStaticCtorDelegator(ClassWriter cw, int access, String delegatorMethodName,
             Type delegateClassType, MethodType delegateMethodType) {
         Method wrapperMethod = new Method(delegatorMethodName, delegateMethodType.toMethodDescriptorString());
-        Method constructorMethod = 
+        Method constructorMethod =
             new Method(CTOR_METHOD_NAME, delegateMethodType.changeReturnType(void.class).toMethodDescriptorString());
         int modifiers = access | ACC_STATIC;
 
@@ -379,7 +379,7 @@ public final class LambdaBootstrap {
         GeneratorAdapter iface = new GeneratorAdapter(modifiers, lamMeth,
             cw.visitMethod(modifiers, interfaceMethodName, lamDesc, null, null));
         iface.visitCode();
-        
+
         // Loads any captured variables onto the stack.
         for (int captureCount = 0; captureCount < captures.length; ++captureCount) {
             iface.loadThis();
@@ -473,7 +473,7 @@ public final class LambdaBootstrap {
     private static CallSite createNoCaptureCallSite(
             MethodType factoryMethodType,
             Class<?> lambdaClass) {
-        
+
         try {
             return new ConstantCallSite(MethodHandles.constant(
                 factoryMethodType.returnType(), lambdaClass.getConstructor().newInstance()));
@@ -503,7 +503,7 @@ public final class LambdaBootstrap {
      * delegate method will use converted types from the interface method.  Using
      * invokedynamic to make the delegate method call allows
      * {@link MethodHandle#asType} to be used to do the type conversion instead
-     * of either a lot more code or requiring many {@link Definition.Type}s to be looked
+     * of either a lot more code or requiring many {@link Class}es to be looked
      * up at link-time.
      */
     public static CallSite delegateBootstrap(Lookup lookup,

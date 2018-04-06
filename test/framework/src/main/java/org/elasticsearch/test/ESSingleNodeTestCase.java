@@ -19,7 +19,7 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -176,6 +177,10 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put("transport.type", getTestTransportType())
             .put(Node.NODE_DATA_SETTING.getKey(), true)
             .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
+            // default the watermarks low values to prevent tests from failing on nodes without enough disk space
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1b")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "1b")
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
             .build();
         Collection<Class<? extends Plugin>> plugins = getPlugins();

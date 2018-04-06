@@ -27,7 +27,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
@@ -41,6 +40,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -57,6 +57,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -143,7 +144,7 @@ public class ElasticsearchAssertions {
         assertThat(response.getClass().getSimpleName() + " failed - not acked", response.isAcknowledged(), equalTo(true));
         assertVersionSerializable(response);
         assertTrue(response.getClass().getSimpleName() + " failed - index creation acked but not all shards were started",
-            response.isShardsAcked());
+            response.isShardsAcknowledged());
     }
 
     /**
@@ -163,7 +164,7 @@ public class ElasticsearchAssertions {
      * */
     public static void assertBlocked(BroadcastResponse replicatedBroadcastResponse) {
         assertThat("all shard requests should have failed", replicatedBroadcastResponse.getFailedShards(), Matchers.equalTo(replicatedBroadcastResponse.getTotalShards()));
-        for (ShardOperationFailedException exception : replicatedBroadcastResponse.getShardFailures()) {
+        for (DefaultShardOperationFailedException exception : replicatedBroadcastResponse.getShardFailures()) {
             ClusterBlockException clusterBlockException = (ClusterBlockException) ExceptionsHelper.unwrap(exception.getCause(), ClusterBlockException.class);
             assertNotNull("expected the cause of failure to be a ClusterBlockException but got " + exception.getCause().getMessage(), clusterBlockException);
             assertThat(clusterBlockException.blocks().size(), greaterThan(0));
@@ -203,7 +204,7 @@ public class ElasticsearchAssertions {
         msg.append(" Total shards: ").append(response.getTotalShards())
            .append(" Successful shards: ").append(response.getSuccessfulShards())
            .append(" & ").append(response.getFailedShards()).append(" shard failures:");
-        for (ShardOperationFailedException failure : response.getShardFailures()) {
+        for (DefaultShardOperationFailedException failure : response.getShardFailures()) {
             msg.append("\n ").append(failure);
         }
         return msg.toString();
@@ -347,15 +348,15 @@ public class ElasticsearchAssertions {
 
     public static void assertAllSuccessful(BroadcastResponse response) {
         assertNoFailures(response);
-        assertThat("Expected all shards successful but got successful [" + response.getSuccessfulShards() + "] total [" + response.getTotalShards() + "]",
-                response.getTotalShards(), equalTo(response.getSuccessfulShards()));
+        assertThat("Expected all shards successful",
+                response.getSuccessfulShards(), equalTo(response.getTotalShards()));
         assertVersionSerializable(response);
     }
 
     public static void assertAllSuccessful(SearchResponse response) {
         assertNoFailures(response);
-        assertThat("Expected all shards successful but got successful [" + response.getSuccessfulShards() + "] total [" + response.getTotalShards() + "]",
-                response.getTotalShards(), equalTo(response.getSuccessfulShards()));
+        assertThat("Expected all shards successful",
+                response.getSuccessfulShards(), equalTo(response.getTotalShards()));
         assertVersionSerializable(response);
     }
 
@@ -835,9 +836,11 @@ public class ElasticsearchAssertions {
         //Note that byte[] holding binary values need special treatment as they need to be properly compared item per item.
         Map<String, Object> actualMap = null;
         Map<String, Object> expectedMap = null;
-        try (XContentParser actualParser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, actual)) {
+        try (XContentParser actualParser = xContentType.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, actual.streamInput())) {
             actualMap = actualParser.map();
-            try (XContentParser expectedParser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, expected)) {
+            try (XContentParser expectedParser = xContentType.xContent()
+                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, expected.streamInput())) {
                 expectedMap = expectedParser.map();
                 try {
                     assertMapEquals(expectedMap, actualMap);

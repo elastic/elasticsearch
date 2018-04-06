@@ -6,17 +6,9 @@
 package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
-import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,8 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -36,7 +27,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.LongSupplier;
 
 public class AllocateAction implements LifecycleAction {
 
@@ -46,6 +36,7 @@ public class AllocateAction implements LifecycleAction {
     public static final ParseField REQUIRE_FIELD = new ParseField("require");
 
     private static final Logger logger = ESLoggerFactory.getLogger(AllocateAction.class);
+
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<AllocateAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
             a -> new AllocateAction((Map<String, String>) a[0], (Map<String, String>) a[1], (Map<String, String>) a[2]));
@@ -59,7 +50,9 @@ public class AllocateAction implements LifecycleAction {
     private final Map<String, String> include;
     private final Map<String, String> exclude;
     private final Map<String, String> require;
-    private AllocationDeciders allocationDeciders;
+    private static final AllocationDeciders ALLOCATION_DECIDERS = new AllocationDeciders(Settings.EMPTY,
+            Collections.singletonList(new FilterAllocationDecider(Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))));
 
     public static AllocateAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
@@ -86,9 +79,6 @@ public class AllocateAction implements LifecycleAction {
                     "At least one of " + INCLUDE_FIELD.getPreferredName() + ", " + EXCLUDE_FIELD.getPreferredName() + " or "
                             + REQUIRE_FIELD.getPreferredName() + "must contain attributes for action " + NAME);
         }
-        FilterAllocationDecider decider = new FilterAllocationDecider(Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        this.allocationDeciders = new AllocationDeciders(Settings.EMPTY, Collections.singletonList(decider));
     }
 
     @SuppressWarnings("unchecked")
@@ -131,75 +121,16 @@ public class AllocateAction implements LifecycleAction {
         return builder;
     }
 
-    /**
-     * Inspects the <code>existingSettings</code> and adds any attributes that
-     * are missing for the given <code>settingsPrefix</code> to the
-     * <code>newSettingsBuilder</code>.
-     */
-    private void addMissingAttrs(Map<String, String> newAttrs, String settingPrefix, Settings existingSettings,
-            Settings.Builder newSettingsBuilder) {
-        newAttrs.entrySet().stream().filter(e -> {
-            String existingValue = existingSettings.get(settingPrefix + e.getKey());
-            return existingValue == null || (existingValue.equals(e.getValue()) == false);
-        }).forEach(e -> newSettingsBuilder.put(settingPrefix + e.getKey(), e.getValue()));
-    }
-
-//    public static ConditionalWaitStep getAllocationCheck(AllocationDeciders allocationDeciders, String phase, String index) {
-//        return new ConditionalWaitStep("wait_allocation", NAME,
-//            phase, index, (clusterState) -> {
-//            // We only want to make progress if all shards are active so check that first
-//            if (ActiveShardCount.ALL.enoughShardsActive(clusterState, index) == false) {
-//                logger.debug("[{}] lifecycle action for index [{}] cannot make progress because not all shards are active", NAME,
-//                    index);
-//                return false;
-//            }
-//
-//            // All the allocation attributes are already set so just need to
-//            // check if the allocation has happened
-//            RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState.getRoutingNodes(), clusterState, null,
-//                System.nanoTime());
-//            int allocationPendingShards = 0;
-//            List<ShardRouting> allShards = clusterState.getRoutingTable().allShards(index);
-//            for (ShardRouting shardRouting : allShards) {
-//                assert shardRouting.active() : "Shard not active, found " + shardRouting.state() + "for shard with id: "
-//                    + shardRouting.shardId();
-//                String currentNodeId = shardRouting.currentNodeId();
-//                boolean canRemainOnCurrentNode = allocationDeciders.canRemain(shardRouting,
-//                    clusterState.getRoutingNodes().node(currentNodeId), allocation).type() == Decision.Type.YES;
-//                if (canRemainOnCurrentNode == false) {
-//                    allocationPendingShards++;
-//                }
-//            }
-//            if (allocationPendingShards > 0) {
-//                logger.debug("[{}] lifecycle action for index [{}] waiting for [{}] shards "
-//                    + "to be allocated to nodes matching the given filters", NAME, index, allocationPendingShards);
-//                return false;
-//            } else {
-//                logger.debug("[{}] lifecycle action for index [{}] complete", NAME, index);
-//                return true;
-//            }
-//        });
-//    }
 
     @Override
-    public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
-//        ClusterStateUpdateStep updateAllocationSettings = new ClusterStateUpdateStep(
-//            "update_allocation", NAME, phase, index.getName(), (clusterState) -> {
-//            IndexMetaData idxMeta = clusterState.metaData().index(index);
-//            if (idxMeta == null) {
-//                return clusterState;
-//            }
-//            Settings existingSettings = idxMeta.getSettings();
-//            Settings.Builder newSettings = Settings.builder();
-//            addMissingAttrs(include, IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey(), existingSettings, newSettings);
-//            addMissingAttrs(exclude, IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey(), existingSettings, newSettings);
-//            addMissingAttrs(require, IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey(), existingSettings, newSettings);
-//            return ClusterState.builder(clusterState)
-//                .metaData(MetaData.builder(clusterState.metaData())
-//                    .updateSettings(newSettings.build(), index.getName())).build();
-//        });
-
-        return Arrays.asList();
+    public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
+        StepKey enoughKey = new StepKey(phase, NAME, "enough-shards-allocated");
+        StepKey allocateKey = new StepKey(phase, NAME, "update-allocation");
+        StepKey allocationRoutedKey = new StepKey(phase, NAME, "check-allocation");
+        UpdateAllocationSettingsStep allocateStep = new UpdateAllocationSettingsStep(allocateKey, allocationRoutedKey,
+            include, exclude, require);
+        AllocationRoutedStep routedCheckStep = new AllocationRoutedStep(allocationRoutedKey, nextStepKey, ALLOCATION_DECIDERS);
+        return Arrays.asList(new EnoughShardsWaitStep(enoughKey, allocateKey), allocateStep, routedCheckStep);
     }
 
     @Override

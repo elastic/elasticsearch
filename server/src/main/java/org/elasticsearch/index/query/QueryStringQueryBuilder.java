@@ -900,8 +900,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 Objects.equals(rewrite, other.rewrite) &&
                 Objects.equals(minimumShouldMatch, other.minimumShouldMatch) &&
                 Objects.equals(lenient, other.lenient) && 
-                (timeZone == null ? other.timeZone == null
-                        : (other.timeZone != null && Objects.equals(timeZone.getID(), other.timeZone.getID()))) &&
+                Objects.equals(
+                        timeZone == null ? null : timeZone.getID(), 
+                        other.timeZone == null ? null : other.timeZone.getID()) &&
                 Objects.equals(escape, other.escape) &&
                 Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates) &&
                 Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery) &&

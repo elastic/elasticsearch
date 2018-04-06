@@ -9,8 +9,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.core.internal.io.Streams;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

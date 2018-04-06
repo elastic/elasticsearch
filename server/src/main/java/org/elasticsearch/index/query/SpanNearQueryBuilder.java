@@ -269,7 +269,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
 
     @Override
     public String getWriteableName() {
-            return NAME;
+        return NAME;
     }
 
     /**
@@ -298,7 +298,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
          */
         public SpanGapQueryBuilder(String fieldName, int width) {
             if (Strings.isEmpty(fieldName)) {
-                throw new IllegalArgumentException("field name is null or empty");
+                throw new IllegalArgumentException("[span_gap] field name is null or empty");
             }
             //lucene has not coded any restriction on value of width.
             //to-do : find if theoretically it makes sense to apply restrictions. 

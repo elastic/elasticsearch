@@ -87,7 +87,7 @@ for SAML realms.
                                            _principal_ property.
                                            The attribute value must match the pattern, and the value of the
                                            first _capturing group_ is used as the principal.
-                                           e.g. `^([^@]+)@example.com$` matches email addresses from the 
+                                           e.g. `^([^@]+)@example\\.com$` matches email addresses from the
                                            "example.com" domain and uses the local-part as the principal.
 | `attribute_patterns.groups`    | no    | As per `attribute_patterns.principal`, but for the _group_ property.
 | `attribute_patterns.name`      | no    | As per `attribute_patterns.principal`, but for the _name_ property.
@@ -148,7 +148,8 @@ If a signing key is configured (i.e. is one of `signing.key` or `signing.keystor
                                                  Defaults to "PKCS12" if the keystore path ends in ".p12", ".pfx" or
                                                  "pkcs12", otherwise uses "jks"
 | `signing.keystore.alias`          | no       | Specifies the alias of the key within the keystore that should be
-                                                 used for SAML message signing. Defaults to `key`.
+                                                 used for SAML message signing. Must be specified if the keystore
+                                                 contains more than one private key.
 | `signing.keystore.secure_password` | no      | ({ref}/secure-settings.html[Secure]) The password to the keystore.
 | `signing.keystore.secure_key_password` | no  | ({ref}/secure-settings.html[Secure])
                                                  The password for the key in the keystore.
@@ -186,7 +187,8 @@ Encryption can be configured using the following settings.
                                                    Defaults to "PKCS12" if the keystore path ends in ".p12", ".pfx" or
                                                    "pkcs12", otherwise uses "jks"
 | `encryption.keystore.alias`       | no         | Specifies the alias of the key within the keystore that should be
-                                                   used for SAML message encryption. Defaults to `key`.
+                                                   used for SAML message decryption. Must be specified if the keystore
+                                                   contains more than one private key.
 | `encryption.keystore.secure_password` | no     | ({ref}/secure-settings.html[Secure]) The password to the keystore.
 | `encryption.keystore.secure_key_password` | no | ({ref}/secure-settings.html[Secure])
                                                    The password for the key in the keystore.

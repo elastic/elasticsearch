@@ -54,12 +54,12 @@ public class SamlRealmSettings {
     public static final AttributeSetting MAIL_ATTRIBUTE = new AttributeSetting("mail");
 
     public static final X509KeyPairSettings ENCRYPTION_SETTINGS = new X509KeyPairSettings("encryption.", false);
-    public static final Setting<String> ENCRYPTION_KEY_ALIAS = new Setting<>("encryption.keystore.alias", "key", Function.identity(),
-            Setting.Property.NodeScope);
+    public static final Setting<String> ENCRYPTION_KEY_ALIAS =
+            Setting.simpleString("encryption.keystore.alias", Setting.Property.NodeScope);
 
     public static final X509KeyPairSettings SIGNING_SETTINGS = new X509KeyPairSettings("signing.", false);
-    public static final Setting<String> SIGNING_KEY_ALIAS = new Setting<>("signing.keystore.alias", "key", Function.identity(),
-            Setting.Property.NodeScope);
+    public static final Setting<String> SIGNING_KEY_ALIAS =
+            Setting.simpleString("signing.keystore.alias", Setting.Property.NodeScope);
     public static final Setting<List<String>> SIGNING_MESSAGE_TYPES = Setting.listSetting("signing.saml_messages",
             Collections.singletonList("*"), Function.identity(), Setting.Property.NodeScope);
 

@@ -28,14 +28,13 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
-import org.junit.BeforeClass;
+import org.junit.AfterClass;
 
-import java.net.SocketPermission;
-import java.security.AccessController;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
@@ -43,9 +42,9 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
 
     private static final String BUCKET = "gcs-repository-test";
 
-    // Static storage client shared among all nodes in order to act like a remote repository service:
+    // Static list of blobs shared among all nodes in order to act like a remote repository service:
     // all nodes must see the same content
-    private static final AtomicReference<Storage> storage = new AtomicReference<>();
+    private static final ConcurrentMap<String, byte[]> blobs = new ConcurrentHashMap<>();
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -63,15 +62,17 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
     }
 
-    @BeforeClass
-    public static void setUpStorage() {
-        storage.set(MockStorage.newStorageClient(BUCKET, GoogleCloudStorageBlobStoreRepositoryTests.class.getName()));
+    @AfterClass
+    public static void wipeRepository() {
+        blobs.clear();
     }
 
     public static class MockGoogleCloudStoragePlugin extends GoogleCloudStoragePlugin {
+
         public MockGoogleCloudStoragePlugin(final Settings settings) {
             super(settings);
         }
+
         @Override
         protected GoogleCloudStorageService createStorageService(Environment environment) {
             return new MockGoogleCloudStorageService(environment, getClientsSettings());
@@ -89,9 +90,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
                                     final String application,
                                     final TimeValue connectTimeout,
                                     final TimeValue readTimeout) {
-            // The actual impl might open a connection. So check we have permission when this call is made.
-            AccessController.checkPermission(new SocketPermission("*", "connect"));
-            return storage.get();
+            return new MockStorage(BUCKET, blobs);
         }
     }
 

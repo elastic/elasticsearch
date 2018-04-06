@@ -1292,8 +1292,8 @@ public class MovAvgIT extends ESIntegTestCase {
             assertThat("[_count] movavg should be NaN, but is ["+countMovAvg.value()+"] instead", countMovAvg.value(), equalTo(Double.NaN));
         } else {
             assertThat("[_count] movavg is null", countMovAvg, notNullValue());
-            assertTrue("[_count] movavg does not match expected [" + countMovAvg.value() + " vs " + expectedCount + "]",
-                    nearlyEqual(countMovAvg.value(), expectedCount, 0.1));
+            assertEquals("[_count] movavg does not match expected [" + countMovAvg.value() + " vs " + expectedCount + "]",
+                    countMovAvg.value(), expectedCount, 0.1);
         }
 
         // This is a gap bucket
@@ -1304,16 +1304,9 @@ public class MovAvgIT extends ESIntegTestCase {
             assertThat("[value] movavg should be NaN, but is ["+valuesMovAvg.value()+"] instead", valuesMovAvg.value(), equalTo(Double.NaN));
         } else {
             assertThat("[value] movavg is null", valuesMovAvg, notNullValue());
-            assertTrue("[value] movavg does not match expected [" + valuesMovAvg.value() + " vs " + expectedValue + "]",
-                    nearlyEqual(valuesMovAvg.value(), expectedValue, 0.1));
+            assertEquals("[value] movavg does not match expected [" + valuesMovAvg.value() + " vs " + expectedValue + "]",
+                    valuesMovAvg.value(), expectedValue, 0.1);
         }
-    }
-
-    private static boolean nearlyEqual(double a, double b, double epsilon) {
-        if (epsilon < 0) {
-            throw new IllegalArgumentException("epsilon may not be negative");
-        }
-        return Double.compare(a, b) == 0 || Math.abs(a-b) < epsilon;
     }
 
     private MovAvgModelBuilder randomModelBuilder() {

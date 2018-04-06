@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions.service;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -61,7 +62,7 @@ public class TransportWatcherServiceAction extends TransportMasterNodeAction<Wat
 
     @Override
     protected void masterOperation(WatcherServiceRequest request, ClusterState state,
-                                   ActionListener<WatcherServiceResponse> listener) throws Exception {
+                                   ActionListener<WatcherServiceResponse> listener) {
         switch (request.getCommand()) {
             case STOP:
                 setWatcherMetaDataAndWait(true, listener);
@@ -72,30 +73,38 @@ public class TransportWatcherServiceAction extends TransportMasterNodeAction<Wat
         }
     }
 
-    private void setWatcherMetaDataAndWait(boolean manuallyStopped, final ActionListener
-            <WatcherServiceResponse> listener) {
+    private void setWatcherMetaDataAndWait(boolean manuallyStopped, final ActionListener<WatcherServiceResponse> listener) {
         String source = manuallyStopped ? "update_watcher_manually_stopped" : "update_watcher_manually_started";
 
         clusterService.submitStateUpdateTask(source,
-                new AckedClusterStateUpdateTask<Boolean>(ackedRequest,
-                        ActionListener.wrap(b -> listener.onResponse(new WatcherServiceResponse(true)), listener::onFailure)) {
+                new AckedClusterStateUpdateTask<WatcherServiceResponse>(ackedRequest, listener) {
 
                     @Override
-                    protected Boolean newResponse(boolean result) {
-                        return result;
+                    protected WatcherServiceResponse newResponse(boolean acknowledged) {
+                        return new WatcherServiceResponse(acknowledged);
                     }
 
                     @Override
-                    public ClusterState execute(ClusterState clusterState) throws Exception {
-                        ClusterState.Builder builder = new ClusterState.Builder(clusterState);
-                        builder.metaData(MetaData.builder(clusterState.getMetaData())
-                                .putCustom(WatcherMetaData.TYPE, new WatcherMetaData(manuallyStopped)));
-                        return builder.build();
+                    public ClusterState execute(ClusterState clusterState) {
+                        WatcherMetaData newWatcherMetaData = new WatcherMetaData(manuallyStopped);
+                        WatcherMetaData currentMetaData = clusterState.metaData().custom(WatcherMetaData.TYPE);
+
+                        // adhere to the contract of returning the original state if nothing has changed
+                        if (newWatcherMetaData.equals(currentMetaData)) {
+                            return clusterState;
+                        } else {
+                            ClusterState.Builder builder = new ClusterState.Builder(clusterState);
+                            builder.metaData(MetaData.builder(clusterState.getMetaData())
+                                    .putCustom(WatcherMetaData.TYPE, newWatcherMetaData));
+                            return builder.build();
+                        }
                     }
 
                     @Override
-                    public void onFailure(String source, Exception throwable) {
-                        listener.onFailure(throwable);
+                    public void onFailure(String source, Exception e) {
+                        logger.error(new ParameterizedMessage("could not update watcher stopped status to [{}], source [{}]",
+                                manuallyStopped, source), e);
+                        listener.onFailure(e);
                     }
                 });
     }

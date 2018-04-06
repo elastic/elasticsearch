@@ -20,7 +20,6 @@ package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
@@ -147,7 +146,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         } else {
             token = parser.nextToken();
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new ParsingException(parser.getTokenLocation(), "[" + name  + "] Expected START_OBJECT but was: " + token);
+                throw new XContentParseException(parser.getTokenLocation(), "[" + name  + "] Expected START_OBJECT but was: " + token);
             }
         }
 
@@ -159,7 +158,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
                 fieldParser = getParser(currentFieldName);
             } else {
                 if (currentFieldName == null) {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + name  + "] no field found");
+                    throw new XContentParseException(parser.getTokenLocation(), "[" + name  + "] no field found");
                 }
                 if (fieldParser == null) {
                     assert ignoreUnknownFields : "this should only be possible if configured to ignore known fields";
@@ -182,7 +181,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         try {
             return parse(parser, valueSupplier.get(), context);
         } catch (IOException e) {
-            throw new ParsingException(parser.getTokenLocation(), "[" + name  + "] failed to parse object", e);
+            throw new XContentParseException(parser.getTokenLocation(), "[" + name  + "] failed to parse object", e);
         }
     }
 
@@ -233,7 +232,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         // This creates and parses the named object
         BiFunction<XContentParser, Context, T> objectParser = (XContentParser p, Context c) -> {
             if (p.currentToken() != XContentParser.Token.FIELD_NAME) {
-                throw new ParsingException(p.getTokenLocation(), "[" + field + "] can be a single object with any number of "
+                throw new XContentParseException(p.getTokenLocation(), "[" + field + "] can be a single object with any number of "
                         + "fields or an array where each entry is an object with a single field");
             }
             // This messy exception nesting has the nice side effect of telling the use which field failed to parse
@@ -242,10 +241,10 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
                 try {
                     return namedObjectParser.parse(p, c, name);
                 } catch (Exception e) {
-                    throw new ParsingException(p.getTokenLocation(), "[" + field + "] failed to parse field [" + name + "]", e);
+                    throw new XContentParseException(p.getTokenLocation(), "[" + field + "] failed to parse field [" + name + "]", e);
                 }
             } catch (IOException e) {
-                throw new ParsingException(p.getTokenLocation(), "[" + field + "] error while parsing", e);
+                throw new XContentParseException(p.getTokenLocation(), "[" + field + "] error while parsing", e);
             }
         };
         declareField((XContentParser p, Value v, Context c) -> {
@@ -261,14 +260,14 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
                 orderedModeCallback.accept(v);
                 while ((token = p.nextToken()) != XContentParser.Token.END_ARRAY) {
                     if (token != XContentParser.Token.START_OBJECT) {
-                        throw new ParsingException(p.getTokenLocation(), "[" + field + "] can be a single object with any number of "
+                        throw new XContentParseException(p.getTokenLocation(), "[" + field + "] can be a single object with any number of "
                                 + "fields or an array where each entry is an object with a single field");
                     }
                     p.nextToken(); // Move to the first field in the object
                     fields.add(objectParser.apply(p, c));
                     p.nextToken(); // Move past the object, should be back to into the array
                     if (p.currentToken() != XContentParser.Token.END_OBJECT) {
-                        throw new ParsingException(p.getTokenLocation(), "[" + field + "] can be a single object with any number of "
+                        throw new XContentParseException(p.getTokenLocation(), "[" + field + "] can be a single object with any number of "
                                 + "fields or an array where each entry is an object with a single field");
                     }
                 }
@@ -314,7 +313,8 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         try {
             fieldParser.parser.parse(parser, value, context);
         } catch (Exception ex) {
-            throw new ParsingException(parser.getTokenLocation(), "[" + name  + "] failed to parse field [" + currentFieldName + "]", ex);
+            throw new XContentParseException(parser.getTokenLocation(),
+                "[" + name  + "] failed to parse field [" + currentFieldName + "]", ex);
         }
     }
 
@@ -331,7 +331,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
             case END_OBJECT:
             case END_ARRAY:
             case FIELD_NAME:
-                throw new ParsingException(parser.getTokenLocation(), "[" + name + "]" + token + " is unexpected");
+                throw new XContentParseException(parser.getTokenLocation(), "[" + name + "]" + token + " is unexpected");
             case VALUE_STRING:
             case VALUE_NUMBER:
             case VALUE_BOOLEAN:
@@ -364,11 +364,11 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
 
         void assertSupports(String parserName, XContentParser parser, String currentFieldName) {
             if (parseField.match(currentFieldName, parser.getDeprecationHandler()) == false) {
-                throw new ParsingException(parser.getTokenLocation(),
+                throw new XContentParseException(parser.getTokenLocation(),
                         "[" + parserName  + "] parsefield doesn't accept: " + currentFieldName);
             }
             if (supportedTokens.contains(parser.currentToken()) == false) {
-                throw new ParsingException(parser.getTokenLocation(),
+                throw new XContentParseException(parser.getTokenLocation(),
                         "[" + parserName + "] " + currentFieldName + " doesn't support values of type: " + parser.currentToken());
             }
         }

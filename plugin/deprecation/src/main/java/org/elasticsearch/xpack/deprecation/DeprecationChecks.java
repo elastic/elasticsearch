@@ -40,7 +40,6 @@ public class DeprecationChecks {
             // STUB
         ));
 
-    @SuppressWarnings("unchecked")
     static List<Function<IndexMetaData, DeprecationIssue>> INDEX_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
             IndexDeprecationChecks::allMetaFieldIsDisabledByDefaultCheck,
@@ -50,7 +49,8 @@ public class DeprecationChecks {
             IndexDeprecationChecks::includeInAllCheck,
             IndexDeprecationChecks::indexSharedFileSystemCheck,
             IndexDeprecationChecks::indexStoreTypeCheck,
-            IndexDeprecationChecks::storeThrottleSettingsCheck));
+            IndexDeprecationChecks::storeThrottleSettingsCheck,
+            IndexDeprecationChecks::delimitedPayloadFilterCheck));
 
     /**
      * helper utility function to reduce repeat of running a specific {@link Set} of checks.

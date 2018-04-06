@@ -7,11 +7,13 @@ package org.elasticsearch.xpack.deprecation;
 
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.mapper.DynamicTemplate;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -173,7 +175,6 @@ public class IndexDeprecationChecks {
         return null;
     }
 
-    @SuppressWarnings("unchecked")
     static DeprecationIssue baseSimilarityDefinedCheck(IndexMetaData indexMetaData) {
         if (indexMetaData.getCreationVersion().before(Version.V_6_0_0_alpha1)) {
             Settings settings = indexMetaData.getSettings().getAsSettings("index.similarity.base");
@@ -189,7 +190,22 @@ public class IndexDeprecationChecks {
         return null;
     }
 
-    @SuppressWarnings("unchecked")
+    static DeprecationIssue delimitedPayloadFilterCheck(IndexMetaData indexMetaData) {
+        List<String> issues = new ArrayList<>();
+        Map<String, Settings> filters = indexMetaData.getSettings().getGroups(AnalysisRegistry.INDEX_ANALYSIS_FILTER);
+        for (Map.Entry<String, Settings> entry : filters.entrySet()) {
+            if ("delimited_payload_filter".equals(entry.getValue().get("type"))) {
+                issues.add("The filter [" + entry.getKey() + "] is of deprecated 'delimited_payload_filter' type. "
+                        + "The filter type should be changed to 'delimited_payload'.");
+            }
+        }
+        if (issues.size() > 0) {
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING, "Use of 'delimited_payload_filter'.",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking_70_analysis_changes.html", issues.toString());
+        }
+        return null;
+    }
+
     static DeprecationIssue indexStoreTypeCheck(IndexMetaData indexMetaData) {
         if (indexMetaData.getCreationVersion().before(Version.V_6_0_0_alpha1) &&
             indexMetaData.getSettings().get("index.store.type") != null) {
@@ -204,7 +220,6 @@ public class IndexDeprecationChecks {
         return null;
     }
 
-    @SuppressWarnings("unchecked")
     static DeprecationIssue storeThrottleSettingsCheck(IndexMetaData indexMetaData) {
         if (indexMetaData.getCreationVersion().before(Version.V_6_0_0_alpha1)) {
             Settings settings = indexMetaData.getSettings();
@@ -227,7 +242,6 @@ public class IndexDeprecationChecks {
         return null;
     }
 
-    @SuppressWarnings("unchecked")
     static DeprecationIssue indexSharedFileSystemCheck(IndexMetaData indexMetaData) {
         if (indexMetaData.getCreationVersion().before(Version.V_6_0_0_alpha1) &&
             indexMetaData.getSettings().get("index.shared_filesystem") != null) {

@@ -11,6 +11,64 @@ such as encrypting communications, role-based access control, IP filtering, and
 auditing. For more information, see
 {xpack-ref}/xpack-security.html[Securing the Elastic Stack].
 
+To use {security} in {es}:
+
+. Verify that you are using a license that includes the {security} feature.
++
+--
+If you want to try all of the {xpack} features, you can start a 30-day trial. At
+the end of the trial period, you can purchase a subscription to keep using the
+full functionality of the {xpack} components. For more information, see
+https://www.elastic.co/subscriptions and
+{xpack-ref}/license-management.html[License Management].
+--
+
+. Verify that the `xpack.security.enabled` setting is `true` on each node in
+your cluster. If you are using a trial license, the default value is `false`.
+For more information, see {ref}/security-settings.html[Security Settings in {es}].
+
+. Configure Transport Layer Security (TLS/SSL) for internode-communication.
++
+--
+NOTE: This requirement applies to clusters with more than one node and to
+clusters with a single node that listens on an external interface. Single-node
+clusters that use a loopback interface do not have this requirement.  For more
+information, see
+{xpack-ref}/encrypting-communications.html[Encrypting Communications].
+
+--
+.. <<node-certificates,Generate node certificates for each of your {es} nodes>>.
+
+.. <<tls-transport, Enable TLS on each {es} node>>.
+
+. If it is not already running, start {es}.
+
+. Set the passwords for all built-in users.
++
+--
+{security} provides
+{xpack-ref}/setting-up-authentication.html#built-in-users[built-in users] to
+help you get up and running. The +setup-passwords+ command is the simplest
+method to set the built-in users' passwords for the first time.
+
+For example, you can run the command in an "interactive" mode, which prompts you
+to enter new passwords for the `elastic`, `kibana`, `beats_system`, and
+`logstash_system` users:
+
+[source,shell]
+--------------------------------------------------
+bin/x-pack/setup-passwords interactive
+--------------------------------------------------
+
+For more information about the command options, see <<setup-passwords>>.
+
+IMPORTANT: The `setup-passwords` command uses a transient bootstrap password
+that is no longer valid after the command runs successfully. You cannot run the
+`setup-passwords` command a second time. Instead, you can update passwords from
+the **Management > Users** UI in {kib} or use the security user API.
+
+--
+
 include::securing-communications/securing-elasticsearch.asciidoc[]
 include::securing-communications/configuring-tls-docker.asciidoc[]
 include::securing-communications/enabling-cipher-suites.asciidoc[]

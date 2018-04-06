@@ -393,7 +393,11 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 }
             }
         } catch (final IOException e) {
-            closeWithTragicEvent(e);
+            try {
+                closeWithTragicEvent(e);
+            } catch (final IOException inner) {
+                e.addSuppressed(inner);
+            }
             throw e;
         }
         // we don't have to have a lock here because we only write ahead to the file, so all writes has been complete

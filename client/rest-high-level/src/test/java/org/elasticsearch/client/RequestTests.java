@@ -1247,11 +1247,8 @@ public class RequestTests extends ESTestCase {
                 new PrecisionAtK());
         String[] indices = randomIndicesNames(0, 5);
         RankEvalRequest rankEvalRequest = new RankEvalRequest(spec, indices);
-        String wildCardOption = randomFrom("none", "open", "closed", "all");
-        String ignoreUnavailableOption = randomFrom("true", "false");
-        String allowNoIndicesOption = randomFrom("true", "false");
-        rankEvalRequest.indicesOptions(IndicesOptions.fromParameters(wildCardOption,
-                ignoreUnavailableOption, allowNoIndicesOption, SearchRequest.DEFAULT_INDICES_OPTIONS));
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomIndicesOptions(rankEvalRequest::indicesOptions, rankEvalRequest::indicesOptions, expectedParams);
 
         Request request = Request.rankEval(rankEvalRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
@@ -1262,9 +1259,7 @@ public class RequestTests extends ESTestCase {
         endpoint.add(RestRankEvalAction.ENDPOINT);
         assertEquals(endpoint.toString(), request.getEndpoint());
         assertEquals(3, request.getParameters().size());
-        assertEquals(allowNoIndicesOption, request.getParameters().get("allow_no_indices"));
-        assertEquals(wildCardOption.equals("all") ? "open,closed" : wildCardOption, request.getParameters().get("expand_wildcards"));
-        assertEquals(ignoreUnavailableOption, request.getParameters().get("ignore_unavailable"));
+        assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(spec, request.getEntity());
 
     }

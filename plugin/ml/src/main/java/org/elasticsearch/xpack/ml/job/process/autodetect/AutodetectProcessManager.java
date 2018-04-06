@@ -147,6 +147,7 @@ public class AutodetectProcessManager extends AbstractComponent {
     }
 
     public void killProcess(JobTask jobTask, boolean awaitCompletion, String reason) {
+        logger.trace("[{}] Killing process: awaitCompletion = [{}]; reason = [{}]", jobTask.getJobId(), awaitCompletion, reason);
         ProcessContext processContext = processByAllocation.remove(jobTask.getAllocationId());
         if (processContext != null) {
             processContext.newKillBuilder()
@@ -160,6 +161,7 @@ public class AutodetectProcessManager extends AbstractComponent {
             // causing the task to be recreated but the failed process wasn't.
             // We still need to remove the task from the TaskManager (which
             // is what the kill would do)
+            logger.trace("[{}] Marking job task as completed", jobTask.getJobId());
             jobTask.markAsCompleted();
         }
     }

@@ -31,6 +31,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -697,6 +698,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
     public static class JobTask extends AllocatedPersistentTask implements OpenJobAction.JobTaskMatcher {
 
+        private static final Logger LOGGER = Loggers.getLogger(JobTask.class);
+
         private final String jobId;
         private volatile AutodetectProcessManager autodetectProcessManager;
 
@@ -712,6 +715,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         @Override
         protected void onCancelled() {
             String reason = getReasonCancelled();
+            LOGGER.trace("[{}] Cancelling job task because: {}", jobId, reason);
             killJob(reason);
         }
 

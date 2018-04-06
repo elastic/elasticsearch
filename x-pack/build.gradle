@@ -56,8 +56,8 @@ subprojects {
   }
 
   tasks.withType(LicenseHeadersTask.class) {
-    approvedLicenses = ['Elasticsearch Confidential', 'Generated']
-    additionalLicense 'ESCON', 'Elasticsearch Confidential', 'ELASTICSEARCH CONFIDENTIAL'
+    approvedLicenses = ['Elastic License', 'Generated']
+    additionalLicense 'ELAST', 'Elastic License', 'Licensed under the Elastic License'
   }
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-core:${version}": xpackModule('core')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-deprecation:${version}": xpackModule('deprecation')]

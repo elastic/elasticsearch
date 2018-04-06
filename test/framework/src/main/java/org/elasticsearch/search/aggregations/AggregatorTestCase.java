@@ -60,7 +60,11 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.mock.orig.Mockito;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders;
+import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourceSubPhase;
@@ -297,7 +301,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                                                       Query query,
                                                                                       AggregationBuilder builder,
                                                                                       MappedFieldType... fieldTypes) throws IOException {
-        return searchAndReduce(searcher, query, builder, DEFAULT_MAX_BUCKETS, fieldTypes);
+        return searchAndReduce(searcher, query, builder, DEFAULT_MAX_BUCKETS, null, fieldTypes);
     }
 
     /**
@@ -309,6 +313,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                                                       Query query,
                                                                                       AggregationBuilder builder,
                                                                                       int maxBucket,
+                                                                                      ScriptService scriptService,
                                                                                       MappedFieldType... fieldTypes) throws IOException {
         final IndexReaderContext ctx = searcher.getTopReaderContext();
 
@@ -363,10 +368,15 @@ public abstract class AggregatorTestCase extends ESTestCase {
             // now do the final reduce
             MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(maxBucket);
             InternalAggregation.ReduceContext context =
-                new InternalAggregation.ReduceContext(root.context().bigArrays(), null, reduceBucketConsumer, true);
+                new InternalAggregation.ReduceContext(root.context().bigArrays(), scriptService, reduceBucketConsumer, true);
 
             @SuppressWarnings("unchecked")
             A internalAgg = (A) aggs.get(0).doReduce(aggs, context);
+            if (internalAgg.pipelineAggregators().size() > 0) {
+                for (PipelineAggregator pipelineAggregator : internalAgg.pipelineAggregators()) {
+                    internalAgg = (A) pipelineAggregator.reduce(internalAgg, context);
+                }
+            }
             InternalAggregationTestCase.assertMultiBucketConsumer(internalAgg, reduceBucketConsumer);
             return internalAgg;
         }

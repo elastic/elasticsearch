@@ -344,7 +344,7 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
                 } else if (BUCKETS_PATH.match(currentFieldName, parser.getDeprecationHandler())) {
                     bucketsPaths = new String[] { parser.text() };
                 } else if (GAP_POLICY.match(currentFieldName, parser.getDeprecationHandler())) {
-                    gapPolicy = GapPolicy.parse(parser.text(), parser.getTokenLocation());
+                    gapPolicy = GapPolicy.parse(parser.text());
                 } else if (MODEL.match(currentFieldName, parser.getDeprecationHandler())) {
                     model = parser.text();
                 } else {

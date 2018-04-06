@@ -220,6 +220,8 @@ import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltWintersM
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.LinearModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
+import org.elasticsearch.search.aggregations.pipeline.movfn.MovFnPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.movfn.MovFnPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregator;
 import org.elasticsearch.search.fetch.FetchPhase;
@@ -514,6 +516,11 @@ public class SearchModule {
                 SerialDiffPipelineAggregationBuilder::new,
                 SerialDiffPipelineAggregator::new,
                 SerialDiffPipelineAggregationBuilder::parse));
+        registerPipelineAggregation(new PipelineAggregationSpec(
+            MovFnPipelineAggregationBuilder.NAME,
+            MovFnPipelineAggregationBuilder::new,
+            MovFnPipelineAggregator::new,
+            MovFnPipelineAggregationBuilder::parse));
 
         registerFromPlugin(plugins, SearchPlugin::getPipelineAggregations, this::registerPipelineAggregation);
     }

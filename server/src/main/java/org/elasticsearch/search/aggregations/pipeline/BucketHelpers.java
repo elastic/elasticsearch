@@ -62,7 +62,7 @@ public class BucketHelpers {
          *            GapPolicy in string format (e.g. "ignore")
          * @return GapPolicy enum
          */
-        public static GapPolicy parse(String text, XContentLocation tokenLocation) {
+        public static GapPolicy parse(String text) {
             GapPolicy result = null;
             for (GapPolicy policy : values()) {
                 if (policy.parseField.match(text, LoggingDeprecationHandler.INSTANCE)) {
@@ -79,7 +79,7 @@ public class BucketHelpers {
                 for (GapPolicy policy : values()) {
                     validNames.add(policy.getName());
                 }
-                throw new ParsingException(tokenLocation, "Invalid gap policy: [" + text + "], accepted values: " + validNames);
+                throw new IllegalArgumentException("Invalid gap policy: [" + text + "], accepted values: " + validNames);
             }
             return result;
         }

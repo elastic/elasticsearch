@@ -174,7 +174,7 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
                     bucketsPathsMap = new HashMap<>();
                     bucketsPathsMap.put("_value", parser.text());
                 } else if (GAP_POLICY.match(currentFieldName, parser.getDeprecationHandler())) {
-                    gapPolicy = GapPolicy.parse(parser.text(), parser.getTokenLocation());
+                    gapPolicy = GapPolicy.parse(parser.text());
                 } else if (Script.SCRIPT_PARSE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     script = Script.parse(parser);
                 } else {

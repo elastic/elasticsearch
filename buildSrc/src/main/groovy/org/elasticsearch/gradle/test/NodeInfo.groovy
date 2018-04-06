@@ -167,7 +167,10 @@ class NodeInfo {
         String collectedSystemProperties = config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" ")
         String esJavaOpts = config.jvmArgs.isEmpty() ? collectedSystemProperties : collectedSystemProperties + " " + config.jvmArgs
         if (Boolean.parseBoolean(System.getProperty('tests.asserts', 'true'))) {
-            esJavaOpts += " -ea -esa"
+            // put the enable assertions options before other options to allow
+            // flexibility to disable assertions for specific packages or classes
+            // in the cluster-specific options
+            esJavaOpts = String.join(" ", "-ea", "-esa", esJavaOpts)
         }
         env.put('ES_JAVA_OPTS', esJavaOpts)
         for (Map.Entry<String, String> property : System.properties.entrySet()) {

@@ -164,7 +164,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         return tragedy;
     }
 
-    private synchronized void closeWithTragicEvent(Exception exception) throws IOException {
+    private synchronized void closeWithTragicEvent(final Exception exception) {
         assert exception != null;
         if (tragedy == null) {
             tragedy = exception;
@@ -173,7 +173,11 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             // worrying about self suppression.
             tragedy.addSuppressed(exception);
         }
-        close();
+        try {
+            close();
+        } catch (final IOException | RuntimeException e) {
+            exception.addSuppressed(e);
+        }
     }
 
     /**
@@ -194,11 +198,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         try {
             data.writeTo(outputStream);
         } catch (final Exception ex) {
-            try {
-                closeWithTragicEvent(ex);
-            } catch (final Exception inner) {
-                ex.addSuppressed(inner);
-            }
+            closeWithTragicEvent(ex);
             throw ex;
         }
         totalOffset += data.length();
@@ -290,12 +290,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             synchronized (this) {
                 try {
                     sync(); // sync before we close..
-                } catch (IOException e) {
-                    try {
-                        closeWithTragicEvent(e);
-                    } catch (Exception inner) {
-                        e.addSuppressed(inner);
-                    }
+                } catch (final Exception e) {
+                    closeWithTragicEvent(e);
                     throw e;
                 }
                 if (closed.compareAndSet(false, true)) {
@@ -346,12 +342,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                         try {
                             outputStream.flush();
                             checkpointToSync = getCheckpoint();
-                        } catch (Exception ex) {
-                            try {
-                                closeWithTragicEvent(ex);
-                            } catch (Exception inner) {
-                                ex.addSuppressed(inner);
-                            }
+                        } catch (final Exception ex) {
+                            closeWithTragicEvent(ex);
                             throw ex;
                         }
                     }
@@ -360,12 +352,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     try {
                         channel.force(false);
                         writeCheckpoint(channelFactory, path.getParent(), checkpointToSync);
-                    } catch (Exception ex) {
-                        try {
-                            closeWithTragicEvent(ex);
-                        } catch (Exception inner) {
-                            ex.addSuppressed(inner);
-                        }
+                    } catch (final Exception ex) {
+                        closeWithTragicEvent(ex);
                         throw ex;
                     }
                     assert lastSyncedCheckpoint.offset <= checkpointToSync.offset :
@@ -392,12 +380,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     }
                 }
             }
-        } catch (final IOException e) {
-            try {
-                closeWithTragicEvent(e);
-            } catch (final IOException inner) {
-                e.addSuppressed(inner);
-            }
+        } catch (final Exception e) {
+            closeWithTragicEvent(e);
             throw e;
         }
         // we don't have to have a lock here because we only write ahead to the file, so all writes has been complete
@@ -451,12 +435,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 try {
                     ensureOpen();
                     super.flush();
-                } catch (Exception ex) {
-                    try {
-                        closeWithTragicEvent(ex);
-                    } catch (Exception inner) {
-                        ex.addSuppressed(inner);
-                    }
+                } catch (final Exception ex) {
+                    closeWithTragicEvent(ex);
                     throw ex;
                 }
             }

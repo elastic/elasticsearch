@@ -170,7 +170,7 @@ class NodeInfo {
             // put the enable assertions options before other options to allow
             // flexibility to disable assertions for specific packages or classes
             // in the cluster-specific options
-            esJavaOpts = "-ea -esa " + esJavaOpts
+            esJavaOpts = String.join(" ", "-ea", "-esa", esJavaOpts)
         }
         env.put('ES_JAVA_OPTS', esJavaOpts)
         for (Map.Entry<String, String> property : System.properties.entrySet()) {

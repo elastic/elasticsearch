@@ -20,7 +20,6 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 
@@ -161,7 +160,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
         try {
             return parse(parser, context);
         } catch (IOException e) {
-            throw new ParsingException(parser.getTokenLocation(), "[" + objectParser.getName()  + "] failed to parse object", e);
+            throw new XContentParseException(parser.getTokenLocation(), "[" + objectParser.getName()  + "] failed to parse object", e);
         }
     }
 
@@ -335,7 +334,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
                 try {
                     consumer.accept(targetObject, v);
                 } catch (Exception e) {
-                    throw new ParsingException(location,
+                    throw new XContentParseException(location,
                             "[" + objectParser.getName() + "] failed to parse field [" + parseField.getPreferredName() + "]", e);
                 }
             });
@@ -413,7 +412,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
         private void queue(Consumer<Value> queueMe) {
             assert targetObject == null: "Don't queue after the targetObject has been built! Just apply the consumer directly.";
             if (queuedFields == null) {
-                @SuppressWarnings("unchecked")
+                @SuppressWarnings({"unchecked", "rawtypes"})
                 Consumer<Value>[] queuedFields = new Consumer[numberOfFields];
                 this.queuedFields = queuedFields;
             }
@@ -471,11 +470,12 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
                     queuedFieldsCount -= 1;
                     queuedFields[queuedFieldsCount].accept(targetObject);
                 }
-            } catch (ParsingException e) {
-                throw new ParsingException(e.getLineNumber(), e.getColumnNumber(),
-                        "failed to build [" + objectParser.getName() + "] after last required field arrived", e);
+            } catch (XContentParseException e) {
+                throw new XContentParseException(e.getLocation(),
+                    "failed to build [" + objectParser.getName() + "] after last required field arrived", e);
             } catch (Exception e) {
-                throw new ParsingException(null, "Failed to build [" + objectParser.getName() + "] after last required field arrived", e);
+                throw new XContentParseException(null,
+                        "Failed to build [" + objectParser.getName() + "] after last required field arrived", e);
             }
         }
     }

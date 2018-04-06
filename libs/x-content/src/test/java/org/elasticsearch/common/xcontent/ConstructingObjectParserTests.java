@@ -22,14 +22,12 @@ package org.elasticsearch.common.xcontent;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ObjectParserTests.NamedObject;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
@@ -38,6 +36,7 @@ import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -79,7 +78,8 @@ public class ConstructingObjectParserTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         expected.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder = shuffleXContent(builder);
-        BytesReference bytes = BytesReference.bytes(builder);
+        builder.flush();
+        byte[] bytes = ((ByteArrayOutputStream) builder.getOutputStream()).toByteArray();
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytes)) {
             HasCtorArguments parsed = randomFrom(HasCtorArguments.ALL_PARSERS).apply(parser, null);
             assertEquals(expected.animal, parsed.animal);
@@ -90,9 +90,6 @@ public class ConstructingObjectParserTests extends ESTestCase {
             assertEquals(expected.b, parsed.b);
             assertEquals(expected.c, parsed.c);
             assertEquals(expected.d, parsed.d);
-        } catch (Exception e) {
-            // It is convenient to decorate the error message with the json
-            throw new Exception("Error parsing: [" + Strings.toString(builder) + "]", e);
         }
     }
 
@@ -175,7 +172,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
                 + "  \"vegetable\": 1,\n"
                 + "  \"vegetable\": 2\n"
                 + "}");
-        Throwable e = expectThrows(ParsingException.class, () -> randomFrom(HasCtorArguments.ALL_PARSERS).apply(parser, null));
+        Throwable e = expectThrows(XContentParseException.class, () -> randomFrom(HasCtorArguments.ALL_PARSERS).apply(parser, null));
         assertEquals("[has_required_arguments] failed to parse field [vegetable]", e.getMessage());
         e = e.getCause();
         assertThat(e, instanceOf(IllegalArgumentException.class));
@@ -189,8 +186,9 @@ public class ConstructingObjectParserTests extends ESTestCase {
                 + "  \"vegetable\": 2,\n"
                 + "  \"a\": \"supercalifragilisticexpialidocious\"\n"
                 + "}");
-        ParsingException e = expectThrows(ParsingException.class, () -> randomFrom(HasCtorArguments.ALL_PARSERS).apply(parser, null));
-        assertEquals("[has_required_arguments] failed to parse field [a]", e.getMessage());
+        XContentParseException e = expectThrows(XContentParseException.class,
+                () -> randomFrom(HasCtorArguments.ALL_PARSERS).apply(parser, null));
+        assertThat(e.getMessage(), containsString("[has_required_arguments] failed to parse field [a]"));
         assertEquals(4, e.getLineNumber());
         assertEquals("[a] must be less than 10 characters in length but was [supercalifragilisticexpialidocious]",
                 e.getCause().getMessage());
@@ -203,14 +201,15 @@ public class ConstructingObjectParserTests extends ESTestCase {
                 + "  \"animal\": \"cat\"\n,"
                 + "  \"vegetable\": 2\n"
                 + "}");
-        ParsingException e = expectThrows(ParsingException.class, () -> randomFrom(HasCtorArguments.ALL_PARSERS).apply(parser, null));
-        assertEquals("[has_required_arguments] failed to parse field [vegetable]", e.getMessage());
+        XContentParseException e = expectThrows(XContentParseException.class,
+                () -> randomFrom(HasCtorArguments.ALL_PARSERS).apply(parser, null));
+        assertThat(e.getMessage(), containsString("[has_required_arguments] failed to parse field [vegetable]"));
         assertEquals(4, e.getLineNumber());
-        e = (ParsingException) e.getCause();
-        assertEquals("failed to build [has_required_arguments] after last required field arrived", e.getMessage());
+        e = (XContentParseException) e.getCause();
+        assertThat(e.getMessage(), containsString("failed to build [has_required_arguments] after last required field arrived"));
         assertEquals(2, e.getLineNumber());
-        e = (ParsingException) e.getCause();
-        assertEquals("[has_required_arguments] failed to parse field [a]", e.getMessage());
+        e = (XContentParseException) e.getCause();
+        assertThat(e.getMessage(), containsString("[has_required_arguments] failed to parse field [a]"));
         assertEquals(2, e.getLineNumber());
         assertEquals("[a] must be less than 10 characters in length but was [supercalifragilisticexpialidocious]",
                 e.getCause().getMessage());
@@ -465,11 +464,11 @@ public class ConstructingObjectParserTests extends ESTestCase {
                 + "],\"named_in_constructor\": [\n"
                 + "  {\"c\": {}}"
                 + "]}");
-        ParsingException e = expectThrows(ParsingException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
-        assertEquals("[named_object_holder] failed to parse field [named]", e.getMessage());
-        assertEquals(
-                "[named] can be a single object with any number of fields or an array where each entry is an object with a single field",
-                e.getCause().getMessage());
+        XContentParseException e = expectThrows(XContentParseException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
+        assertThat(e.getMessage(), containsString("[named_object_holder] failed to parse field [named]"));
+        assertThat(e.getCause().getMessage(),
+                containsString("[named] can be a single object with any number of fields " +
+                    "or an array where each entry is an object with a single field"));
     }
 
     public void testParseNamedObjectTwoFieldsInArrayConstructorArg() throws IOException {
@@ -479,11 +478,11 @@ public class ConstructingObjectParserTests extends ESTestCase {
                 + "],\"named_in_constructor\": [\n"
                 + "  {\"c\": {}, \"d\": {}}"
                 + "]}");
-        ParsingException e = expectThrows(ParsingException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
-        assertEquals("[named_object_holder] failed to parse field [named_in_constructor]", e.getMessage());
-        assertEquals(
-                "[named_in_constructor] can be a single object with any number of fields or an array where each entry is an object with a "
-                        + "single field", e.getCause().getMessage());
+        XContentParseException e = expectThrows(XContentParseException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
+        assertThat(e.getMessage(), containsString("[named_object_holder] failed to parse field [named_in_constructor]"));
+        assertThat(e.getCause().getMessage(),
+                containsString("[named_in_constructor] can be a single object with any number of fields "
+                        + "or an array where each entry is an object with a single field"));
     }
 
     public void testParseNamedObjectNoFieldsInArray() throws IOException {
@@ -493,11 +492,11 @@ public class ConstructingObjectParserTests extends ESTestCase {
                 + "],\"named_in_constructor\": [\n"
                 + "  {\"a\": {}}"
                 + "]}");
-        ParsingException e = expectThrows(ParsingException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
-        assertEquals("[named_object_holder] failed to parse field [named]", e.getMessage());
-        assertEquals(
-                "[named] can be a single object with any number of fields or an array where each entry is an object with a single field",
-                e.getCause().getMessage());
+        XContentParseException e = expectThrows(XContentParseException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
+        assertThat(e.getMessage(), containsString("[named_object_holder] failed to parse field [named]"));
+        assertThat(e.getCause().getMessage(),
+            containsString("[named] can be a single object with any number of fields " +
+                "or an array where each entry is an object with a single field"));
     }
 
     public void testParseNamedObjectNoFieldsInArrayConstructorArg() throws IOException {
@@ -507,11 +506,11 @@ public class ConstructingObjectParserTests extends ESTestCase {
                 + "],\"named_in_constructor\": [\n"
                 + "  {}"
                 + "]}");
-        ParsingException e = expectThrows(ParsingException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
-        assertEquals("[named_object_holder] failed to parse field [named_in_constructor]", e.getMessage());
-        assertEquals(
-                "[named_in_constructor] can be a single object with any number of fields or an array where each entry is an object with a "
-                        + "single field", e.getCause().getMessage());
+        XContentParseException e = expectThrows(XContentParseException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
+        assertThat(e.getMessage(), containsString("[named_object_holder] failed to parse field [named_in_constructor]"));
+        assertThat(e.getCause().getMessage(),
+                containsString("[named_in_constructor] can be a single object with any number of fields "
+                        + "or an array where each entry is an object with a single field"));
     }
 
     public void testParseNamedObjectJunkInArray() throws IOException {
@@ -521,11 +520,11 @@ public class ConstructingObjectParserTests extends ESTestCase {
                 + "],\"named_in_constructor\": [\n"
                 + " {\"a\": {}}"
                 + "]}");
-        ParsingException e = expectThrows(ParsingException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
-        assertEquals("[named_object_holder] failed to parse field [named]", e.getMessage());
-        assertEquals(
-                "[named] can be a single object with any number of fields or an array where each entry is an object with a single field",
-                e.getCause().getMessage());
+        XContentParseException e = expectThrows(XContentParseException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
+        assertThat(e.getMessage(), containsString("[named_object_holder] failed to parse field [named]"));
+        assertThat(e.getCause().getMessage(),
+                containsString("[named] can be a single object with any number of fields " +
+                    "or an array where each entry is an object with a single field"));
     }
 
     public void testParseNamedObjectJunkInArrayConstructorArg() throws IOException {
@@ -535,11 +534,11 @@ public class ConstructingObjectParserTests extends ESTestCase {
                 + "],\"named_in_constructor\": [\n"
                 + "  \"junk\""
                 + "]}");
-        ParsingException e = expectThrows(ParsingException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
-        assertEquals("[named_object_holder] failed to parse field [named_in_constructor]", e.getMessage());
-        assertEquals(
-                "[named_in_constructor] can be a single object with any number of fields or an array where each entry is an object with a "
-                        + "single field", e.getCause().getMessage());
+        XContentParseException e = expectThrows(XContentParseException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
+        assertThat(e.getMessage(), containsString("[named_object_holder] failed to parse field [named_in_constructor]"));
+        assertThat(e.getCause().getMessage(),
+                containsString("[named_in_constructor] can be a single object with any number of fields "
+                        + "or an array where each entry is an object with a single field"));
     }
 
     public void testParseNamedObjectInOrderNotSupported() throws IOException {
@@ -558,8 +557,8 @@ public class ConstructingObjectParserTests extends ESTestCase {
         objectParser.declareNamedObjects(NamedObjectHolder::setNamed, NamedObject.PARSER, new ParseField("named"));
 
         // Now firing the xml through it fails
-        ParsingException e = expectThrows(ParsingException.class, () -> objectParser.apply(parser, null));
-        assertEquals("[named_object_holder] failed to parse field [named]", e.getMessage());
+        XContentParseException e = expectThrows(XContentParseException.class, () -> objectParser.apply(parser, null));
+        assertThat(e.getMessage(), containsString("[named_object_holder] failed to parse field [named]"));
         assertEquals("[named] doesn't support arrays. Use a single object with multiple fields.", e.getCause().getMessage());
     }
 
@@ -579,9 +578,10 @@ public class ConstructingObjectParserTests extends ESTestCase {
         objectParser.declareNamedObjects(NamedObjectHolder::setNamed, NamedObject.PARSER, new ParseField("named"));
 
         // Now firing the xml through it fails
-        ParsingException e = expectThrows(ParsingException.class, () -> objectParser.apply(parser, null));
-        assertEquals("[named_object_holder] failed to parse field [named_in_constructor]", e.getMessage());
-        assertEquals("[named_in_constructor] doesn't support arrays. Use a single object with multiple fields.", e.getCause().getMessage());
+        XContentParseException e = expectThrows(XContentParseException.class, () -> objectParser.apply(parser, null));
+        assertThat(e.getMessage(), containsString("[named_object_holder] failed to parse field [named_in_constructor]"));
+        assertThat(e.getCause().getMessage(),
+            containsString("[named_in_constructor] doesn't support arrays. Use a single object with multiple fields."));
     }
 
     static class NamedObjectHolder {

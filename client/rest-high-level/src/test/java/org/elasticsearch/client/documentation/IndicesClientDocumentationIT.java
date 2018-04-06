@@ -795,15 +795,13 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.names("index.number_of_shards"); // <1>
         // end::get-settings-request-names
 
-        // tag::get-settings-request-masterTimeout
-        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
-        request.masterNodeTimeout("1m"); // <2>
-        // end::get-settings-request-masterTimeout
+        // tag::get-settings-flat-settings
+        request.flatSettings(); // <1>
+        // end::get-settings-flat-settings
 
         // tag::get-settings-request-indicesOptions
         request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
         // end::get-settings-request-indicesOptions
-
 
         // tag::get-settings-execute
         GetSettingsResponse getSettingsResponse = client.indices().getSettings(request);
@@ -812,11 +810,13 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // tag::get-settings-response
         String numberOfShardsString = getSettingsResponse.getSetting("index", "index.number_of_shards"); // <1>
         Settings indexSettings = getSettingsResponse.getIndexToSettings().get("index"); // <2>
-        int numberOfShards = indexSettings.getAsInt("index.number_of_shards", null); // <3>
+        Integer numberOfShards = indexSettings.getAsInt("index.number_of_shards", null); // <3>
         // end::get-settings-response
 
         assertEquals("3", numberOfShardsString);
-        assertEquals(3, numberOfShards);
+        assertEquals(Integer.valueOf(3), numberOfShards);
+
+        assertNull("refresh_interval returned but was never set!", indexSettings.get("index.refresh_interval"));
 
         // tag::get-settings-execute-listener
         ActionListener<GetSettingsResponse> listener =
@@ -842,10 +842,55 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::get-settings-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
 
+    public void testGetSettingsWithDefaults() throws Exception {
+        RestHighLevelClient client = highLevelClient();
 
+        {
+            Settings settings = Settings.builder().put("number_of_shards", 3).build();
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index", settings));
+            assertTrue(createIndexResponse.isAcknowledged());
+        }
 
+        GetSettingsRequest request = new GetSettingsRequest().indices("index");
+        request.names("index.number_of_shards"); // <1>
+        request.flatSettings(); // <1>
+        request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
 
+        // tag::get-settings-include-defaults
+        request.includeDefaults(); // <1>
+        // end::get-settings-include-defaults
+
+        GetSettingsResponse getSettingsResponse = client.indices().getSettings(request);
+        String numberOfShardsString = getSettingsResponse.getSetting("index", "index.number_of_shards"); // <1>
+        Settings indexSettings = getSettingsResponse.getIndexToSettings().get("index"); // <2>
+        Integer numberOfShards = indexSettings.getAsInt("index.number_of_shards", null); // <3>
+
+        assertEquals("3", numberOfShardsString);
+        assertEquals(Integer.valueOf(3), numberOfShards);
+
+        assertNotNull("with defaults enabled we should get a value for refresh_interval!", indexSettings.get("index.refresh_interval"));
+
+        ActionListener<GetSettingsResponse> listener =
+            new ActionListener<GetSettingsResponse>() {
+                @Override
+                public void onResponse(GetSettingsResponse GetSettingsResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        client.indices().getSettingsAsync(request, listener); // <1>
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
     public void testForceMergeIndex() throws Exception {

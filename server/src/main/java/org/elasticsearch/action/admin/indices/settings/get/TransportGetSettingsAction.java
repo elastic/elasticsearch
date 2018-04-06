@@ -84,18 +84,19 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
                 continue;
             }
 
-            Settings indexSettings = settingsFilter.filter(indexMetaData.getSettings());
+            Settings settings = settingsFilter.filter(indexMetaData.getSettings());
             if (request.humanReadable()) {
-                indexSettings = IndexMetaData.addHumanReadableSettings(this.settings);
+                settings = IndexMetaData.addHumanReadableSettings(settings);
             }
 
             if (CollectionUtils.isEmpty(request.names()) == false) {
-                indexSettings = indexSettings.filter(k -> Regex.simpleMatch(request.names(), k));
+                settings = settings.filter(k -> Regex.simpleMatch(request.names(), k));
             }
 
-            indexToSettingsBuilder.put(concreteIndex.getName(), indexSettings);
+            indexToSettingsBuilder.put(concreteIndex.getName(), settings);
             if (request.includeDefaults()) {
-                indexToDefaultSettingsBuilder.put(concreteIndex.getName(), indexScopedSettings.diff(indexSettings, this.settings));
+                Settings defaultSettings = settingsFilter.filter(indexScopedSettings.diff(settings, this.settings));
+                indexToDefaultSettingsBuilder.put(concreteIndex.getName(), defaultSettings);
             }
         }
         listener.onResponse(new GetSettingsResponse(indexToSettingsBuilder.build(), indexToDefaultSettingsBuilder.build()));

@@ -430,13 +430,7 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testGetSettings() throws IOException {
-        String emptyIndexName = "";
-        String nullIndexName = null;
-        String[] randomIndices = randomIndicesNames(1, 5);
-        String[] indicesUnderTest = java.util.stream.Stream.concat(
-            java.util.Arrays.stream(randomIndices),
-            java.util.stream.Stream.of(emptyIndexName, nullIndexName)
-        ).toArray(String[]::new);
+        String[] indicesUnderTest = randomBoolean() ? null : randomIndicesNames(0, 5);
 
         GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(indicesUnderTest);
 

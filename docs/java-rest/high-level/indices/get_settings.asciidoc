@@ -23,10 +23,15 @@ include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-settings-reque
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-settings-request-masterTimeout]
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-settings-request-flat-settings]
 --------------------------------------------------
-<1> Timeout to connect to the master node as a `TimeValue`
-<2> Timeout to connect to the master node as a `String`
+<1> If set, the HTTP response body will represent settings as flat lists rather than nested objects
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-settings-request-include-defaults]
+--------------------------------------------------
+<1> If set, defaults will be returned for settings not explicitly set on the index
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

@@ -182,6 +182,16 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .or(instanceOf(MatchNoDocsQuery.class)));
     }
 
+    // Tests fix for https://github.com/elastic/elasticsearch/issues/29403
+    public void testTimezoneEquals() {
+        QueryStringQueryBuilder builder1 = new QueryStringQueryBuilder("bar");
+        QueryStringQueryBuilder builder2 = new QueryStringQueryBuilder("foo");
+        assertNotEquals(builder1, builder2);
+        builder1.timeZone("Europe/London");
+        builder2.timeZone("Europe/London");
+        assertNotEquals(builder1, builder2);
+    }
+
     public void testIllegalArguments() {
         expectThrows(IllegalArgumentException.class, () -> new QueryStringQueryBuilder((String) null));
     }

@@ -164,19 +164,19 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         return tragedy;
     }
 
-    private synchronized void closeWithTragicEvent(final Exception exception) {
-        assert exception != null;
+    private synchronized void closeWithTragicEvent(final Exception ex) {
+        assert ex != null;
         if (tragedy == null) {
-            tragedy = exception;
-        } else if (tragedy != exception) {
+            tragedy = ex;
+        } else if (tragedy != ex) {
             // it should be safe to call closeWithTragicEvents on multiple layers without
             // worrying about self suppression.
-            tragedy.addSuppressed(exception);
+            tragedy.addSuppressed(ex);
         }
         try {
             close();
         } catch (final IOException | RuntimeException e) {
-            exception.addSuppressed(e);
+            ex.addSuppressed(e);
         }
     }
 
@@ -290,9 +290,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             synchronized (this) {
                 try {
                     sync(); // sync before we close..
-                } catch (final Exception e) {
-                    closeWithTragicEvent(e);
-                    throw e;
+                } catch (final Exception ex) {
+                    closeWithTragicEvent(ex);
+                    throw ex;
                 }
                 if (closed.compareAndSet(false, true)) {
                     return new TranslogReader(getLastSyncedCheckpoint(), channel, path, getFirstOperationOffset());
@@ -380,9 +380,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     }
                 }
             }
-        } catch (final Exception e) {
-            closeWithTragicEvent(e);
-            throw e;
+        } catch (final Exception ex) {
+            closeWithTragicEvent(ex);
+            throw ex;
         }
         // we don't have to have a lock here because we only write ahead to the file, so all writes has been complete
         // for the requested location.

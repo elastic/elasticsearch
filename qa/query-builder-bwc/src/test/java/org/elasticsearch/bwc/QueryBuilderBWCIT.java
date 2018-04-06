@@ -100,13 +100,12 @@ public class QueryBuilderBWCIT extends ESRestTestCase {
             new MatchPhraseQueryBuilder("keyword_field", "value").slop(3)
         );
         addCandidate("\"range\": { \"long_field\": {\"gte\": 1, \"lte\": 9}}", new RangeQueryBuilder("long_field").from(1).to(9));
-        // bug url https://github.com/elastic/elasticsearch/issues/29376
-        /*addCandidate(
+        addCandidate(
             "\"bool\": { \"must_not\": [{\"match_all\": {}}], \"must\": [{\"match_all\": {}}], " +
                 "\"filter\": [{\"match_all\": {}}], \"should\": [{\"match_all\": {}}]}",
             new BoolQueryBuilder().mustNot(new MatchAllQueryBuilder()).must(new MatchAllQueryBuilder())
                 .filter(new MatchAllQueryBuilder()).should(new MatchAllQueryBuilder())
-        );*/
+        );
         addCandidate(
             "\"dis_max\": {\"queries\": [{\"match_all\": {}},{\"match_all\": {}},{\"match_all\": {}}], \"tie_breaker\": 0.01}",
             new DisMaxQueryBuilder().add(new MatchAllQueryBuilder()).add(new MatchAllQueryBuilder()).add(new MatchAllQueryBuilder())

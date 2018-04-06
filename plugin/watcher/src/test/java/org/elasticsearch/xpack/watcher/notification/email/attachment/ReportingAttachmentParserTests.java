@@ -13,6 +13,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
@@ -229,7 +230,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
                 // path must be a field, but is an object here
                 .thenReturn(new HttpResponse(200, "{\"path\": { \"foo\" : \"anything\"}}"));
         ReportingAttachment attachment = new ReportingAttachment("foo", "http://www.example.org/", randomBoolean(), null, null, null, null);
-        ParsingException e = expectThrows(ParsingException.class,
+        XContentParseException e = expectThrows(XContentParseException.class,
                 () -> reportingAttachmentParser.toAttachment(createWatchExecutionContext(), Payload.EMPTY, attachment));
         assertThat(e.getMessage(),
                 containsString("[reporting_attachment_kibana_payload] path doesn't support values of type: START_OBJECT"));

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
@@ -413,7 +414,7 @@ public class AutodetectResultsParserTests extends ESTestCase {
         InputStream inputStream = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
         AutodetectResultsParser parser = new AutodetectResultsParser(Settings.EMPTY);
 
-        expectThrows(ParsingException.class,
+        expectThrows(XContentParseException.class,
                 () -> parser.parseResults(inputStream).forEachRemaining(a -> {}));
     }
 

@@ -434,10 +434,10 @@ public class RestClient implements Closeable {
         for (Header requestHeader : requestHeaders) {
             Objects.requireNonNull(requestHeader, "request header must not be null");
             httpRequest.addHeader(requestHeader);
-            requestNames.add(requestHeader.getName());
+            requestNames.add(requestHeader.getName().toLowerCase(Locale.ENGLISH));
         }
         for (Header defaultHeader : defaultHeaders) {
-            if (requestNames.contains(defaultHeader.getName()) == false) {
+            if (!requestNames.contains(defaultHeader.getName().toLowerCase(Locale.ENGLISH))) {
                 httpRequest.addHeader(defaultHeader);
             }
         }

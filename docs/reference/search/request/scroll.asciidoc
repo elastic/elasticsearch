@@ -79,7 +79,7 @@ next batch of results until there are no more results left to return, ie the
 `hits` array is empty.
 
 IMPORTANT: The initial search request and each subsequent scroll request
-returns a new `_scroll_id` -- only the most recent `_scroll_id` should be
+may return a new `_scroll_id` -- only the most recent `_scroll_id` should be
 used.
 
 NOTE: If the request specifies aggregations, only the initial search response

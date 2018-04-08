@@ -437,7 +437,7 @@ public class RestClient implements Closeable {
             requestNames.add(requestHeader.getName().toLowerCase(Locale.ENGLISH));
         }
         for (Header defaultHeader : defaultHeaders) {
-            if (!requestNames.contains(defaultHeader.getName().toLowerCase(Locale.ENGLISH))) {
+            if (requestNames.contains(defaultHeader.getName().toLowerCase(Locale.ENGLISH)) == false) {
                 httpRequest.addHeader(defaultHeader);
             }
         }

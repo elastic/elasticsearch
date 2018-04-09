@@ -129,7 +129,7 @@ final class QueryAnalyzer {
      * @param indexVersion  The create version of the index containing the percolator queries.
      */
     static Result analyze(Query query, Version indexVersion) {
-        Class queryClass = query.getClass();
+        Class<?> queryClass = query.getClass();
         if (queryClass.isAnonymousClass()) {
             // Sometimes queries have anonymous classes in that case we need the direct super class.
             // (for example blended term query)
@@ -311,165 +311,71 @@ final class QueryAnalyzer {
     private static BiFunction<Query, Version, Result> booleanQuery() {
         return (query, version) -> {
             BooleanQuery bq = (BooleanQuery) query;
-            List<BooleanClause> clauses = bq.clauses();
             int minimumShouldMatch = bq.getMinimumNumberShouldMatch();
-            int numRequiredClauses = 0;
-            int numOptionalClauses = 0;
-            int numProhibitedClauses = 0;
-            for (BooleanClause clause : clauses) {
+            List<Query> requiredClauses = new ArrayList<>();
+            List<Query> optionalClauses = new ArrayList<>();
+            boolean hasProhibitedClauses = false;
+            for (BooleanClause clause : bq.clauses()) {
                 if (clause.isRequired()) {
-                    numRequiredClauses++;
-                }
-                if (clause.isProhibited()) {
-                    numProhibitedClauses++;
-                }
-                if (clause.getOccur() == BooleanClause.Occur.SHOULD) {
-                    numOptionalClauses++;
+                    requiredClauses.add(clause.getQuery());
+                } else if (clause.isProhibited()) {
+                    hasProhibitedClauses = true;
+                } else {
+                    assert clause.getOccur() == Occur.SHOULD;
+                    optionalClauses.add(clause.getQuery());
                 }
             }
-            if (minimumShouldMatch > numOptionalClauses) {
+
+            if (minimumShouldMatch > optionalClauses.size()
+                    || (requiredClauses.isEmpty() && optionalClauses.isEmpty())) {
                 return new Result(false, Collections.emptySet(), 0);
             }
-            if (numRequiredClauses > 0) {
-                if (version.onOrAfter(Version.V_6_1_0)) {
-                    UnsupportedQueryException uqe = null;
-                    List<Result> results = new ArrayList<>(numRequiredClauses);
-                    for (BooleanClause clause : clauses) {
-                        if (clause.isRequired()) {
-                            // skip must_not clauses, we don't need to remember the things that do *not* match...
-                            // skip should clauses, this bq has must clauses, so we don't need to remember should clauses,
-                            // since they are completely optional.
 
-                            try {
-                                Result subResult = analyze(clause.getQuery(), version);
-                                if (subResult.matchAllDocs == false && subResult.extractions.isEmpty()) {
-                                    // doesn't match anything
-                                    return subResult;
-                                }
-                                results.add(subResult);
-                            } catch (UnsupportedQueryException e) {
-                                uqe = e;
-                            }
-                        }
+            if (requiredClauses.size() > 0) {
+                if (minimumShouldMatch > 0) {
+                    // mix of required clauses and required optional clauses, we turn it into
+                    // a pure conjunction by moving the optional clauses to a sub query to
+                    // simplify logic
+                    BooleanQuery.Builder minShouldMatchQuery = new BooleanQuery.Builder();
+                    minShouldMatchQuery.setMinimumNumberShouldMatch(minimumShouldMatch);
+                    for (Query q : optionalClauses) {
+                        minShouldMatchQuery.add(q, Occur.SHOULD);
                     }
-
-                    if (results.isEmpty()) {
-                        if (uqe != null) {
-                            // we're unable to select the best clause and an exception occurred, so we bail
-                            throw uqe;
-                        } else {
-                            // We didn't find a clause and no exception occurred, so this bq only contained MatchNoDocsQueries,
-                            return new Result(true, Collections.emptySet(), 1);
-                        }
-                    } else {
-                        int msm = 0;
-                        boolean requiredShouldClauses = minimumShouldMatch > 0 && numOptionalClauses > 0;
-                        boolean verified = uqe == null && numProhibitedClauses == 0 && requiredShouldClauses == false;
-                        boolean matchAllDocs = true;
-                        Set<QueryExtraction> extractions = new HashSet<>();
-                        Set<String> seenRangeFields = new HashSet<>();
-                        for (Result result : results) {
-                            // In case that there are duplicate query extractions we need to be careful with incrementing msm,
-                            // because that could lead to valid matches not becoming candidate matches:
-                            // query: (field:val1 AND field:val2) AND (field:val2 AND field:val3)
-                            // doc:   field: val1 val2 val3
-                            // So lets be protective and decrease the msm:
-                            int resultMsm = result.minimumShouldMatch;
-                            for (QueryExtraction queryExtraction : result.extractions) {
-                                if (queryExtraction.range != null) {
-                                    // In case of range queries each extraction does not simply increment the minimum_should_match
-                                    // for that percolator query like for a term based extraction, so that can lead to more false
-                                    // positives for percolator queries with range queries than term based queries.
-                                    // The is because the way number fields are extracted from the document to be percolated.
-                                    // Per field a single range is extracted and if a percolator query has two or more range queries
-                                    // on the same field, then the minimum should match can be higher than clauses in the CoveringQuery.
-                                    // Therefore right now the minimum should match is incremented once per number field when processing
-                                    // the percolator query at index time.
-                                    if (seenRangeFields.add(queryExtraction.range.fieldName)) {
-                                        resultMsm = 1;
-                                    } else {
-                                        resultMsm = 0;
-                                    }
-                                }
-
-                                if (extractions.contains(queryExtraction)) {
-                                    // To protect against negative msm:
-                                    // (sub results could consist out of disjunction and conjunction and
-                                    // then we do not know which extraction contributed to msm)
-                                    resultMsm = Math.max(0, resultMsm - 1);
-                                }
-                            }
-                            msm += resultMsm;
-
-                            if (result.verified == false
-                                    // If some inner extractions are optional, the result can't be verified
-                                    || result.minimumShouldMatch < result.extractions.size()) {
-                                verified = false;
-                            }
-                            matchAllDocs &= result.matchAllDocs;
-                            extractions.addAll(result.extractions);
-                        }
-                        if (matchAllDocs) {
-                            return new Result(matchAllDocs, verified);
-                        } else {
-                            return new Result(verified, extractions, msm);
-                        }
-                    }
+                    requiredClauses.add(minShouldMatchQuery.build());
+                    optionalClauses.clear();
+                    minimumShouldMatch = 0;
                 } else {
-                    Result bestClause = null;
-                    UnsupportedQueryException uqe = null;
-                    boolean hasProhibitedClauses = false;
-                    for (BooleanClause clause : clauses) {
-                        if (clause.isProhibited()) {
-                            hasProhibitedClauses = true;
-                        }
-                        if (clause.isRequired() == false) {
-                            // skip must_not clauses, we don't need to remember the things that do *not* match...
-                            // skip should clauses, this bq has must clauses, so we don't need to remember should clauses,
-                            // since they are completely optional.
-                            continue;
-                        }
-
-                        Result temp;
-                        try {
-                            temp = analyze(clause.getQuery(), version);
-                        } catch (UnsupportedQueryException e) {
-                            uqe = e;
-                            continue;
-                        }
-                        bestClause = selectBestResult(temp, bestClause);
-                    }
-                    if (bestClause != null) {
-                        if (hasProhibitedClauses || minimumShouldMatch > 0) {
-                            bestClause = bestClause.unverify();
-                        }
-                        return bestClause;
-                    } else {
-                        if (uqe != null) {
-                            // we're unable to select the best clause and an exception occurred, so we bail
-                            throw uqe;
-                        } else {
-                            // We didn't find a clause and no exception occurred, so this bq only contained MatchNoDocsQueries,
-                            return new Result(true, Collections.emptySet(), 0);
-                        }
-                    }
+                    optionalClauses.clear(); // only matter for scoring, not matching
                 }
-            } else {
-                List<Query> disjunctions = new ArrayList<>(numOptionalClauses);
-                for (BooleanClause clause : clauses) {
-                    if (clause.getOccur() == BooleanClause.Occur.SHOULD) {
-                        disjunctions.add(clause.getQuery());
-                    }
-                }
-                return handleDisjunction(disjunctions, minimumShouldMatch, numProhibitedClauses > 0, version);
             }
+
+            // Now we now have either a pure conjunction or a pure disjunction, with at least one clause
+            Result result;
+            if (requiredClauses.size() > 0) {
+                assert optionalClauses.isEmpty();
+                assert minimumShouldMatch == 0;
+                result = handleConjunctionQuery(requiredClauses, version);
+            } else {
+                assert requiredClauses.isEmpty();
+                if (minimumShouldMatch == 0) {
+                    // Lucene always requires one matching clause for disjunctions
+                    minimumShouldMatch = 1;
+                }
+                result = handleDisjunctionQuery(optionalClauses, minimumShouldMatch, version);
+            }
+
+            if (hasProhibitedClauses) {
+                result = result.unverify();
+            }
+
+            return result;
         };
     }
 
     private static BiFunction<Query, Version, Result> disjunctionMaxQuery() {
         return (query, version) -> {
             List<Query> disjuncts = ((DisjunctionMaxQuery) query).getDisjuncts();
-            return handleDisjunction(disjuncts, 1, false, version);
+            return handleDisjunctionQuery(disjuncts, 1, version);
         };
     }
 
@@ -536,19 +442,134 @@ final class QueryAnalyzer {
         };
     }
 
-    private static Result handleDisjunction(List<Query> disjunctions, int requiredShouldClauses, boolean otherClauses,
-                                            Version version) {
+    private static Result handleConjunctionQuery(List<Query> conjunctions, Version version) {
+        UnsupportedQueryException uqe = null;
+        List<Result> results = new ArrayList<>(conjunctions.size());
+        boolean success = false;
+        for (Query query : conjunctions) {
+            try {
+                Result subResult = analyze(query, version);
+                if (subResult.isMatchNoDocs()) {
+                    return subResult;
+                }
+                results.add(subResult);
+                success = true;
+            } catch (UnsupportedQueryException e) {
+                uqe = e;
+            }
+        }
+
+        if (success == false) {
+            // No clauses could be extracted
+            if (uqe != null) {
+                throw uqe;
+            } else {
+                // Empty conjunction
+                return new Result(true, Collections.emptySet(), 0);
+            }
+        }
+
+        Result result = handleConjunction(results, version);
+        if (uqe != null) {
+            result = result.unverify();
+        }
+        return result;
+    }
+
+    private static Result handleConjunction(List<Result> conjunctions, Version version) {
+        if (conjunctions.isEmpty()) {
+            throw new IllegalArgumentException("Must have at least on conjunction sub result");
+        }
+        if (version.onOrAfter(Version.V_6_1_0)) {
+            for (Result subResult : conjunctions) {
+                if (subResult.isMatchNoDocs()) {
+                    return subResult;
+                }
+            }
+
+            int msm = 0;
+            boolean verified = true;
+            boolean matchAllDocs = true;
+            Set<QueryExtraction> extractions = new HashSet<>();
+            Set<String> seenRangeFields = new HashSet<>();
+            for (Result result : conjunctions) {
+                // In case that there are duplicate query extractions we need to be careful with incrementing msm,
+                // because that could lead to valid matches not becoming candidate matches:
+                // query: (field:val1 AND field:val2) AND (field:val2 AND field:val3)
+                // doc:   field: val1 val2 val3
+                // So lets be protective and decrease the msm:
+                int resultMsm = result.minimumShouldMatch;
+                for (QueryExtraction queryExtraction : result.extractions) {
+                    if (queryExtraction.range != null) {
+                        // In case of range queries each extraction does not simply increment the minimum_should_match
+                        // for that percolator query like for a term based extraction, so that can lead to more false
+                        // positives for percolator queries with range queries than term based queries.
+                        // The is because the way number fields are extracted from the document to be percolated.
+                        // Per field a single range is extracted and if a percolator query has two or more range queries
+                        // on the same field, then the minimum should match can be higher than clauses in the CoveringQuery.
+                        // Therefore right now the minimum should match is incremented once per number field when processing
+                        // the percolator query at index time.
+                        if (seenRangeFields.add(queryExtraction.range.fieldName)) {
+                            resultMsm = 1;
+                        } else {
+                            resultMsm = 0;
+                        }
+                    }
+
+                    if (extractions.contains(queryExtraction)) {
+                        // To protect against negative msm:
+                        // (sub results could consist out of disjunction and conjunction and
+                        // then we do not know which extraction contributed to msm)
+                        resultMsm = Math.max(0, resultMsm - 1);
+                    }
+                }
+                msm += resultMsm;
+
+                if (result.verified == false
+                        // If some inner extractions are optional, the result can't be verified
+                        || result.minimumShouldMatch < result.extractions.size()) {
+                    verified = false;
+                }
+                matchAllDocs &= result.matchAllDocs;
+                extractions.addAll(result.extractions);
+            }
+            if (matchAllDocs) {
+                return new Result(matchAllDocs, verified);
+            } else {
+                return new Result(verified, extractions, msm);
+            }
+        } else {
+            Result bestClause = null;
+            for (Result result : conjunctions) {
+                bestClause = selectBestResult(result, bestClause);
+            }
+            return bestClause;
+        }
+    }
+
+    private static Result handleDisjunctionQuery(List<Query> disjunctions, int requiredShouldClauses, Version version) {
+        List<Result> subResults = new ArrayList<>();
+        for (Query query : disjunctions) {
+            // if either query fails extraction, we need to propagate as we could miss hits otherwise
+            Result subResult = analyze(query, version);
+            subResults.add(subResult);
+        }
+        return handleDisjunction(subResults, requiredShouldClauses, version);
+    }
+
+    private static Result handleDisjunction(List<Result> disjunctions, int requiredShouldClauses, Version version) {
         // Keep track of the msm for each clause:
         List<DisjunctionClause> clauses = new ArrayList<>(disjunctions.size());
-        boolean verified = otherClauses == false;
+        boolean verified;
         if (version.before(Version.V_6_1_0)) {
-            verified &= requiredShouldClauses <= 1;
+            verified = requiredShouldClauses <= 1;
+        } else {
+            verified = true;
         }
         int numMatchAllClauses = 0;
         Set<QueryExtraction> terms = new HashSet<>();
         for (int i = 0; i < disjunctions.size(); i++) {
-            Query disjunct = disjunctions.get(i);
-            Result subResult = analyze(disjunct, version);
+            Result subResult = disjunctions.get(i);
             if (subResult.verified == false
                     // one of the sub queries requires more than one term to match, we can't
                     // verify it with a single top-level min_should_match
@@ -752,6 +773,10 @@ final class QueryAnalyzer {
             } else {
                 return this;
             }
+        }
+
+        boolean isMatchNoDocs() {
+            return matchAllDocs == false && extractions.isEmpty();
         }
     }
 

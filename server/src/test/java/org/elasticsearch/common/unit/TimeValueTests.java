@@ -57,13 +57,6 @@ public class TimeValueTests extends ESTestCase {
         assertThat("1000d", equalTo(new TimeValue(1000, TimeUnit.DAYS).toString()));
     }
 
-    public void testFormat() {
-        assertThat(new TimeValue(1025, TimeUnit.MILLISECONDS).format(PeriodType.dayTime()), equalTo("1 second and 25 milliseconds"));
-        assertThat(new TimeValue(1, TimeUnit.MINUTES).format(PeriodType.dayTime()), equalTo("1 minute"));
-        assertThat(new TimeValue(65, TimeUnit.MINUTES).format(PeriodType.dayTime()), equalTo("1 hour and 5 minutes"));
-        assertThat(new TimeValue(24 * 600 + 85, TimeUnit.MINUTES).format(PeriodType.dayTime()), equalTo("241 hours and 25 minutes"));
-    }
-
     public void testMinusOne() {
         assertThat(new TimeValue(-1).nanos(), lessThan(0L));
     }

@@ -91,6 +91,7 @@ public class UpdateAllocationSettingsStepTests extends ESTestCase {
 
         UpdateAllocationSettingsStep step = createRandomInstance();
         ClusterState newState = step.performAction(index, clusterState);
+        assertNotSame(clusterState, newState);
         assertThat(getRouting(index, newState, IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey()), equalTo(step.getInclude()));
         assertThat(getRouting(index, newState, IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey()), equalTo(step.getExclude()));
         assertThat(getRouting(index, newState, IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey()), equalTo(step.getRequire()));

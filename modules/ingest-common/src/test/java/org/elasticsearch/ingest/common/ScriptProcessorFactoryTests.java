@@ -76,6 +76,7 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getScript().getParams(), equalTo(randomParams));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29435")
     public void testFactoryValidationForMultipleScriptingTypes() throws Exception {
         Map<String, Object> configMap = new HashMap<>();
         configMap.put("id", "foo");

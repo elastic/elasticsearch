@@ -372,7 +372,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
                     // Make sure that the number of shards is the same. That's the only thing that we cannot change
                     if (currentIndexMetaData.getNumberOfShards() != snapshotIndexMetaData.getNumberOfShards()) {
                         throw new SnapshotRestoreException(snapshot, "cannot restore index [" + renamedIndex + "] with [" + currentIndexMetaData.getNumberOfShards() +
-                                "] shard from snapshot with [" + snapshotIndexMetaData.getNumberOfShards() + "] shards");
+                                "] shard from snapshot with index [" + snapshotIndexMetaData.getIndex().getName() + "] with [" + snapshotIndexMetaData.getNumberOfShards() + "] shards");
                     }
                 }
 

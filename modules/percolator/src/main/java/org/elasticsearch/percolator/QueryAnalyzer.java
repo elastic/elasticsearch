@@ -485,7 +485,6 @@ final class QueryAnalyzer {
                 if (subResult.isMatchNoDocs()) {
                     return subResult;
                 }
-
             }
 
             int msm = 0;

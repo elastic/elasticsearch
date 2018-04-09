@@ -5,19 +5,18 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -34,7 +33,6 @@ public class RolloverAction implements LifecycleAction {
     public static final ParseField MAX_DOCS_FIELD = new ParseField("max_docs");
     public static final ParseField MAX_AGE_FIELD = new ParseField("max_age");
 
-    private static final Logger logger = ESLoggerFactory.getLogger(RolloverAction.class);
     private static final ConstructingObjectParser<RolloverAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
             a -> new RolloverAction((String) a[0], (ByteSizeValue) a[1], (TimeValue) a[2], (Long) a[3]));
     static {
@@ -147,38 +145,8 @@ public class RolloverAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
-        return Collections.emptyList();
-//        ConditionalWaitStep wait = new ConditionalWaitStep(clusterService, "wait_for_rollover",
-//                  index.getName(), phase, action, (clusterState) -> {
-//            // TODO(talevy): actually, needs to RolloverRequest with dryrun to get the appropriate data; clusterState is not enough...
-//            // can potentially reduce down to original problem with RolloverRequest...1minute...RolloverRequest...1minute... probably ok?
-//            if (clusterService.state().getMetaData().index(index.getName()).getAliases().containsKey(alias)) {
-//                RolloverRequest rolloverRequest = new RolloverRequest(alias, null);
-//                if (maxAge != null) {
-//                    rolloverRequest.addMaxIndexAgeCondition(maxAge);
-//                }
-//                if (maxSize != null) {
-//                    rolloverRequest.addMaxIndexSizeCondition(maxSize);
-//                }
-//                if (maxDocs != null) {
-//                    rolloverRequest.addMaxIndexDocsCondition(maxDocs);
-//                }
-//                client.admin().indices().rolloverIndex(rolloverRequest, new ActionListener<RolloverResponse>() {
-//                    @Override
-//                    public void onResponse(RolloverResponse rolloverResponse) {
-//                        return rolloverResponse.isRolledOver();
-//                    }
-//
-//                    @Override
-//                    public void onFailure(Exception e) {
-//                        listener.onFailure(e);
-//                    }
-//                });
-//            } else {
-//                listener.onSuccess(true);
-//            }
-//        });
-
+        return Collections.singletonList(
+                new RolloverStep(new StepKey(phase, NAME, RolloverStep.NAME), nextStepKey, client, alias, maxSize, maxAge, maxDocs));
     }
 
     @Override

@@ -6,8 +6,6 @@
 package org.elasticsearch.xpack.core.indexlifecycle;
 
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -27,7 +25,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
-@Repeat(iterations = 1000, useConstantSeed = false)
 public class EnoughShardsWaitStepTests extends ESTestCase {
 
     public EnoughShardsWaitStep createRandomInstance() {

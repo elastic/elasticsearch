@@ -20,11 +20,11 @@ public abstract class Step {
         this.nextStepKey = nextStepKey;
     }
 
-    public StepKey getKey() {
+    public final StepKey getKey() {
         return key;
     }
 
-    public StepKey getNextStepKey() {
+    public final StepKey getNextStepKey() {
         return nextStepKey;
     }
 
@@ -51,7 +51,7 @@ public abstract class Step {
         return key + " => " + nextStepKey;
     }
 
-    public static class StepKey {
+    public static final class StepKey {
         private final String phase;
         private final String action;
         private final String name;

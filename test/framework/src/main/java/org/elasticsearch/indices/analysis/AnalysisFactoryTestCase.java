@@ -227,6 +227,8 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         // should we expose it, or maybe think about higher level integration of the
         // fake term frequency feature (LUCENE-7854)
         .put("delimitedtermfrequency",    Void.class)
+        // not exposed, only used internally to index shingles and speed up phrase queries
+        .put("fixedshingle", Void.class)
 
         .immutableMap();
 

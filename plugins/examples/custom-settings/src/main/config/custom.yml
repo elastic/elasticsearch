@@ -1,0 +1,5 @@
+# Custom configuration file for the custom-settings plugin
+custom:
+    simple: foo
+    list: [0, 1, 1, 2, 3, 5, 8, 13, 21]
+    filtered: secret

@@ -406,3 +406,39 @@
     - match: { hits.hits.0._score: 1.0 }
     - match: { aggregations.value_agg.buckets.0.key: 2 }
     - match: { aggregations.value_agg.buckets.0.doc_count: 1 }
+
+---
+"Return self-referencing map":
+    - do:
+        indices.create:
+            index: test
+            body:
+              settings:
+                number_of_shards: "1"
+
+    - do:
+        index:
+            index: test
+            type: test
+            id: 1
+            body: { "genre": 1 }
+
+    - do:
+        indices.refresh: {}
+
+    - do:
+        catch: bad_request
+        index: test
+        search:
+            body:
+                aggs:
+                    genre:
+                        terms:
+                            script:
+                                lang: painless
+                                source: "def x = [:] ; def y = [:] ; x.a = y ; y.a = x ; return x"
+
+    - match: { error.root_cause.0.type: "illegal_argument_exception" }
+    - match: { error.root_cause.0.reason: "Iterable object is self-referencing itself" }
+    - match: { error.type: "search_phase_execution_exception" }
+    - match: { error.reason: "all shards failed" }

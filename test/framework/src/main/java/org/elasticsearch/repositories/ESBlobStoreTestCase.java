@@ -78,7 +78,7 @@ public abstract class ESBlobStoreTestCase extends ESTestCase {
         return data;
     }
 
-    private static void writeBlob(BlobContainer container, String blobName, BytesArray bytesArray) throws IOException {
+    protected static void writeBlob(BlobContainer container, String blobName, BytesArray bytesArray) throws IOException {
         try (InputStream stream = bytesArray.streamInput()) {
             container.writeBlob(blobName, stream, bytesArray.length());
         }

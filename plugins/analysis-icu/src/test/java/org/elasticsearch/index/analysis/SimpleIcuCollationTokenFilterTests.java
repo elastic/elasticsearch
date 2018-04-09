@@ -218,6 +218,23 @@ public class SimpleIcuCollationTokenFilterTests extends ESTestCase {
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
         assertCollatesToSame(filterFactory, "Töne", "Toene");
     }
+    
+    /*
+     * Test a basic custom rules (should not interfere with reading rules list
+     * in IcuCollationTokenFilterFactory and throw InvalidPathException on
+     * Windows platforms).
+     */
+    public void testBasicCustomRules() throws Exception {
+        Settings settings = Settings.builder()
+                .put("index.analysis.filter.myCollator.type", "icu_collation")
+                .put("index.analysis.filter.myCollator.rules", "&a < g")
+                .build();
+        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
+
+        TokenFilterFactory filterFactory = analysis.tokenFilter.get("myCollator");
+        assertCollation(filterFactory, "green", "bird", -1);
+    }
+
 
     private void assertCollatesToSame(TokenFilterFactory factory, String string1, String string2) throws IOException {
         assertCollation(factory, string1, string2, 0);

@@ -38,11 +38,11 @@ public class ScriptClassInfo {
 
     private final Class<?> baseClass;
     private final org.objectweb.asm.commons.Method executeMethod;
-    private final Definition.Type executeMethodReturnType;
+    private final Class<?> executeMethodReturnType;
     private final List<MethodArgument> executeArguments;
     private final List<org.objectweb.asm.commons.Method> needsMethods;
     private final List<org.objectweb.asm.commons.Method> getMethods;
-    private final List<Definition.Type> getReturns;
+    private final List<Class<?>> getReturns;
 
     public ScriptClassInfo(Definition definition, Class<?> baseClass) {
         this.baseClass = baseClass;
@@ -51,7 +51,7 @@ public class ScriptClassInfo {
         java.lang.reflect.Method executeMethod = null;
         List<org.objectweb.asm.commons.Method> needsMethods = new ArrayList<>();
         List<org.objectweb.asm.commons.Method> getMethods = new ArrayList<>();
-        List<Definition.Type> getReturns = new ArrayList<>();
+        List<Class<?>> getReturns = new ArrayList<>();
         for (java.lang.reflect.Method m : baseClass.getMethods()) {
             if (m.isDefault()) {
                 continue;
@@ -65,7 +65,7 @@ public class ScriptClassInfo {
                                     + "] has more than one.");
                 }
             }
-            if (m.getName().startsWith("needs") && m.getReturnType().equals(boolean.class) && m.getParameterTypes().length == 0) {
+            if (m.getName().startsWith("needs") && m.getReturnType() == boolean.class && m.getParameterTypes().length == 0) {
                 needsMethods.add(new org.objectweb.asm.commons.Method(m.getName(), NEEDS_PARAMETER_METHOD_TYPE.toMethodDescriptorString()));
             }
             if (m.getName().startsWith("get") && m.getName().equals("getClass") == false && Modifier.isStatic(m.getModifiers()) == false) {
@@ -84,8 +84,7 @@ public class ScriptClassInfo {
                 componentType -> "Painless can only implement execute methods returning a whitelisted type but [" + baseClass.getName()
                         + "#execute] returns [" + componentType.getName() + "] which isn't whitelisted.");
 
-        // Look up the argument names
-        Set<String> argumentNames = new LinkedHashSet<>();
+        // Look up the argument
         List<MethodArgument> arguments = new ArrayList<>();
         String[] argumentNamesConstant = readArgumentNamesConstant(baseClass);
         Class<?>[] types = executeMethod.getParameterTypes();
@@ -95,7 +94,6 @@ public class ScriptClassInfo {
         }
         for (int arg = 0; arg < types.length; arg++) {
             arguments.add(methodArgument(definition, types[arg], argumentNamesConstant[arg]));
-            argumentNames.add(argumentNamesConstant[arg]);
         }
         this.executeArguments = unmodifiableList(arguments);
         this.needsMethods = unmodifiableList(needsMethods);
@@ -118,15 +116,15 @@ public class ScriptClassInfo {
     }
 
     /**
-     * The Painless {@link Definition.Type} or the return type of the {@code execute} method. This is used to generate the appropriate
+     * The Painless {@link Class} or the return type of the {@code execute} method. This is used to generate the appropriate
      * return bytecode.
      */
-    public Definition.Type getExecuteMethodReturnType() {
+    public Class<?> getExecuteMethodReturnType() {
         return executeMethodReturnType;
     }
 
     /**
-     * Painless {@link Definition.Type}s and names of the arguments to the {@code execute} method. The names are exposed to the Painless
+     * Painless {@link Class}s and names of the arguments to the {@code execute} method. The names are exposed to the Painless
      * script.
      */
     public List<MethodArgument> getExecuteArguments() {
@@ -150,24 +148,24 @@ public class ScriptClassInfo {
     /**
      * The {@code getVarName} methods return types.
      */
-    public List<Definition.Type> getGetReturns() {
+    public List<Class<?>> getGetReturns() {
         return getReturns;
     }
 
     /**
-     * Painless {@link Definition.Type}s and name of the argument to the {@code execute} method.
+     * Painless {@link Class}es and name of the argument to the {@code execute} method.
      */
     public static class MethodArgument {
-        private final Definition.Type type;
+        private final Class<?> clazz;
         private final String name;
 
-        public MethodArgument(Definition.Type type, String name) {
-            this.type = type;
+        public MethodArgument(Class<?> clazz, String name) {
+            this.clazz = clazz;
             this.name = name;
         }
 
-        public Definition.Type getType() {
-            return type;
+        public Class<?> getClazz() {
+            return clazz;
         }
 
         public String getName() {
@@ -175,13 +173,13 @@ public class ScriptClassInfo {
         }
     }
 
-    private MethodArgument methodArgument(Definition definition, Class<?> type, String argName) {
-        Definition.Type defType = definitionTypeForClass(definition, type, componentType -> "[" + argName + "] is of unknown type ["
+    private MethodArgument methodArgument(Definition definition, Class<?> clazz, String argName) {
+        Class<?> defClass = definitionTypeForClass(definition, clazz, componentType -> "[" + argName + "] is of unknown type ["
                 + componentType.getName() + ". Painless interfaces can only accept arguments that are of whitelisted types.");
-        return new MethodArgument(defType, argName);
+        return new MethodArgument(defClass, argName);
     }
 
-    private static Definition.Type definitionTypeForClass(Definition definition, Class<?> type,
+    private static Class<?> definitionTypeForClass(Definition definition, Class<?> type,
             Function<Class<?>, String> unknownErrorMessageSource) {
         int dimensions = 0;
         Class<?> componentType = type;
@@ -190,16 +188,15 @@ public class ScriptClassInfo {
             componentType = componentType.getComponentType();
         }
         Definition.Struct struct;
-        if (componentType.equals(Object.class)) {
-            struct = definition.DefType.struct;
+        if (componentType == Object.class) {
+            struct = definition.getType("def").struct;
         } else {
-            Definition.RuntimeClass runtimeClass = definition.getRuntimeClass(componentType);
-            if (runtimeClass == null) {
+            if (definition.RuntimeClassToStruct(componentType) == null) {
                 throw new IllegalArgumentException(unknownErrorMessageSource.apply(componentType));
             }
-            struct = runtimeClass.getStruct();
+            struct = definition.RuntimeClassToStruct(componentType);
         }
-        return definition.getType(struct, dimensions);
+        return Definition.TypeToClass(definition.getType(struct, dimensions));
     }
 
     private static String[] readArgumentNamesConstant(Class<?> iface) {

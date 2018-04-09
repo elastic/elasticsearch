@@ -27,6 +27,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -126,7 +127,7 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
         final Settings settings = Settings.builder()
                                       .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                                       .build();
-        final Environment environment = new Environment(settings);
+        final Environment environment = TestEnvironment.newEnvironment(settings);
         final FileBasedUnicastHostsProvider provider = new FileBasedUnicastHostsProvider(environment, transportService, executorService);
         final List<DiscoveryNode> nodes = provider.buildDynamicNodes();
         assertEquals(0, nodes.size());

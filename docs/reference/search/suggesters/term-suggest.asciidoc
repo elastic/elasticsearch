@@ -116,7 +116,7 @@ doesn't take the query into account that is part of request.
     for comparing string distance for terms inside the index.
     `damerau_levenshtein` - String distance algorithm based on
     Damerau-Levenshtein algorithm.
-    `levenstein` - String distance algorithm based on Levenstein edit distance
+    `levenshtein` - String distance algorithm based on Levenshtein edit distance
     algorithm.
-    `jarowinkler` - String distance algorithm based on Jaro-Winkler algorithm.
+    `jaro_winkler` - String distance algorithm based on Jaro-Winkler algorithm.
     `ngram` - String distance algorithm based on character n-grams.

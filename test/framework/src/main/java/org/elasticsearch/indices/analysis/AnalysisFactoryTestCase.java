@@ -22,6 +22,7 @@ package org.elasticsearch.indices.analysis;
 import org.apache.lucene.analysis.util.CharFilterFactory;
 import org.apache.lucene.analysis.util.TokenFilterFactory;
 import org.apache.lucene.analysis.util.TokenizerFactory;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.index.analysis.ClassicTokenizerFactory;
 import org.elasticsearch.index.analysis.EdgeNGramTokenizerFactory;
@@ -215,6 +216,8 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("tokenoffsetpayload",        Void.class)
         // puts the type into the payload
         .put("typeaspayload",             Void.class)
+        // puts the type as a synonym
+        .put("typeassynonym",             Void.class)
         // fingerprint
         .put("fingerprint",               Void.class)
         // for tee-sinks

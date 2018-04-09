@@ -15,12 +15,12 @@ The value of the `_id` field is accessible in certain queries (`term`,
 [source,js]
 --------------------------
 # Example documents
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "text": "Document with ID 1"
 }
 
-PUT my_index/my_type/2&refresh=true
+PUT my_index/_doc/2&refresh=true
 {
   "text": "Document with ID 2"
 }

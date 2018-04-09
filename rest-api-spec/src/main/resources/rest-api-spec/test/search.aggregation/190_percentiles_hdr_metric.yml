@@ -5,6 +5,8 @@ setup:
           body:
             settings:
               number_of_replicas: 0
+              number_of_shards: 5
+              number_of_routing_shards: 5
             mappings:
               doc:
                 properties:
@@ -67,24 +69,22 @@ setup:
 
   - match: { hits.total: 4 }
   - length: { hits.hits: 4 }
-  - match:
-      aggregations.percentiles_int.values:
-        1.0: 1.0
-        5.0: 1.0
-        25.0: 1.0
-        50.0: 51.0302734375
-        75.0: 101.0615234375
-        95.0: 151.1240234375
-        99.0: 151.1240234375
-  - match:
-      aggregations.percentiles_double.values:
-        1.0: 1.0
-        5.0: 1.0
-        25.0: 1.0
-        50.0: 51.0302734375
-        75.0: 101.0615234375
-        95.0: 151.1240234375
-        99.0: 151.1240234375
+
+  - match: { aggregations.percentiles_int.values.1\.0: 1.0 }
+  - match: { aggregations.percentiles_int.values.5\.0: 1.0 }
+  - match: { aggregations.percentiles_int.values.25\.0: 1.0 }
+  - match: { aggregations.percentiles_int.values.50\.0: 51.0302734375 }
+  - match: { aggregations.percentiles_int.values.75\.0: 101.0615234375 }
+  - match: { aggregations.percentiles_int.values.95\.0: 151.1240234375 }
+  - match: { aggregations.percentiles_int.values.99\.0: 151.1240234375 }
+
+  - match: { aggregations.percentiles_double.values.1\.0: 1.0 }
+  - match: { aggregations.percentiles_double.values.5\.0: 1.0 }
+  - match: { aggregations.percentiles_double.values.25\.0: 1.0 }
+  - match: { aggregations.percentiles_double.values.50\.0: 51.0302734375 }
+  - match: { aggregations.percentiles_double.values.75\.0: 101.0615234375 }
+  - match: { aggregations.percentiles_double.values.95\.0: 151.1240234375 }
+  - match: { aggregations.percentiles_double.values.99\.0: 151.1240234375 }
 
   - do:
       search:
@@ -104,24 +104,23 @@ setup:
 
   - match: { hits.total: 4 }
   - length: { hits.hits: 4 }
-  - match:
-      aggregations.percentiles_int.values:
-        1.0: 1.0
-        5.0: 1.0
-        25.0: 1.0
-        50.0: 51.0302734375
-        75.0: 101.0615234375
-        95.0: 151.1240234375
-        99.0: 151.1240234375
-  - match:
-      aggregations.percentiles_double.values:
-        1.0: 1.0
-        5.0: 1.0
-        25.0: 1.0
-        50.0: 51.0302734375
-        75.0: 101.0615234375
-        95.0: 151.1240234375
-        99.0: 151.1240234375
+
+  - match: { aggregations.percentiles_int.values.1\.0: 1.0 }
+  - match: { aggregations.percentiles_int.values.5\.0: 1.0 }
+  - match: { aggregations.percentiles_int.values.25\.0: 1.0 }
+  - match: { aggregations.percentiles_int.values.50\.0: 51.0302734375 }
+  - match: { aggregations.percentiles_int.values.75\.0: 101.0615234375 }
+  - match: { aggregations.percentiles_int.values.95\.0: 151.1240234375 }
+  - match: { aggregations.percentiles_int.values.99\.0: 151.1240234375 }
+
+  - match: { aggregations.percentiles_double.values.1\.0: 1.0 }
+  - match: { aggregations.percentiles_double.values.5\.0: 1.0 }
+  - match: { aggregations.percentiles_double.values.25\.0: 1.0 }
+  - match: { aggregations.percentiles_double.values.50\.0: 51.0302734375 }
+  - match: { aggregations.percentiles_double.values.75\.0: 101.0615234375 }
+  - match: { aggregations.percentiles_double.values.95\.0: 151.1240234375 }
+  - match: { aggregations.percentiles_double.values.99\.0: 151.1240234375 }
+
 
 ---
 "Only aggs test":
@@ -142,24 +141,23 @@ setup:
 
   - match: { hits.total: 4 }
   - length: { hits.hits: 0 }
-  - match:
-      aggregations.percentiles_int.values:
-        1.0: 1.0
-        5.0: 1.0
-        25.0: 1.0
-        50.0: 51.0302734375
-        75.0: 101.0615234375
-        95.0: 151.1240234375
-        99.0: 151.1240234375
-  - match:
-      aggregations.percentiles_double.values:
-        1.0: 1.0
-        5.0: 1.0
-        25.0: 1.0
-        50.0: 51.0302734375
-        75.0: 101.0615234375
-        95.0: 151.1240234375
-        99.0: 151.1240234375
+
+  - match: { aggregations.percentiles_int.values.1\.0: 1.0 }
+  - match: { aggregations.percentiles_int.values.5\.0: 1.0 }
+  - match: { aggregations.percentiles_int.values.25\.0: 1.0 }
+  - match: { aggregations.percentiles_int.values.50\.0: 51.0302734375 }
+  - match: { aggregations.percentiles_int.values.75\.0: 101.0615234375 }
+  - match: { aggregations.percentiles_int.values.95\.0: 151.1240234375 }
+  - match: { aggregations.percentiles_int.values.99\.0: 151.1240234375 }
+
+  - match: { aggregations.percentiles_double.values.1\.0: 1.0 }
+  - match: { aggregations.percentiles_double.values.5\.0: 1.0 }
+  - match: { aggregations.percentiles_double.values.25\.0: 1.0 }
+  - match: { aggregations.percentiles_double.values.50\.0: 51.0302734375 }
+  - match: { aggregations.percentiles_double.values.75\.0: 101.0615234375 }
+  - match: { aggregations.percentiles_double.values.95\.0: 151.1240234375 }
+  - match: { aggregations.percentiles_double.values.99\.0: 151.1240234375 }
+
 
 ---
 "Filtered test":
@@ -185,24 +183,23 @@ setup:
 
   - match: { hits.total: 3 }
   - length: { hits.hits: 3 }
-  - match:
-      aggregations.percentiles_int.values:
-        1.0: 51.0
-        5.0: 51.0
-        25.0: 51.0
-        50.0: 101.03125
-        75.0: 101.03125
-        95.0: 151.09375
-        99.0: 151.09375
-  - match:
-      aggregations.percentiles_double.values:
-        1.0: 51.0
-        5.0: 51.0
-        25.0: 51.0
-        50.0: 101.03125
-        75.0: 101.03125
-        95.0: 151.09375
-        99.0: 151.09375
+
+  - match: { aggregations.percentiles_int.values.1\.0: 51.0 }
+  - match: { aggregations.percentiles_int.values.5\.0: 51.0 }
+  - match: { aggregations.percentiles_int.values.25\.0: 51.0 }
+  - match: { aggregations.percentiles_int.values.50\.0: 101.03125 }
+  - match: { aggregations.percentiles_int.values.75\.0: 101.03125 }
+  - match: { aggregations.percentiles_int.values.95\.0: 151.09375 }
+  - match: { aggregations.percentiles_int.values.99\.0: 151.09375 }
+
+  - match: { aggregations.percentiles_double.values.1\.0: 51.0 }
+  - match: { aggregations.percentiles_double.values.5\.0: 51.0 }
+  - match: { aggregations.percentiles_double.values.25\.0: 51.0 }
+  - match: { aggregations.percentiles_double.values.50\.0: 101.03125 }
+  - match: { aggregations.percentiles_double.values.75\.0: 101.03125 }
+  - match: { aggregations.percentiles_double.values.95\.0: 151.09375 }
+  - match: { aggregations.percentiles_double.values.99\.0: 151.09375 }
+
 
 ---
 "Missing field with missing param":
@@ -219,15 +216,14 @@ setup:
 
   - match: { hits.total: 4 }
   - length: { hits.hits: 4 }
-  - match:
-      aggregations.percentiles_missing.values:
-        1.0: 1.0
-        5.0: 1.0
-        25.0: 1.0
-        50.0: 1.0
-        75.0: 1.0
-        95.0: 1.0
-        99.0: 1.0
+
+  - match: { aggregations.percentiles_missing.values.1\.0: 1.0 }
+  - match: { aggregations.percentiles_missing.values.5\.0: 1.0 }
+  - match: { aggregations.percentiles_missing.values.25\.0: 1.0 }
+  - match: { aggregations.percentiles_missing.values.50\.0: 1.0 }
+  - match: { aggregations.percentiles_missing.values.75\.0: 1.0 }
+  - match: { aggregations.percentiles_missing.values.95\.0: 1.0 }
+  - match: { aggregations.percentiles_missing.values.99\.0: 1.0 }
 
 ---
 "Missing field without missing param":
@@ -262,15 +258,14 @@ setup:
   - match: { hits.total: 4 }
   - length: { hits.hits: 4 }
   - match: { aggregations.percentiles_int.meta.foo: "bar" }
-  - match:
-      aggregations.percentiles_int.values:
-        1.0: 1.0
-        5.0: 1.0
-        25.0: 1.0
-        50.0: 51.0302734375
-        75.0: 101.0615234375
-        95.0: 151.1240234375
-        99.0: 151.1240234375
+
+  - match: { aggregations.percentiles_int.values.1\.0: 1.0 }
+  - match: { aggregations.percentiles_int.values.5\.0: 1.0 }
+  - match: { aggregations.percentiles_int.values.25\.0: 1.0 }
+  - match: { aggregations.percentiles_int.values.50\.0: 51.0302734375 }
+  - match: { aggregations.percentiles_int.values.75\.0: 101.0615234375 }
+  - match: { aggregations.percentiles_int.values.95\.0: 151.1240234375 }
+  - match: { aggregations.percentiles_int.values.99\.0: 151.1240234375 }
 
 ---
 "Invalid params test":
@@ -372,16 +367,16 @@ setup:
 
   - match: { hits.total: 4 }
   - length: { hits.hits: 4 }
-  - match:
-      aggregations.percentiles_int.values:
-        5.0: 1.0
-        25.0: 1.0
-        50.0: 51.0302734375
-  - match:
-      aggregations.percentiles_double.values:
-        5.0: 1.0
-        25.0: 1.0
-        50.0: 51.0302734375
+
+  - match: { aggregations.percentiles_int.values.5\.0: 1.0 }
+  - match: { aggregations.percentiles_int.values.25\.0: 1.0 }
+  - match: { aggregations.percentiles_int.values.50\.0: 51.0302734375 }
+
+
+  - match: { aggregations.percentiles_double.values.5\.0: 1.0 }
+  - match: { aggregations.percentiles_double.values.25\.0: 1.0 }
+  - match: { aggregations.percentiles_double.values.50\.0: 51.0302734375 }
+
 
 ---
 "Non-keyed test":
@@ -400,14 +395,14 @@ setup:
 
   - match: { hits.total: 4 }
   - length: { hits.hits: 4 }
-  - match:
-      aggregations.percentiles_int.values:
-        - key: 5.0
-          value: 1.0
-        - key: 25.0
-          value: 1.0
-        - key: 50.0
-          value: 51.0302734375
+
+
+  - match:  { aggregations.percentiles_int.values.0.key:  5.0 }
+  - match:  { aggregations.percentiles_int.values.0.value:  1.0 }
+  - match:  { aggregations.percentiles_int.values.1.key:  25.0 }
+  - match:  { aggregations.percentiles_int.values.1.value:  1.0 }
+  - match:  { aggregations.percentiles_int.values.2.key:  50.0 }
+  - match:  { aggregations.percentiles_int.values.2.value:  51.0302734375 }
 
 
 ---
@@ -433,15 +428,14 @@ setup:
 
   - match: { hits.total: 4 }
   - length: { hits.hits: 4 }
-  - match:
-      aggregations.percentiles_int.values:
-        1.0: 1.0
-        5.0: 1.0
-        25.0: 1.0
-        50.0: 51.0302734375
-        75.0: 101.0615234375
-        95.0: 151.1240234375
-        99.0: 151.1240234375
+
+  - match: { aggregations.percentiles_int.values.1\.0: 1.0 }
+  - match: { aggregations.percentiles_int.values.5\.0: 1.0 }
+  - match: { aggregations.percentiles_int.values.25\.0: 1.0 }
+  - match: { aggregations.percentiles_int.values.50\.0: 51.0302734375 }
+  - match: { aggregations.percentiles_int.values.75\.0: 101.0615234375 }
+  - match: { aggregations.percentiles_int.values.95\.0: 151.1240234375 }
+  - match: { aggregations.percentiles_int.values.99\.0: 151.1240234375 }
   - match: { _shards.failures.0.reason.type: array_index_out_of_bounds_exception }
 
 

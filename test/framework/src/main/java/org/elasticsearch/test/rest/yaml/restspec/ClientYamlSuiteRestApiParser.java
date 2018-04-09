@@ -40,7 +40,12 @@ public class ClientYamlSuiteRestApiParser {
             //move to first field name
         }
 
-        ClientYamlSuiteRestApi restApi = new ClientYamlSuiteRestApi(location, parser.currentName());
+        String apiName = parser.currentName();
+        if (location.endsWith(apiName + ".json") == false) {
+            throw new IllegalArgumentException("API [" + apiName + "] should have the same name as its file [" + location + "]");
+        }
+
+        ClientYamlSuiteRestApi restApi = new ClientYamlSuiteRestApi(location, apiName);
 
         int level = -1;
         while (parser.nextToken() != XContentParser.Token.END_OBJECT || level >= 0) {

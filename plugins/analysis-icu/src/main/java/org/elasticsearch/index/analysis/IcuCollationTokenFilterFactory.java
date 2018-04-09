@@ -22,6 +22,7 @@ package org.elasticsearch.index.analysis;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.common.io.Streams;
@@ -55,7 +56,7 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
             Exception failureToResolve = null;
             try {
                 rules = Streams.copyToString(Files.newBufferedReader(environment.configFile().resolve(rules), Charset.forName("UTF-8")));
-            } catch (IOException | SecurityException e) {
+            } catch (IOException | SecurityException | InvalidPathException e) {
                 failureToResolve = e;
             }
             try {

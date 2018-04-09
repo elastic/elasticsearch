@@ -26,8 +26,11 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -53,6 +56,8 @@ import java.util.regex.Pattern;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -136,7 +141,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
             }
             mappingsAndSettings.endObject();
             client().performRequest("PUT", "/" + index, Collections.emptyMap(),
-                new StringEntity(mappingsAndSettings.string(), ContentType.APPLICATION_JSON));
+                new StringEntity(Strings.toString(mappingsAndSettings), ContentType.APPLICATION_JSON));
 
             count = randomIntBetween(2000, 3000);
             byte[] randomByteArray = new byte[16];
@@ -199,7 +204,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
             }
             mappingsAndSettings.endObject();
             client().performRequest("PUT", "/" + index, Collections.emptyMap(),
-                new StringEntity(mappingsAndSettings.string(), ContentType.APPLICATION_JSON));
+                new StringEntity(Strings.toString(mappingsAndSettings), ContentType.APPLICATION_JSON));
 
             int numDocs = randomIntBetween(2000, 3000);
             indexRandomDocuments(numDocs, true, false, i -> {
@@ -276,7 +281,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
             }
             mappingsAndSettings.endObject();
             client().performRequest("PUT", "/" + index, Collections.emptyMap(),
-                new StringEntity(mappingsAndSettings.string(), ContentType.APPLICATION_JSON));
+                new StringEntity(Strings.toString(mappingsAndSettings), ContentType.APPLICATION_JSON));
 
             String aliasName = "%23" + index; // %23 == #
             client().performRequest("PUT", "/" + index + "/_alias/" + aliasName);
@@ -324,7 +329,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
             }
             mappingsAndSettings.endObject();
             client().performRequest("PUT", "/_template/template_1", Collections.emptyMap(),
-                new StringEntity(mappingsAndSettings.string(), ContentType.APPLICATION_JSON));
+                new StringEntity(Strings.toString(mappingsAndSettings), ContentType.APPLICATION_JSON));
             client().performRequest("PUT", "/" + index);
         }
 
@@ -375,7 +380,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
             }
             mappingsAndSettings.endObject();
             client().performRequest("PUT", "/" + index, Collections.emptyMap(),
-                new StringEntity(mappingsAndSettings.string(), ContentType.APPLICATION_JSON));
+                new StringEntity(Strings.toString(mappingsAndSettings), ContentType.APPLICATION_JSON));
 
             numDocs = randomIntBetween(512, 1024);
             indexRandomDocuments(numDocs, true, true, i -> {
@@ -383,6 +388,8 @@ public class FullClusterRestartIT extends ESRestTestCase {
                     .field("field", "value")
                     .endObject();
             });
+
+            ensureGreen(index); // wait for source index to be available on both nodes before starting shrink
 
             String updateSettingsRequestBody = "{\"settings\": {\"index.blocks.write\": true}}";
             Response rsp = client().performRequest("PUT", "/" + index + "/_settings", Collections.emptyMap(),
@@ -417,6 +424,75 @@ public class FullClusterRestartIT extends ESRestTestCase {
         assertEquals(1, successfulShards);
         totalHits = (int) XContentMapValues.extractValue("hits.total", response);
         assertEquals(numDocs, totalHits);
+    }
+
+    public void testShrinkAfterUpgrade() throws IOException {
+        String shrunkenIndex = index + "_shrunk";
+        int numDocs;
+        if (runningAgainstOldCluster) {
+            XContentBuilder mappingsAndSettings = jsonBuilder();
+            mappingsAndSettings.startObject();
+            {
+                mappingsAndSettings.startObject("mappings");
+                mappingsAndSettings.startObject("doc");
+                mappingsAndSettings.startObject("properties");
+                {
+                    mappingsAndSettings.startObject("field");
+                    mappingsAndSettings.field("type", "text");
+                    mappingsAndSettings.endObject();
+                }
+                mappingsAndSettings.endObject();
+                mappingsAndSettings.endObject();
+                mappingsAndSettings.endObject();
+            }
+            mappingsAndSettings.endObject();
+            client().performRequest("PUT", "/" + index, Collections.emptyMap(),
+                new StringEntity(Strings.toString(mappingsAndSettings), ContentType.APPLICATION_JSON));
+
+            numDocs = randomIntBetween(512, 1024);
+            indexRandomDocuments(numDocs, true, true, i -> {
+                return JsonXContent.contentBuilder().startObject()
+                    .field("field", "value")
+                    .endObject();
+            });
+        } else {
+            ensureGreen(index); // wait for source index to be available on both nodes before starting shrink
+
+            String updateSettingsRequestBody = "{\"settings\": {\"index.blocks.write\": true}}";
+            Response rsp = client().performRequest("PUT", "/" + index + "/_settings", Collections.emptyMap(),
+                new StringEntity(updateSettingsRequestBody, ContentType.APPLICATION_JSON));
+            assertEquals(200, rsp.getStatusLine().getStatusCode());
+
+            String shrinkIndexRequestBody = "{\"settings\": {\"index.number_of_shards\": 1}}";
+            rsp = client().performRequest("PUT", "/" + index + "/_shrink/" + shrunkenIndex, Collections.emptyMap(),
+                new StringEntity(shrinkIndexRequestBody, ContentType.APPLICATION_JSON));
+            assertEquals(200, rsp.getStatusLine().getStatusCode());
+
+            numDocs = countOfIndexedRandomDocuments();
+        }
+
+        Response rsp = client().performRequest("POST", "/_refresh");
+        assertEquals(200, rsp.getStatusLine().getStatusCode());
+
+        Map<?, ?> response = toMap(client().performRequest("GET", "/" + index + "/_search"));
+        assertNoFailures(response);
+        int totalShards = (int) XContentMapValues.extractValue("_shards.total", response);
+        assertThat(totalShards, greaterThan(1));
+        int successfulShards = (int) XContentMapValues.extractValue("_shards.successful", response);
+        assertEquals(totalShards, successfulShards);
+        int totalHits = (int) XContentMapValues.extractValue("hits.total", response);
+        assertEquals(numDocs, totalHits);
+
+        if (runningAgainstOldCluster == false) {
+            response = toMap(client().performRequest("GET", "/" + shrunkenIndex + "/_search"));
+            assertNoFailures(response);
+            totalShards = (int) XContentMapValues.extractValue("_shards.total", response);
+            assertEquals(1, totalShards);
+            successfulShards = (int) XContentMapValues.extractValue("_shards.successful", response);
+            assertEquals(1, successfulShards);
+            totalHits = (int) XContentMapValues.extractValue("hits.total", response);
+            assertEquals(numDocs, totalHits);
+        }
     }
 
     void assertBasicSearchWorks(int count) throws IOException {
@@ -586,6 +662,28 @@ public class FullClusterRestartIT extends ESRestTestCase {
     }
 
     /**
+     * Tests that a single empty shard index is correctly recovered. Empty shards are often an edge case.
+     */
+    public void testEmptyShard() throws IOException {
+        final String index = "test_empty_shard";
+
+        if (runningAgainstOldCluster) {
+            Settings.Builder settings = Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                // if the node with the replica is the first to be restarted, while a replica is still recovering
+                // then delayed allocation will kick in. When the node comes back, the master will search for a copy
+                // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
+                // before timing out
+                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
+                .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
+            createIndex(index, settings.build());
+        }
+        ensureGreen(index);
+    }
+
+
+    /**
      * Tests recovery of an index with or without a translog and the
      * statistics we gather about that.
      */
@@ -669,8 +767,9 @@ public class FullClusterRestartIT extends ESRestTestCase {
                     fail("expected version to be one of [" + currentLuceneVersion + "," + bwcLuceneVersion + "] but was " + line);
                 }
             }
-            assertNotEquals("expected at least 1 current segment after translog recovery", 0, numCurrentVersion);
-            assertNotEquals("expected at least 1 old segment", 0, numBwcVersion);}
+            assertNotEquals("expected at least 1 current segment after translog recovery. segments:\n" + segmentsResponse,
+                0, numCurrentVersion);
+            assertNotEquals("expected at least 1 old segment. segments:\n" + segmentsResponse, 0, numBwcVersion);}
         }
     }
 
@@ -738,7 +837,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         }
         templateBuilder.endObject().endObject();
         client().performRequest("PUT", "/_template/test_template", emptyMap(),
-                new StringEntity(templateBuilder.string(), ContentType.APPLICATION_JSON));
+                new StringEntity(Strings.toString(templateBuilder), ContentType.APPLICATION_JSON));
 
         if (runningAgainstOldCluster) {
             // Create the repo
@@ -752,7 +851,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
             }
             repoConfig.endObject();
             client().performRequest("PUT", "/_snapshot/repo", emptyMap(),
-                    new StringEntity(repoConfig.string(), ContentType.APPLICATION_JSON));
+                    new StringEntity(Strings.toString(repoConfig), ContentType.APPLICATION_JSON));
         }
 
         client().performRequest("PUT", "/_snapshot/repo/" + (runningAgainstOldCluster ? "old_snap" : "new_snap"),
@@ -777,7 +876,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
             }
             mappingsAndSettings.endObject();
             client().performRequest("PUT", "/" + index, Collections.emptyMap(),
-                new StringEntity(mappingsAndSettings.string(), ContentType.APPLICATION_JSON));
+                new StringEntity(Strings.toString(mappingsAndSettings), ContentType.APPLICATION_JSON));
         } else {
             Response response = client().performRequest("GET", index + "/_stats", singletonMap("level", "shards"));
             List<Object> shardStats = ObjectPath.createFromResponse(response).evaluate("indices." + index + ".shards.0");
@@ -821,7 +920,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         restoreCommand.field("rename_replacement", "restored_" + index);
         restoreCommand.endObject();
         client().performRequest("POST", "/_snapshot/repo/" + snapshotName + "/_restore", singletonMap("wait_for_completion", "true"),
-                new StringEntity(restoreCommand.string(), ContentType.APPLICATION_JSON));
+                new StringEntity(Strings.toString(restoreCommand), ContentType.APPLICATION_JSON));
 
         // Make sure search finds all documents
         String countResponse = toStr(client().performRequest("GET", "/restored_" + index + "/_search", singletonMap("size", "0")));
@@ -899,7 +998,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         for (int i = 0; i < count; i++) {
             logger.debug("Indexing document [{}]", i);
             client().performRequest("POST", "/" + index + "/doc/" + i, emptyMap(),
-                    new StringEntity(docSupplier.apply(i).string(), ContentType.APPLICATION_JSON));
+                    new StringEntity(Strings.toString(docSupplier.apply(i)), ContentType.APPLICATION_JSON));
             if (rarely()) {
                 refresh();
             }
@@ -924,7 +1023,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         // Only create the first version so we know how many documents are created when the index is first created
         Map<String, String> params = singletonMap("op_type", "create");
         client().performRequest("PUT", "/info/doc/" + index + "_" + type, params,
-                new StringEntity(infoDoc.string(), ContentType.APPLICATION_JSON));
+                new StringEntity(Strings.toString(infoDoc), ContentType.APPLICATION_JSON));
     }
 
     private String loadInfoDocument(String type) throws IOException {

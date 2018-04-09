@@ -25,7 +25,9 @@ import org.elasticsearch.common.bytes.AbstractBytesReferenceTestCase;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 
+import javax.net.ssl.SSLEngine;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 public class ByteBufBytesReferenceTests extends AbstractBytesReferenceTestCase {
 
@@ -81,5 +83,4 @@ public class ByteBufBytesReferenceTests extends AbstractBytesReferenceTestCase {
         channelBuffer.readInt(); // this advances the index of the channel buffer
         assertEquals(utf8ToString, byteBufBytesReference.utf8ToString());
     }
-
 }

@@ -19,8 +19,15 @@
 
 package org.elasticsearch.http.netty4;
 
+import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelHandlerAdapter;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.SocketChannel;
+import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.TooLongFrameException;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
@@ -39,7 +46,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.HttpServerTransport;
@@ -63,6 +72,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -93,7 +104,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
     public void setup() throws Exception {
         networkService = new NetworkService(Collections.emptyList());
         threadPool = new TestThreadPool("test");
-        bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
+        bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
     }
 
     @After
@@ -311,6 +322,55 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
             transport.dispatchBadRequest(null, null, null);
             assertNull(threadPool.getThreadContext().getHeader("foo_bad"));
             assertNull(threadPool.getThreadContext().getTransient("bar_bad"));
+        }
+    }
+
+    public void testReadTimeout() throws Exception {
+        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+
+            @Override
+            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                throw new AssertionError("Should not have received a dispatched request");
+            }
+
+            @Override
+            public void dispatchBadRequest(final RestRequest request,
+                                           final RestChannel channel,
+                                           final ThreadContext threadContext,
+                                           final Throwable cause) {
+                throw new AssertionError("Should not have received a dispatched request");
+            }
+
+        };
+
+        Settings settings = Settings.builder()
+            .put(HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT.getKey(), new TimeValue(randomIntBetween(100, 300)))
+            .build();
+
+
+        NioEventLoopGroup group = new NioEventLoopGroup();
+        try (Netty4HttpServerTransport transport =
+                 new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher)) {
+            transport.start();
+            final TransportAddress remoteAddress = randomFrom(transport.boundAddress.boundAddresses());
+
+            AtomicBoolean channelClosed = new AtomicBoolean(false);
+
+            Bootstrap clientBootstrap = new Bootstrap().channel(NioSocketChannel.class).handler(new ChannelInitializer<SocketChannel>() {
+
+                @Override
+                protected void initChannel(SocketChannel ch) {
+                    ch.pipeline().addLast(new ChannelHandlerAdapter() {});
+
+                }
+            }).group(group);
+            ChannelFuture connect = clientBootstrap.connect(remoteAddress.address());
+            connect.channel().closeFuture().addListener(future -> channelClosed.set(true));
+
+            assertBusy(() -> assertTrue("Channel should be closed due to read timeout", channelClosed.get()), 5, TimeUnit.SECONDS);
+
+        } finally {
+            group.shutdownGracefully().await();
         }
     }
 }

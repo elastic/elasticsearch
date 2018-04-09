@@ -30,6 +30,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -129,7 +130,8 @@ final class RemoteRequestBuilders {
     static HttpEntity initialSearchEntity(SearchRequest searchRequest, BytesReference query, Version remoteVersion) {
         // EMPTY is safe here because we're not calling namedObject
         try (XContentBuilder entity = JsonXContent.contentBuilder();
-                XContentParser queryParser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, query)) {
+                XContentParser queryParser = XContentHelper
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, query)) {
             entity.startObject();
 
             entity.field("query"); {
@@ -153,7 +155,7 @@ final class RemoteRequestBuilders {
             }
 
             entity.endObject();
-            BytesRef bytes = entity.bytes().toBytesRef();
+            BytesRef bytes = BytesReference.bytes(entity).toBytesRef();
             return new ByteArrayEntity(bytes.bytes, bytes.offset, bytes.length, ContentType.APPLICATION_JSON);
         } catch (IOException e) {
             throw new ElasticsearchException("unexpected error building entity", e);
@@ -207,9 +209,9 @@ final class RemoteRequestBuilders {
             return new StringEntity(scroll, ContentType.TEXT_PLAIN);
         }
         try (XContentBuilder entity = JsonXContent.contentBuilder()) {
-            return new StringEntity(entity.startObject()
+            return new StringEntity(Strings.toString(entity.startObject()
                 .field("scroll_id", scroll)
-                .endObject().string(), ContentType.APPLICATION_JSON);
+                .endObject()), ContentType.APPLICATION_JSON);
         } catch (IOException e) {
             throw new ElasticsearchException("failed to build scroll entity", e);
         }
@@ -221,9 +223,9 @@ final class RemoteRequestBuilders {
             return new StringEntity(scroll, ContentType.TEXT_PLAIN);
         }
         try (XContentBuilder entity = JsonXContent.contentBuilder()) {
-            return new StringEntity(entity.startObject()
+            return new StringEntity(Strings.toString(entity.startObject()
                 .array("scroll_id", scroll)
-                .endObject().string(), ContentType.APPLICATION_JSON);
+                .endObject()), ContentType.APPLICATION_JSON);
         } catch (IOException e) {
             throw new ElasticsearchException("failed to build clear scroll entity", e);
         }

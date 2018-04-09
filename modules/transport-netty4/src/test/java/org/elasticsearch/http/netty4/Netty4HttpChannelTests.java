@@ -52,6 +52,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -99,7 +100,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
     public void setup() throws Exception {
         networkService = new NetworkService(Collections.emptyList());
         threadPool = new TestThreadPool("test");
-        bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
+        bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
     }
 
     @After
@@ -329,7 +330,8 @@ public class Netty4HttpChannelTests extends ESTestCase {
             }
             httpRequest.headers().add(HttpHeaderNames.HOST, host);
             final WriteCapturingChannel writeCapturingChannel = new WriteCapturingChannel();
-            final Netty4HttpRequest request = new Netty4HttpRequest(xContentRegistry(), httpRequest, writeCapturingChannel);
+            final Netty4HttpRequest request =
+                    new Netty4HttpRequest(xContentRegistry(), httpRequest, writeCapturingChannel);
 
             Netty4HttpChannel channel =
                     new Netty4HttpChannel(httpServerTransport, request, null, randomBoolean(), threadPool.getThreadContext());

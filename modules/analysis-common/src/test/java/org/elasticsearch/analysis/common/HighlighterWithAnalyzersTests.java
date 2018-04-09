@@ -21,6 +21,7 @@ package org.elasticsearch.analysis.common;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
@@ -66,6 +67,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
                         .endObject())
                 .setSettings(Settings.builder()
                         .put(indexSettings())
+                        .put(IndexSettings.MAX_NGRAM_DIFF_SETTING.getKey(), 19)
                         .put("analysis.tokenizer.autocomplete.max_gram", 20)
                         .put("analysis.tokenizer.autocomplete.min_gram", 1)
                         .put("analysis.tokenizer.autocomplete.token_chars", "letter,digit")

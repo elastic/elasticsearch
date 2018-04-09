@@ -44,13 +44,13 @@ relevance `_score` of each document:
 
 [source,js]
 -------------------------------------
-PUT my_index/my_type/1?refresh
+PUT my_index/_doc/1?refresh
 {
   "text": "quick brown fox",
   "popularity": 1
 }
 
-PUT my_index/my_type/2?refresh
+PUT my_index/_doc/2?refresh
 {
   "text": "quick fox",
   "popularity": 5
@@ -89,7 +89,7 @@ store, enabled by default on all fields except for <<text,analyzed `text` fields
 
 [source,js]
 -------------------------------
-PUT my_index/my_type/1?refresh
+PUT my_index/_doc/1?refresh
 {
   "cost_price": 100
 }
@@ -114,6 +114,17 @@ GET my_index/_search
 Doc-values can only return "simple" field values like numbers, dates, geo-
 points, terms, etc, or arrays of these values if the field is multi-valued.
 It cannot return JSON objects.
+
+[NOTE]
+.Missing fields
+===================================================
+
+The `doc['field']` will throw an error if `field` is missing from the mappings.
+In `painless`, a check can first be done with `doc.containsKey('field')` to guard
+accessing the `doc` map.  Unfortunately, there is no way to check for the
+existence of the field in mappings in an `expression` script.
+
+===================================================
 
 [NOTE]
 .Doc values and `text` fields
@@ -164,7 +175,7 @@ For instance:
 PUT my_index
 {
   "mappings": {
-    "my_type": {
+    "_doc": {
       "properties": {
         "title": { <1>
           "type": "text"
@@ -182,7 +193,7 @@ PUT my_index
   }
 }
 
-PUT my_index/my_type/1?refresh
+PUT my_index/_doc/1?refresh
 {
   "title": "Mr",
   "first_name": "Barry",

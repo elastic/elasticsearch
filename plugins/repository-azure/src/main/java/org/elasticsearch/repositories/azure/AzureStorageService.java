@@ -62,4 +62,23 @@ public interface AzureStorageService {
 
     void writeBlob(String account, LocationMode mode, String container, String blobName, InputStream inputStream, long blobSize) throws
         URISyntaxException, StorageException;
+
+    static InputStream giveSocketPermissionsToStream(InputStream stream) {
+        return new InputStream() {
+            @Override
+            public int read() throws IOException {
+                return SocketAccess.doPrivilegedIOException(stream::read);
+            }
+
+            @Override
+            public int read(byte[] b) throws IOException {
+                return SocketAccess.doPrivilegedIOException(() -> stream.read(b));
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                return SocketAccess.doPrivilegedIOException(() -> stream.read(b, off, len));
+            }
+        };
+    }
 }

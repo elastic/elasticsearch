@@ -28,7 +28,7 @@ class ClusterConfiguration {
     private final Project project
 
     @Input
-    String distribution = 'integ-test-zip'
+    String distribution = 'zip'
 
     @Input
     int numNodes = 1
@@ -64,10 +64,10 @@ class ClusterConfiguration {
 
     /**
      * Configuration of the setting <tt>discovery.zen.minimum_master_nodes</tt> on the nodes.
-     * In case of more than one node, this defaults to (number of nodes / 2) + 1
+     * In case of more than one node, this defaults to the number of nodes
      */
     @Input
-    Closure<Integer> minimumMasterNodes = { getNumNodes() > 1 ? getNumNodes().intdiv(2) + 1 : -1 }
+    Closure<Integer> minimumMasterNodes = { getNumNodes() > 1 ? getNumNodes() : -1 }
 
     @Input
     String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
@@ -122,6 +122,14 @@ class ClusterConfiguration {
                 retries: 10)
         return tmpFile.exists()
     }
+
+    /**
+     * The maximum number of seconds to wait for nodes to complete startup, which includes writing
+     * the ports files for the transports and the pid file. This wait time occurs before the wait
+     * condition is executed.
+     */
+    @Input
+    int nodeStartupWaitSeconds = 30
 
     public ClusterConfiguration(Project project) {
         this.project = project

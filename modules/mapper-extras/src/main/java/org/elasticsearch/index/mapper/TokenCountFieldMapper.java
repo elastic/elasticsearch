@@ -202,8 +202,8 @@ public class TokenCountFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
-        super.doMerge(mergeWith, updateAllTypes);
+    protected void doMerge(Mapper mergeWith) {
+        super.doMerge(mergeWith);
         this.analyzer = ((TokenCountFieldMapper) mergeWith).analyzer;
         this.enablePositionIncrements = ((TokenCountFieldMapper) mergeWith).enablePositionIncrements;
     }

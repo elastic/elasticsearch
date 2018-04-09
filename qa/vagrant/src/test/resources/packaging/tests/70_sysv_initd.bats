@@ -157,3 +157,9 @@ setup() {
 
     service elasticsearch stop
 }
+
+@test "[INIT.D] GC logs exist" {
+    start_elasticsearch_service
+    assert_file_exist /var/log/elasticsearch/gc.log.0.current
+    stop_elasticsearch_service
+}

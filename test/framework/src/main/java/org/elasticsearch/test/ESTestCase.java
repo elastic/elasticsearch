@@ -47,6 +47,7 @@ import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
@@ -56,6 +57,7 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -65,6 +67,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
@@ -77,6 +80,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -104,7 +108,7 @@ import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
-import org.elasticsearch.transport.nio.NioTransportPlugin;
+import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -287,7 +291,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @After
     public final void after() throws Exception {
-        checkStaticState();
+        checkStaticState(false);
         // We check threadContext != null rather than enableWarningsCheck()
         // because after methods are still called in the event that before
         // methods failed, in which case threadContext might not have been
@@ -340,7 +344,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             final Set<String> actualWarningValues =
                     actualWarnings.stream().map(DeprecationLogger::extractWarningValueFromWarningHeader).collect(Collectors.toSet());
             for (String msg : expectedWarnings) {
-                assertThat(actualWarningValues, hasItem(DeprecationLogger.escape(msg)));
+                assertThat(actualWarningValues, hasItem(DeprecationLogger.escapeAndEncode(msg)));
             }
             assertEquals("Expected " + expectedWarnings.length + " warnings but found " + actualWarnings.size() + "\nExpected: "
                     + Arrays.asList(expectedWarnings) + "\nActual: " + actualWarnings,
@@ -393,8 +397,10 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     // separate method so that this can be checked again after suite scoped cluster is shut down
-    protected static void checkStaticState() throws Exception {
-        MockPageCacheRecycler.ensureAllPagesAreReleased();
+    protected static void checkStaticState(boolean afterClass) throws Exception {
+        if (afterClass) {
+            MockPageCacheRecycler.ensureAllPagesAreReleased();
+        }
         MockBigArrays.ensureAllArraysAreReleased();
 
         // ensure no one changed the status logger level on us
@@ -459,6 +465,13 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * A random long number between min (inclusive) and max (inclusive).
+     */
+    public static long randomLongBetween(long min, long max) {
+        return RandomNumbers.randomLongBetween(random(), min, max);
+    }
+
+    /**
      * Returns a "scaled" number of iterations for loops which can have a variable
      * iteration count. This method is effectively
      * an alias to {@link #scaledRandomIntBetween(int, int)}.
@@ -499,12 +512,12 @@ public abstract class ESTestCase extends LuceneTestCase {
         return random().nextInt();
     }
 
+    /**
+     * @return a <code>long</code> between <code>0</code> and <code>Long.MAX_VALUE</code> (inclusive) chosen uniformly at random.
+     */
     public static long randomNonNegativeLong() {
-        long randomLong;
-        do {
-            randomLong = randomLong();
-        } while (randomLong == Long.MIN_VALUE);
-        return Math.abs(randomLong);
+        long randomLong = randomLong();
+        return randomLong == Long.MIN_VALUE ? 0 : Math.abs(randomLong);
     }
 
     public static float randomFloat() {
@@ -674,11 +687,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * helper to get a random value in a certain range that's different from the input
      */
     public static <T> T randomValueOtherThan(T input, Supplier<T> randomSupplier) {
-        if (input != null) {
-            return randomValueOtherThanMany(input::equals, randomSupplier);
-        }
-
-        return(randomSupplier.get());
+        return randomValueOtherThanMany(v -> Objects.equals(input, v), randomSupplier);
     }
 
     /**
@@ -811,7 +820,7 @@ public abstract class ESTestCase extends LuceneTestCase {
                 .put(settings)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
                 .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build();
-        return new NodeEnvironment(build, new Environment(build));
+        return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
     }
 
     /** Return consistent index settings for the provided index version. */
@@ -894,11 +903,11 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static String getTestTransportType() {
-        return useNio ? NioTransportPlugin.NIO_TRANSPORT_NAME : MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME;
+        return useNio ? MockNioTransportPlugin.MOCK_NIO_TRANSPORT_NAME : MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME;
     }
 
     public static Class<? extends Plugin> getTestTransportPlugin() {
-        return useNio ? NioTransportPlugin.class : MockTcpTransportPlugin.class;
+        return useNio ? MockNioTransportPlugin.class : MockTcpTransportPlugin.class;
     }
 
     private static final GeohashGenerator geohashGenerator = new GeohashGenerator();
@@ -918,10 +927,23 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     protected final BytesReference toShuffledXContent(ToXContent toXContent, XContentType xContentType, ToXContent.Params params,
                                                       boolean humanReadable, String... exceptFieldNames) throws IOException{
+        return toShuffledXContent(toXContent, xContentType, params, humanReadable, this::createParser, exceptFieldNames);
+    }
+
+    /**
+     * Returns the bytes that represent the XContent output of the provided {@link ToXContent} object, using the provided
+     * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
+     * by the {@link ToXContent#isFragment()} method returns. Shuffles the keys to make sure that parsing never relies on keys ordering.
+     */
+    protected static BytesReference toShuffledXContent(ToXContent toXContent, XContentType xContentType, ToXContent.Params params,
+                                                       boolean humanReadable,
+                                                       CheckedBiFunction<XContent, BytesReference, XContentParser, IOException>
+                                                               parserFunction,
+                                                       String... exceptFieldNames) throws IOException{
         BytesReference bytes = XContentHelper.toXContent(toXContent, xContentType, params, humanReadable);
-        try (XContentParser parser = createParser(xContentType.xContent(), bytes)) {
+        try (XContentParser parser = parserFunction.apply(xContentType.xContent(), bytes)) {
             try (XContentBuilder builder = shuffleXContent(parser, rarely(), exceptFieldNames)) {
-                return builder.bytes();
+                return BytesReference.bytes(builder);
             }
         }
     }
@@ -944,7 +966,8 @@ public abstract class ESTestCase extends LuceneTestCase {
      * recursive shuffling behavior can be made by passing in the names of fields which
      * internally should stay untouched.
      */
-    public XContentBuilder shuffleXContent(XContentParser parser, boolean prettyPrint, String... exceptFieldNames) throws IOException {
+    public static XContentBuilder shuffleXContent(XContentParser parser, boolean prettyPrint, String... exceptFieldNames)
+            throws IOException {
         XContentBuilder xContentBuilder = XContentFactory.contentBuilder(parser.contentType());
         if (prettyPrint) {
             xContentBuilder.prettyPrint();
@@ -961,6 +984,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     // shuffle fields of objects in the list, but not the list itself
+    @SuppressWarnings("unchecked")
     private static List<Object> shuffleList(List<Object> list, Set<String> exceptFields) {
         List<Object> targetList = new ArrayList<>();
         for(Object value : list) {
@@ -977,6 +1001,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         return targetList;
     }
 
+    @SuppressWarnings("unchecked")
     public static LinkedHashMap<String, Object> shuffleMap(LinkedHashMap<String, Object> map, Set<String> exceptFields) {
         List<String> keys = new ArrayList<>(map.keySet());
         LinkedHashMap<String, Object> targetMap = new LinkedHashMap<>();
@@ -1002,11 +1027,39 @@ public abstract class ESTestCase extends LuceneTestCase {
      * potentially need to use a {@link NamedWriteableRegistry}, so this needs to be provided too (although it can be
      * empty if the object that is streamed doesn't contain any {@link NamedWriteable} objects itself.
      */
-    public static <T extends Writeable> T copyWriteable(T original, NamedWriteableRegistry namedWritabelRegistry,
+    public static <T extends Writeable> T copyWriteable(T original, NamedWriteableRegistry namedWriteableRegistry,
             Writeable.Reader<T> reader) throws IOException {
+        return copyWriteable(original, namedWriteableRegistry, reader, Version.CURRENT);
+    }
+
+    /**
+     * Same as {@link #copyWriteable(Writeable, NamedWriteableRegistry, Writeable.Reader)} but also allows to provide
+     * a {@link Version} argument which will be used to write and read back the object.
+     */
+    public static <T extends Writeable> T copyWriteable(T original, NamedWriteableRegistry namedWriteableRegistry,
+                                                        Writeable.Reader<T> reader, Version version) throws IOException {
+        return copyInstance(original, namedWriteableRegistry, (out, value) -> value.writeTo(out), reader, version);
+    }
+
+    /**
+     * Create a copy of an original {@link Streamable} object by running it through a {@link BytesStreamOutput} and
+     * reading it in again using a provided {@link Writeable.Reader}. The stream that is wrapped around the {@link StreamInput}
+     * potentially need to use a {@link NamedWriteableRegistry}, so this needs to be provided too (although it can be
+     * empty if the object that is streamed doesn't contain any {@link NamedWriteable} objects itself.
+     */
+    public static <T extends Streamable> T copyStreamable(T original, NamedWriteableRegistry namedWriteableRegistry,
+                                                          Supplier<T> supplier, Version version) throws IOException {
+        return copyInstance(original, namedWriteableRegistry, (out, value) -> value.writeTo(out),
+                Streamable.newWriteableReader(supplier), version);
+    }
+
+    private static <T> T copyInstance(T original, NamedWriteableRegistry namedWriteableRegistry, Writeable.Writer<T> writer,
+                                      Writeable.Reader<T> reader, Version version) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            original.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWritabelRegistry)) {
+            output.setVersion(version);
+            writer.write(output, original);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
+                in.setVersion(version);
                 return reader.read(in);
             }
         }
@@ -1075,8 +1128,8 @@ public abstract class ESTestCase extends LuceneTestCase {
             expectedJson.endObject();
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();
             message.compareMaps(
-                    XContentHelper.convertToMap(actualJson.bytes(), false).v2(),
-                    XContentHelper.convertToMap(expectedJson.bytes(), false).v2());
+                    XContentHelper.convertToMap(BytesReference.bytes(actualJson), false).v2(),
+                    XContentHelper.convertToMap(BytesReference.bytes(expectedJson), false).v2());
             throw new AssertionError("Didn't match expected value:\n" + message);
         } catch (IOException e) {
             throw new AssertionError("IOException while building failure message", e);
@@ -1087,35 +1140,36 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContentBuilder builder) throws IOException {
-        return builder.generator().contentType().xContent().createParser(xContentRegistry(), builder.bytes());
+        return builder.generator().contentType().xContent()
+            .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
     }
 
     /**
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContent xContent, String data) throws IOException {
-        return xContent.createParser(xContentRegistry(), data);
+        return xContent.createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, data);
     }
 
     /**
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContent xContent, InputStream data) throws IOException {
-        return xContent.createParser(xContentRegistry(), data);
+        return xContent.createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, data);
     }
 
     /**
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContent xContent, byte[] data) throws IOException {
-        return xContent.createParser(xContentRegistry(), data);
+        return xContent.createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, data);
     }
 
     /**
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContent xContent, BytesReference data) throws IOException {
-        return xContent.createParser(xContentRegistry(), data);
+        return xContent.createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, data.streamInput());
     }
 
     /**
@@ -1205,7 +1259,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static TestAnalysis createTestAnalysis(IndexSettings indexSettings, Settings nodeSettings,
                                                   AnalysisPlugin... analysisPlugins) throws IOException {
-        Environment env = new Environment(nodeSettings);
+        Environment env = TestEnvironment.newEnvironment(nodeSettings);
         AnalysisModule analysisModule = new AnalysisModule(env, Arrays.asList(analysisPlugins));
         AnalysisRegistry analysisRegistry = analysisModule.getAnalysisRegistry();
         return new TestAnalysis(analysisRegistry.build(indexSettings),

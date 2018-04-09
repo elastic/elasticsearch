@@ -31,6 +31,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -53,6 +54,7 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -94,13 +96,13 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         queryField = randomAlphaOfLength(4);
-        String docType = "doc";
-        mapperService.merge(docType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(docType,
+        String docType = "_doc";
+        mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(docType,
                 queryField, "type=percolator"
-        ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
-        mapperService.merge(docType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(docType,
+        ))), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(docType,
                 STRING_FIELD_NAME, "type=text"
-        ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+        ))), MapperService.MergeReason.MAPPING_UPDATE);
         if (mapperService.getIndexSettings().isSingleType() == false) {
             PercolateQueryBuilderTests.docType = docType;
         }
@@ -338,9 +340,9 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
 
             XContentBuilder xContent = XContentFactory.jsonBuilder();
             xContent.map(source);
-            return xContent.bytes();
+            return BytesReference.bytes(xContent);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new UncheckedIOException(e);
         }
     }
 

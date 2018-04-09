@@ -103,7 +103,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         filters.put("czech_stem", CzechStemTokenFilterFactory::new);
         filters.put("common_grams", requriesAnalysisSettings(CommonGramsTokenFilterFactory::new));
         filters.put("decimal_digit", DecimalDigitFilterFactory::new);
-        filters.put("delimited_payload_filter", DelimitedPayloadTokenFilterFactory::new);
+        filters.put("delimited_payload_filter", LegacyDelimitedPayloadTokenFilterFactory::new);
+        filters.put("delimited_payload", DelimitedPayloadTokenFilterFactory::new);
         filters.put("dictionary_decompounder", requriesAnalysisSettings(DictionaryCompoundWordTokenFilterFactory::new));
         filters.put("dutch_stem", DutchStemTokenFilterFactory::new);
         filters.put("edge_ngram", EdgeNGramTokenFilterFactory::new);
@@ -195,6 +196,10 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
                 new DelimitedPayloadTokenFilter(input,
                         DelimitedPayloadTokenFilterFactory.DEFAULT_DELIMITER,
                         DelimitedPayloadTokenFilterFactory.DEFAULT_ENCODER)));
+        filters.add(PreConfiguredTokenFilter.singleton("delimited_payload", false, input ->
+                new DelimitedPayloadTokenFilter(input,
+                        DelimitedPayloadTokenFilterFactory.DEFAULT_DELIMITER,
+                        DelimitedPayloadTokenFilterFactory.DEFAULT_ENCODER)));
         filters.add(PreConfiguredTokenFilter.singleton("dutch_stem", false, input -> new SnowballFilter(input, new DutchStemmer())));
         filters.add(PreConfiguredTokenFilter.singleton("edge_ngram", false, input ->
                 new EdgeNGramTokenFilter(input, EdgeNGramTokenFilter.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenFilter.DEFAULT_MAX_GRAM_SIZE)));
@@ -241,7 +246,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         filters.add(PreConfiguredTokenFilter.singleton("stemmer", false, PorterStemFilter::new));
         // The stop filter is in lucene-core but the English stop words set is in lucene-analyzers-common
         filters.add(PreConfiguredTokenFilter.singleton("stop", false, input -> new StopFilter(input, StopAnalyzer.ENGLISH_STOP_WORDS_SET)));
-        filters.add(PreConfiguredTokenFilter.singleton("trim", false, TrimFilter::new));
+        filters.add(PreConfiguredTokenFilter.singleton("trim", true, TrimFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("truncate", false, input -> new TruncateTokenFilter(input, 10)));
         filters.add(PreConfiguredTokenFilter.singleton("type_as_payload", false, TypeAsPayloadTokenFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("unique", false, UniqueTokenFilter::new));

@@ -30,7 +30,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# Install a plugin an run all the common post installation tests.
+# Install a plugin
 install_plugin() {
     local name=$1
     local path="$2"
@@ -47,13 +47,11 @@ install_plugin() {
     fi
 
     if [ -z "$umask" ]; then
-      sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install -batch "file://$path"
+      sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install --batch "file://$path"
     else
-      sudo -E -u $ESPLUGIN_COMMAND_USER bash -c "umask $umask && \"$ESHOME/bin/elasticsearch-plugin\" install -batch \"file://$path\""
+      sudo -E -u $ESPLUGIN_COMMAND_USER bash -c "umask $umask && \"$ESHOME/bin/elasticsearch-plugin\" install --batch \"file://$path\""
     fi
 
-    assert_file_exist "$ESPLUGINS/$name"
-    assert_file_exist "$ESPLUGINS/$name/plugin-descriptor.properties"
     #check we did not accidentially create a log file as root as /usr/share/elasticsearch
     assert_file_not_exist "/usr/share/elasticsearch/logs"
 
@@ -64,13 +62,6 @@ install_plugin() {
         echo "$ESLOG is now owned by root! That'll break logging when elasticsearch tries to start."
         false
     fi
-}
-
-install_jvm_plugin() {
-    local name=$1
-    local path="$2"
-    install_plugin $name "$path" $3
-    assert_file_exist "$ESPLUGINS/$name/$name"*".jar"
 }
 
 # Remove a plugin and make sure its plugin directory is removed.
@@ -91,50 +82,49 @@ remove_plugin() {
     fi
 }
 
-# Install the jvm-example plugin which fully exercises the special case file
-# placements for non-site plugins.
-install_jvm_example() {
-    local relativePath=${1:-$(readlink -m jvm-example-*.zip)}
-    install_jvm_plugin jvm-example "$relativePath" $2
+# Install a sample plugin which fully exercises the special case file placements.
+install_plugin_example() {
+    local relativePath=${1:-$(readlink -m custom-settings-*.zip)}
+    install_plugin custom-settings "$relativePath" $2
 
     bin_user=$(find "$ESHOME/bin" -maxdepth 0 -printf "%u")
     bin_owner=$(find "$ESHOME/bin" -maxdepth 0 -printf "%g")
 
-    assert_file "$ESHOME/plugins/jvm-example" d $bin_user $bin_owner 755
-    assert_file "$ESHOME/plugins/jvm-example/jvm-example-$(cat version).jar" f $bin_user $bin_owner 644
+    assert_file "$ESHOME/plugins/custom-settings" d $bin_user $bin_owner 755
+    assert_file "$ESHOME/plugins/custom-settings/custom-settings-$(cat version).jar" f $bin_user $bin_owner 644
 
     #owner group and permissions vary depending on how es was installed
     #just make sure that everything is the same as the parent bin dir, which was properly set up during install
-    assert_file "$ESHOME/bin/jvm-example" d $bin_user $bin_owner 755
-    assert_file "$ESHOME/bin/jvm-example/test" f $bin_user $bin_owner 755
+    assert_file "$ESHOME/bin/custom-settings" d $bin_user $bin_owner 755
+    assert_file "$ESHOME/bin/custom-settings/test" f $bin_user $bin_owner 755
 
     #owner group and permissions vary depending on how es was installed
     #just make sure that everything is the same as $CONFIG_DIR, which was properly set up during install
     config_user=$(find "$ESCONFIG" -maxdepth 0 -printf "%u")
     config_owner=$(find "$ESCONFIG" -maxdepth 0 -printf "%g")
     # directories should user the user file-creation mask
-    assert_file "$ESCONFIG/jvm-example" d $config_user $config_owner 750
-    assert_file "$ESCONFIG/jvm-example/example.yml" f $config_user $config_owner 660
+    assert_file "$ESCONFIG/custom-settings" d $config_user $config_owner 750
+    assert_file "$ESCONFIG/custom-settings/custom.yml" f $config_user $config_owner 660
 
-    run sudo -E -u vagrant LANG="en_US.UTF-8" cat "$ESCONFIG/jvm-example/example.yml"
+    run sudo -E -u vagrant LANG="en_US.UTF-8" cat "$ESCONFIG/custom-settings/custom.yml"
     [ $status = 1 ]
     [[ "$output" == *"Permission denied"* ]] || {
         echo "Expected permission denied but found $output:"
         false
     }
 
-    echo "Running jvm-example's bin script...."
-    "$ESHOME/bin/jvm-example/test" | grep test
+    echo "Running sample plugin bin script...."
+    "$ESHOME/bin/custom-settings/test" | grep test
 }
 
-# Remove the jvm-example plugin which fully exercises the special cases of
+# Remove the sample plugin which fully exercises the special cases of
 # removing bin and not removing config.
-remove_jvm_example() {
-    remove_plugin jvm-example
+remove_plugin_example() {
+    remove_plugin custom-settings
 
-    assert_file_not_exist "$ESHOME/bin/jvm-example"
-    assert_file_exist "$ESCONFIG/jvm-example"
-    assert_file_exist "$ESCONFIG/jvm-example/example.yml"
+    assert_file_not_exist "$ESHOME/bin/custom-settings"
+    assert_file_exist "$ESCONFIG/custom-settings"
+    assert_file_exist "$ESCONFIG/custom-settings/custom.yml"
 }
 
 # Install a plugin with a special prefix. For the most part prefixes are just
@@ -156,9 +146,11 @@ install_and_check_plugin() {
         local full_name="$prefix-$name"
     fi
 
-    install_jvm_plugin $full_name "$(readlink -m $full_name-*.zip)"
+    install_plugin $full_name "$(readlink -m $full_name-*.zip)"
 
     assert_module_or_plugin_directory "$ESPLUGINS/$full_name"
+    assert_file_exist "$ESPLUGINS/$full_name/plugin-descriptor.properties"
+    assert_file_exist "$ESPLUGINS/$full_name/$full_name"*".jar"
 
     # analysis plugins have a corresponding analyzers jar
     if [ $prefix == 'analysis' ]; then
@@ -174,6 +166,17 @@ install_and_check_plugin() {
     for file in "$@"; do
         assert_module_or_plugin_file "$ESPLUGINS/$full_name/$file"
     done
+}
+
+# Install a meta plugin
+# $1 - the plugin name
+# $@ - all remaining arguments are jars that must exist in the plugin's
+#      installation directory
+install_meta_plugin() {
+    local name=$1
+
+    install_plugin $name "$(readlink -m $name-*.zip)"
+    assert_module_or_plugin_directory "$ESPLUGINS/$name"
 }
 
 # Compare a list of plugin names to the plugins in the plugins pom and see if they are the same

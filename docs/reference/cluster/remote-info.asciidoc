@@ -33,3 +33,7 @@ the configured remote cluster alias.
 
 `initial_connect_timeout`::
 	The initial connect timeout for remote cluster connections.
+
+`skip_unavailable`::
+    Whether the remote cluster is skipped in case it is searched through
+    a cross cluster search request but none of its nodes are available.

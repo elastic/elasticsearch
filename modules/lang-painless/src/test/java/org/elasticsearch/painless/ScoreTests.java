@@ -37,10 +37,6 @@ public class ScoreTests extends ScriptTestCase {
             return 0;
         }
         @Override
-        public int freq() throws IOException {
-            throw new UnsupportedOperationException();
-        }
-        @Override
         public DocIdSetIterator iterator() {
             throw new UnsupportedOperationException();
         }

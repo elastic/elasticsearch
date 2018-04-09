@@ -15,7 +15,7 @@ Full query example:
 
 [source,js]
 --------------------------------------------------
-GET /twitter/tweet/0/_explain
+GET /twitter/_doc/0/_explain
 {
       "query" : {
         "match" : { "message" : "elasticsearch" }
@@ -31,7 +31,7 @@ This will yield the following result:
 --------------------------------------------------
 {
    "_index": "twitter",
-   "_type": "tweet",
+   "_type": "_doc",
    "_id": "0",
    "matched": true,
    "explanation": {
@@ -104,7 +104,7 @@ explain api:
 
 [source,js]
 --------------------------------------------------
-GET /twitter/tweet/0/_explain?q=message:search
+GET /twitter/_doc/0/_explain?q=message:search
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]

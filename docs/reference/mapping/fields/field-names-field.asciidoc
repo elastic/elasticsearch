@@ -11,12 +11,12 @@ The value of the `_field_names` field is accessible in queries:
 [source,js]
 --------------------------
 # Example documents
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 {
   "title": "This is a document"
 }
 
-PUT my_index/my_type/2?refresh=true
+PUT my_index/_doc/2?refresh=true
 {
   "title": "This is another document",
   "body": "This document has a body"
@@ -48,7 +48,7 @@ disable this field if you want to optimize for indexing speed and do not need
 PUT tweets
 {
   "mappings": {
-    "tweet": {
+    "_doc": {
       "_field_names": {
         "enabled": false
       }

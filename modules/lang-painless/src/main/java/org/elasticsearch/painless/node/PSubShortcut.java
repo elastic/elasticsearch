@@ -19,8 +19,8 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -54,12 +54,12 @@ final class PSubShortcut extends AStoreable {
 
     @Override
     void analyze(Locals locals) {
-        if (getter != null && (getter.rtn.clazz == void.class || !getter.arguments.isEmpty())) {
+        if (getter != null && (getter.rtn == void.class || !getter.arguments.isEmpty())) {
             throw createError(new IllegalArgumentException(
                 "Illegal get shortcut on field [" + value + "] for type [" + type + "]."));
         }
 
-        if (setter != null && (setter.rtn.clazz != void.class || setter.arguments.size() != 1)) {
+        if (setter != null && (setter.rtn != void.class || setter.arguments.size() != 1)) {
             throw createError(new IllegalArgumentException(
                 "Illegal set shortcut on field [" + value + "] for type [" + type + "]."));
         }
@@ -81,8 +81,8 @@ final class PSubShortcut extends AStoreable {
 
         getter.write(writer);
 
-        if (!getter.rtn.clazz.equals(getter.handle.type().returnType())) {
-            writer.checkCast(getter.rtn.type);
+        if (!getter.rtn.equals(getter.handle.type().returnType())) {
+            writer.checkCast(MethodWriter.getType(getter.rtn));
         }
     }
 
@@ -97,7 +97,7 @@ final class PSubShortcut extends AStoreable {
     }
 
     @Override
-    void updateActual(Type actual) {
+    void updateActual(Class<?> actual) {
         throw new IllegalArgumentException("Illegal tree structure.");
     }
 
@@ -112,8 +112,8 @@ final class PSubShortcut extends AStoreable {
 
         getter.write(writer);
 
-        if (!getter.rtn.clazz.equals(getter.handle.type().returnType())) {
-            writer.checkCast(getter.rtn.type);
+        if (getter.rtn != getter.handle.type().returnType()) {
+            writer.checkCast(MethodWriter.getType(getter.rtn));
         }
     }
 
@@ -123,7 +123,7 @@ final class PSubShortcut extends AStoreable {
 
         setter.write(writer);
 
-        writer.writePop(setter.rtn.type.getSize());
+        writer.writePop(MethodWriter.getType(setter.rtn).getSize());
     }
 
     @Override

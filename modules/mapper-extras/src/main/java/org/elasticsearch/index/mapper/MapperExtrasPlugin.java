@@ -33,9 +33,6 @@ public class MapperExtrasPlugin extends Plugin implements MapperPlugin {
         Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
         mappers.put(ScaledFloatFieldMapper.CONTENT_TYPE, new ScaledFloatFieldMapper.TypeParser());
         mappers.put(TokenCountFieldMapper.CONTENT_TYPE, new TokenCountFieldMapper.TypeParser());
-        for (RangeFieldMapper.RangeType type : RangeFieldMapper.RangeType.values()) {
-            mappers.put(type.typeName(), new RangeFieldMapper.TypeParser(type));
-        }
         return Collections.unmodifiableMap(mappers);
     }
 

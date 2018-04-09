@@ -327,6 +327,15 @@ However, the `size` and `shard size` settings covered in the next section provid
 ==== Parameters
 
 ===== JLH score
+The JLH score can be used as a significance score by adding the parameter
+
+[source,js]
+--------------------------------------------------
+
+	 "jlh": {
+	 }
+--------------------------------------------------
+// NOTCONSOLE
 
 The scores are derived from the doc frequencies in _foreground_ and _background_ sets. The _absolute_ change in popularity (foregroundPercent - backgroundPercent) would favor common terms whereas the _relative_ change in popularity (foregroundPercent/ backgroundPercent) would favor rare terms. Rare vs common is essentially a precision vs recall balance and so the absolute and relative changes are multiplied to provide a sweet spot between precision and recall.
 
@@ -449,7 +458,7 @@ a consolidated review by the reducing node before the final selection. Obviously
 will cause extra network traffic and RAM usage so this is  quality/cost trade off that needs to be balanced.  If `shard_size` is set to -1 (the default) then `shard_size` will be automatically estimated based on the number of shards and the `size` parameter.
 
 
-NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sense). When it is, elasticsearch will
+NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sense). When it is, Elasticsearch will
         override it and reset it to be equal to `size`.
 
 ===== Minimum document count

@@ -27,6 +27,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
@@ -43,16 +44,9 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLen
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class IndexingIT extends ESRestTestCase {
-
-    private void updateIndexSetting(String name, Settings.Builder settings) throws IOException {
-        updateIndexSetting(name, settings.build());
-    }
-    private void updateIndexSetting(String name, Settings settings) throws IOException {
-        assertOK(client().performRequest("PUT", name + "/_settings", Collections.emptyMap(),
-            new StringEntity(Strings.toString(settings), ContentType.APPLICATION_JSON)));
-    }
 
     private int indexDocs(String index, final int idStart, final int numDocs) throws IOException {
         for (int i = 0; i < numDocs; i++) {
@@ -109,8 +103,8 @@ public class IndexingIT extends ESRestTestCase {
             logger.info("indexing docs with [{}] concurrent updates initially", nUpdates);
             final int finalVersionForDoc1 = indexDocWithConcurrentUpdates(index, 1, nUpdates);
             logger.info("allowing shards on all nodes");
-            updateIndexSetting(index, Settings.builder().putNull("index.routing.allocation.include._name"));
-            ensureGreen();
+            updateIndexSettings(index, Settings.builder().putNull("index.routing.allocation.include._name"));
+            ensureGreen(index);
             assertOK(client().performRequest("POST", index + "/_refresh"));
             List<Shard> shards = buildShards(index, nodes, newNodeClient);
             Shard primary = buildShards(index, nodes, newNodeClient).stream().filter(Shard::isPrimary).findFirst().get();
@@ -134,8 +128,8 @@ public class IndexingIT extends ESRestTestCase {
 
             primary = shards.stream().filter(Shard::isPrimary).findFirst().get();
             logger.info("moving primary to new node by excluding {}", primary.getNode().getNodeName());
-            updateIndexSetting(index, Settings.builder().put("index.routing.allocation.exclude._name", primary.getNode().getNodeName()));
-            ensureGreen();
+            updateIndexSettings(index, Settings.builder().put("index.routing.allocation.exclude._name", primary.getNode().getNodeName()));
+            ensureGreen(index);
             nUpdates = randomIntBetween(minUpdates, maxUpdates);
             logger.info("indexing docs with [{}] concurrent updates after moving primary", nUpdates);
             final int finalVersionForDoc3 = indexDocWithConcurrentUpdates(index, 3, nUpdates);
@@ -147,8 +141,8 @@ public class IndexingIT extends ESRestTestCase {
             }
 
             logger.info("setting number of replicas to 0");
-            updateIndexSetting(index, Settings.builder().put("index.number_of_replicas", 0));
-            ensureGreen();
+            updateIndexSettings(index, Settings.builder().put("index.number_of_replicas", 0));
+            ensureGreen(index);
             nUpdates = randomIntBetween(minUpdates, maxUpdates);
             logger.info("indexing doc with [{}] concurrent updates after setting number of replicas to 0", nUpdates);
             final int finalVersionForDoc4 = indexDocWithConcurrentUpdates(index, 4, nUpdates);
@@ -160,8 +154,8 @@ public class IndexingIT extends ESRestTestCase {
             }
 
             logger.info("setting number of replicas to 1");
-            updateIndexSetting(index, Settings.builder().put("index.number_of_replicas", 1));
-            ensureGreen();
+            updateIndexSettings(index, Settings.builder().put("index.number_of_replicas", 1));
+            ensureGreen(index);
             nUpdates = randomIntBetween(minUpdates, maxUpdates);
             logger.info("indexing doc with [{}] concurrent updates after setting number of replicas to 1", nUpdates);
             final int finalVersionForDoc5 = indexDocWithConcurrentUpdates(index, 5, nUpdates);
@@ -192,11 +186,11 @@ public class IndexingIT extends ESRestTestCase {
             int numDocs = 0;
             final int numberOfInitialDocs = 1 + randomInt(5);
             logger.info("indexing [{}] docs initially", numberOfInitialDocs);
-            numDocs += indexDocs(index, numDocs, numberOfInitialDocs);
-            assertSeqNoOnShards(index, nodes, numDocs, newNodeClient);
+            numDocs += indexDocs(index, 0, numberOfInitialDocs);
+            assertSeqNoOnShards(index, nodes, nodes.getBWCVersion().major >= 6 ? numDocs : 0, newNodeClient);
             logger.info("allowing shards on all nodes");
-            updateIndexSetting(index, Settings.builder().putNull("index.routing.allocation.include._name"));
-            ensureGreen();
+            updateIndexSettings(index, Settings.builder().putNull("index.routing.allocation.include._name"));
+            ensureGreen(index);
             assertOK(client().performRequest("POST", index + "/_refresh"));
             for (final String bwcName : bwcNamesList) {
                 assertCount(index, "_only_nodes:" + bwcName, numDocs);
@@ -204,37 +198,88 @@ public class IndexingIT extends ESRestTestCase {
             final int numberOfDocsAfterAllowingShardsOnAllNodes = 1 + randomInt(5);
             logger.info("indexing [{}] docs after allowing shards on all nodes", numberOfDocsAfterAllowingShardsOnAllNodes);
             numDocs += indexDocs(index, numDocs, numberOfDocsAfterAllowingShardsOnAllNodes);
-            assertSeqNoOnShards(index, nodes, numDocs, newNodeClient);
+            assertSeqNoOnShards(index, nodes, nodes.getBWCVersion().major >= 6 ? numDocs : 0, newNodeClient);
             Shard primary = buildShards(index, nodes, newNodeClient).stream().filter(Shard::isPrimary).findFirst().get();
             logger.info("moving primary to new node by excluding {}", primary.getNode().getNodeName());
-            updateIndexSetting(index, Settings.builder().put("index.routing.allocation.exclude._name", primary.getNode().getNodeName()));
-            ensureGreen();
+            updateIndexSettings(index, Settings.builder().put("index.routing.allocation.exclude._name", primary.getNode().getNodeName()));
+            ensureGreen(index);
             int numDocsOnNewPrimary = 0;
             final int numberOfDocsAfterMovingPrimary = 1 + randomInt(5);
             logger.info("indexing [{}] docs after moving primary", numberOfDocsAfterMovingPrimary);
             numDocsOnNewPrimary += indexDocs(index, numDocs, numberOfDocsAfterMovingPrimary);
             numDocs += numberOfDocsAfterMovingPrimary;
-            assertSeqNoOnShards(index, nodes, numDocs, newNodeClient);
+            assertSeqNoOnShards(index, nodes, nodes.getBWCVersion().major >= 6 ? numDocs : numDocsOnNewPrimary, newNodeClient);
             /*
              * Dropping the number of replicas to zero, and then increasing it to one triggers a recovery thus exercising any BWC-logic in
              * the recovery code.
              */
             logger.info("setting number of replicas to 0");
-            updateIndexSetting(index, Settings.builder().put("index.number_of_replicas", 0));
+            updateIndexSettings(index, Settings.builder().put("index.number_of_replicas", 0));
             final int numberOfDocsAfterDroppingReplicas = 1 + randomInt(5);
             logger.info("indexing [{}] docs after setting number of replicas to 0", numberOfDocsAfterDroppingReplicas);
             numDocsOnNewPrimary += indexDocs(index, numDocs, numberOfDocsAfterDroppingReplicas);
             numDocs += numberOfDocsAfterDroppingReplicas;
             logger.info("setting number of replicas to 1");
-            updateIndexSetting(index, Settings.builder().put("index.number_of_replicas", 1));
-            ensureGreen();
+            updateIndexSettings(index, Settings.builder().put("index.number_of_replicas", 1));
+            ensureGreen(index);
             assertOK(client().performRequest("POST", index + "/_refresh"));
 
             for (Shard shard : buildShards(index, nodes, newNodeClient)) {
                 assertCount(index, "_only_nodes:" + shard.node.nodeName, numDocs);
             }
-            assertSeqNoOnShards(index, nodes, numDocs, newNodeClient);
+            assertSeqNoOnShards(index, nodes, nodes.getBWCVersion().major >= 6 ? numDocs : numDocsOnNewPrimary, newNodeClient);
         }
+    }
+
+    public void testUpdateSnapshotStatus() throws Exception {
+        Nodes nodes = buildNodeAndVersions();
+        assumeFalse("new nodes is empty", nodes.getNewNodes().isEmpty());
+        logger.info("cluster discovered: {}", nodes.toString());
+
+        // Create the repository before taking the snapshot.
+        String repoConfig = Strings
+            .toString(JsonXContent.contentBuilder()
+                .startObject()
+                .field("type", "fs")
+                .startObject("settings")
+                .field("compress", randomBoolean())
+                .field("location", System.getProperty("tests.path.repo"))
+                .endObject()
+                .endObject());
+
+        assertOK(
+            client().performRequest("PUT", "/_snapshot/repo", emptyMap(),
+                new StringEntity(repoConfig, ContentType.APPLICATION_JSON))
+        );
+
+        String bwcNames = nodes.getBWCNodes().stream().map(Node::getNodeName).collect(Collectors.joining(","));
+
+        // Allocating shards on the BWC nodes to makes sure that taking snapshot happens on those nodes.
+        Settings.Builder settings = Settings.builder()
+            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), between(5, 10))
+            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+            .put("index.routing.allocation.include._name", bwcNames);
+
+        final String index = "test-snapshot-index";
+        createIndex(index, settings.build());
+        indexDocs(index, 0, between(50, 100));
+        ensureGreen(index);
+        assertOK(client().performRequest("POST", index + "/_refresh"));
+
+        assertOK(
+            client().performRequest("PUT", "/_snapshot/repo/bwc-snapshot", singletonMap("wait_for_completion", "true"),
+                new StringEntity("{\"indices\": \"" + index + "\"}", ContentType.APPLICATION_JSON))
+        );
+
+        // Allocating shards on all nodes, taking snapshots should happen on all nodes.
+        updateIndexSettings(index, Settings.builder().putNull("index.routing.allocation.include._name"));
+        ensureGreen(index);
+        assertOK(client().performRequest("POST", index + "/_refresh"));
+
+        assertOK(
+            client().performRequest("PUT", "/_snapshot/repo/mixed-snapshot", singletonMap("wait_for_completion", "true"),
+                new StringEntity("{\"indices\": \"" + index + "\"}", ContentType.APPLICATION_JSON))
+        );
     }
 
     private void assertCount(final String index, final String preference, final int expectedCount) throws IOException {

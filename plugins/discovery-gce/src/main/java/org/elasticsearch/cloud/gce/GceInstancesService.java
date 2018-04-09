@@ -31,7 +31,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
-public interface GceInstancesService {
+public interface GceInstancesService extends Closeable {
 
     /**
      * GCE API Version: Elasticsearch/GceCloud/1.0

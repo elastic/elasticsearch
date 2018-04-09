@@ -19,14 +19,11 @@
 
 package org.elasticsearch.index.mapper.murmur3;
 
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -43,6 +40,10 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TypeParsers;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 public class Murmur3FieldMapper extends FieldMapper {
 
@@ -125,6 +126,11 @@ public class Murmur3FieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             return new DocValuesIndexFieldData.Builder().numericType(NumericType.LONG);
+        }
+
+        @Override
+        public Query existsQuery(QueryShardContext context) {
+            return new DocValuesFieldExistsQuery(name());
         }
 
         @Override

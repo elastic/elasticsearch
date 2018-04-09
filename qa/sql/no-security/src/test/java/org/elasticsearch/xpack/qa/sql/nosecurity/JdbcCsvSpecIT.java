@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.qa.sql.nosecurity;
 
 import org.elasticsearch.xpack.qa.sql.jdbc.CsvSpecTestCase;
+import org.elasticsearch.xpack.qa.sql.jdbc.CsvTestUtils.CsvTestCase;
 
 public class JdbcCsvSpecIT extends CsvSpecTestCase {
     public JdbcCsvSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase) {

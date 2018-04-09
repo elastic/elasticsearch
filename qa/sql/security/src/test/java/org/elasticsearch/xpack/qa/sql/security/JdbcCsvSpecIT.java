@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.qa.sql.security;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.qa.sql.jdbc.CsvSpecTestCase;
+import org.elasticsearch.xpack.qa.sql.jdbc.CsvTestUtils.CsvTestCase;
 
 import java.util.Properties;
 

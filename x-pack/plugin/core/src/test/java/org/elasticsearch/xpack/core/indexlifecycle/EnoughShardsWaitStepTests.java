@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.core.indexlifecycle;
 
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -22,8 +24,41 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
+@Repeat(iterations = 1000, useConstantSeed = false)
 public class EnoughShardsWaitStepTests extends ESTestCase {
+
+    public EnoughShardsWaitStep createRandomInstance() {
+        StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+
+        return new EnoughShardsWaitStep(stepKey, nextStepKey);
+    }
+
+    public EnoughShardsWaitStep mutateInstance(EnoughShardsWaitStep instance) {
+        StepKey key = instance.getKey();
+        StepKey nextKey = instance.getNextStepKey();
+
+        switch (between(0, 1)) {
+        case 0:
+            key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            break;
+        case 1:
+            nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new EnoughShardsWaitStep(key, nextKey);
+    }
+
+    public void testHashcodeAndEquals() {
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createRandomInstance(),
+                instance -> new EnoughShardsWaitStep(instance.getKey(), instance.getNextStepKey()), this::mutateInstance);
+    }
 
     public void testConditionMet() {
         IndexMetaData indexMetadata = IndexMetaData.builder(randomAlphaOfLength(5))
@@ -51,7 +86,7 @@ public class EnoughShardsWaitStepTests extends ESTestCase {
                 .build())
             .build();
 
-        EnoughShardsWaitStep step = new EnoughShardsWaitStep(null, null);
+        EnoughShardsWaitStep step = createRandomInstance();
         assertTrue(step.isConditionMet(indexMetadata.getIndex(), clusterState));
     }
 
@@ -81,7 +116,7 @@ public class EnoughShardsWaitStepTests extends ESTestCase {
                 .build())
             .build();
 
-        EnoughShardsWaitStep step = new EnoughShardsWaitStep(null, null);
+        EnoughShardsWaitStep step = createRandomInstance();
         assertFalse(step.isConditionMet(indexMetadata.getIndex(), clusterState));
     }
 }

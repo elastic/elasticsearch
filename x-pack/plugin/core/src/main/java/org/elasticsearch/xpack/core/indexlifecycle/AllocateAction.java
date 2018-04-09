@@ -7,15 +7,11 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
-import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -50,9 +46,6 @@ public class AllocateAction implements LifecycleAction {
     private final Map<String, String> include;
     private final Map<String, String> exclude;
     private final Map<String, String> require;
-    private static final AllocationDeciders ALLOCATION_DECIDERS = new AllocationDeciders(Settings.EMPTY,
-            Collections.singletonList(new FilterAllocationDecider(Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))));
 
     public static AllocateAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
@@ -124,12 +117,12 @@ public class AllocateAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
-        StepKey enoughKey = new StepKey(phase, NAME, "enough-shards-allocated");
-        StepKey allocateKey = new StepKey(phase, NAME, "update-allocation");
-        StepKey allocationRoutedKey = new StepKey(phase, NAME, "check-allocation");
+        StepKey enoughKey = new StepKey(phase, NAME, EnoughShardsWaitStep.NAME);
+        StepKey allocateKey = new StepKey(phase, NAME, UpdateAllocationSettingsStep.NAME);
+        StepKey allocationRoutedKey = new StepKey(phase, NAME, AllocationRoutedStep.NAME);
         UpdateAllocationSettingsStep allocateStep = new UpdateAllocationSettingsStep(allocateKey, allocationRoutedKey,
             include, exclude, require);
-        AllocationRoutedStep routedCheckStep = new AllocationRoutedStep(allocationRoutedKey, nextStepKey, ALLOCATION_DECIDERS);
+        AllocationRoutedStep routedCheckStep = new AllocationRoutedStep(allocationRoutedKey, nextStepKey);
         return Arrays.asList(new EnoughShardsWaitStep(enoughKey, allocateKey), allocateStep, routedCheckStep);
     }
 

@@ -380,36 +380,29 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     @Override
     protected void readBytes(ByteBuffer targetBuffer, long position) throws IOException {
-        if (position + targetBuffer.remaining() > getWrittenOffset()) {
-            synchronized (this) {
-                // we only flush here if it's really really needed - try to minimize the impact of the read operation
-                // in some cases ie. a tragic event we might still be able to read the relevant value
-                // which is not really important in production but some test can make most strict assumptions
-                // if we don't fail in this call unless absolutely necessary.
-                if (position + targetBuffer.remaining() > getWrittenOffset()) {
-                    outputStream.flush();
+        try {
+            if (position + targetBuffer.remaining() > getWrittenOffset()) {
+                synchronized (this) {
+                    // we only flush here if it's really really needed - try to minimize the impact of the read operation
+                    // in some cases ie. a tragic event we might still be able to read the relevant value
+                    // which is not really important in production but some test can make most strict assumptions
+                    // if we don't fail in this call unless absolutely necessary.
+                    if (position + targetBuffer.remaining() > getWrittenOffset()) {
+                        outputStream.flush();
+                    }
                 }
             }
+        } catch (final IOException e) {
+            try {
+                closeWithTragicEvent(e);
+            } catch (final IOException inner) {
+                e.addSuppressed(inner);
+            }
+            throw e;
         }
         // we don't have to have a lock here because we only write ahead to the file, so all writes has been complete
         // for the requested location.
         Channels.readFromFileChannelWithEofException(channel, position, targetBuffer);
-    }
-
-    private static Checkpoint writeCheckpoint(
-            ChannelFactory channelFactory,
-            long syncPosition,
-            int numOperations,
-            long minSeqNo,
-            long maxSeqNo,
-            long globalCheckpoint,
-            long minTranslogGeneration,
-            Path translogFile,
-            long generation) throws IOException {
-        final Checkpoint checkpoint =
-            new Checkpoint(syncPosition, numOperations, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration);
-        writeCheckpoint(channelFactory, translogFile, checkpoint);
-        return checkpoint;
     }
 
     private static void writeCheckpoint(

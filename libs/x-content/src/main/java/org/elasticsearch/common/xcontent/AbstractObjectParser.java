@@ -21,10 +21,8 @@ package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -212,17 +210,6 @@ public abstract class AbstractObjectParser<Value, Context>
     public <T> void declareFieldArray(BiConsumer<Value, List<T>> consumer, ContextParser<Context, T> itemParser,
                                       ParseField field, ValueType type) {
         declareField(consumer, (p, c) -> parseArray(p, () -> itemParser.parse(p, c)), field, type);
-    }
-
-    public void declareRawObject(BiConsumer<Value, BytesReference> consumer, ParseField field) {
-        CheckedFunction<XContentParser, BytesReference, IOException> bytesParser = p -> {
-            try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-                builder.prettyPrint();
-                builder.copyCurrentStructure(p);
-                return BytesReference.bytes(builder);
-            }
-        };
-        declareField(consumer, bytesParser, field, ValueType.OBJECT);
     }
 
     private interface IOSupplier<T> {

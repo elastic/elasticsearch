@@ -11,43 +11,58 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
-import static org.hamcrest.Matchers.equalTo;
+public class UpdateBestCompressionSettingsStepTests extends ESTestCase {
 
-public class ReadOnlyStepTests extends ESTestCase {
-
-    public ReadOnlyStep createRandomInstance() {
+    public UpdateBestCompressionSettingsStep createRandomInstance() {
         StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
 
-        return new ReadOnlyStep(stepKey, nextStepKey);
+        return new UpdateBestCompressionSettingsStep(stepKey, nextStepKey);
     }
+
+
     public void testHashcodeAndEquals() {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(createRandomInstance(),
-            instance -> new ReadOnlyStep(instance.getKey(), instance.getNextStepKey()));
+                instance -> new UpdateBestCompressionSettingsStep(instance.getKey(), instance.getNextStepKey()));
     }
 
     public void testPerformAction() {
-        Settings.Builder indexSettingsBuilder = settings(Version.CURRENT);
-        if (randomBoolean()) {
-            indexSettingsBuilder.put(IndexMetaData.SETTING_BLOCKS_WRITE, randomBoolean());
-        }
         IndexMetaData indexMetadata = IndexMetaData.builder(randomAlphaOfLength(5))
             .settings(settings(Version.CURRENT))
-            .numberOfShards(1).numberOfReplicas(0).build();
+            .numberOfShards(1)
+            .numberOfReplicas(0).build();
         MetaData metaData = MetaData.builder()
             .persistentSettings(settings(Version.CURRENT).build())
             .put(IndexMetaData.builder(indexMetadata))
             .build();
         Index index = indexMetadata.getIndex();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).build();
-        ReadOnlyStep step = new ReadOnlyStep(null, null);
+
+        UpdateBestCompressionSettingsStep step = createRandomInstance();
         ClusterState newState = step.performAction(index, clusterState);
-        assertThat(newState.metaData().index(index).getSettings().get(IndexMetaData.SETTING_BLOCKS_WRITE), equalTo("true"));
+        assertNotSame(clusterState, newState);
+        IndexMetaData newIndexMetadata = newState.metaData().index(index);
+        assertNotNull(newIndexMetadata);
+        assertNotSame(indexMetadata, newIndexMetadata);
+        assertTrue(EngineConfig.INDEX_CODEC_SETTING.exists(newIndexMetadata.getSettings()));
+        assertTrue(CodecService.BEST_COMPRESSION_CODEC.equals(
+            newIndexMetadata.getSettings().get(EngineConfig.INDEX_CODEC_SETTING.getKey())));
+    }
+
+    public void testPerformActionNoIndex() {
+        MetaData metaData = MetaData.builder().persistentSettings(settings(Version.CURRENT).build()).build();
+        Index index = new Index("invalid_index", "invalid_index_id");
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).build();
+
+        UpdateBestCompressionSettingsStep step = createRandomInstance();
+        ClusterState newState = step.performAction(index, clusterState);
+        assertSame(clusterState, newState);
     }
 }

@@ -5,39 +5,20 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequestBuilder;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
-import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
-import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
-import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequestBuilder;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Consumer;
-import java.util.function.LongSupplier;
-import java.util.stream.StreamSupport;
 
 /**
  * A {@link LifecycleAction} which force-merges the index.
@@ -45,42 +26,53 @@ import java.util.stream.StreamSupport;
 public class ForceMergeAction implements LifecycleAction {
     public static final String NAME = "forcemerge";
     public static final ParseField MAX_NUM_SEGMENTS_FIELD = new ParseField("max_num_segments");
+    public static final ParseField BEST_COMPRESSION_FIELD = new ParseField("best_compression");
 
     private static final ConstructingObjectParser<ForceMergeAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
         false, a -> {
         int maxNumSegments = (Integer) a[0];
-        return new ForceMergeAction(maxNumSegments);
+        boolean bestCompression = (Boolean) a[1];
+        return new ForceMergeAction(maxNumSegments, bestCompression);
     });
 
     static {
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_NUM_SEGMENTS_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), BEST_COMPRESSION_FIELD);
     }
 
-    private final Integer maxNumSegments;
+    private final int maxNumSegments;
+    private final boolean bestCompression;
 
     public static ForceMergeAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public ForceMergeAction(int maxNumSegments) {
+    public ForceMergeAction(int maxNumSegments, boolean bestCompression) {
         if (maxNumSegments <= 0) {
             throw new IllegalArgumentException("[" + MAX_NUM_SEGMENTS_FIELD.getPreferredName()
                 + "] must be a positive integer");
         }
         this.maxNumSegments = maxNumSegments;
+        this.bestCompression = bestCompression;
     }
 
     public ForceMergeAction(StreamInput in) throws IOException {
         this.maxNumSegments = in.readVInt();
+        this.bestCompression = in.readBoolean();
     }
 
     public int getMaxNumSegments() {
         return maxNumSegments;
     }
 
+    public boolean isBestCompression() {
+        return bestCompression;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(maxNumSegments);
+        out.writeBoolean(bestCompression);
     }
 
     @Override
@@ -92,34 +84,28 @@ public class ForceMergeAction implements LifecycleAction {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(MAX_NUM_SEGMENTS_FIELD.getPreferredName(), maxNumSegments);
+        builder.field(BEST_COMPRESSION_FIELD.getPreferredName(), bestCompression);
         builder.endObject();
         return builder;
     }
 
     @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
-
-//        ClientStep<IndicesSegmentsRequestBuilder, IndicesSegmentResponse> segmentCount = new ClientStep<>( "segment_count",
-//            NAME, phase, index.getName(),
-//            client.admin().indices().prepareSegments(index.getName()),
-//            currentState -> false, response -> {
-//                // check if has too many segments
-//                return StreamSupport.stream(response.getIndices().get(index.getName()).spliterator(), false)
-//                    .anyMatch(iss -> Arrays.stream(iss.getShards()).anyMatch(p -> p.getSegments().size() > maxNumSegments));
-//        });
-//
-//        ClientStep forceMerge = new ClientStep<ForceMergeRequestBuilder, ForceMergeResponse>( "force_merge",
-//            NAME, phase, index.getName(),
-//            client.admin().indices().prepareForceMerge(index.getName()).setMaxNumSegments(maxNumSegments),
-//            currentState -> false, response -> RestStatus.OK.equals(response.getStatus()));
-//    just forceMerge... then wait to see whether segmentCount matches condition
-
-        return Arrays.asList();
+        StepKey updateCompressionKey = new StepKey(phase, NAME, UpdateBestCompressionSettingsStep.NAME);
+        StepKey forceMergeKey = new StepKey(phase, NAME, ForceMergeStep.NAME);
+        StepKey countKey = new StepKey(phase, NAME, SegmentCountStep.NAME);
+        ForceMergeStep forceMergeStep = new ForceMergeStep(forceMergeKey, countKey, client, maxNumSegments);
+        SegmentCountStep segmentCountStep = new SegmentCountStep(countKey, nextStepKey, client, maxNumSegments, bestCompression);
+        if (bestCompression) {
+            UpdateBestCompressionSettingsStep updateBestCompression = new UpdateBestCompressionSettingsStep(updateCompressionKey, forceMergeKey);
+            return Arrays.asList(updateBestCompression, forceMergeStep, segmentCountStep);
+        }
+        return Arrays.asList(forceMergeStep, segmentCountStep);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(maxNumSegments);
+        return Objects.hash(maxNumSegments, bestCompression);
     }
 
     @Override
@@ -131,7 +117,8 @@ public class ForceMergeAction implements LifecycleAction {
             return false;
         }
         ForceMergeAction other = (ForceMergeAction) obj;
-        return Objects.equals(maxNumSegments, other.maxNumSegments);
+        return Objects.equals(maxNumSegments, other.maxNumSegments)
+            && Objects.equals(bestCompression, other.bestCompression);
     }
 
     @Override

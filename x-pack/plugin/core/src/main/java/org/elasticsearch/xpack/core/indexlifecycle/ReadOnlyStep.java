@@ -11,7 +11,10 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
+import java.util.Objects;
+
 public class ReadOnlyStep extends ClusterStateActionStep {
+    public static final String NAME = "read-only";
 
     ReadOnlyStep(StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);

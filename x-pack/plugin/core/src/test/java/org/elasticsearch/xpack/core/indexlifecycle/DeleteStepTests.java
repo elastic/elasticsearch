@@ -91,7 +91,6 @@ public class DeleteStepTests extends ESTestCase {
                 assertEquals(1, request.indices().length);
                 assertEquals(index.getName(), request.indices()[0]);
                 listener.onFailure(exception);
-                ;
                 return null;
             }
 

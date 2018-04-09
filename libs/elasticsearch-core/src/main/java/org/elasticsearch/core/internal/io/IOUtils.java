@@ -41,45 +41,73 @@ public final class IOUtils {
     }
 
     /**
-     * Closes all given <tt>Closeable</tt>s. Some of the <tt>Closeable</tt>s may be null; they are ignored. After everything is closed, the
-     * method either throws the first exception it hit while closing, or completes normally if there were no exceptions.
+     * Closes all given <tt>Closeable</tt>s. Some of the <tt>Closeable</tt>s may be null; they are
+     * ignored. After everything is closed, the method either throws the first exception it hit
+     * while closing with other exceptions added as suppressed, or completes normally if there were
+     * no exceptions.
      *
      * @param objects objects to close
      */
     public static void close(final Closeable... objects) throws IOException {
-        close(Arrays.asList(objects));
+        close(null, Arrays.asList(objects));
     }
 
     /**
-     * Closes all given {@link Closeable}s.
+     * Closes all given <tt>Closeable</tt>s. Some of the <tt>Closeable</tt>s may be null; they are
+     * ignored. After everything is closed, the method adds any exceptions as suppressed to the
+     * original exception, or throws the first exception it hit if {@code Exception} is null. If
+     * no exceptions are encountered and the passed in exception is null, it completes normally.
      *
+     * @param objects objects to close
+     */
+    public static void close(final Exception e, final Closeable... objects) throws IOException {
+        close(e, Arrays.asList(objects));
+    }
+
+    /**
+     * Closes all given <tt>Closeable</tt>s. Some of the <tt>Closeable</tt>s may be null; they are
+     * ignored. After everything is closed, the method either throws the first exception it hit
+     * while closing with other exceptions added as suppressed, or completes normally if there were
+     * no exceptions.
+     *
+     * @param objects objects to close
+     */
+    public static void close(final Iterable<? extends Closeable> objects) throws IOException {
+        close(null, objects);
+    }
+
+    /**
+     * Closes all given {@link Closeable}s. If a non-null exception is passed in, or closing a
+     * stream causes an exception, throws the exception with other {@link RuntimeException} or
+     * {@link IOException} exceptions added as suppressed.
+     *
+     * @param ex existing Exception to add exceptions occurring during close to
      * @param objects objects to close
      *
      * @see #close(Closeable...)
      */
-    public static void close(final Iterable<? extends Closeable> objects) throws IOException {
-        Exception ex = null;
-
+    public static void close(final Exception ex, final Iterable<? extends Closeable> objects) throws IOException {
+        Exception firstException = ex;
         for (final Closeable object : objects) {
             try {
                 if (object != null) {
                     object.close();
                 }
             } catch (final IOException | RuntimeException e) {
-                if (ex == null) {
-                    ex = e;
+                if (firstException == null) {
+                    firstException = e;
                 } else {
-                    ex.addSuppressed(e);
+                    firstException.addSuppressed(e);
                 }
             }
         }
 
-        if (ex != null) {
-            if (ex instanceof IOException) {
-                throw (IOException) ex;
+        if (firstException != null) {
+            if (firstException instanceof IOException) {
+                throw (IOException) firstException;
             } else {
                 // since we only assigned an IOException or a RuntimeException to ex above, in this case ex must be a RuntimeException
-                throw (RuntimeException) ex;
+                throw (RuntimeException) firstException;
             }
         }
     }

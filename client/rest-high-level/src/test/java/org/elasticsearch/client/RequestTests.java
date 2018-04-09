@@ -1247,6 +1247,8 @@ public class RequestTests extends ESTestCase {
                 new PrecisionAtK());
         String[] indices = randomIndicesNames(0, 5);
         RankEvalRequest rankEvalRequest = new RankEvalRequest(spec, indices);
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomIndicesOptions(rankEvalRequest::indicesOptions, rankEvalRequest::indicesOptions, expectedParams);
 
         Request request = Request.rankEval(rankEvalRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
@@ -1256,8 +1258,10 @@ public class RequestTests extends ESTestCase {
         }
         endpoint.add(RestRankEvalAction.ENDPOINT);
         assertEquals(endpoint.toString(), request.getEndpoint());
-        assertEquals(Collections.emptyMap(), request.getParameters());
+        assertEquals(3, request.getParameters().size());
+        assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(spec, request.getEntity());
+
     }
 
     public void testSplit() throws IOException {

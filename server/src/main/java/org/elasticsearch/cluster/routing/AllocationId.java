@@ -166,7 +166,7 @@ public class AllocationId implements ToXContentObject, Writeable {
         if (this == o) {
             return true;
         }
-        if (o == null) {
+        if (o == null || getClass() != o.getClass()) {
             return false;
         }
         AllocationId that = (AllocationId) o;

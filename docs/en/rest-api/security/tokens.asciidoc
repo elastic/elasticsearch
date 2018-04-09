@@ -13,6 +13,12 @@ without requiring basic authentication.
 
 ==== Description
 
+The tokens are created by the {es} Token Service, which is automatically enabled
+when you configure TLS on the HTTP interface. See <<tls-http>>. Alternatively,
+you can explicitly enable the `xpack.security.authc.token.enabled` setting. When 
+you are running in production mode, a bootstrap check prevents you from enabling 
+the token service unless you also enable TLS on the HTTP interface. 
+
 The Get Token API takes the same parameters as a typical OAuth 2.0 token API
 except for the use of a JSON request body.
 
@@ -21,8 +27,11 @@ token, the amount of time (seconds) that the token expires in, the type, and the
 scope if available.
 
 The tokens returned by the Get Token API have a finite period of time for which
-they are valid and after that time period, they can no longer be used. However,
-if you want to invalidate a token immediately, you can do so by using the Delete
+they are valid and after that time period, they can no longer be used. That time
+period is defined by the `xpack.security.authc.token.timeout` setting. For more
+information, see <<token-service-settings>>.
+
+If you want to invalidate a token immediately, you can do so by using the Delete
 Token API.
 
 

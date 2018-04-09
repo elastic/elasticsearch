@@ -87,13 +87,21 @@
         calendar_id: "dogs_of_the_year"
 
   - do:
-      catch: missing
       xpack.ml.put_calendar:
-        calendar_id: "new_cal_with_unknown_job"
+        calendar_id: "new_cal_with_unknown_job_group"
         body:  >
           {
-            "job_ids": ["cal-job", "unknown-job"]
+            "job_ids": ["cal-job", "unknown-job-group"]
           }
+
+  - do:
+      xpack.ml.get_calendars:
+        calendar_id: "new_cal_with_unknown_job_group"
+  - match: { count: 1 }
+  - match:
+      calendars.0:
+        calendar_id: "new_cal_with_unknown_job_group"
+        job_ids: ["cal-job", "unknown-job-group"]
 
 ---
 "Test get calendar given missing":
@@ -265,12 +273,6 @@
   - match: { count: 1 }
   - match: { calendars.0.calendar_id: "wildlife" }
   - length: { calendars.0.job_ids: 0 }
-
-  - do:
-      catch: missing
-      xpack.ml.put_calendar_job:
-        calendar_id: "wildlife"
-        job_id: "missing_job"
 
   - do:
       catch: /Cannot remove \[missing_job\] as it is not present in calendar \[wildlife\]/

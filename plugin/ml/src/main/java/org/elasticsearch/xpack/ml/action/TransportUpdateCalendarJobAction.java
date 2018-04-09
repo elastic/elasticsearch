@@ -23,8 +23,9 @@ import org.elasticsearch.xpack.core.ml.action.UpdateCalendarJobAction;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 
-import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class TransportUpdateCalendarJobAction extends HandledTransportAction<UpdateCalendarJobAction.Request, PutCalendarAction.Response> {
 
@@ -47,17 +48,17 @@ public class TransportUpdateCalendarJobAction extends HandledTransportAction<Upd
     @Override
     protected void doExecute(UpdateCalendarJobAction.Request request, ActionListener<PutCalendarAction.Response> listener) {
         ClusterState clusterState = clusterService.state();
-        MlMetadata mlMetadata = clusterState.getMetaData().custom(MLMetadataField.TYPE);
-        if (mlMetadata == null) {
-            mlMetadata = MlMetadata.EMPTY_METADATA;
-        }
+        MlMetadata maybeNullMetaData = clusterState.getMetaData().custom(MLMetadataField.TYPE);
+        final MlMetadata mlMetadata = maybeNullMetaData == null ? MlMetadata.EMPTY_METADATA : maybeNullMetaData;
 
         Set<String> jobIdsToAdd = Strings.tokenizeByCommaToSet(request.getJobIdsToAddExpression());
         Set<String> jobIdsToRemove = Strings.tokenizeByCommaToSet(request.getJobIdsToRemoveExpression());
 
         jobProvider.updateCalendar(request.getCalendarId(), jobIdsToAdd, jobIdsToRemove, mlMetadata,
                 c -> {
-                    jobManager.updateProcessOnCalendarChanged(c.getJobIds());
+                    List<String> existingJobsOrGroups =
+                            c.getJobIds().stream().filter(mlMetadata::isGroupOrJob).collect(Collectors.toList());
+                    jobManager.updateProcessOnCalendarChanged(existingJobsOrGroups);
                     listener.onResponse(new PutCalendarAction.Response(c));
                 }, listener::onFailure);
     }

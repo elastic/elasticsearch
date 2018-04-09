@@ -1105,13 +1105,6 @@ public class JobProvider {
                 calendar -> {
                     Set<String> currentJobs = new HashSet<>(calendar.getJobIds());
 
-                    for (String jobToAdd : jobIdsToAdd) {
-                        if (mlMetadata.isGroupOrJob(jobToAdd) == false) {
-                            errorHandler.accept(ExceptionsHelper.missingJobException(jobToAdd));
-                            return;
-                        }
-                    }
-
                     for (String jobToRemove : jobIdsToRemove) {
                         if (currentJobs.contains(jobToRemove) == false) {
                             errorHandler.accept(ExceptionsHelper.badRequestException("Cannot remove [" + jobToRemove

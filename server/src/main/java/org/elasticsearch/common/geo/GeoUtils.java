@@ -24,10 +24,10 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
@@ -457,6 +457,51 @@ public class GeoUtils {
         } else {
             throw new ElasticsearchParseException("geo_point expected");
         }
+    }
+
+    /**
+     * Parse a precision that can be expressed as an integer or a distance measure like "1km", "10m".
+     *
+     * The precision is expressed as a number between 1 and 12 and indicates the length of geohash
+     * used to represent geo points.
+     *
+     * @param parser {@link XContentParser} to parse the value from
+     * @return int representing precision
+     */
+    public static int parsePrecision(XContentParser parser) throws IOException, ElasticsearchParseException {
+        XContentParser.Token token = parser.currentToken();
+        if (token.equals(XContentParser.Token.VALUE_NUMBER)) {
+            return XContentMapValues.nodeIntegerValue(parser.intValue());
+        } else {
+            String precision = parser.text();
+            try {
+                // we want to treat simple integer strings as precision levels, not distances
+                return XContentMapValues.nodeIntegerValue(precision);
+            } catch (NumberFormatException e) {
+                // try to parse as a distance value
+                final int parsedPrecision = GeoUtils.geoHashLevelsForPrecision(precision);
+                try {
+                    return checkPrecisionRange(parsedPrecision);
+                } catch (IllegalArgumentException e2) {
+                    // this happens when distance too small, so precision > 12. We'd like to see the original string
+                    throw new IllegalArgumentException("precision too high [" + precision + "]", e2);
+                }
+            }
+        }
+    }
+
+    /**
+     * Checks that the precision is within range supported by elasticsearch - between 1 and 12
+     *
+     * Returns the precision value if it is in the range and throws an IllegalArgumentException if it
+     * is outside the range.
+     */
+    public static int checkPrecisionRange(int precision) {
+        if ((precision < 1) || (precision > 12)) {
+            throw new IllegalArgumentException("Invalid geohash aggregation precision of " + precision
+                + ". Must be between 1 and 12.");
+        }
+        return precision;
     }
 
     /** Returns the maximum distance/radius (in meters) from the point 'center' before overlapping */

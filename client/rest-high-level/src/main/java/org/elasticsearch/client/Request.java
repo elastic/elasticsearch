@@ -544,8 +544,10 @@ public final class Request {
 
     static Request rankEval(RankEvalRequest rankEvalRequest) throws IOException {
         String endpoint = endpoint(rankEvalRequest.indices(), Strings.EMPTY_ARRAY, "_rank_eval");
+        Params params = Params.builder();
+        params.withIndicesOptions(rankEvalRequest.indicesOptions());
         HttpEntity entity = createEntity(rankEvalRequest.getRankEvalSpec(), REQUEST_BODY_CONTENT_TYPE);
-        return new Request(HttpGet.METHOD_NAME, endpoint, Collections.emptyMap(), entity);
+        return new Request(HttpGet.METHOD_NAME, endpoint, params.getParams(), entity);
     }
 
     static Request split(ResizeRequest resizeRequest) throws IOException {

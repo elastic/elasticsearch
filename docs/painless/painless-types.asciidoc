@@ -1,4 +1,4 @@
-[[types]]
+[[painless-types]]
 === Data Types
 
 Painless supports both dynamic and static types. Static types are split into

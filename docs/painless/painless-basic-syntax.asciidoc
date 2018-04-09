@@ -5,18 +5,20 @@
 ==== Comments
 
 Painless supports both single-line and multi-line comments. Comments can be
-included anywhere within a script.
+included anywhere within a script. Use the `//` token anywhere on a line to
+specify a single-line comment. All characters from the `//` token to the end
+of the line are ignored. Use an opening `/*` token and a closing `*/` token
+to specify a multi-line comment. Multi-line comments can start anywhere on a
+line, and all characters in between the `/*` token and `*/` token are ignored.
 
-Single-line comments are preceded by two slashes `//`. Single-line comments
-can start anywhere on a line. All characters from the `//` to the end of
-the line are ignored.
-
-Multi-line comments are preceded by a slash-star `/*` and closed by
-star-slash `*/`. Multi-line comments can start anywhere on a line. All
-characters from the opening `/*` to the closing `*/` are ignored.
+*Grammar:*
+[source,ANTLR4]
+----
+SINGLE_LINE_COMMENT: '//' .*? [\n\r];
+MULTI_LINE_COMMENT: '/*' .*? '*/';
+----
 
 *Examples:*
-
 [source,Java]
 ----
 // single-line comment
@@ -36,8 +38,8 @@ characters from the opening `/*` to the closing `*/` are ignored.
 [[keywords]]
 ==== Keywords
 
-Painless reserves the following keywords for built-in language features.
-These keywords cannot be used as identifiers.
+The keywords in the table below are reserved for built-in language
+features. These keywords cannot be used as identifiers or types.
 
 [cols="^1,^1,^1,^1,^1"]
 |====
@@ -49,37 +51,43 @@ These keywords cannot be used as identifiers.
 [[literals]]
 ==== Literals
 
-Literals specify values directly in a script.
+Use literals to specify different types of values directly in a script.
 
 [[integers]]
 ===== Integers
 
-Specify integer literals in decimal, octal, or hex notation. Use the following
-single letter designations to specify the primitive type: `l` for `long`, `f`
-for `float`, and `d` for `double`.  If not specified, the type defaults to
-`int` (with the exception of certain assignments described later).
+Use integer literals to specify an integer value in decimal, octal, or hex
+notation. Use the following single letter designations to specify the
+<<primitive-types, primitive type>>: `l` or `L` for `long`, `f` or `F`
+for `float`, and `d` or `D` for `double`.  If not specified, the type defaults
+to `int`.  Use `0` as a prefix to specify an integer literal as octal, and
+use `0x` or `0X` as a prefix to specify an integer literal as hex.
 
 *Grammar:*
 [source,ANTLR4]
 ----
 INTEGER: '-'? ( '0' | [1-9] [0-9]* ) [lLfFdD]?;
-OCTAL: '-'? '0' [0-7]+ [lL]?;
-HEX: '-'? '0' [xX] [0-9a-fA-F]+ [lL]?;
+OCTAL:   '-'? '0' [0-7]+ [lL]?;
+HEX:     '-'? '0' [xX] [0-9a-fA-F]+ [lL]?;
 ----
 
 *Examples:*
+
+Integer literal values of int 0, double 0.0, long 1234, float -90.0,
+int -18 in octal, and int 3882 in hex.
+
 [source,Java]
 ----
-0     // integer literal of 0
-0D    // double literal of 0.0
-1234L // long literal of 1234
--90F  // float literal of -90.0
--022  // integer literal of -18 specified in octal
-0xF2A // integer literal of 3882
+0
+0D
+1234L
+-90f
+-022
+0xF2A
 ----
 
-[[floating-point-values]]
-===== Floating Point Values
+[[floats]]
+===== Floats
 
 Specify floating point literals using the following single letter designations
 for the primitive type: `f` for `float` and `d` for `double`.
@@ -88,7 +96,8 @@ If not specified, the type defaults to `double`.
 *Grammar:*
 [source,ANTLR4]
 ----
-DECIMAL: '-'? ( '0' | [1-9] [0-9]* ) (DOT [0-9]+)? ( [eE] [+\-]? [0-9]+ )? [fFdD]?;
+DECIMAL: '-'? ( '0' | [1-9] [0-9]* ) (DOT [0-9]+)? EXPONENT? [fFdD]?;
+EXPONENT: ( [eE] [+\-]? [0-9]+ );
 ----
 
 *Examples:*
@@ -127,8 +136,8 @@ STRING: ( '"' ( '\\"' | '\\\\' | ~[\\"] )*? '"' ) | ( '\'' ( '\\\'' | '\\\\' | ~
 'single-quoted String with non-escaped "double-quotes"'
 ----
 
-[[char]]
-===== Char
+[[characters]]
+===== Characters
 
 You cannot directly specify character literals in Painless. However, you can
 cast single-character strings to char. Attempting to cast a multi-character
@@ -152,7 +161,7 @@ dynamically typed>>.
 
 Specify variable identifiers using the following grammar. Variable identifiers
 must start with a letter or underscore. You cannot use <<keywords, keywords>> or
-<<types, types>> as identifiers.
+<<painless-types, types>> as identifiers.
 
 *Grammar:*
 [source,ANTLR4]

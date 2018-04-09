@@ -42,7 +42,8 @@ public abstract class Step {
             return false;
         }
         Step other = (Step) obj;
-        return Objects.equals(key, other.key) && Objects.equals(nextStepKey, other.nextStepKey);
+        return Objects.equals(key, other.key) && 
+                Objects.equals(nextStepKey, other.nextStepKey);
     }
 
     @Override
@@ -87,7 +88,9 @@ public abstract class Step {
                 return false;
             }
             StepKey other = (StepKey) obj;
-            return Objects.equals(phase, other.phase) && Objects.equals(action, other.action) && Objects.equals(name, other.name);
+            return Objects.equals(phase, other.phase) && 
+                    Objects.equals(action, other.action) && 
+                    Objects.equals(name, other.name);
         }
 
         @Override

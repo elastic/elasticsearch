@@ -10,6 +10,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.index.Index;
 
 public class EnoughShardsWaitStep extends ClusterStateWaitStep {
+    public static final String NAME = "enough-shards-allocated";
+
     public EnoughShardsWaitStep(StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);
     }

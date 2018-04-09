@@ -12,8 +12,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
 import java.util.Map;
+import java.util.Objects;
 
 public class UpdateAllocationSettingsStep extends ClusterStateActionStep {
+    public static final String NAME = "update-allocation";
+
     private final Map<String, String> include;
     private final Map<String, String> exclude;
     private final Map<String, String> require;
@@ -53,5 +56,37 @@ public class UpdateAllocationSettingsStep extends ClusterStateActionStep {
             String existingValue = existingSettings.get(settingPrefix + e.getKey());
             return existingValue == null || (existingValue.equals(e.getValue()) == false);
         }).forEach(e -> newSettingsBuilder.put(settingPrefix + e.getKey(), e.getValue()));
+    }
+    
+    Map<String, String> getInclude() {
+        return include;
+    }
+
+    Map<String, String> getExclude() {
+        return exclude;
+    }
+
+    Map<String, String> getRequire() {
+        return require;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), include, exclude, require);
+    }
+    
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        UpdateAllocationSettingsStep other = (UpdateAllocationSettingsStep) obj;
+        return super.equals(obj) &&
+                Objects.equals(include, other.include) &&
+                Objects.equals(exclude, other.exclude) &&
+                Objects.equals(require, other.require);
     }
 }

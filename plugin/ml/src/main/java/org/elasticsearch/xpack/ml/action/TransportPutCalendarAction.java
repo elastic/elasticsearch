@@ -60,10 +60,6 @@ public class TransportPutCalendarAction extends HandledTransportAction<PutCalend
     protected void doExecute(PutCalendarAction.Request request, ActionListener<PutCalendarAction.Response> listener) {
         Calendar calendar = request.getCalendar();
 
-        if (checkJobsOrGroupsExist(calendar.getJobIds(), listener::onFailure) == false) {
-            return;
-        }
-
         IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, calendar.documentId());
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             indexRequest.source(calendar.toXContent(builder,
@@ -94,18 +90,5 @@ public class TransportPutCalendarAction extends HandledTransportAction<PutCalend
                         }
                     }
                 });
-    }
-
-    private boolean checkJobsOrGroupsExist(List<String> jobIds, Consumer<Exception> errorHandler) {
-        ClusterState state = clusterService.state();
-        MlMetadata mlMetadata = state.getMetaData().custom(MLMetadataField.TYPE);
-        for (String jobId: jobIds) {
-            if (mlMetadata.isGroupOrJob(jobId) == false) {
-                errorHandler.accept(ExceptionsHelper.missingJobException(jobId));
-                return false;
-            }
-        }
-
-        return true;
     }
 }

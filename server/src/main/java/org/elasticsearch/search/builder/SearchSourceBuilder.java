@@ -951,12 +951,18 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return rewrittenBuilder;
     }
 
+    public void parseXContent(XContentParser parser) throws IOException {
+        parseXContent(parser, false);
+    }
+
     /**
      * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent. Use this if you need to set up
-     * different defaults than a regular SearchSourceBuilder would have and use
-     * {@link #fromXContent(XContentParser)} if you have normal defaults.
+     * different defaults than a regular SearchSourceBuilder would have and use {@link #fromXContent(XContentParser)} if you have normal
+     * defaults.
+     * @param parser The xContent parser.
+     * @param checkTrailingTokens If true throws a parsing exception when extra tokens are found the main object.
      */
-    public void parseXContent(XContentParser parser) throws IOException {
+    public void parseXContent(XContentParser parser, boolean checkTrailingTokens) throws IOException {
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = null;
         if (token != XContentParser.Token.START_OBJECT && (token = parser.nextToken()) != XContentParser.Token.START_OBJECT) {
@@ -1106,10 +1112,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         parser.getTokenLocation());
             }
         }
-        // check for extra token at the end
-        token = parser.nextToken();
-        if (token != null) {
-            throw new ParsingException(parser.getTokenLocation(), "Unexpected token [" + token + "] found after the main object.");
+        if (checkTrailingTokens) {
+            token = parser.nextToken();
+            if (token != null) {
+                throw new ParsingException(parser.getTokenLocation(), "Unexpected token [" + token + "] found after the main object.");
+            }
         }
     }
 

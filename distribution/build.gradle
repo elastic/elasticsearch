@@ -362,6 +362,15 @@ subprojects {
     final String packagingPathLogs = "path.logs: ${pathLogs}"
     final String packagingLoggc = "${pathLogs}/gc.log"
 
+    String licenseText
+    if (oss) {
+      licenseText = rootProject.file('LICENSE.txt').getText('UTF-8')
+    } else {
+      licenseText = rootProject.file('x-pack/LICENSE.txt').getText('UTF-8')
+    }
+    // license text needs to be indented with a single space
+    licenseText = ' ' + licenseText.replace('\n', '\n ') 
+
     String footer = "# Built for ${project.name}-${project.version} " +
         "(${distributionType})"
     Map<String, Object> expansions = [
@@ -429,7 +438,15 @@ subprojects {
 
       'es.distribution.flavor': [
         'def': oss ? 'oss' : 'default'
-      ]
+      ],
+
+      'license.name': [
+        'deb': oss ? 'ASL-2.0' : 'Elastic-License'
+      ],
+
+      'license.text': [
+        'deb': licenseText,
+      ],
     ]
     Map<String, String> result = [:]
     expansions = expansions.each { key, value ->

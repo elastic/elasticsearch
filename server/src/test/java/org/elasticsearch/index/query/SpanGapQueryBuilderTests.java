@@ -101,7 +101,7 @@ public class SpanGapQueryBuilderTests extends AbstractQueryTestCase<SpanNearQuer
                 "      }\n" +
                 "    }, {\n" +
                 "      \"span_gap\" : {\n" +
-                "        \"field\" : \"2\"" +
+                "        \"field\" : 2" +
                 "      }\n" +
                 "    }, {\n" +
                 "      \"span_term\" : {\n" +

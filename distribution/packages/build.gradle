@@ -244,6 +244,12 @@ Closure commonDebConfig(boolean oss) {
   return {
     configure(commonPackageConfig('deb', oss))
 
+    if (oss) {
+      license 'ASL 2.0'
+    } else {
+      license 'Elastic License'
+    }
+
     version = project.version
     packageGroup 'web'
     requires 'bash'
@@ -272,6 +278,12 @@ Closure commonRpmConfig(boolean oss) {
   return {
     configure(commonPackageConfig('rpm', oss))
 
+    if (oss) {
+      license 'ASL-2.0'
+    } else {
+      license 'Elastic-License'
+    }
+
     packageGroup 'Application/Internet'
     requires '/bin/bash'
 
@@ -281,7 +293,6 @@ Closure commonRpmConfig(boolean oss) {
     release = '1'
     arch 'NOARCH'
     os 'LINUX'
-    license '2009'
     distribution 'Elasticsearch'
     vendor 'Elasticsearch'
     // TODO ospackage doesn't support icon but we used to have one

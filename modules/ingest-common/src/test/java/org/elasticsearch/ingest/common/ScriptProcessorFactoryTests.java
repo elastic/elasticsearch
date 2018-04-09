@@ -76,14 +76,13 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getScript().getParams(), equalTo(randomParams));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29435")
     public void testFactoryValidationForMultipleScriptingTypes() throws Exception {
         Map<String, Object> configMap = new HashMap<>();
         configMap.put("id", "foo");
         configMap.put("source", "bar");
         configMap.put("lang", "mockscript");
 
-        XContentParseException exception = expectThrows(XContentParseException.class,
+        Exception exception = expectThrows(Exception.class,
             () -> factory.create(null, randomAlphaOfLength(10), configMap));
         assertThat(exception.getMessage(), containsString("Only one of [id] or [source] may be configured"));
     }

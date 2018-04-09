@@ -19,7 +19,6 @@ import javax.mail.Session;
 import javax.mail.Transport;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
-
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
@@ -227,14 +226,9 @@ public class Account {
 
                 replace(builder, "local_address", "localaddress");
                 replace(builder, "local_port", "localport");
-                replace(builder, "allow_8bitmime", "allow8bitmime");
                 replace(builder, "send_partial", "sendpartial");
-                replace(builder, "sasl.authorization_id", "sasl.authorizationid");
-                replace(builder, "sasl.use_canonical_hostname", "sasl.usecanonicalhostname");
                 replace(builder, "wait_on_quit", "quitwait");
-                replace(builder, "report_success", "reportsuccess");
-                replace(builder, "mail_extension", "mailextension");
-                replace(builder, "use_rset", "userset");
+
                 settings = builder.build();
                 Properties props = new Properties();
                 for (String key : settings.keySet()) {

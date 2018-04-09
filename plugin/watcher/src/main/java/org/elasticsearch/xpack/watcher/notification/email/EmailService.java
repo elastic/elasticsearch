@@ -10,6 +10,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 import org.elasticsearch.xpack.watcher.notification.NotificationService;
 
@@ -33,12 +34,17 @@ public class EmailService extends NotificationService<Account> {
             Setting.affixKeySetting("xpack.notification.email.account.", "email_defaults",
                     (key) -> Setting.groupSetting(key + ".", Property.Dynamic, Property.NodeScope));
 
+    // settings that can be configured as smtp properties
     private static final Setting.AffixSetting<Boolean> SETTING_SMTP_AUTH =
             Setting.affixKeySetting("xpack.notification.email.account.", "smtp.auth",
                     (key) -> Setting.boolSetting(key, false, Property.Dynamic, Property.NodeScope));
 
     private static final Setting.AffixSetting<Boolean> SETTING_SMTP_STARTTLS_ENABLE =
             Setting.affixKeySetting("xpack.notification.email.account.", "smtp.starttls.enable",
+                    (key) -> Setting.boolSetting(key, false, Property.Dynamic, Property.NodeScope));
+
+    private static final Setting.AffixSetting<Boolean> SETTING_SMTP_STARTTLS_REQUIRED =
+            Setting.affixKeySetting("xpack.notification.email.account.", "smtp.starttls.required",
                     (key) -> Setting.boolSetting(key, false, Property.Dynamic, Property.NodeScope));
 
     private static final Setting.AffixSetting<String> SETTING_SMTP_HOST =
@@ -57,6 +63,34 @@ public class EmailService extends NotificationService<Account> {
             Setting.affixKeySetting("xpack.notification.email.account.", "smtp.password",
                     (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope, Property.Filtered));
 
+    private static final Setting.AffixSetting<TimeValue> SETTING_SMTP_TIMEOUT =
+            Setting.affixKeySetting("xpack.notification.email.account.", "smtp.timeout",
+                    (key) -> Setting.timeSetting(key, TimeValue.timeValueMinutes(2), Property.Dynamic, Property.NodeScope));
+
+    private static final Setting.AffixSetting<TimeValue> SETTING_SMTP_CONNECTION_TIMEOUT =
+            Setting.affixKeySetting("xpack.notification.email.account.", "smtp.connection_timeout",
+                    (key) -> Setting.timeSetting(key, TimeValue.timeValueMinutes(2), Property.Dynamic, Property.NodeScope));
+
+    private static final Setting.AffixSetting<TimeValue> SETTING_SMTP_WRITE_TIMEOUT =
+            Setting.affixKeySetting("xpack.notification.email.account.", "smtp.write_timeout",
+                    (key) -> Setting.timeSetting(key, TimeValue.timeValueMinutes(2), Property.Dynamic, Property.NodeScope));
+
+    private static final Setting.AffixSetting<String> SETTING_SMTP_LOCAL_ADDRESS =
+            Setting.affixKeySetting("xpack.notification.email.account.", "smtp.local_address",
+                    (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope));
+
+    private static final Setting.AffixSetting<Integer> SETTING_SMTP_LOCAL_PORT =
+            Setting.affixKeySetting("xpack.notification.email.account.", "smtp.local_port",
+                    (key) -> Setting.intSetting(key, 25, Property.Dynamic, Property.NodeScope));
+
+    private static final Setting.AffixSetting<Boolean> SETTING_SMTP_SEND_PARTIAL =
+            Setting.affixKeySetting("xpack.notification.email.account.", "smtp.send_partial",
+                    (key) -> Setting.boolSetting(key, false, Property.Dynamic, Property.NodeScope));
+
+    private static final Setting.AffixSetting<Boolean> SETTING_SMTP_WAIT_ON_QUIT =
+            Setting.affixKeySetting("xpack.notification.email.account.", "smtp.wait_on_quit",
+                    (key) -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope));
+
     private final CryptoService cryptoService;
 
     public EmailService(Settings settings, @Nullable CryptoService cryptoService, ClusterSettings clusterSettings) {
@@ -69,10 +103,18 @@ public class EmailService extends NotificationService<Account> {
         clusterSettings.addAffixUpdateConsumer(SETTING_EMAIL_DEFAULTS, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_AUTH, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_STARTTLS_ENABLE, (s, o) -> {}, (s, o) -> {});
+        clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_STARTTLS_REQUIRED, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_HOST, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_PORT, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_USER, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_PASSWORD, (s, o) -> {}, (s, o) -> {});
+        clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_TIMEOUT, (s, o) -> {}, (s, o) -> {});
+        clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_CONNECTION_TIMEOUT, (s, o) -> {}, (s, o) -> {});
+        clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_WRITE_TIMEOUT, (s, o) -> {}, (s, o) -> {});
+        clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_LOCAL_ADDRESS, (s, o) -> {}, (s, o) -> {});
+        clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_LOCAL_PORT, (s, o) -> {}, (s, o) -> {});
+        clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_SEND_PARTIAL, (s, o) -> {}, (s, o) -> {});
+        clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_WAIT_ON_QUIT, (s, o) -> {}, (s, o) -> {});
         // do an initial load
         setAccountSetting(settings);
     }
@@ -124,7 +166,9 @@ public class EmailService extends NotificationService<Account> {
 
     public static List<Setting<?>> getSettings() {
         return Arrays.asList(SETTING_DEFAULT_ACCOUNT, SETTING_PROFILE, SETTING_EMAIL_DEFAULTS, SETTING_SMTP_AUTH, SETTING_SMTP_HOST,
-                SETTING_SMTP_PASSWORD, SETTING_SMTP_PORT, SETTING_SMTP_STARTTLS_ENABLE, SETTING_SMTP_USER);
+                SETTING_SMTP_PASSWORD, SETTING_SMTP_PORT, SETTING_SMTP_STARTTLS_ENABLE, SETTING_SMTP_USER, SETTING_SMTP_STARTTLS_REQUIRED,
+                SETTING_SMTP_TIMEOUT, SETTING_SMTP_CONNECTION_TIMEOUT, SETTING_SMTP_WRITE_TIMEOUT, SETTING_SMTP_LOCAL_ADDRESS,
+                SETTING_SMTP_LOCAL_PORT, SETTING_SMTP_SEND_PARTIAL, SETTING_SMTP_WAIT_ON_QUIT);
     }
 
 }

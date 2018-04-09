@@ -538,10 +538,8 @@ public class QueryAnalyzerTests extends ESTestCase {
         builder.setMinimumNumberShouldMatch(1);
         result = analyze(builder.build(), Version.CURRENT);
         assertThat("Must clause is exact, but m_s_m is 1 so one should clause must match too", result.verified, is(false));
-        assertThat(result.minimumShouldMatch, equalTo(1));
-        assertThat(result.extractions.size(), equalTo(1));
-        extractions = new ArrayList<>(result.extractions);
-        assertThat(extractions.get(0).term, equalTo(new Term("_field", "_term3")));
+        assertThat(result.minimumShouldMatch, equalTo(2));
+        assertTermsEqual(result.extractions, termQuery1.getTerm(), termQuery2.getTerm(), termQuery3.getTerm());
 
         builder = new BooleanQuery.Builder();
         BooleanQuery.Builder innerBuilder = new BooleanQuery.Builder();

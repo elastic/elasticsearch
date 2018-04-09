@@ -19,20 +19,28 @@
 
 package org.elasticsearch.search.builder;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -65,6 +73,18 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
         testSearchSourceBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertParseSearchSource(testSearchSourceBuilder, createParser(builder));
+    }
+
+    public void testFromXContentInvalid() throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{}}")) {
+            JsonParseException exc = expectThrows(JsonParseException.class, () -> SearchSourceBuilder.fromXContent(parser));
+            assertThat(exc.getMessage(), containsString("Unexpected close marker"));
+        }
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{}{}")) {
+            ParsingException exc = expectThrows(ParsingException.class, () -> SearchSourceBuilder.fromXContent(parser));
+            assertThat(exc.getDetailedMessage(), containsString("found after the main object"));
+        }
     }
 
     private static void assertParseSearchSource(SearchSourceBuilder testBuilder, XContentParser parser) throws IOException {

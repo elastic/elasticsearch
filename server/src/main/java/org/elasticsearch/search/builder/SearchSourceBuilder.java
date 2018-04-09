@@ -1106,6 +1106,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         parser.getTokenLocation());
             }
         }
+        // check for extra token at the end
+        token = parser.nextToken();
+        if (token != null) {
+            throw new ParsingException(parser.getTokenLocation(), "Unexpected token [" + token + "] found after the main object.");
+        }
     }
 
     @Override

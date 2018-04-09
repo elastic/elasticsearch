@@ -101,7 +101,7 @@ to _dynamic mapping_, new field names will be added automatically, just by
 indexing a document. New fields can be added both to the top-level mapping
 type, and to inner <<object,`object`>>  and <<nested,`nested`>> fields.
 
-The <<dynamic-mapping,dynamic mapping>> rules can be configured to customise
+The <<dynamic-mapping,dynamic mapping>> rules can be configured to customize
 the mapping that is used for new fields.
 
 [float]

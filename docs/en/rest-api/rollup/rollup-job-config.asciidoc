@@ -17,7 +17,7 @@ PUT _xpack/rollup/job/sensor
     "index_pattern": "sensor-*",
     "rollup_index": "sensor_rollup",
     "cron": "*/30 * * * * ?",
-    "size" :1000,
+    "page_size" :1000,
     "groups" : {
       "date_histogram": {
         "field": "timestamp",
@@ -75,7 +75,7 @@ In the above example, there are several pieces of logistical configuration for t
   defined in the <<rollup-groups-config,grouping configuration>>) but to only run the indexer on a daily basis at midnight, as defined by the cron.
   The cron pattern is defined just like Watcher's Cron Schedule.
 
-`size` (required)::
+`page_size` (required)::
   (int) The number of bucket results that should be processed on each iteration of the rollup indexer.  A larger value
   will tend to execute faster, but will require more memory during processing.  This has no effect on how the data is rolled up, it is
   merely used for tweaking the speed/memory cost of the indexer.

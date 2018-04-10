@@ -149,7 +149,7 @@ public class RollupIT extends ESIntegTestCase {
         config.setGroupConfig(groupConfig.build());
         config.setMetricsConfig(Collections.singletonList(metricConfig));
         config.setCron("* * * * * ? *");
-        config.setSize(10);
+        config.setPageSize(10);
 
         PutRollupJobAction.Request request = new PutRollupJobAction.Request();
         request.setConfig(config.build());
@@ -182,7 +182,7 @@ public class RollupIT extends ESIntegTestCase {
         config.setGroupConfig(groupConfig.build());
         config.setMetricsConfig(Collections.singletonList(metricConfig));
         config.setCron("* * * * * ? *");
-        config.setSize(10);
+        config.setPageSize(10);
 
         PutRollupJobAction.Request request = new PutRollupJobAction.Request();
         request.setConfig(config.build());
@@ -248,7 +248,7 @@ public class RollupIT extends ESIntegTestCase {
         config.setGroupConfig(groupConfig.build());
         config.setMetricsConfig(Collections.singletonList(metricConfig));
         config.setCron("* * * * * ? *");
-        config.setSize(10);
+        config.setPageSize(10);
 
         PutRollupJobAction.Request request = new PutRollupJobAction.Request();
         request.setConfig(config.build());
@@ -261,7 +261,7 @@ public class RollupIT extends ESIntegTestCase {
         config2.setGroupConfig(groupConfig.build());
         config2.setMetricsConfig(Collections.singletonList(metricConfig));
         config2.setCron("* * * * * ? *");
-        config2.setSize(10);
+        config2.setPageSize(10);
 
         PutRollupJobAction.Request request2 = new PutRollupJobAction.Request();
         request2.setConfig(config2.build());
@@ -392,7 +392,7 @@ public class RollupIT extends ESIntegTestCase {
         config.setGroupConfig(groupConfig.build());
         config.setMetricsConfig(Collections.singletonList(metricConfig));
         config.setCron("* * * * * ? *");
-        config.setSize(1000);
+        config.setPageSize(1000);
 
         PutRollupJobAction.Request request = new PutRollupJobAction.Request();
         request.setConfig(config.build());

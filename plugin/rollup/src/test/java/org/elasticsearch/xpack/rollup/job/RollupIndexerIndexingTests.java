@@ -452,7 +452,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                 .setGroupConfig(groupConfig)
                 .setMetricsConfig(metricConfigs)
                 .setCron(ConfigTestHelpers.getCronString())
-                .setSize(randomIntBetween(1, 100))
+                .setPageSize(randomIntBetween(1, 100))
                 .build();
     }
 

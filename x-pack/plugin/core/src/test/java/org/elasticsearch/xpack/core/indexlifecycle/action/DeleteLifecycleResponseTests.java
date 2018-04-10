@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.indexlifecycle.action;
 
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.DeleteLifecycleAction.Response;
 
 public class DeleteLifecycleResponseTests extends AbstractStreamableTestCase<DeleteLifecycleAction.Response> {

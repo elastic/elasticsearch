@@ -5,17 +5,14 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 
 public class MoveToNextStepUpdateTask extends ClusterStateUpdateTask {
-    private static final Logger logger = ESLoggerFactory.getLogger(MoveToNextStepUpdateTask.class);
     private final Index index;
     private final String policy;
     private final Step.StepKey currentStepKey;

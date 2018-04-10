@@ -131,7 +131,6 @@ public class PolicyStepsRegistryTests extends ESTestCase {
     public void testUpdateChangedPolicy() {
         String policyName = randomAlphaOfLengthBetween(5, 10);
         LifecyclePolicy newPolicy = randomLifecyclePolicy(policyName);
-        List<Step> policySteps = newPolicy.toSteps(null, () -> 0L);
         Map<String, LifecyclePolicy> policyMap = Collections.singletonMap(newPolicy.getName(), newPolicy);
         MetaData metaData = MetaData.builder()
             .persistentSettings(settings(Version.CURRENT).build())

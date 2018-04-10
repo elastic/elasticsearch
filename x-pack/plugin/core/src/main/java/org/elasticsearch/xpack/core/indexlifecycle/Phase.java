@@ -5,31 +5,23 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
-import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.indexlifecycle.ObjectParserUtils.convertListToMapValues;
 
@@ -38,7 +30,6 @@ import static org.elasticsearch.xpack.core.indexlifecycle.ObjectParserUtils.conv
  * particular point in the lifecycle of an index.
  */
 public class Phase implements ToXContentObject, Writeable {
-    private static final Logger logger = ESLoggerFactory.getLogger(Phase.class);
 
     public static final ParseField AFTER_FIELD = new ParseField("after");
     public static final ParseField ACTIONS_FIELD = new ParseField("actions");

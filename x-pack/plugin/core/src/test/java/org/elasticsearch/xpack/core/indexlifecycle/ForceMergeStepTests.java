@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.client.AdminClient;
@@ -20,12 +18,11 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
-
 import org.mockito.Mockito;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
-import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.when;
 
 public class ForceMergeStepTests extends ESTestCase {
@@ -79,7 +76,6 @@ public class ForceMergeStepTests extends ESTestCase {
         ForceMergeResponse forceMergeResponse = Mockito.mock(ForceMergeResponse.class);
         Mockito.when(forceMergeResponse.getStatus()).thenReturn(RestStatus.OK);
         Mockito.doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
             ForceMergeRequest request = (ForceMergeRequest) invocationOnMock.getArguments()[0];
             assertThat(request.maxNumSegments(), equalTo(maxNumSegments));
             @SuppressWarnings("unchecked")
@@ -118,7 +114,6 @@ public class ForceMergeStepTests extends ESTestCase {
         ForceMergeResponse forceMergeResponse = Mockito.mock(ForceMergeResponse.class);
         Mockito.when(forceMergeResponse.getStatus()).thenReturn(RestStatus.OK);
         Mockito.doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
             ForceMergeRequest request = (ForceMergeRequest) invocationOnMock.getArguments()[0];
             assertThat(request.maxNumSegments(), equalTo(maxNumSegments));
             @SuppressWarnings("unchecked")

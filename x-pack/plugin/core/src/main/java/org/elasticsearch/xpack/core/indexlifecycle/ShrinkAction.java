@@ -5,44 +5,20 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
-import org.elasticsearch.action.admin.indices.shrink.ResizeRequestBuilder;
-import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
-import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
-import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.LongSupplier;
 
 /**
  * A {@link LifecycleAction} which shrinks the index.
@@ -51,8 +27,7 @@ public class ShrinkAction implements LifecycleAction {
     public static final String NAME = "shrink";
     public static final ParseField NUMBER_OF_SHARDS_FIELD = new ParseField("number_of_shards");
 
-    private static final Logger logger = ESLoggerFactory.getLogger(ShrinkAction.class);
-    private static final String SHRUNK_INDEX_NAME_PREFIX = "shrunk-";
+//    private static final String SHRUNK_INDEX_NAME_PREFIX = "shrunk-";
     private static final ConstructingObjectParser<ShrinkAction, CreateIndexRequest> PARSER =
         new ConstructingObjectParser<>(NAME, a -> new ShrinkAction((Integer) a[0]));
 
@@ -61,7 +36,6 @@ public class ShrinkAction implements LifecycleAction {
     }
 
     private int numberOfShards;
-    private AllocationDeciders allocationDeciders;
 
     public static ShrinkAction parse(XContentParser parser) throws IOException {
         return PARSER.parse(parser, new CreateIndexRequest());
@@ -72,9 +46,6 @@ public class ShrinkAction implements LifecycleAction {
             throw new IllegalArgumentException("[" + NUMBER_OF_SHARDS_FIELD.getPreferredName() + "] must be greater than 0");
         }
         this.numberOfShards = numberOfShards;
-        FilterAllocationDecider decider = new FilterAllocationDecider(Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        this.allocationDeciders = new AllocationDeciders(Settings.EMPTY, Collections.singletonList(decider));
     }
 
     public ShrinkAction(StreamInput in) throws IOException {

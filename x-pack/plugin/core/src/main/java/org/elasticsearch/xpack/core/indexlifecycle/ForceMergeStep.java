@@ -6,11 +6,9 @@
 package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.rest.RestStatus;
 
 import java.util.Objects;
 

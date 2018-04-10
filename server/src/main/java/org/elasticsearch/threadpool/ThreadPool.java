@@ -608,7 +608,7 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
             type = ThreadPoolType.fromType(in.readString());
             min = in.readInt();
             max = in.readInt();
-            keepAlive = in.readOptionalWriteable(TimeValue::new);
+            keepAlive = in.readOptionalTimeValue();
             queueSize = in.readOptionalWriteable(SizeValue::new);
         }
 
@@ -624,7 +624,7 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
             }
             out.writeInt(min);
             out.writeInt(max);
-            out.writeOptionalWriteable(keepAlive);
+            out.writeOptionalTimeValue(keepAlive);
             out.writeOptionalWriteable(queueSize);
         }
 

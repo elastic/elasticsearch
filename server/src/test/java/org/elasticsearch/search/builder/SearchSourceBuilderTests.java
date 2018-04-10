@@ -70,12 +70,12 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     public void testFromXContentInvalid() throws IOException {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{}}")) {
-            JsonParseException exc = expectThrows(JsonParseException.class, () -> new SearchSourceBuilder().parseXContent(parser, true));
+            JsonParseException exc = expectThrows(JsonParseException.class, () -> SearchSourceBuilder.fromXContent(parser));
             assertThat(exc.getMessage(), containsString("Unexpected close marker"));
         }
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{}{}")) {
-            ParsingException exc = expectThrows(ParsingException.class, () -> new SearchSourceBuilder().parseXContent(parser, true));
+            ParsingException exc = expectThrows(ParsingException.class, () -> SearchSourceBuilder.fromXContent(parser));
             assertThat(exc.getDetailedMessage(), containsString("found after the main object"));
         }
     }

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.indexlifecycle;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -18,8 +17,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.XPackClientPlugin;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ForceMergeAction;
@@ -100,7 +97,7 @@ public class IndexLifecycleInitialisationIT extends ESIntegTestCase {
             .put(SETTING_NUMBER_OF_REPLICAS, 0).put(LifecycleSettings.LIFECYCLE_NAME, "test").build();
         Map<String, Phase> phases = new HashMap<>();
 
-        Map<String, LifecycleAction> warmPhaseActions = Collections.singletonMap(ForceMergeAction.NAME, new ForceMergeAction(10000));
+        Map<String, LifecycleAction> warmPhaseActions = Collections.singletonMap(ForceMergeAction.NAME, new ForceMergeAction(10000, false));
         phases.put("warm", new Phase("warm", TimeValue.timeValueSeconds(2), warmPhaseActions));
 
         Map<String, LifecycleAction> deletePhaseActions = Collections.singletonMap(DeleteAction.NAME, new DeleteAction());

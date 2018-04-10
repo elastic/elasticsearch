@@ -70,7 +70,7 @@ services:
           mkdir config/x-pack/certificates/certs;
         fi;
         if [[ ! -f /local/certs/bundle.zip ]]; then
-          bin/x-pack/certgen --silent --in config/x-pack/certificates/instances.yml --out config/x-pack/certificates/certs/bundle.zip;
+          bin/elasticsearch-certgen --silent --in config/x-pack/certificates/instances.yml --out config/x-pack/certificates/certs/bundle.zip;
           unzip config/x-pack/certificates/certs/bundle.zip -d config/x-pack/certificates/certs; <1>
         fi;
         chgrp -R 0 config/x-pack/certificates/certs

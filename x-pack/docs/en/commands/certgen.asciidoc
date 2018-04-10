@@ -4,17 +4,17 @@
 
 deprecated[6.1,Replaced by <<certutil,`certutil`>>.]
 
-The `certgen` command simplifies the creation of certificate authorities (CA),
-certificate signing requests (CSR), and signed certificates for use with the
-Elastic Stack. Though this command is deprecated, you do not need to replace CA,
-CSR, or certificates that it created.
+The `elasticsearch-certgen` command simplifies the creation of certificate
+authorities (CA), certificate signing requests (CSR), and signed certificates
+for use with the Elastic Stack. Though this command is deprecated, you do not
+need to replace CAs, CSRs, or certificates that it created.
 
 [float]
 === Synopsis
 
 [source,shell]
 --------------------------------------------------
-bin/x-pack/certgen
+bin/elasticsearch-certgen
 (([--cert <cert_file>] [--days <n>] [--dn <name>] [--key <key_file>]
 [--keysize <bits>] [--pass <password>] [--p12 <password>])
 | [--csr])
@@ -42,8 +42,8 @@ Depending on the parameters that you specify, you are also prompted for
 necessary information such as the path for the output file and the CA private
 key password.
 
-The `certgen` command also supports a silent mode of operation to enable easier
-batch operations. For more information, see <<certgen-silent>>.
+The `elasticsearch-certgen` command also supports a silent mode of operation to
+enable easier batch operations. For more information, see <<certgen-silent>>.
 
 The output file is a zip file that contains the signed certificates and private
 keys for each instance. If you chose to generate a CA, which is the default
@@ -106,7 +106,7 @@ which can be blank. This parameter cannot be used with the `-csr` parameter.
 
 [float]
 [[certgen-silent]]
-==== Using `certgen` in Silent Mode
+==== Using `elasticsearch-certgen` in Silent Mode
 
 To use the silent mode of operation, you must create a YAML file that contains
 information about the instances. It must match the following format:
@@ -144,13 +144,13 @@ the names of the files within the directory. This filename should not have an
 extension. Note: If the `name` provided for the instance does not represent a
 valid filename, then the `filename` field must be present.
 
-When your YAML file is ready, you can use the `certgen` command to generate
-certificates or certificate signing requests. Simply use the `-in` parameter to
-specify the location of the file. For example:
+When your YAML file is ready, you can use the `elasticsearch-certgen` command to
+generate certificates or certificate signing requests. Simply use the `-in`
+parameter to specify the location of the file. For example:
 
 [source, sh]
 --------------------------------------------------
-bin/x-pack/certgen -in instances.yml
+bin/elasticsearch-certgen -in instances.yml
 --------------------------------------------------
 
 This command generates a CA certificate and private key as well as certificates

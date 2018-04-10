@@ -196,9 +196,9 @@ CREATE_INSTANCES_FILE
 	    sudo rm -f "$certificates"
     fi
 
-    run sudo -E -u $MASTER_USER "$MASTER_HOME/bin/certgen" --in "$instances" --out "$certificates"
+    run sudo -E -u $MASTER_USER "$MASTER_HOME/bin/elasticsearch-certgen" --in "$instances" --out "$certificates"
     [ "$status" -eq 0 ] || {
-        echo "Expected certgen tool exit code to be zero"
+        echo "Expected elasticsearch-certgen tool exit code to be zero"
         echo "$output"
         false
     }

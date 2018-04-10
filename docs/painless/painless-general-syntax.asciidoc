@@ -1,5 +1,5 @@
 [[painless-general-syntax]]
-=== Painless General Syntax
+=== General Syntax
 
 [float]
 [[control-flow]]

@@ -24,6 +24,20 @@ This specification is divided into the following sections:
 ** <<keywords, Keywords>>
 ** <<literals, Literals>>
 ** <<variables, Variables>>
+* <<painless-types, Data Types>>
+** <<dynamic-types, Dynamic Types>>
+** <<primitive-types, Primitive Types>>
+** <<reference-types, Reference Types>>
+** <<string-type, String Type>>
+** <<void-type, Void Type>>
+** <<array-type, Array Type>>
+* <<casting, Casting>>
+** <<numeric-casting, Numeric Casting>>
+** <<reference-casting, Reference Casting>>
+** <<boxing-unboxing, Boxing/Unboxing>>
+** <<promotion, Promotion>>
+* <<painless-operators, Operators>>
+* <<painless-general-syntax, General Syntax>>
 
 include::painless-basic-syntax.asciidoc[]
 

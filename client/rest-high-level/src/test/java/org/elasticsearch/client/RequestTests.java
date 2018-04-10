@@ -1193,27 +1193,18 @@ public class RequestTests extends ESTestCase {
         String[] indices = randomBoolean() ? null : randomIndicesNames(0, 2);
         String[] aliases = randomBoolean() ? null : randomIndicesNames(0, 2);
         getAliasesRequest.indices(indices);
-        if (randomBoolean()) {
-            getAliasesRequest.aliases(aliases);
-        } else {
-            getAliasesRequest.name(aliases);
-            if (false == CollectionUtils.isEmpty(aliases)) {
-                expectedParams.put("name", String.join(",", aliases));
-            }
-        }
+        getAliasesRequest.aliases(aliases);
 
         Request request = Request.getAlias(getAliasesRequest);
         StringJoiner expectedEndpoint = new StringJoiner("/", "/", "");
 
-        if (CollectionUtils.isEmpty(indices)) {
-            expectedEndpoint.add("_all");
-        } else {
+        if (false == CollectionUtils.isEmpty(indices)) {
             expectedEndpoint.add(String.join(",", indices));
         }
         expectedEndpoint.add("_alias");
 
         if (false == CollectionUtils.isEmpty(aliases)) {
-            expectedParams.put("name", String.join(",", aliases));
+            expectedEndpoint.add(String.join(",", aliases));
         }
 
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());

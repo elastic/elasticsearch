@@ -40,11 +40,13 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Collections;
 
 import static java.util.Collections.emptySet;
+import static java.util.Collections.singleton;
 
 /**
  * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Indices API.
@@ -323,7 +325,7 @@ public final class IndicesClient {
      */
     public GetAliasesResponse getAlias(GetAliasesRequest getAliasesRequest, Header... headers) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(getAliasesRequest, Request::getAlias, GetAliasesResponse::fromXContent,
-                emptySet(), headers);
+                singleton(RestStatus.NOT_FOUND.getStatus()), headers);
     }
 
     /**
@@ -334,7 +336,7 @@ public final class IndicesClient {
      */
     public void getAliasAsync(GetAliasesRequest getAliasesRequest, ActionListener<GetAliasesResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(getAliasesRequest, Request::getAlias, GetAliasesResponse::fromXContent,
-                listener, emptySet(), headers);
+                listener, singleton(RestStatus.NOT_FOUND.getStatus()), headers);
     }
 
 }

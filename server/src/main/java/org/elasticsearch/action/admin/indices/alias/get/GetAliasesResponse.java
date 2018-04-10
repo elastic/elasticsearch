@@ -21,14 +21,15 @@ package org.elasticsearch.action.admin.indices.alias.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -38,25 +39,35 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
-import java.util.SortedSet;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 public class GetAliasesResponse extends ActionResponse implements StatusToXContentObject {
 
     private ImmutableOpenMap<String, List<AliasMetaData>> aliases = ImmutableOpenMap.of();
-    private RestStatus status;
+    private RestStatus status = RestStatus.OK;
+    private String errorMsg = "";
+
+    public GetAliasesResponse(ImmutableOpenMap<String, List<AliasMetaData>> aliases, RestStatus status, String errorMsg) {
+        this.aliases = aliases;
+        if (status == null) {
+            this.status = RestStatus.OK;
+        }
+        this.status = status;
+        if (errorMsg == null) {
+            this.errorMsg = "";
+        } else {
+            this.errorMsg = errorMsg;
+        }
+    }
 
     public GetAliasesResponse(ImmutableOpenMap<String, List<AliasMetaData>> aliases) {
-        this.aliases = aliases;
+        this(aliases, RestStatus.OK, "");
     }
 
     GetAliasesResponse() {
@@ -71,9 +82,13 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
         return aliases;
     }
 
+    public String errorMsg() {
+        return errorMsg;
+    }
+
     @Override
     public String toString() {
-        return Strings.toString(this, true, true);
+        return Strings.toString(this, true, true) + ", status:" + status + ", errorMsg:\"" + errorMsg + "\"";
     }
 
     @Override
@@ -91,6 +106,13 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
             aliasesBuilder.put(key, Collections.unmodifiableList(value));
         }
         aliases = aliasesBuilder.build();
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            // if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+            if (in.readBoolean()) {
+                status = RestStatus.fromCode(in.readInt());
+                errorMsg = in.readString();
+            }
+        }
     }
 
     @Override
@@ -104,6 +126,16 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
                 aliasMetaData.writeTo(out);
             }
         }
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            // if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+            if (status != RestStatus.OK) {
+                out.writeBoolean(true);
+                out.writeInt(status.getStatus());
+                out.writeString(errorMsg);
+            } else {
+                out.writeBoolean(false);
+            }
+        }
     }
 
     @Override
@@ -115,12 +147,14 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
             return false;
         }
         GetAliasesResponse that = (GetAliasesResponse) o;
-        return Objects.equals(fromListAliasesToSet(aliases), fromListAliasesToSet(that.aliases));
+        return Objects.equals(fromListAliasesToSet(aliases), fromListAliasesToSet(that.aliases))
+                && Objects.equals(status, that.status)
+                && Objects.equals(errorMsg, that.errorMsg);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fromListAliasesToSet(aliases));
+        return Objects.hash(fromListAliasesToSet(aliases), status, errorMsg);
     }
 
     private ImmutableOpenMap<String, Set<AliasMetaData>> fromListAliasesToSet(ImmutableOpenMap<String, List<AliasMetaData>> list) {
@@ -133,63 +167,27 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
 
         final boolean namesProvided = (params.param("name") != null);
-        String[] aliasesNames = Strings.EMPTY_ARRAY;
         final ImmutableOpenMap<String, List<AliasMetaData>> aliasMap = this.aliases;
 
-        if (params.param("name") != null) {
-            String[] result = Strings.splitStringByCommaToArray(params.param("name"));
-            if (false == Strings.isAllOrWildcard(result)) {
-                aliasesNames = result;
-            }
-        }
-
-        final Set<String> aliasNames = new HashSet<>();
         final Set<String> indicesToDisplay = new HashSet<>();
-        for (final ObjectObjectCursor<String, List<AliasMetaData>> cursor : aliasMap) {
-            for (final AliasMetaData aliasMetaData : cursor.value) {
-                aliasNames.add(aliasMetaData.alias());
-                if (namesProvided) {
+
+        if (namesProvided) {
+            for (final ObjectObjectCursor<String, List<AliasMetaData>> cursor : aliasMap) {
+                if (cursor.value != null && false == cursor.value.isEmpty()) {
                     indicesToDisplay.add(cursor.key);
                 }
             }
         }
-
-        // first remove requested aliases that are exact matches
-        final SortedSet<String> difference = Sets.sortedDifference(Arrays.stream(aliasesNames).collect(Collectors.toSet()), aliasNames);
-
-        // now remove requested aliases that contain wildcards that are simple matches
-        final List<String> matches = new ArrayList<>();
-        outer:
-        for (final String pattern : difference) {
-            if (pattern.contains("*")) {
-                for (final String aliasName : aliasNames) {
-                    if (Regex.simpleMatch(pattern, aliasName)) {
-                        matches.add(pattern);
-                        continue outer;
-                    }
-                }
-            }
-        }
-        difference.removeAll(matches);
-
+        
         builder.startObject();
         {
-            if (difference.isEmpty()) {
-                status = RestStatus.OK;
-            } else {
-                status = RestStatus.NOT_FOUND;
-                final String message;
-                if (difference.size() == 1) {
-                    message = String.format(Locale.ROOT, "alias [%s] missing", toNamesString(difference.iterator().next()));
-                } else {
-                    message = String.format(Locale.ROOT, "aliases [%s] missing", toNamesString(difference.toArray(new String[0])));
-                }
-                builder.field("error", message);
+            if (status != null && RestStatus.OK != status) {
+                builder.field("error", errorMsg);
                 builder.field("status", status.getStatus());
             }
 
             for (final ObjectObjectCursor<String, List<AliasMetaData>> entry : aliases) {
-                if (namesProvided == false || (namesProvided && indicesToDisplay.contains(entry.key))) {
+                if (namesProvided == false || indicesToDisplay.contains(entry.key)) {
                     builder.startObject(entry.key);
                     {
                         builder.startObject("aliases");
@@ -207,34 +205,55 @@ public class GetAliasesResponse extends ActionResponse implements StatusToXConte
         builder.endObject();
         return builder;
     }
-    
-    private static String toNamesString(final String... names) {
-        if (names == null || names.length == 0) {
-            return "";
-        } else if (names.length == 1) {
-            return names[0];
-        } else {
-            return Arrays.stream(names).collect(Collectors.joining(","));
-        }
-    }
 
     public static GetAliasesResponse fromXContent(XContentParser parser) throws IOException {
-        if (parser.currentToken() == null) { // fresh parser? move to the first token
+        if (parser.currentToken() == null) {
             parser.nextToken();
         }
         ensureExpectedToken(Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
         ImmutableOpenMap.Builder<String, List<AliasMetaData>> aliasesBuilder = ImmutableOpenMap.builder();
 
-        while ((parser.nextToken()) != Token.END_OBJECT) {
+        String currentFieldName;
+        Token token;
+        String exceptionMsg = null;
+        RestStatus status = RestStatus.OK;
+        ElasticsearchException exception = null;
+
+        while ((token = parser.nextToken()) != Token.END_OBJECT) {
             if (parser.currentToken() == Token.FIELD_NAME) {
-                String indexName = parser.currentName();
-                if (parser.nextToken() == Token.START_OBJECT) {
-                    List<AliasMetaData> parseInside = parseAliases(parser);
-                    aliasesBuilder.put(indexName, parseInside);
+                currentFieldName = parser.currentName();
+
+                if ("status".equals(currentFieldName)) {
+                    if ((token = parser.nextToken()) != Token.FIELD_NAME) {
+                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                        status = RestStatus.fromCode(parser.intValue());
+                    }
+                } else if ("error".equals(currentFieldName)) {
+                    if ((token = parser.nextToken()) != Token.FIELD_NAME) {
+                        if (token == Token.VALUE_STRING) {
+                            exceptionMsg = parser.text();
+                        } else if (token == Token.START_OBJECT) {
+                            token = parser.nextToken();
+                            exception = ElasticsearchException.innerFromXContent(parser, true);
+                        }
+                    }
+                } else {
+                    String indexName = parser.currentName();
+                    if (parser.nextToken() == Token.START_OBJECT) {
+                        List<AliasMetaData> parseInside = parseAliases(parser);
+                        aliasesBuilder.put(indexName, parseInside);
+                    }
                 }
             }
         }
-        GetAliasesResponse getAliasesResponse = new GetAliasesResponse(aliasesBuilder.build());
+        if (exception != null) {
+            throw new ElasticsearchStatusException(exception.getMessage(), status, exception.getCause());
+        }
+        if (RestStatus.OK != status && aliasesBuilder.isEmpty()) {
+            throw new ElasticsearchStatusException(exceptionMsg, status);
+        }
+        GetAliasesResponse getAliasesResponse = new GetAliasesResponse(aliasesBuilder.build(), status, exceptionMsg);
+
         return getAliasesResponse;
     }
 

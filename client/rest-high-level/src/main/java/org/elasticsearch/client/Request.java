@@ -560,27 +560,11 @@ public final class Request {
         Params params = Params.builder();
         params.withIndicesOptions(getAliasesRequest.indicesOptions());
         params.withLocal(getAliasesRequest.local());
-        if (false == CollectionUtils.isEmpty(getAliasesRequest.aliases())) {
-            params.withName(getAliasesRequest.aliases());
-        } else {
-            params.withName(getAliasesRequest.name());
-        }
-        String endpoint = endpoint(optional(getAliasesRequest.indices(), "_all"), "_alias");
+
+        String[] indices = getAliasesRequest.indices() == null ? Strings.EMPTY_ARRAY : getAliasesRequest.indices();
+        String[] aliases = getAliasesRequest.aliases() == null ? Strings.EMPTY_ARRAY : getAliasesRequest.aliases();
+        String endpoint = endpoint(indices, "_alias", aliases);
         return new Request(HttpGet.METHOD_NAME, endpoint, params.getParams(), null);
-    }
-
-    private static String[] optional(String[] params) {
-        return optional(params, null);
-    }
-
-    private static String[] optional(String[] params, String defaultParam) {
-        if (CollectionUtils.isEmpty(params)) {
-            if (defaultParam != null) {
-                return new String[] {defaultParam};
-            }
-            return Strings.EMPTY_ARRAY;
-        }
-        return params;
     }
 
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
@@ -831,13 +815,6 @@ public final class Request {
         Params withIncludeDefaults(boolean includeDefaults) {
             if (includeDefaults) {
                 return putParam("include_defaults", Boolean.TRUE.toString());
-            }
-            return this;
-        }
-
-        Params withName(String[] names) {
-            if (false == CollectionUtils.isEmpty(names)) {
-                return putParam("name", String.join(",", names));
             }
             return this;
         }

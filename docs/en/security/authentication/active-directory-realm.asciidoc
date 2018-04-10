@@ -329,7 +329,11 @@ operation are supported: failover and load balancing
                                           connection will not be allowed. Due to their potential security impact,
                                           `ssl` settings are not exposed via the
                                           {ref}/cluster-nodes-info.html#cluster-nodes-info[nodes info API].
++
                                           Values are `none`, `certificate`, and `full`. Defaults to `full`.
++
+                                          See {ref}/security-settings.html#ssl-tls-settings[`xpack.ssl.verification_mode`]
+                                          for an explanation of these values.
 | `ssl.supported_protocols`  | no       | Specifies the supported protocols for TLS/SSL.
 | `ssl.cipher_suites`        | no       | Specifies the cipher suites that should be supported when communicating
                                           with the Active Directory server.
@@ -485,4 +489,4 @@ NOTE: By default, when you configure {security} to connect to Active Directory
       configuration do not match, {security} does not allow a connection to the
       Active Directory server. This is done to protect against man-in-the-middle
       attacks. If necessary, you can disable this behavior by setting the
-      {ref}/security-settings.html#ssl-tls-settings[`ssl.verification_mode`] property to `none`.
+      {ref}/security-settings.html#ssl-tls-settings[`ssl.verification_mode`] property to `certificate`.

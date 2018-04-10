@@ -264,6 +264,8 @@ failover and load balancing modes of operation.
                                               `ssl` settings are not exposed via the
                                               {ref}/cluster-nodes-info.html#cluster-nodes-info[nodes info API].
                                               Values are `none`, `certificate`, and `full`. Defaults to `full`.
+                                              See {ref}/security-settings.html#ssl-tls-settings[`xpack.ssl.verification_mode`]
+                                              for an explanation of these values.
 | `ssl.supported_protocols`      | no       | Specifies the supported protocols for SSL/TLS.
 | `ssl.cipher_suites`            | no       | Specifies the cipher suites that should be supported when communicating
                                               with the LDAP server.
@@ -492,4 +494,4 @@ NOTE: By default, when you configure {security} to connect to an LDAP server
       configuration do not match, {security} does not allow a connection to the
       LDAP server. This is done to protect against man-in-the-middle attacks. If
       necessary, you can disable this behavior by setting the
-      `ssl.verification_mode` property to `none`.
+      `ssl.verification_mode` property to `certificate`.

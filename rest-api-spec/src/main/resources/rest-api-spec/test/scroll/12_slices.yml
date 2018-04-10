@@ -42,8 +42,8 @@ setup:
 ---
 "Sliced scroll":
   - skip:
-      version: " - 5.3.0"
-      reason: Prior version uses a random seed per node to compute the hash of the keys.
+      version: " - 6.99.99"
+      reason: Disabled until pr 29353 is backported
 
   - do:
       search:

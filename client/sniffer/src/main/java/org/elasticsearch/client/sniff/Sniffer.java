@@ -29,9 +29,11 @@ import java.io.Closeable;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.List;
+import java.util.concurrent.Delayed;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -69,48 +71,40 @@ public class Sniffer implements Closeable {
         this.sniffIntervalMillis = sniffInterval;
         this.sniffAfterFailureDelayMillis = sniffAfterFailureDelay;
         this.scheduler = scheduler;
-        scheduleNextRun(0);
-    }
-
-    private void scheduleNextRun(long delayMillis) {
-        scheduler.schedule(new Runnable() {
-            @Override
-            public void run() {
-                sniff(null, sniffIntervalMillis);
-            }
-        }, delayMillis);
+        scheduler.submit(createRunnable(sniffIntervalMillis));
     }
 
     /**
-     * Triggers a new sniffing round and explicitly takes out the failed host provided as argument
+     * Triggers a new immediate sniffing round, which will schedule a new round in sniffAfterFailureDelayMillis ms
      */
-    public void sniffOnFailure(HttpHost failedHost) {
-        sniff(failedHost, sniffAfterFailureDelayMillis);
+    public final void sniffOnFailure() {
+        scheduler.submit(createRunnable(sniffAfterFailureDelayMillis));
     }
 
-    private void sniff(HttpHost excludeHost, long nextSniffDelayMillis) {
-        //If a sniffing round is already running nothing happens, it makes no sense to start or wait to start another round
-        if (running.compareAndSet(false, true)) {
-            try {
-                List<HttpHost> sniffedHosts = hostsSniffer.sniffHosts();
-                logger.debug("sniffed hosts: " + sniffedHosts);
-                if (excludeHost != null) {
-                    sniffedHosts.remove(excludeHost);
+    private Runnable createRunnable(final long nextSniffDelayMillis) {
+        assert nextSniffDelayMillis > 0 : "delay must be greater than 0 when scheduling a task";
+        return new Runnable() {
+            @Override
+            public void run() {
+                assert running.compareAndSet(false, true) : "multiple sniff rounds must not be executed in parallel, that should " +
+                        "be guaranteed by using a single threaded executor";
+                try {
+                    List<HttpHost> sniffedHosts = hostsSniffer.sniffHosts();
+                    logger.debug("sniffed hosts: " + sniffedHosts);
+                    if (sniffedHosts.isEmpty()) {
+                        logger.warn("no hosts to set, hosts will be updated at the next sniffing round");
+                    } else {
+                        restClient.setHosts(sniffedHosts.toArray(new HttpHost[sniffedHosts.size()]));
+                    }
+                } catch (Exception e) {
+                    logger.error("error while sniffing nodes", e);
+                } finally {
+                    //schedule ordinary sniff run, will happen unless sniffing on failure kicks in first
+                    scheduler.schedule(createRunnable(sniffIntervalMillis), nextSniffDelayMillis);
+                    assert running.compareAndSet(true, false);
                 }
-                if (sniffedHosts.isEmpty()) {
-                    logger.warn("no hosts to set, hosts will be updated at the next sniffing round");
-                } else {
-                    this.restClient.setHosts(sniffedHosts.toArray(new HttpHost[sniffedHosts.size()]));
-                }
-            } catch (Exception e) {
-                logger.error("error while sniffing nodes", e);
-            } finally {
-                //TODO potential problem here if this doesn't happen last? though tests become complicated
-                running.set(false);
-                //TODO do we want to also test that this never gets called concurrently?
-                scheduleNextRun(nextSniffDelayMillis);
             }
-        }
+        };
     }
 
     @Override
@@ -134,7 +128,12 @@ public class Sniffer implements Closeable {
      */
     interface Scheduler {
         /**
-         * Schedules the provided {@link Runnable} to run in <code>delayMillis</code> milliseconds
+         * Schedules the provided {@link Runnable} to be executed straight-away
+         */
+        void submit(Runnable runnable);
+
+        /**
+         * Schedules the provided {@link Runnable} to be executed in <code>delayMillis</code> milliseconds
          */
         void schedule(Runnable runnable, long delayMillis);
 
@@ -148,48 +147,108 @@ public class Sniffer implements Closeable {
      * Default implementation of {@link Scheduler}, based on {@link ScheduledExecutorService}
      */
     static final class DefaultScheduler implements Scheduler {
-        final ScheduledExecutorService scheduledExecutorService;
-        private ScheduledFuture<?> scheduledFuture;
+        final ScheduledThreadPoolExecutor executor;
+        private ScheduledFuture<?> scheduledFuture = DummyScheduledFuture.INSTANCE;
 
         DefaultScheduler() {
-            this(Executors.newScheduledThreadPool(1, new SnifferThreadFactory(SNIFFER_THREAD_NAME)));
+            this(initScheduledExecutorService());
         }
 
-        DefaultScheduler(ScheduledExecutorService scheduledExecutorService) {
-            this.scheduledExecutorService = scheduledExecutorService;
+        DefaultScheduler(ScheduledThreadPoolExecutor executor) {
+            this.executor = executor;
         }
 
-        //TODO test concurrent calls to schedule?
+        //TODO test this
+        static ScheduledThreadPoolExecutor initScheduledExecutorService() {
+            ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1, new SnifferThreadFactory(SNIFFER_THREAD_NAME));
+            executor.setRemoveOnCancelPolicy(true);
+            //TODO does this have any effect?
+            executor.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
+            return executor;
+        }
+
+        //TODO can it happen that we get so many failures that we keep on cancelling without ever getting to execute the next round?
+        // no, because we add each failed node to the blacklist, and it stays there till setHosts is called, at the end of the sniff round
+        //may happen if we end up reviving nodes from the blacklist as all of the sniffed nodes are marked dead.
+        //in that case the sniff round won't work either though.
+
+        //TODO this can be called concurrently when sniffing on failure, test concurrent calls
+        @Override
+        public synchronized void submit(Runnable runnable) {
+            ScheduledFuture<?> scheduledFuture = this.scheduledFuture;
+            assert scheduledFuture != DummyScheduledFuture.INSTANCE
+                    || executor.getTaskCount() == 0 : "next task may only be null at the very first run";
+            //regardless of when the next sniff is scheduled, cancel it and schedule a new one.
+            //this happens when sniffing on failure is enabled and a failure happens, the following scheduled ordinary
+            //round gets cancelled in favour of the immediate round caused by the failure
+            scheduledFuture.cancel(false);
+            schedule(runnable, 0L);
+        }
+
+        //TODO test concurrent calls to schedule
         @Override
         public synchronized void schedule(Runnable runnable, long delayMillis) {
-            //TODO maybe this is not even needed, just let it throw rejected execution exception instead?
-            if (scheduledExecutorService.isShutdown() == false) {
-                try {
-                    if (this.scheduledFuture != null) {
-                        //regardless of when the next sniff is scheduled, cancel it and schedule a new one with the latest delay.
-                        //instead of piling up sniff rounds to be run, the last run decides when the following execution will be.
-                        this.scheduledFuture.cancel(false);
-                    }
-                    logger.debug("scheduling next sniff in " + delayMillis + " ms");
-                    this.scheduledFuture = scheduledExecutorService.schedule(runnable, delayMillis, TimeUnit.MILLISECONDS);
-                } catch(Exception e) {
-                    logger.error("error while scheduling next sniffer task", e);
-                }
+            assert scheduledFuture.isDone() : "the task being replaced must either be running or cancelled";
+            logger.debug("scheduling next sniff round in " + delayMillis + " ms");
+            try {
+                this.scheduledFuture = executor.schedule(runnable, delayMillis, TimeUnit.MILLISECONDS);
+            } catch(Exception e) {
+                logger.error("error while scheduling next sniffer round", e);
             }
         }
 
         //TODO test concurrent calls to shutdown?
         @Override
         public synchronized void shutdown() {
-            scheduledExecutorService.shutdown();
+            //TODO cancel here too, no need to try and wait
+            executor.shutdown();
             try {
-                if (scheduledExecutorService.awaitTermination(1000, TimeUnit.MILLISECONDS)) {
+                if (executor.awaitTermination(1000, TimeUnit.MILLISECONDS)) {
                     return;
                 }
-                scheduledExecutorService.shutdownNow();
+                executor.shutdownNow();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
+        }
+    }
+
+    private static class DummyScheduledFuture implements ScheduledFuture<Object> {
+        private static final DummyScheduledFuture INSTANCE = new DummyScheduledFuture();
+
+        @Override
+        public long getDelay(TimeUnit unit) {
+            return 0;
+        }
+
+        @Override
+        public int compareTo(Delayed o) {
+            return 0;
+        }
+
+        @Override
+        public boolean cancel(boolean mayInterruptIfRunning) {
+            return true;
+        }
+
+        @Override
+        public boolean isCancelled() {
+            return false;
+        }
+
+        @Override
+        public boolean isDone() {
+            return true;
+        }
+
+        @Override
+        public Object get() {
+            return null;
+        }
+
+        @Override
+        public Object get(long timeout, TimeUnit unit) {
+            return null;
         }
     }
 

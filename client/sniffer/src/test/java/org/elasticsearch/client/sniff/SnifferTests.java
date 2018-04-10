@@ -272,8 +272,8 @@ public class SnifferTests extends RestClientTestCase {
 
     public void testDefaultSchedulerThreadFactory() {
         DefaultScheduler defaultScheduler = new DefaultScheduler();
-        assertThat(defaultScheduler.scheduledExecutorService, instanceOf(ScheduledThreadPoolExecutor.class));
-        ScheduledThreadPoolExecutor scheduledThreadPoolExecutor = (ScheduledThreadPoolExecutor) defaultScheduler.scheduledExecutorService;
+        assertThat(defaultScheduler.executor, instanceOf(ScheduledThreadPoolExecutor.class));
+        ScheduledThreadPoolExecutor scheduledThreadPoolExecutor = (ScheduledThreadPoolExecutor) defaultScheduler.executor;
         assertThat(scheduledThreadPoolExecutor.getThreadFactory(), instanceOf(Sniffer.SnifferThreadFactory.class));
         int iters = randomIntBetween(3, 10);
         for (int i = 1; i <= iters; i++) {

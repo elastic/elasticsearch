@@ -30,8 +30,8 @@ public class ForceMergeAction implements LifecycleAction {
 
     private static final ConstructingObjectParser<ForceMergeAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
         false, a -> {
-        int maxNumSegments = (Integer) a[0];
-        boolean bestCompression = (Boolean) a[1];
+        int maxNumSegments = (int) a[0];
+        boolean bestCompression = a[1] == null ? false : (boolean) a[1];
         return new ForceMergeAction(maxNumSegments, bestCompression);
     });
 

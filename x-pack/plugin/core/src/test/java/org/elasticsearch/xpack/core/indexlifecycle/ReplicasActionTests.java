@@ -50,12 +50,12 @@ public class ReplicasActionTests extends AbstractSerializingTestCase<ReplicasAct
         assertNotNull(steps);
         assertEquals(2, steps.size());
         StepKey expectedFirstStepKey = new StepKey(phase, ReplicasAction.NAME, UpdateReplicaSettingsStep.NAME);
-        StepKey expectedSecondStepKey = new StepKey(phase, ReplicasAction.NAME, EnoughShardsWaitStep.NAME);
+        StepKey expectedSecondStepKey = new StepKey(phase, ReplicasAction.NAME, ReplicasAllocatedStep.NAME);
         UpdateReplicaSettingsStep firstStep = (UpdateReplicaSettingsStep) steps.get(0);
         assertEquals(expectedFirstStepKey, firstStep.getKey());
         assertEquals(expectedSecondStepKey, firstStep.getNextStepKey());
         assertEquals(action.getNumberOfReplicas(), firstStep.getNumberOfReplicas());
-        EnoughShardsWaitStep secondStep = (EnoughShardsWaitStep) steps.get(1);
+        ReplicasAllocatedStep secondStep = (ReplicasAllocatedStep) steps.get(1);
         assertEquals(expectedSecondStepKey, secondStep.getKey());
         assertEquals(nextStepKey, secondStep.getNextStepKey());
     }

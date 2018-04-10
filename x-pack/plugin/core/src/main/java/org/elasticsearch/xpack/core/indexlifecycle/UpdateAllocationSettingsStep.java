@@ -5,57 +5,41 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
 import java.util.Map;
 import java.util.Objects;
 
-public class UpdateAllocationSettingsStep extends ClusterStateActionStep {
+public class UpdateAllocationSettingsStep extends AsyncActionStep {
     public static final String NAME = "update-allocation";
 
     private final Map<String, String> include;
     private final Map<String, String> exclude;
     private final Map<String, String> require;
 
-    public UpdateAllocationSettingsStep(StepKey key, StepKey nextStepKey, Map<String, String> include,
+    public UpdateAllocationSettingsStep(StepKey key, StepKey nextStepKey, Client client, Map<String, String> include,
                                         Map<String, String> exclude, Map<String, String> require) {
-        super(key, nextStepKey);
+        super(key, nextStepKey, client);
         this.include = include;
         this.exclude = exclude;
         this.require = require;
     }
 
     @Override
-    public ClusterState performAction(Index index, ClusterState clusterState) {
-        IndexMetaData idxMeta = clusterState.metaData().index(index);
-        if (idxMeta == null) {
-            return clusterState;
-        }
-        Settings existingSettings = idxMeta.getSettings();
+    public void performAction(Index index, Listener listener) {
         Settings.Builder newSettings = Settings.builder();
-        addMissingAttrs(include, IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey(), existingSettings, newSettings);
-        addMissingAttrs(exclude, IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey(), existingSettings, newSettings);
-        addMissingAttrs(require, IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey(), existingSettings, newSettings);
-        return ClusterState.builder(clusterState)
-            .metaData(MetaData.builder(clusterState.metaData())
-                .updateSettings(newSettings.build(), index.getName())).build();
-    }
+        include.forEach((key, value) -> newSettings.put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + key, value));
+        exclude.forEach((key, value) -> newSettings.put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + key, value));
+        require.forEach((key, value) -> newSettings.put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + key, value));
 
-    /**
-     * Inspects the <code>existingSettings</code> and adds any attributes that
-     * are missing for the given <code>settingsPrefix</code> to the
-     * <code>newSettingsBuilder</code>.
-     */
-    static void addMissingAttrs(Map<String, String> newAttrs, String settingPrefix, Settings existingSettings,
-                                 Settings.Builder newSettingsBuilder) {
-        newAttrs.entrySet().stream().filter(e -> {
-            String existingValue = existingSettings.get(settingPrefix + e.getKey());
-            return existingValue == null || (existingValue.equals(e.getValue()) == false);
-        }).forEach(e -> newSettingsBuilder.put(settingPrefix + e.getKey(), e.getValue()));
+        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(index.getName()).settings(newSettings);
+        getClient().admin().indices().updateSettings(updateSettingsRequest,
+                ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
     }
     
     Map<String, String> getInclude() {

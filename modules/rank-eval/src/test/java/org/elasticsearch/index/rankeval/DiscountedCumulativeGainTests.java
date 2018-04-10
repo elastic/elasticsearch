@@ -205,6 +205,32 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
         assertEquals(12.392789260714371 / 13.347184833073591, dcg.evaluate("id", hits, ratedDocs).getQualityLevel(), DELTA);
     }
 
+    /**
+     * test that metric returns 0.0 when there are no search results
+     */
+    public void testNoResults() throws Exception {
+        Integer[] relevanceRatings = new Integer[] { 3, 2, 3, null, 1, null };
+        List<RatedDocument> ratedDocs = new ArrayList<>();
+        for (int i = 0; i < 6; i++) {
+            if (i < relevanceRatings.length) {
+                if (relevanceRatings[i] != null) {
+                    ratedDocs.add(new RatedDocument("index", Integer.toString(i), relevanceRatings[i]));
+                }
+            }
+        }
+        SearchHit[] hits = new SearchHit[0];
+        DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
+        EvalQueryQuality result = dcg.evaluate("id", hits, ratedDocs);
+        assertEquals(0.0d, result.getQualityLevel(), DELTA);
+        assertEquals(0, filterUnknownDocuments(result.getHitsAndRatings()).size());
+
+        // also check normalized
+        dcg = new DiscountedCumulativeGain(true, null, 10);
+        result = dcg.evaluate("id", hits, ratedDocs);
+        assertEquals(0.0d, result.getQualityLevel(), DELTA);
+        assertEquals(0, filterUnknownDocuments(result.getHitsAndRatings()).size());
+    }
+
     public void testParseFromXContent() throws IOException {
         assertParsedCorrect("{ \"unknown_doc_rating\": 2, \"normalize\": true, \"k\" : 15 }", 2, true, 15);
         assertParsedCorrect("{ \"normalize\": false, \"k\" : 15 }", null, false, 15);

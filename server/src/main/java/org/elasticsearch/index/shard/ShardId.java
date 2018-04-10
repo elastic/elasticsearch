@@ -94,7 +94,7 @@ public class ShardId implements Streamable, Comparable<ShardId>, ToXContentFragm
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null) return false;
+        if (o == null || getClass() != o.getClass()) return false;
         ShardId shardId1 = (ShardId) o;
         return shardId == shardId1.shardId && index.equals(shardId1.index);
     }

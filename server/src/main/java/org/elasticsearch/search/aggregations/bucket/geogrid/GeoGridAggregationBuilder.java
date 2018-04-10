@@ -54,6 +54,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.common.geo.GeoUtils.parsePrecision;
+
 public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource.GeoPoint, GeoGridAggregationBuilder>
         implements MultiBucketAggregationBuilder {
     public static final String NAME = "geohash_grid";
@@ -64,29 +66,8 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
     static {
         PARSER = new ObjectParser<>(GeoGridAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareGeoFields(PARSER, false, false);
-        PARSER.declareField((parser, builder, context) -> {
-            XContentParser.Token token = parser.currentToken();
-            if (token.equals(XContentParser.Token.VALUE_NUMBER)) {
-                builder.precision(XContentMapValues.nodeIntegerValue(parser.intValue()));
-            } else {
-                String precision = parser.text();
-                try {
-                    // we want to treat simple integer strings as precision levels, not distances
-                    builder.precision(XContentMapValues.nodeIntegerValue(Integer.parseInt(precision)));
-                } catch (NumberFormatException e) {
-                    // try to parse as a distance value
-                    try {
-                        builder.precision(GeoUtils.geoHashLevelsForPrecision(precision));
-                    } catch (NumberFormatException e2) {
-                        // can happen when distance unit is unknown, in this case we simply want to know the reason
-                        throw e2;
-                    } catch (IllegalArgumentException e3) {
-                        // this happens when distance too small, so precision > 12. We'd like to see the original string
-                        throw new IllegalArgumentException("precision too high [" + precision + "]", e3);
-                    }
-                }
-            }
-        }, GeoHashGridParams.FIELD_PRECISION, org.elasticsearch.common.xcontent.ObjectParser.ValueType.INT);
+        PARSER.declareField((parser, builder, context) -> builder.precision(parsePrecision(parser)), GeoHashGridParams.FIELD_PRECISION,
+            org.elasticsearch.common.xcontent.ObjectParser.ValueType.INT);
         PARSER.declareInt(GeoGridAggregationBuilder::size, GeoHashGridParams.FIELD_SIZE);
         PARSER.declareInt(GeoGridAggregationBuilder::shardSize, GeoHashGridParams.FIELD_SHARD_SIZE);
     }
@@ -133,7 +114,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
     }
 
     public GeoGridAggregationBuilder precision(int precision) {
-        this.precision = GeoHashGridParams.checkPrecision(precision);
+        this.precision = GeoUtils.checkPrecisionRange(precision);
         return this;
     }
 

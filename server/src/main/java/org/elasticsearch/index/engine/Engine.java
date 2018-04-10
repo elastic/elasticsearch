@@ -536,7 +536,9 @@ public abstract class Engine implements Closeable {
 
     /** get commits stats for the last commit */
     public CommitStats commitStats() {
-        return new CommitStats(getLastCommittedSegmentInfos());
+        try (Engine.Searcher searcher = acquireSearcher("commit_stats", Engine.SearcherScope.INTERNAL)) {
+            return new CommitStats(getLastCommittedSegmentInfos(), searcher.reader().numDocs());
+        }
     }
 
     /**

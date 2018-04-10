@@ -20,6 +20,7 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeTrigger;
@@ -142,6 +143,11 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
     @Override
     public boolean useCompoundFile(SegmentInfos segments, SegmentCommitInfo newSegment, IndexWriter writer) throws IOException {
         return delegate.useCompoundFile(segments, newSegment, writer);
+    }
+
+    @Override
+    public boolean keepFullyDeletedSegment(CodecReader reader) throws IOException {
+        return delegate.keepFullyDeletedSegment(reader);
     }
 
     /**

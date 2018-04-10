@@ -31,8 +31,10 @@ import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
@@ -68,7 +70,6 @@ import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
-import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
@@ -141,6 +142,7 @@ public class InternalEngine extends Engine {
     private final CounterMetric numDocDeletes = new CounterMetric();
     private final CounterMetric numDocAppends = new CounterMetric();
     private final CounterMetric numDocUpdates = new CounterMetric();
+    private final boolean softDeleteEnabled;
 
     /**
      * How many bytes we are currently moving to disk, via either IndexWriter.flush or refresh.  IndexingMemoryController polls this
@@ -165,6 +167,7 @@ public class InternalEngine extends Engine {
             maxUnsafeAutoIdTimestamp.set(Long.MAX_VALUE);
         }
         this.uidField = engineConfig.getIndexSettings().isSingleType() ? IdFieldMapper.NAME : UidFieldMapper.NAME;
+        this.softDeleteEnabled = engineConfig.getIndexSettings().isSoftDeleteEnabled();
         final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(
                 engineConfig.getIndexSettings().getTranslogRetentionSize().getBytes(),
                 engineConfig.getIndexSettings().getTranslogRetentionAge().getMillis()
@@ -772,6 +775,7 @@ public class InternalEngine extends Engine {
                 } else if (plan.indexIntoLucene) {
                     indexResult = indexIntoLucene(index, plan);
                 } else {
+                    // TODO: We need to index stale documents to have a full history in Lucene.
                     indexResult = new IndexResult(
                             plan.versionForIndexing, plan.seqNoForIndexing, plan.currentNotFoundOrDeleted);
                 }
@@ -1070,10 +1074,18 @@ public class InternalEngine extends Engine {
     }
 
     private void updateDocs(final Term uid, final List<ParseContext.Document> docs, final IndexWriter indexWriter) throws IOException {
-        if (docs.size() > 1) {
-            indexWriter.updateDocuments(uid, docs);
+        if (softDeleteEnabled) {
+            if (docs.size() > 1) {
+                indexWriter.softUpdateDocuments(uid, docs, Lucene.getSoftDeleteDVMarker());
+            } else {
+                indexWriter.softUpdateDocument(uid, docs.get(0), Lucene.getSoftDeleteDVMarker());
+            }
         } else {
-            indexWriter.updateDocument(uid, docs.get(0));
+            if (docs.size() > 1) {
+                indexWriter.updateDocuments(uid, docs);
+            } else {
+                indexWriter.updateDocument(uid, docs.get(0));
+            }
         }
         numDocUpdates.inc(docs.size());
     }
@@ -1918,6 +1930,7 @@ public class InternalEngine extends Engine {
         return new IndexWriter(directory, iwc);
     }
 
+
     private IndexWriterConfig getIndexWriterConfig() {
         final IndexWriterConfig iwc = new IndexWriterConfig(engineConfig.getAnalyzer());
         iwc.setCommitOnClose(false); // we by default don't commit on close
@@ -1931,11 +1944,15 @@ public class InternalEngine extends Engine {
         }
         iwc.setInfoStream(verbose ? InfoStream.getDefault() : new LoggerInfoStream(logger));
         iwc.setMergeScheduler(mergeScheduler);
-        MergePolicy mergePolicy = config().getMergePolicy();
         // Give us the opportunity to upgrade old segments while performing
         // background merges
-        mergePolicy = new ElasticsearchMergePolicy(mergePolicy);
-        iwc.setMergePolicy(mergePolicy);
+        MergePolicy mergePolicy = config().getMergePolicy();
+        if (softDeleteEnabled) {
+            iwc.setSoftDeletesField(Lucene.SOFT_DELETE_FIELD);
+            // TODO: soft-delete retention policy
+            mergePolicy = new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETE_FIELD, () -> new MatchAllDocsQuery(), mergePolicy);
+        }
+        iwc.setMergePolicy(new ElasticsearchMergePolicy(mergePolicy));
         iwc.setSimilarity(engineConfig.getSimilarity());
         iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());
         iwc.setCodec(engineConfig.getCodec());

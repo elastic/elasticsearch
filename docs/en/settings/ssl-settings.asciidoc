@@ -31,7 +31,9 @@ endif::server[]
 ifdef::verifies[]
 +{ssl-prefix}.ssl.verification_mode+::
 Controls the verification of certificates. Valid values are `none`,
-`certificate`, and `full`. Defaults to the value of `xpack.ssl.verification_mode`.
+`certificate`, and `full`.
+See <<ssl-tls-settings, `xpack.ssl.verification_mode`>> for a description of these values.
+Defaults to the value of `xpack.ssl.verification_mode`.
 endif::verifies[]
 
 +{ssl-prefix}.ssl.cipher_suites+::

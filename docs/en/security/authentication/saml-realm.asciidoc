@@ -250,6 +250,9 @@ These settings are not used for any purpose other than loading metadata over htt
 | `ssl.verification_mode`         | no       | One of `full` (verify the hostname and the certicate path),
                                                `certificate` (verify the certificate path, but not the hostname) 
                                                or `none` (perform no verification).  Defaults to `full`.
++
+                                               See {ref}/security-settings.html#ssl-tls-settings[`xpack.ssl.verification_mode`]
+                                               for a more detailed explanation of these values.
 | `ssl.supported_protocols`       | no       | Specifies the supported protocols for TLS/SSL.
 | `ssl.cipher_suites`             | no       | Specifies the cipher suites that should be supported.
 |=======================

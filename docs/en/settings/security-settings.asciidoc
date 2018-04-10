@@ -364,6 +364,9 @@ Keystore format, or `PKCS12` to use PKCS#12 files. The default is `jks`.
 Indicates the type of verification when using `ldaps` to protect against man
 in the middle attacks and certificate forgery. Values are `none`, `certificate`,
 and `full`. Defaults to the value of `xpack.ssl.verification_mode`.
++
+See <<ssl-tls-settings,`xpack.ssl.verification_mode`>> for an explanation of
+these values.
 
 `ssl.supported_protocols`::
 Supported protocols with versions. Defaults to the value of
@@ -573,6 +576,9 @@ Keystore format, or `PKCS12` to use PKCS#12 files. The default is `jks`.
 Indicates the type of verification when using `ldaps` to protect against man
 in the middle attacks and certificate forgery. Values are `none`, `certificate`,
 and `full`. Defaults to the value of `xpack.ssl.verification_mode`.
++
+See <<ssl-tls-settings,`xpack.ssl.verification_mode`>> for an explanation of
+these values.
 
 `ssl.supported_protocols`::
 Supported protocols with versions. Defaults to the value of
@@ -884,6 +890,9 @@ If retrieving IDP metadata via https (see `idp.metadata.path`), one of `full`
 (verify the hostname and the certicate path), `certificate` (verify the
 certificate path, but not the hostname) or `none` (perform no verification).
 Defaults to `full`.
++
+See <<ssl-tls-settings,`xpack.ssl.verification_mode`>> for a more detailed
+explanation of these values.
 
 `ssl.supported_protocols`::
 If retrieving IDP metadata via https (see `idp.metadata.path`), specifies the
@@ -916,8 +925,19 @@ Defaults to `required`. This global setting is not applicable for HTTP, see
  <<http-tls-ssl-settings>>.
 
 `xpack.ssl.verification_mode`::
-Controls the verification of certificates. Valid values are `none`,
-`certificate`, and `full`. Defaults to `full`.
+Controls the verification of certificates. Valid values are:
+- `full`, which verifies that the provided certificate is signed by a trusted
+       authority (CA) and also verifies that the server's hostname (or IP
+       address) matches the names identified within the certificate.
+- `certificate`, which verifies that the provided certificate is signed by a
+       trusted authority (CA), but does not perform any hostname verification.
+- `none`, which performs _no verification_ of the server's certificate. This mode
+       disables many of the security benefits of SSL/TLS and should only be
+       used after very careful consideration. It is primarily intended as a
+       temporary diagnostic mechanism when attempting to resolve TLS errors,
+       and its use on production clusters is strongly discouraged.
++
+The default value is `full`.
 
 `xpack.ssl.cipher_suites`::
 Supported cipher suites can be found in Oracle's http://docs.oracle.com/javase/8/docs/technotes/guides/security/SunProviders.html[

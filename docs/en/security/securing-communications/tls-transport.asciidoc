@@ -25,6 +25,8 @@ xpack.security.transport.ssl.truststore.path: certs/elastic-certificates.p12 <3>
 <1> If you used the `--dns` or `--ip` options with the `certutil cert` command
 and you want to enable strict hostname checking, set the verification mode to
 `full`.
+See <<ssl-tls-settings, `xpack.ssl.verification_mode`>> for a description of these values.
+
 <2> If you created a separate certificate for each node, then you might need to
 customize this path on each node. If the filename matches the node name, you can
 use the `certs/${node.name}.p12` format, for example.
@@ -48,6 +50,7 @@ xpack.security.transport.ssl.certificate_authorities: [ "/home/es/config/x-pack/
 <1> If you used the `--dns` or `--ip` options with the `certutil cert` command
 and you want to enable strict hostname checking, set the verification mode to
 `full`.
+See <<ssl-tls-settings, `xpack.ssl.verification_mode`>> for a description of these values.
 <2> The full path to the node key file. This must be a location within the
     {es} configuration directory.
 <3> The full path to the node certificate. This must be a location within the

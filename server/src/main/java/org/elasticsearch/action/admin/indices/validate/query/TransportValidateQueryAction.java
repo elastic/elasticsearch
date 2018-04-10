@@ -22,6 +22,11 @@ package org.elasticsearch.action.admin.indices.validate.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchShardIterator;
+import org.elasticsearch.action.search.SearchTask;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -30,6 +35,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -39,21 +45,24 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchLocalRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.function.BiFunction;
+import java.util.function.LongSupplier;
 
 public class TransportValidateQueryAction extends TransportBroadcastAction<ValidateQueryRequest, ValidateQueryResponse, ShardValidateQueryRequest, ShardValidateQueryResponse> {
 
@@ -71,7 +80,16 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
     @Override
     protected void doExecute(Task task, ValidateQueryRequest request, ActionListener<ValidateQueryResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
-        super.doExecute(task, request, listener);
+        LongSupplier timeProvider = () -> request.nowInMillis;
+        ActionListener<org.elasticsearch.index.query.QueryBuilder> rewriteListener = ActionListener.wrap(source -> {
+            super.doExecute(task, request, listener);
+        }, listener::onFailure);
+        if (request.query() == null) {
+            rewriteListener.onResponse(request.query());
+        } else {
+            Rewriteable.rewriteAndFetch(request.query(), searchService.getRewriteContext(timeProvider),
+                rewriteListener);
+        }
     }
 
     @Override

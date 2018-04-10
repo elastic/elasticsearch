@@ -1,0 +1,27 @@
+// Use these for links to issue and pulls. Note issues and pulls redirect one to
+// each other on Github, so don't worry too much on using the right prefix.
+:issue: https://github.com/elastic/elasticsearch/issues/
+:pull: https://github.com/elastic/elasticsearch/pull/
+
+////////////////////////////////////////////////////////////
+// Template, add newest changes here
+= Elasticsearch Release Notes
+
+== Elasticsearch version 7.0
+
+=== Breaking Changes
+
+=== Breaking Java Changes
+
+=== Deprecations
+
+=== New Features 
+
+=== Enhancements
+
+=== Bug Fixes
+
+=== Regressions
+
+=== Known Issues
+

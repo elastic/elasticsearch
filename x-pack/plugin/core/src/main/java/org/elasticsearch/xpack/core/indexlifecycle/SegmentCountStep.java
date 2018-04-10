@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
-import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.client.Client;

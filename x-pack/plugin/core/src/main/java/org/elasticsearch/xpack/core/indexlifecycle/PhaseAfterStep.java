@@ -5,17 +5,14 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 
 import java.util.function.LongSupplier;
 
 public class PhaseAfterStep extends ClusterStateWaitStep {
-    private static final Logger logger = ESLoggerFactory.getLogger(PhaseAfterStep.class);
     private final TimeValue after;
     private final LongSupplier nowSupplier;
 

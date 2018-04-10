@@ -13,8 +13,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.EngineConfig;
 
-import java.util.Objects;
-
 public class UpdateBestCompressionSettingsStep extends ClusterStateActionStep {
     public static final String NAME = "update-best-compression";
 

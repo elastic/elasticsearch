@@ -22,10 +22,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.LongSupplier;
 
 public class PhaseTests extends AbstractSerializingTestCase<Phase> {
-    private static final LongSupplier TEST_NOW_SUPPLIER = () -> 0L;
     private String phaseName;
 
     @Before

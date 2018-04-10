@@ -5,12 +5,10 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -25,7 +23,6 @@ import java.util.List;
 public class DeleteAction implements LifecycleAction {
     public static final String NAME = "delete";
 
-    private static final Logger logger = ESLoggerFactory.getLogger(DeleteAction.class);
     private static final ObjectParser<DeleteAction, Void> PARSER = new ObjectParser<>(NAME, DeleteAction::new);
 
     public static DeleteAction parse(XContentParser parser) {

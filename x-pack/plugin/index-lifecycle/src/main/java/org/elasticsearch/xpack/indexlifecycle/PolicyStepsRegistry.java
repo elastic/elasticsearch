@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
@@ -13,11 +12,9 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.LongSupplier;
@@ -107,24 +104,6 @@ public class PolicyStepsRegistry {
 
     public Step getFirstStep(String policy) {
         return firstStepMap.get(policy);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(lifecyclePolicyMap, firstStepMap, stepMap);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null) {
-            return false;
-        }
-        if (getClass() != obj.getClass()) {
-            return false;
-        }
-        PolicyStepsRegistry other = (PolicyStepsRegistry) obj;
-        return Objects.equals(lifecyclePolicyMap, other.lifecyclePolicyMap)
-            && Objects.equals(firstStepMap, other.firstStepMap) && Objects.equals(stepMap, other.stepMap);
     }
 
 }

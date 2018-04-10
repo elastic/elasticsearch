@@ -21,7 +21,7 @@ setup:
             "index_pattern": "foo",
             "rollup_index": "foo_rollup",
             "cron": "*/30 * * * * ?",
-            "size" :10,
+            "page_size" :10,
             "groups" : {
               "date_histogram": {
                 "field": "the_field",
@@ -50,7 +50,7 @@ setup:
             index_pattern: "foo"
             rollup_index: "foo_rollup"
             cron: "*/30 * * * * ?"
-            size: 10
+            page_size: 10
             groups :
               date_histogram:
                 interval: "1h"
@@ -96,7 +96,7 @@ setup:
             index_pattern: "foo"
             rollup_index: "foo_rollup"
             cron: "*/30 * * * * ?"
-            size: 10
+            page_size: 10
             groups :
               date_histogram:
                 interval: "1h"
@@ -142,7 +142,7 @@ setup:
             index_pattern: "foo"
             rollup_index: "foo_rollup"
             cron: "*/30 * * * * ?"
-            size: 10
+            page_size: 10
             groups :
               date_histogram:
                 interval: "1h"

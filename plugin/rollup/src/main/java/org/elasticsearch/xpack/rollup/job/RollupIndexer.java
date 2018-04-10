@@ -400,7 +400,7 @@ public abstract class RollupIndexer {
         if (metadata.isEmpty() == false) {
             composite.setMetaData(metadata);
         }
-        composite.size(config.getSize());
+        composite.size(config.getPageSize());
         return composite;
     }
 

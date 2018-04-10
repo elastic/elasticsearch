@@ -32,7 +32,7 @@ setup:
             "index_pattern": "foo",
             "rollup_index": "foo_rollup",
             "cron": "*/30 * * * * ?",
-            "size" :10,
+            "page_size" :10,
             "groups" : {
               "date_histogram": {
                 "field": "the_field",
@@ -83,7 +83,7 @@ setup:
             "index_pattern": "foo",
             "rollup_index": "foo_rollup",
             "cron": "*/30 * * * * ?",
-            "size" :10,
+            "page_size" :10,
             "groups" : {
               "date_histogram": {
                 "field": "the_field",
@@ -142,7 +142,7 @@ setup:
             "index_pattern": "foo2",
             "rollup_index": "foo_rollup",
             "cron": "*/30 * * * * ?",
-            "size" :10,
+            "page_size" :10,
             "groups" : {
               "date_histogram": {
                 "field": "the_field",
@@ -167,7 +167,7 @@ setup:
             "index_pattern": "foo",
             "rollup_index": "different_index",
             "cron": "*/30 * * * * ?",
-            "size" :10,
+            "page_size" :10,
             "groups" : {
               "date_histogram": {
                 "field": "the_field",

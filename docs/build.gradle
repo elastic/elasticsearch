@@ -453,7 +453,7 @@ setups['sensor_rollup_job'] = '''
                 "index_pattern": "sensor-*",
                 "rollup_index": "sensor_rollup",
                 "cron": "*/30 * * * * ?",
-                "size" :1000,
+                "page_size" :1000,
                 "groups" : {
                   "date_histogram": {
                     "field": "timestamp",
@@ -523,7 +523,7 @@ setups['sensor_started_rollup_job'] = '''
                 "index_pattern": "sensor-*",
                 "rollup_index": "sensor_rollup",
                 "cron": "* * * * * ?",
-                "size" :1000,
+                "page_size" :1000,
                 "groups" : {
                   "date_histogram": {
                     "field": "timestamp",
@@ -641,7 +641,7 @@ setups['sensor_prefab_data'] = '''
                     rollup_index: "sensor_rollup"
                     index_pattern: "sensor-*"
                     timeout: "20s"
-                    size: 1000
+                    page_size: 1000
                     groups:
                       date_histogram:
                         delay: "7d"

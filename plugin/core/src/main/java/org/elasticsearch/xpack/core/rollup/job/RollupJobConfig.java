@@ -41,7 +41,7 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
     public static final ParseField TIMEOUT = new ParseField("timeout");
     public static final ParseField CURRENT = new ParseField("current");
     public static final ParseField CRON = new ParseField("cron");
-    public static final ParseField SIZE = new ParseField("size");
+    public static final ParseField PAGE_SIZE = new ParseField("page_size");
 
     private static final ParseField INDEX_PATTERN = new ParseField("index_pattern");
     private static final ParseField ROLLUP_INDEX = new ParseField("rollup_index");
@@ -55,7 +55,7 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
     private List<MetricConfig> metricsConfig = Collections.emptyList();
     private TimeValue timeout = TimeValue.timeValueSeconds(20);
     private String cron;
-    private int size;
+    private int pageSize;
 
     public static final ObjectParser<RollupJobConfig.Builder, Void> PARSER = new ObjectParser<>(NAME, false, RollupJobConfig.Builder::new);
 
@@ -68,10 +68,10 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
         PARSER.declareString(RollupJobConfig.Builder::setIndexPattern, INDEX_PATTERN);
         PARSER.declareString(RollupJobConfig.Builder::setRollupIndex, ROLLUP_INDEX);
         PARSER.declareString(RollupJobConfig.Builder::setCron, CRON);
-        PARSER.declareInt(RollupJobConfig.Builder::setSize, SIZE);
+        PARSER.declareInt(RollupJobConfig.Builder::setPageSize, PAGE_SIZE);
     }
 
-    RollupJobConfig(String id, String indexPattern, String rollupIndex, String cron, int size, GroupConfig groupConfig,
+    RollupJobConfig(String id, String indexPattern, String rollupIndex, String cron, int pageSize, GroupConfig groupConfig,
                     List<MetricConfig> metricsConfig, TimeValue timeout) {
         this.id = id;
         this.indexPattern = indexPattern;
@@ -80,7 +80,7 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
         this.metricsConfig = metricsConfig;
         this.timeout = timeout;
         this.cron = cron;
-        this.size = size;
+        this.pageSize = pageSize;
     }
 
     public RollupJobConfig(StreamInput in) throws IOException {
@@ -91,7 +91,7 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
         groupConfig = in.readOptionalWriteable(GroupConfig::new);
         metricsConfig = in.readList(MetricConfig::new);
         timeout = new TimeValue(in);
-        size = in.readInt();
+        pageSize = in.readInt();
     }
 
     public RollupJobConfig() {}
@@ -124,8 +124,8 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
         return cron;
     }
 
-    public int getSize() {
-        return size;
+    public int getPageSize() {
+        return pageSize;
     }
 
     @Override
@@ -169,7 +169,7 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
         if (timeout != null) {
             builder.field(TIMEOUT.getPreferredName(), timeout);
         }
-        builder.field(SIZE.getPreferredName(), size);
+        builder.field(PAGE_SIZE.getPreferredName(), pageSize);
         builder.endObject();
         return builder;
     }
@@ -183,7 +183,7 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
         out.writeOptionalWriteable(groupConfig);
         out.writeList(metricsConfig);
         timeout.writeTo(out);
-        out.writeInt(size);
+        out.writeInt(pageSize);
     }
 
     @Override
@@ -205,13 +205,13 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
                 && Objects.equals(this.groupConfig, that.groupConfig)
                 && Objects.equals(this.metricsConfig, that.metricsConfig)
                 && Objects.equals(this.timeout, that.timeout)
-                && Objects.equals(this.size, that.size);
+                && Objects.equals(this.pageSize, that.pageSize);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(id, indexPattern, rollupIndex, cron, groupConfig,
-                metricsConfig, timeout, size);
+                metricsConfig, timeout, pageSize);
     }
 
     @Override
@@ -234,7 +234,7 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
         private List<MetricConfig> metricsConfig = Collections.emptyList();
         private TimeValue timeout = TimeValue.timeValueSeconds(20);
         private String cron;
-        private int size = 0;
+        private int pageSize = 0;
 
         public Builder(RollupJobConfig job) {
             this.id = job.getId();
@@ -244,7 +244,7 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
             this.metricsConfig = job.getMetricsConfig();
             this.timeout = job.getTimeout();
             this.cron = job.getCron();
-            this.size = job.getSize();
+            this.pageSize = job.getPageSize();
         }
 
         public static RollupJobConfig.Builder fromXContent(String id, XContentParser parser) {
@@ -320,12 +320,12 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
             return this;
         }
 
-        public int getSize() {
-            return size;
+        public int getPageSize() {
+            return pageSize;
         }
 
-        public RollupJobConfig.Builder setSize(int size) {
-            this.size = size;
+        public RollupJobConfig.Builder setPageSize(int pageSize) {
+            this.pageSize = pageSize;
             return this;
         }
 
@@ -342,8 +342,8 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
             if (cron == null || cron.isEmpty()) {
                 throw new IllegalArgumentException("A cron schedule is mandatory.");
             }
-            if (size <= 0) {
-                throw new IllegalArgumentException("Parameter [" + SIZE.getPreferredName()
+            if (pageSize <= 0) {
+                throw new IllegalArgumentException("Parameter [" + PAGE_SIZE.getPreferredName()
                         + "] is mandatory and  must be a positive long.");
             }
             // Cron doesn't have a parse helper method to see if the cron is valid,
@@ -353,7 +353,7 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
             if (groupConfig == null && (metricsConfig == null || metricsConfig.isEmpty())) {
                 throw new IllegalArgumentException("At least one grouping or metric must be configured.");
             }
-            return new RollupJobConfig(id, indexPattern, rollupIndex, cron, size, groupConfig,
+            return new RollupJobConfig(id, indexPattern, rollupIndex, cron, pageSize, groupConfig,
                     metricsConfig, timeout);
         }
 
@@ -387,7 +387,7 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
             if (timeout != null) {
                 builder.field(TIMEOUT.getPreferredName(), timeout);
             }
-            builder.field(SIZE.getPreferredName(), size);
+            builder.field(PAGE_SIZE.getPreferredName(), pageSize);
             builder.endObject();
             return builder;
         }
@@ -401,7 +401,7 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
             out.writeOptionalWriteable(groupConfig);
             out.writeList(metricsConfig);
             timeout.writeTo(out);
-            out.writeInt(size);
+            out.writeInt(pageSize);
         }
     }
 }

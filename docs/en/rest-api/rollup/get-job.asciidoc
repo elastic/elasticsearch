@@ -88,7 +88,7 @@ Which will yield the following response:
               }
             ],
             "timeout" : "20s",
-            "size" : 1000
+            "page_size" : 1000
           },
           "status" : {
             "job_state" : "stopped"
@@ -135,7 +135,7 @@ PUT _xpack/rollup/job/sensor2 <1>
     "index_pattern": "sensor-*",
     "rollup_index": "sensor_rollup",
     "cron": "*/30 * * * * ?",
-    "size" :1000,
+    "page_size" :1000,
     "groups" : {
       "date_histogram": {
         "field": "timestamp",
@@ -207,7 +207,7 @@ Which will yield the following response:
               }
             ],
             "timeout" : "20s",
-            "size" : 1000
+            "page_size" : 1000
           },
           "status" : {
             "job_state" : "stopped"
@@ -255,7 +255,7 @@ Which will yield the following response:
               }
             ],
             "timeout" : "20s",
-            "size" : 1000
+            "page_size" : 1000
           },
           "status" : {
             "job_state" : "stopped"

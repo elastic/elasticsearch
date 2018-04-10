@@ -135,13 +135,13 @@ public class ConfigTests extends ESTestCase {
 
     public void testBadSize() {
         RollupJobConfig.Builder job = ConfigTestHelpers.getRollupJob("foo");
-        job.setSize(-1);
+        job.setPageSize(-1);
         Exception e = expectThrows(IllegalArgumentException.class, job::build);
-        assertThat(e.getMessage(), equalTo("Parameter [size] is mandatory and  must be a positive long."));
+        assertThat(e.getMessage(), equalTo("Parameter [page_size] is mandatory and  must be a positive long."));
 
-        job.setSize(0);
+        job.setPageSize(0);
         e = expectThrows(IllegalArgumentException.class, job::build);
-        assertThat(e.getMessage(), equalTo("Parameter [size] is mandatory and  must be a positive long."));
+        assertThat(e.getMessage(), equalTo("Parameter [page_size] is mandatory and  must be a positive long."));
     }
 
     public void testEmptyDateHistoField() {

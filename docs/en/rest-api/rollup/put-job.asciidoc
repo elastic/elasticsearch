@@ -31,7 +31,7 @@ started with the <<rollup-start-job,Start Job API>>.
 `cron` (required)::
   (string) A cron string which defines when the rollup job should be executed.
 
-`size` (required)::
+`page_size` (required)::
   (int) The number of bucket results that should be processed on each iteration of the rollup indexer.  A larger value
   will tend to execute faster, but will require more memory during processing.
 
@@ -59,7 +59,7 @@ PUT _xpack/rollup/job/sensor
     "index_pattern": "sensor-*",
     "rollup_index": "sensor_rollup",
     "cron": "*/30 * * * * ?",
-    "size" :1000,
+    "page_size" :1000,
     "groups" : {
       "date_histogram": {
         "field": "timestamp",

@@ -30,7 +30,7 @@ public class ConfigTestHelpers {
         builder.setIndexPattern(ESTestCase.randomAlphaOfLengthBetween(1,10));
         builder.setRollupIndex(ESTestCase.randomAlphaOfLengthBetween(1,10));
         builder.setGroupConfig(ConfigTestHelpers.getGroupConfig().build());
-        builder.setSize(ESTestCase.randomIntBetween(1,10));
+        builder.setPageSize(ESTestCase.randomIntBetween(1,10));
         if (ESTestCase.randomBoolean()) {
             List<MetricConfig> metrics = IntStream.range(1, ESTestCase.randomIntBetween(1,10))
                     .mapToObj(n -> ConfigTestHelpers.getMetricConfig().build())

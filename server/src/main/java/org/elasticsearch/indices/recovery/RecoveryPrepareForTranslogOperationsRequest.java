@@ -33,13 +33,13 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
     private final long recoveryId;
     private final ShardId shardId;
     private final int totalTranslogOps;
-    private final boolean createNewTranslog;
+    private final boolean fileBasedRecovery;
 
-    RecoveryPrepareForTranslogOperationsRequest(long recoveryId, ShardId shardId, int totalTranslogOps, boolean createNewTranslog) {
+    RecoveryPrepareForTranslogOperationsRequest(long recoveryId, ShardId shardId, int totalTranslogOps, boolean fileBasedRecovery) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.totalTranslogOps = totalTranslogOps;
-        this.createNewTranslog = createNewTranslog;
+        this.fileBasedRecovery = fileBasedRecovery;
     }
 
     RecoveryPrepareForTranslogOperationsRequest(StreamInput in) throws IOException {
@@ -51,9 +51,9 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
             in.readLong(); // maxUnsafeAutoIdTimestamp
         }
         if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
-            createNewTranslog = in.readBoolean();
+            fileBasedRecovery = in.readBoolean();
         } else {
-            createNewTranslog = true;
+            fileBasedRecovery = true;
         }
     }
 
@@ -70,10 +70,10 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
     }
 
     /**
-     * Whether or not the recover target should create a new local translog
+     * Whether or not the recovery is file based
      */
-    boolean createNewTranslog() {
-        return createNewTranslog;
+    public boolean isFileBasedRecovery() {
+        return fileBasedRecovery;
     }
 
     @Override
@@ -86,7 +86,7 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
             out.writeLong(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP); // maxUnsafeAutoIdTimestamp
         }
         if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
-            out.writeBoolean(createNewTranslog);
+            out.writeBoolean(fileBasedRecovery);
         }
     }
 }

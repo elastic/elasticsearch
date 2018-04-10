@@ -140,9 +140,12 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
 
         if (normalize) {
             Collections.sort(allRatings, Comparator.nullsLast(Collections.reverseOrder()));
-            double idcg = computeDCG(
-                    allRatings.subList(0, Math.min(ratingsInSearchHits.size(), allRatings.size())));
-            dcg = dcg / idcg;
+            double idcg = computeDCG(allRatings.subList(0, Math.min(ratingsInSearchHits.size(), allRatings.size())));
+            if (idcg > 0) {
+                dcg = dcg / idcg;
+            } else {
+                dcg = 0;
+            }
         }
         EvalQueryQuality evalQueryQuality = new EvalQueryQuality(taskId, dcg);
         evalQueryQuality.addHitsAndRatings(ratedHits);

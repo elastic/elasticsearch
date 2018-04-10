@@ -30,6 +30,7 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.PackedQuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -100,6 +101,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
         public static final double LEGACY_DISTANCE_ERROR_PCT = 0.025d;
         public static final Explicit<Boolean> COERCE = new Explicit<>(false, false);
         public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
+        public static final Explicit<Boolean> IGNORE_Z_VALUE = new Explicit<>(true, false);
 
         public static final MappedFieldType FIELD_TYPE = new GeoShapeFieldType();
 
@@ -120,6 +122,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
 
         private Boolean coerce;
         private Boolean ignoreMalformed;
+        private Boolean ignoreZValue;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -165,6 +168,18 @@ public class GeoShapeFieldMapper extends FieldMapper {
             return Defaults.IGNORE_MALFORMED;
         }
 
+        protected Explicit<Boolean> ignoreZValue(BuilderContext context) {
+            if (ignoreZValue != null) {
+                return new Explicit<>(ignoreZValue, true);
+            }
+            return Defaults.IGNORE_Z_VALUE;
+        }
+
+        public Builder ignoreZValue(final boolean ignoreZValue) {
+            this.ignoreZValue = ignoreZValue;
+            return this;
+        }
+
         @Override
         public GeoShapeFieldMapper build(BuilderContext context) {
             GeoShapeFieldType geoShapeFieldType = (GeoShapeFieldType)fieldType;
@@ -174,8 +189,8 @@ public class GeoShapeFieldMapper extends FieldMapper {
             }
             setupFieldType(context);
 
-            return new GeoShapeFieldMapper(name, fieldType, ignoreMalformed(context), coerce(context), context.indexSettings(),
-                    multiFieldsBuilder.build(this, context), copyTo);
+            return new GeoShapeFieldMapper(name, fieldType, ignoreMalformed(context), coerce(context), ignoreZValue(context),
+                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -211,6 +226,10 @@ public class GeoShapeFieldMapper extends FieldMapper {
                     iterator.remove();
                 } else if (Names.COERCE.equals(fieldName)) {
                     builder.coerce(TypeParsers.nodeBooleanValue(fieldName, Names.COERCE, fieldNode, parserContext));
+                    iterator.remove();
+                } else if (GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName().equals(fieldName)) {
+                    builder.ignoreZValue(TypeParsers.nodeBooleanValue(fieldName, GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName(),
+                        fieldNode, parserContext));
                     iterator.remove();
                 } else if (Names.STRATEGY_POINTS_ONLY.equals(fieldName)
                     && builder.fieldType().strategyName.equals(SpatialStrategy.TERM.getStrategyName()) == false) {
@@ -443,12 +462,15 @@ public class GeoShapeFieldMapper extends FieldMapper {
 
     protected Explicit<Boolean> coerce;
     protected Explicit<Boolean> ignoreMalformed;
+    protected Explicit<Boolean> ignoreZValue;
 
     public GeoShapeFieldMapper(String simpleName, MappedFieldType fieldType, Explicit<Boolean> ignoreMalformed,
-                               Explicit<Boolean> coerce, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+                               Explicit<Boolean> coerce, Explicit<Boolean> ignoreZValue, Settings indexSettings,
+                               MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, multiFields, copyTo);
         this.coerce = coerce;
         this.ignoreMalformed = ignoreMalformed;
+        this.ignoreZValue = ignoreZValue;
     }
 
     @Override
@@ -474,13 +496,13 @@ public class GeoShapeFieldMapper extends FieldMapper {
                     for (Shape s : shapes) {
                         indexShape(context, s);
                     }
+                    return null;
                 } else if (shape instanceof Point == false) {
                     throw new MapperParsingException("[{" + fieldType().name() + "}] is configured for points only but a " +
                         ((shape instanceof JtsGeometry) ? ((JtsGeometry)shape).getGeom().getGeometryType() : shape.getClass()) + " was found");
                 }
-            } else {
-                indexShape(context, shape);
             }
+            indexShape(context, shape);
         } catch (Exception e) {
             if (ignoreMalformed.value() == false) {
                 throw new MapperParsingException("failed to parse [" + fieldType().name() + "]", e);
@@ -511,6 +533,9 @@ public class GeoShapeFieldMapper extends FieldMapper {
         }
         if (gsfm.ignoreMalformed.explicit()) {
             this.ignoreMalformed = gsfm.ignoreMalformed;
+        }
+        if (gsfm.ignoreZValue.explicit()) {
+            this.ignoreZValue = gsfm.ignoreZValue;
         }
     }
 
@@ -545,6 +570,9 @@ public class GeoShapeFieldMapper extends FieldMapper {
         if (includeDefaults || ignoreMalformed.explicit()) {
             builder.field(IGNORE_MALFORMED, ignoreMalformed.value());
         }
+        if (includeDefaults || ignoreZValue.explicit()) {
+            builder.field(GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName(), ignoreZValue.value());
+        }
     }
 
     public Explicit<Boolean> coerce() {
@@ -553,6 +581,10 @@ public class GeoShapeFieldMapper extends FieldMapper {
 
     public Explicit<Boolean> ignoreMalformed() {
         return ignoreMalformed;
+    }
+
+    public Explicit<Boolean> ignoreZValue() {
+        return ignoreZValue;
     }
 
     @Override

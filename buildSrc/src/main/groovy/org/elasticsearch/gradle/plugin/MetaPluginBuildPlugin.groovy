@@ -37,19 +37,28 @@ class MetaPluginBuildPlugin implements Plugin<Project> {
         project.plugins.apply(RestTestPlugin)
 
         createBundleTask(project)
+        boolean isModule = project.path.startsWith(':modules:')
 
         project.integTestCluster {
             dependsOn(project.bundlePlugin)
-            plugin(project.path)
         }
         BuildPlugin.configurePomGeneration(project)
         project.afterEvaluate {
             PluginBuildPlugin.addZipPomGeneration(project)
+            if (isModule) {
+                if (project.integTestCluster.distribution == 'integ-test-zip') {
+                    project.integTestCluster.module(project)
+                }
+             } else {
+                project.integTestCluster.plugin(project.path)
+             }
         }
 
         RunTask run = project.tasks.create('run', RunTask)
         run.dependsOn(project.bundlePlugin)
-        run.clusterConfig.plugin(project.path)
+        if (isModule == false) {
+            run.clusterConfig.plugin(project.path)
+        }
     }
 
     private static void createBundleTask(Project project) {
@@ -58,11 +67,9 @@ class MetaPluginBuildPlugin implements Plugin<Project> {
 
         // create the actual bundle task, which zips up all the files for the plugin
         Zip bundle = project.tasks.create(name: 'bundlePlugin', type: Zip, dependsOn: [buildProperties]) {
-            into('elasticsearch') {
-                from(buildProperties.descriptorOutput.parentFile) {
-                    // plugin properties file
-                    include(buildProperties.descriptorOutput.name)
-                }
+            from(buildProperties.descriptorOutput.parentFile) {
+                // plugin properties file
+                include(buildProperties.descriptorOutput.name)
             }
             // due to how the renames work for each bundled plugin, we must exclude empty dirs or every subdir
             // within bundled plugin zips will show up at the root as an empty dir
@@ -81,14 +88,13 @@ class MetaPluginBuildPlugin implements Plugin<Project> {
             buildProperties.extension.plugins.each { String bundledPluginProjectName ->
                 Project bundledPluginProject = project.project(bundledPluginProjectName)
                 bundledPluginProject.afterEvaluate {
+                    String bundledPluginName = bundledPluginProject.esplugin.name
                     bundle.configure {
                         dependsOn bundledPluginProject.bundlePlugin
                         from(project.zipTree(bundledPluginProject.bundlePlugin.outputs.files.singleFile)) {
                             eachFile { FileCopyDetails details ->
-                                // paths in the individual plugins begin with elasticsearch, and we want to add in the
-                                // bundled plugin name between that and each filename
-                                details.relativePath = new RelativePath(true, 'elasticsearch', bundledPluginProjectName,
-                                                                        details.relativePath.toString().replace('elasticsearch/', ''))
+                                // we want each path to have the plugin name interjected
+                                details.relativePath = new RelativePath(true, bundledPluginName, details.relativePath.toString())
                             }
                         }
                     }

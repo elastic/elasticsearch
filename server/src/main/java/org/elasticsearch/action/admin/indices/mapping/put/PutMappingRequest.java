@@ -40,6 +40,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Map;
@@ -249,11 +250,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      * The mapping source definition.
      */
     public PutMappingRequest source(XContentBuilder mappingBuilder) {
-        try {
-            return source(mappingBuilder.string(), mappingBuilder.contentType());
-        } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to build json for mapping request", e);
-        }
+        return source(Strings.toString(mappingBuilder), mappingBuilder.contentType());
     }
 
     /**
@@ -264,7 +261,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(mappingSource);
-            return source(builder.string(), XContentType.JSON);
+            return source(Strings.toString(builder), XContentType.JSON);
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + mappingSource + "]", e);
         }
@@ -323,7 +320,9 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (source != null) {
-            builder.rawValue(new BytesArray(source), XContentType.JSON);
+            try (InputStream stream = new BytesArray(source).streamInput()) {
+                builder.rawValue(stream, XContentType.JSON);
+            }
         } else {
             builder.startObject().endObject();
         }

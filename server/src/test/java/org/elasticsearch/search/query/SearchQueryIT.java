@@ -94,7 +94,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFail
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
@@ -191,7 +190,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch().setQuery(constantScoreQuery(matchQuery("field1", "quick"))).get();
         assertHitCount(searchResponse, 2L);
         for (SearchHit searchHit : searchResponse.getHits().getHits()) {
-            assertSearchHit(searchHit, hasScore(1.0f));
+            assertThat(searchHit, hasScore(1.0f));
         }
 
         searchResponse = client().prepareSearch("test").setQuery(
@@ -210,7 +209,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 2L);
         assertFirstHit(searchResponse, hasScore(searchResponse.getHits().getAt(1).getScore()));
         for (SearchHit searchHit : searchResponse.getHits().getHits()) {
-            assertSearchHit(searchHit, hasScore(1.0f));
+            assertThat(searchHit, hasScore(1.0f));
         }
 
         int num = scaledRandomIntBetween(100, 200);
@@ -228,7 +227,7 @@ public class SearchQueryIT extends ESIntegTestCase {
             long totalHits = searchResponse.getHits().getTotalHits();
             SearchHits hits = searchResponse.getHits();
             for (SearchHit searchHit : hits) {
-                assertSearchHit(searchHit, hasScore(1.0f));
+                assertThat(searchHit, hasScore(1.0f));
             }
             searchResponse = client().prepareSearch("test_1").setQuery(
                     boolQuery().must(matchAllQuery()).must(
@@ -238,7 +237,7 @@ public class SearchQueryIT extends ESIntegTestCase {
             if (totalHits > 1) {
                 float expected = hits.getAt(0).getScore();
                 for (SearchHit searchHit : hits) {
-                    assertSearchHit(searchHit, hasScore(expected));
+                    assertThat(searchHit, hasScore(expected));
                 }
             }
         }

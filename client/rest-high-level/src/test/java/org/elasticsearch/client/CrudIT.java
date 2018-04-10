@@ -26,6 +26,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -52,6 +53,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
+import org.joda.time.format.DateTimeFormat;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -613,7 +617,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 bulkRequest.add(deleteRequest);
 
             } else {
-                BytesReference source = XContentBuilder.builder(xContentType.xContent()).startObject().field("id", i).endObject().bytes();
+                BytesReference source = BytesReference.bytes(XContentBuilder.builder(xContentType.xContent())
+                        .startObject().field("id", i).endObject());
                 if (opType == DocWriteRequest.OpType.INDEX) {
                     IndexRequest indexRequest = new IndexRequest("index", "test", id).source(source, xContentType);
                     if (erroneous) {
@@ -648,7 +653,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         validateBulkResponses(nbItems, errors, bulkResponse, bulkRequest);
     }
 
-    public void testBulkProcessorIntegration() throws IOException, InterruptedException {
+    public void testBulkProcessorIntegration() throws IOException {
         int nbItems = randomIntBetween(10, 100);
         boolean[] errors = new boolean[nbItems];
 
@@ -760,6 +765,71 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 assertFalse(bulkItemResponse.isFailed());
                 assertEquals(errors[i] ? RestStatus.NOT_FOUND : RestStatus.OK, bulkItemResponse.status());
             }
+        }
+    }
+
+    public void testUrlEncode() throws IOException {
+        String indexPattern = "<logstash-{now/M}>";
+        String expectedIndex = "logstash-" +
+                DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(DateTimeZone.UTC).monthOfYear().roundFloorCopy());
+        {
+            IndexRequest indexRequest = new IndexRequest(indexPattern, "type", "id#1");
+            indexRequest.source("field", "value");
+            IndexResponse indexResponse = highLevelClient().index(indexRequest);
+            assertEquals(expectedIndex, indexResponse.getIndex());
+            assertEquals("type", indexResponse.getType());
+            assertEquals("id#1", indexResponse.getId());
+        }
+        {
+            GetRequest getRequest = new GetRequest(indexPattern, "type", "id#1");
+            GetResponse getResponse = highLevelClient().get(getRequest);
+            assertTrue(getResponse.isExists());
+            assertEquals(expectedIndex, getResponse.getIndex());
+            assertEquals("type", getResponse.getType());
+            assertEquals("id#1", getResponse.getId());
+        }
+
+        String docId = "this/is/the/id/中文";
+        {
+            IndexRequest indexRequest = new IndexRequest("index", "type", docId);
+            indexRequest.source("field", "value");
+            IndexResponse indexResponse = highLevelClient().index(indexRequest);
+            assertEquals("index", indexResponse.getIndex());
+            assertEquals("type", indexResponse.getType());
+            assertEquals(docId, indexResponse.getId());
+        }
+        {
+            GetRequest getRequest = new GetRequest("index", "type", docId);
+            GetResponse getResponse = highLevelClient().get(getRequest);
+            assertTrue(getResponse.isExists());
+            assertEquals("index", getResponse.getIndex());
+            assertEquals("type", getResponse.getType());
+            assertEquals(docId, getResponse.getId());
+        }
+
+        assertTrue(highLevelClient().indices().exists(new GetIndexRequest().indices(indexPattern, "index")));
+    }
+
+    public void testParamsEncode() throws IOException {
+        //parameters are encoded by the low-level client but let's test that everything works the same when we use the high-level one
+        String routing = "routing/中文value#1?";
+        {
+            IndexRequest indexRequest = new IndexRequest("index", "type", "id");
+            indexRequest.source("field", "value");
+            indexRequest.routing(routing);
+            IndexResponse indexResponse = highLevelClient().index(indexRequest);
+            assertEquals("index", indexResponse.getIndex());
+            assertEquals("type", indexResponse.getType());
+            assertEquals("id", indexResponse.getId());
+        }
+        {
+            GetRequest getRequest = new GetRequest("index", "type", "id").routing(routing);
+            GetResponse getResponse = highLevelClient().get(getRequest);
+            assertTrue(getResponse.isExists());
+            assertEquals("index", getResponse.getIndex());
+            assertEquals("type", getResponse.getType());
+            assertEquals("id", getResponse.getId());
+            assertEquals(routing, getResponse.getField("_routing").getValue());
         }
     }
 }

@@ -228,6 +228,10 @@ public class MeanReciprocalRank implements EvaluationMetric {
             return NAME;
         }
 
+        /**
+         * the ranking of the first relevant document, or -1 if no relevant document was
+         * found
+         */
         int getFirstRelevantRank() {
             return firstRelevantRank;
         }

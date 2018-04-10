@@ -21,7 +21,6 @@ package org.elasticsearch.env;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
@@ -30,7 +29,7 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.SimpleFSDirectory;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -38,7 +37,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.logging.ServerLoggers;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -182,7 +181,7 @@ public final class NodeEnvironment  implements Closeable {
             locks = null;
             nodeLockId = -1;
             nodeMetaData = new NodeMetaData(generateNodeId(settings));
-            logger = ServerLoggers.getLogger(getClass(), Node.addNodeNameIfNeeded(settings, this.nodeMetaData.nodeId()));
+            logger = Loggers.getLogger(getClass(), Node.addNodeNameIfNeeded(settings, this.nodeMetaData.nodeId()));
             return;
         }
         final NodePath[] nodePaths = new NodePath[environment.dataWithClusterFiles().length];
@@ -190,7 +189,7 @@ public final class NodeEnvironment  implements Closeable {
         boolean success = false;
 
         // trace logger to debug issues before the default node name is derived from the node id
-        Logger startupTraceLogger = ServerLoggers.getLogger(getClass(), settings);
+        Logger startupTraceLogger = Loggers.getLogger(getClass(), settings);
 
         try {
             sharedDataPath = environment.sharedDataFile();
@@ -218,8 +217,8 @@ public final class NodeEnvironment  implements Closeable {
                         }
 
                     } catch (IOException e) {
-                        startupTraceLogger.trace(
-                            (Supplier<?>) () -> new ParameterizedMessage("failed to obtain node lock on {}", dir.toAbsolutePath()), e);
+                        startupTraceLogger.trace(() -> new ParameterizedMessage(
+                            "failed to obtain node lock on {}", dir.toAbsolutePath()), e);
                         lastException = new IOException("failed to obtain lock on " + dir.toAbsolutePath(), e);
                         // release all the ones that were obtained up until now
                         releaseAndNullLocks(locks);
@@ -244,7 +243,7 @@ public final class NodeEnvironment  implements Closeable {
                 throw new IllegalStateException(message, lastException);
             }
             this.nodeMetaData = loadOrCreateNodeMetaData(settings, startupTraceLogger, nodePaths);
-            this.logger = ServerLoggers.getLogger(getClass(), Node.addNodeNameIfNeeded(settings, this.nodeMetaData.nodeId()));
+            this.logger = Loggers.getLogger(getClass(), Node.addNodeNameIfNeeded(settings, this.nodeMetaData.nodeId()));
 
             this.nodeLockId = nodeLockId;
             this.locks = locks;
@@ -898,7 +897,7 @@ public final class NodeEnvironment  implements Closeable {
                     logger.trace("releasing lock [{}]", lock);
                     lock.close();
                 } catch (IOException e) {
-                    logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to release lock [{}]", lock), e);
+                    logger.trace(() -> new ParameterizedMessage("failed to release lock [{}]", lock), e);
                 }
             }
         }

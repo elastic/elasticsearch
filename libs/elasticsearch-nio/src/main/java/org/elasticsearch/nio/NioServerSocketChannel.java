@@ -23,20 +23,15 @@ import java.io.IOException;
 import java.nio.channels.ServerSocketChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class NioServerSocketChannel extends AbstractNioChannel<ServerSocketChannel> {
+public class NioServerSocketChannel extends NioChannel {
 
-    private final ChannelFactory<?, ?> channelFactory;
-    private ServerChannelContext context;
+    private final ServerSocketChannel socketChannel;
     private final AtomicBoolean contextSet = new AtomicBoolean(false);
+    private ServerChannelContext context;
 
-    public NioServerSocketChannel(ServerSocketChannel socketChannel, ChannelFactory<?, ?> channelFactory, AcceptingSelector selector)
-        throws IOException {
-        super(socketChannel, selector);
-        this.channelFactory = channelFactory;
-    }
-
-    public ChannelFactory<?, ?> getChannelFactory() {
-        return channelFactory;
+    public NioServerSocketChannel(ServerSocketChannel socketChannel) throws IOException {
+        super(socketChannel);
+        this.socketChannel = socketChannel;
     }
 
     /**
@@ -51,6 +46,11 @@ public class NioServerSocketChannel extends AbstractNioChannel<ServerSocketChann
         } else {
             throw new IllegalStateException("Context on this channel were already set. It should only be once.");
         }
+    }
+
+    @Override
+    public ServerSocketChannel getRawChannel() {
+        return socketChannel;
     }
 
     @Override

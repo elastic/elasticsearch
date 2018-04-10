@@ -22,7 +22,6 @@ import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
@@ -46,7 +45,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocatio
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.common.logging.ServerLoggers;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -79,6 +78,7 @@ import org.elasticsearch.monitor.jvm.JvmService;
 import org.elasticsearch.monitor.os.OsService;
 import org.elasticsearch.monitor.process.ProcessService;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -111,7 +111,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
     }
 
     private static final class LoggingSettingUpdater implements SettingUpdater<Settings> {
-        final Predicate<String> loggerPredicate = ServerLoggers.LOG_LEVEL_SETTING::match;
+        final Predicate<String> loggerPredicate = Loggers.LOG_LEVEL_SETTING::match;
         private final Settings settings;
 
         LoggingSettingUpdater(Settings settings) {
@@ -129,10 +129,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
             builder.put(current.filter(loggerPredicate));
             for (String key : previous.keySet()) {
                 if (loggerPredicate.test(key) && builder.keys().contains(key) == false) {
-                    if (ServerLoggers.LOG_LEVEL_SETTING.getConcreteSetting(key).exists(settings) == false) {
+                    if (Loggers.LOG_LEVEL_SETTING.getConcreteSetting(key).exists(settings) == false) {
                         builder.putNull(key);
                     } else {
-                        builder.put(key, ServerLoggers.LOG_LEVEL_SETTING.getConcreteSetting(key).get(settings).toString());
+                        builder.put(key, Loggers.LOG_LEVEL_SETTING.getConcreteSetting(key).get(settings).toString());
                     }
                 }
             }
@@ -150,12 +150,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 if ("_root".equals(component)) {
                     final String rootLevel = value.get(key);
                     if (rootLevel == null) {
-                        ServerLoggers.setLevel(ESLoggerFactory.getRootLogger(), ServerLoggers.LOG_DEFAULT_LEVEL_SETTING.get(settings));
+                        Loggers.setLevel(ESLoggerFactory.getRootLogger(), Loggers.LOG_DEFAULT_LEVEL_SETTING.get(settings));
                     } else {
-                        ServerLoggers.setLevel(ESLoggerFactory.getRootLogger(), rootLevel);
+                        Loggers.setLevel(ESLoggerFactory.getRootLogger(), rootLevel);
                     }
                 } else {
-                    ServerLoggers.setLevel(ESLoggerFactory.getLogger(component), value.get(key));
+                    Loggers.setLevel(ESLoggerFactory.getLogger(component), value.get(key));
                 }
             }
         }
@@ -372,7 +372,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     Node.NODE_INGEST_SETTING,
                     Node.NODE_ATTRIBUTES,
                     Node.NODE_LOCAL_STORAGE_SETTING,
-                    TransportMasterNodeReadAction.FORCE_LOCAL_SETTING,
                     AutoCreateIndex.AUTO_CREATE_INDEX_SETTING,
                     BaseRestHandler.MULTI_ALLOW_EXPLICIT_INDEX,
                     ClusterName.CLUSTER_NAME_SETTING,
@@ -380,8 +379,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING,
                     EsExecutors.PROCESSORS_SETTING,
                     ThreadContext.DEFAULT_HEADERS_SETTING,
-                    ServerLoggers.LOG_DEFAULT_LEVEL_SETTING,
-                    ServerLoggers.LOG_LEVEL_SETTING,
+                    Loggers.LOG_DEFAULT_LEVEL_SETTING,
+                    Loggers.LOG_LEVEL_SETTING,
                     NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING,
                     NodeEnvironment.ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING,
                     OsService.REFRESH_INTERVAL_SETTING,
@@ -420,6 +419,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     FastVectorHighlighter.SETTING_TV_HIGHLIGHT_MULTI_VALUE,
                     Node.BREAKER_TYPE_KEY,
                     OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
-                    IndexGraveyard.SETTING_MAX_TOMBSTONES
+                    IndexGraveyard.SETTING_MAX_TOMBSTONES,
+                    EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING
             )));
 }

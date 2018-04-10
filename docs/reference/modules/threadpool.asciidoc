@@ -120,7 +120,7 @@ The `auto_queue_frame_size` setting controls the number of operations during
 which measurement is taken before the queue is adjusted. It should be large
 enough that a single operation cannot unduly bias the calculation.
 
-The `target_response_rate` is a time value setting that indicates the targeted
+The `target_response_time` is a time value setting that indicates the targeted
 average response time for tasks in the thread pool queue. If tasks are routinely
 above this time, the thread pool queue will be adjusted down so that tasks are
 rejected.
@@ -134,7 +134,7 @@ thread_pool:
         min_queue_size: 10
         max_queue_size: 1000
         auto_queue_frame_size: 2000
-        target_response_rate: 1s
+        target_response_time: 1s
 --------------------------------------------------
 
 [float]

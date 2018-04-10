@@ -95,7 +95,7 @@ public class PluginBuildPlugin extends BuildPlugin {
             // we "upgrade" these optional deps to provided for plugins, since they will run
             // with a full elasticsearch server that includes optional deps
             compileOnly "org.locationtech.spatial4j:spatial4j:${project.versions.spatial4j}"
-            compileOnly "com.vividsolutions:jts:${project.versions.jts}"
+            compileOnly "org.locationtech.jts:jts-core:${project.versions.jts}"
             compileOnly "org.apache.logging.log4j:log4j-api:${project.versions.log4j}"
             compileOnly "org.apache.logging.log4j:log4j-core:${project.versions.log4j}"
             compileOnly "org.elasticsearch:jna:${project.versions.jna}"
@@ -106,6 +106,7 @@ public class PluginBuildPlugin extends BuildPlugin {
     private static void createIntegTestTask(Project project) {
         RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)
         integTest.mustRunAfter(project.precommit, project.test)
+        project.integTestCluster.distribution = 'integ-test-zip'
         project.check.dependsOn(integTest)
     }
 
@@ -140,9 +141,6 @@ public class PluginBuildPlugin extends BuildPlugin {
                 include 'config/**'
                 include 'bin/**'
             }
-            if (project.path.startsWith(':modules:') == false) {
-                into('elasticsearch')
-            }
         }
         project.assemble.dependsOn(bundle)
 
@@ -170,12 +168,10 @@ public class PluginBuildPlugin extends BuildPlugin {
             Files.copy(jarFile.resolveSibling(sourcesFileName), jarFile.resolveSibling(clientSourcesFileName),
                     StandardCopyOption.REPLACE_EXISTING)
 
-            if (project.compilerJavaVersion < JavaVersion.VERSION_1_10) {
-                String javadocFileName = jarFile.fileName.toString().replace('.jar', '-javadoc.jar')
-                String clientJavadocFileName = clientFileName.replace('.jar', '-javadoc.jar')
-                Files.copy(jarFile.resolveSibling(javadocFileName), jarFile.resolveSibling(clientJavadocFileName),
-                        StandardCopyOption.REPLACE_EXISTING)
-            }
+            String javadocFileName = jarFile.fileName.toString().replace('.jar', '-javadoc.jar')
+            String clientJavadocFileName = clientFileName.replace('.jar', '-javadoc.jar')
+            Files.copy(jarFile.resolveSibling(javadocFileName), jarFile.resolveSibling(clientJavadocFileName),
+                    StandardCopyOption.REPLACE_EXISTING)
         }
         project.assemble.dependsOn(clientJar)
     }

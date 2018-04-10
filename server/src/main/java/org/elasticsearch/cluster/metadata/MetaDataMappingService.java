@@ -22,7 +22,7 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateTaskListener;
@@ -191,7 +191,7 @@ public class MetaDataMappingService extends AbstractComponent {
                 }
             }
         } catch (Exception e) {
-            logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to refresh-mapping in cluster state", index), e);
+            logger.warn(() -> new ParameterizedMessage("[{}] failed to refresh-mapping in cluster state", index), e);
         }
         return dirty;
     }
@@ -205,7 +205,7 @@ public class MetaDataMappingService extends AbstractComponent {
             refreshTask,
             ClusterStateTaskConfig.build(Priority.HIGH),
             refreshExecutor,
-                (source, e) -> logger.warn((Supplier<?>) () -> new ParameterizedMessage("failure during [{}]", source), e)
+                (source, e) -> logger.warn(() -> new ParameterizedMessage("failure during [{}]", source), e)
         );
     }
 
@@ -352,7 +352,7 @@ public class MetaDataMappingService extends AbstractComponent {
 
         @Override
         public String describeTasks(List<PutMappingClusterStateUpdateRequest> tasks) {
-            return tasks.stream().map(PutMappingClusterStateUpdateRequest::type).reduce((s1, s2) -> s1 + ", " + s2).orElse("");
+            return String.join(", ", tasks.stream().map(t -> (CharSequence)t.type())::iterator);
         }
     }
 

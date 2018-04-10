@@ -31,12 +31,14 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -200,7 +202,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Parses the mappings (formatted as JSON) into a map
      */
     public static Map<String, Object> parseMapping(NamedXContentRegistry xContentRegistry, String mappingSource) throws Exception {
-        try (XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry, mappingSource)) {
+        try (XContentParser parser = XContentType.JSON.xContent()
+                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, mappingSource)) {
             return parser.map();
         }
     }
@@ -217,7 +220,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             // only update entries if needed
             updatedEntries = internalMerge(indexMetaData, MergeReason.MAPPING_RECOVERY, true);
         } catch (Exception e) {
-            logger.warn((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage("[{}] failed to apply mappings", index()), e);
+            logger.warn(() -> new ParameterizedMessage("[{}] failed to apply mappings", index()), e);
             throw e;
         }
 
@@ -254,7 +257,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Map<String, CompressedXContent> mappingSourcesCompressed = new LinkedHashMap<>(mappings.size());
         for (Map.Entry<String, Map<String, Object>> entry : mappings.entrySet()) {
             try {
-                mappingSourcesCompressed.put(entry.getKey(), new CompressedXContent(XContentFactory.jsonBuilder().map(entry.getValue()).string()));
+                mappingSourcesCompressed.put(entry.getKey(), new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(entry.getValue()))));
             } catch (Exception e) {
                 throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
             }
@@ -370,14 +373,26 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Map<String, DocumentMapper> results = new LinkedHashMap<>(documentMappers.size() + 1);
 
         if (defaultMapper != null) {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_0_0_beta1)
-                    && reason == MergeReason.MAPPING_UPDATE) { // only log in case of explicit mapping updates
+            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
+                throw new IllegalArgumentException("The [default] mapping cannot be updated on index [" + index().getName() +
+                        "]: defaults mappings are not useful anymore now that indices can have at most one type.");
+            } else if (reason == MergeReason.MAPPING_UPDATE) { // only log in case of explicit mapping updates
                 DEPRECATION_LOGGER.deprecated("[_default_] mapping is deprecated since it is not useful anymore now that indexes " +
                         "cannot have more than one type");
             }
             assert defaultMapper.type().equals(DEFAULT_MAPPING);
             mappers.put(DEFAULT_MAPPING, defaultMapper);
             results.put(DEFAULT_MAPPING, defaultMapper);
+        }
+
+        if (indexSettings.isSingleType()) {
+            Set<String> actualTypes = new HashSet<>(mappers.keySet());
+            documentMappers.forEach(mapper -> actualTypes.add(mapper.type()));
+            actualTypes.remove(DEFAULT_MAPPING);
+            if (actualTypes.size() > 1) {
+                throw new IllegalArgumentException(
+                    "Rejecting mapping update to [" + index().getName() + "] as the final mapping would have more than 1 type: " + actualTypes);
+            }
         }
 
         for (DocumentMapper mapper : documentMappers) {
@@ -470,15 +485,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 if (results.containsKey(updatedDocumentMapper.type())) {
                     results.put(updatedDocumentMapper.type(), updatedDocumentMapper);
                 }
-            }
-        }
-
-        if (indexSettings.isSingleType()) {
-            Set<String> actualTypes = new HashSet<>(mappers.keySet());
-            actualTypes.remove(DEFAULT_MAPPING);
-            if (actualTypes.size() > 1) {
-                throw new IllegalArgumentException(
-                        "Rejecting mapping update to [" + index().getName() + "] as the final mapping would have more than 1 type: " + actualTypes);
             }
         }
 

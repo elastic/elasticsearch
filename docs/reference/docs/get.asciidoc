@@ -3,7 +3,7 @@
 
 The get API allows to get a typed JSON document from the index based on
 its id. The following example gets a JSON document from an index called
-twitter, under a type called tweet, with id valued 0:
+twitter, under a type called _doc, with id valued 0:
 
 [source,js]
 --------------------------------------------------
@@ -261,7 +261,7 @@ GET twitter/_doc/2?routing=user1
 // CONSOLE
 // TEST[continued]
 
-The above will get a tweet with id 2, but will be routed based on the
+The above will get a tweet with id `2`, but will be routed based on the
 user. Note, issuing a get without the correct routing, will cause the
 document not to be fetched.
 

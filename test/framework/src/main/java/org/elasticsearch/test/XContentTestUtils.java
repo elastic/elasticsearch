@@ -55,7 +55,7 @@ public final class XContentTestUtils {
         builder.startObject();
         part.toXContent(builder, EMPTY_PARAMS);
         builder.endObject();
-        return XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2();
+        return XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
     }
 
 
@@ -209,8 +209,8 @@ public final class XContentTestUtils {
                 }
             }
         };
-        return XContentTestUtils
-                .insertIntoXContent(contentType.xContent(), xContent, insertPaths, () -> randomAsciiOfLength(random, 10), value).bytes();
+        return BytesReference.bytes(XContentTestUtils
+                .insertIntoXContent(contentType.xContent(), xContent, insertPaths, () -> randomAsciiOfLength(random, 10), value));
     }
 
     /**
@@ -286,7 +286,7 @@ public final class XContentTestUtils {
      * {@link ObjectPath}.
      * The key/value arguments can suppliers that either return fixed or random values.
      */
-    static XContentBuilder insertIntoXContent(XContent xContent, BytesReference original, List<String> paths, Supplier<String> key,
+    public static XContentBuilder insertIntoXContent(XContent xContent, BytesReference original, List<String> paths, Supplier<String> key,
             Supplier<Object> value) throws IOException {
         ObjectPath object = ObjectPath.createFromXContent(xContent, original);
         for (String path : paths) {

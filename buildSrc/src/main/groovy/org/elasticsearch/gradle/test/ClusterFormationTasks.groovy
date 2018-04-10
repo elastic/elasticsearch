@@ -494,7 +494,7 @@ class ClusterFormationTasks {
          * the short name requiring the path to already exist.
          */
         final Object esPluginUtil = "${-> node.binPath().resolve('elasticsearch-plugin').toString()}"
-        final Object[] args = [esPluginUtil, 'install', file]
+        final Object[] args = [esPluginUtil, 'install', '--batch', file]
         return configureExecTask(name, project, setup, node, args)
     }
 
@@ -601,11 +601,18 @@ class ClusterFormationTasks {
                     }
                 }
             }
+            if (ant.properties.containsKey("failed${name}".toString())) {
+                waitFailed(project, nodes, logger, "Failed to start elasticsearch: timed out after ${waitSeconds} seconds")
+            }
+
             boolean anyNodeFailed = false
             for (NodeInfo node : nodes) {
-                anyNodeFailed |= node.failedMarker.exists()
+                if (node.failedMarker.exists()) {
+                    logger.error("Failed to start elasticsearch: ${node.failedMarker.toString()} exists")
+                    anyNodeFailed = true
+                }
             }
-            if (ant.properties.containsKey("failed${name}".toString()) || anyNodeFailed) {
+            if (anyNodeFailed) {
                 waitFailed(project, nodes, logger, 'Failed to start elasticsearch')
             }
 

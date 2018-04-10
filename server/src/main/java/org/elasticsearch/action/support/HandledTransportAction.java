@@ -91,13 +91,8 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
                     try {
                         channel.sendResponse(e);
                     } catch (Exception e1) {
-                        logger.warn(
-                            (org.apache.logging.log4j.util.Supplier<?>)
-                                () -> new ParameterizedMessage(
-                                    "Failed to send error response for action [{}] and request [{}]",
-                                    actionName,
-                                    request),
-                            e1);
+                        logger.warn(() -> new ParameterizedMessage(
+                                    "Failed to send error response for action [{}] and request [{}]", actionName, request), e1);
                     }
                 }
             });

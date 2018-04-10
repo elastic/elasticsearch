@@ -259,12 +259,12 @@ public class InstallPluginCommandTests extends ESTestCase {
 
     static Path createPlugin(String name, Path structure, String... additionalProps) throws IOException {
         writePlugin(name, structure, additionalProps);
-        return writeZip(structure, "elasticsearch");
+        return writeZip(structure, null);
     }
 
     static Path createMetaPlugin(String name, Path structure) throws IOException {
         writeMetaPlugin(name, structure);
-        return writeZip(structure, "elasticsearch");
+        return writeZip(structure, null);
     }
 
     void installPlugin(String pluginUrl, Path home) throws Exception {
@@ -811,7 +811,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         Path pluginDir = metaDir.resolve("fake");
         Files.createDirectory(pluginDir);
         Files.createFile(pluginDir.resolve("fake.yml"));
-        String pluginZip = writeZip(pluginDir, "elasticsearch").toUri().toURL().toString();
+        String pluginZip = writeZip(pluginDir, null).toUri().toURL().toString();
         NoSuchFileException e = expectThrows(NoSuchFileException.class, () -> installPlugin(pluginZip, env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains("plugin-descriptor.properties"));
         assertInstallCleaned(env.v2());
@@ -822,23 +822,23 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertInstallCleaned(env.v2());
     }
 
-    public void testMissingDirectory() throws Exception {
+    public void testContainsIntermediateDirectory() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
         Files.createFile(pluginDir.resolve(PluginInfo.ES_PLUGIN_PROPERTIES));
-        String pluginZip = writeZip(pluginDir, null).toUri().toURL().toString();
+        String pluginZip = writeZip(pluginDir, "elasticsearch").toUri().toURL().toString();
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
-        assertTrue(e.getMessage(), e.getMessage().contains("`elasticsearch` directory is missing in the plugin zip"));
+        assertThat(e.getMessage(), containsString("This plugin was built with an older plugin structure"));
         assertInstallCleaned(env.v2());
     }
 
-    public void testMissingDirectoryMeta() throws Exception {
+    public void testContainsIntermediateDirectoryMeta() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
         Files.createFile(pluginDir.resolve(MetaPluginInfo.ES_META_PLUGIN_PROPERTIES));
-        String pluginZip = writeZip(pluginDir, null).toUri().toURL().toString();
+        String pluginZip = writeZip(pluginDir, "elasticsearch").toUri().toURL().toString();
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
-        assertTrue(e.getMessage(), e.getMessage().contains("`elasticsearch` directory is missing in the plugin zip"));
+        assertThat(e.getMessage(), containsString("This plugin was built with an older plugin structure"));
         assertInstallCleaned(env.v2());
     }
 
@@ -846,11 +846,12 @@ public class InstallPluginCommandTests extends ESTestCase {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path zip = createTempDir().resolve("broken.zip");
         try (ZipOutputStream stream = new ZipOutputStream(Files.newOutputStream(zip))) {
-            stream.putNextEntry(new ZipEntry("elasticsearch/../blah"));
+            stream.putNextEntry(new ZipEntry("../blah"));
         }
         String pluginZip = zip.toUri().toURL().toString();
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains("resolving outside of plugin directory"));
+        assertInstallCleaned(env.v2());
     }
 
     public void testOfficialPluginsHelpSorted() throws Exception {
@@ -1137,45 +1138,6 @@ public class InstallPluginCommandTests extends ESTestCase {
             assertInstallPluginFromUrl("mygroup:myplugin:1.0.0", "myplugin", url, null, ".sha1", bytes -> "foobar"));
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("SHA-1 mismatch, expected foobar"));
-    }
-
-    public void testKeystoreNotRequired() throws Exception {
-        Tuple<Path, Environment> env = createEnv(fs, temp);
-        Path pluginDir = createPluginDir(temp);
-        String pluginZip = createPluginUrl("fake", pluginDir, "requires.keystore", "false");
-        installPlugin(pluginZip, env.v1());
-        assertFalse(Files.exists(KeyStoreWrapper.keystorePath(env.v2().configFile())));
-    }
-
-    public void testKeystoreRequiredAlreadyExists() throws Exception {
-        Tuple<Path, Environment> env = createEnv(fs, temp);
-        KeyStoreWrapper keystore = KeyStoreWrapper.create();
-        keystore.save(env.v2().configFile(), new char[0]);
-        byte[] expectedBytes = Files.readAllBytes(KeyStoreWrapper.keystorePath(env.v2().configFile()));
-        Path pluginDir = createPluginDir(temp);
-        String pluginZip = createPluginUrl("fake", pluginDir, "requires.keystore", "true");
-        installPlugin(pluginZip, env.v1());
-        byte[] gotBytes = Files.readAllBytes(KeyStoreWrapper.keystorePath(env.v2().configFile()));
-        assertArrayEquals("Keystore was modified", expectedBytes, gotBytes);
-    }
-
-    public void testKeystoreRequiredCreated() throws Exception {
-        Tuple<Path, Environment> env = createEnv(fs, temp);
-        Path pluginDir = createPluginDir(temp);
-        String pluginZip = createPluginUrl("fake", pluginDir, "requires.keystore", "true");
-        installPlugin(pluginZip, env.v1());
-        assertTrue(Files.exists(KeyStoreWrapper.keystorePath(env.v2().configFile())));
-    }
-
-    public void testKeystoreRequiredCreatedWithMetaPlugin() throws Exception {
-        Tuple<Path, Environment> env = createEnv(fs, temp);
-        Path metaDir = createPluginDir(temp);
-        Path pluginDir = metaDir.resolve("fake");
-        Files.createDirectory(pluginDir);
-        writePlugin("fake", pluginDir, "requires.keystore", "true");
-        String metaZip = createMetaPluginUrl("my_plugins", metaDir);
-        installPlugin(metaZip, env.v1());
-        assertTrue(Files.exists(KeyStoreWrapper.keystorePath(env.v2().configFile())));
     }
 
     private Function<byte[], String> checksum(final MessageDigest digest) {

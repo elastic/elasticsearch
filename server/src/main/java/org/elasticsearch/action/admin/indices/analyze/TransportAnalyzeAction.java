@@ -27,7 +27,7 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
@@ -41,7 +41,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
@@ -65,6 +64,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.io.Reader;
+import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -317,12 +317,12 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
             for (int textIndex = 0; textIndex < request.text().length; textIndex++) {
                 String charFilteredSource = request.text()[textIndex];
 
-                Reader reader = new FastStringReader(charFilteredSource);
+                Reader reader = new StringReader(charFilteredSource);
                 if (charFilterFactories != null) {
 
                     for (int charFilterIndex = 0; charFilterIndex < charFilterFactories.length; charFilterIndex++) {
                         reader = charFilterFactories[charFilterIndex].create(reader);
-                        Reader readerForWriteOut = new FastStringReader(charFilteredSource);
+                        Reader readerForWriteOut = new StringReader(charFilteredSource);
                         readerForWriteOut = charFilterFactories[charFilterIndex].create(readerForWriteOut);
                         charFilteredSource = writeCharStream(readerForWriteOut);
                         charFiltersTexts[charFilterIndex][textIndex] = charFilteredSource;
@@ -382,7 +382,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
     }
 
     private static TokenStream createStackedTokenStream(String source, CharFilterFactory[] charFilterFactories, TokenizerFactory tokenizerFactory, TokenFilterFactory[] tokenFilterFactories, int current) {
-        Reader reader = new FastStringReader(source);
+        Reader reader = new StringReader(source);
         for (CharFilterFactory charFilterFactory : charFilterFactories) {
             reader = charFilterFactory.create(reader);
         }

@@ -15,11 +15,11 @@ List projects = [
   'client:client-benchmark-noop-api-plugin',
   'client:benchmark',
   'benchmarks',
-  'distribution:integ-test-zip',
-  'distribution:zip',
-  'distribution:tar',
-  'distribution:deb',
-  'distribution:rpm',
+  'distribution:archives:integ-test-zip',
+  'distribution:archives:zip',
+  'distribution:archives:tar',
+  'distribution:packages:deb',
+  'distribution:packages:rpm',
   'distribution:bwc:next-minor-snapshot',
   'distribution:bwc:staged-minor-snapshot',
   'distribution:bwc:next-bugfix-snapshot',
@@ -80,7 +80,9 @@ if (isEclipse) {
   projects << 'server-tests'
   projects << 'libs:elasticsearch-core-tests'
   projects << 'libs:elasticsearch-nio-tests'
+  projects << 'libs:x-content-tests'
   projects << 'libs:secure-sm-tests'
+  projects << 'libs:grok-tests'
 }
 
 include projects.toArray(new String[0])
@@ -100,10 +102,18 @@ if (isEclipse) {
   project(":libs:elasticsearch-nio").buildFileName = 'eclipse-build.gradle'
   project(":libs:elasticsearch-nio-tests").projectDir = new File(rootProject.projectDir, 'libs/elasticsearch-nio/src/test')
   project(":libs:elasticsearch-nio-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:x-content").projectDir = new File(rootProject.projectDir, 'libs/x-content/src/main')
+  project(":libs:x-content").buildFileName = 'eclipse-build.gradle'
+  project(":libs:x-content-tests").projectDir = new File(rootProject.projectDir, 'libs/x-content/src/test')
+  project(":libs:x-content-tests").buildFileName = 'eclipse-build.gradle'
   project(":libs:secure-sm").projectDir = new File(rootProject.projectDir, 'libs/secure-sm/src/main')
   project(":libs:secure-sm").buildFileName = 'eclipse-build.gradle'
   project(":libs:secure-sm-tests").projectDir = new File(rootProject.projectDir, 'libs/secure-sm/src/test')
   project(":libs:secure-sm-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:grok").projectDir = new File(rootProject.projectDir, 'libs/grok/src/main')
+  project(":libs:grok").buildFileName = 'eclipse-build.gradle'
+  project(":libs:grok-tests").projectDir = new File(rootProject.projectDir, 'libs/grok/src/test')
+  project(":libs:grok-tests").buildFileName = 'eclipse-build.gradle'
 }
 
 // look for extra plugins for elasticsearch

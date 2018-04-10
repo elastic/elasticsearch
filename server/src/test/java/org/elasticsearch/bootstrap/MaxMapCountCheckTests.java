@@ -26,7 +26,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.common.logging.ServerLoggers;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 
@@ -83,11 +83,11 @@ public class MaxMapCountCheckTests extends ESTestCase {
                             "I/O exception while trying to read [{}]",
                             new Object[] { procSysVmMaxMapCountPath },
                             e -> ioException == e));
-            ServerLoggers.addAppender(logger, appender);
+            Loggers.addAppender(logger, appender);
             assertThat(check.getMaxMapCount(logger), equalTo(-1L));
             appender.assertAllExpectationsMatched();
             verify(reader).close();
-            ServerLoggers.removeAppender(logger, appender);
+            Loggers.removeAppender(logger, appender);
             appender.stop();
         }
 
@@ -105,11 +105,11 @@ public class MaxMapCountCheckTests extends ESTestCase {
                             "unable to parse vm.max_map_count [{}]",
                             new Object[] { "eof" },
                             e -> e instanceof NumberFormatException && e.getMessage().equals("For input string: \"eof\"")));
-            ServerLoggers.addAppender(logger, appender);
+            Loggers.addAppender(logger, appender);
             assertThat(check.getMaxMapCount(logger), equalTo(-1L));
             appender.assertAllExpectationsMatched();
             verify(reader).close();
-            ServerLoggers.removeAppender(logger, appender);
+            Loggers.removeAppender(logger, appender);
             appender.stop();
         }
 

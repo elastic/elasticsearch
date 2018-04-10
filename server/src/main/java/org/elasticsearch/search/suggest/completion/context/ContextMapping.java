@@ -20,6 +20,7 @@
 package org.elasticsearch.search.suggest.completion.context;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -155,7 +156,7 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
     @Override
     public String toString() {
         try {
-            return toXContent(JsonXContent.contentBuilder(), ToXContent.EMPTY_PARAMS).string();
+            return Strings.toString(toXContent(JsonXContent.contentBuilder(), ToXContent.EMPTY_PARAMS));
         } catch (IOException e) {
             return super.toString();
         }

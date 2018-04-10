@@ -42,12 +42,6 @@ public abstract class BaseRandomBinaryDocValuesRangeQueryTestCase extends BaseRa
     }
 
     @Override
-    public void testRandomBig() throws Exception {
-        // Test regardless whether -Dtests.nightly=true has been specified:
-        super.testRandomBig();
-    }
-
-    @Override
     protected final Field newRangeField(Range box) {
         AbstractRange<?> testRange = (AbstractRange<?>) box;
         RangeFieldMapper.Range range = new RangeFieldMapper.Range(rangeType(), testRange.getMin(), testRange.getMax(), true , true);

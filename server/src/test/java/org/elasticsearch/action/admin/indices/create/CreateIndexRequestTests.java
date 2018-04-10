@@ -26,11 +26,14 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.io.IOException;
 import java.util.Map;
@@ -43,7 +46,7 @@ public class CreateIndexRequestTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         CreateIndexRequest request = new CreateIndexRequest("foo");
-        String mapping = JsonXContent.contentBuilder().startObject().startObject("type").endObject().endObject().string();
+        String mapping = Strings.toString(JsonXContent.contentBuilder().startObject().startObject("type").endObject().endObject());
         request.mapping("my_type", mapping, XContentType.JSON);
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -84,7 +87,7 @@ public class CreateIndexRequestTests extends ESTestCase {
     public void testToXContent() throws IOException {
         CreateIndexRequest request = new CreateIndexRequest("foo");
 
-        String mapping = JsonXContent.contentBuilder().startObject().startObject("type").endObject().endObject().string();
+        String mapping = Strings.toString(JsonXContent.contentBuilder().startObject().startObject("type").endObject().endObject());
         request.mapping("my_type", mapping, XContentType.JSON);
 
         Alias alias = new Alias("test_alias");
@@ -119,17 +122,22 @@ public class CreateIndexRequestTests extends ESTestCase {
         assertMappingsEqual(createIndexRequest.mappings(), parsedCreateIndexRequest.mappings());
         assertAliasesEqual(createIndexRequest.aliases(), parsedCreateIndexRequest.aliases());
         assertEquals(createIndexRequest.settings(), parsedCreateIndexRequest.settings());
+
+        BytesReference finalBytes = toShuffledXContent(parsedCreateIndexRequest, xContentType, EMPTY_PARAMS, humanReadable);
+        ElasticsearchAssertions.assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
     }
 
-    private void assertMappingsEqual(Map<String, String> expected, Map<String, String> actual) throws IOException {
+    public static void assertMappingsEqual(Map<String, String> expected, Map<String, String> actual) throws IOException {
         assertEquals(expected.keySet(), actual.keySet());
 
         for (Map.Entry<String, String> expectedEntry : expected.entrySet()) {
             String expectedValue = expectedEntry.getValue();
             String actualValue = actual.get(expectedEntry.getKey());
-            XContentParser expectedJson = createParser(XContentType.JSON.xContent(), expectedValue);
-            XContentParser actualJson = createParser(XContentType.JSON.xContent(), actualValue);
-            assertEquals(expectedJson.mapOrdered(), actualJson.mapOrdered());
+            XContentParser expectedJson = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE, expectedValue);
+            XContentParser actualJson = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE, actualValue);
+            assertEquals(expectedJson.map(), actualJson.map());
         }
     }
 

@@ -20,12 +20,14 @@
 package org.elasticsearch.bootstrap;
 
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.secure_sm.SecureSM;
@@ -76,7 +78,8 @@ public class BootstrapForTesting {
         }
 
         // just like bootstrap, initialize natives, then SM
-        Bootstrap.initializeNatives(javaTmpDir, true, true, true);
+        final boolean systemCallFilter = Booleans.parseBoolean(System.getProperty("tests.system_call_filter", "true"));
+        Bootstrap.initializeNatives(javaTmpDir, true, systemCallFilter, true);
 
         // initialize probes
         Bootstrap.initializeProbes();
@@ -86,7 +89,8 @@ public class BootstrapForTesting {
 
         // check for jar hell
         try {
-            JarHell.checkJarHell();
+            final Logger logger = ESLoggerFactory.getLogger(JarHell.class);
+            JarHell.checkJarHell(logger::debug);
         } catch (Exception e) {
             throw new RuntimeException("found jar hell in test classpath", e);
         }

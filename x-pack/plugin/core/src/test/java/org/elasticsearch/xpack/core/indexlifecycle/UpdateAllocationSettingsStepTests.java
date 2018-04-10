@@ -6,26 +6,37 @@
 package org.elasticsearch.xpack.core.indexlifecycle;
 
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsTestHelper;
+import org.elasticsearch.client.AdminClient;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.xpack.core.indexlifecycle.AsyncActionStep.Listener;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
+import org.junit.Before;
+import org.mockito.Mockito;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-
-import static org.hamcrest.Matchers.equalTo;
 
 public class UpdateAllocationSettingsStepTests extends ESTestCase {
+
+    private Client client;
+
+    @Before
+    public void setup() {
+        client = Mockito.mock(Client.class);
+    }
 
     public UpdateAllocationSettingsStep createRandomInstance() {
         StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
@@ -34,7 +45,7 @@ public class UpdateAllocationSettingsStepTests extends ESTestCase {
         Map<String, String> exclude = AllocateActionTests.randomMap(0, 10);
         Map<String, String> require = AllocateActionTests.randomMap(0, 10);
 
-        return new UpdateAllocationSettingsStep(stepKey, nextStepKey, include, exclude, require);
+        return new UpdateAllocationSettingsStep(stepKey, nextStepKey, client, include, exclude, require);
     }
 
     public UpdateAllocationSettingsStep mutateInstance(UpdateAllocationSettingsStep instance) {
@@ -67,105 +78,120 @@ public class UpdateAllocationSettingsStepTests extends ESTestCase {
             throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new UpdateAllocationSettingsStep(key, nextKey, include, exclude, require);
+        return new UpdateAllocationSettingsStep(key, nextKey, client, include, exclude, require);
     }
 
     public void testHashcodeAndEquals() {
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createRandomInstance(),
-                instance -> new UpdateAllocationSettingsStep(instance.getKey(), instance.getNextStepKey(), instance.getInclude(),
-                        instance.getExclude(), instance.getRequire()),
-                this::mutateInstance);
+        EqualsHashCodeTestUtils
+                .checkEqualsAndHashCode(
+                        createRandomInstance(), instance -> new UpdateAllocationSettingsStep(instance.getKey(), instance.getNextStepKey(),
+                                instance.getClient(), instance.getInclude(), instance.getExclude(), instance.getRequire()),
+                        this::mutateInstance);
     }
 
     public void testPerformAction() {
-        IndexMetaData indexMetadata = IndexMetaData.builder(randomAlphaOfLength(5))
-            .settings(settings(Version.CURRENT))
-            .numberOfShards(1)
-            .numberOfReplicas(0).build();
-        MetaData metaData = MetaData.builder()
-            .persistentSettings(settings(Version.CURRENT).build())
-            .put(IndexMetaData.builder(indexMetadata))
-            .build();
-        Index index = indexMetadata.getIndex();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).build();
+        Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
 
         UpdateAllocationSettingsStep step = createRandomInstance();
-        ClusterState newState = step.performAction(index, clusterState);
-        assertNotSame(clusterState, newState);
-        assertThat(getRouting(index, newState, IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey()), equalTo(step.getInclude()));
-        assertThat(getRouting(index, newState, IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey()), equalTo(step.getExclude()));
-        assertThat(getRouting(index, newState, IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey()), equalTo(step.getRequire()));
+
+        AdminClient adminClient = Mockito.mock(AdminClient.class);
+        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
+
+        Mockito.when(client.admin()).thenReturn(adminClient);
+        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+        Mockito.doAnswer(new Answer<Void>() {
+
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
+                @SuppressWarnings("unchecked")
+                ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
+                Settings.Builder expectedSettings = Settings.builder();
+                step.getInclude().forEach(
+                        (key, value) -> expectedSettings.put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + key, value));
+                step.getExclude().forEach(
+                        (key, value) -> expectedSettings.put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + key, value));
+                step.getRequire().forEach(
+                        (key, value) -> expectedSettings.put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + key, value));
+                UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings.build(), index.getName());
+                listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
+                return null;
+            }
+
+        }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
+
+        SetOnce<Boolean> actionCompleted = new SetOnce<>();
+
+        step.performAction(index, new Listener() {
+
+            @Override
+            public void onResponse(boolean complete) {
+                actionCompleted.set(complete);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError("Unexpected method call", e);
+            }
+        });
+
+        assertEquals(true, actionCompleted.get());
+
+        Mockito.verify(client, Mockito.only()).admin();
+        Mockito.verify(adminClient, Mockito.only()).indices();
+        Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
     }
 
-    public void testPerformActionNoIndex() {
-        MetaData metaData = MetaData.builder().persistentSettings(settings(Version.CURRENT).build()).build();
-        Index index = new Index("invalid_index", "invalid_index_id");
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).build();
-
+    public void testPerformActionFailure() {
+        Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
+        Exception exception = new RuntimeException();
         UpdateAllocationSettingsStep step = createRandomInstance();
-        ClusterState newState = step.performAction(index, clusterState);
-        assertSame(clusterState, newState);
-    }
 
-    public void testAddMissingAttr() {
-        String prefix = randomFrom(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey(),
-            IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey(),
-            IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey());
-        Map<String, String> newAttrs = Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(5));
-        Settings existingSettings = Settings.builder()
-            .put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "box_type", "foo")
-            .put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "box_type", "bar")
-            .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "box_type", "baz").build();
-        Settings.Builder newSettingsBuilder = Settings.builder();
-        UpdateAllocationSettingsStep.addMissingAttrs(newAttrs, prefix, existingSettings, newSettingsBuilder);
+        AdminClient adminClient = Mockito.mock(AdminClient.class);
+        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
 
-        Settings.Builder expectedSettingsBuilder = Settings.builder();
-        newAttrs.forEach((k, v) -> expectedSettingsBuilder.put(prefix + k, v));
-        assertThat(newSettingsBuilder.build(), equalTo(expectedSettingsBuilder.build()));
-    }
+        Mockito.when(client.admin()).thenReturn(adminClient);
+        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+        Mockito.doAnswer(new Answer<Void>() {
 
-    public void testAddMissingAttrDiffenerentValue() {
-        String prefix = randomFrom(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey(),
-            IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey(),
-            IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey());
-        String newKey = randomAlphaOfLength(4);
-        String newValue = randomAlphaOfLength(5);
-        Map<String, String> newAttrs = Collections.singletonMap(newKey, newValue);
-        Settings existingSettings = Settings.builder()
-            .put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "box_type", "foo")
-            .put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "box_type", "bar")
-            .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "box_type", "baz")
-            .put(prefix + newKey, "1234").build();
-        Settings.Builder newSettingsBuilder = Settings.builder();
-        UpdateAllocationSettingsStep.addMissingAttrs(newAttrs, prefix, existingSettings, newSettingsBuilder);
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
+                @SuppressWarnings("unchecked")
+                ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
+                Settings.Builder expectedSettings = Settings.builder();
+                step.getInclude().forEach(
+                        (key, value) -> expectedSettings.put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + key, value));
+                step.getExclude().forEach(
+                        (key, value) -> expectedSettings.put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + key, value));
+                step.getRequire().forEach(
+                        (key, value) -> expectedSettings.put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + key, value));
+                UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings.build(), index.getName());
+                listener.onFailure(exception);
+                return null;
+            }
 
-        Settings.Builder expectedSettingsBuilder = Settings.builder();
-        newAttrs.forEach((k, v) -> expectedSettingsBuilder.put(prefix + k, v));
-        assertThat(newSettingsBuilder.build(), equalTo(expectedSettingsBuilder.build()));
-    }
+        }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-    public void testAddMissingAttrNoneMissing() {
-        String prefix = randomFrom(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey(),
-            IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey(),
-            IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey());
-        String newKey = randomAlphaOfLength(4);
-        String newValue = randomAlphaOfLength(5);
-        Map<String, String> newAttrs = Collections.singletonMap(newKey, newValue);
-        Settings existingSettings = Settings.builder()
-            .put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "box_type", "foo")
-            .put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "box_type", "bar")
-            .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "box_type", "baz")
-            .put(prefix + newKey, newValue).build();
-        Settings.Builder newSettingsBuilder = Settings.builder();
-        UpdateAllocationSettingsStep.addMissingAttrs(newAttrs, prefix, existingSettings, newSettingsBuilder);
+        SetOnce<Boolean> exceptionThrown = new SetOnce<>();
+        step.performAction(index, new Listener() {
 
-        Settings.Builder expectedSettingsBuilder = Settings.builder();
-        assertThat(newSettingsBuilder.build(), equalTo(expectedSettingsBuilder.build()));
-    }
+            @Override
+            public void onResponse(boolean complete) {
+                throw new AssertionError("Unexpected method call");
+            }
 
-    private Map<String, String> getRouting(Index index, ClusterState clusterState, String settingPrefix) {
-        Settings includeSettings = clusterState.metaData().index(index).getSettings()
-            .getByPrefix(settingPrefix);
-        return includeSettings.keySet().stream().collect(Collectors.toMap(Function.identity(), includeSettings::get));
+            @Override
+            public void onFailure(Exception e) {
+                assertSame(exception, e);
+                exceptionThrown.set(true);
+            }
+        });
+
+        assertEquals(true, exceptionThrown.get());
+
+        Mockito.verify(client, Mockito.only()).admin();
+        Mockito.verify(adminClient, Mockito.only()).indices();
+        Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
     }
 }

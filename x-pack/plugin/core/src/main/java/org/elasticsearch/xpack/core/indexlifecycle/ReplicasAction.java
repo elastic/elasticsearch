@@ -74,9 +74,9 @@ public class ReplicasAction implements LifecycleAction {
     @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
         StepKey updateReplicasKey = new StepKey(phase, NAME, UpdateReplicaSettingsStep.NAME);
-        StepKey enoughKey = new StepKey(phase, NAME, EnoughShardsWaitStep.NAME);
-        return Arrays.asList(new UpdateReplicaSettingsStep(updateReplicasKey, enoughKey, numberOfReplicas),
-                new EnoughShardsWaitStep(enoughKey, nextStepKey));
+        StepKey enoughKey = new StepKey(phase, NAME, ReplicasAllocatedStep.NAME);
+        return Arrays.asList(new UpdateReplicaSettingsStep(updateReplicasKey, enoughKey, client, numberOfReplicas),
+                new ReplicasAllocatedStep(enoughKey, nextStepKey, numberOfReplicas));
     }
 
     public int getNumberOfReplicas() {

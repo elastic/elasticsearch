@@ -5,35 +5,31 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
 import java.util.Objects;
 
-public class UpdateReplicaSettingsStep extends ClusterStateActionStep {
+public class UpdateReplicaSettingsStep extends AsyncActionStep {
     public static final String NAME = "update-replicas";
 
     private int numberOfReplicas;
 
-    public UpdateReplicaSettingsStep(StepKey key, StepKey nextStepKey, int numberOfReplicas) {
-        super(key, nextStepKey);
+    public UpdateReplicaSettingsStep(StepKey key, StepKey nextStepKey, Client client, int numberOfReplicas) {
+        super(key, nextStepKey, client);
         this.numberOfReplicas = numberOfReplicas;
     }
 
     @Override
-    public ClusterState performAction(Index index, ClusterState clusterState) {
-        IndexMetaData idxMeta = clusterState.metaData().index(index);
-        if (idxMeta == null) {
-            return clusterState;
-        }
-        Settings.Builder newSettings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas);
-
-        return ClusterState.builder(clusterState)
-            .metaData(MetaData.builder(clusterState.metaData())
-                .updateSettings(newSettings.build(), index.getName())).build();
+    public void performAction(Index index, Listener listener) {
+        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(index.getName())
+                .settings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas));
+        getClient().admin().indices().updateSettings(updateSettingsRequest,
+                ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
     }
 
     public int getNumberOfReplicas() {

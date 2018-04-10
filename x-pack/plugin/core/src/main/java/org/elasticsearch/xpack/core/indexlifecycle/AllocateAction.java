@@ -113,13 +113,12 @@ public class AllocateAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
-        StepKey enoughKey = new StepKey(phase, NAME, EnoughShardsWaitStep.NAME);
         StepKey allocateKey = new StepKey(phase, NAME, UpdateAllocationSettingsStep.NAME);
         StepKey allocationRoutedKey = new StepKey(phase, NAME, AllocationRoutedStep.NAME);
-        UpdateAllocationSettingsStep allocateStep = new UpdateAllocationSettingsStep(allocateKey, allocationRoutedKey,
-            include, exclude, require);
+        UpdateAllocationSettingsStep allocateStep = new UpdateAllocationSettingsStep(allocateKey, allocationRoutedKey, client, include,
+                exclude, require);
         AllocationRoutedStep routedCheckStep = new AllocationRoutedStep(allocationRoutedKey, nextStepKey);
-        return Arrays.asList(new EnoughShardsWaitStep(enoughKey, allocateKey), allocateStep, routedCheckStep);
+        return Arrays.asList(allocateStep, routedCheckStep);
     }
 
     @Override

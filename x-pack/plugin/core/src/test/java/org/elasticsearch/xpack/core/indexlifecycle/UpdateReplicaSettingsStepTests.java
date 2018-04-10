@@ -6,23 +6,40 @@
 package org.elasticsearch.xpack.core.indexlifecycle;
 
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsTestHelper;
+import org.elasticsearch.client.AdminClient;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.xpack.core.indexlifecycle.AsyncActionStep.Listener;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
+import org.junit.Before;
+import org.mockito.Mockito;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 public class UpdateReplicaSettingsStepTests extends ESTestCase {
+
+    private Client client;
+
+    @Before
+    public void setup() {
+        client = Mockito.mock(Client.class);
+    }
 
     public UpdateReplicaSettingsStep createRandomInstance() {
         StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
 
-        return new UpdateReplicaSettingsStep(stepKey, nextStepKey, randomIntBetween(0, 100));
+        return new UpdateReplicaSettingsStep(stepKey, nextStepKey, client, randomIntBetween(0, 100));
     }
 
     public UpdateReplicaSettingsStep mutateInstance(UpdateReplicaSettingsStep instance) {
@@ -44,45 +61,107 @@ public class UpdateReplicaSettingsStepTests extends ESTestCase {
             throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new UpdateReplicaSettingsStep(key, nextKey, replicas);
+        return new UpdateReplicaSettingsStep(key, nextKey, client, replicas);
     }
 
     public void testHashcodeAndEquals() {
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createRandomInstance(),
-                instance -> new UpdateReplicaSettingsStep(instance.getKey(), instance.getNextStepKey(), instance.getNumberOfReplicas()),
-                this::mutateInstance);
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createRandomInstance(), instance -> new UpdateReplicaSettingsStep(instance.getKey(),
+                instance.getNextStepKey(), instance.getClient(), instance.getNumberOfReplicas()), this::mutateInstance);
     }
 
     public void testPerformAction() {
-        IndexMetaData indexMetadata = IndexMetaData.builder(randomAlphaOfLength(5))
-            .settings(settings(Version.CURRENT))
-            .numberOfShards(1)
-            .numberOfReplicas(0).build();
-        MetaData metaData = MetaData.builder()
-            .persistentSettings(settings(Version.CURRENT).build())
-            .put(IndexMetaData.builder(indexMetadata))
-            .build();
-        Index index = indexMetadata.getIndex();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).build();
+        Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
 
         UpdateReplicaSettingsStep step = createRandomInstance();
-        ClusterState newState = step.performAction(index, clusterState);
-        assertNotSame(clusterState, newState);
-        IndexMetaData newIndexMetadata = newState.metaData().index(index);
-        assertNotNull(newIndexMetadata);
-        assertNotSame(indexMetadata, newIndexMetadata);
-        assertTrue(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(newIndexMetadata.getSettings()));
-        assertEquals(step.getNumberOfReplicas(),
-                (int) IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(newIndexMetadata.getSettings()));
+
+        AdminClient adminClient = Mockito.mock(AdminClient.class);
+        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
+
+        Mockito.when(client.admin()).thenReturn(adminClient);
+        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+        Mockito.doAnswer(new Answer<Void>() {
+
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
+                @SuppressWarnings("unchecked")
+                ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
+                Settings expectedSettings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, step.getNumberOfReplicas())
+                        .build();
+                UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, index.getName());
+                listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
+                return null;
+            }
+
+        }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
+
+        SetOnce<Boolean> actionCompleted = new SetOnce<>();
+
+        step.performAction(index, new Listener() {
+
+            @Override
+            public void onResponse(boolean complete) {
+                actionCompleted.set(complete);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError("Unexpected method call", e);
+            }
+        });
+
+        assertEquals(true, actionCompleted.get());
+
+        Mockito.verify(client, Mockito.only()).admin();
+        Mockito.verify(adminClient, Mockito.only()).indices();
+        Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
     }
 
-    public void testPerformActionNoIndex() {
-        MetaData metaData = MetaData.builder().persistentSettings(settings(Version.CURRENT).build()).build();
-        Index index = new Index("invalid_index", "invalid_index_id");
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).build();
-
+    public void testPerformActionFailure() {
+        Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
+        Exception exception = new RuntimeException();
         UpdateReplicaSettingsStep step = createRandomInstance();
-        ClusterState newState = step.performAction(index, clusterState);
-        assertSame(clusterState, newState);
+
+        AdminClient adminClient = Mockito.mock(AdminClient.class);
+        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
+
+        Mockito.when(client.admin()).thenReturn(adminClient);
+        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+        Mockito.doAnswer(new Answer<Void>() {
+
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
+                @SuppressWarnings("unchecked")
+                ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
+                Settings expectedSettings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, step.getNumberOfReplicas())
+                        .build();
+                UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings, index.getName());
+                listener.onFailure(exception);
+                return null;
+            }
+
+        }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
+
+        SetOnce<Boolean> exceptionThrown = new SetOnce<>();
+        step.performAction(index, new Listener() {
+
+            @Override
+            public void onResponse(boolean complete) {
+                throw new AssertionError("Unexpected method call");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertSame(exception, e);
+                exceptionThrown.set(true);
+            }
+        });
+
+        assertEquals(true, exceptionThrown.get());
+
+        Mockito.verify(client, Mockito.only()).admin();
+        Mockito.verify(adminClient, Mockito.only()).indices();
+        Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
     }
 }

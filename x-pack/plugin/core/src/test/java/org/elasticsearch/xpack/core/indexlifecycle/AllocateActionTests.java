@@ -105,21 +105,17 @@ public class AllocateActionTests extends AbstractSerializingTestCase<AllocateAct
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
         assertEquals(3, steps.size());
-        StepKey expectedFirstStepKey = new StepKey(phase, AllocateAction.NAME, EnoughShardsWaitStep.NAME);
-        StepKey expectedSecondStepKey = new StepKey(phase, AllocateAction.NAME, UpdateAllocationSettingsStep.NAME);
-        StepKey expectedThirdStepKey = new StepKey(phase, AllocateAction.NAME, AllocationRoutedStep.NAME);
-        EnoughShardsWaitStep firstStep = (EnoughShardsWaitStep) steps.get(0);
+        StepKey expectedFirstStepKey = new StepKey(phase, AllocateAction.NAME, UpdateAllocationSettingsStep.NAME);
+        StepKey expectedSecondStepKey = new StepKey(phase, AllocateAction.NAME, AllocationRoutedStep.NAME);
+        UpdateAllocationSettingsStep firstStep = (UpdateAllocationSettingsStep) steps.get(1);
         assertEquals(expectedFirstStepKey, firstStep.getKey());
         assertEquals(expectedSecondStepKey, firstStep.getNextStepKey());
-        UpdateAllocationSettingsStep secondStep = (UpdateAllocationSettingsStep) steps.get(1);
+        assertEquals(action.getInclude(), firstStep.getInclude());
+        assertEquals(action.getExclude(), firstStep.getExclude());
+        assertEquals(action.getRequire(), firstStep.getRequire());
+        AllocationRoutedStep secondStep = (AllocationRoutedStep) steps.get(2);
         assertEquals(expectedSecondStepKey, secondStep.getKey());
-        assertEquals(expectedThirdStepKey, secondStep.getNextStepKey());
-        assertEquals(action.getInclude(), secondStep.getInclude());
-        assertEquals(action.getExclude(), secondStep.getExclude());
-        assertEquals(action.getRequire(), secondStep.getRequire());
-        AllocationRoutedStep thirdStep = (AllocationRoutedStep) steps.get(2);
-        assertEquals(expectedThirdStepKey, thirdStep.getKey());
-        assertEquals(nextStepKey, thirdStep.getNextStepKey());
+        assertEquals(nextStepKey, secondStep.getNextStepKey());
     }
 
 }

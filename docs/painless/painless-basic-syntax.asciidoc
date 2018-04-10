@@ -61,7 +61,7 @@ Use literals to specify different types of values directly in a script.
 ===== Integers
 
 Use integer literals to specify an integer value in decimal, octal, or hex
-notation of the <<primitive-types, primitive type>> int, long, float, or
+notation of the <<primitive-types, primitive types>> int, long, float, or
 double. Use the following single letter designations to specify the
 <<primitive-types, primitive type>>: `l` or `L` for `long`, `f` or `F` for
 `float`, and `d` or `D` for `double`. If not specified, the type defaults to
@@ -78,8 +78,8 @@ HEX:     '-'? '0' [xX] [0-9a-fA-F]+ [lL]?;
 
 *Examples:*
 
-Integer literals of int 0, double 0.0, long 1234, float -90.0,
-int -18 in octal, and int 3882 in hex.
+Integer literals of `int 0`, `double 0.0`, `long 1234`,
+`float -90.0`, `int -18` in octal, and `int 3882` in hex.
 
 [source,Java]
 ----
@@ -95,7 +95,7 @@ int -18 in octal, and int 3882 in hex.
 ===== Floats
 
 Use floating point literals to specify a floating point value of the
-<<primitive-types, primitive type>> float or double. Use the following single
+<<primitive-types, primitive types>> float or double. Use the following single
 letter designations for the <<primitive-types, primitive type>>: `f` for
 `float` and `d` for `double`. If not specified, the type defaults to `double`.
 
@@ -108,8 +108,8 @@ EXPONENT: ( [eE] [+\-]? [0-9]+ );
 
 *Examples:*
 
-Floating point literals of double 0.0, double 1000000.0 in
-exponent notation, double 0.977777, double -126.34, and float 89.9.
+Floating point literals of `double 0.0`, `double 1000000.0` in
+exponent notation, `double 0.977777`, `double -126.34`, and `float 89.9`.
 
 [source,Java]
 ----
@@ -124,10 +124,11 @@ exponent notation, double 0.977777, double -126.34, and float 89.9.
 ===== Strings
 
 Use string literals to specify string values of the
-<<string-type, reference type String>> with either single or double quotes.
+<<string-type, String type>> with either single or double quotes.
 Use a `\"` token to include a double-quote as part of a double-quoted string
 literal. Use a `\'` token to include a single-quote as part of a single-quoted
-string.  Use a `\\` token to include a backslash as part of any string literal.
+string literal.  Use a `\\` token to include a backslash as part of any string
+literal.
 
 *Grammar:*
 [source,ANTLR4]
@@ -154,19 +155,28 @@ String literals using both single-quotes and double-quotes.
 ===== Characters
 
 Use the <<casting, casting operator>> to convert string literals or
-<<string-type, reference type Strings>> into
-<<primitive-types, primitive type char>> values.  Attempting
-to cast any string value that is not of a single character length into a character
-literal will result in an error.
+<<string-type, String type>> values into <<primitive-types, char type>> values.
+<<string-type, String type>> values converted into
+<<primitive-types, char type>> values must be exactly one character in length
+or an error will occur.
 
 *Examples:*
 
-Casting string literals into char values.
+Casting string literals into <<primitive-types, char type>> values.
 
 [source,Java]
 ----
 (char)"C"
 (char)'c'
+----
+
+Casting a <<string-type, String type>> value into a
+<<primitive-types, char type>> value.
+
+[source,Java]
+----
+String s = "s";
+char c = (char)s;
 ----
 
 [[variables]]

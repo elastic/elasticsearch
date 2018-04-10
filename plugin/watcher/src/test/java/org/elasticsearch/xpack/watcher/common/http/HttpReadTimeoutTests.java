@@ -51,7 +51,7 @@ public class HttpReadTimeoutTests extends ESTestCase {
         long start = System.nanoTime();
         expectThrows(SocketTimeoutException.class, () ->  httpClient.execute(request));
         TimeValue timeout = TimeValue.timeValueNanos(System.nanoTime() - start);
-        logger.info("http connection timed out after {}", timeout.format());
+        logger.info("http connection timed out after {}", timeout);
 
         // it's supposed to be 10, but we'll give it an error margin of 2 seconds
         assertThat(timeout.seconds(), greaterThan(8L));
@@ -73,7 +73,7 @@ public class HttpReadTimeoutTests extends ESTestCase {
         long start = System.nanoTime();
         expectThrows(SocketTimeoutException.class, () ->  httpClient.execute(request));
         TimeValue timeout = TimeValue.timeValueNanos(System.nanoTime() - start);
-        logger.info("http connection timed out after {}", timeout.format());
+        logger.info("http connection timed out after {}", timeout);
 
         // it's supposed to be 3, but we'll give it an error margin of 2 seconds
         assertThat(timeout.seconds(), greaterThan(1L));
@@ -96,7 +96,7 @@ public class HttpReadTimeoutTests extends ESTestCase {
         long start = System.nanoTime();
         expectThrows(SocketTimeoutException.class, () ->  httpClient.execute(request));
         TimeValue timeout = TimeValue.timeValueNanos(System.nanoTime() - start);
-        logger.info("http connection timed out after {}", timeout.format());
+        logger.info("http connection timed out after {}", timeout);
 
         // it's supposed to be 3, but we'll give it an error margin of 2 seconds
         assertThat(timeout.seconds(), greaterThan(1L));

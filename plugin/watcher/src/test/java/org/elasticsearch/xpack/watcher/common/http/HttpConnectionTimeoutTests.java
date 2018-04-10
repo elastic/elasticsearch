@@ -40,7 +40,7 @@ public class HttpConnectionTimeoutTests extends ESTestCase {
             fail("expected timeout exception");
         } catch (ConnectTimeoutException ete) {
             TimeValue timeout = TimeValue.timeValueNanos(System.nanoTime() - start);
-            logger.info("http connection timed out after {}", timeout.format());
+            logger.info("http connection timed out after {}", timeout);
             // it's supposed to be 10, but we'll give it an error margin of 2 seconds
             assertThat(timeout.seconds(), greaterThan(8L));
             assertThat(timeout.seconds(), lessThan(12L));
@@ -66,7 +66,7 @@ public class HttpConnectionTimeoutTests extends ESTestCase {
             fail("expected timeout exception");
         } catch (ConnectTimeoutException ete) {
             TimeValue timeout = TimeValue.timeValueNanos(System.nanoTime() - start);
-            logger.info("http connection timed out after {}", timeout.format());
+            logger.info("http connection timed out after {}", timeout);
             // it's supposed to be 7, but we'll give it an error margin of 2 seconds
             assertThat(timeout.seconds(), greaterThan(3L));
             assertThat(timeout.seconds(), lessThan(7L));
@@ -93,7 +93,7 @@ public class HttpConnectionTimeoutTests extends ESTestCase {
             fail("expected timeout exception");
         } catch (ConnectTimeoutException ete) {
             TimeValue timeout = TimeValue.timeValueNanos(System.nanoTime() - start);
-            logger.info("http connection timed out after {}", timeout.format());
+            logger.info("http connection timed out after {}", timeout);
             // it's supposed to be 7, but we'll give it an error margin of 2 seconds
             assertThat(timeout.seconds(), greaterThan(3L));
             assertThat(timeout.seconds(), lessThan(7L));

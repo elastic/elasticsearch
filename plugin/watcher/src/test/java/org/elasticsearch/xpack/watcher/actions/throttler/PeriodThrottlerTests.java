@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.joda.time.DateTime;
-import org.joda.time.PeriodType;
 
 import java.time.Clock;
 
@@ -28,9 +27,8 @@ import static org.mockito.Mockito.when;
 
 public class PeriodThrottlerTests extends ESTestCase {
     public void testBelowPeriodSuccessful() throws Exception {
-        PeriodType periodType = randomFrom(PeriodType.millis(), PeriodType.seconds(), PeriodType.minutes());
         TimeValue period = TimeValue.timeValueSeconds(randomIntBetween(2, 5));
-        PeriodThrottler throttler = new PeriodThrottler(Clock.systemUTC(), period, periodType);
+        PeriodThrottler throttler = new PeriodThrottler(Clock.systemUTC(), period);
 
         WatchExecutionContext ctx = mockExecutionContext("_name", Payload.EMPTY);
         ActionStatus actionStatus = mock(ActionStatus.class);
@@ -45,14 +43,13 @@ public class PeriodThrottlerTests extends ESTestCase {
         assertThat(result, notNullValue());
         assertThat(result.throttle(), is(true));
         assertThat(result.reason(), notNullValue());
-        assertThat(result.reason(), startsWith("throttling interval is set to [" + period.format(periodType) + "]"));
+        assertThat(result.reason(), startsWith("throttling interval is set to [" + period + "]"));
         assertThat(result.type(), is(Throttler.Type.PERIOD));
     }
 
     public void testAbovePeriod() throws Exception {
-        PeriodType periodType = randomFrom(PeriodType.millis(), PeriodType.seconds(), PeriodType.minutes());
         TimeValue period = TimeValue.timeValueSeconds(randomIntBetween(2, 5));
-        PeriodThrottler throttler = new PeriodThrottler(Clock.systemUTC(), period, periodType);
+        PeriodThrottler throttler = new PeriodThrottler(Clock.systemUTC(), period);
 
         WatchExecutionContext ctx = mockExecutionContext("_name", Payload.EMPTY);
         ActionStatus actionStatus = mock(ActionStatus.class);

@@ -77,9 +77,9 @@ public class HasherBenchmark {
 
         void print() {
             System.out.println(name);
-            System.out.println("\tHash (total): " + TimeValue.timeValueNanos(hash.sum()).format());
+            System.out.println("\tHash (total): " + TimeValue.timeValueNanos(hash.sum()));
             System.out.println("\tHash (avg): " + hash.mean() + " nanos");
-            System.out.println("\tVerify (total): " + TimeValue.timeValueNanos(verify.sum()).format());
+            System.out.println("\tVerify (total): " + TimeValue.timeValueNanos(verify.sum()));
             System.out.println("\tVerify (avg): " + verify.mean() + " nanos");
         }
     }

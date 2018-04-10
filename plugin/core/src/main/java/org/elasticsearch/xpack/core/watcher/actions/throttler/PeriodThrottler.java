@@ -9,7 +9,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
-import org.joda.time.PeriodType;
 
 import java.time.Clock;
 
@@ -22,16 +21,10 @@ import static org.elasticsearch.xpack.core.watcher.actions.throttler.Throttler.T
 public class PeriodThrottler implements Throttler {
 
     @Nullable private final TimeValue period;
-    private final PeriodType periodType;
     private final Clock clock;
 
     public PeriodThrottler(Clock clock, TimeValue period) {
-        this(clock, period, PeriodType.minutes());
-    }
-
-    public PeriodThrottler(Clock clock, TimeValue period, PeriodType periodType) {
         this.period = period;
-        this.periodType = periodType;
         this.clock = clock;
     }
 
@@ -57,7 +50,7 @@ public class PeriodThrottler implements Throttler {
         TimeValue timeElapsed = TimeValue.timeValueMillis(clock.millis() - status.lastSuccessfulExecution().timestamp().getMillis());
         if (timeElapsed.getMillis() <= period.getMillis()) {
             return Result.throttle(PERIOD, "throttling interval is set to [{}] but time elapsed since last execution is [{}]",
-                    period.format(periodType), timeElapsed.format(periodType));
+                    period, timeElapsed);
         }
         return Result.NO;
     }

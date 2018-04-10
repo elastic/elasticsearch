@@ -31,6 +31,7 @@ public class RuleConditionTypeTests extends ESTestCase {
 
     public void testToString() {
         assertEquals("categorical", RuleConditionType.CATEGORICAL.toString());
+        assertEquals("categorical_complement", RuleConditionType.CATEGORICAL_COMPLEMENT.toString());
         assertEquals("numerical_actual", RuleConditionType.NUMERICAL_ACTUAL.toString());
         assertEquals("numerical_typical", RuleConditionType.NUMERICAL_TYPICAL.toString());
         assertEquals("numerical_diff_abs", RuleConditionType.NUMERICAL_DIFF_ABS.toString());
@@ -122,7 +123,18 @@ public class RuleConditionTypeTests extends ESTestCase {
             } else {
                 assertFalse(isNumerical);
             }
+        }
+    }
 
+    public void testIsCategorical() {
+        for (RuleConditionType type : EnumSet.allOf(RuleConditionType.class)) {
+            boolean isCategorical = type.isCategorical();
+            if (type == RuleConditionType.CATEGORICAL ||
+                    type == RuleConditionType.CATEGORICAL_COMPLEMENT) {
+                assertTrue(isCategorical);
+            } else {
+                assertFalse(isCategorical);
+            }
         }
     }
 }

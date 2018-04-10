@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.job.config;
 
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -14,20 +15,27 @@ import java.io.IOException;
 import java.util.Locale;
 
 public enum RuleConditionType implements Writeable {
-    CATEGORICAL(false),
-    NUMERICAL_ACTUAL(true),
-    NUMERICAL_TYPICAL(true),
-    NUMERICAL_DIFF_ABS(true),
-    TIME(false);
+    CATEGORICAL(false, true),
+    NUMERICAL_ACTUAL(true, false),
+    NUMERICAL_TYPICAL(true, false),
+    NUMERICAL_DIFF_ABS(true, false),
+    TIME(false, false),
+    CATEGORICAL_COMPLEMENT(false, true);
 
     private final boolean isNumerical;
+    private final boolean isCategorical;
 
-    RuleConditionType(boolean isNumerical) {
+    RuleConditionType(boolean isNumerical, boolean isCategorical) {
         this.isNumerical = isNumerical;
+        this.isCategorical = isCategorical;
     }
 
     public boolean isNumerical() {
         return isNumerical;
+    }
+
+    public boolean isCategorical() {
+        return isCategorical;
     }
 
     /**
@@ -47,7 +55,11 @@ public enum RuleConditionType implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeEnum(this);
+        if (this == CATEGORICAL_COMPLEMENT && out.getVersion().before(Version.V_6_3_0)) {
+            out.writeEnum(CATEGORICAL);
+        } else {
+            out.writeEnum(this);
+        }
     }
 
     @Override

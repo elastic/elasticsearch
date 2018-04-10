@@ -42,7 +42,6 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -358,7 +357,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         return this;
     }
 
-    public float tieBreaker() {
+    public Float tieBreaker() {
         return this.tieBreaker;
     }
 
@@ -388,6 +387,22 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     public QueryStringQueryBuilder analyzer(String analyzer) {
         this.analyzer = analyzer;
         return this;
+    }
+    
+    /**
+     * The optional analyzer used to analyze the query string. Note, if a field has search analyzer
+     * defined for it, then it will be used automatically. Defaults to the smart search analyzer.
+     */
+    public String analyzer() {
+        return analyzer;
+    }
+
+    /**
+     * The optional analyzer used to analyze the query string for phrase searches. Note, if a field has search (quote) analyzer
+     * defined for it, then it will be used automatically. Defaults to the smart search analyzer.
+     */
+    public String quoteAnalyzer() {
+        return quoteAnalyzer;
     }
 
     /**
@@ -884,9 +899,10 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 Objects.equals(tieBreaker, other.tieBreaker) &&
                 Objects.equals(rewrite, other.rewrite) &&
                 Objects.equals(minimumShouldMatch, other.minimumShouldMatch) &&
-                Objects.equals(lenient, other.lenient) &&
-                timeZone == null ? other.timeZone == null : other.timeZone != null &&
-                Objects.equals(timeZone.getID(), other.timeZone.getID()) &&
+                Objects.equals(lenient, other.lenient) && 
+                Objects.equals(
+                        timeZone == null ? null : timeZone.getID(), 
+                        other.timeZone == null ? null : other.timeZone.getID()) &&
                 Objects.equals(escape, other.escape) &&
                 Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates) &&
                 Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery) &&

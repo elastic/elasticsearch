@@ -26,7 +26,11 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
@@ -40,8 +44,8 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     private BytesRef currentValue;
 
     BinaryValuesSource(MappedFieldType fieldType, CheckedFunction<LeafReaderContext, SortedBinaryDocValues, IOException> docValuesFunc,
-                       int size, int reverseMul) {
-        super(fieldType, size, reverseMul);
+                       DocValueFormat format, Object missing, int size, int reverseMul) {
+        super(format, fieldType, missing, size, reverseMul);
         this.docValuesFunc = docValuesFunc;
         this.values = new BytesRef[size];
     }
@@ -72,10 +76,8 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     void setAfter(Comparable<?> value) {
-        if (value.getClass() == BytesRef.class) {
-            afterValue = (BytesRef) value;
-        } else if (value.getClass() == String.class) {
-            afterValue = new BytesRef((String) value);
+        if (value.getClass() == String.class) {
+            afterValue = format.parseBytesRef(value.toString());
         } else {
             throw new IllegalArgumentException("invalid value, expected string, got " + value.getClass().getSimpleName());
         }
@@ -120,7 +122,8 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     @Override
     SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
         if (checkIfSortedDocsIsApplicable(reader, fieldType) == false ||
-                (query != null && query.getClass() != MatchAllDocsQuery.class)) {
+                fieldType instanceof StringFieldType == false ||
+                    (query != null && query.getClass() != MatchAllDocsQuery.class)) {
             return null;
         }
         return new TermsSortedDocsProducer(fieldType.name());

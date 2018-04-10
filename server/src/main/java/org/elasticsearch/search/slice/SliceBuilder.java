@@ -28,6 +28,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -53,6 +55,9 @@ import java.util.Objects;
  *  {@link org.elasticsearch.search.slice.DocValuesSliceQuery} is used to filter the results.
  */
 public class SliceBuilder implements Writeable, ToXContentObject {
+
+    private static final DeprecationLogger DEPRECATION_LOG = new DeprecationLogger(Loggers.getLogger(SliceBuilder.class));
+
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField ID_FIELD = new ParseField("id");
     public static final ParseField MAX_FIELD = new ParseField("max");
@@ -92,7 +97,8 @@ public class SliceBuilder implements Writeable, ToXContentObject {
 
     public SliceBuilder(StreamInput in) throws IOException {
         String field = in.readString();
-        if (in.getVersion().before(Version.V_7_0_0_alpha1) && "_uid".equals(field)) {
+        if ("_uid".equals(field) && in.getVersion().before(Version.V_6_3_0)) {
+            // This is safe because _id and _uid are handled the same way in #toFilter
             field = IdFieldMapper.NAME;
         }
         this.field = field;
@@ -102,8 +108,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // 6.x doesn't support slicing on _id, but it does on _uid
-        if (out.getVersion().before(Version.V_7_0_0_alpha1) && IdFieldMapper.NAME.equals(field)) {
+        if (IdFieldMapper.NAME.equals(field) && out.getVersion().before(Version.V_6_3_0)) {
             out.writeString("_uid");
         } else {
             out.writeString(field);
@@ -206,7 +211,15 @@ public class SliceBuilder implements Writeable, ToXContentObject {
 
         String field = this.field;
         boolean useTermQuery = false;
-        if (IdFieldMapper.NAME.equals(field)) {
+        if ("_uid".equals(field)) {
+            // on new indices, the _id acts as a _uid
+            field = IdFieldMapper.NAME;
+            if (context.getIndexSettings().getIndexCreatedVersion().onOrAfter(Version.V_7_0_0)) {
+                throw new IllegalArgumentException("Computing slices on the [_uid] field is illegal for 7.x indices, use [_id] instead");
+            }
+            DEPRECATION_LOG.deprecated("Computing slices on the [_uid] field is deprecated for 6.x indices, use [_id] instead");
+            useTermQuery = true;
+        } else if (IdFieldMapper.NAME.equals(field)) {
             useTermQuery = true;
         } else if (type.hasDocValues() == false) {
             throw new IllegalArgumentException("cannot load numeric doc values on " + field);

@@ -22,6 +22,7 @@ import com.carrotsearch.hppc.IntArrayList;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -348,14 +349,14 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
     /**
      * test that creating more than the allowed number of search contexts throws an exception
      */
-    public void testMaxSearchContexts() throws IOException {
+    public void testMaxOpenContexts() throws IOException {
         createIndex("index");
         final SearchService service = getInstanceFromNode(SearchService.class);
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
         final IndexShard indexShard = indexService.getShard(0);
 
-        for (int i = 0; i < Node.MAX_SEARCH_CONTEXT_SETTING.get(Settings.EMPTY); i++) {
+        for (int i = 0; i < service.MAX_OPEN_CONTEXT.get(Settings.EMPTY); i++) {
             SearchContext context = service.createAndPutContext(
                 new ShardSearchLocalRequest(
                     indexShard.shardId(),
@@ -369,15 +370,14 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             );
         }
 
-        try (SearchContext context = service.createAndPutContext(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
-            new SearchSourceBuilder(), new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, true))) {
-            assertNotNull(context);
-        } catch (IllegalStateException ex) {
-            assertEquals(
-                "Trying to create too many search contexts. Must be less than or equal to: [100]. " +
-                    "This limit can be set by changing the [node.max_search_context] node level setting.",
-                ex.getMessage());
-        }
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class,
+            () -> service.createAndPutContext(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
+                new SearchSourceBuilder(), new String[0], false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, true)));
+        assertEquals(
+            "Trying to create too many search contexts. Must be less than or equal to: [" +
+                service.MAX_OPEN_CONTEXT.get(Settings.EMPTY) + "]. " +
+                "This limit can be set by changing the [node.max_search_context] node level setting.",
+            ex.getMessage());
     }
 
 
@@ -447,7 +447,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             Strings.EMPTY_ARRAY, false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, allowPartialSearchResults)));
 
         assertTrue(service.canMatch(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.QUERY_THEN_FETCH,
-            new SearchSourceBuilder(), Strings.EMPTY_ARRAY, false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, 
+            new SearchSourceBuilder(), Strings.EMPTY_ARRAY, false, new AliasFilter(null, Strings.EMPTY_ARRAY), 1f,
             allowPartialSearchResults)));
 
         assertTrue(service.canMatch(new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.QUERY_THEN_FETCH,

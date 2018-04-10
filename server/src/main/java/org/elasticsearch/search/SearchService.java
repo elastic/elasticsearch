@@ -138,6 +138,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             Setting.boolSetting("search.default_allow_partial_results", true, Property.Dynamic, Property.NodeScope);
 
 
+    /**
+     * A setting describing the maximum number of search contexts that can be created. The default
+     * maximum of 100 is defensive to prevent generating too many search contexts.
+     */
+    public static final Setting<Integer> MAX_OPEN_CONTEXT =
+        Setting.intSetting("search.max_open_context", 100, 0, Property.NodeScope);
+
+
     private final ThreadPool threadPool;
 
     private final ClusterService clusterService;
@@ -163,7 +171,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private volatile TimeValue defaultSearchTimeout;
 
     private volatile boolean defaultAllowPartialSearchResults;
-    
+
     private volatile boolean lowLevelCancellation;
 
     private final Cancellable keepAliveReaper;
@@ -549,6 +557,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     final SearchContext createAndPutContext(ShardSearchRequest request) throws IOException {
+        if (activeContexts.size() >= MAX_OPEN_CONTEXT.get(settings)) {
+            throw new ElasticsearchException(
+                "Trying to create too many search contexts. Must be less than or equal to: [" +
+                    MAX_OPEN_CONTEXT.get(settings) + "]. This limit can be set by changing the ["
+                    + MAX_OPEN_CONTEXT.getKey() + "] setting.");
+        }
+
         SearchContext context = createContext(request);
         boolean success = false;
         try {
@@ -568,12 +583,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     final SearchContext createContext(ShardSearchRequest request) throws IOException {
         final DefaultSearchContext context = createSearchContext(request, defaultSearchTimeout);
-        if (activeContexts.size() >= Node.MAX_SEARCH_CONTEXT_SETTING.get(settings)) {
-            throw new IllegalStateException(
-                "Trying to create too many search contexts. Must be less than or equal to: [" +
-                    Node.MAX_SEARCH_CONTEXT_SETTING.get(settings) + "]. This limit can be set by changing the ["
-                    + Node.MAX_SEARCH_CONTEXT_SETTING.getKey() + "] node level setting.");
-        }
 
         try {
             if (request.scroll() != null) {

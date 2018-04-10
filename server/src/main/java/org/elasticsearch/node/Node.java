@@ -215,14 +215,6 @@ public class Node implements Closeable {
     }, Setting.Property.NodeScope);
 
     /**
-     * A setting describing the maximum number of search contexts that can be created. The default
-     * maximum of 100 is defensive to prevent generating too many search contexts.
-     */
-    public static final Setting<Integer> MAX_SEARCH_CONTEXT_SETTING =
-        Setting.intSetting("node.max_search_context", 100, 0, Property.NodeScope);
-
-
-    /**
      * Adds a default node name to the given setting, if it doesn't already exist
      * @return the given setting if node name is already set, or a new copy with a default node name set.
      */

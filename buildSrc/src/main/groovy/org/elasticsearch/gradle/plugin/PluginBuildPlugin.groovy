@@ -261,6 +261,7 @@ public class PluginBuildPlugin extends BuildPlugin {
         if (licenseFile != null) {
             project.bundlePlugin.from(licenseFile.parentFile) {
                 include(licenseFile.name)
+                rename { 'LICENSE.txt' }
             }
         }
         File noticeFile = project.pluginProperties.extension.noticeFile

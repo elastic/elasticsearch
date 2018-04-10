@@ -303,12 +303,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
 
-    commonFiles = copySpec {
-      from rootProject.projectDir
-      include 'LICENSE.txt'
-      include 'README.textile'
-    }
-
     noticeFile = copySpec {
       if (project.name == 'integ-test-zip') {
         from buildServerNotice
@@ -364,9 +358,9 @@ subprojects {
 
     String licenseText
     if (oss) {
-      licenseText = rootProject.file('LICENSE.txt').getText('UTF-8')
+      licenseText = rootProject.file('licenses/APACHE-LICENSE-2.0.txt').getText('UTF-8')
     } else {
-      licenseText = rootProject.file('x-pack/LICENSE.txt').getText('UTF-8')
+      licenseText = rootProject.file('licenses/ELASTIC-LICENSE.txt').getText('UTF-8')
     }
     // license text needs to be indented with a single space
     licenseText = ' ' + licenseText.replace('\n', '\n ') 

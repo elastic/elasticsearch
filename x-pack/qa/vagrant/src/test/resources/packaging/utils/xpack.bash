@@ -14,8 +14,8 @@ verify_xpack_installation() {
     # nocommit: already verified by "main" package verification
     #assert_file "$ESHOME/bin" d $user $group 755
     local binaryFiles=(
-        'certgen'
-        'certgen.bat'
+        'elasticsearch-certgen'
+        'elasticsearch-certgen.bat'
         'certutil'
         'certutil.bat'
         'croneval'

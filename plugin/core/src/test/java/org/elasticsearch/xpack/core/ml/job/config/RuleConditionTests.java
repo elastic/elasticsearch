@@ -19,25 +19,22 @@ public class RuleConditionTests extends AbstractSerializingTestCase<RuleConditio
         String fieldName = null;
         String valueFilter = null;
         String fieldValue = null;
-        RuleConditionType r = randomFrom(RuleConditionType.values());
-        switch (r) {
-        case CATEGORICAL:
+        RuleConditionType type = randomFrom(RuleConditionType.values());
+        if (type.isCategorical()) {
             valueFilter = randomAlphaOfLengthBetween(1, 20);
             if (randomBoolean()) {
                 fieldName = randomAlphaOfLengthBetween(1, 20);
             }
-            break;
-        default:
-            // no need to randomize, it is properly randomily tested in
+        } else {
+            // no need to randomize, it is properly randomly tested in
             // ConditionTest
             condition = new Condition(Operator.LT, Long.toString(randomLong()));
             if (randomBoolean()) {
                 fieldName = randomAlphaOfLengthBetween(1, 20);
                 fieldValue = randomAlphaOfLengthBetween(1, 20);
             }
-            break;
         }
-        return new RuleCondition(r, fieldName, fieldValue, condition, valueFilter);
+        return new RuleCondition(type, fieldName, fieldValue, condition, valueFilter);
     }
 
     @Override
@@ -201,6 +198,7 @@ public class RuleConditionTests extends AbstractSerializingTestCase<RuleConditio
     public void testVerify_GivenValidCategorical() {
         // no validation error:
         new RuleCondition(RuleConditionType.CATEGORICAL, "metric", null, null, "myFilter");
+        new RuleCondition(RuleConditionType.CATEGORICAL_COMPLEMENT, "metric", null, null, "myFilter");
     }
 
     public void testVerify_GivenValidNumericalActual() {

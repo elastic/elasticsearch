@@ -197,6 +197,7 @@ public class RuleCondition implements ToXContentObject, Writeable {
     private static void verifyFieldsBoundToType(RuleCondition ruleCondition) throws ElasticsearchParseException {
         switch (ruleCondition.getType()) {
         case CATEGORICAL:
+        case CATEGORICAL_COMPLEMENT:
             verifyCategorical(ruleCondition);
             break;
         case NUMERICAL_ACTUAL:

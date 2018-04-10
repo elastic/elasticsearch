@@ -698,6 +698,7 @@ public class Detector implements ToXContentObject, Writeable {
                 List<String> validOptions = Collections.emptyList();
                 switch (condition.getType()) {
                     case CATEGORICAL:
+                    case CATEGORICAL_COMPLEMENT:
                         validOptions = extractAnalysisFields();
                         break;
                     case NUMERICAL_ACTUAL:

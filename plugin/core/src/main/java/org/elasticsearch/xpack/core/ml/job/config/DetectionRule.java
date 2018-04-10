@@ -251,7 +251,7 @@ public class DetectionRule implements ToXContentObject, Writeable {
                 throw ExceptionsHelper.badRequestException(msg);
             }
             for (RuleCondition condition : conditions) {
-                if (condition.getType() == RuleConditionType.CATEGORICAL && targetFieldName != null) {
+                if (condition.getType().isCategorical() && targetFieldName != null) {
                     String msg = Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_CONDITION_CATEGORICAL_INVALID_OPTION,
                             DetectionRule.TARGET_FIELD_NAME_FIELD.getPreferredName());
                     throw ExceptionsHelper.badRequestException(msg);

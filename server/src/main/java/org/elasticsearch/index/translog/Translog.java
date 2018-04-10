@@ -490,19 +490,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 return current.add(bytes, operation.seqNo());
             }
         } catch (final AlreadyClosedException | IOException ex) {
-            try {
-                closeOnTragicEvent(ex);
-            } catch (final Exception inner) {
-                ex.addSuppressed(inner);
-            }
+            closeOnTragicEvent(ex);
             throw ex;
-        } catch (final Exception e) {
-            try {
-                closeOnTragicEvent(e);
-            } catch (final Exception inner) {
-                e.addSuppressed(inner);
-            }
-            throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", e);
+        } catch (final Exception ex) {
+            closeOnTragicEvent(ex);
+            throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", ex);
         } finally {
             Releasables.close(out);
         }
@@ -584,7 +576,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (current.generation == location.generation) {
                 // no need to fsync here the read operation will ensure that buffers are written to disk
                 // if they are still in RAM and we are reading onto that position
-                return current.read(location);
+                try {
+                    return current.read(location);
+                } catch (final Exception ex) {
+                    closeOnTragicEvent(ex);
+                    throw ex;
+                }
             } else {
                 // read backwards - it's likely we need to read on that is recent
                 for (int i = readers.size() - 1; i >= 0; i--) {
@@ -670,12 +667,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (closed.get() == false) {
                 current.sync();
             }
-        } catch (Exception ex) {
-            try {
-                closeOnTragicEvent(ex);
-            } catch (Exception inner) {
-                ex.addSuppressed(inner);
-            }
+        } catch (final Exception ex) {
+            closeOnTragicEvent(ex);
             throw ex;
         }
     }
@@ -710,12 +703,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 ensureOpen();
                 return current.syncUpTo(location.translogLocation + location.size);
             }
-        } catch (Exception ex) {
-            try {
-                closeOnTragicEvent(ex);
-            } catch (Exception inner) {
-                ex.addSuppressed(inner);
-            }
+        } catch (final Exception ex) {
+            closeOnTragicEvent(ex);
             throw ex;
         }
         return false;
@@ -739,14 +728,14 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    private void closeOnTragicEvent(Exception ex) {
+    private void closeOnTragicEvent(final Exception ex) {
         if (current.getTragicException() != null) {
             try {
                 close();
-            } catch (AlreadyClosedException inner) {
+            } catch (final AlreadyClosedException inner) {
                 // don't do anything in this case. The AlreadyClosedException comes from TranslogWriter and we should not add it as suppressed because
                 // will contain the Exception ex as cause. See also https://github.com/elastic/elasticsearch/issues/15941
-            } catch (Exception inner) {
+            } catch (final Exception inner) {
                 assert (ex != inner.getCause());
                 ex.addSuppressed(inner);
             }
@@ -1600,12 +1589,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             assert readers.isEmpty() == false || current.generation == minReferencedGen :
                 "all readers were cleaned but the minReferenceGen [" + minReferencedGen + "] is not the current writer's gen [" +
                     current.generation + "]";
-        } catch (Exception ex) {
-            try {
-                closeOnTragicEvent(ex);
-            } catch (final Exception inner) {
-                ex.addSuppressed(inner);
-            }
+        } catch (final Exception ex) {
+            closeOnTragicEvent(ex);
             throw ex;
         }
     }

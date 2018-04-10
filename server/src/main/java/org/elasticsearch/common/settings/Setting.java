@@ -47,6 +47,7 @@ import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -1070,10 +1071,22 @@ public class Setting<T> implements ToXContentObject {
     public static ByteSizeValue parseByteSize(String s, ByteSizeValue minValue, ByteSizeValue maxValue, String key) {
         ByteSizeValue value = ByteSizeValue.parseBytesSizeValue(s, key);
         if (value.getBytes() < minValue.getBytes()) {
-            throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
+            final String message = String.format(
+                    Locale.ROOT,
+                    "failed to parse value [%s] for setting [%s], must be >= [%s]",
+                    s,
+                    key,
+                    minValue.getStringRep());
+            throw new IllegalArgumentException(message);
         }
         if (value.getBytes() > maxValue.getBytes()) {
-            throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be <= " + maxValue);
+            final String message = String.format(
+                    Locale.ROOT,
+                    "failed to parse value [%s] for setting [%s], must be <= [%s]",
+                    s,
+                    key,
+                    maxValue.getStringRep());
+            throw new IllegalArgumentException(message);
         }
         return value;
     }

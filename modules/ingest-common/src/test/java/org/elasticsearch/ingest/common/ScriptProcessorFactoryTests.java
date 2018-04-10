@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService;
@@ -30,6 +31,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
@@ -80,9 +82,9 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         configMap.put("source", "bar");
         configMap.put("lang", "mockscript");
 
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+        XContentParseException exception = expectThrows(XContentParseException.class,
             () -> factory.create(null, randomAlphaOfLength(10), configMap));
-        assertThat(exception.getMessage(), is("[script] failed to parse field [source]"));
+        assertThat(exception.getMessage(), containsString("[script] failed to parse field [source]"));
     }
 
     public void testFactoryValidationAtLeastOneScriptingType() throws Exception {

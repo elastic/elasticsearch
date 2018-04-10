@@ -67,9 +67,9 @@ import static org.elasticsearch.common.xcontent.XContentHelper.createParser;
  * averaged precision at n.
  */
 public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequest, RankEvalResponse> {
-    private Client client;
-    private ScriptService scriptService;
-    private NamedXContentRegistry namedXContentRegistry;
+    private final Client client;
+    private final ScriptService scriptService;
+    private final NamedXContentRegistry namedXContentRegistry;
 
     @Inject
     public TransportRankEvalAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
@@ -126,7 +126,9 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             } else {
                 ratedSearchSource.fetchSource(summaryFields.toArray(new String[summaryFields.size()]), new String[0]);
             }
-            msearchRequest.add(new SearchRequest(request.indices(), ratedSearchSource));
+            SearchRequest searchRequest = new SearchRequest(request.indices(), ratedSearchSource);
+            searchRequest.indicesOptions(request.indicesOptions());
+            msearchRequest.add(searchRequest);
         }
         assert ratedRequestsInSearch.size() == msearchRequest.requests().size();
         client.multiSearch(msearchRequest, new RankEvalActionListener(listener, metric,

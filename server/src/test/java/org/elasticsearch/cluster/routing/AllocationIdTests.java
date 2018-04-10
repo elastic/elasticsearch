@@ -118,4 +118,19 @@ public class AllocationIdTests extends ESTestCase {
         AllocationId parsedAllocationId = AllocationId.fromXContent(createParser(JsonXContent.jsonXContent, bytes));
         assertEquals(allocationId, parsedAllocationId);
     }
+
+    public void testEquals() {
+        AllocationId allocationId1 = AllocationId.newInitializing();
+        AllocationId allocationId2 = AllocationId.newInitializing(allocationId1.getId());
+        AllocationId allocationId3 = AllocationId.newInitializing("not a UUID");
+        String s = "Some random other object";
+        assertEquals(allocationId1, allocationId1);
+        assertEquals(allocationId1, allocationId2);
+        assertNotEquals(allocationId1, s);
+        assertNotEquals(allocationId1, null);
+        assertNotEquals(allocationId1, allocationId3);
+
+        allocationId2 = AllocationId.newRelocation(allocationId1);
+        assertNotEquals(allocationId1, allocationId2);
+    }
 }

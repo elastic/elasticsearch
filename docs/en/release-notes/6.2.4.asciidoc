@@ -1,0 +1,36 @@
+[role="xpack"]
+[[xes-6.2.4]]
+== {es} {xpack} 6.2.4 Release Notes
+++++
+<titleabbrev>6.2.4 Release Notes</titleabbrev>
+++++
+
+coming[6.2.4]
+////
+[[xes-bug-6.2.4]]
+[float]
+=== Bug fixes
+////
+////
+Machine Learning::
+* [ML] Don't open failed jobs after node loss
+// https://github.com/elastic/x-pack-elasticsearch/pull/4320[#4320] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/3997[#3997])
+* [ML] Return error when process has been killed
+// https://github.com/elastic/x-pack-elasticsearch/pull/4211[#4211] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/4210[#4210])
+////
+////
+Security/Authentication::
+* Adds missing SAML Realm Settings
+// https://github.com/elastic/x-pack-elasticsearch/pull/4221[#4221] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/4219[#4219])
+////
+////
+Watcher::
+* Watcher: Reenable email property settings
+// https://github.com/elastic/x-pack-elasticsearch/pull/4319[#4319] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/4048[#4048])
+* Watcher: Refactor/Fix TransportWatcherServiceAction
+// https://github.com/elastic/x-pack-elasticsearch/pull/4240[#4240] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/4225[#4225])
+* Watcher: Prevent question mark in HttpClient with empty params
+// https://github.com/elastic/x-pack-elasticsearch/pull/4206[#4206]
+* Watcher: Refactor/Fix TransportWatcherServiceAction (#4240)
+// https://github.com/elastic/x-pack-elasticsearch/pull/4306[#4306] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/4225[#4225])
+////

@@ -6,7 +6,7 @@ in the parent multi-bucket aggregation. The specified metric must be numeric and
 If the script language is `expression` then a numeric return value is permitted. In this case 0.0 will be evaluated as `false`
 and all other values will evaluate to true.
 
-Note: The bucket_selector aggregation, like all pipeline aggregations, executions after all other sibling aggregations. This means that
+NOTE: The bucket_selector aggregation, like all pipeline aggregations, executes after all other sibling aggregations. This means that
 using the bucket_selector aggregation to filter the returned buckets in the response does not save on execution time running the aggregations.
 
 ==== Syntax
@@ -41,7 +41,7 @@ for more details) |Required |
  details)|Optional |`skip`
 |===
 
-The following snippet only retains buckets where the total sales for the month is more than 400:
+The following snippet only retains buckets where the total sales for the month is more than 200:
 
 [source,js]
 --------------------------------------------------

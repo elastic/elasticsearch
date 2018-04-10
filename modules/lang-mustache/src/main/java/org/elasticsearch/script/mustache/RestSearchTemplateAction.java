@@ -19,11 +19,11 @@
 
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -64,7 +64,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
             if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 //convert the template to json which is the only supported XContentType (see CustomMustacheFactory#createEncoder)
                 try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                    request.setScript(builder.copyCurrentStructure(parser).string());
+                    request.setScript(Strings.toString(builder.copyCurrentStructure(parser)));
                 } catch (IOException e) {
                     throw new ParsingException(parser.getTokenLocation(), "Could not parse inline template", e);
                 }
@@ -94,7 +94,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         // Creates the search request with all required params
         SearchRequest searchRequest = new SearchRequest();
-        RestSearchAction.parseSearchRequest(searchRequest, request, null);
+        RestSearchAction.parseSearchRequest(searchRequest, request, null, size -> searchRequest.source().size(size));
 
         // Creates the search template request
         SearchTemplateRequest searchTemplateRequest;

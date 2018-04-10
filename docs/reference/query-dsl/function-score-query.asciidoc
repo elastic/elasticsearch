@@ -253,7 +253,7 @@ influence the score. It's similar to using the `script_score` function, however,
 it avoids the overhead of scripting. If used on a multi-valued field, only the
 first value of the field is used in calculations.
 
-As an example, imagine you have a document indexed with a numeric `popularity`
+As an example, imagine you have a document indexed with a numeric `likes`
 field and wish to influence the score of a document with this field, an example
 doing so would look like:
 
@@ -302,9 +302,9 @@ There are a number of options for the `field_value_factor` function:
 | Modifier | Meaning
 
 | `none` | Do not apply any multiplier to the field value
-| `log` | Take the https://en.wikipedia.org/wiki/Logarithm[logarithm] of the field value
-| `log1p` | Add 1 to the field value and take the logarithm
-| `log2p` | Add 2 to the field value and take the logarithm
+| `log` | Take the https://en.wikipedia.org/wiki/Common_logarithm[common logarithm] of the field value
+| `log1p` | Add 1 to the field value and take the common logarithm
+| `log2p` | Add 2 to the field value and take the common logarithm
 | `ln` | Take the https://en.wikipedia.org/wiki/Natural_logarithm[natural logarithm] of the field value
 | `ln1p` | Add 1 to the field value and take the natural logarithm
 | `ln2p` | Add 2 to the field value and take the natural logarithm

@@ -22,6 +22,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -37,6 +38,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -76,12 +78,53 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
         RunningStats runningStats = new RunningStats();
         runningStats.add(fields, values);
         MatrixStatsResults matrixStatsResults = hasMatrixStatsResults ? new MatrixStatsResults(runningStats) : null;
-        return new InternalMatrixStats(name, 1L, runningStats, matrixStatsResults, Collections.emptyList(), Collections.emptyMap());
+        return new InternalMatrixStats(name, 1L, runningStats, matrixStatsResults, Collections.emptyList(), metaData);
     }
 
     @Override
     protected Writeable.Reader<InternalMatrixStats> instanceReader() {
         return InternalMatrixStats::new;
+    }
+
+    @Override
+    protected InternalMatrixStats mutateInstance(InternalMatrixStats instance) {
+        String name = instance.getName();
+        long docCount = instance.getDocCount();
+        RunningStats runningStats = instance.getStats();
+        MatrixStatsResults matrixStatsResults = instance.getResults();
+        Map<String, Object> metaData = instance.getMetaData();
+        switch (between(0, 3)) {
+        case 0:
+            name += randomAlphaOfLength(5);
+            break;
+        case 1:
+            String[] fields = Arrays.copyOf(this.fields, this.fields.length + 1);
+            fields[fields.length - 1] = "field_" + (fields.length - 1);
+            double[] values = new double[fields.length];
+            for (int i = 0; i < fields.length; i++) {
+                values[i] = randomDouble() * 200;
+            }
+            runningStats = new RunningStats();
+            runningStats.add(fields, values);
+            break;
+        case 2:
+            if (matrixStatsResults == null) {
+                matrixStatsResults = new MatrixStatsResults(runningStats);
+            } else {
+                matrixStatsResults = null;
+            }
+            break;
+        case 3:
+        default:
+            if (metaData == null) {
+                metaData = new HashMap<>(1);
+            } else {
+                metaData = new HashMap<>(instance.getMetaData());
+            }
+            metaData.put(randomAlphaOfLength(15), randomInt());
+            break;
+        }
+        return new InternalMatrixStats(name, docCount, runningStats, matrixStatsResults, Collections.emptyList(), metaData);
     }
 
     @Override
@@ -118,7 +161,7 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
         multiPassStats.computeStats(aValues, bValues);
 
         ScriptService mockScriptService = mockScriptService();
-        MockBigArrays bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
+        MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         InternalAggregation.ReduceContext context =
             new InternalAggregation.ReduceContext(bigArrays, mockScriptService, true);
         InternalMatrixStats reduced = (InternalMatrixStats) shardResults.get(0).reduce(shardResults, context);
@@ -151,7 +194,7 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
         }
 
         final String unknownField = randomAlphaOfLength(3);
-        final String other = randomAlphaOfLength(3);
+        final String other = randomValueOtherThan(unknownField, () -> randomAlphaOfLength(3));
 
         for (MatrixStats matrix : Arrays.asList(actual)) {
 

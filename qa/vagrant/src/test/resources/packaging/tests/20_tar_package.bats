@@ -100,6 +100,14 @@ setup() {
   }
 }
 
+@test "[TAR] test creating elasticearch.keystore" {
+    sudo -E -u elasticsearch "$ESHOME/bin/elasticsearch-keystore" create
+    assert_file "$ESCONFIG/elasticsearch.keystore" f elasticsearch elasticsearch 660
+    sudo -E -u elasticsearch "$ESHOME/bin/elasticsearch-keystore" list | grep "keystore.seed"
+    # cleanup for the next test
+    rm -rf "$ESCONFIG/elasticsearch.keystore"
+}
+
 ##################################
 # Check that Elasticsearch is working
 ##################################
@@ -109,9 +117,16 @@ setup() {
     stop_elasticsearch_service
 }
 
+@test "[TAR] test auto-creating elasticearch.keystore" {
+    # a keystore should automatically be created after the service is started
+    assert_file "$ESCONFIG/elasticsearch.keystore" f elasticsearch elasticsearch 660
+    # the keystore should be seeded
+    sudo -E -u elasticsearch "$ESHOME/bin/elasticsearch-keystore" list | grep "keystore.seed"
+}
+
 @test "[TAR] start Elasticsearch with custom JVM options" {
     local es_java_opts=$ES_JAVA_OPTS
-    local conf_dir=$CONF_DIR
+    local es_path_conf=$ES_PATH_CONF
     local temp=`mktemp -d`
     cp "$ESCONFIG"/elasticsearch.yml "$temp"
     cp "$ESCONFIG"/log4j2.properties "$temp"
@@ -123,14 +138,37 @@ setup() {
     # manager exception before we have configured logging; this will fail
     # startup since we detect usages of logging before it is configured
     echo "-Dlog4j2.disable.jmx=true" >> "$temp/jvm.options"
-    export CONF_DIR="$temp"
+    export ES_PATH_CONF="$temp"
     export ES_JAVA_OPTS="-XX:-UseCompressedOops"
     start_elasticsearch_service
     curl -s -XGET localhost:9200/_nodes | fgrep '"heap_init_in_bytes":536870912'
     curl -s -XGET localhost:9200/_nodes | fgrep '"using_compressed_ordinary_object_pointers":"false"'
     stop_elasticsearch_service
-    export CONF_DIR=$CONF_DIR
+    export ES_PATH_CONF=$es_path_conf
     export ES_JAVA_OPTS=$es_java_opts
+}
+
+@test "[TAR] GC logs exist" {
+    start_elasticsearch_service
+    assert_file_exist $ESHOME/logs/gc.log.0.current
+    stop_elasticsearch_service
+}
+
+@test "[TAR] relative ES_PATH_CONF" {
+    local es_path_conf=$ES_PATH_CONF
+    local temp=`mktemp -d`
+    mkdir "$temp"/config
+    cp "$ESCONFIG"/elasticsearch.yml "$temp"/config
+    cp "$ESCONFIG"/log4j2.properties "$temp"/config
+    cp "$ESCONFIG/jvm.options" "$temp/config"
+    chown -R elasticsearch:elasticsearch "$temp"
+    echo "node.name: relative" >> "$temp"/config/elasticsearch.yml
+    cd "$temp"
+    export ES_PATH_CONF=config
+    start_elasticsearch_service
+    curl -s -XGET localhost:9200/_nodes | fgrep '"name":"relative"'
+    stop_elasticsearch_service
+    export ES_PATH_CONF=$es_path_conf
 }
 
 @test "[TAR] remove tar" {

@@ -9,11 +9,11 @@ type, and fields will spring to life automatically:
 
 [source,js]
 --------------------------------------------------
-PUT data/counters/1 <1>
+PUT data/_doc/1 <1>
 { "count": 5 }
 --------------------------------------------------
 // CONSOLE
-<1> Creates the `data` index, the `counters` mapping type, and a field
+<1> Creates the `data` index, the `_doc` mapping type, and a field
     called `count` with datatype `long`.
 
 The automatic detection and addition of new fields is called
@@ -35,6 +35,4 @@ automatically or explicitly.
 include::dynamic/field-mapping.asciidoc[]
 
 include::dynamic/templates.asciidoc[]
-
-include::dynamic/default-mapping.asciidoc[]
 

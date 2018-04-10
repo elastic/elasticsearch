@@ -70,7 +70,7 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
     }
 
     @Override
-    public void build(SearchContext parentSearchContext, InnerHitsContext innerHitsContext) throws IOException {
+    protected void doBuild(SearchContext parentSearchContext, InnerHitsContext innerHitsContext) throws IOException {
         if (parentSearchContext.mapperService().getIndexSettings().isSingleType()) {
             handleJoinFieldInnerHits(parentSearchContext, innerHitsContext);
         } else {
@@ -170,7 +170,7 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                     int topN = Math.min(from() + size(), context.searcher().getIndexReader().maxDoc());
                     TopDocsCollector<?> topDocsCollector;
                     if (sort() != null) {
-                        topDocsCollector = TopFieldCollector.create(sort().sort, topN, true, trackScores(), trackScores());
+                        topDocsCollector = TopFieldCollector.create(sort().sort, topN, true, trackScores(), trackScores(), true);
                     } else {
                         topDocsCollector = TopScoreDocCollector.create(topN);
                     }
@@ -261,7 +261,7 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                     int topN = Math.min(from() + size(), context.searcher().getIndexReader().maxDoc());
                     TopDocsCollector<?> topDocsCollector;
                     if (sort() != null) {
-                        topDocsCollector = TopFieldCollector.create(sort().sort, topN, true, trackScores(), trackScores());
+                        topDocsCollector = TopFieldCollector.create(sort().sort, topN, true, trackScores(), trackScores(), true);
                     } else {
                         topDocsCollector = TopScoreDocCollector.create(topN);
                     }

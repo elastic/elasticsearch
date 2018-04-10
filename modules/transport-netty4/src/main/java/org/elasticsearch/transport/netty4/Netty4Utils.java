@@ -27,20 +27,21 @@ import io.netty.channel.ChannelFuture;
 import io.netty.util.NettyRuntime;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 
 public class Netty4Utils {
 
@@ -167,7 +168,9 @@ public class Netty4Utils {
      * @param cause the throwable to test
      */
     public static void maybeDie(final Throwable cause) {
-        if (cause instanceof Error) {
+        final Logger logger = ESLoggerFactory.getLogger(Netty4Utils.class);
+        final Optional<Error> maybeError = ExceptionsHelper.maybeError(cause, logger);
+        if (maybeError.isPresent()) {
             /*
              * Here be dragons. We want to rethrow this so that it bubbles up to the uncaught exception handler. Yet, Netty wraps too many
              * invocations of user-code in try/catch blocks that swallow all throwables. This means that a rethrow here will not bubble up
@@ -176,13 +179,12 @@ public class Netty4Utils {
              */
             try {
                 // try to log the current stack trace
-                final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
-                final String formatted = Arrays.stream(stackTrace).skip(1).map(e -> "\tat " + e).collect(Collectors.joining("\n"));
-                ESLoggerFactory.getLogger(Netty4Utils.class).error("fatal error on the network layer\n{}", formatted);
+                final String formatted = ExceptionsHelper.formatStackTrace(Thread.currentThread().getStackTrace());
+                logger.error("fatal error on the network layer\n{}", formatted);
             } finally {
                 new Thread(
                         () -> {
-                            throw (Error) cause;
+                            throw maybeError.get();
                         })
                         .start();
             }

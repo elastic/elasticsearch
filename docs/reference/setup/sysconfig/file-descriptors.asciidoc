@@ -16,6 +16,9 @@ For the `.zip` and `.tar.gz` packages, set <<ulimit,`ulimit -n 65536`>> as
 root before starting Elasticsearch,   or set `nofile` to `65536` in
 <<limits.conf,`/etc/security/limits.conf`>>.
 
+On macOS, you must also pass the JVM option `-XX:-MaxFDLimit`
+to Elasticsearch in order for it to make use of the higher file descriptor limit.
+
 RPM and Debian packages already default the maximum number of file
 descriptors to 65536 and do not require further configuration.
 

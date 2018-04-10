@@ -124,7 +124,7 @@ public class JoinProcessorTests extends ESTestCase {
             }
         }
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
-        String targetFieldName = RandomDocumentPicks.randomFieldName(random());
+        String targetFieldName = fieldName + randomAlphaOfLength(5);
         Processor processor = new JoinProcessor(randomAlphaOfLength(10), fieldName, separator, targetFieldName);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(targetFieldName, String.class), equalTo(expectedResult));

@@ -22,7 +22,7 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Definition.def;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -39,10 +39,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.painless.Definition.VOID_TYPE;
-import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
-import static org.objectweb.asm.Opcodes.H_INVOKESTATIC;
 
 /**
  * Lambda expression node.
@@ -104,14 +101,14 @@ public final class ELambda extends AExpression implements ILambda {
 
     @Override
     void analyze(Locals locals) {
-        final Type returnType;
-        final List<String> actualParamTypeStrs;
+        Class<?> returnType;
+        List<String> actualParamTypeStrs;
         Method interfaceMethod;
         // inspect the target first, set interface method if we know it.
         if (expected == null) {
             interfaceMethod = null;
             // we don't know anything: treat as def
-            returnType = Definition.DEF_TYPE;
+            returnType = def.class;
             // don't infer any types, replace any null types with def
             actualParamTypeStrs = new ArrayList<>(paramTypeStrs.size());
             for (String type : paramTypeStrs) {
@@ -123,18 +120,18 @@ public final class ELambda extends AExpression implements ILambda {
             }
         } else {
             // we know the method statically, infer return type and any unknown/def types
-            interfaceMethod = expected.struct.getFunctionalMethod();
+            interfaceMethod = locals.getDefinition().ClassToType(expected).struct.functionalMethod;
             if (interfaceMethod == null) {
-                throw createError(new IllegalArgumentException("Cannot pass lambda to [" + expected.name +
+                throw createError(new IllegalArgumentException("Cannot pass lambda to [" + Definition.ClassToName(expected) +
                                                                "], not a functional interface"));
             }
             // check arity before we manipulate parameters
             if (interfaceMethod.arguments.size() != paramTypeStrs.size())
                 throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.name +
-                                                   "] in [" + expected.clazz + "]");
+                                                   "] in [" + Definition.ClassToName(expected) + "]");
             // for method invocation, its allowed to ignore the return value
-            if (interfaceMethod.rtn == Definition.VOID_TYPE) {
-                returnType = Definition.DEF_TYPE;
+            if (interfaceMethod.rtn == void.class) {
+                returnType = def.class;
             } else {
                 returnType = interfaceMethod.rtn;
             }
@@ -143,7 +140,7 @@ public final class ELambda extends AExpression implements ILambda {
             for (int i = 0; i < paramTypeStrs.size(); i++) {
                 String paramType = paramTypeStrs.get(i);
                 if (paramType == null) {
-                    actualParamTypeStrs.add(interfaceMethod.arguments.get(i).name);
+                    actualParamTypeStrs.add(Definition.ClassToName(interfaceMethod.arguments.get(i)));
                 } else {
                     actualParamTypeStrs.add(paramType);
                 }
@@ -165,23 +162,23 @@ public final class ELambda extends AExpression implements ILambda {
         List<String> paramTypes = new ArrayList<>(captures.size() + actualParamTypeStrs.size());
         List<String> paramNames = new ArrayList<>(captures.size() + paramNameStrs.size());
         for (Variable var : captures) {
-            paramTypes.add(var.type.name);
+            paramTypes.add(Definition.ClassToName(var.clazz));
             paramNames.add(var.name);
         }
         paramTypes.addAll(actualParamTypeStrs);
         paramNames.addAll(paramNameStrs);
 
         // desugar lambda body into a synthetic method
-        desugared = new SFunction(reserved, location, returnType.name, name,
+        desugared = new SFunction(reserved, location, Definition.ClassToName(returnType), name,
                                             paramTypes, paramNames, statements, true);
         desugared.generateSignature(locals.getDefinition());
-        desugared.analyze(Locals.newLambdaScope(locals.getProgramScope(), returnType, desugared.parameters,
-                                                captures.size(), reserved.getMaxLoopCounter()));
+        desugared.analyze(Locals.newLambdaScope(locals.getProgramScope(), returnType,
+                                                desugared.parameters, captures.size(), reserved.getMaxLoopCounter()));
 
         // setup method reference to synthetic method
         if (expected == null) {
             ref = null;
-            actual = locals.getDefinition().getType("String");
+            actual = String.class;
             defPointer = "Sthis." + name + "," + captures.size();
         } else {
             defPointer = null;
@@ -193,12 +190,12 @@ public final class ELambda extends AExpression implements ILambda {
 
             // check casts between the interface method and the delegate method are legal
             for (int i = 0; i < interfaceMethod.arguments.size(); ++i) {
-                Type from = interfaceMethod.arguments.get(i);
-                Type to = desugared.parameters.get(i + captures.size()).type;
+                Class<?> from = interfaceMethod.arguments.get(i);
+                Class<?> to = desugared.parameters.get(i + captures.size()).clazz;
                 AnalyzerCaster.getLegalCast(location, from, to, false, true);
             }
 
-            if (interfaceMethod.rtn != VOID_TYPE) {
+            if (interfaceMethod.rtn != void.class) {
                 AnalyzerCaster.getLegalCast(location, desugared.rtnType, interfaceMethod.rtn, false, true);
             }
 
@@ -214,7 +211,7 @@ public final class ELambda extends AExpression implements ILambda {
             writer.writeDebugInfo(location);
             // load captures
             for (Variable capture : captures) {
-                writer.visitVarInsn(capture.type.type.getOpcode(Opcodes.ILOAD), capture.getSlot());
+                writer.visitVarInsn(MethodWriter.getType(capture.clazz).getOpcode(Opcodes.ILOAD), capture.getSlot());
             }
 
             writer.invokeDynamic(
@@ -232,7 +229,7 @@ public final class ELambda extends AExpression implements ILambda {
             writer.push((String)null);
             // load captures
             for (Variable capture : captures) {
-                writer.visitVarInsn(capture.type.type.getOpcode(Opcodes.ILOAD), capture.getSlot());
+                writer.visitVarInsn(MethodWriter.getType(capture.clazz).getOpcode(Opcodes.ILOAD), capture.getSlot());
             }
         }
 
@@ -249,7 +246,7 @@ public final class ELambda extends AExpression implements ILambda {
     public org.objectweb.asm.Type[] getCaptures() {
         org.objectweb.asm.Type[] types = new org.objectweb.asm.Type[captures.size()];
         for (int i = 0; i < types.length; i++) {
-            types[i] = captures.get(i).type.type;
+            types[i] = MethodWriter.getType(captures.get(i).clazz);
         }
         return types;
     }

@@ -19,19 +19,6 @@
 
 package org.elasticsearch.ingest.common;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Supplier;
-
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -40,6 +27,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.grok.Grok;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
@@ -47,30 +35,24 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
+
 public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPlugin {
 
-    // Code for loading built-in grok patterns packaged with the jar file:
-    private static final String[] PATTERN_NAMES = new String[] {
-        "aws", "bacula", "bro", "exim", "firewalls", "grok-patterns", "haproxy",
-        "java", "junos", "linux-syslog", "mcollective-patterns", "mongodb", "nagios",
-        "postgresql", "rails", "redis", "ruby"
-    };
-    static final Map<String, String> GROK_PATTERNS;
-    static {
-        try {
-            GROK_PATTERNS = loadBuiltinPatterns();
-        } catch (IOException e) {
-            throw new UncheckedIOException("unable to load built-in grok patterns", e);
-        }
-    }
+    static final Map<String, String> GROK_PATTERNS = Grok.getBuiltinPatterns();
 
-    public IngestCommonPlugin() throws IOException {
+    public IngestCommonPlugin() {
     }
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         Map<String, Processor.Factory> processors = new HashMap<>();
-        processors.put(DateProcessor.TYPE, new DateProcessor.Factory());
+        processors.put(DateProcessor.TYPE, new DateProcessor.Factory(parameters.scriptService));
         processors.put(SetProcessor.TYPE, new SetProcessor.Factory(parameters.scriptService));
         processors.put(AppendProcessor.TYPE, new AppendProcessor.Factory(parameters.scriptService));
         processors.put(RenameProcessor.TYPE, new RenameProcessor.Factory());
@@ -91,6 +73,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
         processors.put(DotExpanderProcessor.TYPE, new DotExpanderProcessor.Factory());
         processors.put(JsonProcessor.TYPE, new JsonProcessor.Factory());
         processors.put(KeyValueProcessor.TYPE, new KeyValueProcessor.Factory());
+        processors.put(URLDecodeProcessor.TYPE, new URLDecodeProcessor.Factory());
         return Collections.unmodifiableMap(processors);
     }
 
@@ -107,30 +90,4 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
         return Arrays.asList(new GrokProcessorGetAction.RestAction(settings, restController));
     }
 
-
-    public static Map<String, String> loadBuiltinPatterns() throws IOException {
-        Map<String, String> builtinPatterns = new HashMap<>();
-        for (String pattern : PATTERN_NAMES) {
-            try(InputStream is = IngestCommonPlugin.class.getResourceAsStream("/patterns/" + pattern)) {
-                loadPatterns(builtinPatterns, is);
-            }
-        }
-        return Collections.unmodifiableMap(builtinPatterns);
-    }
-
-    private static void loadPatterns(Map<String, String> patternBank, InputStream inputStream) throws IOException {
-        String line;
-        BufferedReader br = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
-        while ((line = br.readLine()) != null) {
-            String trimmedLine = line.replaceAll("^\\s+", "");
-            if (trimmedLine.startsWith("#") || trimmedLine.length() == 0) {
-                continue;
-            }
-
-            String[] parts = trimmedLine.split("\\s+", 2);
-            if (parts.length == 2) {
-                patternBank.put(parts[0], parts[1]);
-            }
-        }
-    }
 }

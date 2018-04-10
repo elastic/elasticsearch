@@ -20,7 +20,7 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-import org.elasticsearch.client.http.HttpHost;
+import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -119,8 +119,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                     throw ex;
                 }
             }
-            ClientYamlTestClient clientYamlTestClient =
-                new ClientYamlTestClient(restSpec, restClient, hosts, esVersion);
+            ClientYamlTestClient clientYamlTestClient = initClientYamlTestClient(restSpec, restClient, hosts, esVersion);
             restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, randomizeContentType());
             adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, false);
             String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
@@ -139,13 +138,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         restTestExecutionContext.clear();
     }
 
-    @Override
-    protected void afterIfFailed(List<Throwable> errors) {
-        // Dump the stash on failure. Instead of dumping it in true json we escape `\n`s so stack traces are easier to read
-        logger.info("Stash dump on failure [{}]",
-                Strings.toString(restTestExecutionContext.stash(), true, true)
-                        .replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t"));
-        super.afterIfFailed(errors);
+    protected ClientYamlTestClient initClientYamlTestClient(ClientYamlSuiteRestSpec restSpec, RestClient restClient,
+                                                            List<HttpHost> hosts, Version esVersion) throws IOException {
+        return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion);
     }
 
     public static Iterable<Object[]> createParameters() throws Exception {
@@ -339,10 +334,16 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     private void executeSection(ExecutableSection executableSection) {
         try {
             executableSection.execute(restTestExecutionContext);
-        } catch (Exception e) {
-            throw new RuntimeException(errorMessage(executableSection, e), e);
-        } catch (AssertionError e) {
-            throw new AssertionError(errorMessage(executableSection, e), e);
+        } catch (AssertionError | Exception e) {
+            // Dump the stash on failure. Instead of dumping it in true json we escape `\n`s so stack traces are easier to read
+            logger.info("Stash dump on test failure [{}]",
+                    Strings.toString(restTestExecutionContext.stash(), true, true)
+                            .replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t"));
+            if (e instanceof AssertionError) {
+                throw new AssertionError(errorMessage(executableSection, e), e);
+            } else {
+                throw new RuntimeException(errorMessage(executableSection, e), e);
+            }
         }
     }
 

@@ -229,7 +229,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
     public void testFilterByMultipleTags() throws InterruptedException {
         int nodes = randomIntBetween(5, 10);
         Settings nodeSettings = Settings.builder()
-                .putArray(AwsEc2Service.TAG_SETTING.getKey() + "stage", "prod", "preprod")
+                .putList(AwsEc2Service.TAG_SETTING.getKey() + "stage", "prod", "preprod")
                 .build();
 
         int prodInstances = 0;

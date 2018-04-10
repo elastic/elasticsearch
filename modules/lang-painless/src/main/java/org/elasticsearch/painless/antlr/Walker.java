@@ -198,7 +198,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         this.reserved.push(reserved);
         this.debugStream = debugStream;
         this.settings = settings;
-        this.sourceName = Location.computeSourceName(sourceName, sourceText);
+        this.sourceName = Location.computeSourceName(sourceName);
         this.sourceText = sourceText;
         this.globals = new Globals(new BitSet(sourceText.length()));
         this.definition = definition;
@@ -1076,9 +1076,11 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             }
         }
 
+        FunctionReserved lambdaReserved = (FunctionReserved)reserved.pop();
+        reserved.peek().addUsedVariables(lambdaReserved);
+
         String name = nextLambda();
-        return new ELambda(name, (FunctionReserved)reserved.pop(), location(ctx),
-                           paramTypes, paramNames, statements);
+        return new ELambda(name, lambdaReserved, location(ctx), paramTypes, paramNames, statements);
     }
 
     @Override

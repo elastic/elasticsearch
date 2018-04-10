@@ -660,7 +660,7 @@ Note that def types will be assumed to be of the boolean type.  Any def type eva
 *Examples:*
 [source,Java]
 ----
-boolean x = !false; // declares the boolean variable x and sets it to the the opposite of the false value
+boolean x = !false; // declares the boolean variable x and sets it to the opposite of the false value
 boolean y = !x;     // declares the boolean variable y and sets it to the opposite of the boolean variable x
 def z = !y;         // declares the def variable z and sets it to the opposite of the boolean variable y
 ----

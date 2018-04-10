@@ -20,6 +20,7 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 
@@ -49,27 +50,8 @@ public class VersionUtils {
      * guarantees in v1 and versions without the guranteees in v2
      */
     static Tuple<List<Version>, List<Version>> resolveReleasedVersions(Version current, Class<?> versionClass) {
-        Field[] fields = versionClass.getFields();
-        List<Version> versions = new ArrayList<>(fields.length);
-        for (final Field field : fields) {
-            final int mod = field.getModifiers();
-            if (false == Modifier.isStatic(mod) && Modifier.isFinal(mod) && Modifier.isPublic(mod)) {
-                continue;
-            }
-            if (field.getType() != Version.class) {
-                continue;
-            }
-            if ("CURRENT".equals(field.getName())) {
-                continue;
-            }
-            assert field.getName().matches("V(_\\d+)+(_(alpha|beta|rc)\\d+)?") : field.getName();
-            try {
-                versions.add(((Version) field.get(null)));
-            } catch (final IllegalAccessException e) {
-                throw new RuntimeException(e);
-            }
-        }
-        Collections.sort(versions);
+        List<Version> versions = Version.getDeclaredVersions(versionClass);
+
         Version last = versions.remove(versions.size() - 1);
         assert last.equals(current) : "The highest version must be the current one "
             + "but was [" + versions.get(versions.size() - 1) + "] and current was [" + current + "]";
@@ -100,11 +82,39 @@ public class VersionUtils {
 
         Version unreleased = versions.remove(unreleasedIndex);
         if (unreleased.revision == 0) {
-            /* If the last unreleased version is itself a patch release then gradle enforces
-             * that there is yet another unreleased version before that. */
-            unreleasedIndex--;
+            /*
+             * If the last unreleased version is itself a patch release then Gradle enforces that there is yet another unreleased version
+             * before that. However, we have to skip alpha/betas/RCs too (e.g., consider when the version constants are ..., 5.6.3, 5.6.4,
+             * 6.0.0-alpha1, ..., 6.0.0-rc1, 6.0.0-rc2, 6.0.0, 6.1.0 on the 6.x branch. In this case, we will have pruned 6.0.0 and 6.1.0 as
+             * unreleased versions, but we also need to prune 5.6.4. At this point though, unreleasedIndex will be pointing to 6.0.0-rc2, so
+             * we have to skip backwards until we find a non-alpha/beta/RC again. Then we can prune that version as an unreleased version
+             * too.
+             */
+            do {
+                unreleasedIndex--;
+            } while (versions.get(unreleasedIndex).isRelease() == false);
             Version earlierUnreleased = versions.remove(unreleasedIndex);
+
+            // This earlierUnreleased is either the snapshot on the minor branch lower, or its possible its a staged release. If it is a
+            // staged release, remove it and return it in unreleased as well.
+            if (earlierUnreleased.revision == 0) {
+                unreleasedIndex--;
+                Version actualUnreleasedPreviousMinor = versions.remove(unreleasedIndex);
+                return new Tuple<>(unmodifiableList(versions), unmodifiableList(Arrays.asList(actualUnreleasedPreviousMinor,
+                    earlierUnreleased, unreleased, current)));
+            }
+
             return new Tuple<>(unmodifiableList(versions), unmodifiableList(Arrays.asList(earlierUnreleased, unreleased, current)));
+        } else if (unreleased.major == current.major) {
+            // need to remove one more of the last major's minor set
+            do {
+                unreleasedIndex--;
+            } while (unreleasedIndex > 0 && versions.get(unreleasedIndex).major == current.major);
+            if (unreleasedIndex > 0) {
+                // some of the test cases return very small lists, so its possible this is just the end of the list, if so, dont include it
+                Version earlierMajorsMinor = versions.remove(unreleasedIndex);
+                return new Tuple<>(unmodifiableList(versions), unmodifiableList(Arrays.asList(earlierMajorsMinor, unreleased, current)));
+            }
         }
         return new Tuple<>(unmodifiableList(versions), unmodifiableList(Arrays.asList(unreleased, current)));
     }

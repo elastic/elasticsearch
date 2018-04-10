@@ -39,7 +39,7 @@ public class AnalysisTestsHelper {
                                                                           final String resource,
                                                                           final AnalysisPlugin... plugins) throws IOException {
         final Settings settings = Settings.builder()
-                .loadFromStream(resource, AnalysisTestsHelper.class.getResourceAsStream(resource))
+                .loadFromStream(resource, AnalysisTestsHelper.class.getResourceAsStream(resource), false)
                 .put(Environment.PATH_HOME_SETTING.getKey(), baseDir.toString())
                 .build();
 

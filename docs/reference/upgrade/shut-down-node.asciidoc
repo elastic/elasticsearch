@@ -1,0 +1,20 @@
+* If you are running Elasticsearch with `systemd`:
++
+[source,sh]
+--------------------------------------------------
+sudo systemctl stop elasticsearch.service
+--------------------------------------------------
+
+* If you are running Elasticsearch with SysV `init`:
++
+[source,sh]
+--------------------------------------------------
+sudo -i service elasticsearch stop
+--------------------------------------------------
+
+* If you are running Elasticsearch as a daemon:
++
+[source,sh]
+--------------------------------------------------
+kill $(cat pid)
+--------------------------------------------------

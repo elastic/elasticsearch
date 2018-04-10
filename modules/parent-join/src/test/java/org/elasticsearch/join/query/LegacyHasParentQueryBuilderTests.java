@@ -24,11 +24,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
@@ -83,7 +81,7 @@ public class LegacyHasParentQueryBuilderTests extends AbstractQueryTestCase<HasP
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         // TODO: use a single type when inner hits have been changed to work with join field,
         // this test randomly generates queries with inner hits
-        mapperService.merge(PARENT_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(PARENT_TYPE,
+        mapperService.merge(PARENT_TYPE, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(PARENT_TYPE,
                 STRING_FIELD_NAME, "type=text",
                 STRING_FIELD_NAME_2, "type=keyword",
                 INT_FIELD_NAME, "type=integer",
@@ -91,8 +89,8 @@ public class LegacyHasParentQueryBuilderTests extends AbstractQueryTestCase<HasP
                 BOOLEAN_FIELD_NAME, "type=boolean",
                 DATE_FIELD_NAME, "type=date",
                 OBJECT_FIELD_NAME, "type=object"
-        ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
-        mapperService.merge(CHILD_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(CHILD_TYPE,
+        ))), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(CHILD_TYPE, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(CHILD_TYPE,
                 "_parent", "type=" + PARENT_TYPE,
                 STRING_FIELD_NAME, "type=text",
                 STRING_FIELD_NAME_2, "type=keyword",
@@ -101,9 +99,9 @@ public class LegacyHasParentQueryBuilderTests extends AbstractQueryTestCase<HasP
                 BOOLEAN_FIELD_NAME, "type=boolean",
                 DATE_FIELD_NAME, "type=date",
                 OBJECT_FIELD_NAME, "type=object"
-        ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
-        mapperService.merge("just_a_type", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("just_a_type"
-        ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+        ))), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge("just_a_type", new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef("just_a_type"
+        ))), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     /**
@@ -184,20 +182,6 @@ public class LegacyHasParentQueryBuilderTests extends AbstractQueryTestCase<HasP
         HasParentQueryBuilder qb = hasParentQuery("just_a_type", new MatchAllQueryBuilder(), false);
         QueryShardException qse = expectThrows(QueryShardException.class, () -> qb.doToQuery(context));
         assertThat(qse.getMessage(), equalTo("[has_parent] no child types found for type [just_a_type]"));
-    }
-
-    public void testDeprecatedXContent() throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-        builder.startObject();
-        builder.startObject("has_parent");
-        builder.field("query");
-        new TermQueryBuilder("a", "a").toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.field("type", "foo"); // deprecated
-        builder.endObject();
-        builder.endObject();
-        HasParentQueryBuilder queryBuilder = (HasParentQueryBuilder) parseQuery(builder.string());
-        assertEquals("foo", queryBuilder.type());
-        assertWarnings("Deprecated field [type] used, expected [parent_type] instead");
     }
 
     public void testToQueryInnerQueryType() throws IOException {

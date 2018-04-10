@@ -20,12 +20,12 @@
 package org.elasticsearch.test;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanBoostQuery;
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -53,16 +53,20 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -149,7 +153,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, DATE_RANGE_FIELD_NAME, OBJECT_FIELD_NAME, GEO_POINT_FIELD_NAME,
             GEO_SHAPE_FIELD_NAME};
     private static final String[] MAPPED_LEAF_FIELD_NAMES = new String[]{STRING_FIELD_NAME, INT_FIELD_NAME, INT_RANGE_FIELD_NAME,
-            DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, DATE_RANGE_FIELD_NAME, GEO_POINT_FIELD_NAME, };
+            DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, DATE_RANGE_FIELD_NAME,  GEO_POINT_FIELD_NAME, };
     private static final int NUMBER_OF_TESTQUERIES = 20;
 
     protected static Version indexVersionCreated;
@@ -191,7 +195,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             currentTypes = new String[0]; // no types
             break;
         default:
-            currentTypes = new String[] { "doc" };
+            currentTypes = new String[] { "_doc" };
             break;
         }
         randomTypes = getRandomTypes();
@@ -335,7 +339,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 if (expectedException) {
                     fail("some parsing exception expected for query: " + testQuery);
                 }
-            } catch (ParsingException | ElasticsearchParseException e) {
+            } catch (ParsingException | ElasticsearchParseException | XContentParseException e) {
                 // different kinds of exception wordings depending on location
                 // of mutation, so no simple asserts possible here
                 if (expectedException == false) {
@@ -403,8 +407,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
                 BytesStreamOutput out = new BytesStreamOutput();
                 try (
-                        XContentGenerator generator = XContentType.JSON.xContent().createGenerator(out);
-                        XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, query);
+                    XContentGenerator generator = XContentType.JSON.xContent().createGenerator(out);
+                    XContentParser parser = JsonXContent.jsonXContent
+                        .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, query);
                 ) {
                     int objectIndex = -1;
                     Deque<String> levels = new LinkedList<>();
@@ -412,7 +417,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     // Parse the valid query and inserts a new object level called "newField"
                     XContentParser.Token token;
                     while ((token = parser.nextToken()) != null) {
-                        if (token == XContentParser.Token.START_OBJECT) {
+                        if (token == XContentParser.Token.START_ARRAY) {
+                            levels.addLast(parser.currentName());
+                        } else if (token == XContentParser.Token.START_OBJECT) {
                             objectIndex++;
                             levels.addLast(parser.currentName());
 
@@ -420,7 +427,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                                 // We reached the place in the object tree where we want to insert a new object level
                                 generator.writeStartObject();
                                 generator.writeFieldName("newField");
-                                XContentHelper.copyCurrentStructure(generator, parser);
+                                generator.copyCurrentStructure(parser);
                                 generator.writeEndObject();
 
                                 if (hasArbitraryContent) {
@@ -437,12 +444,12 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                                 // Jump to next token
                                 continue;
                             }
-                        } else if (token == XContentParser.Token.END_OBJECT) {
+                        } else if (token == XContentParser.Token.END_OBJECT || token == XContentParser.Token.END_ARRAY) {
                             levels.removeLast();
                         }
 
                         // We are walking through the object tree, so we can safely copy the current node
-                        XContentHelper.copyCurrentEvent(generator, parser);
+                        generator.copyCurrentEvent(parser);
                     }
 
                     if (objectIndex < mutation) {
@@ -736,11 +743,30 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
             // TODO we only change name and boost, we should extend by any sub-test supplying a "mutate" method that randomly changes one
             // aspect of the object under test
-            checkEqualsAndHashCode(createTestQueryBuilder(), this::copyQuery, this::changeNameOrBoost);
+            checkEqualsAndHashCode(createTestQueryBuilder(), this::copyQuery, this::mutateInstance);
         }
     }
 
-    private QB changeNameOrBoost(QB original) throws IOException {
+    public QB mutateInstance(QB instance) throws IOException {
+        return changeNameOrBoost(instance);
+    }
+
+    /**
+     * Generic test that checks that the <code>Strings.toString()</code> method
+     * renders the XContent correctly.
+     */
+    public void testValidOutput() throws IOException {
+        for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
+            QB testQuery = createTestQueryBuilder();
+            XContentType xContentType = XContentType.JSON;
+            String toString = Strings.toString(testQuery);
+            assertParsedQuery(createParser(xContentType.xContent(), toString), testQuery);
+            BytesReference bytes = XContentHelper.toXContent(testQuery, xContentType, false);
+            assertParsedQuery(createParser(xContentType.xContent(), bytes), testQuery);
+        }
+    }
+
+    protected QB changeNameOrBoost(QB original) throws IOException {
         QB secondQuery = copyQuery(original);
         if (randomBoolean()) {
             secondQuery.queryName(secondQuery.queryName() == null ? randomAlphaOfLengthBetween(1, 30) : secondQuery.queryName()
@@ -944,9 +970,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         source.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals(
-                msg(expected, builder.string()),
+                msg(expected, Strings.toString(builder)),
                 expected.replaceAll("\\s+", ""),
-                builder.string().replaceAll("\\s+", ""));
+                Strings.toString(builder).replaceAll("\\s+", ""));
     }
 
     private static String msg(String left, String right) {
@@ -1010,7 +1036,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
         ServiceHolder(Settings nodeSettings, Settings indexSettings,
                       Collection<Class<? extends Plugin>> plugins, AbstractQueryTestCase<?> testCase) throws IOException {
-            Environment env = InternalSettingsPreparer.prepareEnvironment(nodeSettings, null);
+            Environment env = InternalSettingsPreparer.prepareEnvironment(nodeSettings);
             PluginsService pluginsService;
             pluginsService = new PluginsService(nodeSettings, null, env.modulesFile(), env.pluginsFile(), plugins);
 
@@ -1033,10 +1059,10 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     ).flatMap(Function.identity()).collect(toList()));
             IndexScopedSettings indexScopedSettings = settingsModule.getIndexScopedSettings();
             idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings, indexScopedSettings);
-            AnalysisModule analysisModule = new AnalysisModule(new Environment(nodeSettings), emptyList());
+            AnalysisModule analysisModule = new AnalysisModule(TestEnvironment.newEnvironment(nodeSettings), emptyList());
             IndexAnalyzers indexAnalyzers = analysisModule.getAnalysisRegistry().build(idxSettings);
             scriptService = scriptModule.getScriptService();
-            similarityService = new SimilarityService(idxSettings, Collections.emptyMap());
+            similarityService = new SimilarityService(idxSettings, null, Collections.emptyMap());
             MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
             mapperService = new MapperService(idxSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry,
                     this::createShardContext);
@@ -1057,7 +1083,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             });
 
             for (String type : currentTypes) {
-                mapperService.merge(type, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(type,
+                mapperService.merge(type, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(type,
                         STRING_FIELD_NAME, "type=text",
                         STRING_FIELD_NAME_2, "type=keyword",
                         INT_FIELD_NAME, "type=integer",
@@ -1069,12 +1095,12 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                         OBJECT_FIELD_NAME, "type=object",
                         GEO_POINT_FIELD_NAME, "type=geo_point",
                         GEO_SHAPE_FIELD_NAME, "type=geo_shape"
-                ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+                ))), MapperService.MergeReason.MAPPING_UPDATE);
                 // also add mappings for two inner field in the object field
                 mapperService.merge(type, new CompressedXContent("{\"properties\":{\"" + OBJECT_FIELD_NAME + "\":{\"type\":\"object\","
                                 + "\"properties\":{\"" + DATE_FIELD_NAME + "\":{\"type\":\"date\"},\"" +
                                 INT_FIELD_NAME + "\":{\"type\":\"integer\"}}}}}"),
-                        MapperService.MergeReason.MAPPING_UPDATE, false);
+                        MapperService.MergeReason.MAPPING_UPDATE);
             }
             testCase.initializeAdditionalMappings(mapperService);
         }

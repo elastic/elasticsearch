@@ -34,7 +34,7 @@ setup:
 ---
 "Parent omitted":
  - do:
-      catch: request
+      catch: bad_request
       get:
           index:   test_1
           type:    test

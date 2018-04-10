@@ -78,9 +78,11 @@
         id:     4
         body:   { "theField": "foo 4" }
 
+  # we use a different index here since we compare the explain description which contains a doc ID and we can only be sure that it's 0
+  # if we are the only doc in the shard.
   - do:
       index:
-        index:  test
+        index:  otherindex
         type:   type
         id:     5
         body:   { "otherField": "foo" }
@@ -122,16 +124,3 @@
   - match: { hits.total: 1 }
   - length: { hits.hits: 1 }
   - length: { profile: 1 }
-
----
-"missing body":
-
-  - skip:
-      version: " - 5.99.99"
-      reason: NPE caused by missing body fixed in 6.0.0
-      
-  - do:
-      catch: /request body or source parameter is required/
-      raw:
-        method: POST
-        path: _search/template

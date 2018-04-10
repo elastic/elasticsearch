@@ -1,25 +1,4 @@
 ---
-  setup:
-    - do:
-        cluster.put_settings:
-                body:
-                  persistent:
-                    logger._root: debug
-
----
-  teardown:
-    - do:
-        cluster.put_settings:
-                body:
-                  persistent:
-                    # this is not exactly correct as tests could be running
-                    # under a different logging level; we sacrifice correctness
-                    # here for now in the hopes of quickly understanding what is
-                    # causing this test to fail and simply reverting the change
-                    # here
-                    logger._root: null
-
----
 "refresh=true immediately makes changes are visible in search":
   - do:
       bulk:

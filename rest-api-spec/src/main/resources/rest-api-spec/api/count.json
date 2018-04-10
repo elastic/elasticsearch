@@ -39,8 +39,8 @@
           "description" : "Specify the node or shard the operation should be performed on (default: random)"
         },
         "routing": {
-          "type" : "string",
-          "description" : "Specific routing value"
+          "type" : "list",
+          "description" : "A comma-separated list of specific routing values"
         },
         "q": {
           "type" : "string",
@@ -67,6 +67,10 @@
         "lenient": {
           "type" : "boolean",
           "description" : "Specify whether format-based query failures (such as providing text to a numeric field) should be ignored"
+        },
+        "terminate_after" : {
+          "type" : "number",
+          "description" : "The maximum count for each shard, upon reaching which the query execution will terminate early"
         }
       }
     },

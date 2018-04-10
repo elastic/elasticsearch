@@ -21,14 +21,13 @@ package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
-import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -41,13 +40,12 @@ public class AzureRepositorySettingsTests extends ESTestCase {
     private AzureRepository azureRepository(Settings settings) throws StorageException, IOException, URISyntaxException {
         Settings internalSettings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-            .putArray(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
             .put(settings)
             .build();
-        return new AzureRepository(new RepositoryMetaData("foo", "azure", internalSettings), new Environment(internalSettings),
-            NamedXContentRegistry.EMPTY, null);
+        return new AzureRepository(new RepositoryMetaData("foo", "azure", internalSettings),
+            TestEnvironment.newEnvironment(internalSettings), NamedXContentRegistry.EMPTY, null);
     }
-
 
     public void testReadonlyDefault() throws StorageException, IOException, URISyntaxException {
         assertThat(azureRepository(Settings.EMPTY).isReadOnly(), is(false));
@@ -113,17 +111,17 @@ public class AzureRepositorySettingsTests extends ESTestCase {
         // zero bytes is not allowed
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             azureRepository(Settings.builder().put("chunk_size", "0").build()));
-        assertEquals("Failed to parse value [0] for setting [chunk_size] must be >= 1b", e.getMessage());
+        assertEquals("failed to parse value [0] for setting [chunk_size], must be >= [1b]", e.getMessage());
 
         // negative bytes not allowed
         e = expectThrows(IllegalArgumentException.class, () ->
             azureRepository(Settings.builder().put("chunk_size", "-1").build()));
-        assertEquals("Failed to parse value [-1] for setting [chunk_size] must be >= 1b", e.getMessage());
+        assertEquals("failed to parse value [-1] for setting [chunk_size], must be >= [1b]", e.getMessage());
 
         // greater than max chunk size not allowed
         e = expectThrows(IllegalArgumentException.class, () ->
             azureRepository(Settings.builder().put("chunk_size", "65mb").build()));
-        assertEquals("Failed to parse value [65mb] for setting [chunk_size] must be <= 64mb", e.getMessage());
+        assertEquals("failed to parse value [65mb] for setting [chunk_size], must be <= [64mb]", e.getMessage());
     }
 
 }

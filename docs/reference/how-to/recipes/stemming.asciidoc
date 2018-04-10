@@ -24,7 +24,7 @@ PUT index
     }
   },
   "mappings": {
-    "type": {
+    "_doc": {
       "properties": {
         "body": {
           "type": "text",
@@ -41,12 +41,12 @@ PUT index
   }
 }
 
-PUT index/type/1
+PUT index/_doc/1
 {
   "body": "Ski resort"
 }
 
-PUT index/type/2
+PUT index/_doc/2
 {
   "body": "A pair of skis"
 }
@@ -89,7 +89,7 @@ GET index/_search
     "hits": [
       {
         "_index": "index",
-        "_type": "type",
+        "_type": "_doc",
         "_id": "2",
         "_score": 0.2876821,
         "_source": {
@@ -98,7 +98,7 @@ GET index/_search
       },
       {
         "_index": "index",
-        "_type": "type",
+        "_type": "_doc",
         "_id": "1",
         "_score": 0.2876821,
         "_source": {
@@ -147,7 +147,7 @@ GET index/_search
     "hits": [
       {
         "_index": "index",
-        "_type": "type",
+        "_type": "_doc",
         "_id": "1",
         "_score": 0.2876821,
         "_source": {
@@ -204,7 +204,7 @@ GET index/_search
     "hits": [
       {
         "_index": "index",
-        "_type": "type",
+        "_type": "_doc",
         "_id": "1",
         "_score": 0.2876821,
         "_source": {

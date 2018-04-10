@@ -9,12 +9,16 @@ Assuming the data consists of documents representing exams grades (between 0 and
 
 [source,js]
 --------------------------------------------------
+GET /exams/_search
 {
+    "size": 0,
     "aggs" : {
         "grades_stats" : { "extended_stats" : { "field" : "grade" } }
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:exams]
 
 The above aggregation computes the grades statistics over all documents. The aggregation type is `extended_stats` and the `field` setting defines the numeric field of the documents the stats will be computed on. The above will return the following:
 
@@ -25,23 +29,24 @@ The above aggregation computes the grades statistics over all documents. The agg
     ...
 
     "aggregations": {
-        "grade_stats": {
-           "count": 9,
-           "min": 72,
-           "max": 99,
-           "avg": 86,
-           "sum": 774,
-           "sum_of_squares": 67028,
-           "variance": 51.55555555555556,
-           "std_deviation": 7.180219742846005,
+        "grades_stats": {
+           "count": 2,
+           "min": 50.0,
+           "max": 100.0,
+           "avg": 75.0,
+           "sum": 150.0,
+           "sum_of_squares": 12500.0,
+           "variance": 625.0,
+           "std_deviation": 25.0,
            "std_deviation_bounds": {
-            "upper": 100.36043948569201,
-            "lower": 71.63956051430799
+            "upper": 125.0,
+            "lower": 25.0
            }
         }
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 The name of the aggregation (`grades_stats` above) also serves as the key by which the aggregation result can be retrieved from the returned response.
 
@@ -52,7 +57,9 @@ three standard deviations, you can set `sigma` in the request:
 
 [source,js]
 --------------------------------------------------
+GET /exams/_search
 {
+    "size": 0,
     "aggs" : {
         "grades_stats" : {
             "extended_stats" : {
@@ -63,6 +70,8 @@ three standard deviations, you can set `sigma` in the request:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:exams]
 <1> `sigma` controls how many standard deviations +/- from the mean should be displayed
 
 `sigma` can be any non-negative double, meaning you can request non-integer values such as `1.5`.  A value of `0` is valid, but will simply
@@ -82,9 +91,9 @@ Computing the grades stats based on a script:
 
 [source,js]
 --------------------------------------------------
+GET /exams/_search
 {
-    ...,
-
+    "size": 0,
     "aggs" : {
         "grades_stats" : { 
             "extended_stats" : { 
@@ -97,14 +106,16 @@ Computing the grades stats based on a script:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:exams]
 
-This will interpret the `script` parameter as an `inline` script with the `painless` script language and no script parameters. To use a file script use the following syntax:
+This will interpret the `script` parameter as an `inline` script with the `painless` script language and no script parameters. To use a stored script use the following syntax:
 
 [source,js]
 --------------------------------------------------
+GET /exams/_search
 {
-    ...,
-
+    "size": 0,
     "aggs" : {
         "grades_stats" : { 
             "extended_stats" : { 
@@ -119,6 +130,8 @@ This will interpret the `script` parameter as an `inline` script with the `painl
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:exams,stored_example_script]
 
 ===== Value Script
 
@@ -126,20 +139,18 @@ It turned out that the exam was way above the level of the students and a grade 
 
 [source,js]
 --------------------------------------------------
+GET /exams/_search
 {
+    "size": 0,
     "aggs" : {
-        ...
-
-        "aggs" : {
-            "grades_stats" : {
-                "extended_stats" : {
-                    "field" : "grade",
-                    "script" : {
-                        "lang" : "painless",
-                        "source": "_value * params.correction",
-                        "params" : {
-                            "correction" : 1.2
-                        }
+        "grades_stats" : {
+            "extended_stats" : {
+                "field" : "grade",
+                "script" : {
+                    "lang" : "painless",
+                    "source": "_value * params.correction",
+                    "params" : {
+                        "correction" : 1.2
                     }
                 }
             }
@@ -147,6 +158,8 @@ It turned out that the exam was way above the level of the students and a grade 
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:exams]
 
 ==== Missing value
 
@@ -156,7 +169,9 @@ had a value.
 
 [source,js]
 --------------------------------------------------
+GET /exams/_search
 {
+    "size": 0,
     "aggs" : {
         "grades_stats" : {
             "extended_stats" : {
@@ -167,5 +182,7 @@ had a value.
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:exams]
 
 <1> Documents without a value in the `grade` field will fall into the same bucket as documents that have the value `0`.

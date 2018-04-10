@@ -14,7 +14,7 @@ setup:
       version: " - 5.99.0"
       reason: delete index doesn't support aliases only from 6.0.0 on
   - do:
-      catch: request
+      catch: bad_request
       indices.delete:
         index: alias
   - do:
@@ -42,7 +42,7 @@ setup:
       version: " - 5.99.0"
       reason: delete index doesn't support aliases only from 6.0.0 on
   - do:
-      catch: request
+      catch: bad_request
       indices.delete:
         index: alias,index2
   - do:

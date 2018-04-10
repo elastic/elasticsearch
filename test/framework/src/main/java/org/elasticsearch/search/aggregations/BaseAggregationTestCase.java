@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -124,6 +125,20 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         assertEquals(testAgg.hashCode(), newAgg.hashCode());
     }
 
+    /**
+     * Generic test that checks that the toString method renders the XContent
+     * correctly.
+     */
+    public void testToString() throws IOException {
+        AB testAgg = createTestAggregatorBuilder();
+        String toString = randomBoolean() ? Strings.toString(testAgg) : testAgg.toString();
+        XContentParser parser = createParser(XContentType.JSON.xContent(), toString);
+        AggregationBuilder newAgg = parse(parser);
+        assertNotSame(newAgg, testAgg);
+        assertEquals(testAgg, newAgg);
+        assertEquals(testAgg.hashCode(), newAgg.hashCode());
+    }
+
     protected AggregationBuilder parse(XContentParser parser) throws IOException {
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
         AggregatorFactories.Builder parsed = AggregatorFactories.parseAggregators(parser);
@@ -155,6 +170,13 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         // TODO we only change name and boost, we should extend by any sub-test supplying a "mutate" method that randomly changes one
         // aspect of the object under test
         checkEqualsAndHashCode(createTestAggregatorBuilder(), this::copyAggregation);
+    }
+
+    public void testShallowCopy() {
+        AB original = createTestAggregatorBuilder();
+        AggregationBuilder clone = original.shallowCopy(original.factoriesBuilder, original.metaData);
+        assertNotSame(original, clone);
+        assertEquals(original, clone);
     }
 
     // we use the streaming infra to create a copy of the query provided as

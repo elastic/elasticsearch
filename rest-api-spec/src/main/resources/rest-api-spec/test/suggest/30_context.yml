@@ -276,4 +276,76 @@ setup:
 
   - length: { suggest.result: 1  }
   - length: { suggest.result.0.options: 1  }
-  - match:  { suggest.result.0.options.0.text: "Marriot in Berlin" }
+  - match:  { suggest.result.0.options.0.text: "Marriot in Berlin"  }
+
+---
+"Skip duplicates with contexts should work":
+  - skip:
+      version: " - 6.0.99"
+      reason: skip_duplicates was added in 6.1
+
+  - do:
+      index:
+        index: test
+        type:  test
+        id:    1
+        body:
+          suggest_context:
+            input: "foo"
+            contexts:
+              color: "red"
+
+  - do:
+      index:
+        index: test
+        type:  test
+        id:    1
+        body:
+          suggest_context:
+            input: "foo"
+            contexts:
+              color: "red"
+
+  - do:
+      index:
+        index: test
+        type:  test
+        id:    2
+        body:
+          suggest_context:
+            input: "foo"
+            contexts:
+              color: "blue"
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        body:
+          suggest:
+            result:
+              text: "foo"
+              completion:
+                field: suggest_context
+                skip_duplicates: true
+                contexts:
+                  color: "red"
+
+  - length: { suggest.result: 1  }
+  - length: { suggest.result.0.options: 1  }
+  - match:  { suggest.result.0.options.0.text: "foo" }
+
+  - do:
+       search:
+        body:
+          suggest:
+            result:
+              text: "foo"
+              completion:
+                skip_duplicates: true
+                field: suggest_context
+
+  - length: { suggest.result: 1  }
+  - length: { suggest.result.0.options: 1  }
+  - match:  { suggest.result.0.options.0.text: "foo" }

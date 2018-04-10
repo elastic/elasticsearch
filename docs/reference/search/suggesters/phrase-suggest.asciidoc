@@ -126,7 +126,7 @@ The response contains suggestions scored by the most likely spell correction fir
         "options" : [ {
           "text" : "nobel prize",
           "highlighted": "<em>nobel</em> prize",
-          "score" : 0.5962314
+          "score" : 0.48614594
         }]
       }
     ]

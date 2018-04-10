@@ -19,44 +19,7 @@
 
 apply plugin: 'elasticsearch.docs-test'
 
-/* List of files that have snippets that probably should be converted to
- * `// CONSOLE` and `// TESTRESPONSE` but have yet to be converted. Try and
- * only remove entries from this list. When it is empty we'll remove it
- * entirely and have a party! There will be cake and everything.... */
-buildRestTests.expectedUnconvertedCandidates = [
-  'reference/aggregations/bucket/iprange-aggregation.asciidoc',
-  'reference/aggregations/bucket/nested-aggregation.asciidoc',
-  'reference/aggregations/bucket/range-aggregation.asciidoc',
-  'reference/aggregations/bucket/reverse-nested-aggregation.asciidoc',
-  'reference/aggregations/bucket/significantterms-aggregation.asciidoc',
-  'reference/aggregations/bucket/terms-aggregation.asciidoc',
-  'reference/aggregations/matrix/stats-aggregation.asciidoc',
-  'reference/aggregations/metrics/extendedstats-aggregation.asciidoc',
-  'reference/aggregations/metrics/percentile-aggregation.asciidoc',
-  'reference/aggregations/metrics/percentile-rank-aggregation.asciidoc',
-  'reference/aggregations/metrics/scripted-metric-aggregation.asciidoc',
-  'reference/aggregations/metrics/tophits-aggregation.asciidoc',
-  'reference/cluster/allocation-explain.asciidoc',
-  'reference/cluster/nodes-info.asciidoc',
-  'reference/cluster/pending.asciidoc',
-  'reference/cluster/state.asciidoc',
-  'reference/cluster/stats.asciidoc',
-  'reference/cluster/tasks.asciidoc',
-  'reference/docs/delete-by-query.asciidoc',
-  'reference/docs/reindex.asciidoc',
-  'reference/docs/update-by-query.asciidoc',
-  'reference/index-modules/similarity.asciidoc',
-  'reference/index-modules/store.asciidoc',
-  'reference/index-modules/translog.asciidoc',
-  'reference/indices/recovery.asciidoc',
-  'reference/indices/segments.asciidoc',
-  'reference/indices/shard-stores.asciidoc',
-  'reference/migration/migrate_6_0/scripting.asciidoc',
-  'reference/search/profile.asciidoc',
-]
-
 integTestCluster {
-  setting 'script.max_compilations_per_minute', '1000'
   /* Enable regexes in painless so our tests don't complain about example
    * snippets that use them. */
   setting 'script.painless.regex.enabled', 'true'
@@ -69,8 +32,8 @@ integTestCluster {
   configFile 'analysis/stemmer_override.txt'
   configFile 'userdict_ja.txt'
   configFile 'KeywordTokenizer.rbbi'
-  extraConfigFile 'hunspell/en_US/en_US.aff', '../core/src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.aff'
-  extraConfigFile 'hunspell/en_US/en_US.dic', '../core/src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic'
+  extraConfigFile 'hunspell/en_US/en_US.aff', '../server/src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.aff'
+  extraConfigFile 'hunspell/en_US/en_US.dic', '../server/src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic'
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 }
@@ -107,7 +70,7 @@ Closure setupTwitter = { String name, int count ->
               number_of_shards: 1
               number_of_replicas: 1
             mappings:
-              tweet:
+              _doc:
                 properties:
                   user:
                     type: keyword
@@ -119,7 +82,7 @@ Closure setupTwitter = { String name, int count ->
   - do:
         bulk:
           index: twitter
-          type: tweet
+          type: _doc
           refresh: true
           body: |'''
     for (int i = 0; i < count; i++) {
@@ -147,9 +110,10 @@ buildRestTests.setups['host'] = '''
   - set: { master_node: master }
   - do:
       nodes.info:
-        metric: [ http ]
+        metric: [ http, transport ]
   - is_true: nodes.$master.http.publish_address
   - set: {nodes.$master.http.publish_address: host}
+  - set: {nodes.$master.transport.publish_address: transport_host}
 '''
 
 buildRestTests.setups['node'] = '''
@@ -170,7 +134,7 @@ buildRestTests.setups['ledger'] = '''
               number_of_shards: 2
               number_of_replicas: 1
             mappings:
-              sale:
+              _doc:
                 properties:
                   type:
                     type: keyword
@@ -179,7 +143,7 @@ buildRestTests.setups['ledger'] = '''
   - do:
         bulk:
           index: ledger
-          type: sale
+          type: _doc
           refresh: true
           body: |
             {"index":{}}
@@ -203,14 +167,14 @@ buildRestTests.setups['sales'] = '''
               number_of_shards: 2
               number_of_replicas: 1
             mappings:
-              sale:
+              _doc:
                 properties:
                   type:
                     type: keyword
   - do:
         bulk:
           index: sales
-          type: sale
+          type: _doc
           refresh: true
           body: |
             {"index":{}}
@@ -231,9 +195,16 @@ buildRestTests.setups['sales'] = '''
 // Dummy bank account data used by getting-started.asciidoc
 buildRestTests.setups['bank'] = '''
   - do:
+        indices.create:
+          index: bank
+          body:
+            settings:
+              number_of_shards: 5
+              number_of_routing_shards: 5
+  - do:
         bulk:
           index: bank
-          type: account
+          type: _doc
           refresh: true
           body: |
 #bank_data#
@@ -260,7 +231,7 @@ buildRestTests.setups['range_index'] = '''
               number_of_shards: 2
               number_of_replicas: 1
             mappings:
-              my_type:
+              _doc:
                 properties:
                   expected_attendees:
                     type: integer_range
@@ -270,7 +241,7 @@ buildRestTests.setups['range_index'] = '''
   - do:
         bulk:
           index: range_index
-          type: my_type
+          type: _doc
           refresh: true
           body: |
             {"index":{"_id": 1}}
@@ -300,7 +271,7 @@ buildRestTests.setups['stackoverflow'] = '''
               number_of_shards: 1
               number_of_replicas: 1
             mappings:
-              question:
+              _doc:
                 properties:
                   author:
                     type: keyword
@@ -309,7 +280,7 @@ buildRestTests.setups['stackoverflow'] = '''
   - do:
         bulk:
           index: stackoverflow
-          type: question
+          type: _doc
           refresh: true
           body: |'''
 
@@ -355,7 +326,7 @@ buildRestTests.setups['news'] = '''
               number_of_shards: 1
               number_of_replicas: 1
             mappings:
-              question:
+              _doc:
                 properties:
                   source:
                     type: keyword
@@ -364,7 +335,7 @@ buildRestTests.setups['news'] = '''
   - do:
         bulk:
           index: news
-          type: article
+          type: _doc
           refresh: true
           body: |'''
 
@@ -408,14 +379,14 @@ buildRestTests.setups['exams'] = '''
               number_of_shards: 1
               number_of_replicas: 1
             mappings:
-              exam:
+              _doc:
                 properties:
                   grade:
                     type: byte
   - do:
         bulk:
           index: exams
-          type: exam
+          type: _doc
           refresh: true
           body: |
             {"index":{}}
@@ -473,7 +444,78 @@ buildRestTests.setups['analyze_sample'] = '''
                     type: custom
                     filter: [lowercase]
             mappings:
-              tweet:
+              _doc:
                 properties:
                   obj1.field1:
                     type: text'''
+
+// Used by percentile/percentile-rank aggregations
+buildRestTests.setups['latency'] = '''
+  - do:
+        indices.create:
+          index: latency
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              _doc:
+                properties:
+                  load_time:
+                    type: long
+  - do:
+        bulk:
+          index: latency
+          type: _doc
+          refresh: true
+          body: |'''
+
+
+for (int i = 0; i < 100; i++) {
+  def value = i
+  if (i % 10) {
+    value = i*10
+  }
+  buildRestTests.setups['latency'] += """
+            {"index":{}}
+            {"load_time": "$value"}"""
+}
+
+// Used by iprange agg
+buildRestTests.setups['iprange'] = '''
+  - do:
+        indices.create:
+          index: ip_addresses
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              _doc:
+                properties:
+                  ip:
+                    type: ip
+  - do:
+        bulk:
+          index: ip_addresses
+          type: _doc
+          refresh: true
+          body: |'''
+
+
+for (int i = 0; i < 255; i++) {
+  buildRestTests.setups['iprange'] += """
+            {"index":{}}
+            {"ip": "10.0.0.$i"}"""
+}
+for (int i = 0; i < 5; i++) {
+  buildRestTests.setups['iprange'] += """
+            {"index":{}}
+            {"ip": "9.0.0.$i"}"""
+  buildRestTests.setups['iprange'] += """
+            {"index":{}}
+            {"ip": "11.0.0.$i"}"""
+  buildRestTests.setups['iprange'] += """
+            {"index":{}}
+            {"ip": "12.0.0.$i"}"""
+}

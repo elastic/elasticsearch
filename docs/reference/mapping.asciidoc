@@ -9,8 +9,6 @@ are stored and indexed.  For instance, use mappings to define:
 
 * which string fields should be treated as full text fields.
 * which fields contain numbers, dates, or geolocations.
-* whether the values of all fields in the document should be
-  indexed into the catch-all <<mapping-all-field,`_all`>> field.
 * the <<mapping-date-format,format>> of date values.
 * custom rules to control the mapping for
   <<dynamic-mapping,dynamically added fields>>.
@@ -91,6 +89,12 @@ causing a mapping explosion:
     The maximum number of `nested` fields in an index, defaults to `50`.
     Indexing 1 document with 100 nested fields actually indexes 101 documents
     as each nested document is indexed as a separate hidden document.
+
+`index.mapping.nested_objects.limit`::
+    The maximum number of `nested` json objects within a single document across
+    all nested fields, defaults to 10000. Indexing one document with an array of
+    100 objects within a nested field, will actually create 101 documents, as
+    each nested object will be indexed as a separate hidden document.
 
 
 [float]

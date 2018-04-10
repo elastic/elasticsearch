@@ -21,7 +21,7 @@ include-tagged::{plugins-examples-dir}/script-expert-scoring/src/main/java/org/e
 --------------------------------------------------
 
 You can execute the script by specifying its `lang` as `expert_scripts`, and the name
-of the script as the the script source:
+of the script as the script source:
 
 
 [source,js]

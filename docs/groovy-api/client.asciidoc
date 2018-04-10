@@ -1,7 +1,7 @@
 [[client]]
 == Client
 
-Obtaining an elasticsearch Groovy `GClient` (a `GClient` is a simple
+Obtaining an Elasticsearch Groovy `GClient` (a `GClient` is a simple
 wrapper on top of the Java `Client`) is simple. The most common way to
 get a client is by starting an embedded `Node` which acts as a node
 within the cluster.
@@ -11,7 +11,7 @@ within the cluster.
 === Node Client
 
 A Node based client is the simplest form to get a `GClient` to start
-executing operations against elasticsearch.
+executing operations against Elasticsearch.
 
 [source,groovy]
 --------------------------------------------------
@@ -29,7 +29,7 @@ GClient client = node.client();
 node.close();
 --------------------------------------------------
 
-Since elasticsearch allows to configure it using JSON based settings,
+Since Elasticsearch allows to configure it using JSON based settings,
 the configuration itself can be done using a closure that represent the
 JSON:
 

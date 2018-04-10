@@ -38,9 +38,6 @@ public enum VersionType implements Writeable {
             if (expectedVersion == Versions.MATCH_DELETED) {
                 return "document already exists (current version [" + currentVersion + "])";
             }
-            if (currentVersion == Versions.NOT_FOUND) {
-                return "document does not exist (expected version [" + expectedVersion + "])";
-            }
             return "current version [" + currentVersion + "] is different than the one provided [" + expectedVersion + "]";
         }
 
@@ -51,9 +48,6 @@ public enum VersionType implements Writeable {
 
         @Override
         public String explainConflictForReads(long currentVersion, long expectedVersion) {
-            if (currentVersion == Versions.NOT_FOUND) {
-                return "document does not exist (expected version [" + expectedVersion + "])";
-            }
             return "current version [" + currentVersion + "] is different than the one provided [" + expectedVersion + "]";
         }
 
@@ -129,9 +123,6 @@ public enum VersionType implements Writeable {
 
         @Override
         public String explainConflictForReads(long currentVersion, long expectedVersion) {
-            if (currentVersion == Versions.NOT_FOUND) {
-                return "document does not exist (expected version [" + expectedVersion + "])";
-            }
             return "current version [" + currentVersion + "] is different than the one provided [" + expectedVersion + "]";
         }
 
@@ -187,9 +178,6 @@ public enum VersionType implements Writeable {
 
         @Override
         public String explainConflictForReads(long currentVersion, long expectedVersion) {
-            if (currentVersion == Versions.NOT_FOUND) {
-                return "document does not exist (expected version [" + expectedVersion + "])";
-            }
             return "current version [" + currentVersion + "] is different than the one provided [" + expectedVersion + "]";
         }
 

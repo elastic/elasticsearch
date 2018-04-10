@@ -211,7 +211,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (defaultKeepAlive.millis() > maxKeepAlive.millis()) {
             throw new IllegalArgumentException("Default keep alive setting for scroll [" + DEFAULT_KEEPALIVE_SETTING.getKey() + "]" +
                 " should be smaller than max keep alive [" + MAX_KEEPALIVE_SETTING.getKey() + "], " +
-                "was (" + defaultKeepAlive.format() + " > " + maxKeepAlive.format() + ")");
+                "was (" + defaultKeepAlive + " > " + maxKeepAlive + ")");
         }
     }
 
@@ -673,8 +673,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private void contextScrollKeepAlive(SearchContext context, long keepAlive) throws IOException {
         if (keepAlive > maxKeepAlive) {
             throw new QueryPhaseExecutionException(context,
-                "Keep alive for scroll (" + TimeValue.timeValueMillis(keepAlive).format() + ") is too large. " +
-                    "It must be less than (" + TimeValue.timeValueMillis(maxKeepAlive).format() + "). " +
+                "Keep alive for scroll (" + TimeValue.timeValueMillis(keepAlive) + ") is too large. " +
+                    "It must be less than (" + TimeValue.timeValueMillis(maxKeepAlive) + "). " +
                     "This limit can be set by changing the [" + MAX_KEEPALIVE_SETTING.getKey() + "] cluster level setting.");
         }
         context.keepAlive(keepAlive);

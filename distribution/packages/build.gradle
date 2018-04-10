@@ -114,11 +114,14 @@ Closure commonPackageConfig(String type, boolean oss) {
       into('bin') {
         with binFiles(type, oss)
       }
-      with copySpec {
-        with commonFiles
-        if (type == 'deb') {
-          // Deb gets a copyright file instead.
-          exclude 'LICENSE.txt'
+      from(rootProject.projectDir) {
+        include 'README.textile'
+      }
+      // Deb gets a copyright file instead.
+      if (type == 'rpm') {
+        from(rootProject.file('licenses')) {
+          include oss ? 'APACHE-LICENSE-2.0.txt' : 'ELASTIC-LICENSE.txt'
+          rename { 'LICENSE.txt' }
         }
       }
       into('modules') {

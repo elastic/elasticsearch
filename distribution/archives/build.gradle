@@ -73,7 +73,14 @@ CopySpec archiveFiles(CopySpec modulesFiles, boolean oss) {
           pluginsDir.getParent()
         }
       }
-      with commonFiles
+      from(rootProject.projectDir) {
+        include 'README.textile'
+      }
+      from(rootProject.file('licenses')) {
+        include oss ? 'APACHE-LICENSE-2.0.txt' : 'ELASTIC-LICENSE.txt'
+        rename { 'LICENSE.txt' }
+      }
+
       with noticeFile
       from('../src') {
         include 'bin/*.exe'

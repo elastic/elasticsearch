@@ -5,6 +5,14 @@ import org.elasticsearch.gradle.precommit.LicenseHeadersTask
 
 Project xpackRootProject = project
 
+apply plugin: 'nebula.info-scm'
+final String licenseCommit
+if (version.endsWith('-SNAPSHOT')) {
+  licenseCommit = xpackRootProject.scminfo.change ?: "master" // leniency for non git builds
+} else {
+  licenseCommit = "v${version}"
+}
+
 subprojects {
   group = 'org.elasticsearch.plugin'
   ext.xpackRootProject = xpackRootProject
@@ -12,35 +20,16 @@ subprojects {
   // helper method to find the path to a module
   ext.xpackModule = { String moduleName -> xpackProject("plugin:${moduleName}").path }
 
-  plugins.withType(MavenPublishPlugin).whenPluginAdded {
-    publishing {
-      publications {
-        // add license information to generated poms
-        all {
-          pom.withXml { XmlProvider xml ->
-            Node node = xml.asNode()
-
-            Node license = node.appendNode('licenses').appendNode('license')
-            license.appendNode('name', 'Elastic Commercial Software End User License Agreement')
-            license.appendNode('url', 'https://www.elastic.co/eula/')
-            license.appendNode('distribution', 'repo')
-
-            Node developer = node.appendNode('developers').appendNode('developer')
-            developer.appendNode('name', 'Elastic')
-            developer.appendNode('url', 'http://www.elastic.co')
-          }
-        }
-      }
-    }
-  }
+  ext.licenseName = 'Elastic License'
+  ext.licenseUrl = "https://raw.githubusercontent.com/elastic/elasticsearch/${licenseCommit}/licenses/ELASTIC-LICENSE.txt"
 
   plugins.withType(BuildPlugin).whenPluginAdded {
-    project.licenseFile = xpackRootProject.file('LICENSE.txt')
+    project.licenseFile = rootProject.file('licenses/ELASTIC-LICENSE.txt')
     project.noticeFile = xpackRootProject.file('NOTICE.txt')
   }
 
   plugins.withType(PluginBuildPlugin).whenPluginAdded {
-    project.esplugin.licenseFile = xpackRootProject.file('LICENSE.txt')
+    project.esplugin.licenseFile = rootProject.file('licenses/ELASTIC-LICENSE.txt')
     project.esplugin.noticeFile = xpackRootProject.file('NOTICE.txt')
   }
 }

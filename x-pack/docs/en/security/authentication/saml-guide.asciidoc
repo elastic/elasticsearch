@@ -439,7 +439,7 @@ or separate keys used for each of those.
 
 The Elastic Stack uses X.509 certificates with RSA private keys for SAML
 cryptography. These keys can be generated using any standard SSL tool, including
-the `certutil` tool that ships with X-Pack.
+the `elasticsearch-certutil` tool that ships with X-Pack.
 
 Your IdP may require that the Elastic Stack have a cryptographic key for signing
 SAML messages, and that you provide the corresponding signing certificate within
@@ -462,12 +462,12 @@ You should consult the documentation for your IdP to determine what formats they
 support. Since PEM format is the most commonly supported format, the examples
 below will generate certificates in that format.
 
-Using the {ref}/certutil.html[`certutil`] tool, you can generate a signing
-certificate with the following command:
+Using the {ref}/certutil.html[`elasticsearch-certutil`] tool, you can generate a
+signing certificate with the following command:
 
 [source, sh]
 --------------------------------------------------
-bin/x-pack/certutil cert -pem -days 1100 -name saml-sign -out saml-sign.zip
+bin/elasticsearch-certutil cert -pem -days 1100 -name saml-sign -out saml-sign.zip
 --------------------------------------------------
 
 This will

@@ -1,16 +1,16 @@
 [role="xpack"]
 [[certutil]]
-== certutil
+== elasticsearch-certutil
 
-The `certutil` command simplifies the creation of certificates for use with
-Transport Layer Security (TLS) in the Elastic Stack.
+The `elasticsearch-certutil` command simplifies the creation of certificates for
+use with Transport Layer Security (TLS) in the Elastic Stack.
 
 [float]
 === Synopsis
 
 [source,shell]
 --------------------------------------------------
-bin/x-pack/certutil
+bin/elasticsearch-certutil
 (
 (ca [--ca-dn <name>] [--days <n>] [--pem])
 
@@ -31,9 +31,9 @@ bin/x-pack/certutil
 [float]
 === Description
 
-You can specify one of the following modes: `ca`, `cert`, `csr`. The `certutil`
-command also supports a silent mode of operation to enable easier batch
-operations.
+You can specify one of the following modes: `ca`, `cert`, `csr`. The
+`elasticsearch-certutil` command also supports a silent mode of operation to
+enable easier batch operations.
 
 [float]
 [[certutil-ca]]
@@ -199,7 +199,7 @@ format:
 
 [source, sh]
 --------------------------------------------------
-bin/x-pack/certutil ca
+bin/elasticsearch-certutil ca
 --------------------------------------------------
 
 You are prompted for an output filename and a password. Alternatively, you can
@@ -210,7 +210,7 @@ CA. For example:
 
 [source, sh]
 --------------------------------------------------
-bin/x-pack/certutil cert --ca elastic-stack-ca.p12
+bin/elasticsearch-certutil cert --ca elastic-stack-ca.p12
 --------------------------------------------------
 
 You are prompted for the CA password and for an output filename and password.
@@ -223,7 +223,7 @@ product that you want to configure. For more information, see
 
 [float]
 [[certutil-silent]]
-==== Using `certutil` in Silent Mode
+==== Using `elasticsearch-certutil` in Silent Mode
 
 To use the silent mode of operation, you must create a YAML file that contains
 information about the instances. It must match the following format:
@@ -261,13 +261,13 @@ the names of the files within the directory. This filename should not have an
 extension. Note: If the `name` provided for the instance does not represent a
 valid filename, then the `filename` field must be present.
 
-When your YAML file is ready, you can use the `certutil` command to generate
-certificates or certificate signing requests. Simply use the `--in` parameter to
-specify the location of the file. For example:
+When your YAML file is ready, you can use the `elasticsearch-certutil` command
+to generate certificates or certificate signing requests. Simply use the `--in`
+parameter to specify the location of the file. For example:
 
 [source, sh]
 --------------------------------------------------
-bin/x-pack/certutil cert --silent --in instances.yml --out test1.zip --pass testpassword
+bin/elasticsearch-certutil cert --silent --in instances.yml --out test1.zip --pass testpassword
 --------------------------------------------------
 
 This command generates a compressed `test1.zip` file. After you decompress the
@@ -281,7 +281,7 @@ example:
 
 [source, sh]
 --------------------------------------------------
-bin/x-pack/certutil csr --silent --in instances.yml --out test2.zip --pass testpassword
+bin/elasticsearch-certutil csr --silent --in instances.yml --out test2.zip --pass testpassword
 --------------------------------------------------
 
 This command generates a compressed file, which contains a directory for each

@@ -28,9 +28,9 @@ xpack.security.http.ssl.truststore.path: certs/elastic-certificates.p12 <2>
 <1> If you created a separate certificate for each node, then you might need to
 customize this path on each node. If the filename matches the node name, you can
 use the `certs/${node.name}.p12` format, for example.
-<2> The `certutil` output includes the CA certificate inside the PKCS#12
-keystore, therefore the keystore can also be used as the truststore. This name
-should match the `keystore.path` value.
+<2> The `elasticsearch-certutil` output includes the CA certificate inside the
+PKCS#12 keystore, therefore the keystore can also be used as the truststore.
+This name should match the `keystore.path` value.
 --
 
 ** If the certificate is in PEM format, add the following information to the

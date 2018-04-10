@@ -16,8 +16,8 @@ verify_xpack_installation() {
     local binaryFiles=(
         'elasticsearch-certgen'
         'elasticsearch-certgen.bat'
-        'certutil'
-        'certutil.bat'
+        'elasticsearch-certutil'
+        'elasticsearch-certutil.bat'
         'croneval'
         'croneval.bat'
         'migrate'

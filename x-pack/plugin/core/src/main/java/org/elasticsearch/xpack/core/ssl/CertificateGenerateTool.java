@@ -500,7 +500,8 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
     private static void printIntro(Terminal terminal, boolean csr) {
         terminal.println("******************************************************************************");
         terminal.println("Note: The 'elasticsearch-certgen' tool has been deprecated in favour of the");
-        terminal.println("      'certutil' tool. This command will be removed in a future release.");
+        terminal.println("      'elasticsearch-certutil' tool. This command will be removed in a future");
+        terminal.println("      release.");
         terminal.println("******************************************************************************");
         terminal.println("");
 

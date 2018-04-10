@@ -4,7 +4,7 @@ idp-ca.crt
 idp-ca.key
     Description: A CA for the IdP
     Generated Date: 2018-02-07
-    Command: bin/x-pack/certutil ca --ca-dn 'CN=idp-fixture,OU=elasticsearch,DC=elastic,DC=co' --days 5000 -keysize 1024 --out idp-ca.zip --pem
+    Command: bin/elasticsearch-certutil ca --ca-dn 'CN=idp-fixture,OU=elasticsearch,DC=elastic,DC=co' --days 5000 -keysize 1024 --out idp-ca.zip --pem
     X-Pack Version: 6.2.0
 
 idptrust.jks

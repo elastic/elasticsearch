@@ -143,22 +143,26 @@ public final class RestClientBuilder {
      * For example, if this is set to "/my/path", then any client request will become <code>"/my/path/" + endpoint</code>.
      * <p>
      * In essence, every request's {@code endpoint} is prefixed by this {@code pathPrefix}. The path prefix is useful for when
-     * Elasticsearch is behind a proxy that provides a base path; it is not intended for other purposes and it should not be supplied in
-     * other scenarios.
+     * Elasticsearch is behind a proxy that provides a base path or a proxy that requires all paths to start with '/';
+     * it is not intended for other purposes and it should not be supplied in other scenarios.
      *
      * @throws NullPointerException if {@code pathPrefix} is {@code null}.
-     * @throws IllegalArgumentException if {@code pathPrefix} is empty, only '/', or ends with more than one '/'.
+     * @throws IllegalArgumentException if {@code pathPrefix} is empty, or ends with more than one '/'.
      */
     public RestClientBuilder setPathPrefix(String pathPrefix) {
         Objects.requireNonNull(pathPrefix, "pathPrefix must not be null");
         String cleanPathPrefix = pathPrefix;
+
+        if (cleanPathPrefix.isEmpty()) {
+            throw new IllegalArgumentException("pathPrefix must not be empty: [" + pathPrefix + "]");
+        }
 
         if (cleanPathPrefix.startsWith("/") == false) {
             cleanPathPrefix = "/" + cleanPathPrefix;
         }
 
         // best effort to ensure that it looks like "/base/path" rather than "/base/path/"
-        if (cleanPathPrefix.endsWith("/")) {
+        if (cleanPathPrefix.endsWith("/") && cleanPathPrefix.length() > 1) {
             cleanPathPrefix = cleanPathPrefix.substring(0, cleanPathPrefix.length() - 1);
 
             if (cleanPathPrefix.endsWith("/")) {
@@ -166,9 +170,6 @@ public final class RestClientBuilder {
             }
         }
 
-        if (cleanPathPrefix.isEmpty() || "/".equals(cleanPathPrefix)) {
-            throw new IllegalArgumentException("pathPrefix must not be empty or '/': [" + pathPrefix + "]");
-        }
 
         this.pathPrefix = cleanPathPrefix;
         return this;

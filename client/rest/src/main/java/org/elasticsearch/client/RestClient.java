@@ -796,12 +796,8 @@ public class RestClient implements Closeable {
         Objects.requireNonNull(path, "path must not be null");
         try {
             String fullPath;
-            if (pathPrefix != null) {
-                if (path.startsWith("/")) {
-                    fullPath = pathPrefix + path;
-                } else {
-                    fullPath = pathPrefix + "/" + path;
-                }
+            if (pathPrefix != null && !pathPrefix.isEmpty()) {
+                fullPath = (pathPrefix + "/" + path).replaceAll("//+", "/");
             } else {
                 fullPath = path;
             }

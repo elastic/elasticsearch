@@ -224,6 +224,26 @@ public class RestClientTests extends RestClientTestCase {
             assertEquals("/foo$bar/index/type/id", uri.getPath());
         }
         {
+            URI uri = RestClient.buildUri("/", "/*", Collections.<String, String>emptyMap());
+            assertEquals("/*", uri.getPath());
+        }
+        {
+            URI uri = RestClient.buildUri("/", "*", Collections.<String, String>emptyMap());
+            assertEquals("/*", uri.getPath());
+        }
+        {
+            URI uri = RestClient.buildUri(null, "*", Collections.<String, String>emptyMap());
+            assertEquals("*", uri.getPath());
+        }
+        {
+            URI uri = RestClient.buildUri("", "*", Collections.<String, String>emptyMap());
+            assertEquals("*", uri.getPath());
+        }
+        {
+            URI uri = RestClient.buildUri(null, "/*", Collections.<String, String>emptyMap());
+            assertEquals("/*", uri.getPath());
+        }
+        {
             URI uri = RestClient.buildUri(null, "/foo$bar/ty/pe/i/d", Collections.<String, String>emptyMap());
             assertEquals("/foo$bar/ty/pe/i/d", uri.getPath());
         }

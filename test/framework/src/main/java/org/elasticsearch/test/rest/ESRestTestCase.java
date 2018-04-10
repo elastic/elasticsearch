@@ -90,6 +90,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     public static final String TRUSTSTORE_PASSWORD = "truststore.password";
     public static final String CLIENT_RETRY_TIMEOUT = "client.retry.timeout";
     public static final String CLIENT_SOCKET_TIMEOUT = "client.socket.timeout";
+    public static final String CLIENT_PATH_PREFIX = "client.path.prefix";
 
     /**
      * Convert the entity from a {@link Response} into a map of maps.
@@ -383,7 +384,11 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Used to obtain settings for the REST client that is used to send REST requests.
      */
     protected Settings restClientSettings() {
-        return Settings.EMPTY;
+        Settings.Builder builder = Settings.builder();
+        if (System.getProperty("tests.rest.client.path.prefix") != null) {
+            builder.put(CLIENT_PATH_PREFIX, System.getProperty("tests.rest.client.path.prefix"));
+        }
+        return builder.build();
     }
 
     /**
@@ -453,6 +458,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (socketTimeoutString != null) {
             final TimeValue socketTimeout = TimeValue.parseTimeValue(socketTimeoutString, CLIENT_SOCKET_TIMEOUT);
             builder.setRequestConfigCallback(conf -> conf.setSocketTimeout(Math.toIntExact(socketTimeout.getMillis())));
+        }
+        if (settings.hasValue(CLIENT_PATH_PREFIX)) {
+            builder.setPathPrefix(settings.get(CLIENT_PATH_PREFIX));
         }
     }
 

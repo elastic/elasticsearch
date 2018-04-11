@@ -1,15 +1,16 @@
 [role="xpack"]
 [[syskeygen]]
-== syskeygen
+== elasticsearch-syskeygen
 
-The `syskeygen` command creates a system key file in `CONFIG_DIR/x-pack`.
+The `elasticsearch-syskeygen` command creates a system key file in the
+elasticsearch config directory.
 
 [float]
 === Synopsis
 
 [source,shell]
 --------------------------------------------------
-bin/x-pack/syskeygen
+bin/elasticsearch-syskeygen
 [-E <KeyValuePair>] [-h, --help]
 ([-s, --silent] | [-v, --verbose])
 --------------------------------------------------
@@ -46,5 +47,5 @@ default `$ES_HOME/config/x-pack` directory:
 
 [source, sh]
 --------------------------------------------------
-bin/x-pack/syskeygen
+bin/elasticsearch-syskeygen
 --------------------------------------------------

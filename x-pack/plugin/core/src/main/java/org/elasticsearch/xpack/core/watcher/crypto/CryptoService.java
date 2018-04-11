@@ -92,7 +92,8 @@ public class CryptoService extends AbstractComponent {
         final byte[] keyBytes = new byte[keySizeBytes];
         final int read = Streams.readFully(in, keyBytes);
         if (read != keySizeBytes) {
-            throw new IllegalArgumentException("key size did not match expected value; was the key generated with syskeygen?");
+            throw new IllegalArgumentException(
+                    "key size did not match expected value; was the key generated with elasticsearch-syskeygen?");
         }
         return new SecretKeySpec(keyBytes, KEY_ALGO);
     }

@@ -29,8 +29,8 @@ verify_xpack_installation() {
         'elasticsearch-sql-cli'
         'elasticsearch-sql-cli.bat'
         "elasticsearch-sql-cli-$(cat version).jar" # This jar is executable so we pitch it in bin so folks will find it
-        'syskeygen'
-        'syskeygen.bat'
+        'elasticsearch-syskeygen'
+        'elasticsearch-syskeygen.bat'
         'elasticsearch-users'
         'elasticsearch-users.bat'
         'x-pack-env'

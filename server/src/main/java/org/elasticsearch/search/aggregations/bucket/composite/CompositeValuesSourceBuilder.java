@@ -233,7 +233,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
      * Sets the value to use when the source finds a missing value in a
      * document.
      *
-     * @deprecated Use {@link this#missingBucket} instead.
+     * @deprecated Use {@link #missingBucket(boolean)} instead.
      */
     @SuppressWarnings("unchecked")
     @Deprecated

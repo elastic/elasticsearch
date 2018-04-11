@@ -12,8 +12,7 @@ that match the query. The query can either be provided using a simple
 All search APIs can be applied across multiple types within an index, and
 across multiple indices with support for the
 <<multi-index,multi index syntax>>. For
-example, we can search on all documents across all types within the
-twitter index:
+example, we can search on all documents within the twitter index:
 
 [source,js]
 --------------------------------------------------
@@ -21,16 +20,6 @@ GET /twitter/_search?q=user:kimchy
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
-
-deprecated[6.3.0,Searching multiple types is deprecated, jut use `GET {index}/_search`]
-We can also search within specific types:
-
-[source,js]
---------------------------------------------------
-GET /twitter/tweet,user/_search?q=user:kimchy
---------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter warning:The {index}/{type}/_search endpoint is deprecated, use {index}/_search instead]
 
 We can also search all tweets with a certain tag across several indices
 (for example, when each user has his own index):

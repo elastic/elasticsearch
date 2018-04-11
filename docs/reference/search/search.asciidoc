@@ -22,6 +22,7 @@ GET /twitter/_search?q=user:kimchy
 // CONSOLE
 // TEST[setup:twitter]
 
+deprecated[6.3.0,Searching multiple types is deprecated, jut use `GET {index}/_search`]
 We can also search within specific types:
 
 [source,js]
@@ -29,7 +30,7 @@ We can also search within specific types:
 GET /twitter/tweet,user/_search?q=user:kimchy
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:twitter]
+// TEST[setup:twitter warning:The {index}/{type}/_search endpoint is deprecated, use {index}/_search instead]
 
 We can also search all tweets with a certain tag across several indices
 (for example, when each user has his own index):

@@ -181,7 +181,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
         SearchResponse actual = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .prepareSearch("test")
-                .addSort("_uid", SortOrder.ASC)
+                .addSort("_id", SortOrder.ASC)
                 .setQuery(QueryBuilders.boolQuery()
                                 .should(QueryBuilders.termQuery("field1", "value"))
                                 .should(QueryBuilders.termQuery("field2", "value"))
@@ -189,7 +189,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
                 )
                 .get();
         SearchResponse expected = client().prepareSearch("test")
-                .addSort("_uid", SortOrder.ASC)
+                .addSort("_id", SortOrder.ASC)
                 .setQuery(QueryBuilders.boolQuery()
                                 .should(QueryBuilders.termQuery("field1", "value"))
                 )
@@ -202,7 +202,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
 
         actual = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
                 .prepareSearch("test")
-                .addSort("_uid", SortOrder.ASC)
+                .addSort("_id", SortOrder.ASC)
                 .setQuery(QueryBuilders.boolQuery()
                                 .should(QueryBuilders.termQuery("field1", "value"))
                                 .should(QueryBuilders.termQuery("field2", "value"))
@@ -210,7 +210,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
                 )
                 .get();
         expected = client().prepareSearch("test")
-                .addSort("_uid", SortOrder.ASC)
+                .addSort("_id", SortOrder.ASC)
                 .setQuery(QueryBuilders.boolQuery()
                                 .should(QueryBuilders.termQuery("field2", "value"))
                 )
@@ -223,7 +223,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
 
         actual = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
                 .prepareSearch("test")
-                .addSort("_uid", SortOrder.ASC)
+                .addSort("_id", SortOrder.ASC)
                 .setQuery(QueryBuilders.boolQuery()
                                 .should(QueryBuilders.termQuery("field1", "value"))
                                 .should(QueryBuilders.termQuery("field2", "value"))
@@ -231,7 +231,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
                 )
                 .get();
         expected = client().prepareSearch("test")
-                .addSort("_uid", SortOrder.ASC)
+                .addSort("_id", SortOrder.ASC)
                 .setQuery(QueryBuilders.boolQuery()
                                 .should(QueryBuilders.termQuery("field3", "value"))
                 )

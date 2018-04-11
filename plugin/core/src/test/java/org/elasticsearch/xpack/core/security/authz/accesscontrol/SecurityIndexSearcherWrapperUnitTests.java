@@ -48,7 +48,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -171,7 +170,6 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         assertThat(result.getFilter().run("_type"), is(true));
         assertThat(result.getFilter().run("_source"), is(true));
         assertThat(result.getFilter().run("_routing"), is(true));
-        assertThat(result.getFilter().run("_parent"), is(true));
         assertThat(result.getFilter().run("_timestamp"), is(true));
         assertThat(result.getFilter().run("_ttl"), is(true));
         assertThat(result.getFilter().run("_size"), is(true));
@@ -214,13 +212,6 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         expected = new HashSet<>(META_FIELDS);
         expected.add("foo.bar");
         assertResolved(new FieldPermissions(fieldPermissionDef(new String[] {"foo.*"}, null)), expected, "foo", "bar");
-    }
-
-    public void testParentChild() throws Exception {
-        Set<String> expected = new HashSet<>(META_FIELDS);
-        expected.add(ParentFieldMapper.joinField("parent1"));
-        expected.add("foo");
-        assertResolved(new FieldPermissions(fieldPermissionDef(new String[] {"foo"}, null)), expected, "bar");
     }
 
     public void testDelegateSimilarity() throws Exception {

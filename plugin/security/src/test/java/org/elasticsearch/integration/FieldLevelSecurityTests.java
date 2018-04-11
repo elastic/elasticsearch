@@ -1219,22 +1219,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(response.getResponses()[0].getResponse().getFields().terms("field2").size(), equalTo(1L));
     }
 
-    public void testParentChild_parentField() {
-        assertAcked(prepareCreate("test")
-                .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))
-                .addMapping("parent")
-                .addMapping("child", "_parent", "type=parent"));
-        ensureGreen();
-
-        // index simple data
-        client().prepareIndex("test", "parent", "p1").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex("test", "child", "c1").setSource("field1", "red").setParent("p1").get();
-        client().prepareIndex("test", "child", "c2").setSource("field1", "yellow").setParent("p1").get();
-        refresh();
-        verifyParentChild();
-    }
-
-    public void testParentChild_joinField() throws Exception {
+    public void testParentChild() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
               .startObject("properties")
                   .startObject("join_field")

@@ -134,7 +134,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
                 .prepareSearch("test")
-                .addSort("_uid", SortOrder.ASC)
+                .addSort("_id", SortOrder.ASC)
                 .get();
         assertHitCount(response, 2);
         assertSearchHits(response, "1", "2");
@@ -214,7 +214,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
             response = client().filterWithHeader(
                     Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
                     .prepareSearch("test")
-                    .addSort("_uid", SortOrder.ASC)
+                    .addSort("_id", SortOrder.ASC)
                     .get();
             assertHitCount(response, 2);
             assertThat(response.getHits().getAt(0).getId(), equalTo("1"));

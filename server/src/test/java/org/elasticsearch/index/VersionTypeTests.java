@@ -35,6 +35,11 @@ public class VersionTypeTests extends ESTestCase {
         assertFalse(VersionType.INTERNAL.isVersionConflictForWrites(Versions.NOT_FOUND, Versions.MATCH_ANY, randomBoolean()));
         assertFalse(VersionType.INTERNAL.isVersionConflictForReads(Versions.NOT_FOUND, Versions.MATCH_ANY));
 
+        assertEquals("current version [1] is different than the one provided [2]",
+            VersionType.INTERNAL.explainConflictForReads(1, 2));
+        assertEquals("document does not exist (expected version [2])",
+            VersionType.INTERNAL.explainConflictForReads(Versions.NOT_FOUND, 2));
+
         // deletes
         assertFalse(VersionType.INTERNAL.isVersionConflictForWrites(Versions.NOT_FOUND, Versions.MATCH_DELETED, true));
         assertFalse(VersionType.INTERNAL.isVersionConflictForWrites(10, Versions.MATCH_DELETED, true));
@@ -70,12 +75,22 @@ public class VersionTypeTests extends ESTestCase {
         assertTrue(VersionType.EXTERNAL.validateVersionForReads(randomIntBetween(1, Integer.MAX_VALUE)));
         assertFalse(VersionType.EXTERNAL.validateVersionForReads(randomIntBetween(Integer.MIN_VALUE, -1)));
 
+        assertEquals("current version [1] is different than the one provided [2]",
+            VersionType.EXTERNAL.explainConflictForReads(1, 2));
+        assertEquals("document does not exist (expected version [2])",
+            VersionType.EXTERNAL.explainConflictForReads(Versions.NOT_FOUND, 2));
+
         assertTrue(VersionType.EXTERNAL_GTE.validateVersionForWrites(randomIntBetween(1, Integer.MAX_VALUE)));
         assertFalse(VersionType.EXTERNAL_GTE.validateVersionForWrites(Versions.MATCH_ANY));
         assertFalse(VersionType.EXTERNAL_GTE.validateVersionForWrites(randomIntBetween(Integer.MIN_VALUE, 0)));
         assertTrue(VersionType.EXTERNAL_GTE.validateVersionForReads(Versions.MATCH_ANY));
         assertTrue(VersionType.EXTERNAL_GTE.validateVersionForReads(randomIntBetween(1, Integer.MAX_VALUE)));
         assertFalse(VersionType.EXTERNAL_GTE.validateVersionForReads(randomIntBetween(Integer.MIN_VALUE, -1)));
+
+        assertEquals("current version [1] is different than the one provided [2]",
+            VersionType.EXTERNAL_GTE.explainConflictForReads(1, 2));
+        assertEquals("document does not exist (expected version [2])",
+            VersionType.EXTERNAL_GTE.explainConflictForReads(Versions.NOT_FOUND, 2));
 
         assertTrue(VersionType.INTERNAL.validateVersionForWrites(randomIntBetween(1, Integer.MAX_VALUE)));
         assertTrue(VersionType.INTERNAL.validateVersionForWrites(Versions.MATCH_ANY));

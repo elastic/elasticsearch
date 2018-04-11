@@ -196,6 +196,7 @@ subprojects {
     "org.elasticsearch:elasticsearch-cli:${version}": ':server:cli',
     "org.elasticsearch:elasticsearch-core:${version}": ':libs:elasticsearch-core',
     "org.elasticsearch:elasticsearch-nio:${version}": ':libs:elasticsearch-nio',
+    "org.elasticsearch:elasticsearch-x-content:${version}": ':libs:x-content',
     "org.elasticsearch:elasticsearch-secure-sm:${version}": ':libs:secure-sm',
     "org.elasticsearch.client:elasticsearch-rest-client:${version}": ':client:rest',
     "org.elasticsearch.client:elasticsearch-rest-client-sniffer:${version}": ':client:sniffer',

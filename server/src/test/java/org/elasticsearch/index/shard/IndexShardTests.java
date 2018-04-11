@@ -1195,7 +1195,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         long refreshCount = shard.refreshStats().getTotal();
         indexDoc(shard, "test", "test");
-        try (Engine.GetResult ignored = shard.get(new Engine.Get(true, "test", "test",
+        try (Engine.GetResult ignored = shard.get(new Engine.Get(true, false, "test", "test",
             new Term(IdFieldMapper.NAME, Uid.encodeId("test"))))) {
             assertThat(shard.refreshStats().getTotal(), equalTo(refreshCount+1));
         }
@@ -1843,7 +1843,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(shard, "test", "1", "{\"foobar\" : \"bar\"}");
         shard.refresh("test");
 
-        Engine.GetResult getResult = shard.get(new Engine.Get(false, "test", "1", new Term(IdFieldMapper.NAME, Uid.encodeId("1"))));
+        Engine.GetResult getResult = shard.get(new Engine.Get(false, false, "test", "1", new Term(IdFieldMapper.NAME, Uid.encodeId("1"))));
         assertTrue(getResult.exists());
         assertNotNull(getResult.searcher());
         getResult.release();
@@ -1877,7 +1877,7 @@ public class IndexShardTests extends IndexShardTestCase {
             search = searcher.searcher().search(new TermQuery(new Term("foobar", "bar")), 10);
             assertEquals(search.totalHits, 1);
         }
-        getResult = newShard.get(new Engine.Get(false, "test", "1", new Term(IdFieldMapper.NAME, Uid.encodeId("1"))));
+        getResult = newShard.get(new Engine.Get(false, false, "test", "1", new Term(IdFieldMapper.NAME, Uid.encodeId("1"))));
         assertTrue(getResult.exists());
         assertNotNull(getResult.searcher()); // make sure get uses the wrapped reader
         assertTrue(getResult.searcher().reader() instanceof FieldMaskingReader);
@@ -2070,11 +2070,11 @@ public class IndexShardTests extends IndexShardTestCase {
         for (int i = 0; i < numTotalEntries; i++) {
             if (randomBoolean()) {
                 operations.add(new Translog.Index("test", "1", 0, primary.getPrimaryTerm(), 1, VersionType.INTERNAL,
-                    "{\"foo\" : \"bar\"}".getBytes(Charset.forName("UTF-8")), null, null, -1));
+                    "{\"foo\" : \"bar\"}".getBytes(Charset.forName("UTF-8")), null, -1));
             } else {
                 // corrupt entry
-                operations.add(new Translog.Index("test", "2", 1, primary.getPrimaryTerm(), 1, VersionType.INTERNAL,
-                    "{\"foo\" : \"bar}".getBytes(Charset.forName("UTF-8")), null, null, -1));
+                operations.add(new Translog.Index("test", "2", 1,  primary.getPrimaryTerm(), 1, VersionType.INTERNAL,
+                    "{\"foo\" : \"bar}".getBytes(Charset.forName("UTF-8")), null, -1));
                 numCorruptEntries++;
             }
         }

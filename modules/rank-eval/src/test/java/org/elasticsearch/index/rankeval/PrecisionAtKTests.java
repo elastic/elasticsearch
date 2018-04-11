@@ -142,6 +142,14 @@ public class PrecisionAtKTests extends ESTestCase {
         assertEquals(0, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRetrieved());
     }
 
+    public void testNoResults() throws Exception {
+        SearchHit[] hits = new SearchHit[0];
+        EvalQueryQuality evaluated = (new PrecisionAtK()).evaluate("id", hits, Collections.emptyList());
+        assertEquals(0.0d, evaluated.getQualityLevel(), 0.00001);
+        assertEquals(0, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(0, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRetrieved());
+    }
+
     public void testParseFromXContent() throws IOException {
         String xContent = " {\n" + "   \"relevant_rating_threshold\" : 2" + "}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {

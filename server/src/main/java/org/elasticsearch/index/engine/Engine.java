@@ -1098,10 +1098,6 @@ public abstract class Engine implements Closeable {
             return this.doc.routing();
         }
 
-        public String parent() {
-            return this.doc.parent();
-        }
-
         public List<Document> docs() {
             return this.doc.docs();
         }
@@ -1231,14 +1227,16 @@ public abstract class Engine implements Closeable {
         private final boolean realtime;
         private final Term uid;
         private final String type, id;
+        private final boolean readFromTranslog;
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
 
-        public Get(boolean realtime, String type, String id, Term uid) {
+        public Get(boolean realtime, boolean readFromTranslog, String type, String id, Term uid) {
             this.realtime = realtime;
             this.type = type;
             this.id = id;
             this.uid = uid;
+            this.readFromTranslog = readFromTranslog;
         }
 
         public boolean realtime() {
@@ -1273,6 +1271,10 @@ public abstract class Engine implements Closeable {
         public Get versionType(VersionType versionType) {
             this.versionType = versionType;
             return this;
+        }
+
+        public boolean isReadFromTranslog() {
+            return readFromTranslog;
         }
     }
 

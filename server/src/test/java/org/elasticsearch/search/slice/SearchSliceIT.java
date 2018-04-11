@@ -104,7 +104,7 @@ public class SearchSliceIT extends ESIntegTestCase {
         int numDocs = (int) sr.getHits().getTotalHits();
         assertThat(numDocs, equalTo(NUM_DOCS));
         int max = randomIntBetween(2, numShards*3);
-        for (String field : new String[]{"_uid", "random_int", "static_int"}) {
+        for (String field : new String[]{"_id", "random_int", "static_int"}) {
             int fetchSize = randomIntBetween(10, 100);
             SearchRequestBuilder request = client().prepareSearch("test")
                 .setQuery(matchAllQuery())
@@ -125,7 +125,7 @@ public class SearchSliceIT extends ESIntegTestCase {
         assertThat(numDocs, equalTo(NUM_DOCS));
 
         int max = randomIntBetween(2, numShards*3);
-        for (String field : new String[]{"_uid", "random_int", "static_int"}) {
+        for (String field : new String[]{"_id", "random_int", "static_int"}) {
             int fetchSize = randomIntBetween(10, 100);
             SearchRequestBuilder request = client().prepareSearch("test")
                 .setQuery(matchAllQuery())

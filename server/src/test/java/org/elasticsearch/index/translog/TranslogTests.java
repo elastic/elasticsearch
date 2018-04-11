@@ -20,6 +20,7 @@
 package org.elasticsearch.index.translog;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.Field;
@@ -30,7 +31,6 @@ import org.apache.lucene.mockfile.FilterFileChannel;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.store.MockDirectoryWrapper;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.LineFileDocs;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -53,15 +53,16 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.Operation.Origin;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.LocalCheckpointTrackerTests;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -239,9 +240,9 @@ public class TranslogTests extends ESTestCase {
         return new TranslogConfig(shardId, path, indexSettings, NON_RECYCLING_INSTANCE, bufferSize);
     }
 
-    private void addToTranslogAndList(Translog translog, List<Translog.Operation> list, Translog.Operation op) throws IOException {
+    private Location addToTranslogAndList(Translog translog, List<Translog.Operation> list, Translog.Operation op) throws IOException {
         list.add(op);
-        translog.add(op);
+        return translog.add(op);
     }
 
     public void testIdParsingFromFile() {
@@ -410,9 +411,9 @@ public class TranslogTests extends ESTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(1));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(164L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(163L));
             assertThat(stats.getUncommittedOperations(), equalTo(1));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(164L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(163L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(1L));
         }
 
@@ -420,9 +421,9 @@ public class TranslogTests extends ESTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(2));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(213L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(212L));
             assertThat(stats.getUncommittedOperations(), equalTo(2));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(213L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(212L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(1L));
         }
 
@@ -430,9 +431,9 @@ public class TranslogTests extends ESTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(3));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(262L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(261L));
             assertThat(stats.getUncommittedOperations(), equalTo(3));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(262L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(261L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(1L));
         }
 
@@ -440,13 +441,13 @@ public class TranslogTests extends ESTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(304L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(303L));
             assertThat(stats.getUncommittedOperations(), equalTo(4));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(304L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(303L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(1L));
         }
 
-        final long expectedSizeInBytes = 359L;
+        final long expectedSizeInBytes = 358L;
         translog.rollGeneration();
         {
             final TranslogStats stats = stats();
@@ -583,6 +584,19 @@ public class TranslogTests extends ESTestCase {
         }
     }
 
+    public void testReadLocation() throws IOException {
+        ArrayList<Translog.Operation> ops = new ArrayList<>();
+        ArrayList<Translog.Location> locs = new ArrayList<>();
+        locs.add(addToTranslogAndList(translog, ops, new Translog.Index("test", "1", 0, primaryTerm.get(), new byte[]{1})));
+        locs.add(addToTranslogAndList(translog, ops, new Translog.Index("test", "2", 1, primaryTerm.get(), new byte[]{1})));
+        locs.add(addToTranslogAndList(translog, ops, new Translog.Index("test", "3", 2, primaryTerm.get(), new byte[]{1})));
+        int i = 0;
+        for (Translog.Operation op : ops) {
+            assertEquals(op, translog.readOperation(locs.get(i++)));
+        }
+        assertNull(translog.readOperation(new Location(100, 0, 0)));
+    }
+
     public void testSnapshotWithNewTranslog() throws IOException {
         List<Closeable> toClose = new ArrayList<>();
         try {
@@ -693,6 +707,9 @@ public class TranslogTests extends ESTestCase {
                 Translog.Operation op = snapshot.next();
                 assertNotNull(op);
                 Translog.Operation expectedOp = locationOperation.operation;
+                if (randomBoolean()) {
+                    assertEquals(expectedOp, translog.readOperation(locationOperation.location));
+                }
                 assertEquals(expectedOp.opType(), op.opType());
                 switch (op.opType()) {
                     case INDEX:
@@ -816,11 +833,11 @@ public class TranslogTests extends ESTestCase {
     }
 
     private Term newUid(ParsedDocument doc) {
-        return new Term("_uid", Uid.createUidAsBytes(doc.type(), doc.id()));
+        return new Term("_id", Uid.encodeId(doc.id()));
     }
 
-    private Term newUid(String uid) {
-        return new Term("_uid", uid);
+    private Term newUid(String id) {
+        return new Term("_id", Uid.encodeId(id));
     }
 
     public void testVerifyTranslogIsNotDeleted() throws IOException {
@@ -1456,7 +1473,7 @@ public class TranslogTests extends ESTestCase {
         try (Translog ignored = new Translog(config, translogUUID, deletionPolicy, () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get)) {
             fail("corrupted");
         } catch (IllegalStateException ex) {
-            assertEquals("Checkpoint file translog-3.ckp already exists but has corrupted content expected: Checkpoint{offset=3135, " +
+            assertEquals("Checkpoint file translog-3.ckp already exists but has corrupted content expected: Checkpoint{offset=3080, " +
                 "numOps=55, generation=3, minSeqNo=45, maxSeqNo=99, globalCheckpoint=-1, minTranslogGeneration=1} but got: Checkpoint{offset=0, numOps=0, " +
                 "generation=0, minSeqNo=-1, maxSeqNo=-1, globalCheckpoint=-1, minTranslogGeneration=0}", ex.getMessage());
         }
@@ -1647,6 +1664,9 @@ public class TranslogTests extends ESTestCase {
 
                     Translog.Location loc = add(op);
                     writtenOperations.add(new LocationOperation(op, loc));
+                    if (rarely()) { // lets verify we can concurrently read this
+                        assertEquals(op, translog.readOperation(loc));
+                    }
                     afterAdd();
                 }
             } catch (Exception t) {
@@ -2434,11 +2454,11 @@ public class TranslogTests extends ESTestCase {
         seqID.seqNo.setLongValue(randomSeqNum);
         seqID.seqNoDocValue.setLongValue(randomSeqNum);
         seqID.primaryTerm.setLongValue(randomPrimaryTerm);
-        Field uidField = new Field("_uid", Uid.createUid("test", "1"), UidFieldMapper.Defaults.FIELD_TYPE);
+        Field idField = new Field("_id", Uid.encodeId("1"), IdFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 1);
         Document document = new Document();
         document.add(new TextField("value", "test", Field.Store.YES));
-        document.add(uidField);
+        document.add(idField);
         document.add(versionField);
         document.add(seqID.seqNo);
         document.add(seqID.seqNoDocValue);
@@ -2467,21 +2487,6 @@ public class TranslogTests extends ESTestCase {
         in = out.bytes().streamInput();
         Translog.Delete serializedDelete = (Translog.Delete) Translog.Operation.readOperation(in);
         assertEquals(delete, serializedDelete);
-
-        // simulate legacy delete serialization
-        out = new BytesStreamOutput();
-        out.writeByte(Translog.Operation.Type.DELETE.id());
-        out.writeVInt(Translog.Delete.FORMAT_5_0);
-        out.writeString(UidFieldMapper.NAME);
-        out.writeString("my_type#my_id");
-        out.writeLong(3); // version
-        out.writeByte(VersionType.INTERNAL.getValue());
-        out.writeLong(2); // seq no
-        out.writeLong(0); // primary term
-        in = out.bytes().streamInput();
-        serializedDelete = (Translog.Delete) Translog.Operation.readOperation(in);
-        assertEquals("my_type", serializedDelete.type());
-        assertEquals("my_id", serializedDelete.id());
     }
 
     public void testRollGeneration() throws Exception {

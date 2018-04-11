@@ -97,7 +97,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         logger.info("percolating doc with 1 field");
         response = client().prepareSearch()
                 .setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON))
-                .addSort("_uid", SortOrder.ASC)
+                .addSort("_id", SortOrder.ASC)
                 .get();
         assertHitCount(response, 2);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
@@ -109,7 +109,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         logger.info("percolating doc with 2 fields");
         response = client().prepareSearch()
                 .setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON))
-                .addSort("_uid", SortOrder.ASC)
+                .addSort("_id", SortOrder.ASC)
                 .get();
         assertHitCount(response, 3);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
@@ -125,7 +125,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                         BytesReference.bytes(jsonBuilder().startObject().field("field1", "value").endObject()),
                         BytesReference.bytes(jsonBuilder().startObject().field("field1", "value").field("field2", "value").endObject())
                 ), XContentType.JSON))
-                .addSort("_uid", SortOrder.ASC)
+                .addSort("_id", SortOrder.ASC)
                 .get();
         assertHitCount(response, 3);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
@@ -312,7 +312,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         logger.info("percolating doc with 1 field");
         response = client().prepareSearch()
                 .setQuery(new PercolateQueryBuilder("query", "test", "type", "5", null, null, null))
-                .addSort("_uid", SortOrder.ASC)
+                .addSort("_id", SortOrder.ASC)
                 .get();
         assertHitCount(response, 2);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
@@ -321,7 +321,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         logger.info("percolating doc with 2 fields");
         response = client().prepareSearch()
                 .setQuery(new PercolateQueryBuilder("query", "test", "type", "6", null, null, null))
-                .addSort("_uid", SortOrder.ASC)
+                .addSort("_id", SortOrder.ASC)
                 .get();
         assertHitCount(response, 3);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
@@ -408,7 +408,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                 .endObject());
         SearchResponse response = client().prepareSearch()
                 .setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON))
-                .addSort("_uid", SortOrder.ASC)
+                .addSort("_id", SortOrder.ASC)
                 .get();
         assertHitCount(response, 4);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
@@ -455,7 +455,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(new PercolateQueryBuilder("query", document, XContentType.JSON))
                 .highlighter(new HighlightBuilder().field("field1"))
-                .addSort("_uid", SortOrder.ASC)
+                .addSort("_id", SortOrder.ASC)
                 .get();
         assertHitCount(searchResponse, 5);
 
@@ -482,7 +482,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                 .should(new PercolateQueryBuilder("query", document2, XContentType.JSON).setName("query2"))
             )
             .highlighter(new HighlightBuilder().field("field1"))
-            .addSort("_uid", SortOrder.ASC)
+            .addSort("_id", SortOrder.ASC)
             .get();
         logger.info("searchResponse={}", searchResponse);
         assertHitCount(searchResponse, 5);
@@ -506,7 +506,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                         BytesReference.bytes(jsonBuilder().startObject().field("field1", "brown fox").endObject())
                 ), XContentType.JSON))
                 .highlighter(new HighlightBuilder().field("field1"))
-                .addSort("_uid", SortOrder.ASC)
+                .addSort("_id", SortOrder.ASC)
                 .get();
         assertHitCount(searchResponse, 5);
         assertThat(searchResponse.getHits().getAt(0).getFields().get("_percolator_document_slot").getValues(),
@@ -546,7 +546,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                 ), XContentType.JSON).setName("query2"))
             )
             .highlighter(new HighlightBuilder().field("field1"))
-            .addSort("_uid", SortOrder.ASC)
+            .addSort("_id", SortOrder.ASC)
             .get();
         logger.info("searchResponse={}", searchResponse);
         assertHitCount(searchResponse, 5);

@@ -87,7 +87,7 @@ public class Index implements Writeable, ToXContentObject {
         if (this == o) {
             return true;
         }
-        if (o == null) {
+        if (o == null || getClass() != o.getClass()) {
             return false;
         }
         Index index1 = (Index) o;

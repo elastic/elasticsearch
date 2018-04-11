@@ -8,8 +8,10 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.io.IOException;
+import java.util.List;
 
 public class DeleteActionTests extends AbstractSerializingTestCase<DeleteAction> {
 
@@ -26,5 +28,19 @@ public class DeleteActionTests extends AbstractSerializingTestCase<DeleteAction>
     @Override
     protected Reader<DeleteAction> instanceReader() {
         return DeleteAction::new;
+    }
+
+    public void testToSteps() {
+        DeleteAction action = createTestInstance();
+        String phase = randomAlphaOfLengthBetween(1, 10);
+        StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
+                randomAlphaOfLengthBetween(1, 10));
+        List<Step> steps = action.toSteps(null, phase, nextStepKey);
+        assertNotNull(steps);
+        assertEquals(1, steps.size());
+        StepKey expectedFirstStepKey = new StepKey(phase, AllocateAction.NAME, AllocateAction.NAME);
+        DeleteStep firstStep = (DeleteStep) steps.get(0);
+        assertEquals(expectedFirstStepKey, firstStep.getKey());
+        assertEquals(nextStepKey, firstStep.getNextStepKey());
     }
 }

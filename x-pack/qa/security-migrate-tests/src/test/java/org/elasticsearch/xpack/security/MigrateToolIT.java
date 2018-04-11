@@ -36,7 +36,7 @@ import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswo
 import static org.hamcrest.Matchers.containsString;
 
 /**
- * Integration tests for the {@code migrate} shell command
+ * Integration tests for the {@code elasticsearch-migrate} shell command
  */
 public class MigrateToolIT extends MigrateToolTestCase {
 

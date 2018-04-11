@@ -201,3 +201,10 @@ as each additional term demands extra processing and memory.
 To safeguard against this, the maximum number of terms that can be used in a
 Terms Query request has been limited to 65536. This default maximum can be changed
 for a particular index with the index setting `index.max_terms_count`.
+
+==== Invalid `_search` request body
+
+For 6.x and starting in 6.3 a deprecation warning will be printed to warn
+against search requests that contain extra tokens after the main object.
+These extra tokens were ignored by the query parser before 6.3 but the next
+ major version will not accept invalid body anymore.

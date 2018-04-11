@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.builder;
 
+import com.fasterxml.jackson.core.JsonParseException;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
@@ -111,8 +113,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField ALL_FIELDS_FIELDS = new ParseField("all_fields");
 
     public static SearchSourceBuilder fromXContent(XContentParser parser) throws IOException {
+        return fromXContent(parser, true);
+    }
+
+    public static SearchSourceBuilder fromXContent(XContentParser parser, boolean checkTrailingTokens) throws IOException {
         SearchSourceBuilder builder = new SearchSourceBuilder();
-        builder.parseXContent(parser);
+        builder.parseXContent(parser, checkTrailingTokens);
         return builder;
     }
 
@@ -951,12 +957,19 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return rewrittenBuilder;
     }
 
+    public void parseXContent(XContentParser parser) throws IOException {
+        parseXContent(parser, true);
+    }
+
     /**
      * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent. Use this if you need to set up
-     * different defaults than a regular SearchSourceBuilder would have and use
-     * {@link #fromXContent(XContentParser)} if you have normal defaults.
+     * different defaults than a regular SearchSourceBuilder would have and use {@link #fromXContent(XContentParser, boolean)} if you have
+     * normal defaults.
+     *
+     * @param parser The xContent parser.
+     * @param checkTrailingTokens If true throws a parsing exception when extra tokens are found after the main object.
      */
-    public void parseXContent(XContentParser parser) throws IOException {
+    public void parseXContent(XContentParser parser, boolean checkTrailingTokens) throws IOException {
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = null;
         if (token != XContentParser.Token.START_OBJECT && (token = parser.nextToken()) != XContentParser.Token.START_OBJECT) {
@@ -1104,6 +1117,19 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
                         parser.getTokenLocation());
+            }
+        }
+        if (checkTrailingTokens) {
+            boolean success;
+            try {
+                token = parser.nextToken();
+                success = token == null;
+            } catch (JsonParseException exc) {
+                success = false;
+            }
+            if (success == false) {
+                DEPRECATION_LOGGER.deprecated("Found extra tokens after the _search request body, " +
+                    "an error will be thrown in the next major version");
             }
         }
     }

@@ -48,8 +48,8 @@ information, see
 --
 {security} provides
 {xpack-ref}/setting-up-authentication.html#built-in-users[built-in users] to
-help you get up and running. The +setup-passwords+ command is the simplest
-method to set the built-in users' passwords for the first time.
+help you get up and running. The +elasticsearch-setup-passwords+ command is the
+simplest method to set the built-in users' passwords for the first time.
 
 For example, you can run the command in an "interactive" mode, which prompts you
 to enter new passwords for the `elastic`, `kibana`, `beats_system`, and
@@ -57,15 +57,16 @@ to enter new passwords for the `elastic`, `kibana`, `beats_system`, and
 
 [source,shell]
 --------------------------------------------------
-bin/x-pack/setup-passwords interactive
+bin/elasticsearch-setup-passwords interactive
 --------------------------------------------------
 
 For more information about the command options, see <<setup-passwords>>.
 
-IMPORTANT: The `setup-passwords` command uses a transient bootstrap password
-that is no longer valid after the command runs successfully. You cannot run the
-`setup-passwords` command a second time. Instead, you can update passwords from
-the **Management > Users** UI in {kib} or use the security user API.
+IMPORTANT: The `elasticsearch-setup-passwords` command uses a transient bootstrap
+password that is no longer valid after the command runs successfully. You cannot
+run the `elasticsearch-setup-passwords` command a second time. Instead, you can
+update passwords from the **Management > Users** UI in {kib} or use the security
+user API.
 
 --
 

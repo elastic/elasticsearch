@@ -428,7 +428,8 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
                 }
             }
             terminal.println("");
-            terminal.println("It is recommended that you resolve the issues with your cluster before running setup-passwords.");
+            terminal.println(
+                    "It is recommended that you resolve the issues with your cluster before running elasticsearch-setup-passwords.");
             terminal.println("It is very likely that the password changes will fail when run against an unhealthy cluster.");
             terminal.println("");
             if (shouldPrompt) {

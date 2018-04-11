@@ -93,11 +93,11 @@ NODE_SETTINGS
     fi
 
     run sudo -E -u $ESPLUGIN_COMMAND_USER bash <<"SETUP_OK"
-echo 'y' | $ESHOME/bin/setup-passwords auto
+echo 'y' | $ESHOME/bin/elasticsearch-setup-passwords auto
 SETUP_OK
     echo "$output" > /tmp/setup-passwords-output-with-bootstrap
     [ "$status" -eq 0 ] || {
-        echo "Expected x-pack setup-passwords tool exit code to be zero but got [$status]"
+        echo "Expected x-pack elasticsearch-setup-passwords tool exit code to be zero but got [$status]"
         cat /tmp/setup-passwords-output-with-bootstrap
         debug_collect_logs
         false
@@ -111,7 +111,7 @@ SETUP_OK
     users=( elastic kibana logstash_system )
     for user in "${users[@]}"; do
         grep "Changed password for user $user" /tmp/setup-passwords-output-with-bootstrap || {
-            echo "Expected x-pack setup-passwords tool to change password for user [$user]:"
+            echo "Expected x-pack elasticsearch-setup-passwords tool to change password for user [$user]:"
             cat /tmp/setup-passwords-output-with-bootstrap
             false
         }

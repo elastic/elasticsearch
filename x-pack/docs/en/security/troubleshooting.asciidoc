@@ -336,11 +336,11 @@ Otherwise, {kib} cannot connect to {es}.
 [[trb-security-setup]]
 === Setup-passwords command fails due to connection failure
 
-The {ref}/setup-passwords.html[setup-passwords command] sets passwords for
-the built-in users by sending user management API requests. If your cluster uses
-SSL/TLS for the HTTP (REST) interface, the command attempts to establish a
-connection with the HTTPS protocol. If the connection attempt fails, the
-command fails.
+The {ref}/setup-passwords.html[elasticsearch-setup-passwords command] sets
+passwords for the built-in users by sending user management API requests. If
+your cluster uses SSL/TLS for the HTTP (REST) interface, the command attempts to
+establish a connection with the HTTPS protocol. If the connection attempt fails,
+the command fails.
 
 *Symptoms:*
 
@@ -400,10 +400,10 @@ https://elasticsearch.example.com:9200/_xpack/security/_authenticate?pretty.
 
 *Resolution:*
 
-. If your cluster uses TLS/SSL for the HTTP interface but the `setup-passwords`
-command attempts to establish a non-secure connection, use the `--url` command
-option to explicitly specify an HTTPS URL.  Alternatively, set the
-`xpack.security.http.ssl.enabled` setting to `true`.
+. If your cluster uses TLS/SSL for the HTTP interface but the
+`elasticsearch-setup-passwords` command attempts to establish a non-secure
+connection, use the `--url` command option to explicitly specify an HTTPS URL.
+Alternatively, set the `xpack.security.http.ssl.enabled` setting to `true`.
 
 . If the command does not trust the {es} server, verify that you configured the
 `xpack.security.http.ssl.certificate_authorities` setting or the

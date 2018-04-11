@@ -1,3 +1,4 @@
+
 #!/usr/bin/env bats
 
 # Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
@@ -50,11 +51,11 @@ fi
     wait_for_xpack
 
     run sudo -E -u $ESPLUGIN_COMMAND_USER bash <<"SETUP_AUTO"
-echo 'y' | $ESHOME/bin/setup-passwords auto
+echo 'y' | $ESHOME/bin/elasticsearch-setup-passwords auto
 SETUP_AUTO
     echo "$output" > /tmp/setup-passwords-output
     [ "$status" -eq 0 ] || {
-        echo "Expected x-pack setup-passwords tool exit code to be zero"
+        echo "Expected x-pack elasticsearch-setup-passwords tool exit code to be zero"
         cat /tmp/setup-passwords-output
         false
     }
@@ -67,7 +68,7 @@ SETUP_AUTO
     users=( elastic kibana logstash_system )
     for user in "${users[@]}"; do
         grep "Changed password for user $user" /tmp/setup-passwords-output || {
-            echo "Expected x-pack setup-passwords tool to change password for user [$user]:"
+            echo "Expected x-pack elasticsearch-setup-passwords tool to change password for user [$user]:"
             cat /tmp/setup-passwords-output
             false
         }

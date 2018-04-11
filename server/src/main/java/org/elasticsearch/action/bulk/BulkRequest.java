@@ -588,7 +588,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
             requests.add(DocWriteRequest.readDocumentRequest(in));
         }
         refreshPolicy = RefreshPolicy.readFrom(in);
-        timeout = new TimeValue(in);
+        timeout = in.readTimeValue();
     }
 
     @Override
@@ -600,7 +600,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
             DocWriteRequest.writeDocumentRequest(out, request);
         }
         refreshPolicy.writeTo(out);
-        timeout.writeTo(out);
+        out.writeTimeValue(timeout);
     }
 
     @Override

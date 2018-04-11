@@ -19,11 +19,9 @@
 
 package org.elasticsearch.common.unit;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
-import org.joda.time.PeriodType;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -108,10 +106,10 @@ public class TimeValueTests extends ESTestCase {
         // supported. Note that this is the only unit that is not case sensitive
         // as `m` is the only character that is overloaded in terms of which
         // time unit is expected between the upper and lower case versions
-        expectThrows(ElasticsearchParseException.class, () -> {
+        expectThrows(IllegalArgumentException.class, () -> {
             TimeValue.parseTimeValue("10 M", null, "test");
         });
-        expectThrows(ElasticsearchParseException.class, () -> {
+        expectThrows(IllegalArgumentException.class, () -> {
             TimeValue.parseTimeValue("10M", null, "test");
         });
 
@@ -132,8 +130,8 @@ public class TimeValueTests extends ESTestCase {
 
     public void testNonFractionalTimeValues() {
         final String s = randomAlphaOfLength(10) + randomTimeUnit();
-        final ElasticsearchParseException e =
-            expectThrows(ElasticsearchParseException.class, () -> TimeValue.parseTimeValue(s, null, "test"));
+        final IllegalArgumentException e =
+            expectThrows(IllegalArgumentException.class, () -> TimeValue.parseTimeValue(s, null, "test"));
         assertThat(e, hasToString(containsString("failed to parse [" + s + "]")));
         assertThat(e, not(hasToString(containsString(FRACTIONAL_TIME_VALUES_ARE_NOT_SUPPORTED))));
         assertThat(e.getCause(), instanceOf(NumberFormatException.class));
@@ -145,8 +143,8 @@ public class TimeValueTests extends ESTestCase {
             value = randomDouble();
         } while (value == 0);
         final String s = Double.toString(randomIntBetween(0, 128) + value) + randomTimeUnit();
-        final ElasticsearchParseException e =
-            expectThrows(ElasticsearchParseException.class, () -> TimeValue.parseTimeValue(s, null, "test"));
+        final IllegalArgumentException e =
+            expectThrows(IllegalArgumentException.class, () -> TimeValue.parseTimeValue(s, null, "test"));
         assertThat(e, hasToString(containsString("failed to parse [" + s + "]")));
         assertThat(e, hasToString(containsString(FRACTIONAL_TIME_VALUES_ARE_NOT_SUPPORTED)));
         assertThat(e.getCause(), instanceOf(NumberFormatException.class));
@@ -158,11 +156,11 @@ public class TimeValueTests extends ESTestCase {
 
     private void assertEqualityAfterSerialize(TimeValue value, int expectedSize) throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
-        value.writeTo(out);
+        out.writeTimeValue(value);
         assertEquals(expectedSize, out.size());
 
         StreamInput in = out.bytes().streamInput();
-        TimeValue inValue = new TimeValue(in);
+        TimeValue inValue = in.readTimeValue();
 
         assertThat(inValue, equalTo(value));
         assertThat(inValue.duration(), equalTo(value.duration()));
@@ -185,7 +183,7 @@ public class TimeValueTests extends ESTestCase {
         try {
             TimeValue.parseTimeValue("23tw", null, "test");
             fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("failed to parse"));
         }
     }
@@ -194,7 +192,7 @@ public class TimeValueTests extends ESTestCase {
         try {
             TimeValue.parseTimeValue("42", null, "test");
             fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("failed to parse"));
         }
     }
@@ -203,7 +201,7 @@ public class TimeValueTests extends ESTestCase {
         try {
             TimeValue.parseTimeValue("42ms.", null, "test");
             fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("failed to parse"));
         }
     }

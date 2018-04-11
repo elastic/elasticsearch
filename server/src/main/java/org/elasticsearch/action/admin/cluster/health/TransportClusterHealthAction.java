@@ -32,8 +32,17 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterIndexHealth;
+import org.elasticsearch.cluster.health.ClusterShardHealth;
+import org.elasticsearch.cluster.health.ClusterStateHealth;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -41,10 +50,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 
 public class TransportClusterHealthAction extends TransportMasterNodeReadAction<ClusterHealthRequest, ClusterHealthResponse> {
@@ -315,15 +328,187 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         try {
             concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
         } catch (IndexNotFoundException e) {
+            ClusterStateHealth stateHealth = calculateStateHealth(clusterState, Strings.EMPTY_ARRAY);
+            ClusterHealthResponse response = new ClusterHealthResponse(clusterState.getClusterName().value(), numberOfPendingTasks,
+                    numberOfInFlightFetch, UnassignedInfo.getNumberOfDelayedUnassigned(clusterState), pendingTaskTimeInQueue,
+                    false, stateHealth);
             // one of the specified indices is not there - treat it as RED.
-            ClusterHealthResponse response = new ClusterHealthResponse(clusterState.getClusterName().value(), Strings.EMPTY_ARRAY, clusterState,
-                    numberOfPendingTasks, numberOfInFlightFetch, UnassignedInfo.getNumberOfDelayedUnassigned(clusterState),
-                    pendingTaskTimeInQueue);
             response.setStatus(ClusterHealthStatus.RED);
             return response;
         }
+        ClusterStateHealth stateHealth = calculateStateHealth(clusterState, concreteIndices);
+        return new ClusterHealthResponse(clusterState.getClusterName().value(), numberOfPendingTasks, numberOfInFlightFetch,
+                UnassignedInfo.getNumberOfDelayedUnassigned(clusterState), pendingTaskTimeInQueue, false, stateHealth);
+    }
 
-        return new ClusterHealthResponse(clusterState.getClusterName().value(), concreteIndices, clusterState, numberOfPendingTasks,
-                numberOfInFlightFetch, UnassignedInfo.getNumberOfDelayedUnassigned(clusterState), pendingTaskTimeInQueue);
+    /**
+     * Creates a new <code>ClusterStateHealth</code> instance considering the current cluster state and all indices in the cluster.
+     *
+     * @param clusterState The current cluster state. Must not be null.
+     */
+    public static ClusterStateHealth calculateStateHealth(final ClusterState clusterState) {
+        return calculateStateHealth(clusterState, clusterState.metaData().getConcreteAllIndices());
+    }
+
+    /**
+     * Creates a new <code>ClusterStateHealth</code> instance considering the current cluster state and the provided index names.
+     *
+     * @param clusterState    The current cluster state. Must not be null.
+     * @param concreteIndices An array of index names to consider. Must not be null but may be empty.
+     */
+    public static ClusterStateHealth calculateStateHealth(final ClusterState clusterState, final String[] concreteIndices) {
+        int numberOfNodes = clusterState.nodes().getSize();
+        int numberOfDataNodes = clusterState.nodes().getDataNodes().size();
+        Map<String, ClusterIndexHealth> indices = new HashMap<>();
+        for (String index : concreteIndices) {
+            IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
+            IndexMetaData indexMetaData = clusterState.metaData().index(index);
+            if (indexRoutingTable == null) {
+                continue;
+            }
+            ClusterIndexHealth indexHealth = calculateIndexHealth(indexMetaData, indexRoutingTable);
+            indices.put(indexHealth.getIndex(), indexHealth);
+        }
+        ClusterHealthStatus computeStatus = ClusterHealthStatus.GREEN;
+        int computeActivePrimaryShards = 0;
+        int computeActiveShards = 0;
+        int computeRelocatingShards = 0;
+        int computeInitializingShards = 0;
+        int computeUnassignedShards = 0;
+
+        for (ClusterIndexHealth indexHealth : indices.values()) {
+            computeActivePrimaryShards += indexHealth.getActivePrimaryShards();
+            computeActiveShards += indexHealth.getActiveShards();
+            computeRelocatingShards += indexHealth.getRelocatingShards();
+            computeInitializingShards += indexHealth.getInitializingShards();
+            computeUnassignedShards += indexHealth.getUnassignedShards();
+            if (indexHealth.getStatus() == ClusterHealthStatus.RED) {
+                computeStatus = ClusterHealthStatus.RED;
+            } else if (indexHealth.getStatus() == ClusterHealthStatus.YELLOW && computeStatus != ClusterHealthStatus.RED) {
+                computeStatus = ClusterHealthStatus.YELLOW;
+            }
+        }
+        if (clusterState.blocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE)) {
+            computeStatus = ClusterHealthStatus.RED;
+        }
+        double activeShardsPercent;
+        // shortcut on green
+        if (computeStatus.equals(ClusterHealthStatus.GREEN)) {
+            activeShardsPercent = 100;
+        } else {
+            List<ShardRouting> shardRoutings = clusterState.getRoutingTable().allShards();
+            int activeShardCount = 0;
+            int totalShardCount = 0;
+            for (ShardRouting shardRouting : shardRoutings) {
+                if (shardRouting.active()) activeShardCount++;
+                totalShardCount++;
+            }
+            activeShardsPercent = (((double) activeShardCount) / totalShardCount) * 100;
+        }
+        return new ClusterStateHealth(computeActivePrimaryShards, computeActiveShards, computeRelocatingShards,
+                computeInitializingShards, computeUnassignedShards, numberOfNodes, numberOfDataNodes, activeShardsPercent,
+                computeStatus, indices);
+    }
+
+    public static ClusterIndexHealth calculateIndexHealth(final IndexMetaData indexMetaData, final IndexRoutingTable indexRoutingTable) {
+        String index = indexMetaData.getIndex().getName();
+        int numberOfShards = indexMetaData.getNumberOfShards();
+        int numberOfReplicas = indexMetaData.getNumberOfReplicas();
+
+        Map<Integer, ClusterShardHealth> shards = new HashMap<>();
+        for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
+            int shardId = shardRoutingTable.shardId().id();
+            shards.put(shardId, calculateShardHealth(shardId, shardRoutingTable));
+        }
+
+        // update the index status
+        ClusterHealthStatus computeStatus = ClusterHealthStatus.GREEN;
+        int computeActivePrimaryShards = 0;
+        int computeActiveShards = 0;
+        int computeRelocatingShards = 0;
+        int computeInitializingShards = 0;
+        int computeUnassignedShards = 0;
+        for (ClusterShardHealth shardHealth : shards.values()) {
+            if (shardHealth.isPrimaryActive()) {
+                computeActivePrimaryShards++;
+            }
+            computeActiveShards += shardHealth.getActiveShards();
+            computeRelocatingShards += shardHealth.getRelocatingShards();
+            computeInitializingShards += shardHealth.getInitializingShards();
+            computeUnassignedShards += shardHealth.getUnassignedShards();
+
+            if (shardHealth.getStatus() == ClusterHealthStatus.RED) {
+                computeStatus = ClusterHealthStatus.RED;
+            } else if (shardHealth.getStatus() == ClusterHealthStatus.YELLOW && computeStatus != ClusterHealthStatus.RED) {
+                // do not override an existing red
+                computeStatus = ClusterHealthStatus.YELLOW;
+            }
+        }
+        if (shards.isEmpty()) { // might be since none has been created yet (two phase index creation)
+            computeStatus = ClusterHealthStatus.RED;
+        }
+        return new ClusterIndexHealth(index, numberOfShards, numberOfReplicas, computeActiveShards, computeRelocatingShards,
+                computeInitializingShards, computeUnassignedShards, computeActivePrimaryShards, computeStatus, shards);
+    }
+
+    public static ClusterShardHealth calculateShardHealth(final int shardId, final IndexShardRoutingTable shardRoutingTable) {
+        int computeActiveShards = 0;
+        int computeRelocatingShards = 0;
+        int computeInitializingShards = 0;
+        int computeUnassignedShards = 0;
+        for (ShardRouting shardRouting : shardRoutingTable) {
+            if (shardRouting.active()) {
+                computeActiveShards++;
+                if (shardRouting.relocating()) {
+                    // the shard is relocating, the one it is relocating to will be in initializing state, so we don't count it
+                    computeRelocatingShards++;
+                }
+            } else if (shardRouting.initializing()) {
+                computeInitializingShards++;
+            } else if (shardRouting.unassigned()) {
+                computeUnassignedShards++;
+            }
+        }
+        ClusterHealthStatus computeStatus;
+        final ShardRouting primaryRouting = shardRoutingTable.primaryShard();
+        if (primaryRouting.active()) {
+            if (computeActiveShards == shardRoutingTable.size()) {
+                computeStatus = ClusterHealthStatus.GREEN;
+            } else {
+                computeStatus = ClusterHealthStatus.YELLOW;
+            }
+        } else {
+            computeStatus = getInactivePrimaryHealth(primaryRouting);
+        }
+        return new ClusterShardHealth(shardId, computeStatus, computeActiveShards, computeRelocatingShards, computeInitializingShards,
+                computeUnassignedShards, primaryRouting.active());
+    }
+
+    /**
+     * Checks if an inactive primary shard should cause the cluster health to go RED.
+     *
+     * An inactive primary shard in an index should cause the cluster health to be RED to make it visible that some of the existing data is
+     * unavailable. In case of index creation, snapshot restore or index shrinking, which are unexceptional events in the cluster lifecycle,
+     * cluster health should not turn RED for the time where primaries are still in the initializing state but go to YELLOW instead.
+     * However, in case of exceptional events, for example when the primary shard cannot be assigned to a node or initialization fails at
+     * some point, cluster health should still turn RED.
+     *
+     * NB: this method should *not* be called on active shards nor on non-primary shards.
+     */
+    public static ClusterHealthStatus getInactivePrimaryHealth(final ShardRouting shardRouting) {
+        assert shardRouting.primary() : "cannot invoke on a replica shard: " + shardRouting;
+        assert shardRouting.active() == false : "cannot invoke on an active shard: " + shardRouting;
+        assert shardRouting.unassignedInfo() != null : "cannot invoke on a shard with no UnassignedInfo: " + shardRouting;
+        assert shardRouting.recoverySource() != null : "cannot invoke on a shard that has no recovery source" + shardRouting;
+        final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
+        RecoverySource.Type recoveryType = shardRouting.recoverySource().getType();
+        if (unassignedInfo.getLastAllocationStatus() != AllocationStatus.DECIDERS_NO && unassignedInfo.getNumFailedAllocations() == 0
+                && (recoveryType == RecoverySource.Type.EMPTY_STORE
+                || recoveryType == RecoverySource.Type.LOCAL_SHARDS
+                || recoveryType == RecoverySource.Type.SNAPSHOT)) {
+            return ClusterHealthStatus.YELLOW;
+        } else {
+            return ClusterHealthStatus.RED;
+        }
     }
 }

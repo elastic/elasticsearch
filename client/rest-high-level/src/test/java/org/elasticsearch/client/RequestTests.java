@@ -1333,26 +1333,35 @@ public class RequestTests extends ESTestCase {
         ClusterHealthRequest healthRequest = new ClusterHealthRequest();
         Map<String, String> expectedParams = new HashMap<>();
         setRandomLocal(healthRequest, expectedParams);
-        if (randomBoolean()) {
-            String timeout = randomTimeValue();
-            healthRequest.timeout(timeout);
-            expectedParams.put("timeout", timeout);
-            if (randomBoolean()) {
-                String masterTimeout = randomTimeValue();
-                healthRequest.masterNodeTimeout(masterTimeout);
-                expectedParams.put("master_timeout", masterTimeout);
-            } else {
-                // If Master Timeout  wasn't set it uses the same value as Timeout
+        String timeoutType = randomFrom("timeout", "masterTimeout", "both", "none");
+        String timeout = randomTimeValue();
+        String masterTimeout = randomTimeValue();
+        switch (timeoutType) {
+            case "timeout":
+                healthRequest.timeout(timeout);
+                expectedParams.put("timeout", timeout);
+                // If Master Timeout wasn't set it uses the same value as Timeout
                 expectedParams.put("master_timeout", timeout);
-            }
-        } else {
-            expectedParams.put("timeout", "30s");
-            expectedParams.put("master_timeout", "30s");
+                break;
+            case "masterTimeout":
+                expectedParams.put("timeout", "30s");
+                healthRequest.timeout(masterTimeout);
+                expectedParams.put("master_timeout", masterTimeout);
+                break;
+            case "both":
+                healthRequest.timeout(timeout);
+                expectedParams.put("timeout", timeout);
+                healthRequest.masterNodeTimeout(timeout);
+                expectedParams.put("master_timeout", timeout);
+                break;
+            case "none":
+                expectedParams.put("timeout", "30s");
+                expectedParams.put("master_timeout", "30s");
+                break;
+            default:
+                throw new UnsupportedOperationException();
         }
-        setRandomWaitForActiveShards(healthRequest::waitForActiveShards, expectedParams);
-        if (!expectedParams.containsKey("wait_for_active_shards")) {
-            expectedParams.put("wait_for_active_shards", "0");
-        }
+        setRandomWaitForActiveShards(healthRequest::waitForActiveShards, expectedParams, "0");
         if (randomBoolean()) {
             String level = randomFrom("cluster", "indices", "shards");
             healthRequest.level(level);
@@ -1384,16 +1393,14 @@ public class RequestTests extends ESTestCase {
                 expectedParams.put("wait_for_no_relocating_shards", Boolean.TRUE.toString());
             }
         }
-        String[] indices = randomIndicesNames(0, 5);
-        if (indices.length > 0) {
-            healthRequest.indices(indices);
-        }
+        String[] indices = randomBoolean() ? null : randomIndicesNames(0, 5);
+        healthRequest.indices(indices);
 
         Request request = Request.clusterHealth(healthRequest);
         assertThat(request, notNullValue());
         assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
         assertThat(request.getEntity(), nullValue());
-        if (indices.length > 0) {
+        if (indices != null && indices.length > 0) {
             assertThat(request.getEndpoint(), equalTo("/_cluster/health/" + String.join(",", indices)));
         } else {
             assertThat(request.getEndpoint(), equalTo("/_cluster/health"));
@@ -1577,7 +1584,6 @@ public class RequestTests extends ESTestCase {
                 new String[]{"type1", "type2"}, "_endpoint"));
         assertEquals("/index1,index2/_endpoint/suffix1,suffix2", Request.endpoint(new String[]{"index1", "index2"},
                 "_endpoint", new String[]{"suffix1", "suffix2"}));
-        assertEquals("/_endpoint/suffix1,suffix2", Request.endpoint("_endpoint", new String[]{"suffix1", "suffix2"}));
     }
 
     public void testCreateContentType() {
@@ -1721,6 +1727,11 @@ public class RequestTests extends ESTestCase {
     }
 
     private static void setRandomWaitForActiveShards(Consumer<ActiveShardCount> setter, Map<String, String> expectedParams) {
+        setRandomWaitForActiveShards(setter, expectedParams, null);
+    }
+
+    private static void setRandomWaitForActiveShards(Consumer<ActiveShardCount> setter, Map<String, String> expectedParams,
+                String defaultValue) {
         if (randomBoolean()) {
             String waitForActiveShardsString;
             int waitForActiveShards = randomIntBetween(-1, 5);
@@ -1731,6 +1742,8 @@ public class RequestTests extends ESTestCase {
             }
             setter.accept(ActiveShardCount.parseString(waitForActiveShardsString));
             expectedParams.put("wait_for_active_shards", waitForActiveShardsString);
+        } else if (defaultValue != null){
+            expectedParams.put("wait_for_active_shards", defaultValue);
         }
     }
 

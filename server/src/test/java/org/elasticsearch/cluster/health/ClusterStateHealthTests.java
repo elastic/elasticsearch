@@ -176,7 +176,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(
             clusterState, IndicesOptions.strictExpand(), (String[]) null
         );
-        ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices);
+        ClusterStateHealth clusterStateHealth = TransportClusterHealthAction.calculateStateHealth(clusterState, concreteIndices);
         logger.info("cluster status: {}, expected {}", clusterStateHealth.getStatus(), counter.status());
         clusterStateHealth = maybeSerialize(clusterStateHealth);
         assertClusterHealth(clusterStateHealth, counter);
@@ -189,7 +189,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         for (int i = 0; i < clusterStates.size(); i++) {
             // make sure cluster health is always YELLOW, up until the last state where it should be GREEN
             final ClusterState clusterState = clusterStates.get(i);
-            final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices);
+            final ClusterStateHealth health = TransportClusterHealthAction.calculateStateHealth(clusterState, indices);
             if (i < clusterStates.size() - 1) {
                 assertThat(health.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
             } else {
@@ -206,7 +206,7 @@ public class ClusterStateHealthTests extends ESTestCase {
             // make sure cluster health is YELLOW up until the final cluster state, which contains primary shard
             // failed allocations that should make the cluster health RED
             final ClusterState clusterState = clusterStates.get(i);
-            final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices);
+            final ClusterStateHealth health = TransportClusterHealthAction.calculateStateHealth(clusterState, indices);
             if (i < clusterStates.size() - 1) {
                 assertThat(health.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
             } else {
@@ -222,7 +222,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         for (int i = 0; i < clusterStates.size(); i++) {
             // make sure cluster health is YELLOW up until the final cluster state, when it turns GREEN
             final ClusterState clusterState = clusterStates.get(i);
-            final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices);
+            final ClusterStateHealth health = TransportClusterHealthAction.calculateStateHealth(clusterState, indices);
             if (i < clusterStates.size() - 1) {
                 assertThat(health.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
             } else {
@@ -239,7 +239,7 @@ public class ClusterStateHealthTests extends ESTestCase {
             // make sure cluster health is YELLOW up until the final cluster state, which contains primary shard
             // failed allocations that should make the cluster health RED
             final ClusterState clusterState = clusterStates.get(i);
-            final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices);
+            final ClusterStateHealth health = TransportClusterHealthAction.calculateStateHealth(clusterState, indices);
             if (i < clusterStates.size() - 1) {
                 assertThat(health.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
             } else {
@@ -256,7 +256,7 @@ public class ClusterStateHealthTests extends ESTestCase {
             // because there were previous allocation ids, we should be RED until the primaries are started,
             // then move to YELLOW, and the last state should be GREEN when all shards have been started
             final ClusterState clusterState = clusterStates.get(i);
-            final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices);
+            final ClusterStateHealth health = TransportClusterHealthAction.calculateStateHealth(clusterState, indices);
             if (i < clusterStates.size() - 1) {
                 // if the inactive primaries are due solely to recovery (not failed allocation or previously being allocated),
                 // then cluster health is YELLOW, otherwise RED
@@ -275,7 +275,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         final String indexName = "test-idx";
         final String[] indices = new String[] { indexName };
         for (final ClusterState clusterState : simulateClusterRecoveryStates(indexName, true, true)) {
-            final ClusterStateHealth health = new ClusterStateHealth(clusterState, indices);
+            final ClusterStateHealth health = TransportClusterHealthAction.calculateStateHealth(clusterState, indices);
             // if the inactive primaries are due solely to recovery (not failed allocation or previously being allocated)
             // then cluster health is YELLOW, otherwise RED
             if (primaryInactiveDueToRecovery(indexName, clusterState)) {

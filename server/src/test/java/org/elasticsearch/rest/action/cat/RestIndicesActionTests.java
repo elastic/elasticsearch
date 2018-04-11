@@ -21,12 +21,14 @@ package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsTests;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -106,8 +108,9 @@ public class RestIndicesActionTests extends ESTestCase {
         for (int i = 0; i < indices.length; i++) {
             indicesStr[i] = indices[i].getName();
         }
+        ClusterStateHealth stateHealth = TransportClusterHealthAction.calculateStateHealth(clusterState);
         final ClusterHealthResponse clusterHealth = new ClusterHealthResponse(
-            clusterState.getClusterName().value(), indicesStr, clusterState, 0, 0, 0, TimeValue.timeValueMillis(1000L)
+            clusterState.getClusterName().value(), 0, 0, 0, TimeValue.timeValueMillis(1000L), false, stateHealth
         );
 
         final Table table = action.buildTable(new FakeRestRequest(), indices, clusterHealth, randomIndicesStatsResponse(indices), metaData);

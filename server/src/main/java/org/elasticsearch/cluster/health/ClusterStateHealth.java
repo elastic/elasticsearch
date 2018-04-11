@@ -18,20 +18,14 @@
  */
 package org.elasticsearch.cluster.health;
 
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -49,81 +43,19 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
     private final ClusterHealthStatus status;
     private final Map<String, ClusterIndexHealth> indices;
 
-    /**
-     * Creates a new <code>ClusterStateHealth</code> instance considering the current cluster state and all indices in the cluster.
-     *
-     * @param clusterState The current cluster state. Must not be null.
-     */
-    public ClusterStateHealth(final ClusterState clusterState) {
-        this(clusterState, clusterState.metaData().getConcreteAllIndices());
-    }
-
-    /**
-     * Creates a new <code>ClusterStateHealth</code> instance considering the current cluster state and the provided index names.
-     *
-     * @param clusterState    The current cluster state. Must not be null.
-     * @param concreteIndices An array of index names to consider. Must not be null but may be empty.
-     */
-    public ClusterStateHealth(final ClusterState clusterState, final String[] concreteIndices) {
-        numberOfNodes = clusterState.nodes().getSize();
-        numberOfDataNodes = clusterState.nodes().getDataNodes().size();
-        indices = new HashMap<>();
-        for (String index : concreteIndices) {
-            IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
-            IndexMetaData indexMetaData = clusterState.metaData().index(index);
-            if (indexRoutingTable == null) {
-                continue;
-            }
-
-            ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetaData, indexRoutingTable);
-
-            indices.put(indexHealth.getIndex(), indexHealth);
-        }
-
-        ClusterHealthStatus computeStatus = ClusterHealthStatus.GREEN;
-        int computeActivePrimaryShards = 0;
-        int computeActiveShards = 0;
-        int computeRelocatingShards = 0;
-        int computeInitializingShards = 0;
-        int computeUnassignedShards = 0;
-
-        for (ClusterIndexHealth indexHealth : indices.values()) {
-            computeActivePrimaryShards += indexHealth.getActivePrimaryShards();
-            computeActiveShards += indexHealth.getActiveShards();
-            computeRelocatingShards += indexHealth.getRelocatingShards();
-            computeInitializingShards += indexHealth.getInitializingShards();
-            computeUnassignedShards += indexHealth.getUnassignedShards();
-            if (indexHealth.getStatus() == ClusterHealthStatus.RED) {
-                computeStatus = ClusterHealthStatus.RED;
-            } else if (indexHealth.getStatus() == ClusterHealthStatus.YELLOW && computeStatus != ClusterHealthStatus.RED) {
-                computeStatus = ClusterHealthStatus.YELLOW;
-            }
-        }
-
-        if (clusterState.blocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE)) {
-            computeStatus = ClusterHealthStatus.RED;
-        }
-
-        this.status = computeStatus;
-        this.activePrimaryShards = computeActivePrimaryShards;
-        this.activeShards = computeActiveShards;
-        this.relocatingShards = computeRelocatingShards;
-        this.initializingShards = computeInitializingShards;
-        this.unassignedShards = computeUnassignedShards;
-
-        // shortcut on green
-        if (computeStatus.equals(ClusterHealthStatus.GREEN)) {
-            this.activeShardsPercent = 100;
-        } else {
-            List<ShardRouting> shardRoutings = clusterState.getRoutingTable().allShards();
-            int activeShardCount = 0;
-            int totalShardCount = 0;
-            for (ShardRouting shardRouting : shardRoutings) {
-                if (shardRouting.active()) activeShardCount++;
-                totalShardCount++;
-            }
-            this.activeShardsPercent = (((double) activeShardCount) / totalShardCount) * 100;
-        }
+    public ClusterStateHealth(int activePrimaryShards, int activeShards, int relocatingShards, int initializingShards, int unassignedShards,
+            int numberOfNodes, int numberOfDataNodes, double activeShardsPercent, ClusterHealthStatus status,
+            Map<String, ClusterIndexHealth> indices) {
+        this.activePrimaryShards = activePrimaryShards;
+        this.activeShards = activeShards;
+        this.relocatingShards = relocatingShards;
+        this.initializingShards = initializingShards;
+        this.unassignedShards = unassignedShards;
+        this.numberOfNodes = numberOfNodes;
+        this.numberOfDataNodes = numberOfDataNodes;
+        this.activeShardsPercent = activeShardsPercent;
+        this.status = status;
+        this.indices = indices;
     }
 
     public ClusterStateHealth(final StreamInput in) throws IOException {
@@ -142,24 +74,6 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
             indices.put(indexHealth.getIndex(), indexHealth);
         }
         activeShardsPercent = in.readDouble();
-    }
-
-    /**
-     * For ClusterHealthResponse's XContent Parser
-     */
-    public ClusterStateHealth(int activePrimaryShards, int activeShards, int relocatingShards, int initializingShards, int unassignedShards,
-            int numberOfNodes, int numberOfDataNodes, double activeShardsPercent, ClusterHealthStatus status,
-        Map<String, ClusterIndexHealth> indices) {
-        this.activePrimaryShards = activePrimaryShards;
-        this.activeShards = activeShards;
-        this.relocatingShards = relocatingShards;
-        this.initializingShards = initializingShards;
-        this.unassignedShards = unassignedShards;
-        this.numberOfNodes = numberOfNodes;
-        this.numberOfDataNodes = numberOfDataNodes;
-        this.activeShardsPercent = activeShardsPercent;
-        this.status = status;
-        this.indices = indices;
     }
 
     public int getActiveShards() {
@@ -227,17 +141,17 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
     @Override
     public String toString() {
         return "ClusterStateHealth{" +
-            "numberOfNodes=" + numberOfNodes +
-            ", numberOfDataNodes=" + numberOfDataNodes +
-            ", activeShards=" + activeShards +
-            ", relocatingShards=" + relocatingShards +
-            ", activePrimaryShards=" + activePrimaryShards +
-            ", initializingShards=" + initializingShards +
-            ", unassignedShards=" + unassignedShards +
-            ", activeShardsPercent=" + activeShardsPercent +
-            ", status=" + status +
-            ", indices.size=" + (indices == null ? "null" : indices.size()) +
-            '}';
+                "numberOfNodes=" + numberOfNodes +
+                ", numberOfDataNodes=" + numberOfDataNodes +
+                ", activeShards=" + activeShards +
+                ", relocatingShards=" + relocatingShards +
+                ", activePrimaryShards=" + activePrimaryShards +
+                ", initializingShards=" + initializingShards +
+                ", unassignedShards=" + unassignedShards +
+                ", activeShardsPercent=" + activeShardsPercent +
+                ", status=" + status +
+                ", indices.size=" + (indices == null ? "null" : indices.size()) +
+                '}';
     }
 
     @Override
@@ -246,20 +160,20 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         if (o == null || getClass() != o.getClass()) return false;
         ClusterStateHealth that = (ClusterStateHealth) o;
         return numberOfNodes == that.numberOfNodes &&
-            numberOfDataNodes == that.numberOfDataNodes &&
-            activeShards == that.activeShards &&
-            relocatingShards == that.relocatingShards &&
-            activePrimaryShards == that.activePrimaryShards &&
-            initializingShards == that.initializingShards &&
-            unassignedShards == that.unassignedShards &&
-            Double.compare(that.activeShardsPercent, activeShardsPercent) == 0 &&
-            status == that.status &&
-            Objects.equals(indices, that.indices);
+                numberOfDataNodes == that.numberOfDataNodes &&
+                activeShards == that.activeShards &&
+                relocatingShards == that.relocatingShards &&
+                activePrimaryShards == that.activePrimaryShards &&
+                initializingShards == that.initializingShards &&
+                unassignedShards == that.unassignedShards &&
+                Double.compare(that.activeShardsPercent, activeShardsPercent) == 0 &&
+                status == that.status &&
+                Objects.equals(indices, that.indices);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(numberOfNodes, numberOfDataNodes, activeShards, relocatingShards, activePrimaryShards, initializingShards,
-            unassignedShards, activeShardsPercent, status, indices);
+                unassignedShards, activeShardsPercent, status, indices);
     }
 }

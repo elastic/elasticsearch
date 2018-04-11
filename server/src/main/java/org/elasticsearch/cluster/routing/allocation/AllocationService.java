@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
@@ -131,9 +132,9 @@ public class AllocationService extends AbstractComponent {
         }
         final ClusterState newState = newStateBuilder.build();
         logClusterHealthStateChange(
-            new ClusterStateHealth(oldState),
-            new ClusterStateHealth(newState),
-            reason
+                TransportClusterHealthAction.calculateStateHealth(oldState),
+                TransportClusterHealthAction.calculateStateHealth(newState),
+                reason
         );
         return newState;
     }

@@ -599,7 +599,7 @@ public final class Request {
         params.withLocal(healthRequest.local());
         params.withLevel(healthRequest.level());
         String[] indices = healthRequest.indices() == null ? Strings.EMPTY_ARRAY : healthRequest.indices();
-        String endpoint = endpoint("_cluster/health", indices);
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_cluster/health").addCommaSeparatedPathParts(indices).build();
         return new Request(HttpGet.METHOD_NAME, endpoint, params.getParams(), null);
     }
 
@@ -661,10 +661,6 @@ public final class Request {
     static String endpoint(String[] indices, String endpoint, String[] suffixes) {
         return new EndpointBuilder().addCommaSeparatedPathParts(indices).addPathPartAsIs(endpoint)
                 .addCommaSeparatedPathParts(suffixes).build();
-    }
-
-    static String endpoint(String endpoint, String[] suffixes) {
-        return new EndpointBuilder().addPathPartAsIs(endpoint).addCommaSeparatedPathParts(suffixes).build();
     }
 
     static String endpoint(String[] indices, String endpoint, String type) {

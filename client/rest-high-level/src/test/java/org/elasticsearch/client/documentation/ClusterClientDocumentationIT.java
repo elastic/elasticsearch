@@ -198,59 +198,59 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::health-request
         }
         {
-            // tag:health-request-indices-ctr
+            // tag::health-request-indices-ctr
             ClusterHealthRequest request = new ClusterHealthRequest("index1", "index2");
-            // end:health-request-indices-ctr
+            // end::health-request-indices-ctr
         }
         {
-            // tag:health-request-indices-setter
+            // tag::health-request-indices-setter
             ClusterHealthRequest request = new ClusterHealthRequest();
             request.indices("index1", "index2");
-            // end:health-request-indices-setter
+            // end::health-request-indices-setter
         }
         ClusterHealthRequest request = new ClusterHealthRequest();
 
-        // tag:health-request-timeout
+        // tag::health-request-timeout
         request.timeout(TimeValue.timeValueSeconds(50)); // <1>
         request.timeout("50s"); // <2>
-        // end:health-request-timeout
+        // end::health-request-timeout
 
-        // tag:health-request-master-timeout
+        // tag::health-request-master-timeout
         request.masterNodeTimeout(TimeValue.timeValueSeconds(20)); // <1>
         request.masterNodeTimeout("20s"); // <2>
-        // end:health-request-master-timeout
+        // end::health-request-master-timeout
 
-        // tag:health-request-wait-status
+        // tag::health-request-wait-status
         request.waitForStatus(ClusterHealthStatus.GREEN); // <1>
         request.waitForGreenStatus(); // <2>
-        // end:health-request-wait-status
+        // end::health-request-wait-status
 
-        // tag:health-request-level
+        // tag::health-request-level
         request.level("cluster"); // <1>
-        // end:health-request-level
+        // end::health-request-level
 
-        // tag:health-request-wait-relocation
+        // tag::health-request-wait-relocation
         request.waitForNoRelocatingShards(true); // <1>
-        // end:health-request-wait-relocation
+        // end::health-request-wait-relocation
 
-        // tag:health-request-wait-initializing
+        // tag::health-request-wait-initializing
         request.waitForNoInitializingShards(true); // <1>
-        // end:health-request-wait-initializing
+        // end::health-request-wait-initializing
 
-        // tag:health-request-wait-nodes
+        // tag::health-request-wait-nodes
         request.waitForNodes("2"); // <1>
         request.waitForNodes(">=2"); // <2>
         request.waitForNodes("le(2)"); // <3>
-        // end:health-request-wait-nodes
+        // end::health-request-wait-nodes
 
-        // tag:health-request-wait-active
+        // tag::health-request-wait-active
         request.waitForActiveShards(5); // <1>
         request.waitForActiveShards(ActiveShardCount.ALL); // <2>
-        // end:health-request-wait-active
+        // end::health-request-wait-active
 
-        // tag:health-request-local
+        // tag::health-request-local
         request.local(true); // <1>
-        // end:health-request-local
+        // end::health-request-local
 
         // tag::health-execute
         ClusterHealthResponse response = client.cluster().health(request);

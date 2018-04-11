@@ -1,7 +1,7 @@
 [[java-rest-high-cluster-health]]
 === Cluster Health API
 
-The Cluster Health API allows to get cluster health.
+The Cluster Health API allows getting cluster health.
 
 [[java-rest-high-cluster-health-request]]
 ==== Cluster Health Request
@@ -12,12 +12,12 @@ A `ClusterHealthRequest`:
 --------------------------------------------------
 include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request]
 --------------------------------------------------
-There is no required parameters. By default the client will check all indices and will not wait
+There are no required parameters. By default, the client will check all indices and will not wait
 for any events.
 
 ==== Indices
 
-Indices which should be checked can be passed in constructor:
+Indices which should be checked can be passed in the constructor:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -94,7 +94,7 @@ include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-wai
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-master-timeout]
+include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-request-local]
 --------------------------------------------------
 <1> Non-master node can be used for this request. Defaults to `false`
 
@@ -153,7 +153,7 @@ include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-response-ge
 include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[health-response-request-status]
 --------------------------------------------------
 <1> Whether request was timed out while processing
-<2> Status of request (`OK` or `REQUEST_TIMEOUT`). Other errors will be thrown as exceptions
+<2> Status of the request (`OK` or `REQUEST_TIMEOUT`). Other errors will be thrown as exceptions
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

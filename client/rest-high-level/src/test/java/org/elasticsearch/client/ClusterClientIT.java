@@ -124,44 +124,74 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         emptyClusterAssertion(response);
     }
 
-    public void testClusterHealthYellow() throws IOException {
+    public void testClusterHealthYellowClusterLevel() throws IOException {
         createIndex("index", Settings.EMPTY);
         createIndex("index2", Settings.EMPTY);
         ClusterHealthRequest request = new ClusterHealthRequest();
         request.timeout("5s");
-        boolean requestOneIndex = randomBoolean();
-        if (requestOneIndex) {
-            request.indices("index");
+        request.level("cluster");
+        ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
+
+        yellowTenShardsClusterAssertion(response);
+        assertThat(response.getIndices().size(), equalTo(0));
+    }
+
+    public void testClusterHealthYellowIndicesLevel() throws IOException {
+        createIndex("index", Settings.EMPTY);
+        createIndex("index2", Settings.EMPTY);
+        ClusterHealthRequest request = new ClusterHealthRequest();
+        request.timeout("5s");
+        request.level("indices");
+        ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
+
+        yellowTenShardsClusterAssertion(response);
+        assertThat(response.getIndices().size(), equalTo(2));
+        for (Map.Entry<String, ClusterIndexHealth> entry : response.getIndices().entrySet()) {
+            indexAssertion(entry.getKey(), entry.getValue(), true);
         }
-        String level = randomFrom("default-shards", "cluster", "indices", "shards");
-        if (!"default-shards".equals(level)) {
-            request.level(level);
-        }
+    }
+
+    private void yellowTenShardsClusterAssertion(ClusterHealthResponse response) {
+        assertThat(response, notNullValue());
+        assertThat(response.isTimedOut(), equalTo(false));
+        assertThat(response.status(), equalTo(RestStatus.OK));
+        assertThat(response.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
+        assertThat(response.getActivePrimaryShards(), equalTo(10));
+        assertThat(response.getNumberOfDataNodes(), equalTo(1));
+        assertThat(response.getNumberOfNodes(), equalTo(1));
+        assertThat(response.getActiveShards(), equalTo(10));
+        assertThat(response.getDelayedUnassignedShards(), equalTo(0));
+        assertThat(response.getInitializingShards(), equalTo(0));
+        assertThat(response.getUnassignedShards(), equalTo(10));
+        assertThat(response.getActiveShardsPercent(), equalTo(50d));
+    }
+
+
+    public void testClusterHealthYellowSpecificIndex() throws IOException {
+        createIndex("index", Settings.EMPTY);
+        createIndex("index2", Settings.EMPTY);
+        ClusterHealthRequest request = new ClusterHealthRequest("index");
+        request.timeout("5s");
         ClusterHealthResponse response = execute(request, highLevelClient().cluster()::health, highLevelClient().cluster()::healthAsync);
 
         assertThat(response, notNullValue());
         assertThat(response.isTimedOut(), equalTo(false));
         assertThat(response.status(), equalTo(RestStatus.OK));
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
-        assertThat(response.getActivePrimaryShards(), equalTo(requestOneIndex? 5 : 10));
+        assertThat(response.getActivePrimaryShards(), equalTo(5));
         assertThat(response.getNumberOfDataNodes(), equalTo(1));
         assertThat(response.getNumberOfNodes(), equalTo(1));
-        assertThat(response.getActiveShards(), equalTo(requestOneIndex? 5 : 10));
+        assertThat(response.getActiveShards(), equalTo(5));
         assertThat(response.getDelayedUnassignedShards(), equalTo(0));
         assertThat(response.getInitializingShards(), equalTo(0));
-        assertThat(response.getUnassignedShards(), equalTo(requestOneIndex? 5 : 10));
+        assertThat(response.getUnassignedShards(), equalTo(5));
         assertThat(response.getActiveShardsPercent(), equalTo(50d));
-        if ("shards".equals(level) || "indices".equals(level) || "default-shards".equals(level)) {
-            assertThat(response.getIndices().size(), equalTo(requestOneIndex ? 1 : 2));
-            for (Map.Entry<String, ClusterIndexHealth> entry : response.getIndices().entrySet()) {
-                indexAssertion(entry.getKey(), entry.getValue(), level);
-            }
-        } else {
-            assertThat(response.getIndices().size(), equalTo(0));
-        }
+        assertThat(response.getIndices().size(), equalTo(1));
+        Map.Entry<String, ClusterIndexHealth> index = response.getIndices().entrySet().iterator().next();
+        indexAssertion(index.getKey(), index.getValue(), false);
     }
 
-    private void indexAssertion(String indexName, ClusterIndexHealth indexHealth, String level) {
+    private void indexAssertion(String indexName, ClusterIndexHealth indexHealth, boolean emptyShards) {
         assertThat(indexHealth, notNullValue());
         assertThat(indexHealth.getIndex(),equalTo(indexName));
         assertThat(indexHealth.getActivePrimaryShards(),equalTo(5));
@@ -171,13 +201,13 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(indexHealth.getUnassignedShards(),equalTo(5));
         assertThat(indexHealth.getRelocatingShards(),equalTo(0));
         assertThat(indexHealth.getStatus(),equalTo(ClusterHealthStatus.YELLOW));
-        if ("shards".equals(level) || "default-shards".equals(level)) {
+        if (emptyShards) {
+            assertThat(indexHealth.getShards().size(), equalTo(0));
+        } else {
             assertThat(indexHealth.getShards().size(), equalTo(5));
             for (Map.Entry<Integer, ClusterShardHealth> entry : indexHealth.getShards().entrySet()) {
                 shardAssertion(entry.getKey(), entry.getValue());
             }
-        } else {
-            assertThat(indexHealth.getShards().size(), equalTo(0));
         }
     }
 

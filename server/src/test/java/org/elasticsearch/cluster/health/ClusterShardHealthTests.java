@@ -22,6 +22,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
+import java.util.Arrays;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+
 public class ClusterShardHealthTests extends AbstractSerializingTestCase<ClusterShardHealth> {
 
     @Override
@@ -42,5 +46,64 @@ public class ClusterShardHealthTests extends AbstractSerializingTestCase<Cluster
     @Override
     protected Writeable.Reader<ClusterShardHealth> instanceReader() {
         return ClusterShardHealth::new;
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return ""::equals;
+    }
+
+    @Override
+    protected ClusterShardHealth mutateInstance(final ClusterShardHealth instance) {
+        String mutate = randomFrom("shardId", "status", "activeShards", "relocatingShards", "initializingShards",
+                "unassignedShards", "primaryActive");
+        switch (mutate) {
+            case "shardId":
+                return new ClusterShardHealth(instance.getShardId() + between(1, 10), instance.getStatus(),
+                        instance.getActiveShards(), instance.getRelocatingShards(),
+                        instance.getInitializingShards(), instance.getUnassignedShards(),
+                        instance.isPrimaryActive());
+            case "status":
+                ClusterHealthStatus status = randomFrom(
+                    Arrays.stream(ClusterHealthStatus.values()).filter(
+                        value -> !value.equals(instance.getStatus())
+                    ).collect(Collectors.toList())
+                );
+                return new ClusterShardHealth(instance.getShardId(), status,
+                        instance.getActiveShards(), instance.getRelocatingShards(),
+                        instance.getInitializingShards(), instance.getUnassignedShards(),
+                        instance.isPrimaryActive());
+            case "activeShards":
+                return new ClusterShardHealth(instance.getShardId(), instance.getStatus(),
+                        instance.getActiveShards() + between(1, 10), instance.getRelocatingShards(),
+                        instance.getInitializingShards(), instance.getUnassignedShards(),
+                        instance.isPrimaryActive());
+            case "relocatingShards":
+                return new ClusterShardHealth(instance.getShardId(), instance.getStatus(),
+                        instance.getActiveShards(), instance.getRelocatingShards() + between(1, 10),
+                        instance.getInitializingShards(), instance.getUnassignedShards(), instance.isPrimaryActive());
+            case "initializingShards":
+                return new ClusterShardHealth(instance.getShardId(), instance.getStatus(),
+                        instance.getActiveShards(), instance.getRelocatingShards(),
+                        instance.getInitializingShards() + between(1, 10), instance.getUnassignedShards(),
+                        instance.isPrimaryActive());
+            case "unassignedShards":
+                return new ClusterShardHealth(instance.getShardId(), instance.getStatus(),
+                        instance.getActiveShards(), instance.getRelocatingShards(),
+                        instance.getInitializingShards(), instance.getUnassignedShards() + between(1, 10),
+                        instance.isPrimaryActive());
+            case "primaryActive":
+                return new ClusterShardHealth(instance.getShardId(), instance.getStatus(),
+                        instance.getActiveShards(), instance.getRelocatingShards(),
+                        instance.getInitializingShards(), instance.getUnassignedShards(),
+                        instance.isPrimaryActive() == false);
+            default:
+                throw new UnsupportedOperationException();
+        }
     }
 }

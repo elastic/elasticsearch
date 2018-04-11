@@ -21,6 +21,7 @@ package org.elasticsearch.gateway;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -428,7 +429,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("test-cluster"))
                                                 .routingTable(newRoutingTable)
                                                 .build();
-        ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState);
+        ClusterStateHealth clusterStateHealth = TransportClusterHealthAction.calculateStateHealth(clusterState);
         assertThat(clusterStateHealth.getStatus().ordinal(), lessThanOrEqualTo(expectedStatus.ordinal()));
     }
 

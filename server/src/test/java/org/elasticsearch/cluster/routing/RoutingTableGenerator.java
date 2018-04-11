@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.index.shard.ShardId;
 
-import static org.elasticsearch.cluster.health.ClusterShardHealth.getInactivePrimaryHealth;
+import static org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction.getInactivePrimaryHealth;
 
 public class RoutingTableGenerator {
     private static int node_id = 1;

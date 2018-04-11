@@ -19,10 +19,8 @@
 
 package org.elasticsearch.cluster.health;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -43,9 +41,9 @@ import java.util.Objects;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Writeable, ToXContentFragment {
-    private static final String INDEX = "index";
     private static final String STATUS = "status";
     private static final String NUMBER_OF_SHARDS = "number_of_shards";
     private static final String NUMBER_OF_REPLICAS = "number_of_replicas";
@@ -56,39 +54,37 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
     private static final String UNASSIGNED_SHARDS = "unassigned_shards";
     private static final String SHARDS = "shards";
 
-    private static final ConstructingObjectParser<ClusterIndexHealth, Void> PARSER =
-        new ConstructingObjectParser<>("cluster_index_health", true,
-            a -> {
-                int i = 0;
-                String index = (String) a[i++];
-                int numberOfShards = (int) a[i++];
-                int numberOfReplicas = (int) a[i++];
-                int activeShards = (int) a[i++];
-                int relocatingShards = (int) a[i++];
-                int initializingShards = (int) a[i++];
-                int unassignedShards = (int) a[i++];
-                int activePrimaryShards = (int) a[i++];
-                String statusStr = (String) a[i++];
-                ClusterHealthStatus status = ClusterHealthStatus.fromString(statusStr);
-                List<ClusterShardHealth> shardList = (List<ClusterShardHealth>) a[i++];
-                final Map<Integer, ClusterShardHealth> shards;
-                if (shardList == null || shardList.isEmpty()) {
-                    shards = emptyMap();
-                } else {
-                    shards = new HashMap<>(shardList.size());
-                    for (ClusterShardHealth shardHealth : shardList) {
-                        shards.put(shardHealth.getShardId(), shardHealth);
-                    }
-                }
-                return new ClusterIndexHealth(index, numberOfShards, numberOfReplicas, activeShards, relocatingShards, initializingShards,
-                    unassignedShards, activePrimaryShards, status, shards);
-            });
+    private static final ConstructingObjectParser<ClusterIndexHealth, String> PARSER =
+            new ConstructingObjectParser<>("cluster_index_health", true,
+                    (parsedObjects, index) -> {
+                        int i = 0;
+                        int numberOfShards = (int) parsedObjects[i++];
+                        int numberOfReplicas = (int) parsedObjects[i++];
+                        int activeShards = (int) parsedObjects[i++];
+                        int relocatingShards = (int) parsedObjects[i++];
+                        int initializingShards = (int) parsedObjects[i++];
+                        int unassignedShards = (int) parsedObjects[i++];
+                        int activePrimaryShards = (int) parsedObjects[i++];
+                        String statusStr = (String) parsedObjects[i++];
+                        ClusterHealthStatus status = ClusterHealthStatus.fromString(statusStr);
+                        @SuppressWarnings("unchecked") List<ClusterShardHealth> shardList = (List<ClusterShardHealth>) parsedObjects[i];
+                        final Map<Integer, ClusterShardHealth> shards;
+                        if (shardList == null || shardList.isEmpty()) {
+                            shards = emptyMap();
+                        } else {
+                            shards = new HashMap<>(shardList.size());
+                            for (ClusterShardHealth shardHealth : shardList) {
+                                shards.put(shardHealth.getShardId(), shardHealth);
+                            }
+                        }
+                        return new ClusterIndexHealth(index, numberOfShards, numberOfReplicas, activeShards, relocatingShards,
+                                initializingShards, unassignedShards, activePrimaryShards, status, shards);
+                    });
 
-    public static final ObjectParser.NamedObjectParser<ClusterShardHealth, Void> SHARD_PARSER =
-        (XContentParser p, Void c, String nameIgnored) -> ClusterShardHealth.fromXContent(p);
+    public static final ObjectParser.NamedObjectParser<ClusterShardHealth, String> SHARD_PARSER =
+            (XContentParser p, String indexIgnored, String shardId) -> ClusterShardHealth.innerFromXContent(p, Integer.valueOf(shardId));
 
     static {
-        PARSER.declareString(constructorArg(), new ParseField(INDEX));
         PARSER.declareInt(constructorArg(), new ParseField(NUMBER_OF_SHARDS));
         PARSER.declareInt(constructorArg(), new ParseField(NUMBER_OF_REPLICAS));
         PARSER.declareInt(constructorArg(), new ParseField(ACTIVE_SHARDS));
@@ -112,50 +108,19 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
     private final ClusterHealthStatus status;
     private final Map<Integer, ClusterShardHealth> shards;
 
-    public ClusterIndexHealth(final IndexMetaData indexMetaData, final IndexRoutingTable indexRoutingTable) {
-        this.index = indexMetaData.getIndex().getName();
-        this.numberOfShards = indexMetaData.getNumberOfShards();
-        this.numberOfReplicas = indexMetaData.getNumberOfReplicas();
-
-        shards = new HashMap<>();
-        for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
-            int shardId = shardRoutingTable.shardId().id();
-            shards.put(shardId, new ClusterShardHealth(shardId, shardRoutingTable));
-        }
-
-        // update the index status
-        ClusterHealthStatus computeStatus = ClusterHealthStatus.GREEN;
-        int computeActivePrimaryShards = 0;
-        int computeActiveShards = 0;
-        int computeRelocatingShards = 0;
-        int computeInitializingShards = 0;
-        int computeUnassignedShards = 0;
-        for (ClusterShardHealth shardHealth : shards.values()) {
-            if (shardHealth.isPrimaryActive()) {
-                computeActivePrimaryShards++;
-            }
-            computeActiveShards += shardHealth.getActiveShards();
-            computeRelocatingShards += shardHealth.getRelocatingShards();
-            computeInitializingShards += shardHealth.getInitializingShards();
-            computeUnassignedShards += shardHealth.getUnassignedShards();
-
-            if (shardHealth.getStatus() == ClusterHealthStatus.RED) {
-                computeStatus = ClusterHealthStatus.RED;
-            } else if (shardHealth.getStatus() == ClusterHealthStatus.YELLOW && computeStatus != ClusterHealthStatus.RED) {
-                // do not override an existing red
-                computeStatus = ClusterHealthStatus.YELLOW;
-            }
-        }
-        if (shards.isEmpty()) { // might be since none has been created yet (two phase index creation)
-            computeStatus = ClusterHealthStatus.RED;
-        }
-
-        this.status = computeStatus;
-        this.activePrimaryShards = computeActivePrimaryShards;
-        this.activeShards = computeActiveShards;
-        this.relocatingShards = computeRelocatingShards;
-        this.initializingShards = computeInitializingShards;
-        this.unassignedShards = computeUnassignedShards;
+    public ClusterIndexHealth(String index, int numberOfShards, int numberOfReplicas, int activeShards, int relocatingShards,
+            int initializingShards, int unassignedShards, int activePrimaryShards, ClusterHealthStatus status,
+            Map<Integer, ClusterShardHealth> shards) {
+        this.index = index;
+        this.numberOfShards = numberOfShards;
+        this.numberOfReplicas = numberOfReplicas;
+        this.activeShards = activeShards;
+        this.relocatingShards = relocatingShards;
+        this.initializingShards = initializingShards;
+        this.unassignedShards = unassignedShards;
+        this.activePrimaryShards = activePrimaryShards;
+        this.status = status;
+        this.shards = shards;
     }
 
     public ClusterIndexHealth(final StreamInput in) throws IOException {
@@ -175,24 +140,6 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
             ClusterShardHealth shardHealth = new ClusterShardHealth(in);
             shards.put(shardHealth.getShardId(), shardHealth);
         }
-    }
-
-    /**
-     * For XContent Parser and serialization tests
-     */
-    ClusterIndexHealth(String index, int numberOfShards, int numberOfReplicas, int activeShards, int relocatingShards,
-            int initializingShards, int unassignedShards, int activePrimaryShards, ClusterHealthStatus status,
-            Map<Integer, ClusterShardHealth> shards) {
-        this.index = index;
-        this.numberOfShards = numberOfShards;
-        this.numberOfReplicas = numberOfReplicas;
-        this.activeShards = activeShards;
-        this.relocatingShards = relocatingShards;
-        this.initializingShards = initializingShards;
-        this.unassignedShards = unassignedShards;
-        this.activePrimaryShards = activePrimaryShards;
-        this.status = status;
-        this.shards = shards;
     }
 
     public String getIndex() {
@@ -260,7 +207,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
 
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
-        builder.field(INDEX, getIndex());
+        builder.startObject(getIndex());
         builder.field(STATUS, getStatus().name().toLowerCase(Locale.ROOT));
         builder.field(NUMBER_OF_SHARDS, getNumberOfShards());
         builder.field(NUMBER_OF_REPLICAS, getNumberOfReplicas());
@@ -273,33 +220,46 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         if ("shards".equals(params.param("level", "indices"))) {
             builder.startObject(SHARDS);
             for (ClusterShardHealth shardHealth : shards.values()) {
-                builder.startObject(Integer.toString(shardHealth.getShardId()));
                 shardHealth.toXContent(builder, params);
-                builder.endObject();
             }
             builder.endObject();
         }
+        builder.endObject();
         return builder;
     }
 
+    public static ClusterIndexHealth innerFromXContent(XContentParser parser, String index) {
+        return PARSER.apply(parser, index);
+    }
+
     public static ClusterIndexHealth fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+        try {
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            XContentParser.Token token = parser.nextToken();
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+            String index = parser.currentName();
+            ClusterIndexHealth parsed = innerFromXContent(parser, index);
+            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            return parsed;
+        } catch (IOException e) {
+            throw new ParsingException(parser.getTokenLocation(), "[ClusterIndexHealth::fromXContent] failed to parse object", e);
+        }
     }
 
     @Override
     public String toString() {
         return "ClusterIndexHealth{" +
-            "index='" + index + '\'' +
-            ", numberOfShards=" + numberOfShards +
-            ", numberOfReplicas=" + numberOfReplicas +
-            ", activeShards=" + activeShards +
-            ", relocatingShards=" + relocatingShards +
-            ", initializingShards=" + initializingShards +
-            ", unassignedShards=" + unassignedShards +
-            ", activePrimaryShards=" + activePrimaryShards +
-            ", status=" + status +
-            ", shards.size=" + (shards == null ? "null" : shards.size()) +
-            '}';
+                "index='" + index + '\'' +
+                ", numberOfShards=" + numberOfShards +
+                ", numberOfReplicas=" + numberOfReplicas +
+                ", activeShards=" + activeShards +
+                ", relocatingShards=" + relocatingShards +
+                ", initializingShards=" + initializingShards +
+                ", unassignedShards=" + unassignedShards +
+                ", activePrimaryShards=" + activePrimaryShards +
+                ", status=" + status +
+                ", shards.size=" + (shards == null ? "null" : shards.size()) +
+                '}';
     }
 
     @Override
@@ -308,20 +268,20 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         if (o == null || getClass() != o.getClass()) return false;
         ClusterIndexHealth that = (ClusterIndexHealth) o;
         return Objects.equals(index, that.index) &&
-            numberOfShards == that.numberOfShards &&
-            numberOfReplicas == that.numberOfReplicas &&
-            activeShards == that.activeShards &&
-            relocatingShards == that.relocatingShards &&
-            initializingShards == that.initializingShards &&
-            unassignedShards == that.unassignedShards &&
-            activePrimaryShards == that.activePrimaryShards &&
-            status == that.status &&
-            Objects.equals(shards, that.shards);
+                numberOfShards == that.numberOfShards &&
+                numberOfReplicas == that.numberOfReplicas &&
+                activeShards == that.activeShards &&
+                relocatingShards == that.relocatingShards &&
+                initializingShards == that.initializingShards &&
+                unassignedShards == that.unassignedShards &&
+                activePrimaryShards == that.activePrimaryShards &&
+                status == that.status &&
+                Objects.equals(shards, that.shards);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(index, numberOfShards, numberOfReplicas, activeShards, relocatingShards, initializingShards, unassignedShards,
-            activePrimaryShards, status, shards);
+                activePrimaryShards, status, shards);
     }
 }

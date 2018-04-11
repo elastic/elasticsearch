@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
@@ -129,7 +130,7 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
             builder.metaData(MetaData.builder(newClusterState.metaData()).version(newClusterState.metaData().version() + 1));
         }
         this.clusterState = builder.build();
-        final ClusterStateHealth clusterHealth = new ClusterStateHealth(clusterState);
+        final ClusterStateHealth clusterHealth = TransportClusterHealthAction.calculateStateHealth(clusterState);
         logger.info("applied reroute. active shards: p [{}], t [{}], init shards: [{}], relocating: [{}]",
                 clusterHealth.getActivePrimaryShards(), clusterHealth.getActiveShards(),
                 clusterHealth.getInitializingShards(), clusterHealth.getRelocatingShards());

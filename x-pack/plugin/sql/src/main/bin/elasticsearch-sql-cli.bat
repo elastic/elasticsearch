@@ -17,6 +17,6 @@ set CLI_JAR=%ES_HOME%/plugins/bin/*
   -cp "%CLI_JAR%" ^
   org.elasticsearch.xpack.sql.cli.Cli ^
   %*
-  
+
 endlocal
 endlocal

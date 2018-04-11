@@ -45,7 +45,7 @@ shipped in x-pack's bin directory:
 
 [source,bash]
 --------------------------------------------------
-$ ./bin/x-pack/sql-cli
+$ ./bin/elasticsearch-sql-cli
 --------------------------------------------------
 
 From there you can run the same query:

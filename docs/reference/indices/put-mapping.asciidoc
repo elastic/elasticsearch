@@ -115,8 +115,10 @@ can be updated on an existing field.
 
 Types are scheduled to be fully removed in Elasticsearch 8.0 and will not appear
 in requests or responses anymore. You can opt in for this future behaviour by
-setting `include_type_name=false`, which will use `_doc` as a type name under
-the hood.
+setting `include_type_name=false`.
+
+NOTE: This should only be done on indices that have been created with
+`include_type_name=false` or that used `_doc` as a type name.
 
 The Console script from the above section is equivalent to the below invocation:
 

@@ -184,7 +184,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                 state = JobState.fromStream(in);
                 node = in.readOptionalWriteable(DiscoveryNode::new);
                 assignmentExplanation = in.readOptionalString();
-                openTime = in.readOptionalWriteable(TimeValue::new);
+                openTime = in.readOptionalTimeValue();
             }
 
             public String getJobId() {
@@ -263,7 +263,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                 state.writeTo(out);
                 out.writeOptionalWriteable(node);
                 out.writeOptionalString(assignmentExplanation);
-                out.writeOptionalWriteable(openTime);
+                out.writeOptionalTimeValue(openTime);
             }
 
             @Override

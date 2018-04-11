@@ -241,7 +241,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         dataDescription = in.readOptionalWriteable(DataDescription::new);
         modelPlotConfig = in.readOptionalWriteable(ModelPlotConfig::new);
         renormalizationWindowDays = in.readOptionalLong();
-        backgroundPersistInterval = in.readOptionalWriteable(TimeValue::new);
+        backgroundPersistInterval = in.readOptionalTimeValue();
         modelSnapshotRetentionDays = in.readOptionalLong();
         resultsRetentionDays = in.readOptionalLong();
         customSettings = in.readMap();
@@ -517,7 +517,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         out.writeOptionalWriteable(dataDescription);
         out.writeOptionalWriteable(modelPlotConfig);
         out.writeOptionalLong(renormalizationWindowDays);
-        out.writeOptionalWriteable(backgroundPersistInterval);
+        out.writeOptionalTimeValue(backgroundPersistInterval);
         out.writeOptionalLong(modelSnapshotRetentionDays);
         out.writeOptionalLong(resultsRetentionDays);
         out.writeMap(customSettings);
@@ -753,7 +753,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             dataDescription = in.readOptionalWriteable(DataDescription::new);
             modelPlotConfig = in.readOptionalWriteable(ModelPlotConfig::new);
             renormalizationWindowDays = in.readOptionalLong();
-            backgroundPersistInterval = in.readOptionalWriteable(TimeValue::new);
+            backgroundPersistInterval = in.readOptionalTimeValue();
             modelSnapshotRetentionDays = in.readOptionalLong();
             resultsRetentionDays = in.readOptionalLong();
             customSettings = in.readMap();
@@ -960,7 +960,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             out.writeOptionalWriteable(dataDescription);
             out.writeOptionalWriteable(modelPlotConfig);
             out.writeOptionalLong(renormalizationWindowDays);
-            out.writeOptionalWriteable(backgroundPersistInterval);
+            out.writeOptionalTimeValue(backgroundPersistInterval);
             out.writeOptionalLong(modelSnapshotRetentionDays);
             out.writeOptionalLong(resultsRetentionDays);
             out.writeMap(customSettings);

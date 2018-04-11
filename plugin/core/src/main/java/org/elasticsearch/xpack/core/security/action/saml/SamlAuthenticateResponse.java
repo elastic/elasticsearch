@@ -56,7 +56,7 @@ public final class SamlAuthenticateResponse extends ActionResponse {
         out.writeString(principal);
         out.writeString(tokenString);
         out.writeString(refreshToken);
-        expiresIn.writeTo(out);
+        out.writeTimeValue(expiresIn);
     }
 
     @Override
@@ -65,6 +65,6 @@ public final class SamlAuthenticateResponse extends ActionResponse {
         principal = in.readString();
         tokenString = in.readString();
         refreshToken = in.readString();
-        expiresIn = new TimeValue(in);
+        expiresIn = in.readTimeValue();
     }
 }

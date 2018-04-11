@@ -137,7 +137,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             jobId = in.readString();
-            timeout = new TimeValue(in);
+            timeout = in.readTimeValue();
             force = in.readBoolean();
             openJobIds = in.readStringArray();
             local = in.readBoolean();
@@ -150,7 +150,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(jobId);
-            timeout.writeTo(out);
+            out.writeTimeValue(timeout);
             out.writeBoolean(force);
             out.writeStringArray(openJobIds);
             out.writeBoolean(local);

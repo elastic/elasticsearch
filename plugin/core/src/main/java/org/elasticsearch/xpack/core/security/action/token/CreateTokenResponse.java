@@ -57,7 +57,7 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(tokenString);
-        expiresIn.writeTo(out);
+        out.writeTimeValue(expiresIn);
         out.writeOptionalString(scope);
         if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
             out.writeString(refreshToken);
@@ -68,7 +68,7 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         tokenString = in.readString();
-        expiresIn = new TimeValue(in);
+        expiresIn = in.readTimeValue();
         scope = in.readOptionalString();
         if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
             refreshToken = in.readString();

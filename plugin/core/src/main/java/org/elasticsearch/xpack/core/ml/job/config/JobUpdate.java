@@ -109,7 +109,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         modelPlotConfig = in.readOptionalWriteable(ModelPlotConfig::new);
         analysisLimits = in.readOptionalWriteable(AnalysisLimits::new);
         renormalizationWindowDays = in.readOptionalLong();
-        backgroundPersistInterval = in.readOptionalWriteable(TimeValue::new);
+        backgroundPersistInterval = in.readOptionalTimeValue();
         modelSnapshotRetentionDays = in.readOptionalLong();
         resultsRetentionDays = in.readOptionalLong();
         if (in.readBoolean()) {
@@ -146,7 +146,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         out.writeOptionalWriteable(modelPlotConfig);
         out.writeOptionalWriteable(analysisLimits);
         out.writeOptionalLong(renormalizationWindowDays);
-        out.writeOptionalWriteable(backgroundPersistInterval);
+        out.writeOptionalTimeValue(backgroundPersistInterval);
         out.writeOptionalLong(modelSnapshotRetentionDays);
         out.writeOptionalLong(resultsRetentionDays);
         out.writeBoolean(categorizationFilters != null);

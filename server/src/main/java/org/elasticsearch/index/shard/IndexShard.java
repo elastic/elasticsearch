@@ -57,6 +57,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -208,6 +209,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final RecoveryStats recoveryStats = new RecoveryStats();
     private final MeanMetric refreshMetric = new MeanMetric();
     private final MeanMetric flushMetric = new MeanMetric();
+    private final CounterMetric periodicFlushMetric = new CounterMetric();
 
     private final ShardEventListener shardEventListener = new ShardEventListener();
 
@@ -827,7 +829,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public FlushStats flushStats() {
-        return new FlushStats(flushMetric.count(), TimeUnit.NANOSECONDS.toMillis(flushMetric.sum()));
+        return new FlushStats(flushMetric.count(), periodicFlushMetric.count(), TimeUnit.NANOSECONDS.toMillis(flushMetric.sum()));
     }
 
     public DocsStats docStats() {
@@ -2344,6 +2346,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         @Override
                         protected void doRun() throws IOException {
                             flush(new FlushRequest());
+                            periodicFlushMetric.inc();
                         }
 
                         @Override

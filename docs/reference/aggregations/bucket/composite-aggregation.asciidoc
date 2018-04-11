@@ -51,8 +51,6 @@ POST /sales/docs/_bulk?refresh
 {"product": "mad max", "price": "27", "timestamp": "2017-05-10T07:07"}
 {"index":{"_id":4}}
 {"product": "apocalypse now", "price": "10", "timestamp": "2017-05-11T08:35"}
-{"index":{"_id":5}}
-{"product": "apocalypse now", "price": "10", "timestamp": "2017-05-11T08:35"}
 -------------------------------------------------
 // NOTCONSOLE
 // TESTSETUP
@@ -353,7 +351,7 @@ and in ascending order when comparing values from the `terms` source.
 ====== Missing bucket
 
 By default documents without a value for a given source are ignored.
-It is possible to include them in the response by setting `ignore_missing` to
+It is possible to include them in the response by setting `missing_bucket` to
 `true` (defaults to `false`):
 
 [source,js]

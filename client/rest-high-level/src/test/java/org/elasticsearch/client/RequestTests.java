@@ -1127,7 +1127,7 @@ public class RequestTests extends ESTestCase {
 
         List<SearchRequest> requests = new ArrayList<>();
         CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer = (searchRequest, p) -> {
-            SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(p);
+            SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(p, false);
             if (searchSourceBuilder.equals(new SearchSourceBuilder()) == false) {
                 searchRequest.source(searchSourceBuilder);
             }

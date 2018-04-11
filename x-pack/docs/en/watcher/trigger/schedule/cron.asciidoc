@@ -12,7 +12,7 @@ WARNING:  While `cron` triggers are super powerful, we recommend using one of
           the other schedule types if you can, as they are much more
           straightforward to configure. If you use `cron`, construct your `cron`
           expressions with care to be sure you are actually setting the schedule
-          you want. You can use the <<croneval, `croneval`>> tool to validate
+          you want. You can use the <<croneval, `elasticsearch-croneval`>> tool to validate
           your cron expressions and see what the resulting trigger times will be.
 
 ===== Cron Expressions
@@ -211,18 +211,18 @@ minute during the weekend:
 [[croneval]]
 ===== Verifying Cron Expressions
 
-{xpack} ships with a `croneval` command line tool that you can use to verify that
+{xpack} ships with a `elasticsearch-croneval` command line tool that you can use to verify that
 your cron expressions are valid and produce the expected results. This tool is
 provided in the `$ES_HOME/bin/x-pack` directory.
 
-To verify a cron expression, simply pass it in as a parameter to `croneval`:
+To verify a cron expression, simply pass it in as a parameter to `elasticsearch-croneval`:
 
 [source,bash]
 --------------------------------------------------
-bin/x-pack/croneval "0 0/1 * * * ?"
+bin/elasticsearch-croneval "0 0/1 * * * ?"
 --------------------------------------------------
 
-If the cron expression is valid, `croneval` displays the next 10 times that the
+If the cron expression is valid, `elasticsearch-croneval` displays the next 10 times that the
 schedule will be triggered.
 
 You can specify the `-c` option to control how many future trigger times are
@@ -230,5 +230,5 @@ displayed. For example, the following command displays the next 20 trigger times
 
 [source,bash]
 --------------------------------------------------
-bin/x-pack/croneval "0 0/1 * * * ?" -c 20
+bin/elasticsearch-croneval "0 0/1 * * * ?" -c 20
 --------------------------------------------------

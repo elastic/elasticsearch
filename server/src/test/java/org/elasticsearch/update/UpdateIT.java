@@ -462,19 +462,8 @@ public class UpdateIT extends ESIntegTestCase {
 
     public void testContextVariables() throws Exception {
         assertAcked(prepareCreate("test")
-                        .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))
                         .addAlias(new Alias("alias"))
-                        .addMapping("type1", XContentFactory.jsonBuilder()
-                                .startObject()
-                                .startObject("type1")
-                                .endObject()
-                                .endObject())
-                        .addMapping("subtype1", XContentFactory.jsonBuilder()
-                                .startObject()
-                                .startObject("subtype1")
-                                .startObject("_parent").field("type", "type1").endObject()
-                                .endObject()
-                                .endObject())
+                        .addMapping("type1")
         );
         ensureGreen();
 
@@ -482,50 +471,47 @@ public class UpdateIT extends ESIntegTestCase {
         client().prepareIndex()
                 .setIndex("test")
                 .setType("type1")
-                .setId("parentId1")
-                .setSource("field1", 0, "content", "bar")
-                .execute().actionGet();
-
-        client().prepareIndex()
-                .setIndex("test")
-                .setType("subtype1")
                 .setId("id1")
-                .setParent("parentId1")
                 .setRouting("routing1")
                 .setSource("field1", 1, "content", "foo")
                 .execute().actionGet();
 
+        client().prepareIndex()
+                .setIndex("test")
+                .setType("type1")
+                .setId("id2")
+                .setSource("field1", 0, "content", "bar")
+                .execute().actionGet();
+
         // Update the first object and note context variables values
-        UpdateResponse updateResponse = client().prepareUpdate("test", "subtype1", "id1")
+        UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "id1")
                 .setRouting("routing1")
                 .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, EXTRACT_CTX_SCRIPT, Collections.emptyMap()))
                 .execute().actionGet();
 
         assertEquals(2, updateResponse.getVersion());
 
-        GetResponse getResponse = client().prepareGet("test", "subtype1", "id1").setRouting("routing1").execute().actionGet();
+        GetResponse getResponse = client().prepareGet("test", "type1", "id1").setRouting("routing1").execute().actionGet();
         Map<String, Object> updateContext = (Map<String, Object>) getResponse.getSourceAsMap().get("update_context");
         assertEquals("test", updateContext.get("_index"));
-        assertEquals("subtype1", updateContext.get("_type"));
+        assertEquals("type1", updateContext.get("_type"));
         assertEquals("id1", updateContext.get("_id"));
         assertEquals(1, updateContext.get("_version"));
-        assertEquals("parentId1", updateContext.get("_parent"));
         assertEquals("routing1", updateContext.get("_routing"));
 
         // Idem with the second object
-        updateResponse = client().prepareUpdate("test", "type1", "parentId1")
+        updateResponse = client().prepareUpdate("test", "type1", "id2")
                 .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, EXTRACT_CTX_SCRIPT, Collections.emptyMap()))
                 .execute().actionGet();
 
         assertEquals(2, updateResponse.getVersion());
 
-        getResponse = client().prepareGet("test", "type1", "parentId1").execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "id2").execute().actionGet();
         updateContext = (Map<String, Object>) getResponse.getSourceAsMap().get("update_context");
         assertEquals("test", updateContext.get("_index"));
         assertEquals("type1", updateContext.get("_type"));
-        assertEquals("parentId1", updateContext.get("_id"));
+        assertEquals("id2", updateContext.get("_id"));
         assertEquals(1, updateContext.get("_version"));
-        assertNull(updateContext.get("_parent"));
         assertNull(updateContext.get("_routing"));
         assertNull(updateContext.get("_ttl"));
     }

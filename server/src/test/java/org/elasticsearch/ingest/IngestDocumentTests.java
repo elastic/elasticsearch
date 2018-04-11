@@ -76,7 +76,7 @@ public class IngestDocumentTests extends ESTestCase {
         list.add(null);
 
         document.put("list", list);
-        ingestDocument = new IngestDocument("index", "type", "id", null, null, null, null, document);
+        ingestDocument = new IngestDocument("index", "type", "id", null, null, null, document);
     }
 
     public void testSimpleGetFieldValue() {

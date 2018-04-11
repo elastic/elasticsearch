@@ -230,67 +230,6 @@ public class DocumentMapperMergeTests extends ESSingleNodeTestCase {
         assertFalse(mapper.sourceMapper().enabled());
     }
 
-    public void testMergeChildType() throws IOException {
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-
-        String initMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("child")
-            .startObject("_parent").field("type", "parent").endObject()
-            .endObject().endObject());
-        DocumentMapper initMapper = parser.parse("child", new CompressedXContent(initMapping));
-
-        assertThat(initMapper.mappers().getMapper("_parent#parent"), notNullValue());
-
-        String updatedMapping1 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("child")
-            .startObject("properties")
-            .startObject("name").field("type", "text").endObject()
-            .endObject().endObject().endObject());
-        DocumentMapper updatedMapper1 = parser.parse("child", new CompressedXContent(updatedMapping1));
-        DocumentMapper mergedMapper1 = initMapper.merge(updatedMapper1.mapping());
-
-        assertThat(mergedMapper1.mappers().getMapper("_parent#parent"), notNullValue());
-        assertThat(mergedMapper1.mappers().getMapper("name"), notNullValue());
-
-        String updatedMapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("child")
-            .startObject("_parent").field("type", "parent").endObject()
-            .startObject("properties")
-            .startObject("age").field("type", "byte").endObject()
-            .endObject().endObject().endObject());
-        DocumentMapper updatedMapper2 = parser.parse("child", new CompressedXContent(updatedMapping2));
-        DocumentMapper mergedMapper2 = mergedMapper1.merge(updatedMapper2.mapping());
-
-        assertThat(mergedMapper2.mappers().getMapper("_parent#parent"), notNullValue());
-        assertThat(mergedMapper2.mappers().getMapper("name"), notNullValue());
-        assertThat(mergedMapper2.mappers().getMapper("age"), notNullValue());
-
-        String modParentMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("child")
-            .startObject("_parent").field("type", "new_parent").endObject()
-            .endObject().endObject());
-        DocumentMapper modParentMapper = parser.parse("child", new CompressedXContent(modParentMapping));
-        Exception e = expectThrows(IllegalArgumentException.class, () -> initMapper.merge(modParentMapper.mapping()));
-        assertThat(e.getMessage(), containsString("The _parent field's type option can't be changed: [parent]->[new_parent]"));
-    }
-
-    public void testMergeAddingParent() throws IOException {
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-
-        String initMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("cowboy")
-            .startObject("properties")
-            .startObject("name").field("type", "text").endObject()
-            .endObject().endObject().endObject());
-        DocumentMapper initMapper = parser.parse("cowboy", new CompressedXContent(initMapping));
-
-        assertThat(initMapper.mappers().getMapper("name"), notNullValue());
-
-        String updatedMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("cowboy")
-            .startObject("_parent").field("type", "parent").endObject()
-            .startObject("properties")
-            .startObject("age").field("type", "byte").endObject()
-            .endObject().endObject().endObject());
-        DocumentMapper updatedMapper = parser.parse("cowboy", new CompressedXContent(updatedMapping));
-        Exception e = expectThrows(IllegalArgumentException.class, () -> initMapper.merge(updatedMapper.mapping()));
-        assertThat(e.getMessage(), containsString("The _parent field's type option can't be changed: [null]->[parent]"));
-    }
-
     public void testMergeMeta() throws IOException {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
 

@@ -512,27 +512,23 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(updateRequest.validate().validationErrors(), contains("can't provide version in upsert request"));
     }
 
-    public void testParentAndRoutingExtraction() throws Exception {
+    public void testRoutingExtraction() throws Exception {
         GetResult getResult = new GetResult("test", "type", "1", 0, false, null, null);
         IndexRequest indexRequest = new IndexRequest("test", "type", "1");
 
         // There is no routing and parent because the document doesn't exist
         assertNull(UpdateHelper.calculateRouting(getResult, null));
-        assertNull(UpdateHelper.calculateParent(getResult, null));
 
         // There is no routing and parent the indexing request
         assertNull(UpdateHelper.calculateRouting(getResult, indexRequest));
-        assertNull(UpdateHelper.calculateParent(getResult, indexRequest));
 
         // Doc exists but has no source or fields
         getResult = new GetResult("test", "type", "1", 0, true, null, null);
 
         // There is no routing and parent on either request
         assertNull(UpdateHelper.calculateRouting(getResult, indexRequest));
-        assertNull(UpdateHelper.calculateParent(getResult, indexRequest));
 
         Map<String, DocumentField> fields = new HashMap<>();
-        fields.put("_parent", new DocumentField("_parent", Collections.singletonList("parent1")));
         fields.put("_routing", new DocumentField("_routing", Collections.singletonList("routing1")));
 
         // Doc exists and has the parent and routing fields
@@ -540,14 +536,6 @@ public class UpdateRequestTests extends ESTestCase {
 
         // Use the get result parent and routing
         assertThat(UpdateHelper.calculateRouting(getResult, indexRequest), equalTo("routing1"));
-        assertThat(UpdateHelper.calculateParent(getResult, indexRequest), equalTo("parent1"));
-
-        // Index request has overriding parent and routing values
-        indexRequest = new IndexRequest("test", "type", "1").parent("parent2").routing("routing2");
-
-        // Use the request's parent and routing
-        assertThat(UpdateHelper.calculateRouting(getResult, indexRequest), equalTo("routing2"));
-        assertThat(UpdateHelper.calculateParent(getResult, indexRequest), equalTo("parent2"));
     }
 
     @SuppressWarnings("deprecated") // VersionType.FORCE is deprecated

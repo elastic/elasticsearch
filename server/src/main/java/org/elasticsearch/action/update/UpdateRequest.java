@@ -20,6 +20,8 @@
 package org.elasticsearch.action.update;
 
 import java.util.Arrays;
+
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -60,9 +62,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     private String id;
     @Nullable
     private String routing;
-
-    @Nullable
-    private String parent;
 
     @Nullable
     Script script;
@@ -192,18 +191,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     @Override
     public String routing() {
         return this.routing;
-    }
-
-    /**
-     * The parent id is used for the upsert request.
-     */
-    public UpdateRequest parent(String parent) {
-        this.parent = parent;
-        return this;
-    }
-
-    public String parent() {
-        return parent;
     }
 
     public ShardId getShardId() {
@@ -790,7 +777,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
-        parent = in.readOptionalString();
+        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+            in.readOptionalString(); // _parent
+        }
         if (in.readBoolean()) {
             script = new Script(in);
         }
@@ -820,7 +809,10 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing);
-        out.writeOptionalString(parent);
+        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+            out.writeOptionalString(null); // _parent
+        }
+        
         boolean hasScript = script != null;
         out.writeBoolean(hasScript);
         if (hasScript) {

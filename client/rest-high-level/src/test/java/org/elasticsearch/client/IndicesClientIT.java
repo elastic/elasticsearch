@@ -255,6 +255,44 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertEquals(1, getSettingsResponse.getIndexToSettings().get("get_settings_index").size());
     }
 
+    public void testGetSettingsWithDefaults() throws IOException {
+        String indexName = "get_settings_index";
+        Settings basicSettings = Settings.builder()
+            .put("number_of_shards", 1)
+            .put("number_of_replicas", 0)
+            .build();
+        createIndex(indexName, basicSettings);
+
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(indexName).includeDefaults(true);
+        GetSettingsResponse getSettingsResponse = execute(getSettingsRequest, highLevelClient().indices()::getSettings,
+            highLevelClient().indices()::getSettingsAsync);
+
+        assertNotNull(getSettingsResponse.getSetting(indexName, "index.refresh_interval"));
+        assertEquals(IndexSettings.DEFAULT_REFRESH_INTERVAL,
+            getSettingsResponse.getIndexToDefaultSettings().get("get_settings_index").getAsTime("index.refresh_interval", null));
+        assertEquals("1", getSettingsResponse.getSetting(indexName, "index.number_of_shards"));
+    }
+
+    public void testGetSettingsWithDefaultsFiltered() throws IOException {
+        String indexName = "get_settings_index";
+        Settings basicSettings = Settings.builder()
+            .put("number_of_shards", 1)
+            .put("number_of_replicas", 0)
+            .build();
+        createIndex(indexName, basicSettings);
+
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest()
+            .indices(indexName)
+            .names("index.refresh_interval")
+            .includeDefaults(true);
+        GetSettingsResponse getSettingsResponse = execute(getSettingsRequest, highLevelClient().indices()::getSettings,
+            highLevelClient().indices()::getSettingsAsync);
+
+        assertNull(getSettingsResponse.getSetting(indexName, "index.number_of_replicas"));
+        assertNull(getSettingsResponse.getSetting(indexName, "index.number_of_shards"));
+        assertEquals(0, getSettingsResponse.getIndexToSettings().get("get_settings_index").size());
+        assertEquals(1, getSettingsResponse.getIndexToDefaultSettings().get("get_settings_index").size());
+    }
     public void testPutMapping() throws IOException {
         {
             // Add mappings to index

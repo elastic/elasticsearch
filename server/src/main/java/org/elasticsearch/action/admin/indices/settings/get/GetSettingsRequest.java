@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.settings.get;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ValidateActions;
@@ -29,6 +30,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Objects;
 
 public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest> implements IndicesRequest.Replaceable {
 
@@ -37,7 +40,6 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
     private String[] names = Strings.EMPTY_ARRAY;
     private boolean humanReadable = false;
     private boolean includeDefaults = false; //only used by high-level rest client
-    private boolean flatSettings = false; //only used by high-level rest client
 
     @Override
     public GetSettingsRequest indices(String... indices) {
@@ -47,18 +49,6 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
 
     public GetSettingsRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
-        return this;
-    }
-
-    /**
-     * Return settings in a flat format
-     * <p>
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/common-options.html#_flat_settings">
-     * Flat Settings flag on elastic.co</a>
-     * This flag is specific to the rest client.
-     */
-    public GetSettingsRequest flatSettings(boolean flatSettings) {
-        this.flatSettings = flatSettings;
         return this;
     }
 
@@ -81,6 +71,9 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         names = in.readStringArray();
         humanReadable = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            includeDefaults = in.readBoolean();
+        }
     }
 
     @Override
@@ -90,6 +83,9 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
         indicesOptions.writeIndicesOptions(out);
         out.writeStringArray(names);
         out.writeBoolean(humanReadable);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeBoolean(includeDefaults);
+        }
     }
 
     @Override
@@ -120,10 +116,6 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
         return this;
     }
 
-    public boolean flatSettings() {
-        return flatSettings;
-    }
-
     public boolean includeDefaults() {
         return includeDefaults;
     }
@@ -140,5 +132,26 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
     @Override
     public void readFrom(StreamInput in) throws IOException {
         throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        GetSettingsRequest that = (GetSettingsRequest) o;
+        return humanReadable == that.humanReadable &&
+            includeDefaults == that.includeDefaults &&
+            Arrays.equals(indices, that.indices) &&
+            Objects.equals(indicesOptions, that.indicesOptions) &&
+            Arrays.equals(names, that.names);
+    }
+
+    @Override
+    public int hashCode() {
+
+        int result = Objects.hash(indicesOptions, humanReadable, includeDefaults);
+        result = 31 * result + Arrays.hashCode(indices);
+        result = 31 * result + Arrays.hashCode(names);
+        return result;
     }
 }

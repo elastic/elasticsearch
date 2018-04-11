@@ -23,15 +23,9 @@ include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-settings-reque
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-settings-request-flat-settings]
---------------------------------------------------
-<1> If set, the HTTP response body will represent settings as flat lists rather than nested objects
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
 include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-settings-request-include-defaults]
 --------------------------------------------------
-<1> If set, defaults will be returned for settings not explicitly set on the index
+<1> If true, defaults will be returned for settings not explicitly set on the index
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -90,3 +84,13 @@ include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-settings-respo
 <1> We can retrieve the setting value for a particular index directly from the response as a string
 <2> We can also retrieve the Settings object for a particular index for further examination
 <3> The returned Settings object provides convenience methods for non String types
+
+If the `includeDefaults` flag was set to true in the `GetSettingsRequest`, the 
+behavior of `GetSettingsResponse` will differ somewhat.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-settings-defaults-response]
+--------------------------------------------------
+<1> Individual default setting values may be retrieved directly from the `GetSettingsResponse`
+<2> We may retrieve a Settings object for an index that contains those settings with default values

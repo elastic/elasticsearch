@@ -47,10 +47,6 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
     private ImmutableOpenMap<String, Settings> indexToSettings = ImmutableOpenMap.of();
     private ImmutableOpenMap<String, Settings> indexToDefaultSettings = ImmutableOpenMap.of();
 
-    private static final ConstructingObjectParser<GetSettingsResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "get_index_settings_response", true, args -> new GetSettingsResponse()
-    );
-
     public GetSettingsResponse(ImmutableOpenMap<String, Settings> indexToSettings,
                                ImmutableOpenMap<String, Settings> indexToDefaultSettings) {
         this.indexToSettings = indexToSettings;
@@ -63,14 +59,25 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
     public ImmutableOpenMap<String, Settings> getIndexToSettings() {
         return indexToSettings;
     }
+    public ImmutableOpenMap<String, Settings> getIndexToDefaultSettings() {
+        return indexToDefaultSettings;
+    }
 
+    /**
+     *
+     * Returns the string value for the specified index and setting.  If the includeDefaults
+     * flag was not set or set to false on the GetSettingsRequest, this method will only
+     * return a value where the setting was explicitly set on the index.   If the includeDefaults
+     * flag was set to true on the GetSettingsRequest, this method will fall back to return the default
+     * value if the setting was not explicitly set.
+     */
     public String getSetting(String index, String setting) {
         Settings settings = indexToSettings.get(index);
-        Settings defaultSettings = indexToDefaultSettings.get(index);
         if (setting != null) {
-            if (settings.hasValue(setting)) {
+            if (settings != null && settings.hasValue(setting)) {
                 return settings.get(setting);
             } else {
+                Settings defaultSettings = indexToDefaultSettings.get(index);
                 if (defaultSettings != null) {
                     return defaultSettings.get(setting);
                 } else {
@@ -120,22 +127,10 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
         }
     }
 
-    private static void validateSettingsFieldName(XContentParser parser) throws IOException {
-        String settingsFieldName = parser.currentName();
-        XContentParserUtils.ensureExpectedToken(org.elasticsearch.common.xcontent.XContentParser.Token.FIELD_NAME, parser.currentToken(),
-            parser::getTokenLocation);
-        if (settingsFieldName.equals("settings") == false && settingsFieldName.equals("defaults") == false) {
-            String message = "Failed to parse object: expecting field with name [%s] but found [%s]";
-            throw new org.elasticsearch.common.ParsingException(parser.getTokenLocation(), String.format(java.util.Locale.ROOT, message,
-                "(settings|defaults)", settingsFieldName));
-        }
-    }
-
     private static void parseSettingsField(XContentParser parser, String currentIndexName, Map<String, Settings> indexToSettings,
                                            Map<String, Settings> indexToDefaultSettings) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
-        validateSettingsFieldName(parser);
-        String settingsFieldName = parser.currentName(); //this will be either "settings" or "defaults"
+        String settingsFieldName = parser.currentName(); //this should be either "settings" or "defaults"
         parser.nextToken(); //go to settings object itself
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
 
@@ -147,9 +142,7 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
                 indexToDefaultSettings.put(currentIndexName, Settings.fromXContent(parser));
                 break;
             default:
-                throw new IllegalStateException("Unknown field name for settings field!  Should be \"settings\" or \"default\", but " +
-                    "was: "+settingsFieldName);
-
+                //We don't know this field, ignore it
         }
     }
 
@@ -204,7 +197,7 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return toXContent(builder, params, true);
+        return toXContent(builder, params, indexToDefaultSettings.isEmpty());
     }
 
     private XContentBuilder toXContent(XContentBuilder builder, Params params, boolean omitEmptySettings) throws IOException {

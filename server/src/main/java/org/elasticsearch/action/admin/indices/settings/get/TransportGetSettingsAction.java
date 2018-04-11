@@ -73,6 +73,10 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
         return new GetSettingsResponse();
     }
 
+    private static boolean isFilteredRequest(GetSettingsRequest request) {
+        return CollectionUtils.isEmpty(request.names()) == false;
+    }
+
     @Override
     protected void masterOperation(GetSettingsRequest request, ClusterState state, ActionListener<GetSettingsResponse> listener) {
         Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
@@ -84,18 +88,21 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
                 continue;
             }
 
-            Settings settings = settingsFilter.filter(indexMetaData.getSettings());
+            Settings indexSettings = settingsFilter.filter(indexMetaData.getSettings());
             if (request.humanReadable()) {
-                settings = IndexMetaData.addHumanReadableSettings(settings);
+                indexSettings = IndexMetaData.addHumanReadableSettings(indexSettings);
             }
 
-            if (CollectionUtils.isEmpty(request.names()) == false) {
-                settings = settings.filter(k -> Regex.simpleMatch(request.names(), k));
+            if (isFilteredRequest(request)) {
+                indexSettings = indexSettings.filter(k -> Regex.simpleMatch(request.names(), k));
             }
 
-            indexToSettingsBuilder.put(concreteIndex.getName(), settings);
+            indexToSettingsBuilder.put(concreteIndex.getName(), indexSettings);
             if (request.includeDefaults()) {
-                Settings defaultSettings = settingsFilter.filter(indexScopedSettings.diff(settings, this.settings));
+                Settings defaultSettings = settingsFilter.filter(indexScopedSettings.diff(indexSettings, this.settings));
+                if (isFilteredRequest(request)) {
+                    defaultSettings = defaultSettings.filter(k -> Regex.simpleMatch(request.names(), k));
+                }
                 indexToDefaultSettingsBuilder.put(concreteIndex.getName(), defaultSettings);
             }
         }

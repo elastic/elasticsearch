@@ -441,7 +441,11 @@ public class RequestTests extends ESTestCase {
         setRandomLocal(getSettingsRequest, expectedParams);
 
         Request request = Request.getSettings(getSettingsRequest);
-        StringJoiner endpoint = new StringJoiner("/", "/", "").add(String.join(",", indicesUnderTest)).add("_settings");
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        if (indicesUnderTest != null && indicesUnderTest.length > 0) {
+            endpoint.add(String.join(",", indicesUnderTest));
+        }
+        endpoint.add("_settings");
         assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
         assertThat(request.getParameters(), equalTo(expectedParams));
         assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
@@ -576,7 +580,7 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testRefresh() {
-        String[] indices = randomBoolean() ? null : randomIndicesNames(0, 5);
+        String[] indices = randomIndicesNames(1, 5);
         RefreshRequest refreshRequest;
         if (randomBoolean()) {
             refreshRequest = new RefreshRequest(indices);

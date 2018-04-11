@@ -595,14 +595,14 @@ public final class Request {
     }
 
     static Request getSettings(GetSettingsRequest getSettingsRequest) throws IOException {
+        String[] indices = getSettingsRequest.indices() == null ? Strings.EMPTY_ARRAY : getSettingsRequest.indices();
         Params params = Params.builder();
         params.withIndicesOptions(getSettingsRequest.indicesOptions());
         params.withLocal(getSettingsRequest.local());
-        params.withFlatSettings(getSettingsRequest.flatSettings());
         params.withIncludeDefaults(getSettingsRequest.includeDefaults());
         params.withMasterTimeout(getSettingsRequest.masterNodeTimeout());
 
-        String endpoint = endpoint(getSettingsRequest.indices(), "_settings", getSettingsRequest.names());
+        String endpoint = endpoint(indices, "_settings", getSettingsRequest.names());
         return new Request(HttpGet.METHOD_NAME, endpoint, params.getParams(), null);
     }
 

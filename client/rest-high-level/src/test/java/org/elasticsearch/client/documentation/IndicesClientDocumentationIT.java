@@ -795,10 +795,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.names("index.number_of_shards"); // <1>
         // end::get-settings-request-names
 
-        // tag::get-settings-flat-settings
-        request.flatSettings(); // <1>
-        // end::get-settings-flat-settings
-
         // tag::get-settings-request-indicesOptions
         request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
         // end::get-settings-request-indicesOptions
@@ -816,7 +812,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         assertEquals("3", numberOfShardsString);
         assertEquals(Integer.valueOf(3), numberOfShards);
 
-        assertNull("refresh_interval returned but was never set!", indexSettings.get("index.refresh_interval"));
+        assertNull("refresh_interval returned but was never set!",
+            getSettingsResponse.getSetting("index", "index.refresh_interval"));
 
         // tag::get-settings-execute-listener
         ActionListener<GetSettingsResponse> listener =
@@ -854,34 +851,35 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
 
         GetSettingsRequest request = new GetSettingsRequest().indices("index");
-        request.names("index.number_of_shards"); // <1>
-        request.flatSettings(); // <1>
-        request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+        request.indicesOptions(IndicesOptions.lenientExpandOpen());
 
         // tag::get-settings-include-defaults
-        request.includeDefaults(); // <1>
+        request.includeDefaults(true); // <1>
         // end::get-settings-include-defaults
 
         GetSettingsResponse getSettingsResponse = client.indices().getSettings(request);
-        String numberOfShardsString = getSettingsResponse.getSetting("index", "index.number_of_shards"); // <1>
-        Settings indexSettings = getSettingsResponse.getIndexToSettings().get("index"); // <2>
-        Integer numberOfShards = indexSettings.getAsInt("index.number_of_shards", null); // <3>
+        String numberOfShardsString = getSettingsResponse.getSetting("index", "index.number_of_shards");
+        Settings indexSettings = getSettingsResponse.getIndexToSettings().get("index");
+        Integer numberOfShards = indexSettings.getAsInt("index.number_of_shards", null);
+
+        // tag::get-settings-defaults-response
+        String refreshInterval = getSettingsResponse.getSetting("index", "index.refresh_interval"); // <1>
+        Settings indexDefaultSettings = getSettingsResponse.getIndexToDefaultSettings().get("index"); // <2>
+        // end::get-settings-defaults-response
 
         assertEquals("3", numberOfShardsString);
         assertEquals(Integer.valueOf(3), numberOfShards);
+        assertNotNull("with defaults enabled we should get a value for refresh_interval!", refreshInterval);
 
-        assertNotNull("with defaults enabled we should get a value for refresh_interval!", indexSettings.get("index.refresh_interval"));
-
+        assertEquals(refreshInterval, indexDefaultSettings.get("index.refresh_interval"));
         ActionListener<GetSettingsResponse> listener =
             new ActionListener<GetSettingsResponse>() {
                 @Override
                 public void onResponse(GetSettingsResponse GetSettingsResponse) {
-                    // <1>
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    // <2>
                 }
             };
 
@@ -889,7 +887,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         final CountDownLatch latch = new CountDownLatch(1);
         listener = new LatchedActionListener<>(listener, latch);
 
-        client.indices().getSettingsAsync(request, listener); // <1>
+        client.indices().getSettingsAsync(request, listener);
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 

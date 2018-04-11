@@ -33,7 +33,6 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -159,13 +158,7 @@ public class DateFieldMapper extends FieldMapper {
                     builder.ignoreMalformed(TypeParsers.nodeBooleanValue(name, "ignore_malformed", propNode, parserContext));
                     iterator.remove();
                 } else if (propName.equals("locale")) {
-                    Locale locale;
-                    if (parserContext.indexVersionCreated().onOrAfter(Version.V_6_0_0_beta2)) {
-                        locale = LocaleUtils.parse(propNode.toString());
-                    } else {
-                        locale = LocaleUtils.parse5x(propNode.toString());
-                    }
-                    builder.locale(locale);
+                    builder.locale(LocaleUtils.parse(propNode.toString()));
                     iterator.remove();
                 } else if (propName.equals("format")) {
                     builder.dateTimeFormatter(parseDateTimeFormatter(propNode));

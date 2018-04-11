@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 
+import java.util.Objects;
 import java.util.function.LongSupplier;
 
 public class PhaseAfterStep extends ClusterStateWaitStep {
@@ -28,5 +29,31 @@ public class PhaseAfterStep extends ClusterStateWaitStep {
         long lifecycleDate = indexMetaData.getSettings()
             .getAsLong(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, -1L);
         return nowSupplier.getAsLong() >= lifecycleDate + after.getMillis();
+    }
+    
+    TimeValue getAfter() {
+        return after;
+    }
+    
+    LongSupplier getNowSupplier() {
+        return nowSupplier;
+    }
+    
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), after);
+    }
+    
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        PhaseAfterStep other = (PhaseAfterStep) obj;
+        return super.equals(obj) &&
+                Objects.equals(after, other.after);
     }
 }

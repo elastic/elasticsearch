@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -96,6 +97,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -341,6 +343,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         assertBusy(() -> { // this is async
             assertFalse(shard.shouldPeriodicallyFlush());
+            assertThat(shard.flushStats().getPeriodic(), greaterThan(0L));
         });
         assertEquals(0, translog.stats().getUncommittedOperations());
         translog.sync();
@@ -438,8 +441,12 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         if (flush) {
             final FlushStats flushStats = shard.flushStats();
             final long total = flushStats.getTotal();
+            final long periodic = flushStats.getPeriodic();
             client().prepareIndex("test", "test", "1").setSource("{}", XContentType.JSON).get();
-            check = () -> assertEquals(total + 1, shard.flushStats().getTotal());
+            check = () -> {
+                assertThat(shard.flushStats().getTotal(), equalTo(total + 1));
+                assertThat(shard.flushStats().getPeriodic(), equalTo(periodic + 1));
+            };
         } else {
             final long generation = shard.getEngine().getTranslog().currentFileGeneration();
             client().prepareIndex("test", "test", "1").setSource("{}", XContentType.JSON).get();
@@ -453,6 +460,30 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             threads[i].join();
         }
         check.run();
+    }
+
+    public void testFlushStats() throws Exception {
+        final IndexService indexService = createIndex("test");
+        ensureGreen();
+        Settings settings = Settings.builder().put("index.translog.flush_threshold_size", "" + between(200, 300) + "b").build();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(settings).get();
+        final int numDocs = between(10, 100);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test", "doc", Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+        }
+        // A flush stats may include the new total count but the old period count - assert eventually.
+        assertBusy(() -> {
+            final FlushStats flushStats = client().admin().indices().prepareStats("test").clear().setFlush(true).get().getTotal().flush;
+            assertThat(flushStats.getPeriodic(), allOf(equalTo(flushStats.getTotal()), greaterThan(0L)));
+        });
+        assertBusy(() -> assertThat(indexService.getShard(0).shouldPeriodicallyFlush(), equalTo(false)));
+        settings = Settings.builder().put("index.translog.flush_threshold_size", (String) null).build();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(settings).get();
+
+        client().prepareIndex("test", "doc", UUIDs.randomBase64UUID()).setSource("{}", XContentType.JSON).get();
+        client().admin().indices().prepareFlush("test").setForce(randomBoolean()).setWaitIfOngoing(true).get();
+        final FlushStats flushStats = client().admin().indices().prepareStats("test").clear().setFlush(true).get().getTotal().flush;
+        assertThat(flushStats.getTotal(), greaterThan(flushStats.getPeriodic()));
     }
 
     public void testShardHasMemoryBufferOnTranslogRecover() throws Throwable {

@@ -25,14 +25,17 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.index.mapper.UidFieldMapper;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 
 public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder> {
 
@@ -74,7 +77,14 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
 
     @Override
     protected void doAssertLuceneQuery(IdsQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
-        if (queryBuilder.ids().size() == 0 || context.getQueryShardContext().fieldMapper(UidFieldMapper.NAME) == null) {
+        boolean allTypes = queryBuilder.types().length == 0 ||
+                queryBuilder.types().length == 1 && "_all".equals(queryBuilder.types()[0]);
+        if (queryBuilder.ids().size() == 0
+                // no types
+                || context.getQueryShardContext().fieldMapper(IdFieldMapper.NAME) == null
+                // there are types, but disjoint from the query
+                || (allTypes == false &&
+                    Arrays.asList(queryBuilder.types()).indexOf(context.mapperService().types().iterator().next()) == -1)) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else {
             assertThat(query, instanceOf(TermInSetQuery.class));
@@ -94,7 +104,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
     public void testIdsQueryWithInvalidValues() throws Exception {
         String query = "{ \"ids\": { \"values\": [[1]] } }";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(query));
-        assertEquals("[ids] failed to parse field [values]", e.getMessage());
+        assertThat(e.getMessage(), containsString("[ids] failed to parse field [values]"));
     }
 
     public void testFromJson() throws IOException {

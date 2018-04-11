@@ -47,19 +47,16 @@ import java.util.function.ToLongFunction;
 class LongValuesSource extends SingleDimensionValuesSource<Long> {
     private final CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesFunc;
     private final LongUnaryOperator rounding;
-    // handles "format" for date histogram source
-    private final DocValueFormat format;
 
     private final LongArray values;
     private long currentValue;
 
     LongValuesSource(BigArrays bigArrays, MappedFieldType fieldType,
                      CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesFunc,
-                     LongUnaryOperator rounding, DocValueFormat format, int size, int reverseMul) {
-        super(fieldType, size, reverseMul);
+                     LongUnaryOperator rounding, DocValueFormat format, Object missing, int size, int reverseMul) {
+        super(format, fieldType, missing, size, reverseMul);
         this.docValuesFunc = docValuesFunc;
         this.rounding = rounding;
-        this.format = format;
         this.values = bigArrays.newLongArray(size, false);
     }
 

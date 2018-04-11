@@ -70,6 +70,15 @@ cd elasticsearch-{version}/ <2>
 
 endif::[]
 
+ifdef::include-xpack[]
+[[zip-targz-enable-indices]]
+==== Enable automatic creation of {xpack} indices
+
+{xpack} will try to automatically create a number of indices within {es}.
+include::{xes-repo-dir}/setup/xpack-indices.asciidoc[]
+
+endif::include-xpack[]
+
 [[zip-targz-running]]
 ==== Running Elasticsearch from the command line
 

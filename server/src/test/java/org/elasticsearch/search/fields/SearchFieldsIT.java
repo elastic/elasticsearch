@@ -342,7 +342,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(2).getFields().get("sNum1").getValues().get(0), equalTo(6.0));
     }
 
-    public void testUidBasedScriptFields() throws Exception {
+    public void testIdBasedScriptFields() throws Exception {
         prepareCreate("test").addMapping("type1", "num1", "type=long").execute().actionGet();
 
         int numDocs = randomIntBetween(1, 30);
@@ -354,23 +354,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
         indexRandom(true, indexRequestBuilders);
 
         SearchResponse response = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .addSort("num1", SortOrder.ASC)
-                .setSize(numDocs)
-                .addScriptField("uid", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._uid.value", Collections.emptyMap()))
-                .get();
-
-        assertNoFailures(response);
-
-        assertThat(response.getHits().getTotalHits(), equalTo((long)numDocs));
-        for (int i = 0; i < numDocs; i++) {
-            assertThat(response.getHits().getAt(i).getId(), equalTo(Integer.toString(i)));
-            Set<String> fields = new HashSet<>(response.getHits().getAt(i).getFields().keySet());
-            assertThat(fields, equalTo(singleton("uid")));
-            assertThat(response.getHits().getAt(i).getFields().get("uid").getValue(), equalTo("type1#" + Integer.toString(i)));
-        }
-
-        response = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort("num1", SortOrder.ASC)
                 .setSize(numDocs)
@@ -410,7 +393,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .addSort("num1", SortOrder.ASC)
                 .setSize(numDocs)
                 .addScriptField("id", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._id.value", Collections.emptyMap()))
-                .addScriptField("uid", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._uid.value", Collections.emptyMap()))
                 .addScriptField("type",
                     new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._type.value", Collections.emptyMap()))
                 .get();
@@ -421,8 +403,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             assertThat(response.getHits().getAt(i).getId(), equalTo(Integer.toString(i)));
             Set<String> fields = new HashSet<>(response.getHits().getAt(i).getFields().keySet());
-            assertThat(fields, equalTo(newHashSet("uid", "type", "id")));
-            assertThat(response.getHits().getAt(i).getFields().get("uid").getValue(), equalTo("type1#" + Integer.toString(i)));
+            assertThat(fields, equalTo(newHashSet("type", "id")));
             assertThat(response.getHits().getAt(i).getFields().get("type").getValue(), equalTo("type1"));
             assertThat(response.getHits().getAt(i).getFields().get("id").getValue(), equalTo(Integer.toString(i)));
         }

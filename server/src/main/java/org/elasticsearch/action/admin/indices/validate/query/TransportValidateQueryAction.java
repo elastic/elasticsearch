@@ -81,7 +81,8 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
     protected void doExecute(Task task, ValidateQueryRequest request, ActionListener<ValidateQueryResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
         LongSupplier timeProvider = () -> request.nowInMillis;
-        ActionListener<org.elasticsearch.index.query.QueryBuilder> rewriteListener = ActionListener.wrap(source -> {
+        ActionListener<org.elasticsearch.index.query.QueryBuilder> rewriteListener = ActionListener.wrap(rewrittenQuery -> {
+            request.query(rewrittenQuery);
             super.doExecute(task, request, listener);
         }, listener::onFailure);
         if (request.query() == null) {

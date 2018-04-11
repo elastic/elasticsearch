@@ -69,5 +69,3 @@ include::fields/source-field.asciidoc[]
 
 include::fields/type-field.asciidoc[]
 
-include::fields/uid-field.asciidoc[]
-

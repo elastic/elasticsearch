@@ -67,13 +67,13 @@ public class ChunkingConfig implements ToXContentObject, Writeable {
 
     public ChunkingConfig(StreamInput in) throws IOException {
         mode = Mode.readFromStream(in);
-        timeSpan = in.readOptionalWriteable(TimeValue::new);
+        timeSpan = in.readOptionalTimeValue();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         mode.writeTo(out);
-        out.writeOptionalWriteable(timeSpan);
+        out.writeOptionalTimeValue(timeSpan);
     }
 
     ChunkingConfig(Mode mode, @Nullable TimeValue timeSpan) {

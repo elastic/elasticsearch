@@ -90,7 +90,7 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
         cron = in.readString();
         groupConfig = in.readOptionalWriteable(GroupConfig::new);
         metricsConfig = in.readList(MetricConfig::new);
-        timeout = new TimeValue(in);
+        timeout = in.readTimeValue();
         pageSize = in.readInt();
     }
 
@@ -182,7 +182,7 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
         out.writeString(cron);
         out.writeOptionalWriteable(groupConfig);
         out.writeList(metricsConfig);
-        timeout.writeTo(out);
+        out.writeTimeValue(timeout);
         out.writeInt(pageSize);
     }
 
@@ -400,7 +400,7 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
             out.writeOptionalString(cron);
             out.writeOptionalWriteable(groupConfig);
             out.writeList(metricsConfig);
-            timeout.writeTo(out);
+            out.writeTimeValue(timeout);
             out.writeInt(pageSize);
         }
     }

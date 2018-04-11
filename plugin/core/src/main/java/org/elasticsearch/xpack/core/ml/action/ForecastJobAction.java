@@ -117,15 +117,15 @@ public class ForecastJobAction extends Action<ForecastJobAction.Request, Forecas
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            this.duration = in.readOptionalWriteable(TimeValue::new);
-            this.expiresIn = in.readOptionalWriteable(TimeValue::new);
+            this.duration = in.readOptionalTimeValue();
+            this.expiresIn = in.readOptionalTimeValue();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeOptionalWriteable(duration);
-            out.writeOptionalWriteable(expiresIn);
+            out.writeOptionalTimeValue(duration);
+            out.writeOptionalTimeValue(expiresIn);
         }
 
         @Override

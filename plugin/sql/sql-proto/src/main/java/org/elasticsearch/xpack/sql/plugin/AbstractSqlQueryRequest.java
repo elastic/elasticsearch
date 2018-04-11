@@ -192,8 +192,8 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         params = in.readList(SqlTypedParamValue::new);
         timeZone = DateTimeZone.forID(in.readString());
         fetchSize = in.readVInt();
-        requestTimeout = new TimeValue(in);
-        pageTimeout = new TimeValue(in);
+        requestTimeout = in.readTimeValue();
+        pageTimeout = in.readTimeValue();
         filter = in.readOptionalNamedWriteable(QueryBuilder.class);
     }
 
@@ -204,8 +204,8 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         out.writeList(params);
         out.writeString(timeZone.getID());
         out.writeVInt(fetchSize);
-        requestTimeout.writeTo(out);
-        pageTimeout.writeTo(out);
+        out.writeTimeValue(requestTimeout);
+        out.writeTimeValue(pageTimeout);
         out.writeOptionalNamedWriteable(filter);
     }
 

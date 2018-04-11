@@ -149,7 +149,7 @@ public class StopDatafeedAction
             super.readFrom(in);
             datafeedId = in.readString();
             resolvedStartedDatafeedIds = in.readStringArray();
-            stopTimeout = new TimeValue(in);
+            stopTimeout = in.readTimeValue();
             force = in.readBoolean();
             if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
                 allowNoDatafeeds = in.readBoolean();
@@ -161,7 +161,7 @@ public class StopDatafeedAction
             super.writeTo(out);
             out.writeString(datafeedId);
             out.writeStringArray(resolvedStartedDatafeedIds);
-            stopTimeout.writeTo(out);
+            out.writeTimeValue(stopTimeout);
             out.writeBoolean(force);
             if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
                 out.writeBoolean(allowNoDatafeeds);

@@ -213,7 +213,7 @@ public class GetOverallBucketsAction
             super.readFrom(in);
             jobId = in.readString();
             topN = in.readVInt();
-            bucketSpan = in.readOptionalWriteable(TimeValue::new);
+            bucketSpan = in.readOptionalTimeValue();
             overallScore = in.readDouble();
             excludeInterim = in.readBoolean();
             start = in.readOptionalLong();
@@ -226,7 +226,7 @@ public class GetOverallBucketsAction
             super.writeTo(out);
             out.writeString(jobId);
             out.writeVInt(topN);
-            out.writeOptionalWriteable(bucketSpan);
+            out.writeOptionalTimeValue(bucketSpan);
             out.writeDouble(overallScore);
             out.writeBoolean(excludeInterim);
             out.writeOptionalLong(start);

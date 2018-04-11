@@ -149,7 +149,7 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         types = in.readStringArray();
         routing = in.readOptionalString();
-        timeout = in.readOptionalWriteable(TimeValue::new);
+        timeout = in.readOptionalTimeValue();
         sampleSize = in.readInt();
         sampleDiversityField = in.readOptionalString();
         maxDocsPerDiversityValue = in.readInt();
@@ -175,7 +175,7 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
         indicesOptions.writeIndicesOptions(out);
         out.writeStringArray(types);
         out.writeOptionalString(routing);
-        out.writeOptionalWriteable(timeout);
+        out.writeOptionalTimeValue(timeout);
 
         out.writeInt(sampleSize);
         out.writeOptionalString(sampleDiversityField);

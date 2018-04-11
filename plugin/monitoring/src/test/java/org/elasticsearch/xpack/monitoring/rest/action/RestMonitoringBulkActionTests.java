@@ -84,7 +84,7 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
     public void testWrongInterval() {
         final RestRequest restRequest = createRestRequest(randomSystem().getSystem(), TEMPLATE_VERSION, "null");
 
-        final ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class, () -> prepareRequest(restRequest));
+        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> prepareRequest(restRequest));
         assertThat(exception.getMessage(), containsString("failed to parse setting [interval] with value [null]"));
     }
 

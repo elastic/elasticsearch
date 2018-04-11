@@ -155,7 +155,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
     }
 
     public AnalysisConfig(StreamInput in) throws IOException {
-        bucketSpan = new TimeValue(in);
+        bucketSpan = in.readTimeValue();
         categorizationFieldName = in.readOptionalString();
         categorizationFilters = in.readBoolean() ? in.readList(StreamInput::readString) : null;
         if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
@@ -163,20 +163,29 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         } else {
             categorizationAnalyzerConfig = null;
         }
-        latency = in.readOptionalWriteable(TimeValue::new);
+        latency = in.readOptionalTimeValue();
         summaryCountFieldName = in.readOptionalString();
         detectors = in.readList(Detector::new);
         influencers = in.readList(StreamInput::readString);
         overlappingBuckets = in.readOptionalBoolean();
         resultFinalizationWindow = in.readOptionalLong();
         multivariateByFields = in.readOptionalBoolean();
-        multipleBucketSpans = in.readBoolean() ? in.readList(TimeValue::new) : null;
+        if (in.readBoolean()) {
+            final int arraySize = in.readVInt();
+            final List<TimeValue> spans = new ArrayList<>(arraySize);
+            for (int i = 0; i < arraySize; i++) {
+                spans.add(in.readTimeValue());
+            }
+            multipleBucketSpans = spans;
+        } else {
+            multipleBucketSpans = null;
+        }
         usePerPartitionNormalization = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        bucketSpan.writeTo(out);
+        out.writeTimeValue(bucketSpan);
         out.writeOptionalString(categorizationFieldName);
         if (categorizationFilters != null) {
             out.writeBoolean(true);
@@ -187,7 +196,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
             out.writeOptionalWriteable(categorizationAnalyzerConfig);
         }
-        out.writeOptionalWriteable(latency);
+        out.writeOptionalTimeValue(latency);
         out.writeOptionalString(summaryCountFieldName);
         out.writeList(detectors);
         out.writeStringList(influencers);
@@ -196,7 +205,10 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         out.writeOptionalBoolean(multivariateByFields);
         if (multipleBucketSpans != null) {
             out.writeBoolean(true);
-            out.writeList(multipleBucketSpans);
+            out.writeVInt(multipleBucketSpans.size());
+            for (TimeValue span : multipleBucketSpans) {
+                out.writeTimeValue(span);
+            }
         } else {
             out.writeBoolean(false);
         }

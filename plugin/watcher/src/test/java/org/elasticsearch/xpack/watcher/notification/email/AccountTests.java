@@ -285,7 +285,7 @@ public class AccountTests extends ESTestCase {
     }
 
     public void testAccountTimeoutsConfiguredAsNumberAreRejected() {
-        expectThrows(ElasticsearchException.class, () -> {
+        expectThrows(IllegalArgumentException.class, () -> {
             new Account(new Account.Config("default", Settings.builder()
                     .put("smtp.host", "localhost")
                     .put("smtp.port", server.port())

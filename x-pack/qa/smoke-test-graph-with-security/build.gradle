@@ -16,11 +16,11 @@ integTestCluster {
   dependsOn copyGraphRestTests
   extraConfigFile 'roles.yml', 'roles.yml'
   setupCommand 'setupTestAdminUser',
-               'bin/users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
+               'bin/elasticsearch-users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
   setupCommand 'setupGraphExplorerUser',
-               'bin/users', 'useradd', 'graph_explorer', '-p', 'x-pack-test-password', '-r', 'graph_explorer'
+               'bin/elasticsearch-users', 'useradd', 'graph_explorer', '-p', 'x-pack-test-password', '-r', 'graph_explorer'
   setupCommand 'setupPowerlessUser',
-               'bin/users', 'useradd', 'no_graph_explorer', '-p', 'x-pack-test-password', '-r', 'no_graph_explorer'
+               'bin/elasticsearch-users', 'useradd', 'no_graph_explorer', '-p', 'x-pack-test-password', '-r', 'no_graph_explorer'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
   waitCondition = { node, ant ->

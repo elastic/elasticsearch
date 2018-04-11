@@ -37,7 +37,7 @@ integTestCluster {
   distribution = 'zip'
 
   setupCommand 'setupDummyUser',
-               'bin/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
+               'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
   waitCondition = { node, ant ->
     File tmpFile = new File(node.cwd, 'wait.success')
     ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",

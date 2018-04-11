@@ -52,7 +52,7 @@ integTestCluster {
   extraConfigFile 'idp-metadata.xml', idpFixtureProject.file("src/main/resources/provision/generated/idp-metadata.xml")
 
   setupCommand 'setupTestAdmin',
-            'bin/users', 'useradd', "test_admin", '-p', 'x-pack-test-password', '-r', "superuser"
+            'bin/elasticsearch-users', 'useradd', "test_admin", '-p', 'x-pack-test-password', '-r', "superuser"
 
   waitCondition = { node, ant ->
         File tmpFile = new File(node.cwd, 'wait.success')

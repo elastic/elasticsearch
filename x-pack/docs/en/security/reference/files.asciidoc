@@ -6,10 +6,10 @@ The {security} uses the following files:
 * `CONFIG_DIR/x-pack/roles.yml` defines the roles in use on the cluster
   (read more <<roles-management-file, here>>).
 
-* `CONFIG_DIR/x-pack/users` defines the users and their hashed passwords for
+* `CONFIG_DIR/elasticsearch-users` defines the users and their hashed passwords for
   the <<file-realm,`file` realm>>.
 
-* `CONFIG_DIR/x-pack/users_roles` defines the user roles assignment for the
+* `CONFIG_DIR/elasticsearch-users_roles` defines the user roles assignment for the
   the <<file-realm, `file` realm>>.
 
 * `CONFIG_DIR/x-pack/role_mapping.yml` defines the role assignments for a

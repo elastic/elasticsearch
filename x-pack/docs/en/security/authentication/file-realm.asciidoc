@@ -109,7 +109,7 @@ Puppet or Chef).
 ==============================
 
 While it is possible to modify these files directly using any standard text
-editor, we strongly recommend using the {ref}/users-command.html[`bin/x-pack/users`]
+editor, we strongly recommend using the {ref}/users-command.html[`bin/elasticsearch-users`]
 command-line tool to apply the required changes.
 
 [float]

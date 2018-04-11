@@ -66,7 +66,7 @@ integTestCluster {
   keystoreSetting 'xpack.security.transport.ssl.keystore.secure_password', 'keypass'
 
   setupCommand 'setupDummyUser',
-          'bin/users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'superuser'
+          'bin/elasticsearch-users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'superuser'
 
   extraConfigFile nodeKeystore.name, nodeKeystore
 

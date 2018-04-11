@@ -25,7 +25,7 @@ integTestCluster {
     can_not_see_hidden_fields_user: 'can_not_see_hidden_fields',
   ].each { String user, String role ->
     setupCommand 'setupUser#' + user,
-                 'bin/users', 'useradd', user, '-p', 'x-pack-test-password', '-r', role
+                 'bin/elasticsearch-users', 'useradd', user, '-p', 'x-pack-test-password', '-r', role
   }
   waitCondition = { node, ant ->
     File tmpFile = new File(node.cwd, 'wait.success')

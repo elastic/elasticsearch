@@ -96,13 +96,13 @@ integTestCluster {
   dependsOn copyMlRestTests
   extraConfigFile 'roles.yml', 'roles.yml'
   setupCommand 'setupTestAdminUser',
-               'bin/users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'superuser'
+               'bin/elasticsearch-users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'superuser'
   setupCommand 'setupMlAdminUser',
-               'bin/users', 'useradd', 'ml_admin', '-p', 'x-pack-test-password', '-r', 'minimal,machine_learning_admin'
+               'bin/elasticsearch-users', 'useradd', 'ml_admin', '-p', 'x-pack-test-password', '-r', 'minimal,machine_learning_admin'
   setupCommand 'setupMlUserUser',
-               'bin/users', 'useradd', 'ml_user', '-p', 'x-pack-test-password', '-r', 'minimal,machine_learning_user'
+               'bin/elasticsearch-users', 'useradd', 'ml_user', '-p', 'x-pack-test-password', '-r', 'minimal,machine_learning_user'
   setupCommand 'setupPowerlessUser',
-               'bin/users', 'useradd', 'no_ml', '-p', 'x-pack-test-password', '-r', 'minimal'
+               'bin/elasticsearch-users', 'useradd', 'no_ml', '-p', 'x-pack-test-password', '-r', 'minimal'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
   waitCondition = { node, ant ->

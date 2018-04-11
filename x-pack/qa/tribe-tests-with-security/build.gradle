@@ -43,7 +43,7 @@ configOne.setting('xpack.ml.enabled', false)
 configOne.setting('xpack.license.self_generated.type', 'trial')
 configOne.setting('xpack.security.enabled', 'true')
 configOne.setupCommand('setupDummyUser',
-        'bin/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser')
+        'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser')
 configOne.waitCondition = { node, ant ->
     File tmpFile = new File(node.cwd, 'wait.success')
     ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=1&wait_for_status=yellow&timeout=60s",
@@ -65,7 +65,7 @@ configTwo.setting('xpack.ml.enabled', false)
 configTwo.setting('xpack.license.self_generated.type', 'trial')
 configTwo.setting('xpack.security.enabled', 'true')
 configTwo.setupCommand('setupDummyUser',
-        'bin/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser')
+        'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser')
 configTwo.waitCondition = { node, ant ->
     File tmpFile = new File(node.cwd, 'wait.success')
     ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=1&wait_for_status=yellow&timeout=60s",
@@ -82,7 +82,7 @@ integTestCluster {
     dependsOn setupClusterOne, setupClusterTwo
     nodeStartupWaitSeconds 45
     setupCommand 'setupDummyUser',
-            'bin/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
+            'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
     setting 'xpack.monitoring.enabled', false
     setting 'xpack.ml.enabled', false
     setting 'xpack.license.self_generated.type', 'trial'

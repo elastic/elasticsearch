@@ -146,7 +146,7 @@ integTestCluster {
     setting 'xpack.monitoring.exporters._local.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'trial'
     setupCommand 'setupTestAdmin',
-            'bin/users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
+            'bin/elasticsearch-users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
     waitCondition = waitWithAuth
 }
 

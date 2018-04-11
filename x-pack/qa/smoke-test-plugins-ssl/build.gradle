@@ -188,9 +188,9 @@ integTestCluster {
   extraConfigFile clientKeyStore.name, clientKeyStore
 
   setupCommand 'setupTestUser',
-               'bin/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
+               'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
   setupCommand 'setupMonitoringUser',
-               'bin/users', 'useradd', 'monitoring_agent', '-p', 'x-pack-test-password', '-r', 'remote_monitoring_agent'
+               'bin/elasticsearch-users', 'useradd', 'monitoring_agent', '-p', 'x-pack-test-password', '-r', 'remote_monitoring_agent'
 
   waitCondition = { NodeInfo node, AntBuilder ant ->
     File tmpFile = new File(node.cwd, 'wait.success')

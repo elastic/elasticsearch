@@ -577,9 +577,9 @@ Provider. This will automatically configure many of the integration options
 between the IdP and the SP.
 
 The Elastic Stack supports generating such a metadata file using the
-`bin/x-pack/saml-metadata` command in your {es} directory.
+`bin/elasticsearch-saml-metadata` command in your {es} directory.
 
-The {ref}/saml-metadata.html[documentation for the saml-metadata utility]
+The {ref}/saml-metadata.html[documentation for the elasticsearch-saml-metadata utility]
 describes how to run it, and the available command line options.
 
 [[saml-role-mapping]]

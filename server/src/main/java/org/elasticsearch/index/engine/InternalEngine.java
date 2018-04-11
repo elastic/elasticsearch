@@ -31,10 +31,8 @@ import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
@@ -1072,9 +1070,9 @@ public class InternalEngine extends Engine {
     private void updateDocs(final Term uid, final List<ParseContext.Document> docs, final IndexWriter indexWriter) throws IOException {
         if (softDeleteEnabled) {
             if (docs.size() > 1) {
-                indexWriter.softUpdateDocuments(uid, docs, Lucene.getSoftDeleteDVMarker());
+                indexWriter.softUpdateDocuments(uid, docs, Lucene.newSoftDeleteField());
             } else {
-                indexWriter.softUpdateDocument(uid, docs.get(0), Lucene.getSoftDeleteDVMarker());
+                indexWriter.softUpdateDocument(uid, docs.get(0), Lucene.newSoftDeleteField());
             }
         } else {
             if (docs.size() > 1) {
@@ -1943,9 +1941,8 @@ public class InternalEngine extends Engine {
         // background merges
         MergePolicy mergePolicy = config().getMergePolicy();
         if (softDeleteEnabled) {
-            iwc.setSoftDeletesField(Lucene.SOFT_DELETE_FIELD);
             // TODO: soft-delete retention policy
-            mergePolicy = new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETE_FIELD, () -> new MatchAllDocsQuery(), mergePolicy);
+            iwc.setSoftDeletesField(Lucene.SOFT_DELETE_FIELD);
         }
         iwc.setMergePolicy(new ElasticsearchMergePolicy(mergePolicy));
         iwc.setSimilarity(engineConfig.getSimilarity());

@@ -400,7 +400,7 @@ public final class IndexSettings {
         generationThresholdSize = scopedSettings.get(INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
-        softDeleteEnabled = scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
+        softDeleteEnabled = version.onOrAfter(Version.V_7_0_0_alpha1) && scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
         maxResultWindow = scopedSettings.get(MAX_RESULT_WINDOW_SETTING);
         maxInnerResultWindow = scopedSettings.get(MAX_INNER_RESULT_WINDOW_SETTING);
@@ -852,6 +852,6 @@ public final class IndexSettings {
      * Returns <code>true</code> if soft-delete is enabled.
      */
     public boolean isSoftDeleteEnabled() {
-        return getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1) && softDeleteEnabled;
+        return softDeleteEnabled;
     }
 }

@@ -34,8 +34,6 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FilterDirectoryReader;
-import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -507,7 +505,7 @@ public class InternalEngineTests extends EngineTestCase {
 
             if (flush) {
                 // we should have had just 1 merge, so last generation should be exact
-                assertEquals(gen2 + 1, store.readLastCommittedSegmentsInfo().getLastGeneration());
+                assertEquals(gen2, store.readLastCommittedSegmentsInfo().getLastGeneration());
             }
         }
     }
@@ -4546,41 +4544,6 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    /**
-     * A simple test checks that the document history is maintained when a document is updated.
-     */
-    public void testUpdateMaintainDocumentHistory() throws Exception {
-        final IndexMetaData indexMetaData = IndexMetaData.builder("test")
-            .settings(settings(Version.CURRENT).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true))
-            .numberOfShards(1).numberOfReplicas(1).build();
-        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
-        final String docId = "doc-id";
-        final int versions = between(2, 20);
-        try (Store store = createStore();
-             InternalEngine engine = createEngine(indexSettings, store, createTempDir(), new LogDocMergePolicy())) {
-            final ParsedDocument doc = testParsedDocument(docId, null, testDocument(), new BytesArray("{}"), null);
-            for (int version = 1; version <= versions; version++) {
-                Engine.IndexResult indexResult = engine.index(indexForDoc(doc));
-                assertThat(indexResult.getFailure(), nullValue());
-                if (randomBoolean()) {
-                    engine.flush();
-                }
-            }
-            engine.refresh("test");
-            try (Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
-                assertThat(searcher.reader().numDocs(), equalTo(1));
-                assertThat(searcher.reader().numDeletedDocs(), equalTo(versions - 1));
-                try (Engine.GetResult get = engine.get(new Engine.Get(true, false, doc.type(), doc.id(), newUid(doc)), engine::acquireSearcher)) {
-                    assertThat((int) get.version(), equalTo(versions));
-                }
-                // Use a reader which includes soft-deleted documents to verify history.
-                final UnfilteredReader unfilteredReader = new UnfilteredReader(searcher.getDirectoryReader());
-                assertThat(unfilteredReader.numDocs(), equalTo(versions));
-                assertThat(unfilteredReader.numDeletedDocs(), equalTo(0));
-            }
-        }
-    }
-
     private static void trimUnsafeCommits(EngineConfig config) throws IOException {
         final Store store = config.getStore();
         final TranslogConfig translogConfig = config.getTranslogConfig();
@@ -4598,51 +4561,5 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(message, engine.getNumDocAppends(), equalTo(expectedAppends));
         assertThat(message, engine.getNumDocUpdates(), equalTo(expectedUpdates));
         assertThat(message, engine.getNumDocDeletes(), equalTo(expectedDeletes));
-    }
-
-    /**
-     * A reader that does not exclude soft-deleted documents.
-     */
-    static final class UnfilteredReader extends FilterDirectoryReader {
-        static final class UnfilteredSubReaderWrapper extends SubReaderWrapper {
-            @Override
-            public LeafReader wrap(LeafReader in) {
-                return new FilterLeafReader(in) {
-                    @Override
-                    public CacheHelper getCoreCacheHelper() {
-                        return null;
-                    }
-
-                    @Override
-                    public CacheHelper getReaderCacheHelper() {
-                        return null;
-                    }
-
-                    @Override
-                    public int numDocs() {
-                        return maxDoc();
-                    }
-
-                    @Override
-                    public Bits getLiveDocs() {
-                        return null;
-                    }
-                };
-            }
-        }
-
-        UnfilteredReader(DirectoryReader in) throws IOException {
-            super(in, new UnfilteredSubReaderWrapper());
-        }
-
-        @Override
-        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-            return new UnfilteredReader(in);
-        }
-
-        @Override
-        public CacheHelper getReaderCacheHelper() {
-            return null; // we are modifying live docs.
-        }
     }
 }

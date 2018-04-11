@@ -836,7 +836,7 @@ public class Lucene {
     /**
      * Returns a numeric docvalues which can be used to soft-delete documents.
      */
-    public static NumericDocValuesField getSoftDeleteDVMarker() {
+    public static NumericDocValuesField newSoftDeleteField() {
         return new NumericDocValuesField(SOFT_DELETE_FIELD, 1);
     }
 }

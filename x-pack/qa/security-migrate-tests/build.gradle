@@ -18,7 +18,7 @@ integTestCluster {
     bob: 'actual_role'
   ].each { String user, String role ->
     setupCommand 'setupUser#' + user,
-                 'bin/users', 'useradd', user, '-p', 'x-pack-test-password', '-r', role
+                 'bin/elasticsearch-users', 'useradd', user, '-p', 'x-pack-test-password', '-r', role
   }
   waitCondition = { node, ant ->
     File tmpFile = new File(node.cwd, 'wait.success')

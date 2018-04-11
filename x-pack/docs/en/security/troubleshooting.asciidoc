@@ -58,8 +58,8 @@ authorization exception.
 *Resolution:*
 
 . Verify that the role names associated with the users match the roles defined
-in the `roles.yml` file. You can use the `users` tool to list all the users. Any
-unknown roles are marked with `*`.
+in the `roles.yml` file. You can use the `elasticsearch-users` tool to list all
+the users. Any unknown roles are marked with `*`.
 +
 --
 [source, shell]
@@ -117,20 +117,21 @@ role mappings.
 
 *Symptoms:*
 
-* The `users` command fails with the following message:
+* The `elasticsearch-users` command fails with the following message:
 `ERROR: extra arguments [...] were provided`.
 
 *Resolution:*
 
-This error occurs when the `users` tool is parsing the input and finds
-unexpected arguments. This can happen when there are special characters used in
-some of the arguments. For example, on Windows systems the `,` character is
-considered a parameter separator; in other words `-r role1,role2` is translated
-to `-r role1 role2` and the `users` tool only recognizes `role1` as an expected
-parameter. The solution here is to quote the parameter: `-r "role1,role2"`.
+This error occurs when the `elasticsearch-users` tool is parsing the input and
+finds unexpected arguments. This can happen when there are special characters
+used in some of the arguments. For example, on Windows systems the `,` character
+is considered a parameter separator; in other words `-r role1,role2` is
+translated to `-r role1 role2` and the `elasticsearch-users` tool only
+recognizes `role1` as an expected parameter. The solution here is to quote the
+parameter: `-r "role1,role2"`.
 
 For more information about this command, see
-{ref}/users-command.html[Users Command].
+{ref}/users-command.html[`elasticsearch-users` command].
 
 [[trouble-shoot-active-directory]]
 === Users are frequently locked out of Active Directory

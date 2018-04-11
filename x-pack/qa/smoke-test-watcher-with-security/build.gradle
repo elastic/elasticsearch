@@ -25,13 +25,13 @@ integTestCluster {
   setting 'xpack.license.self_generated.type', 'trial'
   extraConfigFile 'roles.yml', 'roles.yml'
   setupCommand 'setupTestAdminUser',
-               'bin/users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
+               'bin/elasticsearch-users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
   setupCommand 'setupXpackUserForTests',
-               'bin/users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'watcher_manager'
+               'bin/elasticsearch-users', 'useradd', 'x_pack_rest_user', '-p', 'x-pack-test-password', '-r', 'watcher_manager'
   setupCommand 'setupWatcherManagerUser',
-               'bin/users', 'useradd', 'watcher_manager', '-p', 'x-pack-test-password', '-r', 'watcher_manager'
+               'bin/elasticsearch-users', 'useradd', 'watcher_manager', '-p', 'x-pack-test-password', '-r', 'watcher_manager'
   setupCommand 'setupPowerlessUser',
-               'bin/users', 'useradd', 'powerless_user', '-p', 'x-pack-test-password', '-r', 'crappy_role'
+               'bin/elasticsearch-users', 'useradd', 'powerless_user', '-p', 'x-pack-test-password', '-r', 'crappy_role'
   waitCondition = { node, ant ->
     File tmpFile = new File(node.cwd, 'wait.success')
     ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",

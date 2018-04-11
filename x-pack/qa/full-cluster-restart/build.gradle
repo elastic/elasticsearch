@@ -147,7 +147,7 @@ subprojects {
       numBwcNodes = 2
       numNodes = 2
       clusterName = 'full-cluster-restart'
-      String usersCli = version.before('6.3.0') ? 'bin/x-pack/users' : 'bin/users'
+      String usersCli = version.before('6.3.0') ? 'bin/x-pack/users' : 'bin/elasticsearch-users'
       setupCommand 'setupTestUser', usersCli, 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
       waitCondition = waitWithAuth
 
@@ -196,7 +196,7 @@ subprojects {
       clusterName = 'full-cluster-restart'
       dataDir = { nodeNum -> oldClusterTest.nodes[nodeNum].dataDir }
       cleanShared = false // We want to keep snapshots made by the old cluster!
-      setupCommand 'setupTestUser', 'bin/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
+      setupCommand 'setupTestUser', 'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
       waitCondition = waitWithAuth
 
       // debug logging for testRecovery see https://github.com/elastic/x-pack-elasticsearch/issues/2691

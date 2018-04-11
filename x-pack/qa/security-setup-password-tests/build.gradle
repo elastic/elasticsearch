@@ -13,7 +13,7 @@ integTestRunner {
 
 integTestCluster {
     setupCommand 'setupTestAdmin',
-            'bin/users', 'useradd', "test_admin", '-p', 'x-pack-test-password', '-r', "superuser"
+            'bin/elasticsearch-users', 'useradd', "test_admin", '-p', 'x-pack-test-password', '-r', "superuser"
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.license.self_generated.type', 'trial'
     waitCondition = { node, ant ->

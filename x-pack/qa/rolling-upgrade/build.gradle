@@ -125,7 +125,7 @@ subprojects {
       if (version.before('6.3.0')) {
         plugin xpackProject('plugin').path
       }
-      String usersCli = version.before('6.3.0') ? 'bin/x-pack/users' : 'bin/users'
+      String usersCli = version.before('6.3.0') ? 'bin/x-pack/users' : 'bin/elasticsearch-users'
       setupCommand 'setupTestUser', usersCli, 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
       bwcVersion = version
       numBwcNodes = 2
@@ -171,7 +171,7 @@ subprojects {
 
     configure(extensions.findByName("${baseName}#mixedClusterTestCluster")) {
       dependsOn oldClusterTestRunner, "${baseName}#oldClusterTestCluster#node1.stop"
-      setupCommand 'setupTestUser', 'bin/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
+      setupCommand 'setupTestUser', 'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
       clusterName = 'rolling-upgrade'
       unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }
       minimumMasterNodes = { 2 }
@@ -209,7 +209,7 @@ subprojects {
 
     configure(extensions.findByName("${baseName}#upgradedClusterTestCluster")) {
       dependsOn(mixedClusterTestRunner, "${baseName}#oldClusterTestCluster#node0.stop")
-      setupCommand 'setupTestUser', 'bin/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
+      setupCommand 'setupTestUser', 'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
       clusterName = 'rolling-upgrade'
       unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }
       minimumMasterNodes = { 2 }

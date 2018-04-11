@@ -31,7 +31,7 @@ subprojects {
     /* Setup the one admin user that we run the tests as.
      * Tests use "run as" to get different users. */
     setupCommand 'setupUser#test_admin',
-                'bin/users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
+                'bin/elasticsearch-users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
     // Subprojects override the wait condition to work properly with security
   }
 
@@ -50,6 +50,6 @@ subprojects {
     /* Setup the one admin user that we run the tests as.
      * Tests use "run as" to get different users. */
     setupCommand 'setupUser#test_admin',
-                'bin/users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
+                'bin/elasticsearch-users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
   }
 }

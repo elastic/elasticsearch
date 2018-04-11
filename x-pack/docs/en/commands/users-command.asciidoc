@@ -5,15 +5,15 @@
 <titleabbrev>users</titleabbrev>
 ++++
 
-If you use file-based user authentication, the `users` command enables you to
-add and remove users, assign user roles, and manage passwords.
+If you use file-based user authentication, the `elasticsearch-users` command
+enables you to add and remove users, assign user roles, and manage passwords.
 
 [float]
 === Synopsis
 
 [source,shell]
 --------------------------------------------------
-bin/x-pack/users
+bin/elasticsearch-users
 ([useradd <username>] [-p <password>] [-r <roles>]) |
 ([list] <username>) |
 ([passwd <username>] [-p <password>]) |
@@ -38,9 +38,9 @@ Passwords must be at least 6 characters long.
 For more information, see {xpack-ref}/file-realm.html[File-based User Authentication].
 
 TIP: To ensure that {es} can read the user and role information at startup, run
-`users useradd` as the same user you use to run {es}. Running the command as
-root or some other user updates the permissions for the `users` and `users_roles`
-files and prevents {es} from accessing them.
+`elasticsearch-users useradd` as the same user you use to run {es}. Running the
+command as root or some other user updates the permissions for the `users` and
+`users_roles` files and prevents {es} from accessing them.
 
 [float]
 === Parameters
@@ -95,7 +95,7 @@ password for this user is `theshining`, and this user is associated with the
 
 [source,shell]
 -------------------------------------------------------------------
-bin/x-pack/users useradd jacknich -p theshining -r network,monitoring
+bin/elasticsearch-users useradd jacknich -p theshining -r network,monitoring
 -------------------------------------------------------------------
 
 The following example lists the users that are registered with the `file` realm
@@ -103,7 +103,7 @@ on the local node:
 
 [source, shell]
 ----------------------------------
-bin/x-pack/users list
+bin/elasticsearch-users list
 rdeniro        : admin
 alpacino       : power_user
 jacknich       : monitoring,network
@@ -116,7 +116,7 @@ The following example resets the `jacknich` user's password:
 
 [source,shell]
 --------------------------------------------------
-bin/x-pack/users passwd jachnich
+bin/elasticsearch-users passwd jachnich
 --------------------------------------------------
 
 Since the `-p` parameter was omitted, the command prompts you to enter and
@@ -127,12 +127,12 @@ The following example removes the `network` and `monitoring` roles from the
 
 [source,shell]
 ------------------------------------------------------------
-bin/x-pack/users roles jacknich -r network,monitoring -a user
+bin/elasticsearch-users roles jacknich -r network,monitoring -a user
 ------------------------------------------------------------
 
 The following example deletes the `jacknich` user:
 
 [source,shell]
 --------------------------------------------------
-bin/x-pack/users userdel jacknich
+bin/elasticsearch-users userdel jacknich
 --------------------------------------------------

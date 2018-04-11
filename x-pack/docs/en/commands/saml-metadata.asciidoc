@@ -2,15 +2,15 @@
 [[saml-metadata]]
 == saml-metadata
 
-The `saml-metadata` command can be used to generate a SAML 2.0 Service Provider
-Metadata file.
+The `elasticsearch-saml-metadata` command can be used to generate a SAML 2.0 Service
+Provider Metadata file.
 
 [float]
 === Synopsis
 
 [source,shell]
 --------------------------------------------------
-bin/x-pack/saml-metadata
+bin/elasticsearch-saml-metadata
 [--realm <name>]
 [--out <file_path>] [--batch] 
 [--attribute <name>] [--service-name <name>]
@@ -28,8 +28,8 @@ bin/x-pack/saml-metadata
 The SAML 2.0 specification provides a mechanism for Service Providers to
 describe their capabilities and configuration using a _metadata file_.
 
-The `saml-metadata` command generates such a file, based on the configuration of
-a SAML realm in {es}.
+The `elasticsearch-saml-metadata` command generates such a file, based on the
+configuration of a SAML realm in {es}.
 
 Some SAML Identity Providers will allow you to automatically import a metadata
 file when you configure the Elastic Stack as a Service Provider.
@@ -109,7 +109,7 @@ The following command generates a default metadata file for the `saml1` realm:
 
 [source, sh]
 --------------------------------------------------
-bin/x-pack/saml-metadata --realm saml1
+bin/elasticsearch-saml-metadata --realm saml1
 --------------------------------------------------
 
 The file will be written to `saml-elasticsearch-metadata.xml`.
@@ -122,7 +122,7 @@ The following command generates a metadata file for the `saml2` realm, with a
 
 [source, sh]
 --------------------------------------------------
-bin/x-pack/saml-metadata --realm saml2 \
+bin/elasticsearch-saml-metadata --realm saml2 \
     --service-name kibana-finance \
     --locale en-GB \
     --contacts \

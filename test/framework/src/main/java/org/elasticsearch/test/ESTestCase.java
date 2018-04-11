@@ -135,6 +135,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -672,6 +673,15 @@ public abstract class ESTestCase extends LuceneTestCase {
         List<String> ids = new ArrayList<>(DateTimeZone.getAvailableIDs());
         Collections.sort(ids);
         return DateTimeZone.forID(randomFrom(ids));
+    }
+
+    /**
+     * generate a random TimeZone from the ones available in java.time
+     */
+    public static TimeZone randomTimeZone() {
+        List<String> ids = Arrays.asList(TimeZone.getAvailableIDs());
+        Collections.sort(ids);
+        return TimeZone.getTimeZone(randomFrom(ids));
     }
 
     /**

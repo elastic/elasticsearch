@@ -6,9 +6,11 @@
 package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -54,8 +56,9 @@ public class ReadOnlyAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
-        Step.StepKey key = new Step.StepKey(phase, NAME, ReadOnlyStep.NAME);
-        return Collections.singletonList(new ReadOnlyStep(key, nextStepKey));
+        Step.StepKey key = new Step.StepKey(phase, NAME, NAME);
+        Settings readOnlySettings = Settings.builder().put(IndexMetaData.SETTING_BLOCKS_WRITE, true).build();
+        return Collections.singletonList(new UpdateSettingsStep(key, nextStepKey, client, readOnlySettings));
     }
 
     @Override

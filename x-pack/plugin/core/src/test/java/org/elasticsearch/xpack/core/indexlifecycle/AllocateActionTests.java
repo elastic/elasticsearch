@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
@@ -14,6 +16,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class AllocateActionTests extends AbstractSerializingTestCase<AllocateAction> {
 
@@ -104,16 +108,21 @@ public class AllocateActionTests extends AbstractSerializingTestCase<AllocateAct
                 randomAlphaOfLengthBetween(1, 10));
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
-        assertEquals(3, steps.size());
-        StepKey expectedFirstStepKey = new StepKey(phase, AllocateAction.NAME, UpdateAllocationSettingsStep.NAME);
+        assertEquals(2, steps.size());
+        StepKey expectedFirstStepKey = new StepKey(phase, AllocateAction.NAME, AllocateAction.NAME);
         StepKey expectedSecondStepKey = new StepKey(phase, AllocateAction.NAME, AllocationRoutedStep.NAME);
-        UpdateAllocationSettingsStep firstStep = (UpdateAllocationSettingsStep) steps.get(1);
+        UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(0);
         assertEquals(expectedFirstStepKey, firstStep.getKey());
         assertEquals(expectedSecondStepKey, firstStep.getNextStepKey());
-        assertEquals(action.getInclude(), firstStep.getInclude());
-        assertEquals(action.getExclude(), firstStep.getExclude());
-        assertEquals(action.getRequire(), firstStep.getRequire());
-        AllocationRoutedStep secondStep = (AllocationRoutedStep) steps.get(2);
+        Settings.Builder expectedSettings = Settings.builder();
+        action.getInclude().forEach(
+            (key, value) -> expectedSettings.put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + key, value));
+        action.getExclude().forEach(
+            (key, value) -> expectedSettings.put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + key, value));
+        action.getRequire().forEach(
+            (key, value) -> expectedSettings.put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + key, value));
+        assertThat(firstStep.getSettings(), equalTo(expectedSettings.build()));
+        AllocationRoutedStep secondStep = (AllocationRoutedStep) steps.get(1);
         assertEquals(expectedSecondStepKey, secondStep.getKey());
         assertEquals(nextStepKey, secondStep.getNextStepKey());
     }

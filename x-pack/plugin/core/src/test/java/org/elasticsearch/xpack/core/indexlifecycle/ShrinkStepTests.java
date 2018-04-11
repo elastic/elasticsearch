@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
@@ -15,10 +16,16 @@ import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverIndexTestHelper;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.admin.indices.shrink.ResizeAction;
+import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
+import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -31,10 +38,13 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
-public class RolloverStepTests extends ESTestCase {
+import static org.hamcrest.Matchers.equalTo;
+
+public class ShrinkStepTests extends ESTestCase {
 
     private Client client;
 
@@ -43,28 +53,19 @@ public class RolloverStepTests extends ESTestCase {
         client = Mockito.mock(Client.class);
     }
 
-    public RolloverStep createRandomInstance() {
+    public ShrinkStep createRandomInstance() {
         StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-        String alias = randomAlphaOfLengthBetween(1, 20);
-        ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
-        ByteSizeValue maxSize = randomBoolean() ? null : new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
-        Long maxDocs = randomBoolean() ? null : randomNonNegativeLong();
-        TimeValue maxAge = (maxDocs == null && maxSize == null || randomBoolean())
-                ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
-                : null;
-        return new RolloverStep(stepKey, nextStepKey, client, alias, maxSize, maxAge, maxDocs);
+        String shrunkenIndexName = randomAlphaOfLengthBetween(1, 20);
+        return new ShrinkStep(stepKey, nextStepKey, client, shrunkenIndexName);
     }
 
-    public RolloverStep mutateInstance(RolloverStep instance) {
+    public ShrinkStep mutateInstance(ShrinkStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
-        String alias = instance.getAlias();
-        ByteSizeValue maxSize = instance.getMaxSize();
-        TimeValue maxAge = instance.getMaxAge();
-        Long maxDocs = instance.getMaxDocs();
+        String shrunkenIndexName = instance.getShrunkenIndexName();
 
-        switch (between(0, 5)) {
+        switch (between(0, 2)) {
         case 0:
             key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
             break;
@@ -72,40 +73,32 @@ public class RolloverStepTests extends ESTestCase {
             nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
             break;
         case 2:
-            alias = alias + randomAlphaOfLengthBetween(1, 5);
-            break;
-        case 3:
-            maxSize = randomValueOtherThan(maxSize, () -> {
-                ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
-                return new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
-            });
-            break;
-        case 4:
-            maxAge = TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test");
-            break;
-        case 5:
-            maxDocs = randomNonNegativeLong();
+            shrunkenIndexName = shrunkenIndexName + randomAlphaOfLengthBetween(1, 5);
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new RolloverStep(key, nextKey, instance.getClient(), alias, maxSize, maxAge, maxDocs);
+        return new ShrinkStep(key, nextKey, instance.getClient(), shrunkenIndexName);
     }
 
     public void testHashcodeAndEquals() {
         EqualsHashCodeTestUtils
                 .checkEqualsAndHashCode(createRandomInstance(),
-                        instance -> new RolloverStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(),
-                                instance.getAlias(), instance.getMaxSize(), instance.getMaxAge(), instance.getMaxDocs()),
+                        instance -> new ShrinkStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(),
+                                instance.getShrunkenIndexName()),
                         this::mutateInstance);
     }
 
     public void testPerformAction() throws Exception {
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        long creationDate = randomNonNegativeLong();
+        IndexMetaData sourceIndexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, creationDate))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
+            .putAlias(AliasMetaData.builder("my_alias"))
+            .build();
 
-        RolloverStep step = createRandomInstance();
+        ShrinkStep step = createRandomInstance();
 
         AdminClient adminClient = Mockito.mock(AdminClient.class);
         IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
@@ -116,28 +109,26 @@ public class RolloverStepTests extends ESTestCase {
 
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                RolloverRequest request = (RolloverRequest) invocation.getArguments()[0];
+                ResizeRequest request = (ResizeRequest) invocation.getArguments()[0];
                 @SuppressWarnings("unchecked")
-                ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
-                Set<Condition<?>> expectedConditions = new HashSet<>();
-                if (step.getMaxAge() != null) {
-                    expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
-                }
-                if (step.getMaxSize() != null) {
-                    expectedConditions.add(new MaxSizeCondition(step.getMaxSize()));
-                }
-                if (step.getMaxDocs() != null) {
-                    expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
-                }
-                RolloverIndexTestHelper.assertRolloverIndexRequest(request, step.getAlias(), expectedConditions);
-                listener.onResponse(RolloverIndexTestHelper.createMockResponse(request, true));
+                ActionListener<ResizeResponse> listener = (ActionListener<ResizeResponse>) invocation.getArguments()[1];
+                assertThat(request.getSourceIndex(), equalTo(sourceIndexMetaData.getIndex().getName()));
+                assertThat(request.getTargetIndexRequest().aliases(), equalTo(Collections.singleton(new Alias("my_alias"))));
+                assertThat(request.getTargetIndexRequest().settings(), equalTo(Settings.builder()
+                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, sourceIndexMetaData.getNumberOfShards())
+                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, sourceIndexMetaData.getNumberOfReplicas())
+                    .put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, creationDate).build()));
+                assertThat(request.getTargetIndexRequest().index(), equalTo(step.getShrunkenIndexName()));
+                ResizeResponse resizeResponse = ResizeAction.INSTANCE.newResponse();
+                resizeResponse.readFrom(StreamInput.wrap(new byte[] { 1, 1, 1, 1, 1 }));
+                listener.onResponse(resizeResponse);
                 return null;
             }
 
-        }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
+        }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
-        step.performAction(indexMetaData, new Listener() {
+        step.performAction(sourceIndexMetaData, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -154,13 +145,13 @@ public class RolloverStepTests extends ESTestCase {
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
-        Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
+        Mockito.verify(indicesClient, Mockito.only()).resizeIndex(Mockito.any(), Mockito.any());
     }
 
     public void testPerformActionNotComplete() throws Exception {
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        RolloverStep step = createRandomInstance();
+        ShrinkStep step = createRandomInstance();
 
         AdminClient adminClient = Mockito.mock(AdminClient.class);
         IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
@@ -171,25 +162,15 @@ public class RolloverStepTests extends ESTestCase {
 
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                RolloverRequest request = (RolloverRequest) invocation.getArguments()[0];
                 @SuppressWarnings("unchecked")
-                ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
-                Set<Condition<?>> expectedConditions = new HashSet<>();
-                if (step.getMaxAge() != null) {
-                    expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
-                }
-                if (step.getMaxSize() != null) {
-                    expectedConditions.add(new MaxSizeCondition(step.getMaxSize()));
-                }
-                if (step.getMaxDocs() != null) {
-                    expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
-                }
-                RolloverIndexTestHelper.assertRolloverIndexRequest(request, step.getAlias(), expectedConditions);
-                listener.onResponse(RolloverIndexTestHelper.createMockResponse(request, false));
+                ActionListener<ResizeResponse> listener = (ActionListener<ResizeResponse>) invocation.getArguments()[1];
+                ResizeResponse resizeResponse = ResizeAction.INSTANCE.newResponse();
+                resizeResponse.readFrom(StreamInput.wrap(new byte[] { 0, 0, 0, 0, 0 }));
+                listener.onResponse(resizeResponse);
                 return null;
             }
 
-        }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
+        }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
         step.performAction(indexMetaData, new Listener() {
@@ -209,14 +190,14 @@ public class RolloverStepTests extends ESTestCase {
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
-        Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
+        Mockito.verify(indicesClient, Mockito.only()).resizeIndex(Mockito.any(), Mockito.any());
     }
 
     public void testPerformActionFailure() throws Exception {
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         Exception exception = new RuntimeException();
-        RolloverStep step = createRandomInstance();
+        ShrinkStep step = createRandomInstance();
 
         AdminClient adminClient = Mockito.mock(AdminClient.class);
         IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
@@ -227,25 +208,13 @@ public class RolloverStepTests extends ESTestCase {
 
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                RolloverRequest request = (RolloverRequest) invocation.getArguments()[0];
                 @SuppressWarnings("unchecked")
                 ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
-                Set<Condition<?>> expectedConditions = new HashSet<>();
-                if (step.getMaxAge() != null) {
-                    expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
-                }
-                if (step.getMaxSize() != null) {
-                    expectedConditions.add(new MaxSizeCondition(step.getMaxSize()));
-                }
-                if (step.getMaxDocs() != null) {
-                    expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
-                }
-                RolloverIndexTestHelper.assertRolloverIndexRequest(request, step.getAlias(), expectedConditions);
                 listener.onFailure(exception);
                 return null;
             }
 
-        }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
+        }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
         step.performAction(indexMetaData, new Listener() {
@@ -266,7 +235,7 @@ public class RolloverStepTests extends ESTestCase {
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
-        Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
+        Mockito.verify(indicesClient, Mockito.only()).resizeIndex(Mockito.any(), Mockito.any());
     }
 
 }

@@ -17,8 +17,8 @@ import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncActionStep;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncWaitStep;
-import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateActionStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep;
+import org.elasticsearch.xpack.core.indexlifecycle.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
@@ -34,22 +34,22 @@ public class IndexLifecycleRunner {
         this.clusterService = clusterService;
     }
 
-    public void runPolicy(String policy, Index index, Settings indexSettings, boolean fromClusterStateChange) {
+    public void runPolicy(String policy, IndexMetaData indexMetaData, Settings indexSettings, boolean fromClusterStateChange) {
         Step currentStep = getCurrentStep(stepRegistry, policy, indexSettings);
         logger.warn("running policy with current-step[" + currentStep.getKey() + "]");
         if (currentStep instanceof TerminalPolicyStep) {
-            logger.debug("policy [" + policy + "] for index [" + index.getName() + "] complete, skipping execution");
-        } else if (currentStep instanceof ClusterStateActionStep || currentStep instanceof ClusterStateWaitStep) {
-            executeClusterStateSteps(index, policy, currentStep);
+            logger.debug("policy [" + policy + "] for index [" + indexMetaData.getIndex().getName() + "] complete, skipping execution");
+        } else if (currentStep instanceof InitializePolicyContextStep || currentStep instanceof ClusterStateWaitStep) {
+            executeClusterStateSteps(indexMetaData.getIndex(), policy, currentStep);
         } else if (currentStep instanceof AsyncWaitStep) {
             if (fromClusterStateChange == false) {
-                ((AsyncWaitStep) currentStep).evaluateCondition(index, new AsyncWaitStep.Listener() {
+                ((AsyncWaitStep) currentStep).evaluateCondition(indexMetaData.getIndex(), new AsyncWaitStep.Listener() {
     
                     @Override
                     public void onResponse(boolean conditionMet) {
                         logger.error("cs-change-async-wait-callback. current-step:" + currentStep.getKey());
                         if (conditionMet) {
-                            moveToStep(index, policy, currentStep.getKey(), currentStep.getNextStepKey());
+                            moveToStep(indexMetaData.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
                         }
                     }
     
@@ -62,13 +62,13 @@ public class IndexLifecycleRunner {
             }
         } else if (currentStep instanceof AsyncActionStep) {
             if (fromClusterStateChange == false) {
-                ((AsyncActionStep) currentStep).performAction(index, new AsyncActionStep.Listener() {
+                ((AsyncActionStep) currentStep).performAction(indexMetaData, new AsyncActionStep.Listener() {
     
                     @Override
                     public void onResponse(boolean complete) {
                         logger.error("cs-change-async-action-callback. current-step:" + currentStep.getKey());
                         if (complete && ((AsyncActionStep) currentStep).indexSurvives()) {
-                            moveToStep(index, policy, currentStep.getKey(), currentStep.getNextStepKey());
+                            moveToStep(indexMetaData.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
                         }
                     }
     
@@ -84,15 +84,14 @@ public class IndexLifecycleRunner {
         }
     }
 
-    private void runPolicy(Index index, ClusterState clusterState) {
-        IndexMetaData indexMetaData = clusterState.getMetaData().index(index);
+    private void runPolicy(IndexMetaData indexMetaData) {
         Settings indexSettings = indexMetaData.getSettings();
         String policy = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings);
-        runPolicy(policy, index, indexSettings, false);
+        runPolicy(policy, indexMetaData, indexSettings, false);
     }
 
     private void executeClusterStateSteps(Index index, String policy, Step step) {
-        assert step instanceof ClusterStateActionStep || step instanceof ClusterStateWaitStep;
+        assert step instanceof InitializePolicyContextStep || step instanceof ClusterStateWaitStep;
         clusterService.submitStateUpdateTask("ILM", new ExecuteStepsUpdateTask(policy, index, step, stepRegistry));
     }
 
@@ -144,6 +143,6 @@ public class IndexLifecycleRunner {
         logger.error("moveToStep[" + policy + "] [" + index.getName() + "]" + currentStepKey + " -> "
                 + nextStepKey);
         clusterService.submitStateUpdateTask("ILM", new MoveToNextStepUpdateTask(index, policy, currentStepKey,
-                nextStepKey, newState -> runPolicy(index, newState)));
+                nextStepKey, newState -> runPolicy(newState.getMetaData().index(index))));
     }
 }

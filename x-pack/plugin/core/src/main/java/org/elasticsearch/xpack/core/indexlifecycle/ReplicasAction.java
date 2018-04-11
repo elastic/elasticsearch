@@ -6,10 +6,12 @@
 package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -73,9 +75,10 @@ public class ReplicasAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
-        StepKey updateReplicasKey = new StepKey(phase, NAME, UpdateReplicaSettingsStep.NAME);
+        StepKey updateReplicasKey = new StepKey(phase, NAME, UpdateSettingsStep.NAME);
         StepKey enoughKey = new StepKey(phase, NAME, ReplicasAllocatedStep.NAME);
-        return Arrays.asList(new UpdateReplicaSettingsStep(updateReplicasKey, enoughKey, client, numberOfReplicas),
+        Settings replicaSettings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
+        return Arrays.asList(new UpdateSettingsStep(updateReplicasKey, enoughKey, client, replicaSettings),
                 new ReplicasAllocatedStep(enoughKey, nextStepKey, numberOfReplicas));
     }
 

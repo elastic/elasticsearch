@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
@@ -26,10 +27,7 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-import java.util.HashMap;
-import java.util.Map;
-
-public class UpdateAllocationSettingsStepTests extends ESTestCase {
+public class UpdateSettingsStepTests extends ESTestCase {
 
     private Client client;
 
@@ -38,24 +36,20 @@ public class UpdateAllocationSettingsStepTests extends ESTestCase {
         client = Mockito.mock(Client.class);
     }
 
-    public UpdateAllocationSettingsStep createRandomInstance() {
+    public UpdateSettingsStep createRandomInstance() {
         StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-        Map<String, String> include = AllocateActionTests.randomMap(0, 10);
-        Map<String, String> exclude = AllocateActionTests.randomMap(0, 10);
-        Map<String, String> require = AllocateActionTests.randomMap(0, 10);
+        Settings settings = Settings.builder().put(randomAlphaOfLength(10), randomAlphaOfLength(10)).build();
 
-        return new UpdateAllocationSettingsStep(stepKey, nextStepKey, client, include, exclude, require);
+        return new UpdateSettingsStep(stepKey, nextStepKey, client, settings);
     }
 
-    public UpdateAllocationSettingsStep mutateInstance(UpdateAllocationSettingsStep instance) {
+    public UpdateSettingsStep mutateInstance(UpdateSettingsStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
-        Map<String, String> include = instance.getInclude();
-        Map<String, String> exclude = instance.getExclude();
-        Map<String, String> require = instance.getRequire();
+        Settings settings = instance.getSettings();
 
-        switch (between(0, 4)) {
+        switch (between(0, 2)) {
         case 0:
             key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
             break;
@@ -63,36 +57,25 @@ public class UpdateAllocationSettingsStepTests extends ESTestCase {
             nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
             break;
         case 2:
-            include = new HashMap<>(include);
-            include.put(randomAlphaOfLengthBetween(11, 15), randomAlphaOfLengthBetween(1, 20));
-            break;
-        case 3:
-            exclude = new HashMap<>(exclude);
-            exclude.put(randomAlphaOfLengthBetween(11, 15), randomAlphaOfLengthBetween(1, 20));
-            break;
-        case 4:
-            require = new HashMap<>(require);
-            require.put(randomAlphaOfLengthBetween(11, 15), randomAlphaOfLengthBetween(1, 20));
+            settings = Settings.builder().put(settings).put(randomAlphaOfLength(10), randomInt()).build();
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new UpdateAllocationSettingsStep(key, nextKey, client, include, exclude, require);
+        return new UpdateSettingsStep(key, nextKey, client, settings);
     }
 
     public void testHashcodeAndEquals() {
-        EqualsHashCodeTestUtils
-                .checkEqualsAndHashCode(
-                        createRandomInstance(), instance -> new UpdateAllocationSettingsStep(instance.getKey(), instance.getNextStepKey(),
-                                instance.getClient(), instance.getInclude(), instance.getExclude(), instance.getRequire()),
-                        this::mutateInstance);
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createRandomInstance(), instance -> new UpdateSettingsStep(instance.getKey(),
+                instance.getNextStepKey(), instance.getClient(), instance.getSettings()), this::mutateInstance);
     }
 
     public void testPerformAction() {
-        Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
+        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
-        UpdateAllocationSettingsStep step = createRandomInstance();
+        UpdateSettingsStep step = createRandomInstance();
 
         AdminClient adminClient = Mockito.mock(AdminClient.class);
         IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
@@ -106,14 +89,7 @@ public class UpdateAllocationSettingsStepTests extends ESTestCase {
                 UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
                 @SuppressWarnings("unchecked")
                 ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                Settings.Builder expectedSettings = Settings.builder();
-                step.getInclude().forEach(
-                        (key, value) -> expectedSettings.put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + key, value));
-                step.getExclude().forEach(
-                        (key, value) -> expectedSettings.put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + key, value));
-                step.getRequire().forEach(
-                        (key, value) -> expectedSettings.put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + key, value));
-                UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings.build(), index.getName());
+                UpdateSettingsTestHelper.assertSettingsRequest(request, step.getSettings(), indexMetaData.getIndex().getName());
                 listener.onResponse(UpdateSettingsTestHelper.createMockResponse(true));
                 return null;
             }
@@ -122,7 +98,7 @@ public class UpdateAllocationSettingsStepTests extends ESTestCase {
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
 
-        step.performAction(index, new Listener() {
+        step.performAction(indexMetaData, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -143,9 +119,10 @@ public class UpdateAllocationSettingsStepTests extends ESTestCase {
     }
 
     public void testPerformActionFailure() {
-        Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
+        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         Exception exception = new RuntimeException();
-        UpdateAllocationSettingsStep step = createRandomInstance();
+        UpdateSettingsStep step = createRandomInstance();
 
         AdminClient adminClient = Mockito.mock(AdminClient.class);
         IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
@@ -159,14 +136,7 @@ public class UpdateAllocationSettingsStepTests extends ESTestCase {
                 UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
                 @SuppressWarnings("unchecked")
                 ActionListener<UpdateSettingsResponse> listener = (ActionListener<UpdateSettingsResponse>) invocation.getArguments()[1];
-                Settings.Builder expectedSettings = Settings.builder();
-                step.getInclude().forEach(
-                        (key, value) -> expectedSettings.put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + key, value));
-                step.getExclude().forEach(
-                        (key, value) -> expectedSettings.put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + key, value));
-                step.getRequire().forEach(
-                        (key, value) -> expectedSettings.put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + key, value));
-                UpdateSettingsTestHelper.assertSettingsRequest(request, expectedSettings.build(), index.getName());
+                UpdateSettingsTestHelper.assertSettingsRequest(request, step.getSettings(), indexMetaData.getIndex().getName());
                 listener.onFailure(exception);
                 return null;
             }
@@ -174,7 +144,7 @@ public class UpdateAllocationSettingsStepTests extends ESTestCase {
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(index, new Listener() {
+        step.performAction(indexMetaData, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {

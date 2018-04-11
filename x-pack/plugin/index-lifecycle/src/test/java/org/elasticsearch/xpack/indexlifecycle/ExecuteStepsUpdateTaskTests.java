@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 import org.elasticsearch.xpack.core.indexlifecycle.TestLifecycleType;
-import static org.elasticsearch.xpack.indexlifecycle.IndexLifecycleRunnerTests.MockClusterStateActionStep;
+import static org.elasticsearch.xpack.indexlifecycle.IndexLifecycleRunnerTests.MockInitializePolicyContextStep;
 import static org.elasticsearch.xpack.indexlifecycle.IndexLifecycleRunnerTests.MockClusterStateWaitStep;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -48,14 +48,14 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
     private String mixedPolicyName;
     private String allClusterPolicyName;
     private Index index;
-    private MockClusterStateActionStep firstStep;
+    private MockInitializePolicyContextStep firstStep;
     private MockClusterStateWaitStep secondStep;
     private MockClusterStateWaitStep allClusterSecondStep;
     private MockStep thirdStep;
 
     @Before
     public void prepareState() {
-        firstStep = new MockClusterStateActionStep(firstStepKey, secondStepKey);
+        firstStep = new MockInitializePolicyContextStep(firstStepKey, secondStepKey);
         secondStep = new MockClusterStateWaitStep(secondStepKey, thirdStepKey);
         secondStep.setWillComplete(true);
         allClusterSecondStep = new MockClusterStateWaitStep(secondStepKey, TerminalPolicyStep.KEY);

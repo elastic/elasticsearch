@@ -6,10 +6,12 @@
 package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -113,10 +115,14 @@ public class AllocateAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
-        StepKey allocateKey = new StepKey(phase, NAME, UpdateAllocationSettingsStep.NAME);
+        StepKey allocateKey = new StepKey(phase, NAME, NAME);
         StepKey allocationRoutedKey = new StepKey(phase, NAME, AllocationRoutedStep.NAME);
-        UpdateAllocationSettingsStep allocateStep = new UpdateAllocationSettingsStep(allocateKey, allocationRoutedKey, client, include,
-                exclude, require);
+
+        Settings.Builder newSettings = Settings.builder();
+        include.forEach((key, value) -> newSettings.put(IndexMetaData.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + key, value));
+        exclude.forEach((key, value) -> newSettings.put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + key, value));
+        require.forEach((key, value) -> newSettings.put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + key, value));
+        UpdateSettingsStep allocateStep = new UpdateSettingsStep(allocateKey, allocationRoutedKey, client, newSettings.build());
         AllocationRoutedStep routedCheckStep = new AllocationRoutedStep(allocationRoutedKey, nextStepKey);
         return Arrays.asList(allocateStep, routedCheckStep);
     }

@@ -26,6 +26,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -44,7 +45,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
 
     protected final NioSocketChannel channel;
     protected final ReadConsumer readConsumer;
-    protected final FlushProducer flushProducer;
+    protected final BytesFlushProducer flushProducer;
     protected final InboundChannelBuffer channelBuffer;
     protected final AtomicBoolean isClosing = new AtomicBoolean(false);
     private final SocketSelector selector;
@@ -54,12 +55,8 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     private Exception connectException;
     private FlushOperation pendingFlush;
 
-    protected SocketChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler) {
-        this(channel, selector, exceptionHandler, null, null, null);
-    }
-
     protected SocketChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,
-                                   ReadConsumer readConsumer, FlushProducer flushProducer, InboundChannelBuffer channelBuffer) {
+                                   ReadConsumer readConsumer, BytesFlushProducer flushProducer, InboundChannelBuffer channelBuffer) {
         super(channel.getRawChannel(), exceptionHandler);
         this.selector = selector;
         this.channel = channel;
@@ -132,7 +129,9 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             return;
         }
 
-        WriteOperation writeOperation = new WriteOperation(this, message, listener);
+        assert message instanceof ByteBuffer[] : "Only support sending  ByteBuffer[] messages";
+        FlushReadyWrite writeOperation = new FlushReadyWrite(this, (ByteBuffer[]) message, listener);
+
         SocketSelector selector = getSelector();
         if (selector.isOnCurrentThread() == false) {
             selector.queueWrite(writeOperation);
@@ -272,11 +271,30 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         default void close() throws IOException {}
     }
 
-    public interface FlushProducer extends AutoCloseable {
-        void produceWrites(WriteOperation writeOperation);
+    // Public for tests
+    public static class BytesFlushProducer {
 
-        FlushOperation pollFlushOperation();
+        private final LinkedList<FlushOperation> flushOperations = new LinkedList<>();
+        private final SocketSelector selector;
 
-        default void close() throws IOException {}
+        public BytesFlushProducer(SocketSelector selector) {
+            this.selector = selector;
+        }
+
+        public void produceWrites(WriteOperation writeOperation) {
+            assert writeOperation instanceof FlushReadyWrite : "Write operation must be flush ready";
+            flushOperations.addLast((FlushReadyWrite) writeOperation);
+        }
+
+        public FlushOperation pollFlushOperation() {
+            return flushOperations.pollFirst();
+        }
+
+        public void close() throws IOException {
+            for (FlushOperation flushOperation : flushOperations) {
+                selector.executeFailedListener(flushOperation.getListener(), new ClosedChannelException());
+            }
+            flushOperations.clear();
+        }
     }
 }

@@ -37,7 +37,7 @@ public class SocketEventHandlerTests extends ESTestCase {
 
     private Consumer<Exception> exceptionHandler;
 
-    private SocketChannelContext.FlushProducer flushProducer;
+    private SocketChannelContext.BytesFlushProducer flushProducer;
     private SocketEventHandler handler;
     private NioSocketChannel channel;
     private SocketChannel rawChannel;
@@ -47,7 +47,7 @@ public class SocketEventHandlerTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void setUpHandler() throws IOException {
         exceptionHandler = mock(Consumer.class);
-        flushProducer = mock(SocketChannelContext.FlushProducer.class);
+        flushProducer = mock(SocketChannelContext.BytesFlushProducer.class);
         SocketSelector selector = mock(SocketSelector.class);
         handler = new SocketEventHandler(logger);
         rawChannel = mock(SocketChannel.class);
@@ -86,7 +86,7 @@ public class SocketEventHandlerTests extends ESTestCase {
 
     public void testRegisterWithPendingWritesAddsOP_CONNECTAndOP_READAndOP_WRITEInterest() throws IOException {
         when(flushProducer.pollFlushOperation()).thenReturn(mock(FlushOperation.class));
-        channel.getContext().queueWriteOperation(mock(WriteOperation.class));
+        channel.getContext().queueWriteOperation(mock(FlushReadyWrite.class));
         handler.handleRegistration(context);
         assertEquals(SelectionKey.OP_READ | SelectionKey.OP_CONNECT | SelectionKey.OP_WRITE, context.getSelectionKey().interestOps());
     }
@@ -195,7 +195,7 @@ public class SocketEventHandlerTests extends ESTestCase {
         private final TestSelectionKey selectionKey;
 
         DoNotRegisterContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,
-                             TestSelectionKey selectionKey, FlushProducer flushProducer) {
+                             TestSelectionKey selectionKey, BytesFlushProducer flushProducer) {
             super(channel, selector, exceptionHandler, mock(ReadConsumer.class), flushProducer,
                 InboundChannelBuffer.allocatingInstance());
             this.selectionKey = selectionKey;

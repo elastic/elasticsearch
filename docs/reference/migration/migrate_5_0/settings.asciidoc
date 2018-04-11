@@ -251,7 +251,7 @@ properties file format (line-delimited key=value pairs with a `.properties` exte
 
 ==== Discovery Settings
 
-The `discovery.zen.minimum_master_node` must be set for nodes that have
+The `discovery.zen.minimum_master_nodes` must be set for nodes that have
 `network.host`, `network.bind_host`, `network.publish_host`,
 `transport.host`, `transport.bind_host`, or `transport.publish_host`
 configuration options set. We see those nodes as in "production" mode

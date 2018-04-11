@@ -270,10 +270,6 @@ public class TypeFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void postParse(ParseContext context) throws IOException {
-    }
-
-    @Override
     public Mapper parse(ParseContext context) throws IOException {
         // we parse in pre parse
         return null;

@@ -61,12 +61,12 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        masterNodeTimeout = new TimeValue(in);
+        masterNodeTimeout = in.readTimeValue();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        masterNodeTimeout.writeTo(out);
+        out.writeTimeValue(masterNodeTimeout);
     }
 }

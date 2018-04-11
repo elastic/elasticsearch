@@ -881,6 +881,6 @@ public final class IndexSettings {
      * Returns <code>true</code> if soft-delete is enabled.
      */
     public boolean isSoftDeleteEnabled() {
-        return softDeleteEnabled;
+        return getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1) && softDeleteEnabled;
     }
 }

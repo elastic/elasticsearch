@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -49,12 +50,13 @@ public class ReplicasActionTests extends AbstractSerializingTestCase<ReplicasAct
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
         assertEquals(2, steps.size());
-        StepKey expectedFirstStepKey = new StepKey(phase, ReplicasAction.NAME, UpdateReplicaSettingsStep.NAME);
+        StepKey expectedFirstStepKey = new StepKey(phase, ReplicasAction.NAME, UpdateSettingsStep.NAME);
         StepKey expectedSecondStepKey = new StepKey(phase, ReplicasAction.NAME, ReplicasAllocatedStep.NAME);
-        UpdateReplicaSettingsStep firstStep = (UpdateReplicaSettingsStep) steps.get(0);
+        UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(0);
         assertEquals(expectedFirstStepKey, firstStep.getKey());
         assertEquals(expectedSecondStepKey, firstStep.getNextStepKey());
-        assertEquals(action.getNumberOfReplicas(), firstStep.getNumberOfReplicas());
+        assertEquals(1, firstStep.getSettings().size());
+        assertEquals(action.getNumberOfReplicas(), IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.get(firstStep.getSettings()).intValue());
         ReplicasAllocatedStep secondStep = (ReplicasAllocatedStep) steps.get(1);
         assertEquals(expectedSecondStepKey, secondStep.getKey());
         assertEquals(nextStepKey, secondStep.getNextStepKey());

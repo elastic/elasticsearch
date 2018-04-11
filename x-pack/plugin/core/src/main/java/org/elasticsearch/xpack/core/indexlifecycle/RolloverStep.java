@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.Index;
 
 import java.util.Objects;
 
@@ -32,7 +32,8 @@ public class RolloverStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(Index index, Listener listener) {
+    public void performAction(IndexMetaData indexMetaData, Listener listener) {
+        // TODO(talevy): shouldn't we double-check that this alias is managed by us/this-index?
         RolloverRequest rolloverRequest = new RolloverRequest(alias, null);
         if (maxAge != null) {
             rolloverRequest.addMaxIndexAgeCondition(maxAge);

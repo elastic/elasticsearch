@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.index.Index;
 
 public abstract class AsyncActionStep extends Step {
@@ -25,7 +26,7 @@ public abstract class AsyncActionStep extends Step {
         return true;
     }
 
-    public abstract void performAction(Index index, Listener listener);
+    public abstract void performAction(IndexMetaData indexMetaData, Listener listener);
 
     public interface Listener {
 

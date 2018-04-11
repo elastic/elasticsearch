@@ -10,9 +10,12 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.io.IOException;
@@ -91,13 +94,16 @@ public class ForceMergeAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
-        StepKey updateCompressionKey = new StepKey(phase, NAME, UpdateBestCompressionSettingsStep.NAME);
+        StepKey updateCompressionKey = new StepKey(phase, NAME, "best_compression");
         StepKey forceMergeKey = new StepKey(phase, NAME, ForceMergeStep.NAME);
         StepKey countKey = new StepKey(phase, NAME, SegmentCountStep.NAME);
         ForceMergeStep forceMergeStep = new ForceMergeStep(forceMergeKey, countKey, client, maxNumSegments);
         SegmentCountStep segmentCountStep = new SegmentCountStep(countKey, nextStepKey, client, maxNumSegments, bestCompression);
         if (bestCompression) {
-            UpdateBestCompressionSettingsStep updateBestCompression = new UpdateBestCompressionSettingsStep(updateCompressionKey, forceMergeKey);
+            Settings compressionSettings = Settings.builder()
+                .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), CodecService.BEST_COMPRESSION_CODEC).build();
+            UpdateSettingsStep updateBestCompression = new UpdateSettingsStep(updateCompressionKey,
+                forceMergeKey, client, compressionSettings);
             return Arrays.asList(updateBestCompression, forceMergeStep, segmentCountStep);
         }
         return Arrays.asList(forceMergeStep, segmentCountStep);

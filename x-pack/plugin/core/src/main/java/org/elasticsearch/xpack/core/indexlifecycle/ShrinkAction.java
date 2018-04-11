@@ -150,6 +150,17 @@ public class ShrinkAction implements LifecycleAction {
 //            return clusterState;
 //        });
 
+//        UpdateSettingsStep allocateStep = new UpdateSettingsStep();
+//        UpdateSettingsStep waitForAllocation = new UpdateSettingsStep();
+//        UpdateSettingsStep allocateStep = new UpdateSettingsStep();
+//        Step.StepKey allocateKey = new StepKey(phase, NAME, NAME);
+//        StepKey allocationRoutedKey = new StepKey(phase, NAME, AllocationRoutedStep.NAME);
+//
+//        Settings.Builder newSettings = Settings.builder();
+//        newSettings.put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_name", value));
+//        UpdateSettingsStep allocateStep = new UpdateSettingsStep(allocateKey, allocationRoutedKey, client, newSettings.build());
+//        AllocationRoutedStep routedCheckStep = new AllocationRoutedStep(allocationRoutedKey, nextStepKey);
+//        return Arrays.asList(allocateStep, routedCheckStep);
         return Arrays.asList();
     }
 

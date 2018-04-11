@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -39,10 +40,12 @@ public class ReadOnlyActionTests extends AbstractSerializingTestCase<ReadOnlyAct
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
         assertEquals(1, steps.size());
-        StepKey expectedFirstStepKey = new StepKey(phase, ReadOnlyAction.NAME, ReadOnlyStep.NAME);
-        ReadOnlyStep firstStep = (ReadOnlyStep) steps.get(0);
+        StepKey expectedFirstStepKey = new StepKey(phase, ReadOnlyAction.NAME, ReadOnlyAction.NAME);
+        UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(0);
         assertThat(firstStep.getKey(), equalTo(expectedFirstStepKey));
         assertThat(firstStep.getNextStepKey(), equalTo(nextStepKey));
+        assertThat(firstStep.getSettings().size(), equalTo(1));
+        assertTrue(IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.get(firstStep.getSettings()));
     }
 
 }

@@ -14,31 +14,30 @@ import org.elasticsearch.index.Index;
 
 import java.util.Objects;
 
-public class UpdateReplicaSettingsStep extends AsyncActionStep {
-    public static final String NAME = "update-replicas";
+public class UpdateSettingsStep extends AsyncActionStep {
+    public static final String NAME = "update-settings";
 
-    private int numberOfReplicas;
+    private final Settings settings;
 
-    public UpdateReplicaSettingsStep(StepKey key, StepKey nextStepKey, Client client, int numberOfReplicas) {
+    public UpdateSettingsStep(StepKey key, StepKey nextStepKey, Client client, Settings settings) {
         super(key, nextStepKey, client);
-        this.numberOfReplicas = numberOfReplicas;
+        this.settings = settings;
     }
 
     @Override
-    public void performAction(Index index, Listener listener) {
-        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(index.getName())
-                .settings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas));
+    public void performAction(IndexMetaData indexMetaData, Listener listener) {
+        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indexMetaData.getIndex().getName()).settings(settings);
         getClient().admin().indices().updateSettings(updateSettingsRequest,
                 ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
     }
 
-    public int getNumberOfReplicas() {
-        return numberOfReplicas;
+    public Settings getSettings() {
+        return settings;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), numberOfReplicas);
+        return Objects.hash(super.hashCode(), settings);
     }
     
     @Override
@@ -49,8 +48,8 @@ public class UpdateReplicaSettingsStep extends AsyncActionStep {
         if (getClass() != obj.getClass()) {
             return false;
         }
-        UpdateReplicaSettingsStep other = (UpdateReplicaSettingsStep) obj;
+        UpdateSettingsStep other = (UpdateSettingsStep) obj;
         return super.equals(obj) &&
-                Objects.equals(numberOfReplicas, other.numberOfReplicas);
+                Objects.equals(settings, other.settings);
     }
 }

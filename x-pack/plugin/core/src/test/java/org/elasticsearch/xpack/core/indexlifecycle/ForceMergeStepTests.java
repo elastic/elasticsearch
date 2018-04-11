@@ -7,12 +7,14 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -65,6 +67,8 @@ public class ForceMergeStepTests extends ESTestCase {
     }
 
     public void testPerformActionComplete() {
+        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         Step.StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         int maxNumSegments = randomIntBetween(1, 10);
@@ -85,9 +89,8 @@ public class ForceMergeStepTests extends ESTestCase {
         }).when(indicesClient).forceMerge(any(), any());
 
         ForceMergeStep step = new ForceMergeStep(stepKey, nextStepKey, client, maxNumSegments);
-        Index index = new Index(randomAlphaOfLength(5), randomAlphaOfLength(5));
         SetOnce<Boolean> completed = new SetOnce<>();
-        step.performAction(index, new AsyncActionStep.Listener() {
+        step.performAction(indexMetaData, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 completed.set(complete);
@@ -102,6 +105,8 @@ public class ForceMergeStepTests extends ESTestCase {
     }
 
     public void testPerformActionThrowsException() {
+        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         Exception exception = new RuntimeException("error");
         Step.StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
@@ -115,6 +120,8 @@ public class ForceMergeStepTests extends ESTestCase {
         Mockito.when(forceMergeResponse.getStatus()).thenReturn(RestStatus.OK);
         Mockito.doAnswer(invocationOnMock -> {
             ForceMergeRequest request = (ForceMergeRequest) invocationOnMock.getArguments()[0];
+            assertThat(request.indices().length, equalTo(1));
+            assertThat(request.indices()[0], equalTo(indexMetaData.getIndex().getName()));
             assertThat(request.maxNumSegments(), equalTo(maxNumSegments));
             @SuppressWarnings("unchecked")
             ActionListener<ForceMergeResponse> listener = (ActionListener<ForceMergeResponse>) invocationOnMock.getArguments()[1];
@@ -123,9 +130,8 @@ public class ForceMergeStepTests extends ESTestCase {
         }).when(indicesClient).forceMerge(any(), any());
 
         ForceMergeStep step = new ForceMergeStep(stepKey, nextStepKey, client, maxNumSegments);
-        Index index = new Index(randomAlphaOfLength(5), randomAlphaOfLength(5));
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(index, new AsyncActionStep.Listener() {
+        step.performAction(indexMetaData, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 throw new AssertionError("unexpected method call");

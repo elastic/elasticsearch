@@ -85,7 +85,7 @@ import static org.elasticsearch.ElasticsearchException.readStackTrace;
  */
 public abstract class StreamInput extends InputStream {
 
-    private static Map<Byte, TimeUnit> BYTE_TIME_UNIT_MAP;
+    private static final Map<Byte, TimeUnit> BYTE_TIME_UNIT_MAP;
 
     static {
         final Map<Byte, TimeUnit> byteTimeUnitMap = new HashMap<>();
@@ -96,6 +96,10 @@ public abstract class StreamInput extends InputStream {
         byteTimeUnitMap.put((byte)4, TimeUnit.MINUTES);
         byteTimeUnitMap.put((byte)5, TimeUnit.HOURS);
         byteTimeUnitMap.put((byte)6, TimeUnit.DAYS);
+
+        for (TimeUnit value : TimeUnit.values()) {
+            assert byteTimeUnitMap.containsValue(value) : value;
+        }
 
         BYTE_TIME_UNIT_MAP = Collections.unmodifiableMap(byteTimeUnitMap);
     }

@@ -77,7 +77,7 @@ import java.util.function.IntFunction;
  */
 public abstract class StreamOutput extends OutputStream {
 
-    private static Map<TimeUnit, Byte> TIME_UNIT_BYTE_MAP;
+    private static final Map<TimeUnit, Byte> TIME_UNIT_BYTE_MAP;
 
     static {
         final Map<TimeUnit, Byte> timeUnitByteMap = new EnumMap<>(TimeUnit.class);

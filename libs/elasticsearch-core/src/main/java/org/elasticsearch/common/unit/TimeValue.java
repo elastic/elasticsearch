@@ -19,15 +19,12 @@
 
 package org.elasticsearch.common.unit;
 
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-public class TimeValue implements Comparable<TimeValue>, ToXContentFragment {
+public class TimeValue implements Comparable<TimeValue> {
 
     /** How many nano-seconds in one milli-second */
     public static final long NSEC_PER_MSEC = TimeUnit.NANOSECONDS.convert(1, TimeUnit.MILLISECONDS);
@@ -351,10 +348,5 @@ public class TimeValue implements Comparable<TimeValue>, ToXContentFragment {
         double thisValue = ((double) duration) * timeUnit.toNanos(1);
         double otherValue = ((double) timeValue.duration) * timeValue.timeUnit.toNanos(1);
         return Double.compare(thisValue, otherValue);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.value(toString());
     }
 }

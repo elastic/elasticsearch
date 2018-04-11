@@ -61,8 +61,9 @@ class TermsSortedDocsProducer extends SortedDocsProducer {
         DocIdSetBuilder builder = fillDocIdSet ? new DocIdSetBuilder(context.reader().maxDoc(), terms) : null;
         PostingsEnum reuse = null;
         boolean first = true;
+        final BytesRef upper = upperValue == null ? null : BytesRef.deepCopyOf(upperValue);
         do {
-            if (upperValue != null && upperValue.compareTo(te.term()) < 0) {
+            if (upper != null && upper.compareTo(te.term()) < 0) {
                 break;
             }
             reuse = te.postings(reuse, PostingsEnum.NONE);

@@ -33,6 +33,7 @@ class CompositeValuesSourceConfig {
     private final DocValueFormat format;
     private final int reverseMul;
     private final Object missing;
+    private final boolean missingBucket;
 
     /**
      * Creates a new {@link CompositeValuesSourceConfig}.
@@ -44,12 +45,14 @@ class CompositeValuesSourceConfig {
      * @param missing The missing value or null if documents with missing value should be ignored.
      */
     CompositeValuesSourceConfig(String name, @Nullable MappedFieldType fieldType, ValuesSource vs, DocValueFormat format,
-                                SortOrder order, @Nullable Object missing) {
+                                SortOrder order, boolean missingBucket, @Nullable Object missing) {
         this.name = name;
         this.fieldType = fieldType;
         this.vs = vs;
         this.format = format;
         this.reverseMul = order == SortOrder.ASC ? 1 : -1;
+        this.missingBucket = missingBucket;
+        assert missingBucket == false || missing == null;
         this.missing = missing;
     }
 
@@ -87,6 +90,13 @@ class CompositeValuesSourceConfig {
      */
     Object missing() {
         return missing;
+    }
+
+    /**
+     * If true, an explicit `null bucket represents documents with missing values.
+     */
+    boolean missingBucket() {
+        return missingBucket;
     }
 
     /**

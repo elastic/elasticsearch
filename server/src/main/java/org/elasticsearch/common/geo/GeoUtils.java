@@ -369,12 +369,16 @@ public class GeoUtils {
     public static GeoPoint parseGeoPoint(Object value, final boolean ignoreZValue) throws ElasticsearchParseException {
         try {
             XContentBuilder content = JsonXContent.contentBuilder();
-            content.value(value);
+            content.startObject();
+            content.field("null_value", value);
+            content.endObject();
 
             try (InputStream stream = BytesReference.bytes(content).streamInput();
                  XContentParser parser = JsonXContent.jsonXContent.createParser(
                      NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
-                parser.nextToken();
+                parser.nextToken(); // start object
+                parser.nextToken(); // field name
+                parser.nextToken(); // field value
                 return parseGeoPoint(parser, new GeoPoint(), ignoreZValue);
             }
 

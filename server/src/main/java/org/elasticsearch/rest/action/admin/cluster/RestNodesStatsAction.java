@@ -68,6 +68,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
         metrics.put("indices", r -> r.indices(true));
         metrics.put("process", r -> r.process(true));
         metrics.put("breaker", r -> r.breaker(true));
+        metrics.put("breakers", r -> r.breaker(true));
         metrics.put("script", r -> r.script(true));
         metrics.put("discovery", r -> r.discovery(true));
         metrics.put("ingest", r -> r.ingest(true));

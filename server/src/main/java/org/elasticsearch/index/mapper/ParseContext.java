@@ -26,13 +26,15 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-public abstract class ParseContext {
+public abstract class ParseContext implements Iterable<ParseContext.Document>{
 
     /** Fork of {@link org.apache.lucene.document.Document} with additional functionality. */
     public static class Document implements Iterable<IndexableField> {
@@ -172,6 +174,11 @@ public abstract class ParseContext {
         }
 
         @Override
+        public Iterable<Document> nonRootIterator() {
+            return in.nonRootIterator();
+        }
+
+        @Override
         public DocumentMapperParser docMapperParser() {
             return in.docMapperParser();
         }
@@ -209,11 +216,6 @@ public abstract class ParseContext {
         @Override
         public Document rootDoc() {
             return in.rootDoc();
-        }
-
-        @Override
-        public List<Document> docs() {
-            return in.docs();
         }
 
         @Override
@@ -280,6 +282,11 @@ public abstract class ParseContext {
         public List<Mapper> getDynamicMappers() {
             return in.getDynamicMappers();
         }
+
+        @Override
+        public Iterator<Document> iterator() {
+            return in.iterator();
+        }
     }
 
     public static class InternalParseContext extends ParseContext {
@@ -309,8 +316,9 @@ public abstract class ParseContext {
 
         private long numNestedDocs;
 
-
         private final List<Mapper> dynamicMappers;
+
+        private boolean docsReversed = false;
 
         public InternalParseContext(@Nullable Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper,
                 SourceToParse source, XContentParser parser) {
@@ -360,8 +368,7 @@ public abstract class ParseContext {
             return documents.get(0);
         }
 
-        @Override
-        public List<Document> docs() {
+        List<Document> docs() {
             return this.documents;
         }
 
@@ -426,7 +433,30 @@ public abstract class ParseContext {
         public List<Mapper> getDynamicMappers() {
             return dynamicMappers;
         }
+
+        @Override
+        public Iterable<Document> nonRootIterator() {
+            if (docsReversed) {
+                throw new IllegalStateException("documents are already reversed");
+            }
+            return documents.subList(1, documents.size());
+        }
+
+        void postParse() {
+            // reverse the order of docs for nested docs support, parent should be last
+            if (documents.size() > 1) {
+                docsReversed = true;
+                Collections.reverse(documents);
+            }
+        }
+
+        @Override
+        public Iterator<Document> iterator() {
+            return documents.iterator();
+        }
     }
+
+    public abstract Iterable<Document> nonRootIterator();
 
     public abstract DocumentMapperParser docMapperParser();
 
@@ -505,8 +535,6 @@ public abstract class ParseContext {
     public abstract XContentParser parser();
 
     public abstract Document rootDoc();
-
-    public abstract List<Document> docs();
 
     public abstract Document doc();
 

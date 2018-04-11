@@ -255,7 +255,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         assert seqID != null;
         final Version versionCreated = context.mapperService().getIndexSettings().getIndexVersionCreated();
         final boolean includePrimaryTerm = versionCreated.before(Version.V_6_1_0);
-        for (Document doc : context.nonRootIterator()) {
+        for (Document doc : context.nonRootDocuments()) {
             doc.add(seqID.seqNo);
             doc.add(seqID.seqNoDocValue);
             if (includePrimaryTerm) {

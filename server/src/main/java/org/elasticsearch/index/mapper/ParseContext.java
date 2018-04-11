@@ -26,7 +26,6 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.util.ArrayList;
@@ -174,8 +173,8 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         }
 
         @Override
-        public Iterable<Document> nonRootIterator() {
-            return in.nonRootIterator();
+        public Iterable<Document> nonRootDocuments() {
+            return in.nonRootDocuments();
         }
 
         @Override
@@ -435,7 +434,7 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         }
 
         @Override
-        public Iterable<Document> nonRootIterator() {
+        public Iterable<Document> nonRootDocuments() {
             if (docsReversed) {
                 throw new IllegalStateException("documents are already reversed");
             }
@@ -456,7 +455,11 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         }
     }
 
-    public abstract Iterable<Document> nonRootIterator();
+    /**
+     * Returns an Iterable over all non-root documents. If there are no non-root documents
+     * the iterable will return an empty iterator.
+     */
+    public abstract Iterable<Document> nonRootDocuments();
 
     public abstract DocumentMapperParser docMapperParser();
 

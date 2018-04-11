@@ -224,7 +224,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
-        boolean needsOriginalSource = false;
         BytesReference source = context.sourceToParse().source();
         if (enabled && fieldType().stored() && source != null) {
             // Percolate and tv APIs may not set the source and that is ok, because these APIs will not index any data
@@ -237,7 +236,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 XContentType contentType = mapTuple.v1();
                 XContentBuilder builder = XContentFactory.contentBuilder(contentType, bStream).map(filteredSource);
                 builder.close();
-                needsOriginalSource = true;
                 source = bStream.bytes();
             }
             BytesRef ref = source.toBytesRef();

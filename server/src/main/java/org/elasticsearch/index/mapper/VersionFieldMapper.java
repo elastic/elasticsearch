@@ -128,7 +128,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         // that don't have the field. This is consistent with the default value for efficiency.
         Field version = context.version();
         assert version != null;
-        for (Document doc : context.nonRootIterator()) {
+        for (Document doc : context.nonRootDocuments()) {
             doc.add(version);
         }
     }

@@ -244,7 +244,7 @@ public class IndexModuleTests extends ESTestCase {
         assertSame(listener, indexService.getIndexOperationListeners().get(1));
 
         ParsedDocument doc = InternalEngineTests.createParsedDoc("1", null);
-        Engine.Index index = new Engine.Index(new Term("_uid",  Uid.createUidAsBytes(doc.type(), doc.id())), doc);
+        Engine.Index index = new Engine.Index(new Term("_id",  Uid.encodeId(doc.id())), doc);
         ShardId shardId = new ShardId(new Index("foo", "bar"), 0);
         for (IndexingOperationListener l : indexService.getIndexOperationListeners()) {
             l.preIndex(shardId, index);

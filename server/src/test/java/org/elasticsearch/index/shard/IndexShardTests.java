@@ -2062,11 +2062,11 @@ public class IndexShardTests extends IndexShardTestCase {
         for (int i = 0; i < numTotalEntries; i++) {
             if (randomBoolean()) {
                 operations.add(new Translog.Index("test", "1", 0, 1, VersionType.INTERNAL,
-                    "{\"foo\" : \"bar\"}".getBytes(Charset.forName("UTF-8")), null, null, -1));
+                    "{\"foo\" : \"bar\"}".getBytes(Charset.forName("UTF-8")), null, -1));
             } else {
                 // corrupt entry
                 operations.add(new Translog.Index("test", "2", 1, 1, VersionType.INTERNAL,
-                    "{\"foo\" : \"bar}".getBytes(Charset.forName("UTF-8")), null, null, -1));
+                    "{\"foo\" : \"bar}".getBytes(Charset.forName("UTF-8")), null, -1));
                 numCorruptEntries++;
             }
         }

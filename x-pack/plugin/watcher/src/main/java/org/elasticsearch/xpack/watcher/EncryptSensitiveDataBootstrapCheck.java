@@ -37,7 +37,7 @@ final class EncryptSensitiveDataBootstrapCheck implements BootstrapCheck {
                         "filesystem.\nRepeat this on every node in the cluster.";
             } else {
                 message = "Encryption of sensitive data requires a key to be placed in the secure setting store. First run the " +
-                        "bin/x-pack/syskeygen tool to generate a key file.\nThen run 'bin/elasticsearch-keystore add-file " +
+                        "bin/elasticsearch-syskeygen tool to generate a key file.\nThen run 'bin/elasticsearch-keystore add-file " +
                         WatcherField.ENCRYPTION_KEY_SETTING.getKey() + " " +
                         systemKeyPath + "' to import the key into" +
                         " the secure setting store. Finally, remove the system_key file from the filesystem.\n" +

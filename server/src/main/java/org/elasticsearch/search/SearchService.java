@@ -55,8 +55,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.node.NodeService;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
@@ -179,6 +177,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final AtomicLong idGenerator = new AtomicLong();
 
     private final ConcurrentMapLong<SearchContext> activeContexts = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
+
+    private int numActiveContexts = 0;
 
     private final MultiBucketConsumerService multiBucketConsumerService;
 
@@ -557,7 +557,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     final SearchContext createAndPutContext(ShardSearchRequest request) throws IOException {
-        if (activeContexts.size() >= MAX_OPEN_CONTEXT.get(settings)) {
+        if (numActiveContexts >= MAX_OPEN_CONTEXT.get(settings)) {
             throw new ElasticsearchException(
                 "Trying to create too many search contexts. Must be less than or equal to: [" +
                     MAX_OPEN_CONTEXT.get(settings) + "]. This limit can be set by changing the ["
@@ -573,6 +573,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             context.indexShard().getSearchOperationListener().onNewContext(context);
             success = true;
+            numActiveContexts++;
             return context;
         } finally {
             if (!success) {
@@ -675,6 +676,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             } finally {
                 context.close();
             }
+            numActiveContexts--;
             return true;
         }
         return false;

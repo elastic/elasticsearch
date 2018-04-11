@@ -46,7 +46,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.MockScriptEngine;
@@ -376,7 +375,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         assertEquals(
             "Trying to create too many search contexts. Must be less than or equal to: [" +
                 service.MAX_OPEN_CONTEXT.get(Settings.EMPTY) + "]. " +
-                "This limit can be set by changing the [node.max_search_context] node level setting.",
+                "This limit can be set by changing the [search.max_open_context] setting.",
             ex.getMessage());
     }
 

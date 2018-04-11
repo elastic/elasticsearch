@@ -8,8 +8,10 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.elasticsearch.test.ESTestCase;
 
-public class StepTests extends ESTestCase {
+public class TerminalPolicyStepTests extends ESTestCase {
 
-    public void test() {
+    public void testKeys() {
+        assertEquals(new Step.StepKey("completed", "completed", "completed"), TerminalPolicyStep.INSTANCE.getKey());
+        assertEquals(null, TerminalPolicyStep.INSTANCE.getNextStepKey());
     }
 }

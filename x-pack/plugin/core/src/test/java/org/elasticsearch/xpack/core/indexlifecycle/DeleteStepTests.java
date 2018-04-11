@@ -16,6 +16,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
+import org.junit.Before;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
@@ -24,15 +27,51 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DeleteStepTests extends ESTestCase {
 
+    private Client client;
+
+    @Before
+    public void setup() {
+        client = Mockito.mock(Client.class);
+    }
+
+    public DeleteStep createRandomInstance() {
+        StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+
+        return new DeleteStep(stepKey, nextStepKey, client);
+    }
+
+    public DeleteStep mutateInstance(DeleteStep instance) {
+        StepKey key = instance.getKey();
+        StepKey nextKey = instance.getNextStepKey();
+
+        switch (between(0, 1)) {
+        case 0:
+            key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            break;
+        case 1:
+            nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new DeleteStep(key, nextKey, instance.getClient());
+    }
+
+    public void testHashcodeAndEquals() {
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createRandomInstance(),
+                instance -> new DeleteStep(instance.getKey(), instance.getNextStepKey(), instance.getClient()), this::mutateInstance);
+    }
+
     public void testIndexSurvives() {
-        assertFalse(new DeleteStep(null, null, null).indexSurvives());
+        assertFalse(createRandomInstance().indexSurvives());
     }
 
     public void testDeleted() {
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
-        Client client = Mockito.mock(Client.class);
         AdminClient adminClient = Mockito.mock(AdminClient.class);
         IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
 
@@ -51,7 +90,7 @@ public class DeleteStepTests extends ESTestCase {
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
 
-        DeleteStep step = new DeleteStep(null, null, client);
+        DeleteStep step = createRandomInstance();
         step.performAction(indexMetaData, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
@@ -76,7 +115,6 @@ public class DeleteStepTests extends ESTestCase {
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         Exception exception = new RuntimeException();
 
-        Client client = Mockito.mock(Client.class);
         AdminClient adminClient = Mockito.mock(AdminClient.class);
         IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
 
@@ -99,7 +137,7 @@ public class DeleteStepTests extends ESTestCase {
         }).when(indicesClient).delete(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        DeleteStep step = new DeleteStep(null, null, client);
+        DeleteStep step = createRandomInstance();
         step.performAction(indexMetaData, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {

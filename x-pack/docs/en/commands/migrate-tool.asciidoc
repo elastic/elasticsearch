@@ -1,10 +1,10 @@
 [role="xpack"]
 [[migrate-tool]]
-== migrate
+== elasticsearch-migrate
 
-The `migrate` command migrates existing file-based users and roles to the native
-realm. From 5.0 onward, you should use the `native` realm to manage roles and
-local users.
+The `elasticsearch-migrate` command migrates existing file-based users and roles
+to the native realm. From 5.0 onward, you should use the `native` realm to
+manage roles and local users.
 
 
 [float]
@@ -12,7 +12,7 @@ local users.
 
 [source,shell]
 --------------------------------------------------
-bin/x-pack/migrate
+bin/elasticsearch-migrate
 (native (-U, --url <url>)
 [-h, --help] [-E <KeyValuePair>]
 [-n, --users <uids>] [-r, --roles <roles>]
@@ -23,17 +23,17 @@ bin/x-pack/migrate
 [float]
 === Description
 
-NOTE: When migrating from Shield 2.x, the `migrate` tool should be run prior
-to upgrading to ensure all roles can be migrated as some may be in a deprecated
-format that {xpack} cannot read. The `migrate` tool is available in Shield
-2.4.0 and higher.
+NOTE: When migrating from Shield 2.x, the `elasticsearch-migrate` tool should be
+run prior to upgrading to ensure all roles can be migrated as some may be in a
+deprecated format that {xpack} cannot read. The `migrate` tool is available in
+Shield 2.4.0 and higher.
 
-The `migrate` tool loads the existing file-based users and roles and calls the
-user and roles APIs to add them to the native realm. You can migrate all users
-and roles, or specify the ones you want to migrate. Users and roles that
-already exist in the `native` realm are not replaced or overridden. If
-the names you specify with the `--users` and `--roles` options don't
-exist in the `file` realm, they are skipped.
+The `elasticsearch-migrate` tool loads the existing file-based users and roles
+and calls the user and roles APIs to add them to the native realm. You can
+migrate all users and roles, or specify the ones you want to migrate. Users and
+roles that already exist in the `native` realm are not replaced or
+overridden. If the names you specify with the `--users` and `--roles` options
+don't exist in the `file` realm, they are skipped.
 
 [float]
 [[migrate-tool-options]]
@@ -73,11 +73,11 @@ Username to use for authentication with {es}.
 [float]
 === Examples
 
-Run the migrate tool when {xpack} is installed. For example:
+Run the `elasticsearch-migrate` tool when {xpack} is installed. For example:
 
 [source, sh]
 ----------------------------------------------------------------------
-$ bin/x-pack/migrate native -U http://localhost:9200 -u elastic
+$ bin/elasticsearch-migrate native -U http://localhost:9200 -u elastic
 -p x-pack-test-password -n lee,foo -r role1,role2,role3,role4,foo
 starting migration of users and roles...
 importing users from [/home/es/config/shield/users]...
@@ -104,6 +104,6 @@ to specify a different configuration directory, the command would look like:
 
 [source, sh]
 ----------------------------------------------------------------------
-$ bin/x-pack/migrate native -U http://localhost:9200 -u elastic
+$ bin/elasticsearch-migrate native -U http://localhost:9200 -u elastic
 -p x-pack-test-password -E path.conf=/etc/elasticsearch
 ----------------------------------------------------------------------

@@ -77,7 +77,6 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                                 .put("index.number_of_shards", 1)
                                 .put("index.number_of_replicas", 0)
                                 .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), Long.MAX_VALUE)
-                                .put("index.version.created", Version.V_5_6_0) // for multiple types
                 ).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
@@ -85,7 +84,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         int numberOfTypes = randomIntBetween(1, 5);
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
         for (int rec = 0; rec < recCount; rec++) {
-            String type = "type" + (rec % numberOfTypes);
+            String type = "type";
             String fieldName = "field_" + type + "_" + rec;
             indexRequests.add(client().prepareIndex("test", type, Integer.toString(rec)).setSource(fieldName, "some_value"));
         }
@@ -100,7 +99,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         logger.info("checking all the fields are in the mappings");
 
         for (int rec = 0; rec < recCount; rec++) {
-            String type = "type" + (rec % numberOfTypes);
+            String type = "type";
             String fieldName = "field_" + type + "_" + rec;
             assertConcreteMappingsOnAll("test", type, fieldName);
         }
@@ -347,22 +346,4 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    public void testUpdateMappingOnAllTypes() {
-        assertTrue("remove this multi type test", Version.CURRENT.before(Version.fromString("7.0.0")));
-        assertAcked(prepareCreate("index")
-                .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))
-                .addMapping("type1", "f", "type=keyword").addMapping("type2", "f", "type=keyword"));
-
-        assertAcked(client().admin().indices().preparePutMapping("index")
-                .setType("type1")
-                .setSource("f", "type=keyword,null_value=n/a")
-                .get());
-
-        GetMappingsResponse mappings = client().admin().indices().prepareGetMappings("index").setTypes("type2").get();
-        MappingMetaData type2Mapping = mappings.getMappings().get("index").get("type2").get();
-        Map<String, Object> properties = (Map<String, Object>) type2Mapping.sourceAsMap().get("properties");
-        Map<String, Object> f = (Map<String, Object>) properties.get("f");
-        assertEquals("n/a", f.get("null_value"));
-    }
 }

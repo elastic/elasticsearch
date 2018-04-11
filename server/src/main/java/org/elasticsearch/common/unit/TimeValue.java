@@ -24,13 +24,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.joda.time.Period;
-import org.joda.time.PeriodType;
-import org.joda.time.format.PeriodFormat;
-import org.joda.time.format.PeriodFormatter;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -238,19 +233,6 @@ public class TimeValue implements Writeable, Comparable<TimeValue>, ToXContentFr
 
     public double getDaysFrac() {
         return daysFrac();
-    }
-
-    private final PeriodFormatter defaultFormatter = PeriodFormat.getDefault()
-            .withParseType(PeriodType.standard());
-
-    public String format() {
-        Period period = new Period(millis());
-        return defaultFormatter.print(period);
-    }
-
-    public String format(PeriodType type) {
-        Period period = new Period(millis());
-        return PeriodFormat.getDefault().withParseType(type).print(period);
     }
 
     /**

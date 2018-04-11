@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
@@ -42,8 +43,8 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
 
     DoubleValuesSource(BigArrays bigArrays, MappedFieldType fieldType,
                        CheckedFunction<LeafReaderContext, SortedNumericDoubleValues, IOException> docValuesFunc,
-                       int size, int reverseMul) {
-        super(fieldType, size, reverseMul);
+                       DocValueFormat format, Object missing, int size, int reverseMul) {
+        super(format, fieldType, missing, size, reverseMul);
         this.docValuesFunc = docValuesFunc;
         this.values = bigArrays.newDoubleArray(size, false);
     }
@@ -77,7 +78,9 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
         if (value instanceof Number) {
             afterValue = ((Number) value).doubleValue();
         } else {
-            afterValue = Double.parseDouble(value.toString());
+            afterValue = format.parseDouble(value.toString(), false, () -> {
+                throw new IllegalArgumentException("now() is not supported in [after] key");
+            });
         }
     }
 

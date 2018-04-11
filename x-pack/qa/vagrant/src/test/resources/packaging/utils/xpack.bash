@@ -24,8 +24,8 @@ verify_xpack_installation() {
         'migrate.bat'
         'saml-metadata'
         'saml-metadata.bat'
-        'setup-passwords'
-        'setup-passwords.bat'
+        'elasticsearch-setup-passwords'
+        'elasticsearch-setup-passwords.bat'
         'sql-cli'
         'sql-cli.bat'
         "sql-cli-$(cat version).jar" # This jar is executable so we pitch it in bin so folks will find it

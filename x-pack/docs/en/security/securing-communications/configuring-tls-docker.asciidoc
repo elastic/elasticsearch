@@ -174,14 +174,14 @@ curl --cacert certs/ca/ca.crt -u elastic:PleaseChangeMe https://localhost:9200
 ----
 // NOTCONSOLE
 --
-. The `setup-passwords` tool can also be used to generate random passwords for
-all users:
+. The `elasticsearch-setup-passwords` tool can also be used to generate random
+passwords for all users:
 +
 --
 WARNING: Windows users not running PowerShell will need to remove `\` and join lines in the snippet below.
 ["source","sh"]
 ----
-docker exec es01 /bin/bash -c "bin/x-pack/setup-passwords \
+docker exec es01 /bin/bash -c "bin/elasticsearch-setup-passwords \
 auto --batch \
 -Expack.ssl.certificate=x-pack/certificates/es01/es01.crt \
 -Expack.ssl.certificate_authorities=x-pack/certificates/ca/ca.crt \

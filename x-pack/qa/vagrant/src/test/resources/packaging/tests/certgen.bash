@@ -155,10 +155,11 @@ start_node_using_package() {
     export ESHOME="$MASTER_HOME"
     export_elasticsearch_paths
 
-    # For the sake of simplicity we use a bootstrap password in this test.
-    # The alternative would be to start the master node, use setup-passwords
-    # and restart the node once ssl/tls is configured. Or use setup-passwords over
-    # HTTPS with the right cacerts imported into a Java keystore.
+    # For the sake of simplicity we use a bootstrap password in this test. The
+    # alternative would be to start the master node, use
+    # elasticsearch-setup-passwords and restart the node once ssl/tls is
+    # configured. Or use elasticsearch-setup-passwords over HTTPS with the right
+    # cacerts imported into a Java keystore.
     run sudo -E -u $MASTER_USER bash <<"NEW_PASS"
 if [[ ! -f $ESCONFIG/elasticsearch.keystore ]]; then
     $ESHOME/bin/elasticsearch-keystore create

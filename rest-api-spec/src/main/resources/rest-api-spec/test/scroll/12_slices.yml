@@ -41,10 +41,6 @@ setup:
 
 ---
 "Sliced scroll":
-  - skip:
-      version: " - 6.99.99"
-      reason: Disabled until pr 29353 is backported
-
   - do:
       search:
         index: test_sliced_scroll

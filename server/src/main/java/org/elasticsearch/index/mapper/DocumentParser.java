@@ -76,7 +76,7 @@ final class DocumentParser {
             throw new IllegalStateException("found leftover path elements: " + remainingPath);
         }
 
-        reverseOrder(context);
+        context.postParse();
 
         return parsedDocument(source, context, createDynamicUpdate(mapping, docMapper, context.getDynamicMappers()));
     }
@@ -141,12 +141,6 @@ final class DocumentParser {
         return false;
     }
 
-    private static void reverseOrder(ParseContext.InternalParseContext context) {
-        // reverse the order of docs for nested docs support, parent should be last
-        if (context.docs().size() > 1) {
-            Collections.reverse(context.docs());
-        }
-    }
 
     private static ParsedDocument parsedDocument(SourceToParse source, ParseContext.InternalParseContext context, Mapping update) {
         return new ParsedDocument(

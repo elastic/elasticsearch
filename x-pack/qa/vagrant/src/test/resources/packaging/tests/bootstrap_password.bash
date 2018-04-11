@@ -125,7 +125,7 @@ SETUP_OK
     set -H
 }
 
-@test "[$GROUP] test sql-cli" {
+@test "[$GROUP] test elasticsearch-sql-cli" {
     password=$(grep "PASSWORD elastic = " /tmp/setup-passwords-output-with-bootstrap | sed "s/PASSWORD elastic = //")
     curl -s -u "elastic:$password" -H "Content-Type: application/json" -XPUT 'localhost:9200/library/book/1?refresh&pretty' -d'{
             "name": "Ender'"'"'s Game",
@@ -136,7 +136,7 @@ SETUP_OK
 
     password=$(grep "PASSWORD elastic = " /tmp/setup-passwords-output-with-bootstrap | sed "s/PASSWORD elastic = //")
 
-    run $ESHOME/bin/sql-cli --debug "http://elastic@127.0.0.1:9200" <<SQL
+    run $ESHOME/bin/elasticsearch-sql-cli --debug "http://elastic@127.0.0.1:9200" <<SQL
 $password
 SELECT * FROM library;
 SQL
@@ -150,9 +150,9 @@ SQL
     }
 }
 
-@test "[$GROUP] test sql-cli when user refuses password" {
+@test "[$GROUP] test elasticsearch-sql-cli when user refuses password" {
     # Run with empty stdin
-    run $ESHOME/bin/sql-cli --debug "http://elastic@127.0.0.1:9200" <<SQL
+    run $ESHOME/bin/elasticsearch-sql-cli --debug "http://elastic@127.0.0.1:9200" <<SQL
 SQL
     [ "$status" -eq 77 ] || { #NOPERM
         echo "SQL cli failed:\n$output"

@@ -29,7 +29,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class AliasStepTests extends AbstractStepTestCase<AliasStep> {
+public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAliasStep> {
 
     private Client client;
 
@@ -39,15 +39,15 @@ public class AliasStepTests extends AbstractStepTestCase<AliasStep> {
     }
 
     @Override
-    public AliasStep createRandomInstance() {
+    public ShrinkSetAliasStep createRandomInstance() {
         StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         String shrunkIndexPrefix = randomAlphaOfLength(10);
-        return new AliasStep(stepKey, nextStepKey, client, shrunkIndexPrefix);
+        return new ShrinkSetAliasStep(stepKey, nextStepKey, client, shrunkIndexPrefix);
     }
 
     @Override
-    public AliasStep mutateInstance(AliasStep instance) {
+    public ShrinkSetAliasStep mutateInstance(ShrinkSetAliasStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
         String shrunkIndexPrefix = instance.getShrunkIndexPrefix();
@@ -64,18 +64,18 @@ public class AliasStepTests extends AbstractStepTestCase<AliasStep> {
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new AliasStep(key, nextKey, instance.getClient(), shrunkIndexPrefix);
+        return new ShrinkSetAliasStep(key, nextKey, instance.getClient(), shrunkIndexPrefix);
     }
 
     @Override
-    public AliasStep copyInstance(AliasStep instance) {
-        return new AliasStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getShrunkIndexPrefix());
+    public ShrinkSetAliasStep copyInstance(ShrinkSetAliasStep instance) {
+        return new ShrinkSetAliasStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getShrunkIndexPrefix());
     }
 
     public void testPerformAction() {
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        AliasStep step = createRandomInstance();
+        ShrinkSetAliasStep step = createRandomInstance();
 
         String sourceIndex = indexMetaData.getIndex().getName();
         String shrunkenIndex = step.getShrunkIndexPrefix() + sourceIndex;
@@ -128,7 +128,7 @@ public class AliasStepTests extends AbstractStepTestCase<AliasStep> {
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         Exception exception = new RuntimeException();
-        AliasStep step = createRandomInstance();
+        ShrinkSetAliasStep step = createRandomInstance();
 
         AdminClient adminClient = Mockito.mock(AdminClient.class);
         IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);

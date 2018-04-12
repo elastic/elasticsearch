@@ -12,11 +12,11 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 
 import java.util.Objects;
 
-public class AliasStep extends AsyncActionStep {
+public class ShrinkSetAliasStep extends AsyncActionStep {
     public static final String NAME = "aliases";
     private String shrunkIndexPrefix;
 
-    public AliasStep(StepKey key, StepKey nextStepKey, Client client, String shrunkIndexPrefix) {
+    public ShrinkSetAliasStep(StepKey key, StepKey nextStepKey, Client client, String shrunkIndexPrefix) {
         super(key, nextStepKey, client);
         this.shrunkIndexPrefix = shrunkIndexPrefix;
     }
@@ -53,7 +53,7 @@ public class AliasStep extends AsyncActionStep {
         if (getClass() != obj.getClass()) {
             return false;
         }
-        AliasStep other = (AliasStep) obj;
+        ShrinkSetAliasStep other = (ShrinkSetAliasStep) obj;
         return super.equals(obj) && 
                 Objects.equals(shrunkIndexPrefix, other.shrunkIndexPrefix);
     }

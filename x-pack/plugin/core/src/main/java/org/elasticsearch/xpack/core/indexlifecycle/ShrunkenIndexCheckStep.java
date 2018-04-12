@@ -10,11 +10,19 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.Index;
 
+import java.util.Objects;
+
 public class ShrunkenIndexCheckStep extends ClusterStateWaitStep {
     public static final String NAME = "is-shrunken-index";
+    private String shrunkIndexPrefix;
 
-    public ShrunkenIndexCheckStep(StepKey key, StepKey nextStepKey) {
+    public ShrunkenIndexCheckStep(StepKey key, StepKey nextStepKey, String shrunkIndexPrefix) {
         super(key, nextStepKey);
+        this.shrunkIndexPrefix = shrunkIndexPrefix;
+    }
+
+    String getShrunkIndexPrefix() {
+        return shrunkIndexPrefix;
     }
 
     @Override
@@ -24,6 +32,24 @@ public class ShrunkenIndexCheckStep extends ClusterStateWaitStep {
         if (Strings.isNullOrEmpty(shrunkenIndexSource)) {
             throw new IllegalStateException("step[" + NAME + "] is checking an un-shrunken index[" + index.getName() + "]");
         }
-        return index.getName().equals(ShrinkStep.SHRUNKEN_INDEX_PREFIX + shrunkenIndexSource);
+        return index.getName().equals(shrunkIndexPrefix + shrunkenIndexSource);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), shrunkIndexPrefix);
+    }
+    
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        ShrunkenIndexCheckStep other = (ShrunkenIndexCheckStep) obj;
+        return super.equals(obj) && 
+                Objects.equals(shrunkIndexPrefix, other.shrunkIndexPrefix);
     }
 }

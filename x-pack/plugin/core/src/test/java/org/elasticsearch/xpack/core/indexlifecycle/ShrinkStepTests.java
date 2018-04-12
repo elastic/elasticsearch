@@ -45,7 +45,8 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         int numberOfShards = randomIntBetween(1, 20);
-        return new ShrinkStep(stepKey, nextStepKey, client, numberOfShards);
+        String shrunkIndexPrefix = randomAlphaOfLength(10);
+        return new ShrinkStep(stepKey, nextStepKey, client, numberOfShards, shrunkIndexPrefix);
     }
 
     @Override
@@ -53,8 +54,9 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
         int numberOfShards = instance.getNumberOfShards();
+        String shrunkIndexPrefix = instance.getShrunkIndexPrefix();
 
-        switch (between(0, 2)) {
+        switch (between(0, 3)) {
         case 0:
             key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
             break;
@@ -64,16 +66,20 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         case 2:
             numberOfShards = numberOfShards + 1;
             break;
+        case 3:
+            shrunkIndexPrefix += randomAlphaOfLength(5);
+            break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new ShrinkStep(key, nextKey, instance.getClient(), numberOfShards);
+        return new ShrinkStep(key, nextKey, instance.getClient(), numberOfShards, shrunkIndexPrefix);
     }
 
     @Override
     public ShrinkStep copyInstance(ShrinkStep instance) {
-        return new ShrinkStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getNumberOfShards());
+        return new ShrinkStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getNumberOfShards(),
+                instance.getShrunkIndexPrefix());
     }
 
     public void testPerformAction() throws Exception {

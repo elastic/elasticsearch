@@ -26,6 +26,7 @@ import java.util.Objects;
  */
 public class ShrinkAction implements LifecycleAction {
     public static final String NAME = "shrink";
+    public static final String SHRUNKEN_INDEX_PREFIX = "shrink-";
     public static final ParseField NUMBER_OF_SHARDS_FIELD = new ParseField("number_of_shards");
 
     private static final ConstructingObjectParser<ShrinkAction, CreateIndexRequest> PARSER =
@@ -77,13 +78,13 @@ public class ShrinkAction implements LifecycleAction {
     @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
         StepKey shrinkKey = new StepKey(phase, NAME, ShrinkStep.NAME);
-        StepKey enoughShardsKey = new StepKey(phase, NAME, EnoughShardsWaitStep.NAME);
+        StepKey enoughShardsKey = new StepKey(phase, NAME, ShrunkShardsAllocatedStep.NAME);
         StepKey aliasKey = new StepKey(phase, NAME, AliasStep.NAME);
         StepKey isShrunkIndexKey = new StepKey(phase, NAME, ShrunkenIndexCheckStep.NAME);
-        ShrinkStep shrink = new ShrinkStep(shrinkKey, enoughShardsKey, client, numberOfShards);
-        EnoughShardsWaitStep allocated = new EnoughShardsWaitStep(enoughShardsKey, aliasKey, numberOfShards);
-        AliasStep aliasSwapAndDelete = new AliasStep(aliasKey, isShrunkIndexKey, client);
-        ShrunkenIndexCheckStep waitOnShrinkTakeover = new ShrunkenIndexCheckStep(isShrunkIndexKey, nextStepKey);
+        ShrinkStep shrink = new ShrinkStep(shrinkKey, enoughShardsKey, client, numberOfShards, SHRUNKEN_INDEX_PREFIX);
+        ShrunkShardsAllocatedStep allocated = new ShrunkShardsAllocatedStep(enoughShardsKey, aliasKey, numberOfShards, SHRUNKEN_INDEX_PREFIX);
+        AliasStep aliasSwapAndDelete = new AliasStep(aliasKey, isShrunkIndexKey, client, SHRUNKEN_INDEX_PREFIX);
+        ShrunkenIndexCheckStep waitOnShrinkTakeover = new ShrunkenIndexCheckStep(isShrunkIndexKey, nextStepKey, SHRUNKEN_INDEX_PREFIX);
         return Arrays.asList(shrink, allocated, aliasSwapAndDelete, waitOnShrinkTakeover);
     }
 

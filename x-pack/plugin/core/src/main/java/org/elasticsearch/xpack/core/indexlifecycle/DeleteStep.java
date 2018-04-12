@@ -11,6 +11,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 
 public class DeleteStep extends AsyncActionStep {
+    public static final String NAME = "delete";
 
     public DeleteStep(StepKey key, StepKey nextStepKey, Client client) {
         super(key, nextStepKey, client);

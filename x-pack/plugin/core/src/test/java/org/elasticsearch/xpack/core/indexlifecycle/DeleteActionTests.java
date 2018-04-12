@@ -38,7 +38,7 @@ public class DeleteActionTests extends AbstractSerializingTestCase<DeleteAction>
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
         assertEquals(1, steps.size());
-        StepKey expectedFirstStepKey = new StepKey(phase, AllocateAction.NAME, AllocateAction.NAME);
+        StepKey expectedFirstStepKey = new StepKey(phase, DeleteAction.NAME, DeleteStep.NAME);
         DeleteStep firstStep = (DeleteStep) steps.get(0);
         assertEquals(expectedFirstStepKey, firstStep.getKey());
         assertEquals(nextStepKey, firstStep.getNextStepKey());

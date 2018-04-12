@@ -45,14 +45,14 @@ public class ShrinkStepTests extends ESTestCase {
     public ShrinkStep createRandomInstance() {
         StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-        String shrunkenIndexName = randomAlphaOfLengthBetween(1, 20);
-        return new ShrinkStep(stepKey, nextStepKey, client, shrunkenIndexName);
+        int numberOfShards = randomIntBetween(1, 20);
+        return new ShrinkStep(stepKey, nextStepKey, client, numberOfShards);
     }
 
     public ShrinkStep mutateInstance(ShrinkStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
-        String shrunkenIndexName = instance.getShrunkenIndexName();
+        int numberOfShards = instance.getNumberOfShards();
 
         switch (between(0, 2)) {
         case 0:
@@ -62,32 +62,39 @@ public class ShrinkStepTests extends ESTestCase {
             nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
             break;
         case 2:
-            shrunkenIndexName = shrunkenIndexName + randomAlphaOfLengthBetween(1, 5);
+            numberOfShards = numberOfShards + 1;
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new ShrinkStep(key, nextKey, instance.getClient(), shrunkenIndexName);
+        return new ShrinkStep(key, nextKey, instance.getClient(), numberOfShards);
     }
 
     public void testHashcodeAndEquals() {
         EqualsHashCodeTestUtils
                 .checkEqualsAndHashCode(createRandomInstance(),
                         instance -> new ShrinkStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(),
-                                instance.getShrunkenIndexName()),
+                                instance.getNumberOfShards()),
                         this::mutateInstance);
     }
 
     public void testPerformAction() throws Exception {
+        String lifecycleName = randomAlphaOfLength(5);
         long creationDate = randomNonNegativeLong();
+        ShrinkStep step = createRandomInstance();
         IndexMetaData sourceIndexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, creationDate))
+            .settings(settings(Version.CURRENT)
+                .put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, creationDate)
+                .put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName)
+                .put(LifecycleSettings.LIFECYCLE_PHASE, step.getKey().getPhase())
+                .put(LifecycleSettings.LIFECYCLE_ACTION, step.getKey().getAction())
+                .put(LifecycleSettings.LIFECYCLE_STEP, ShrunkenIndexCheckStep.NAME)
+            )
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
             .putAlias(AliasMetaData.builder("my_alias"))
             .build();
 
-        ShrinkStep step = createRandomInstance();
 
         AdminClient adminClient = Mockito.mock(AdminClient.class);
         IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
@@ -104,10 +111,16 @@ public class ShrinkStepTests extends ESTestCase {
                 assertThat(request.getSourceIndex(), equalTo(sourceIndexMetaData.getIndex().getName()));
                 assertThat(request.getTargetIndexRequest().aliases(), equalTo(Collections.singleton(new Alias("my_alias"))));
                 assertThat(request.getTargetIndexRequest().settings(), equalTo(Settings.builder()
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, sourceIndexMetaData.getNumberOfShards())
+                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, step.getNumberOfShards())
                     .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, sourceIndexMetaData.getNumberOfReplicas())
-                    .put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, creationDate).build()));
-                assertThat(request.getTargetIndexRequest().index(), equalTo(step.getShrunkenIndexName()));
+                    .put(LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE, creationDate)
+                    .put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName)
+                    .put(LifecycleSettings.LIFECYCLE_PHASE, step.getKey().getPhase())
+                    .put(LifecycleSettings.LIFECYCLE_ACTION, step.getKey().getAction())
+                    .put(LifecycleSettings.LIFECYCLE_STEP, ShrunkenIndexCheckStep.NAME)
+                    .build()));
+                assertThat(request.getTargetIndexRequest().settings()
+                        .getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, -1), equalTo(step.getNumberOfShards()));
                 ResizeResponse resizeResponse = ResizeAction.INSTANCE.newResponse();
                 resizeResponse.readFrom(StreamInput.wrap(new byte[] { 1, 1, 1, 1, 1 }));
                 listener.onResponse(resizeResponse);

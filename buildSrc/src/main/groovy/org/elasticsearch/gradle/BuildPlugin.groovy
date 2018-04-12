@@ -164,14 +164,14 @@ class BuildPlugin implements Plugin<Project> {
                 throw new GradleException(message)
             }
 
-            for (Map.Entry<Integer, String> javaVersionEntry : javaVersions.entrySet()) {
+            for (final Map.Entry<Integer, String> javaVersionEntry : javaVersions.entrySet()) {
                 final String javaHome = javaVersionEntry.getValue()
                 if (javaHome == null) {
                     continue
                 }
                 JavaVersion javaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, javaHome))
                 final JavaVersion expectedJavaVersionEnum
-                int version = javaVersionEntry.getKey()
+                final int version = javaVersionEntry.getKey()
                 if (version < 9) {
                     expectedJavaVersionEnum = JavaVersion.toVersion("1." + version)
                 } else {

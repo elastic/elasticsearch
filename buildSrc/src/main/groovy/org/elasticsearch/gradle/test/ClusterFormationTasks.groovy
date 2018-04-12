@@ -180,6 +180,7 @@ class ClusterFormationTasks {
         setup = configureWriteConfigTask(taskName(prefix, node, 'configure'), project, setup, node, seedNode)
         setup = configureCreateKeystoreTask(taskName(prefix, node, 'createKeystore'), project, setup, node)
         setup = configureAddKeystoreSettingTasks(prefix, project, setup, node)
+        setup = configureAddKeystoreFileTasks(prefix, project, setup, node)
 
         if (node.config.plugins.isEmpty() == false) {
             if (node.nodeVersion == VersionProperties.elasticsearch) {
@@ -323,7 +324,7 @@ class ClusterFormationTasks {
 
     /** Adds a task to create keystore */
     static Task configureCreateKeystoreTask(String name, Project project, Task setup, NodeInfo node) {
-        if (node.config.keystoreSettings.isEmpty()) {
+        if (node.config.keystoreSettings.isEmpty() && node.config.keystoreFiles.isEmpty()) {
             return setup
         } else {
             /*
@@ -351,6 +352,37 @@ class ClusterFormationTasks {
             String settingsValue = entry.getValue() // eval this early otherwise it will not use the right value
             t.doFirst {
                 standardInput = new ByteArrayInputStream(settingsValue.getBytes(StandardCharsets.UTF_8))
+            }
+            parentTask = t
+        }
+        return parentTask
+    }
+
+    /** Adds tasks to add files to the keystore */
+    static Task configureAddKeystoreFileTasks(String parent, Project project, Task setup, NodeInfo node) {
+        Map<String, Object> kvs = node.config.keystoreFiles
+        if (kvs.isEmpty()) {
+            return setup
+        }
+        Task parentTask = setup
+        /*
+         * We have to delay building the string as the path will not exist during configuration which will fail on Windows due to getting
+         * the short name requiring the path to already exist.
+         */
+        final Object esKeystoreUtil = "${-> node.binPath().resolve('elasticsearch-keystore').toString()}"
+        for (Map.Entry<String, Object> entry in kvs) {
+            String key = entry.getKey()
+            String name = taskName(parent, node, 'addToKeystore#' + key)
+            String srcFileName = entry.getValue()
+            Task t = configureExecTask(name, project, parentTask, node, esKeystoreUtil, 'add-file', key, srcFileName)
+            t.doFirst {
+                File srcFile = project.file(srcFileName)
+                if (srcFile.isDirectory()) {
+                    throw new GradleException("Source for keystoreFile must be a file: ${srcFile}")
+                }
+                if (srcFile.exists() == false) {
+                    throw new GradleException("Source file for keystoreFile does not exist: ${srcFile}")
+                }
             }
             parentTask = t
         }

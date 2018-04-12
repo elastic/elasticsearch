@@ -407,7 +407,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * @param clusterAlias the cluster alias the remote cluster is registred under
      */
     public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias) {
-        if (transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias)) {
+        if (transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias) == false) {
             throw new IllegalArgumentException("unknown cluster alias [" + clusterAlias + "]");
         }
         return new RemoteClusterAwareClient(settings, threadPool, transportService, clusterAlias);

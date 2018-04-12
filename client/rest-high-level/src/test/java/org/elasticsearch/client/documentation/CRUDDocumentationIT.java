@@ -1111,8 +1111,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request.add(new MultiGetRequest.Item("index", "type", "with_routing")
                 .routing("some_routing"));          // <1>
             request.add(new MultiGetRequest.Item("index", "type", "with_version")
-                .versionType(VersionType.EXTERNAL)  // <3>
-                .version(10123L));                  // <4>
+                .versionType(VersionType.EXTERNAL)  // <2>
+                .version(10123L));                  // <3>
             // end::multi-get-request-item-extras
             // tag::multi-get-request-top-level-extras
             request.preference("some_preference");  // <1>

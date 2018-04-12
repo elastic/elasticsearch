@@ -289,9 +289,6 @@ public class IdFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void postParse(ParseContext context) throws IOException {}
-
-    @Override
     protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             if (context.mapperService().getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_0_0_beta1)) {

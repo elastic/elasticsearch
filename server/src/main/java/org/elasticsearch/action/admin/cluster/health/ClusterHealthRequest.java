@@ -201,7 +201,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
                 indices[i] = in.readString();
             }
         }
-        timeout = new TimeValue(in);
+        timeout = in.readTimeValue();
         if (in.readBoolean()) {
             waitForStatus = ClusterHealthStatus.fromValue(in.readByte());
         }
@@ -227,7 +227,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
                 out.writeString(index);
             }
         }
-        timeout.writeTo(out);
+        out.writeTimeValue(timeout);
         if (waitForStatus == null) {
             out.writeBoolean(false);
         } else {

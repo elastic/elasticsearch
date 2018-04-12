@@ -278,7 +278,7 @@ see <<custom-roles-provider, Custom Roles Provider Extension>>.
 === Role Management UI
 
 {security} enables you to easily manage users and roles from within {kib}. To
-manage roles, log in to {kib} and go to *Management / Elasticsearch / Roles*.
+manage roles, log in to {kib} and go to *Management / Elasticsearch / Roles*. 
 
 [float]
 [[roles-management-api]]
@@ -286,104 +286,14 @@ manage roles, log in to {kib} and go to *Management / Elasticsearch / Roles*.
 
 The _Role Management APIs_ enable you to add, update, remove and retrieve roles
 dynamically. When you use the APIs to manage roles in the `native` realm, the
-roles are stored in an internal {es} index.
-
-[[roles-api-add]]
-==== Adding a Role
-
-To add a role, submit a PUT or POST request to the `/_xpack/security/role/<name>`
-endpoint.
-
-[source,js]
---------------------------------------------------
-POST /_xpack/security/role/clicks_admin
-{
-  "run_as": [ "clicks_watcher_1" ],
-  "cluster": [ "monitor" ],
-  "indices": [
-    {
-      "names": [ "events-*" ],
-      "privileges": [ "read" ],
-      "field_security" : {
-        "grant" : [ "category", "@timestamp", "message" ]
-      },
-      "query": "{\"match\": {\"category\": \"click\"}}"
-    }
-  ]
-}
---------------------------------------------------
-// CONSOLE
-// TESTSETUP
-
-NOTE: This API can also be used for updating role definitions.
-
-[[roles-api-list]]
-==== List Role
-
-To retrieve all roles, submit a GET request to the `/_xpack/security/role` endpoint:
-
-[source,js]
---------------------------------------------------
-GET /_xpack/security/role
---------------------------------------------------
-// CONSOLE
-
-To retrieve particular roles, specify the roles as a comma-separated list:
-
-[source,js]
---------------------------------------------------
-GET /_xpack/security/role/clicks_admin
---------------------------------------------------
-// CONSOLE
-
-Response:
-
-[source,js]
---------------------------------------------------
-{
-  "clicks_admin": {
-    "run_as": [ "clicks_watcher_1" ],
-    "cluster": [ "monitor" ],
-    "indices": [
-      {
-        "names": [ "events-*" ],
-        "privileges": [ "read" ],
-        "field_security" : {
-          "grant" : [ "category", "@timestamp", "message" ]
-        },
-        "query": "{\"match\": {\"category\": \"click\"}}"
-      }
-    ],
-    "metadata": { },
-    "transient_metadata": {
-      "enabled": true
-    }
-  }
-}
---------------------------------------------------
-// TESTRESPONSE
-
-NOTE: If single role is requested, that role is returned as the response. When
-      requesting multiple roles, an object is returned holding the found roles,
-      each keyed by the relevant role name.
-
-[[roles-api-delete]]
-==== Deleting a Role
-
-To delete a role, submit a DELETE request to the `/_xpack/security/role/<name>`
-endpoint:
-
-[source,js]
---------------------------------------------------
-DELETE /_xpack/security/role/clicks_admin
---------------------------------------------------
-// CONSOLE
+roles are stored in an internal {es} index. For more information and examples, 
+see {ref}/security-api-roles.html[Role Management APIs]. 
 
 [float]
 [[roles-management-file]]
 === File-based Role Management
 
-Apart from the _Role Management APIs_ roles can also be defined in local
+Apart from the _Role Management APIs_, roles can also be defined in local
 `roles.yml` file located in `CONFIG_DIR/x-pack`. This is a YAML file where each
 role definition is keyed by its name.
 

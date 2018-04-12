@@ -32,7 +32,8 @@ public class ShrunkenIndexCheckStep extends ClusterStateWaitStep {
         if (Strings.isNullOrEmpty(shrunkenIndexSource)) {
             throw new IllegalStateException("step[" + NAME + "] is checking an un-shrunken index[" + index.getName() + "]");
         }
-        return index.getName().equals(shrunkIndexPrefix + shrunkenIndexSource);
+        return index.getName().equals(shrunkIndexPrefix + shrunkenIndexSource) &&
+                clusterState.metaData().index(shrunkenIndexSource) == null;
     }
 
     @Override

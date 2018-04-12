@@ -277,7 +277,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         }
     }
 
-    private void updateSeedNodes(RemoteClusterConnection connection, List<DiscoveryNode> seedNodes) throws Exception {
+    static void updateSeedNodes(RemoteClusterConnection connection, List<DiscoveryNode> seedNodes) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<>();
         ActionListener<Void> listener = ActionListener.wrap(x -> latch.countDown(), x -> {

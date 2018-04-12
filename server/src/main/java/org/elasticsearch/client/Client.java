@@ -477,4 +477,12 @@ public interface Client extends ElasticsearchClient, Releasable {
      * issued from it.
      */
     Client filterWithHeader(Map<String, String> headers);
+
+    /**
+     * Returns a client to a remote cluster with the given cluster alias.
+     * This method is optinoal and might throw {@link UnsupportedOperationException}
+     */
+    default Client getRemoteClusterClient(String clusterAlias) {
+        throw new UnsupportedOperationException("this client doesn't support remote cluster connections");
+    }
 }

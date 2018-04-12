@@ -23,6 +23,7 @@ import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
@@ -34,6 +35,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import java.io.IOException;
 import java.util.Collection;
 
+import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_Z_VALUE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -46,11 +48,11 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDefaultConfiguration() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
                     .field("type", "geo_shape")
                 .endObject().endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
@@ -69,12 +71,12 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
      * Test that orientation parameter correctly parses
      */
     public void testOrientationParsing() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
                 .field("type", "geo_shape")
                 .field("orientation", "left")
                 .endObject().endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
@@ -86,12 +88,12 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.CW));
 
         // explicit right orientation test
-        mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
                 .field("type", "geo_shape")
                 .field("orientation", "right")
                 .endObject().endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
 
         defaultMapper = createIndex("test2").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         fieldMapper = defaultMapper.mappers().getMapper("location");
@@ -107,12 +109,12 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
      * Test that coerce parameter correctly parses
      */
     public void testCoerceParsing() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
                 .field("type", "geo_shape")
                 .field("coerce", "true")
                 .endObject().endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
@@ -122,12 +124,12 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(coerce, equalTo(true));
 
         // explicit false coerce test
-        mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
                 .field("type", "geo_shape")
                 .field("coerce", "false")
                 .endObject().endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
 
         defaultMapper = createIndex("test2").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         fieldMapper = defaultMapper.mappers().getMapper("location");
@@ -137,16 +139,52 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(coerce, equalTo(false));
     }
 
+
+    /**
+     * Test that accept_z_value parameter correctly parses
+     */
+    public void testIgnoreZValue() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .startObject("properties").startObject("location")
+            .field("type", "geo_shape")
+            .field(IGNORE_Z_VALUE.getPreferredName(), "true")
+            .endObject().endObject()
+            .endObject().endObject());
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("type1", new CompressedXContent(mapping));
+        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+
+        boolean ignoreZValue = ((GeoShapeFieldMapper)fieldMapper).ignoreZValue().value();
+        assertThat(ignoreZValue, equalTo(true));
+
+        // explicit false accept_z_value test
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .startObject("properties").startObject("location")
+            .field("type", "geo_shape")
+            .field(IGNORE_Z_VALUE.getPreferredName(), "false")
+            .endObject().endObject()
+            .endObject().endObject());
+
+        defaultMapper = createIndex("test2").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
+        fieldMapper = defaultMapper.mappers().getMapper("location");
+        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+
+        ignoreZValue = ((GeoShapeFieldMapper)fieldMapper).ignoreZValue().value();
+        assertThat(ignoreZValue, equalTo(false));
+    }
+
     /**
      * Test that ignore_malformed parameter correctly parses
      */
     public void testIgnoreMalformedParsing() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
             .startObject("properties").startObject("location")
             .field("type", "geo_shape")
             .field("ignore_malformed", "true")
             .endObject().endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
@@ -156,12 +194,12 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(ignoreMalformed.value(), equalTo(true));
 
         // explicit false ignore_malformed test
-        mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
             .startObject("properties").startObject("location")
             .field("type", "geo_shape")
             .field("ignore_malformed", "false")
             .endObject().endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
 
         defaultMapper = createIndex("test2").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         fieldMapper = defaultMapper.mappers().getMapper("location");
@@ -173,14 +211,14 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testGeohashConfiguration() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
                     .field("type", "geo_shape")
                     .field("tree", "geohash")
                     .field("tree_levels", "4")
                     .field("distance_error_pct", "0.1")
                 .endObject().endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
@@ -195,7 +233,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testQuadtreeConfiguration() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
                     .field("type", "geo_shape")
                     .field("tree", "quadtree")
@@ -203,7 +241,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                     .field("distance_error_pct", "0.5")
                     .field("points_only", true)
                 .endObject().endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
@@ -222,7 +260,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
 
         {
-            String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
                     .startObject("properties").startObject("location")
                         .field("type", "geo_shape")
                         .field("tree", "quadtree")
@@ -230,7 +268,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                         .field("precision", "70m")
                         .field("distance_error_pct", "0.5")
                     .endObject().endObject()
-                    .endObject().endObject().string();
+                    .endObject().endObject());
 
 
             DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
@@ -247,14 +285,14 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         }
 
         {
-            String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
                     .startObject("properties").startObject("location")
                     .field("type", "geo_shape")
                     .field("tree", "quadtree")
                     .field("tree_levels", "26")
                     .field("precision", "70m")
                     .endObject().endObject()
-                    .endObject().endObject().string();
+                    .endObject().endObject());
 
 
             DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
@@ -273,7 +311,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         }
 
         {
-            String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
                     .startObject("properties").startObject("location")
                         .field("type", "geo_shape")
                         .field("tree", "geohash")
@@ -281,7 +319,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                         .field("precision", "70m")
                         .field("distance_error_pct", "0.5")
                     .endObject().endObject()
-                    .endObject().endObject().string();
+                    .endObject().endObject());
 
             DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
             FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
@@ -297,7 +335,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         }
 
         {
-            String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
                     .startObject("properties").startObject("location")
                         .field("type", "geo_shape")
                         .field("tree", "geohash")
@@ -305,7 +343,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                         .field("precision", "70m")
                         .field("distance_error_pct", "0.5")
                     .endObject().endObject()
-                    .endObject().endObject().string();
+                    .endObject().endObject());
 
             DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
             FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
@@ -320,7 +358,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         }
 
         {
-            String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
                     .startObject("properties").startObject("location")
                         .field("type", "geo_shape")
                         .field("tree", "quadtree")
@@ -328,7 +366,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                         .field("precision", "70m")
                         .field("distance_error_pct", "0.5")
                     .endObject().endObject()
-                    .endObject().endObject().string();
+                    .endObject().endObject());
 
             DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
             FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
@@ -344,13 +382,13 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testPointsOnlyOption() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
                 .field("type", "geo_shape")
                 .field("tree", "geohash")
                 .field("points_only", true)
                 .endObject().endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
 
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
         FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
@@ -366,13 +404,13 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
     public void testLevelDefaults() throws IOException {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         {
-            String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
                     .startObject("properties").startObject("location")
                         .field("type", "geo_shape")
                         .field("tree", "quadtree")
                         .field("distance_error_pct", "0.5")
                     .endObject().endObject()
-                    .endObject().endObject().string();
+                    .endObject().endObject());
 
 
             DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
@@ -389,13 +427,13 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         }
 
         {
-            String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
                     .startObject("properties").startObject("location")
                         .field("type", "geo_shape")
                         .field("tree", "geohash")
                         .field("distance_error_pct", "0.5")
                     .endObject().endObject()
-                    .endObject().endObject().string();
+                    .endObject().endObject());
 
             DocumentMapper defaultMapper = parser.parse("type1", new CompressedXContent(mapping));
             FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
@@ -412,16 +450,16 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testGeoShapeMapperMerge() throws Exception {
-        String stage1Mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+        String stage1Mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("shape").field("type", "geo_shape").field("tree", "geohash").field("strategy", "recursive")
                 .field("precision", "1m").field("tree_levels", 8).field("distance_error_pct", 0.01).field("orientation", "ccw")
-                .endObject().endObject().endObject().endObject().string();
+                .endObject().endObject().endObject().endObject());
         MapperService mapperService = createIndex("test").mapperService();
         DocumentMapper docMapper = mapperService.merge("type", new CompressedXContent(stage1Mapping), MapperService.MergeReason.MAPPING_UPDATE);
-        String stage2Mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String stage2Mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("shape").field("type", "geo_shape").field("tree", "quadtree")
                 .field("strategy", "term").field("precision", "1km").field("tree_levels", 26).field("distance_error_pct", 26)
-                .field("orientation", "cw").endObject().endObject().endObject().endObject().string();
+                .field("orientation", "cw").endObject().endObject().endObject().endObject());
         try {
             mapperService.merge("type", new CompressedXContent(stage2Mapping), MapperService.MergeReason.MAPPING_UPDATE);
             fail();
@@ -446,9 +484,9 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(ShapeBuilder.Orientation.CCW));
 
         // correct mapping
-        stage2Mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        stage2Mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("shape").field("type", "geo_shape").field("precision", "1m")
-                .field("tree_levels", 8).field("distance_error_pct", 0.001).field("orientation", "cw").endObject().endObject().endObject().endObject().string();
+                .field("tree_levels", 8).field("distance_error_pct", 0.001).field("orientation", "cw").endObject().endObject().endObject().endObject());
         docMapper = mapperService.merge("type", new CompressedXContent(stage2Mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
         fieldMapper = docMapper.mappers().getMapper("shape");
@@ -466,11 +504,11 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testEmptyName() throws Exception {
         // after 5.x
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
             .startObject("properties").startObject("")
             .field("type", "geo_shape")
             .endObject().endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,

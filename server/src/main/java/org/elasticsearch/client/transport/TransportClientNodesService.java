@@ -373,7 +373,7 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                         transportService.connectToNode(node);
                     } catch (Exception e) {
                         it.remove();
-                        logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to connect to discovered node [{}]", node), e);
+                        logger.debug(() -> new ParameterizedMessage("failed to connect to discovered node [{}]", node), e);
                     }
                 }
             }
@@ -428,13 +428,10 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                             nodeWithInfo.getAttributes(), nodeWithInfo.getRoles(), nodeWithInfo.getVersion()));
                     }
                 } catch (ConnectTransportException e) {
-                    logger.debug(
-                        (Supplier<?>)
-                            () -> new ParameterizedMessage("failed to connect to node [{}], ignoring...", listedNode), e);
+                    logger.debug(() -> new ParameterizedMessage("failed to connect to node [{}], ignoring...", listedNode), e);
                     hostFailureListener.onNodeDisconnected(listedNode, e);
                 } catch (Exception e) {
-                    logger.info(
-                        (Supplier<?>) () -> new ParameterizedMessage("failed to get node info for {}, disconnecting...", listedNode), e);
+                    logger.info(() -> new ParameterizedMessage("failed to get node info for {}, disconnecting...", listedNode), e);
                 }
             }
 
@@ -481,12 +478,10 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                         public void onFailure(Exception e) {
                             onDone();
                             if (e instanceof ConnectTransportException) {
-                                logger.debug((Supplier<?>)
-                                    () -> new ParameterizedMessage("failed to connect to node [{}], ignoring...", nodeToPing), e);
+                                logger.debug(() -> new ParameterizedMessage("failed to connect to node [{}], ignoring...", nodeToPing), e);
                                 hostFailureListener.onNodeDisconnected(nodeToPing, e);
                             } else {
-                                logger.info(
-                                    (Supplier<?>) () -> new ParameterizedMessage(
+                                logger.info(() -> new ParameterizedMessage(
                                         "failed to get local cluster state info for {}, disconnecting...", nodeToPing), e);
                             }
                         }
@@ -530,8 +525,7 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
 
                                     @Override
                                     public void handleException(TransportException e) {
-                                        logger.info(
-                                            (Supplier<?>) () -> new ParameterizedMessage(
+                                        logger.info(() -> new ParameterizedMessage(
                                                 "failed to get local cluster state for {}, disconnecting...", nodeToPing), e);
                                         try {
                                             hostFailureListener.onNodeDisconnected(nodeToPing, e);

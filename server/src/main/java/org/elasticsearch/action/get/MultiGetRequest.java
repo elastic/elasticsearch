@@ -20,6 +20,7 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -58,7 +59,6 @@ public class MultiGetRequest extends ActionRequest
     private static final ParseField TYPE = new ParseField("_type");
     private static final ParseField ID = new ParseField("_id");
     private static final ParseField ROUTING = new ParseField("routing");
-    private static final ParseField PARENT = new ParseField("parent");
     private static final ParseField VERSION = new ParseField("version");
     private static final ParseField VERSION_TYPE = new ParseField("version_type");
     private static final ParseField FIELDS = new ParseField("fields");
@@ -74,7 +74,6 @@ public class MultiGetRequest extends ActionRequest
         private String type;
         private String id;
         private String routing;
-        private String parent;
         private String[] storedFields;
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
@@ -141,18 +140,6 @@ public class MultiGetRequest extends ActionRequest
             return this.routing;
         }
 
-        public Item parent(String parent) {
-            this.parent = parent;
-            return this;
-        }
-
-        /**
-         * @return The parent for this request.
-         */
-        public String parent() {
-            return parent;
-        }
-
         public Item storedFields(String... fields) {
             this.storedFields = fields;
             return this;
@@ -204,7 +191,9 @@ public class MultiGetRequest extends ActionRequest
             type = in.readOptionalString();
             id = in.readString();
             routing = in.readOptionalString();
-            parent = in.readOptionalString();
+            if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+                in.readOptionalString(); // _parent
+            }
             storedFields = in.readOptionalStringArray();
             version = in.readLong();
             versionType = VersionType.fromValue(in.readByte());
@@ -218,7 +207,9 @@ public class MultiGetRequest extends ActionRequest
             out.writeOptionalString(type);
             out.writeString(id);
             out.writeOptionalString(routing);
-            out.writeOptionalString(parent);
+            if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+                out.writeOptionalString(null); // _parent
+            }
             out.writeOptionalStringArray(storedFields);
             out.writeLong(version);
             out.writeByte(versionType.getValue());
@@ -233,7 +224,6 @@ public class MultiGetRequest extends ActionRequest
             builder.field(TYPE.getPreferredName(), type);
             builder.field(ID.getPreferredName(), id);
             builder.field(ROUTING.getPreferredName(), routing);
-            builder.field(PARENT.getPreferredName(), parent);
             builder.field(STORED_FIELDS.getPreferredName(), storedFields);
             builder.field(VERSION.getPreferredName(), version);
             builder.field(VERSION_TYPE.getPreferredName(), VersionType.toString(versionType));
@@ -256,7 +246,6 @@ public class MultiGetRequest extends ActionRequest
             if (!id.equals(item.id)) return false;
             if (!index.equals(item.index)) return false;
             if (routing != null ? !routing.equals(item.routing) : item.routing != null) return false;
-            if (parent != null ? !parent.equals(item.parent) : item.parent != null) return false;
             if (type != null ? !type.equals(item.type) : item.type != null) return false;
             if (versionType != item.versionType) return false;
 
@@ -269,7 +258,6 @@ public class MultiGetRequest extends ActionRequest
             result = 31 * result + (type != null ? type.hashCode() : 0);
             result = 31 * result + id.hashCode();
             result = 31 * result + (routing != null ? routing.hashCode() : 0);
-            result = 31 * result + (parent != null ? parent.hashCode() : 0);
             result = 31 * result + (storedFields != null ? Arrays.hashCode(storedFields) : 0);
             result = 31 * result + Long.hashCode(version);
             result = 31 * result + versionType.hashCode();
@@ -407,7 +395,6 @@ public class MultiGetRequest extends ActionRequest
             String type = defaultType;
             String id = null;
             String routing = defaultRouting;
-            String parent = null;
             List<String> storedFields = null;
             long version = Versions.MATCH_ANY;
             VersionType versionType = VersionType.INTERNAL;
@@ -429,8 +416,6 @@ public class MultiGetRequest extends ActionRequest
                         id = parser.text();
                     } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
                         routing = parser.text();
-                    } else if (PARENT.match(currentFieldName, parser.getDeprecationHandler())) {
-                        parent = parser.text();
                     } else if (FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
                         throw new ParsingException(parser.getTokenLocation(),
                             "Unsupported field [fields] used, expected [stored_fields] instead");
@@ -510,7 +495,7 @@ public class MultiGetRequest extends ActionRequest
             } else {
                 aFields = defaultFields;
             }
-            items.add(new Item(index, type, id).routing(routing).storedFields(aFields).parent(parent).version(version).versionType(versionType)
+            items.add(new Item(index, type, id).routing(routing).storedFields(aFields).version(version).versionType(versionType)
                     .fetchSourceContext(fetchSourceContext == FetchSourceContext.FETCH_SOURCE ? defaultFetchSource : fetchSourceContext));
         }
     }

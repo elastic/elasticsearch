@@ -19,6 +19,7 @@
 package org.elasticsearch.repositories.gcs;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -522,7 +523,7 @@ public class GoogleCloudStorageTestServer {
      */
     private static Response newResponse(final RestStatus status, final Map<String, String> headers, final XContentBuilder xContentBuilder) {
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            xContentBuilder.bytes().writeTo(out);
+            BytesReference.bytes(xContentBuilder).writeTo(out);
             return new Response(status, headers, XContentType.JSON.mediaType(), out.toByteArray());
         } catch (IOException e) {
             return newError(RestStatus.INTERNAL_SERVER_ERROR, e.getMessage());
@@ -548,7 +549,7 @@ public class GoogleCloudStorageTestServer {
                                 .endArray()
                             .endObject()
                         .endObject();
-                builder.bytes().writeTo(out);
+                BytesReference.bytes(builder).writeTo(out);
             }
             return new Response(status, emptyMap(), XContentType.JSON.mediaType(), out.toByteArray());
         } catch (IOException e) {

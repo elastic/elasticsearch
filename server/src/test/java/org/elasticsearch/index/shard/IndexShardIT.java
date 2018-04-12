@@ -19,7 +19,6 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.lucene.store.LockObtainFailedException;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -42,6 +41,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -50,6 +50,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
@@ -101,8 +102,9 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.containsString;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -333,7 +335,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertFalse(shard.shouldPeriodicallyFlush());
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
-                new ByteSizeValue(117 /* size of the operation + header&footer*/, ByteSizeUnit.BYTES)).build()).get();
+                new ByteSizeValue(160 /* size of the operation + two generations header&footer*/, ByteSizeUnit.BYTES)).build()).get();
         client().prepareIndex("test", "test", "0")
             .setSource("{}", XContentType.JSON).setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         assertFalse(shard.shouldPeriodicallyFlush());
@@ -342,29 +344,30 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, update -> {});
         assertTrue(shard.shouldPeriodicallyFlush());
         final Translog translog = shard.getEngine().getTranslog();
-        assertEquals(2, translog.uncommittedOperations());
+        assertEquals(2, translog.stats().getUncommittedOperations());
         client().prepareIndex("test", "test", "2").setSource("{}", XContentType.JSON)
             .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         assertBusy(() -> { // this is async
             assertFalse(shard.shouldPeriodicallyFlush());
+            assertThat(shard.flushStats().getPeriodic(), greaterThan(0L));
         });
-        assertEquals(0, translog.uncommittedOperations());
+        assertEquals(0, translog.stats().getUncommittedOperations());
         translog.sync();
-        long size = Math.max(translog.uncommittedSizeInBytes(), Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1);
-        logger.info("--> current translog size: [{}] num_ops [{}] generation [{}]", translog.uncommittedSizeInBytes(),
-            translog.uncommittedOperations(), translog.getGeneration());
+        long size = Math.max(translog.stats().getUncommittedSizeInBytes(), Translog.DEFAULT_HEADER_SIZE_IN_BYTES + 1);
+        logger.info("--> current translog size: [{}] num_ops [{}] generation [{}]",
+            translog.stats().getUncommittedSizeInBytes(), translog.stats().getUncommittedOperations(), translog.getGeneration());
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(
             IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(size, ByteSizeUnit.BYTES))
             .build()).get();
         client().prepareDelete("test", "test", "2").get();
-        logger.info("--> translog size after delete: [{}] num_ops [{}] generation [{}]", translog.uncommittedSizeInBytes(),
-            translog.uncommittedOperations(), translog.getGeneration());
+        logger.info("--> translog size after delete: [{}] num_ops [{}] generation [{}]",
+            translog.stats().getUncommittedSizeInBytes(), translog.stats().getUncommittedOperations(), translog.getGeneration());
         assertBusy(() -> { // this is async
-            logger.info("--> translog size on iter  : [{}] num_ops [{}] generation [{}]", translog.uncommittedSizeInBytes(),
-                translog.uncommittedOperations(), translog.getGeneration());
+            logger.info("--> translog size on iter  : [{}] num_ops [{}] generation [{}]",
+                translog.stats().getUncommittedSizeInBytes(), translog.stats().getUncommittedOperations(), translog.getGeneration());
             assertFalse(shard.shouldPeriodicallyFlush());
         });
-        assertEquals(0, translog.uncommittedOperations());
+        assertEquals(0, translog.stats().getUncommittedOperations());
     }
 
     public void testMaybeRollTranslogGeneration() throws Exception {
@@ -407,15 +410,15 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         IndexService test = indicesService.indexService(resolveIndex("test"));
         final IndexShard shard = test.getShardOrNull(0);
         assertFalse(shard.shouldPeriodicallyFlush());
-        final String key;
         final boolean flush = randomBoolean();
+        final Settings settings;
         if (flush) {
-            key = "index.translog.flush_threshold_size";
+            // size of the operation plus two generations of overhead.
+            settings = Settings.builder().put("index.translog.flush_threshold_size", "180b").build();
         } else {
-            key = "index.translog.generation_threshold_size";
+            // size of the operation plus header and footer
+            settings = Settings.builder().put("index.translog.generation_threshold_size", "117b").build();
         }
-        // size of the operation plus header and footer
-        final Settings settings = Settings.builder().put(key, "117b").build();
         client().admin().indices().prepareUpdateSettings("test").setSettings(settings).get();
         client().prepareIndex("test", "test", "0")
                 .setSource("{}", XContentType.JSON)
@@ -444,8 +447,12 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         if (flush) {
             final FlushStats flushStats = shard.flushStats();
             final long total = flushStats.getTotal();
+            final long periodic = flushStats.getPeriodic();
             client().prepareIndex("test", "test", "1").setSource("{}", XContentType.JSON).get();
-            check = () -> assertEquals(total + 1, shard.flushStats().getTotal());
+            check = () -> {
+                assertThat(shard.flushStats().getTotal(), equalTo(total + 1));
+                assertThat(shard.flushStats().getPeriodic(), equalTo(periodic + 1));
+            };
         } else {
             final long generation = shard.getEngine().getTranslog().currentFileGeneration();
             client().prepareIndex("test", "test", "1").setSource("{}", XContentType.JSON).get();
@@ -459,6 +466,30 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             threads[i].join();
         }
         check.run();
+    }
+
+    public void testFlushStats() throws Exception {
+        final IndexService indexService = createIndex("test");
+        ensureGreen();
+        Settings settings = Settings.builder().put("index.translog.flush_threshold_size", "" + between(200, 300) + "b").build();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(settings).get();
+        final int numDocs = between(10, 100);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test", "doc", Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+        }
+        // A flush stats may include the new total count but the old period count - assert eventually.
+        assertBusy(() -> {
+            final FlushStats flushStats = client().admin().indices().prepareStats("test").clear().setFlush(true).get().getTotal().flush;
+            assertThat(flushStats.getPeriodic(), allOf(equalTo(flushStats.getTotal()), greaterThan(0L)));
+        });
+        assertBusy(() -> assertThat(indexService.getShard(0).shouldPeriodicallyFlush(), equalTo(false)));
+        settings = Settings.builder().put("index.translog.flush_threshold_size", (String) null).build();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(settings).get();
+
+        client().prepareIndex("test", "doc", UUIDs.randomBase64UUID()).setSource("{}", XContentType.JSON).get();
+        client().admin().indices().prepareFlush("test").setForce(randomBoolean()).setWaitIfOngoing(true).get();
+        final FlushStats flushStats = client().admin().indices().prepareStats("test").clear().setFlush(true).get().getTotal().flush;
+        assertThat(flushStats.getTotal(), greaterThan(flushStats.getPeriodic()));
     }
 
     public void testShardHasMemoryBufferOnTranslogRecover() throws Throwable {

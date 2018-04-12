@@ -187,7 +187,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
             shardId = null;
         }
         waitForActiveShards = ActiveShardCount.readFrom(in);
-        timeout = new TimeValue(in);
+        timeout = in.readTimeValue();
         index = in.readString();
         routedBasedOnClusterVersion = in.readVLong();
     }
@@ -202,7 +202,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
             out.writeBoolean(false);
         }
         waitForActiveShards.writeTo(out);
-        timeout.writeTo(out);
+        out.writeTimeValue(timeout);
         out.writeString(index);
         out.writeVLong(routedBasedOnClusterVersion);
     }

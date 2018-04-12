@@ -120,50 +120,26 @@ echo %ES_JAVA_OPTS%
 for %%a in ("%ES_JAVA_OPTS:;=","%") do (
   set var=%%a
   if "!var:~1,4!" == "-Xms" (
-    if not "!JVM_MS!" == "" (
-      echo duplicate min heap size settings found
-      goto:eof
-    )
     set XMS=!var:~5,-1!
     call:convertxm !XMS! JVM_MS
   )
   if "!var:~1,16!" == "-XX:MinHeapSize=" (
-    if not "!JVM_MS!" == "" (
-      echo duplicate min heap size settings found
-      goto:eof
-    )
     set XMS=!var:~17,-1!
     call:convertxm !XMS! JVM_MS
   )
   if "!var:~1,4!" == "-Xmx" (
-    if not "!JVM_MX!" == "" (
-      echo duplicate max heap size settings found
-      goto:eof
-    )
     set XMX=!var:~5,-1!
     call:convertxm !XMX! JVM_MX
   )
   if "!var:~1,16!" == "-XX:MaxHeapSize=" (
-    if not "!JVM_MX!" == "" (
-      echo duplicate max heap size settings found
-      goto:eof
-    )
     set XMX=!var:~17,-1!
     call:convertxm !XMX! JVM_MX
   )
   if "!var:~1,4!" == "-Xss" (
-    if not "!JVM_SS!" == "" (
-      echo duplicate thread stack size settings found
-      exit 1
-    )
     set XSS=!var:~5,-1!
     call:convertxk !XSS! JVM_SS
   )
   if "!var:~1,20!" == "-XX:ThreadStackSize=" (
-    if not "!JVM_SS!" == "" (
-      echo duplicate thread stack size settings found
-      goto:eof
-    )
     set XSS=!var:~21,-1!
     call:convertxk !XSS! JVM_SS
   )

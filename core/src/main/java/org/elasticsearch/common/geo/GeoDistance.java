@@ -78,7 +78,7 @@ public enum GeoDistance implements Writeable {
                     out.write(0);  // write PLANE ordinal
                     return;
                 case 1:
-                    out.write(2);  // write bwc ARC ordinal
+                    out.write(1);  // write bwc ARC ordinal
                     return;
                 default:
                     throw new IOException("Unknown GeoDistance ordinal [" + ord + "]");

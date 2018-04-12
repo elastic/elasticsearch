@@ -28,9 +28,12 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.lessThan;
 
@@ -95,8 +98,8 @@ public class GeoDistanceTests extends ESTestCase {
             geoDistance.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 in.setVersion(out.getVersion());
-                GeoDistance copy = GeoDistance.readFromStream(in);
-                assertThat(copy, isOneOf(GeoDistance.PLANE, GeoDistance.ARC));
+                int ord = in.readVInt();
+                assertThat(ord, is(both(greaterThanOrEqualTo(0)).and(lessThan(2))));
             }
         }
     }

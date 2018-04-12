@@ -376,7 +376,7 @@ class ClusterFormationTasks {
             String srcFileName = entry.getValue()
             Task t = configureExecTask(name, project, parentTask, node, esKeystoreUtil, 'add-file', key, srcFileName)
             t.doFirst {
-                File srcFile = project.file(entry.getValue())
+                File srcFile = project.file(srcFileName)
                 if (srcFile.isDirectory()) {
                     throw new GradleException("Source for keystoreFile must be a file: ${srcFile}")
                 }

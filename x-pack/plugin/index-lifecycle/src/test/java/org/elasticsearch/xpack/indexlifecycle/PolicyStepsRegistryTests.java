@@ -15,6 +15,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyTests;
 import org.elasticsearch.xpack.core.indexlifecycle.MockStep;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 
@@ -22,7 +23,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.indexlifecycle.LifecyclePolicyTests.randomLifecyclePolicy;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PolicyStepsRegistryTests extends ESTestCase {
@@ -76,7 +76,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
     }
 
     public void testUpdateFromNothingToSomethingToNothing() {
-        LifecyclePolicy newPolicy = randomLifecyclePolicy(randomAlphaOfLength(5));
+        LifecyclePolicy newPolicy = LifecyclePolicyTests.randomLifecyclePolicy(randomAlphaOfLength(5));
         List<Step> policySteps = newPolicy.toSteps(null, () -> 0L);
         Map<String, LifecyclePolicy> policyMap = Collections.singletonMap(newPolicy.getName(), newPolicy);
         MetaData metaData = MetaData.builder()
@@ -130,7 +130,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
 
     public void testUpdateChangedPolicy() {
         String policyName = randomAlphaOfLengthBetween(5, 10);
-        LifecyclePolicy newPolicy = randomLifecyclePolicy(policyName);
+        LifecyclePolicy newPolicy = LifecyclePolicyTests.randomLifecyclePolicy(policyName);
         Map<String, LifecyclePolicy> policyMap = Collections.singletonMap(newPolicy.getName(), newPolicy);
         MetaData metaData = MetaData.builder()
             .persistentSettings(settings(Version.CURRENT).build())
@@ -149,7 +149,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         registry.update(currentState, null, () -> 0L);
 
         // swap out policy
-        newPolicy = randomLifecyclePolicy(policyName);
+        newPolicy = LifecyclePolicyTests.randomLifecyclePolicy(policyName);
         currentState = ClusterState.builder(currentState)
             .metaData(
                 MetaData.builder(metaData)

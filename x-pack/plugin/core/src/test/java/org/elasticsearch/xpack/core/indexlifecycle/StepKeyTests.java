@@ -39,7 +39,9 @@ public class StepKeyTests extends ESTestCase {
     }
 
     public void testHashcodeAndEquals() {
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createRandomInstance(),
-                instance -> new StepKey(instance.getPhase(), instance.getAction(), instance.getName()), this::mutateInstance);
+        for (int runs = 0; runs < 20; runs++) {
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(createRandomInstance(),
+                    instance -> new StepKey(instance.getPhase(), instance.getAction(), instance.getName()), this::mutateInstance);
+        }
     }
 }

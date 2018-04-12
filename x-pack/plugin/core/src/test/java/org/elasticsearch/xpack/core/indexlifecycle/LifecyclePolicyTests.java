@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.indexlifecycle;
+package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterModule;
@@ -15,18 +15,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.indexlifecycle.InitializePolicyContextStep;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecycleType;
-import org.elasticsearch.xpack.core.indexlifecycle.MockAction;
-import org.elasticsearch.xpack.core.indexlifecycle.MockStep;
-import org.elasticsearch.xpack.core.indexlifecycle.Phase;
-import org.elasticsearch.xpack.core.indexlifecycle.PhaseAfterStep;
-import org.elasticsearch.xpack.core.indexlifecycle.Step;
-import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
-import org.elasticsearch.xpack.core.indexlifecycle.TestLifecycleType;
-import org.elasticsearch.xpack.core.indexlifecycle.TimeseriesLifecycleType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -72,7 +60,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         return randomLifecyclePolicy(lifecycleName);
     }
 
-    static LifecyclePolicy randomLifecyclePolicy(@Nullable String lifecycleName) {
+    public static LifecyclePolicy randomLifecyclePolicy(@Nullable String lifecycleName) {
         int numberPhases = randomInt(5);
         Map<String, Phase> phases = new HashMap<>(numberPhases);
         for (int i = 0; i < numberPhases; i++) {

@@ -41,3 +41,48 @@ GET /_mapping
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
+
+[float]
+=== Skipping types
+
+Types are scheduled to be fully removed in Elasticsearch 8.0 and will not appear
+in requests or responses anymore. You can opt in for this future behaviour by
+setting `include_type_name=false` in the request, which will return mappings
+directly under `mappings` without keying by the type name.
+
+Here is an example:
+
+[source,js]
+--------------------------------------------------
+PUT test?include_type_name=false
+{
+  "mappings": {
+    "properties": {
+      "foo": {
+        "type": "keyword"
+      }
+    }
+  }
+}
+
+GET test/_mappings?include_type_name=false
+--------------------------------------------------
+// CONSOLE
+
+which returns
+
+[source,js]
+--------------------------------------------------
+{
+  "test": {
+    "mappings": {
+      "properties": {
+        "foo": {
+          "type": "keyword"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE

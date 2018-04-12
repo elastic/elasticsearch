@@ -52,7 +52,6 @@ public class RestUpdateAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         UpdateRequest updateRequest = new UpdateRequest(request.param("index"), request.param("type"), request.param("id"));
         updateRequest.routing(request.param("routing"));
-        updateRequest.parent(request.param("parent"));
         updateRequest.timeout(request.paramAsTime("timeout", updateRequest.timeout()));
         updateRequest.setRefreshPolicy(request.param("refresh"));
         String waitForActiveShards = request.param("wait_for_active_shards");
@@ -75,14 +74,12 @@ public class RestUpdateAction extends BaseRestHandler {
             IndexRequest upsertRequest = updateRequest.upsertRequest();
             if (upsertRequest != null) {
                 upsertRequest.routing(request.param("routing"));
-                upsertRequest.parent(request.param("parent"));
                 upsertRequest.version(RestActions.parseVersion(request));
                 upsertRequest.versionType(VersionType.fromString(request.param("version_type"), upsertRequest.versionType()));
             }
             IndexRequest doc = updateRequest.doc();
             if (doc != null) {
                 doc.routing(request.param("routing"));
-                doc.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
                 doc.version(RestActions.parseVersion(request));
                 doc.versionType(VersionType.fromString(request.param("version_type"), doc.versionType()));
             }

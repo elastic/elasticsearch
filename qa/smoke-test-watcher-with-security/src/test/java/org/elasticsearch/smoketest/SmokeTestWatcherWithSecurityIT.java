@@ -7,6 +7,7 @@ package org.elasticsearch.smoketest;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -26,6 +27,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
@@ -50,18 +52,35 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
 
         assertBusy(() -> {
             try {
-                adminClient().performRequest("POST", "_xpack/watcher/_start");
-
-                for (String template : WatcherIndexTemplateRegistryField.TEMPLATE_NAMES) {
-                    assertOK(adminClient().performRequest("HEAD", "_template/" + template));
-                }
-
                 Response statsResponse = adminClient().performRequest("GET", "_xpack/watcher/stats");
                 ObjectPath objectPath = ObjectPath.createFromResponse(statsResponse);
                 String state = objectPath.evaluate("stats.0.watcher_state");
-                assertThat(state, is("started"));
+
+                switch (state) {
+                case "stopped":
+                    Response startResponse = adminClient().performRequest("POST", "_xpack/watcher/_start");
+                    assertOK(startResponse);
+                    String body = EntityUtils.toString(startResponse.getEntity());
+                    assertThat(body, containsString("\"acknowledged\":true"));
+                    break;
+                case "stopping":
+                    throw new AssertionError("waiting until stopping state reached stopped state to start again");
+                case "starting":
+                    throw new AssertionError("waiting until starting state reached started state");
+                case "started":
+                    // all good here, we are done
+                    break;
+                default:
+                    throw new AssertionError("unknown state[" + state + "]");
+                }
             } catch (IOException e) {
                 throw new AssertionError(e);
+            }
+        });
+
+        assertBusy(() -> {
+            for (String template : WatcherIndexTemplateRegistryField.TEMPLATE_NAMES) {
+                assertOK(adminClient().performRequest("HEAD", "_template/" + template));
             }
         });
     }
@@ -73,11 +92,27 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
 
         assertBusy(() -> {
             try {
-                adminClient().performRequest("POST", "_xpack/watcher/_stop", Collections.emptyMap());
                 Response statsResponse = adminClient().performRequest("GET", "_xpack/watcher/stats");
                 ObjectPath objectPath = ObjectPath.createFromResponse(statsResponse);
                 String state = objectPath.evaluate("stats.0.watcher_state");
-                assertThat(state, is("stopped"));
+
+                switch (state) {
+                case "stopped":
+                    // all good here, we are done
+                    break;
+                case "stopping":
+                    throw new AssertionError("waiting until stopping state reached stopped state");
+                case "starting":
+                    throw new AssertionError("waiting until starting state reached started state to stop");
+                case "started":
+                    Response stopResponse = adminClient().performRequest("POST", "_xpack/watcher/_stop", Collections.emptyMap());
+                    assertOK(stopResponse);
+                    String body = EntityUtils.toString(stopResponse.getEntity());
+                    assertThat(body, containsString("\"acknowledged\":true"));
+                    break;
+                default:
+                    throw new AssertionError("unknown state[" + state + "]");
+                }
             } catch (IOException e) {
                 throw new AssertionError(e);
             }

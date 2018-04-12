@@ -481,7 +481,8 @@ The `model_plot_config` object has the following properties:
   each entity that is being analyzed. By default, this is not enabled.
 
 `terms`::
-  (string) Limits data collection to this comma separated list of partition or by field values.
-  If terms are not specified or it is an empty string, no filtering is applied.
-  For example, "CPU,NetworkIn,DiskWrites". This is experimental. Only the specified `terms` can
-  be viewed when using the Single Metric Viewer.
+  experimental[] (string) Limits data collection to this comma separated list of 
+  partition or by field values. If terms are not specified or it is an empty 
+  string, no filtering is applied. For example, "CPU,NetworkIn,DiskWrites". 
+  Wildcards are not supported. Only the specified `terms` can be viewed when 
+  using the Single Metric Viewer.

@@ -373,6 +373,7 @@ This command should give you a JSON result:
   "version" : {
     "number" : "{version}",
     "build_flavor" : "oss",
+    "build_type" : "zip",
     "build_hash" : "f27399d",
     "build_date" : "2016-03-30T09:51:41.449Z",
     "build_snapshot" : false,

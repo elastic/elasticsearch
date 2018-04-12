@@ -29,6 +29,7 @@ if ! echo $* | grep -E '(^-d |-d$| -d |--daemonize$|--daemonize )' > /dev/null; 
     -Des.path.home="$ES_HOME" \
     -Des.path.conf="$ES_PATH_CONF" \
     -Des.distribution.flavor="$ES_DISTRIBUTION_FLAVOR" \
+    -Des.distribution.type="$ES_DISTRIBUTION_TYPE" \
     -cp "$ES_CLASSPATH" \
     org.elasticsearch.bootstrap.Elasticsearch \
     "$@"
@@ -39,6 +40,7 @@ else
     -Des.path.home="$ES_HOME" \
     -Des.path.conf="$ES_PATH_CONF" \
     -Des.distribution.flavor="$ES_DISTRIBUTION_FLAVOR" \
+    -Des.distribution.type="$ES_DISTRIBUTION_TYPE" \
     -cp "$ES_CLASSPATH" \
     org.elasticsearch.bootstrap.Elasticsearch \
     "$@" \

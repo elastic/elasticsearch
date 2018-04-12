@@ -35,6 +35,7 @@ import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 public class Version implements Comparable<Version>, ToXContentFragment {
     /*
@@ -502,8 +503,16 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
     @SuppressForbidden(reason = "System.out.*")
     public static void main(String[] args) {
-        System.out.println("Version: " + Version.CURRENT + ", Build: " + Build.CURRENT.shortHash() + "/" + Build.CURRENT.date() + ", JVM: "
-                + JvmInfo.jvmInfo().version());
+        final String versionOutput = String.format(
+                Locale.ROOT,
+                "Version: %s, Build: %s/%s/%s/%s, JVM: %s",
+                Version.displayVersion(Version.CURRENT, Build.CURRENT.isSnapshot()),
+                Build.CURRENT.flavor().displayName(),
+                Build.CURRENT.type().displayName(),
+                Build.CURRENT.shortHash(),
+                Build.CURRENT.date(),
+                JvmInfo.jvmInfo().version());
+        System.out.println(versionOutput);
     }
 
     @Override

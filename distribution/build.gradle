@@ -434,6 +434,14 @@ subprojects {
         'def': oss ? 'oss' : 'default'
       ],
 
+
+      'es.distribution.type': [
+        'deb': 'deb',
+        'rpm': 'rpm',
+        'tar': 'tar',
+        'zip': 'zip'
+      ],
+
       'license.name': [
         'deb': oss ? 'ASL-2.0' : 'Elastic-License'
       ],

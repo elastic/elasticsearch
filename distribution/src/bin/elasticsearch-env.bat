@@ -54,6 +54,7 @@ rem now make ES_PATH_CONF absolute
 for %%I in ("%ES_PATH_CONF%..") do set ES_PATH_CONF=%%~dpfI
 
 set ES_DISTRIBUTION_FLAVOR=${es.distribution.flavor}
+set ES_DISTRIBUTION_TYPE=${es.distribution.type}
 
 if not defined ES_TMPDIR (
   set ES_TMPDIR=!TMP!\elasticsearch

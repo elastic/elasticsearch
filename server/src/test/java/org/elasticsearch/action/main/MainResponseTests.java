@@ -40,8 +40,8 @@ public class MainResponseTests extends AbstractStreamableXContentTestCase<MainRe
         String clusterUuid = randomAlphaOfLength(10);
         ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
         String nodeName = randomAlphaOfLength(10);
-        Build build =
-                new Build(Build.Flavor.UNKNOWN, randomAlphaOfLength(8), new Date(randomNonNegativeLong()).toString(), randomBoolean());
+        final String date = new Date(randomNonNegativeLong()).toString();
+        Build build = new Build(Build.Flavor.UNKNOWN, Build.Type.UNKNOWN, randomAlphaOfLength(8), date, randomBoolean());
         Version version = VersionUtils.randomVersion(random());
         return new MainResponse(nodeName, version, clusterName, clusterUuid , build);
     }
@@ -58,7 +58,8 @@ public class MainResponseTests extends AbstractStreamableXContentTestCase<MainRe
 
     public void testToXContent() throws IOException {
         String clusterUUID = randomAlphaOfLengthBetween(10, 20);
-        Build build = new Build(Build.CURRENT.flavor(), Build.CURRENT.shortHash(), Build.CURRENT.date(), Build.CURRENT.isSnapshot());
+        final Build current = Build.CURRENT;
+        Build build = new Build(current.flavor(), current.type(), current.shortHash(), current.date(), current.isSnapshot());
         Version version = Version.CURRENT;
         MainResponse response = new MainResponse("nodeName", version, new ClusterName("clusterName"), clusterUUID, build);
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -69,10 +70,11 @@ public class MainResponseTests extends AbstractStreamableXContentTestCase<MainRe
                 + "\"cluster_uuid\":\"" + clusterUUID + "\","
                 + "\"version\":{"
                     + "\"number\":\"" + version.toString() + "\","
-                    + "\"build_flavor\":\"" + Build.CURRENT.flavor().displayName() + "\","
-                    + "\"build_hash\":\"" + Build.CURRENT.shortHash() + "\","
-                    + "\"build_date\":\"" + Build.CURRENT.date() + "\","
-                    + "\"build_snapshot\":" + Build.CURRENT.isSnapshot() + ","
+                    + "\"build_flavor\":\"" + current.flavor().displayName() + "\","
+                    + "\"build_type\":\"" + current.type().displayName() + "\","
+                    + "\"build_hash\":\"" + current.shortHash() + "\","
+                    + "\"build_date\":\"" + current.date() + "\","
+                    + "\"build_snapshot\":" + current.isSnapshot() + ","
                     + "\"lucene_version\":\"" + version.luceneVersion.toString() + "\","
                     + "\"minimum_wire_compatibility_version\":\"" + version.minimumCompatibilityVersion().toString() + "\","
                     + "\"minimum_index_compatibility_version\":\"" + version.minimumIndexCompatibilityVersion().toString() + "\"},"
@@ -96,7 +98,7 @@ public class MainResponseTests extends AbstractStreamableXContentTestCase<MainRe
                 break;
             case 2:
                 // toggle the snapshot flag of the original Build parameter
-                build = new Build(Build.Flavor.UNKNOWN, build.shortHash(), build.date(), !build.isSnapshot());
+                build = new Build(Build.Flavor.UNKNOWN, Build.Type.UNKNOWN, build.shortHash(), build.date(), !build.isSnapshot());
                 break;
             case 3:
                 version = randomValueOtherThan(version, () -> VersionUtils.randomVersion(random()));

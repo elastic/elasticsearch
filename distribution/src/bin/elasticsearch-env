@@ -78,6 +78,7 @@ fi
 ES_PATH_CONF=`cd "$ES_PATH_CONF"; pwd`
 
 ES_DISTRIBUTION_FLAVOR=${es.distribution.flavor}
+ES_DISTRIBUTION_TYPE=${es.distribution.type}
 
 if [ -z "$ES_TMPDIR" ]; then
   set +e

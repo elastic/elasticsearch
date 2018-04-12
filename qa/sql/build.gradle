@@ -9,10 +9,10 @@ dependencies {
   compile "org.elasticsearch.test:framework:${version}"
 
   // JDBC testing dependencies
-  // TODO: Restore shading when https://github.com/elastic/elasticsearch/issues/28504 is fixed
   compile xpackProject('plugin:sql:jdbc')
   compile "net.sourceforge.csvjdbc:csvjdbc:1.0.34"
 
+  // CLI testing dependencies
   compile project(path: xpackModule('sql:sql-cli'), configuration: 'nodeps')
   compile "org.jline:jline:3.6.0"
 }
@@ -85,20 +85,16 @@ subprojects {
     testCompile "org.elasticsearch.test:framework:${version}"
 
     // JDBC testing dependencies
-    // TODO: Restore shading when https://github.com/elastic/elasticsearch/issues/28504 is fixed
+    testRuntime "net.sourceforge.csvjdbc:csvjdbc:1.0.34"
+    testRuntime "com.h2database:h2:1.4.197"
     testRuntime xpackProject('plugin:sql:jdbc')
-    testRuntime("net.sourceforge.csvjdbc:csvjdbc:1.0.34") {
-      transitive = false
-    }
-    testRuntime("com.h2database:h2:1.4.197") {
-      transitive = false
-    }
 
     // TODO check if needed
     testRuntime("org.antlr:antlr4-runtime:4.5.3") {
       transitive = false
     }
 
+    // CLI testing dependencies
     testRuntime project(path: xpackModule('sql:sql-cli'), configuration: 'nodeps')
     testRuntime "org.jline:jline:3.6.0"
   }

@@ -19,15 +19,10 @@
 
 package org.elasticsearch.common.unit;
 
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.containsString;
@@ -152,31 +147,6 @@ public class TimeValueTests extends ESTestCase {
 
     private String randomTimeUnit() {
         return randomFrom("nanos", "micros", "ms", "s", "m", "h", "d");
-    }
-
-    private void assertEqualityAfterSerialize(TimeValue value, int expectedSize) throws IOException {
-        BytesStreamOutput out = new BytesStreamOutput();
-        out.writeTimeValue(value);
-        assertEquals(expectedSize, out.size());
-
-        StreamInput in = out.bytes().streamInput();
-        TimeValue inValue = in.readTimeValue();
-
-        assertThat(inValue, equalTo(value));
-        assertThat(inValue.duration(), equalTo(value.duration()));
-        assertThat(inValue.timeUnit(), equalTo(value.timeUnit()));
-    }
-
-    public void testSerialize() throws Exception {
-        assertEqualityAfterSerialize(new TimeValue(100, TimeUnit.DAYS), 3);
-        assertEqualityAfterSerialize(timeValueNanos(-1), 2);
-        assertEqualityAfterSerialize(timeValueNanos(1), 2);
-        assertEqualityAfterSerialize(timeValueSeconds(30), 2);
-
-        final TimeValue timeValue = new TimeValue(randomIntBetween(0, 1024), randomFrom(TimeUnit.values()));
-        BytesStreamOutput out = new BytesStreamOutput();
-        out.writeZLong(timeValue.duration());
-        assertEqualityAfterSerialize(timeValue, 1 + out.bytes().length());
     }
 
     public void testFailOnUnknownUnits() {

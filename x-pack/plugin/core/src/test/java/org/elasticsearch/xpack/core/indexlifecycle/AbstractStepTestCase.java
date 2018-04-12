@@ -10,11 +10,15 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 public abstract class AbstractStepTestCase<T extends Step> extends ESTestCase {
 
+    protected static final int NUMBER_OF_TEST_RUNS = 20;
+
     protected abstract T createRandomInstance();
     protected abstract T mutateInstance(T instance);
     protected abstract T copyInstance(T instance);
 
     public void testHashcodeAndEquals() {
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createRandomInstance(), this::copyInstance, this::mutateInstance);
+        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(createRandomInstance(), this::copyInstance, this::mutateInstance);
+        }
     }
 }

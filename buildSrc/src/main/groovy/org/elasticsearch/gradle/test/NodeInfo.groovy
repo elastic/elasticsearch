@@ -23,6 +23,7 @@ import com.sun.jna.WString
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.Version
 import org.gradle.api.InvalidUserDataException
+import org.gradle.api.JavaVersion
 import org.gradle.api.Project
 
 import java.nio.file.Files
@@ -162,7 +163,17 @@ class NodeInfo {
             args.add("${esScript}")
         }
 
-        env = ['JAVA_HOME': project.runtimeJavaHome]
+        final String javaHome
+        final Map<Integer, JavaVersion> javaVersions = project.javaVersions
+        if (Version.fromString(nodeVersion).before("6.2.0")) {
+            javaHome = javaVersions.get(8)
+        } else if (Version.fromString(nodeVersion).onOrAfter("6.2.0") && Version.fromString(nodeVersion).before("6.3.0")) {
+            javaHome = javaVersions.get(9)
+        } else {
+            javaHome = javaVersions.get(10)
+        }
+
+        env = ['JAVA_HOME':javaHome]
         args.addAll("-E", "node.portsfile=true")
         String collectedSystemProperties = config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" ")
         String esJavaOpts = config.jvmArgs.isEmpty() ? collectedSystemProperties : collectedSystemProperties + " " + config.jvmArgs

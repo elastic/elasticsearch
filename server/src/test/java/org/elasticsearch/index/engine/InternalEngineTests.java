@@ -119,6 +119,7 @@ import org.elasticsearch.index.translog.SnapshotMatchers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 
@@ -2709,6 +2710,12 @@ public class InternalEngineTests extends EngineTestCase {
                     assert false: "unsupported failure class: " + failure.getClass().getCanonicalName();
                 }
             }
+        }
+
+        @Override
+        public long softUpdateDocument(Term term, Iterable<? extends IndexableField> doc, Field... softDeletes) throws IOException {
+            maybeThrowFailure();
+            return super.softUpdateDocument(term, doc, softDeletes);
         }
 
         @Override

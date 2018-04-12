@@ -29,7 +29,6 @@ To follow the steps in this tutorial, you will need the following
 components of the Elastic Stack:
 
 * {es} {version}, which stores the data and the analysis results
-* {xpack} {version}, which includes the {ml} features for both {es} and {kib}
 * {kib} {version}, which provides a helpful user interface for creating and
 viewing jobs
 
@@ -44,8 +43,11 @@ single VM or even on your laptop (requires 64-bit OS).
 As you add more data and your traffic grows,
 you'll want to replace the single {es} instance with a cluster.
 
-When you install {es} and {kib}, the {ml} features are enabled by default. If
-you have multiple nodes in your cluster, you can optionally dedicate nodes to
+By default, when you install {es} and {kib}, {xpack} is installed and the 
+{ml} features are enabled. You cannot use {ml} with the free basic license, but 
+you can try all of the {xpack} features with a <<license-management,trial license>>. 
+
+If you have multiple nodes in your cluster, you can optionally dedicate nodes to
 specific purposes. If you want to control which nodes are
 _machine learning nodes_ or limit which nodes run resource-intensive
 activity related to jobs, see <<xpack-settings>>.

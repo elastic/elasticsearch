@@ -73,7 +73,7 @@ Username to use for authentication with {es}.
 [float]
 === Examples
 
-Run the migrate tool after you install the X-Pack plugin. For example:
+Run the migrate tool when {xpack} is installed. For example:
 
 [source, sh]
 ----------------------------------------------------------------------

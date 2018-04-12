@@ -7,6 +7,11 @@ When you request highlights, the response contains an additional `highlight`
 element for each search hit that includes the highlighted fields and the
 highlighted fragments.
 
+NOTE: For some complex queries (e.g nested boolean queries, queries using
+`minimum_should_match` etc.), parts of documents may be highlighted
+that don't correspond to query matches. The work for fixing this is
+currenly in progress.
+
 Highlighting requires the actual content of a field. If the field is not
 stored (the mapping does not set `store` to `true`), the actual `_source` is
 loaded and the relevant field is extracted from `_source`.

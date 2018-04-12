@@ -72,13 +72,51 @@ public class Build {
 
     }
 
+    public enum Type {
+
+        DEB("deb"),
+        RPM("rpm"),
+        TAR("tar"),
+        ZIP("zip"),
+        UNKNOWN("unknown");
+
+        final String displayName;
+
+        public String displayName() {
+            return displayName;
+        }
+
+        Type(final String displayName) {
+            this.displayName = displayName;
+        }
+
+        public static Type fromDisplayName(final String displayName) {
+            switch (displayName) {
+                case "deb":
+                    return Type.DEB;
+                case "rpm":
+                    return Type.RPM;
+                case "tar":
+                    return Type.TAR;
+                case "zip":
+                    return Type.ZIP;
+                case "unknown":
+                    return Type.UNKNOWN;
+                default:
+                    throw new IllegalStateException("unexpected distribution type [" + displayName + "]; your distribution is broken");
+            }
+        }
+    }
+
     static {
         final Flavor flavor;
+        final Type type;
         final String shortHash;
         final String date;
         final boolean isSnapshot;
 
         flavor = Flavor.fromDisplayName(System.getProperty("es.distribution.flavor", "unknown"));
+        type = Type.fromDisplayName(System.getProperty("es.distribution.type", "unknown"));
 
         final String esPrefix = "elasticsearch-" + Version.CURRENT;
         final URL url = getElasticsearchCodeSourceLocation();
@@ -118,7 +156,7 @@ public class Build {
                     "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
         }
 
-        CURRENT = new Build(flavor, shortHash, date, isSnapshot);
+        CURRENT = new Build(flavor, type, shortHash, date, isSnapshot);
     }
 
     private final boolean isSnapshot;
@@ -134,11 +172,13 @@ public class Build {
     }
 
     private final Flavor flavor;
+    private final Type type;
     private final String shortHash;
     private final String date;
 
-    public Build(Flavor flavor, String shortHash, String date, boolean isSnapshot) {
+    public Build(final Flavor flavor, final Type type, final String shortHash, final String date, boolean isSnapshot) {
         this.flavor = flavor;
+        this.type = type;
         this.shortHash = shortHash;
         this.date = date;
         this.isSnapshot = isSnapshot;
@@ -154,20 +194,29 @@ public class Build {
 
     public static Build readBuild(StreamInput in) throws IOException {
         final Flavor flavor;
+        final Type type;
         if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
             flavor = Flavor.fromDisplayName(in.readString());
         } else {
             flavor = Flavor.OSS;
         }
+        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+            type = Type.fromDisplayName(in.readString());
+        } else {
+            type = Type.UNKNOWN;
+        }
         String hash = in.readString();
         String date = in.readString();
         boolean snapshot = in.readBoolean();
-        return new Build(flavor, hash, date, snapshot);
+        return new Build(flavor, type, hash, date, snapshot);
     }
 
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
         if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
             out.writeString(build.flavor().displayName());
+        }
+        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+            out.writeString(build.type().displayName());
         }
         out.writeString(build.shortHash());
         out.writeString(build.date());
@@ -178,13 +227,17 @@ public class Build {
         return flavor;
     }
 
+    public Type type() {
+        return type;
+    }
+
     public boolean isSnapshot() {
         return isSnapshot;
     }
 
     @Override
     public String toString() {
-        return "[" + flavor.displayName() + "][" + shortHash + "][" + date + "]";
+        return "[" + flavor.displayName() + "][" + type.displayName + "][" + shortHash + "][" + date + "]";
     }
 
     @Override
@@ -202,6 +255,10 @@ public class Build {
             return false;
         }
 
+        if (!type.equals(build.type)) {
+            return false;
+        }
+
         if (isSnapshot != build.isSnapshot) {
             return false;
         }
@@ -214,7 +271,7 @@ public class Build {
 
     @Override
     public int hashCode() {
-        return Objects.hash(flavor, isSnapshot, shortHash, date);
+        return Objects.hash(flavor, type, isSnapshot, shortHash, date);
     }
 
 }

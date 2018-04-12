@@ -10,6 +10,7 @@ call "%~dp0elasticsearch-env.bat" || exit /b 1
   -Des.path.home="%ES_HOME%" ^
   -Des.path.conf="%ES_PATH_CONF%" ^
   -Des.distribution.flavor="%ES_DISTRIBUTION_FLAVOR%" ^
+  -Des.distribution.type="%ES_DISTRIBUTION_TYPE%" ^
   -cp "%ES_CLASSPATH%" ^
   org.elasticsearch.plugins.PluginCli ^
   %*

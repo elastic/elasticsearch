@@ -22,6 +22,7 @@ import com.sun.jna.Native
 import com.sun.jna.WString
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.Version
+import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.JavaVersion
 import org.gradle.api.Project
@@ -166,11 +167,19 @@ class NodeInfo {
         final String javaHome
         final Map<Integer, JavaVersion> javaVersions = project.javaVersions
         if (Version.fromString(nodeVersion).before("6.2.0")) {
-            javaHome = javaVersions.get(8)
+            final String java8Home = javaVersions.get(8)
+            if (java8Home == null) {
+                throw new GradleException("JAVA8_HOME must be set to run BWC tests against [" + nodeVersion + "]")
+            }
+            javaHome = java8Home
         } else if (Version.fromString(nodeVersion).onOrAfter("6.2.0") && Version.fromString(nodeVersion).before("6.3.0")) {
-            javaHome = javaVersions.get(9)
+            final String java9Home = javaVersions.get(9)
+            if (java9Home == null) {
+                throw new GradleException("JAVA9_HOME must be set to run BWC tests against [" + nodeVersion + "]")
+            }
+            javaHome = java9Home
         } else {
-            javaHome = javaVersions.get(10)
+            javaHome = project.compilerJavaHome
         }
 
         env = ['JAVA_HOME':javaHome]

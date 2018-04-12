@@ -42,29 +42,34 @@ public class AliasStepTests extends AbstractStepTestCase<AliasStep> {
     public AliasStep createRandomInstance() {
         StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-        return new AliasStep(stepKey, nextStepKey, client);
+        String shrunkIndexPrefix = randomAlphaOfLength(10);
+        return new AliasStep(stepKey, nextStepKey, client, shrunkIndexPrefix);
     }
 
     @Override
     public AliasStep mutateInstance(AliasStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
-        switch (between(0, 1)) {
+        String shrunkIndexPrefix = instance.getShrunkIndexPrefix();
+        switch (between(0, 2)) {
         case 0:
             key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
             break;
         case 1:
             nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
             break;
+        case 2:
+            shrunkIndexPrefix += randomAlphaOfLength(5);
+            break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new AliasStep(key, nextKey, instance.getClient());
+        return new AliasStep(key, nextKey, instance.getClient(), shrunkIndexPrefix);
     }
 
     @Override
     public AliasStep copyInstance(AliasStep instance) {
-        return new AliasStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
+        return new AliasStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getShrunkIndexPrefix());
     }
 
     public void testPerformAction() {
@@ -73,7 +78,7 @@ public class AliasStepTests extends AbstractStepTestCase<AliasStep> {
         AliasStep step = createRandomInstance();
 
         String sourceIndex = indexMetaData.getIndex().getName();
-        String shrunkenIndex = ShrinkStep.SHRUNKEN_INDEX_PREFIX + sourceIndex;
+        String shrunkenIndex = step.getShrunkIndexPrefix() + sourceIndex;
         List<AliasActions> expectedAliasActions = Arrays.asList(
             IndicesAliasesRequest.AliasActions.removeIndex().index(sourceIndex),
             IndicesAliasesRequest.AliasActions.add().index(shrunkenIndex).alias(sourceIndex));

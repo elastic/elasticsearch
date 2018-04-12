@@ -10,11 +10,19 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 
+import java.util.Objects;
+
 public class AliasStep extends AsyncActionStep {
     public static final String NAME = "aliases";
+    private String shrunkIndexPrefix;
 
-    public AliasStep(StepKey key, StepKey nextStepKey, Client client) {
+    public AliasStep(StepKey key, StepKey nextStepKey, Client client, String shrunkIndexPrefix) {
         super(key, nextStepKey, client);
+        this.shrunkIndexPrefix = shrunkIndexPrefix;
+    }
+
+    String getShrunkIndexPrefix() {
+        return shrunkIndexPrefix;
     }
 
     @Override
@@ -22,7 +30,7 @@ public class AliasStep extends AsyncActionStep {
         // get source index
         String index = indexMetaData.getIndex().getName();
         // get target shrink index
-        String targetIndexName = ShrinkStep.SHRUNKEN_INDEX_PREFIX + index;
+        String targetIndexName = shrunkIndexPrefix + index;
 
         IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest()
             .addAliasAction(IndicesAliasesRequest.AliasActions.removeIndex().index(index))
@@ -30,5 +38,23 @@ public class AliasStep extends AsyncActionStep {
 
         getClient().admin().indices().aliases(aliasesRequest, ActionListener.wrap(response ->
             listener.onResponse(true), listener::onFailure));
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), shrunkIndexPrefix);
+    }
+    
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        AliasStep other = (AliasStep) obj;
+        return super.equals(obj) && 
+                Objects.equals(shrunkIndexPrefix, other.shrunkIndexPrefix);
     }
 }

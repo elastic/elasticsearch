@@ -16,17 +16,22 @@ import java.util.Objects;
 
 public class ShrinkStep extends AsyncActionStep {
     public static final String NAME = "shrink";
-    public static final String SHRUNKEN_INDEX_PREFIX = "shrink-";
 
     private int numberOfShards;
+    private String shrunkIndexPrefix;
 
-    public ShrinkStep(StepKey key, StepKey nextStepKey, Client client, int numberOfShards) {
+    public ShrinkStep(StepKey key, StepKey nextStepKey, Client client, int numberOfShards, String shrunkIndexPrefix) {
         super(key, nextStepKey, client);
         this.numberOfShards = numberOfShards;
+        this.shrunkIndexPrefix = shrunkIndexPrefix;
     }
 
     public int getNumberOfShards() {
         return numberOfShards;
+    }
+
+    String getShrunkIndexPrefix() {
+        return shrunkIndexPrefix;
     }
 
     @Override
@@ -51,7 +56,7 @@ public class ShrinkStep extends AsyncActionStep {
             .put(LifecycleSettings.LIFECYCLE_ACTION, action)
             .put(LifecycleSettings.LIFECYCLE_STEP, ShrunkenIndexCheckStep.NAME) // skip source-index steps
             .build();
-        String shrunkenIndexName = SHRUNKEN_INDEX_PREFIX + indexMetaData.getIndex().getName();
+        String shrunkenIndexName = shrunkIndexPrefix + indexMetaData.getIndex().getName();
         ResizeRequest resizeRequest = new ResizeRequest(shrunkenIndexName, indexMetaData.getIndex().getName());
         indexMetaData.getAliases().values().spliterator().forEachRemaining(aliasMetaDataObjectCursor -> {
             resizeRequest.getTargetIndexRequest().alias(new Alias(aliasMetaDataObjectCursor.value.alias()));
@@ -66,7 +71,7 @@ public class ShrinkStep extends AsyncActionStep {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), numberOfShards);
+        return Objects.hash(super.hashCode(), numberOfShards, shrunkIndexPrefix);
     }
     
     @Override
@@ -78,7 +83,9 @@ public class ShrinkStep extends AsyncActionStep {
             return false;
         }
         ShrinkStep other = (ShrinkStep) obj;
-        return super.equals(obj) && Objects.equals(numberOfShards, other.numberOfShards);
+        return super.equals(obj) && 
+                Objects.equals(numberOfShards, other.numberOfShards) && 
+                Objects.equals(shrunkIndexPrefix, other.shrunkIndexPrefix);
     }
 
 }

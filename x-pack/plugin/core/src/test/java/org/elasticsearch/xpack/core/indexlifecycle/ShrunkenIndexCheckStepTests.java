@@ -20,30 +20,40 @@ public class ShrunkenIndexCheckStepTests extends AbstractStepTestCase<ShrunkenIn
     public ShrunkenIndexCheckStep createRandomInstance() {
         StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-        return new ShrunkenIndexCheckStep(stepKey, nextStepKey);
+        String shrunkIndexPrefix = randomAlphaOfLength(10);
+        return new ShrunkenIndexCheckStep(stepKey, nextStepKey, shrunkIndexPrefix);
     }
 
     @Override
     public ShrunkenIndexCheckStep mutateInstance(ShrunkenIndexCheckStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
-
-        if (randomBoolean()) {
+        String shrunkIndexPrefix = instance.getShrunkIndexPrefix();
+        switch (between(0, 2)) {
+        case 0:
             key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-        } else {
+            break;
+        case 1:
             nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            break;
+        case 2:
+            shrunkIndexPrefix += randomAlphaOfLength(5);
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
         }
-        return new ShrunkenIndexCheckStep(key, nextKey);
+        return new ShrunkenIndexCheckStep(key, nextKey, shrunkIndexPrefix);
     }
 
     @Override
     public ShrunkenIndexCheckStep copyInstance(ShrunkenIndexCheckStep instance) {
-        return new ShrunkenIndexCheckStep(instance.getKey(), instance.getNextStepKey());
+        return new ShrunkenIndexCheckStep(instance.getKey(), instance.getNextStepKey(), instance.getShrunkIndexPrefix());
     }
 
     public void testConditionMet() {
+        ShrunkenIndexCheckStep step = createRandomInstance();
         String sourceIndex = randomAlphaOfLengthBetween(1, 10);
-        IndexMetaData indexMetadata = IndexMetaData.builder(ShrinkStep.SHRUNKEN_INDEX_PREFIX + sourceIndex)
+        IndexMetaData indexMetadata = IndexMetaData.builder(step.getShrunkIndexPrefix() + sourceIndex)
             .settings(settings(Version.CURRENT).put(IndexMetaData.INDEX_SHRINK_SOURCE_NAME_KEY, sourceIndex))
             .numberOfShards(1)
             .numberOfReplicas(0).build();
@@ -53,11 +63,11 @@ public class ShrunkenIndexCheckStepTests extends AbstractStepTestCase<ShrunkenIn
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).build();
-        ShrunkenIndexCheckStep step = new ShrunkenIndexCheckStep(null, null);
         assertTrue(step.isConditionMet(indexMetadata.getIndex(), clusterState));
     }
 
     public void testConditionNotMetBecauseNotSameShrunkenIndex() {
+        ShrunkenIndexCheckStep step = createRandomInstance();
         String sourceIndex = randomAlphaOfLengthBetween(1, 10);
         IndexMetaData indexMetadata = IndexMetaData.builder(sourceIndex + "hello")
             .settings(settings(Version.CURRENT).put(IndexMetaData.INDEX_SHRINK_SOURCE_NAME_KEY, sourceIndex))
@@ -68,11 +78,11 @@ public class ShrunkenIndexCheckStepTests extends AbstractStepTestCase<ShrunkenIn
             .put(IndexMetaData.builder(indexMetadata))
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).build();
-        ShrunkenIndexCheckStep step = new ShrunkenIndexCheckStep(null, null);
         assertFalse(step.isConditionMet(indexMetadata.getIndex(), clusterState));
     }
 
     public void testIllegalState() {
+        ShrunkenIndexCheckStep step = createRandomInstance();
         IndexMetaData indexMetadata = IndexMetaData.builder(randomAlphaOfLength(5))
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
@@ -82,7 +92,6 @@ public class ShrunkenIndexCheckStepTests extends AbstractStepTestCase<ShrunkenIn
             .put(IndexMetaData.builder(indexMetadata))
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).build();
-        ShrunkenIndexCheckStep step = new ShrunkenIndexCheckStep(null, null);
         IllegalStateException exception = expectThrows(IllegalStateException.class,
             () -> step.isConditionMet(indexMetadata.getIndex(), clusterState));
         assertThat(exception.getMessage(),

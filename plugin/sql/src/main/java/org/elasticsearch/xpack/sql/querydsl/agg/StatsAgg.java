@@ -11,8 +11,8 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
 
 public class StatsAgg extends LeafAgg {
 
-    public StatsAgg(String id, String propertyPath, String fieldName) {
-        super(id, propertyPath, fieldName);
+    public StatsAgg(String id, String fieldName) {
+        super(id, fieldName);
     }
 
     @Override

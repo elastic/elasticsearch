@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql;
 
 import org.elasticsearch.ElasticsearchException;
 
-public class SqlException extends ElasticsearchException {
+public abstract class SqlException extends ElasticsearchException {
     public SqlException(String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {
         super(message, cause, enableSuppression, writableStackTrace);
     }

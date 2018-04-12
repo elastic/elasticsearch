@@ -9,12 +9,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.sql.execution.search.extractor.ComputingExtractorTests;
 import org.elasticsearch.xpack.sql.execution.search.extractor.ConstantExtractorTests;
 import org.elasticsearch.xpack.sql.execution.search.extractor.FieldHitExtractorTests;
 import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractor;
-import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractors;
-import org.elasticsearch.xpack.sql.execution.search.extractor.ProcessingHitExtractorTests;
-import org.elasticsearch.xpack.sql.session.Cursor;
+import org.elasticsearch.xpack.sql.session.Cursors;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,7 +33,7 @@ public class ScrollCursorTests extends AbstractWireSerializingTestCase<ScrollCur
     static HitExtractor randomHitExtractor(int depth) {
         List<Supplier<HitExtractor>> options = new ArrayList<>();
         if (depth < 5) {
-            options.add(() -> ProcessingHitExtractorTests.randomProcessingHitExtractor(depth));
+            options.add(() -> ComputingExtractorTests.randomComputingExtractor());
         }
         options.add(ConstantExtractorTests::randomConstantExtractor);
         options.add(FieldHitExtractorTests::randomFieldHitExtractor);
@@ -42,8 +41,13 @@ public class ScrollCursorTests extends AbstractWireSerializingTestCase<ScrollCur
     }
 
     @Override
+    protected ScrollCursor mutateInstance(ScrollCursor instance) throws IOException {
+        return new ScrollCursor(instance.scrollId(), instance.extractors(), randomIntBetween(1, 1024));
+    }
+
+    @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(HitExtractors.getNamedWriteables());
+        return new NamedWriteableRegistry(Cursors.getNamedWriteables());
     }
 
     @Override
@@ -63,6 +67,6 @@ public class ScrollCursorTests extends AbstractWireSerializingTestCase<ScrollCur
         if (randomBoolean()) {
             return super.copyInstance(instance, version);
         }
-        return (ScrollCursor)Cursor.decodeFromString(Cursor.encodeToString(version, instance));
+        return (ScrollCursor) Cursors.decodeFromString(Cursors.encodeToString(version, instance));
     }
 }

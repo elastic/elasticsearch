@@ -13,9 +13,9 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
-import static java.util.Collections.emptyList;
-
 import java.util.List;
+
+import static java.util.Collections.emptyList;
 
 public class BinaryProcessorDefinitionTests extends ESTestCase {
     public void testSupportedByAggsOnlyQuery() {
@@ -78,23 +78,6 @@ public class BinaryProcessorDefinitionTests extends ESTestCase {
         SearchSourceBuilder source = new SearchSourceBuilder();
         b.build(source);
         return source.trackScores();
-    }
-
-    public void testDepth() {
-        ProcessorDefinition first = dummyWithDepth(randomInt());
-        ProcessorDefinition second = dummyWithDepth(randomInt());
-        int maxDepth = Math.max(first.depth(), second.depth());
-        assertEquals(maxDepth, new DummyBinaryProcessorDefinition(first, second).depth());
-        assertEquals(maxDepth, new DummyBinaryProcessorDefinition(second, first).depth());
-    }
-
-    static ProcessorDefinition dummyWithDepth(int depth) {
-        return new DummyProcessorDefinition(randomBoolean()) {
-            @Override
-            public int depth() {
-                return depth;
-            }
-        };
     }
 
     public static final class DummyBinaryProcessorDefinition extends BinaryProcessorDefinition {
@@ -166,11 +149,6 @@ public class BinaryProcessorDefinitionTests extends ESTestCase {
 
         @Override
         public void collectFields(SqlSourceBuilder sourceBuilder) {
-        }
-
-        @Override
-        public int depth() {
-            return 0;
         }
     }
 }

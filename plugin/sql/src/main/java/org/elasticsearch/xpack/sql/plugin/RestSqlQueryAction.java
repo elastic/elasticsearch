@@ -20,6 +20,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.sql.session.Cursor;
+import org.elasticsearch.xpack.sql.session.Cursors;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -63,7 +64,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
         return channel -> client.execute(SqlQueryAction.INSTANCE, sqlRequest, new RestResponseListener<SqlQueryResponse>(channel) {
             @Override
             public RestResponse buildResponse(SqlQueryResponse response) throws Exception {
-                Cursor cursor = Cursor.decodeFromString(sqlRequest.cursor());
+                Cursor cursor = Cursors.decodeFromString(sqlRequest.cursor());
                 final String data = text.format(cursor, request, response);
 
                 RestResponse restResponse = new BytesRestResponse(RestStatus.OK, text.contentType(request),
@@ -72,7 +73,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
                 Cursor responseCursor = text.wrapCursor(cursor, response);
 
                 if (responseCursor != Cursor.EMPTY) {
-                    restResponse.addHeader("Cursor", Cursor.encodeToString(Version.CURRENT, responseCursor));
+                    restResponse.addHeader("Cursor", Cursors.encodeToString(Version.CURRENT, responseCursor));
                 }
                 restResponse.addHeader("Took-nanos", Long.toString(System.nanoTime() - startNanos));
 

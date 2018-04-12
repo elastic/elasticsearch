@@ -17,7 +17,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.session.Configuration;
-import org.elasticsearch.xpack.sql.session.Cursor;
+import org.elasticsearch.xpack.sql.session.Cursors;
 import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.type.Schema;
@@ -64,7 +64,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
             planExecutor.sql(cfg, request.query(), request.params(),
                     ActionListener.wrap(rowSet -> listener.onResponse(createResponse(request, rowSet)), listener::onFailure));
         } else {
-            planExecutor.nextPage(cfg, Cursor.decodeFromString(request.cursor()),
+            planExecutor.nextPage(cfg, Cursors.decodeFromString(request.cursor()),
                     ActionListener.wrap(rowSet -> listener.onResponse(createResponse(rowSet, null)), listener::onFailure));
         }
     }
@@ -92,7 +92,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         });
 
         return new SqlQueryResponse(
-                Cursor.encodeToString(Version.CURRENT, rowSet.nextPageCursor()),
+                Cursors.encodeToString(Version.CURRENT, rowSet.nextPageCursor()),
                 columns,
                 rows);
     }

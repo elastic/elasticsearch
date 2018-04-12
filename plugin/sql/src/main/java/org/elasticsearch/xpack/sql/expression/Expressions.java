@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.function.Predicate;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static java.util.stream.Collectors.toList;
 
 public abstract class Expressions {
@@ -36,6 +37,18 @@ public abstract class Expressions {
             list.add(exp.toAttribute());
         }
         return list;
+    }
+
+    public static AttributeMap<Expression> asAttributeMap(List<? extends NamedExpression> named) {
+        if (named.isEmpty()) {
+            return new AttributeMap<>(emptyMap());
+        }
+
+        AttributeMap<Expression> map = new AttributeMap<>();
+        for (NamedExpression exp : named) {
+            map.add(exp.toAttribute(), exp);
+        }
+        return map;
     }
 
     public static boolean anyMatch(List<? extends Expression> exps, Predicate<? super Expression> predicate) {

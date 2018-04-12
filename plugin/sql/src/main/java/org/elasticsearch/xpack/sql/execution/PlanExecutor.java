@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.execution;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
@@ -27,6 +28,7 @@ import java.util.List;
 
 public class PlanExecutor {
     private final Client client;
+    private final NamedWriteableRegistry writableRegistry;
 
     private final FunctionRegistry functionRegistry;
 
@@ -35,14 +37,20 @@ public class PlanExecutor {
     private final Optimizer optimizer;
     private final Planner planner;
 
-    public PlanExecutor(Client client, IndexResolver indexResolver) {
+    public PlanExecutor(Client client, IndexResolver indexResolver, NamedWriteableRegistry writeableRegistry) {
         this.client = client;
+        this.writableRegistry = writeableRegistry;
+
         this.indexResolver = indexResolver;
         this.functionRegistry = new FunctionRegistry();
 
         this.preAnalyzer = new PreAnalyzer();
         this.optimizer = new Optimizer();
         this.planner = new Planner();
+    }
+
+    public NamedWriteableRegistry writableRegistry() {
+        return writableRegistry;
     }
 
     private SqlSession newSession(Configuration cfg) {
@@ -65,7 +73,7 @@ public class PlanExecutor {
     }
 
     public void nextPage(Configuration cfg, Cursor cursor, ActionListener<RowSet> listener) {
-        cursor.nextPage(cfg, client, listener);
+        cursor.nextPage(cfg, client, writableRegistry, listener);
     }
 
     public void cleanCursor(Configuration cfg, Cursor cursor, ActionListener<Boolean> listener) {

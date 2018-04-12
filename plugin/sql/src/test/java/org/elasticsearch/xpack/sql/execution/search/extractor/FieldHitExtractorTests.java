@@ -74,7 +74,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
             DocumentField field = new DocumentField(fieldName, documentFieldValues);
             hit.fields(singletonMap(fieldName, field));
             Object result = documentFieldValues.isEmpty() ? null : documentFieldValues.get(0);
-            assertEquals(result, extractor.get(hit));
+            assertEquals(result, extractor.extract(hit));
         }
     }
 
@@ -116,7 +116,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
             source.endObject();
             BytesReference sourceRef = BytesReference.bytes(source);
             hit.sourceRef(sourceRef);
-            Object extract = extractor.get(hit);
+            Object extract = extractor.extract(hit);
             assertEquals(hasSource ? value : null, extract);
         }
     }
@@ -135,7 +135,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
             DocumentField field = new DocumentField(fieldName, documentFieldValues);
             hit.fields(singletonMap(fieldName, field));
             Object result = documentFieldValues.isEmpty() ? null : documentFieldValues.get(0);
-            assertEquals(result, extractor.get(hit));
+            assertEquals(result, extractor.extract(hit));
         }
     }
 
@@ -159,7 +159,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
             source.endObject();
             BytesReference sourceRef = BytesReference.bytes(source);
             hit.sourceRef(sourceRef);
-            assertEquals(value, extractor.get(hit));
+            assertEquals(value, extractor.extract(hit));
         }
     }
 
@@ -173,7 +173,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         SearchHit hit = new SearchHit(1);
         DocumentField field = new DocumentField(fieldName, asList("a", "b"));
         hit.fields(singletonMap(fieldName, field));
-        SqlException ex = expectThrows(SqlException.class, () -> fe.get(hit));
+        SqlException ex = expectThrows(SqlException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
     }
 
@@ -188,7 +188,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         source.endObject();
         BytesReference sourceRef = BytesReference.bytes(source);
         hit.sourceRef(sourceRef);
-        SqlException ex = expectThrows(SqlException.class, () -> fe.get(hit));
+        SqlException ex = expectThrows(SqlException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
     }
 
@@ -204,7 +204,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         source.endObject();
         BytesReference sourceRef = BytesReference.bytes(source);
         hit.sourceRef(sourceRef);
-        assertEquals(value, fe.get(hit));
+        assertEquals(value, fe.extract(hit));
     }
 
     public void testExtractSourcePath() {

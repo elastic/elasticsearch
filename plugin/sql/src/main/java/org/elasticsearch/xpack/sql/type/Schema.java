@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.type;
 
+import org.elasticsearch.xpack.sql.type.Schema.Entry;
+import org.elasticsearch.xpack.sql.util.Check;
+
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -12,9 +15,6 @@ import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-
-import org.elasticsearch.xpack.sql.type.Schema.Entry;
-import org.elasticsearch.xpack.sql.util.Check;
 
 import static java.util.Collections.emptyList;
 
@@ -51,7 +51,7 @@ public class Schema implements Iterable<Entry> {
     private final List<DataType> types;
 
     public Schema(List<String> names, List<DataType> types) {
-        Check.isTrue(names.size() == types.size(), "Different # of names %s vs types %s", names, types);
+        Check.isTrue(names.size() == types.size(), "Different # of names {} vs types {}", names, types);
         this.types = types;
         this.names = names;
     }

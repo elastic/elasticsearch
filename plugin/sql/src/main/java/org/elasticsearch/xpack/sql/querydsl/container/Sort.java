@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.sql.expression.Order.OrderDirection;
 
 public class Sort {
@@ -14,6 +15,10 @@ public class Sort {
 
         public static Direction from(OrderDirection dir) {
             return dir == null || dir == OrderDirection.ASC ? ASC : DESC;
+        }
+
+        public SortOrder asOrder() {
+            return this == Direction.ASC ? SortOrder.ASC : SortOrder.DESC;
         }
     }
 

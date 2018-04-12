@@ -15,7 +15,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Processor wrapping a HitExtractor esentially being a source/leaf of a
+ * Processor wrapping a {@link HitExtractor}, essentially being a source/leaf of a
  * Processor tree.
  */
 public class HitExtractorProcessor implements Processor {
@@ -47,7 +47,7 @@ public class HitExtractorProcessor implements Processor {
         if (!(input instanceof SearchHit)) {
             throw new SqlIllegalArgumentException("Expected a SearchHit but received {}", input);
         }
-        return extractor.get((SearchHit) input);
+        return extractor.extract((SearchHit) input);
     }
 
     @Override

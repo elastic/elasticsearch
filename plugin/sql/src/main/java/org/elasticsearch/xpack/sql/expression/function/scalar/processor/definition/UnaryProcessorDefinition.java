@@ -11,11 +11,11 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+
+import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.singletonList;
-
-import java.util.List;
 
 public final class UnaryProcessorDefinition extends ProcessorDefinition {
 
@@ -76,11 +76,6 @@ public final class UnaryProcessorDefinition extends ProcessorDefinition {
     @Override
     public void collectFields(SqlSourceBuilder sourceBuilder) {
         child.collectFields(sourceBuilder);
-    }
-
-    @Override
-    public int depth() {
-        return child.depth();
     }
 
     @Override

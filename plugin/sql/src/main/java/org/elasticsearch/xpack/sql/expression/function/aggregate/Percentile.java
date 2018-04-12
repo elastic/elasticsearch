@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import java.util.List;
 
@@ -61,6 +60,6 @@ public class Percentile extends NumericAggregate implements EnclosedAgg {
 
     @Override
     public String innerName() {
-        return "[" + Double.toString(Foldables.doubleValueOf(percent)) + "]";
+        return Double.toString(Foldables.doubleValueOf(percent));
     }
 }

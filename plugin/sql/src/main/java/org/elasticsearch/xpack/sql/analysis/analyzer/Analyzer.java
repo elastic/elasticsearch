@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
-import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier.Failure;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.capabilities.Resolvables;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
+import org.elasticsearch.xpack.sql.expression.AttributeMap;
 import org.elasticsearch.xpack.sql.expression.AttributeSet;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
@@ -55,7 +55,6 @@ import org.joda.time.DateTimeZone;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -110,7 +109,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 new ResolveFunctions(),
                 new ResolveAliases(),
                 new ProjectedAggregations(),
-                new ResolveAggsInHavingAndOrderBy()
+                new ResolveAggsInHaving()
                 //new ImplicitCasting()
                 );
         // TODO: this might be removed since the deduplication happens already in ResolveFunctions
@@ -159,7 +158,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     // Shared methods around the analyzer rules
     //
 
-    private static Attribute resolveAgainstList(UnresolvedAttribute u, List<Attribute> attrList) {
+    private static Attribute resolveAgainstList(UnresolvedAttribute u, Collection<Attribute> attrList) {
         List<Attribute> matches = new ArrayList<>();
 
         // first take into account the qualified version
@@ -190,7 +189,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
 
         return u.withUnresolvedMessage("Reference [" + u.qualifiedName()
-                + "] is ambiguous (to disambiguate use quotes or qualifiers); matches any of " + 
+                + "] is ambiguous (to disambiguate use quotes or qualifiers); matches any of " +
                  matches.stream()
                  .map(a -> "\"" + a.qualifier() + "\".\"" + a.name() + "\"")
                  .sorted()
@@ -303,16 +302,15 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 if (!a.expressionsResolved() && Resolvables.resolved(a.aggregates())) {
                     List<Expression> groupings = a.groupings();
                     List<Expression> newGroupings = new ArrayList<>();
-                    List<Attribute> resolved = Expressions.asAttributes(a.aggregates());
+                    AttributeMap<Expression> resolved = Expressions.asAttributeMap(a.aggregates());
                     boolean changed = false;
-                    for (int i = 0; i < groupings.size(); i++) {
-                        Expression grouping = groupings.get(i);
+                    for (Expression grouping : groupings) {
                         if (grouping instanceof UnresolvedAttribute) {
-                            Attribute maybeResolved = resolveAgainstList((UnresolvedAttribute) grouping, resolved);
+                            Attribute maybeResolved = resolveAgainstList((UnresolvedAttribute) grouping, resolved.keySet());
                             if (maybeResolved != null) {
                                 changed = true;
                                 // use the matched expression (not its attribute)
-                                grouping = a.aggregates().get(i);
+                                grouping = resolved.get(maybeResolved);
                             }
                         }
                         newGroupings.add(grouping);
@@ -883,10 +881,10 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     };
 
     //
-    // Handle aggs in HAVING and ORDER BY clause. To help folding any aggs not found in Aggregation
+    // Handle aggs in HAVING. To help folding any aggs not found in Aggregation
     // will be pushed down to the Aggregate and then projected. This also simplifies the Verifier's job.
     //
-    private class ResolveAggsInHavingAndOrderBy extends AnalyzeRule<LogicalPlan> {
+    private class ResolveAggsInHaving extends AnalyzeRule<LogicalPlan> {
 
         @Override
         protected boolean skipResolved() {

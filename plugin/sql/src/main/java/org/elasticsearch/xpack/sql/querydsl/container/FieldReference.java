@@ -16,11 +16,6 @@ public abstract class FieldReference implements FieldExtraction {
     public abstract String name();
 
     @Override
-    public final int depth() {
-        return 0;
-    }
-
-    @Override
     public final boolean supportedByAggsOnlyQuery() {
         return false;
     }

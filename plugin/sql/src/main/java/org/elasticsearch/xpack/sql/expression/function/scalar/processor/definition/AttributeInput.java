@@ -39,9 +39,4 @@ public class AttributeInput extends NonExecutableInput<Attribute> {
     public final void collectFields(SqlSourceBuilder sourceBuilder) {
         // Nothing to extract
     }
-
-    @Override
-    public final int depth() {
-        return 0;
-    }
 }

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.session.Configuration;
@@ -57,8 +58,8 @@ public class CliFormatterCursor implements Cursor {
     }
 
     @Override
-    public void nextPage(Configuration cfg, Client client, ActionListener<RowSet> listener) {
-        delegate.nextPage(cfg, client, listener);
+    public void nextPage(Configuration cfg, Client client, NamedWriteableRegistry registry, ActionListener<RowSet> listener) {
+        delegate.nextPage(cfg, client, registry, listener);
     }
 
     @Override
@@ -73,8 +74,12 @@ public class CliFormatterCursor implements Cursor {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         CliFormatterCursor that = (CliFormatterCursor) o;
         return Objects.equals(delegate, that.delegate) &&
                 Objects.equals(formatter, that.formatter);

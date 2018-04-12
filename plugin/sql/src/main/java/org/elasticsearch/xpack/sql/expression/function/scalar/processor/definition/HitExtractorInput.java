@@ -43,9 +43,4 @@ public class HitExtractorInput extends LeafInput<HitExtractor> {
     public final void collectFields(SqlSourceBuilder sourceBuilder) {
         // No fields to collect
     }
-
-    @Override
-    public final int depth() {
-        return 0;
-    }
 }

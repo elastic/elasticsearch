@@ -5,39 +5,37 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition;
 
+import org.elasticsearch.xpack.sql.execution.search.AggRef;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+
 import java.util.Objects;
 
-public class AggPathInput extends CommonNonExecutableInput<String> {
+public class AggPathInput extends CommonNonExecutableInput<AggRef> {
 
-    private final String innerKey;
     // used in case the agg itself is not returned in a suitable format (like date aggs)
     private final Processor action;
 
-    public AggPathInput(Expression expression, String context) {
-        this(Location.EMPTY, expression, context, null, null);
+    public AggPathInput(Expression expression, AggRef context) {
+        this(Location.EMPTY, expression, context, null);
     }
 
-    public AggPathInput(Expression expression, String context, String innerKey) {
-        this(Location.EMPTY, expression, context, innerKey, null);
-    }
-
-    public AggPathInput(Location location, Expression expression, String context, String innerKey, Processor action) {
+    /**
+     * 
+     * Constructs a new <code>AggPathInput</code> instance.
+     * The action is used for handling corner-case results such as date histogram which returns
+     * a full date object for year which requires additional extraction.
+     */
+    public AggPathInput(Location location, Expression expression, AggRef context, Processor action) {
         super(location, expression, context);
-        this.innerKey = innerKey;
         this.action = action;
     }
 
     @Override
     protected NodeInfo<AggPathInput> info() {
-        return NodeInfo.create(this, AggPathInput::new, expression(), context(), innerKey, action);
-    }
-
-    public String innerKey() {
-        return innerKey;
+        return NodeInfo.create(this, AggPathInput::new, expression(), context(), action);
     }
 
     public Processor action() {
@@ -56,7 +54,7 @@ public class AggPathInput extends CommonNonExecutableInput<String> {
 
     @Override
     public int hashCode() {
-        return Objects.hash(context(), innerKey);
+        return Objects.hash(context(), action);
     }
 
     @Override
@@ -71,7 +69,6 @@ public class AggPathInput extends CommonNonExecutableInput<String> {
 
         AggPathInput other = (AggPathInput) obj;
         return Objects.equals(context(), other.context())
-                && Objects.equals(innerKey, other.innerKey)
                 && Objects.equals(action, other.action);
     }
 }

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.qa.sql.jdbc;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.elasticsearch.xpack.qa.sql.rest.RestSqlTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -46,7 +45,7 @@ public class FetchSizeTestCase extends JdbcIntegrationTestCase {
             try (ResultSet rs = s.executeQuery("SELECT * FROM test ORDER BY test_field ASC")) {
                 for (int i = 0; i < 20; i++) {
                     assertEquals(4, rs.getFetchSize());
-                    assertTrue(rs.next());
+                    assertTrue("No more entries left after " + i, rs.next());
                     assertEquals(i, rs.getInt(1));
                 }
                 assertFalse(rs.next());
@@ -65,7 +64,7 @@ public class FetchSizeTestCase extends JdbcIntegrationTestCase {
             try (ResultSet rs = s.executeQuery("SELECT * FROM test ORDER BY test_field ASC")) {
                 for (int i = 0; i < 10; i++) {
                     assertEquals(4, rs.getFetchSize());
-                    assertTrue(rs.next());
+                    assertTrue("No more entries left after " + i, rs.next());
                     assertEquals(i, rs.getInt(1));
                 }
                 assertTrue(rs.next());
@@ -77,7 +76,6 @@ public class FetchSizeTestCase extends JdbcIntegrationTestCase {
 
     /**
      * Test for {@code SELECT} that is implemented as an aggregation.
-     * In this case the fetch size should be entirely ignored.
      */
     public void testAggregation() throws SQLException {
         try (Connection c = esJdbc();
@@ -85,9 +83,10 @@ public class FetchSizeTestCase extends JdbcIntegrationTestCase {
             s.setFetchSize(4);
             try (ResultSet rs = s.executeQuery("SELECT test_field, COUNT(*) FROM test GROUP BY test_field")) {
                 for (int i = 0; i < 20; i++) {
-                    assertEquals(20, rs.getFetchSize());
-                    assertTrue(rs.next());
+                    assertEquals(4, rs.getFetchSize());
+                    assertTrue("No more entries left at " + i, rs.next());
                     assertEquals(i, rs.getInt(1));
+                    assertEquals("Incorrect count returned", 1, rs.getInt(2));
                 }
                 assertFalse(rs.next());
             }

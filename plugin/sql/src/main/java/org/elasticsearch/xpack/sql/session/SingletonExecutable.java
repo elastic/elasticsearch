@@ -17,7 +17,7 @@ public class SingletonExecutable implements Executable {
     private final Object[] values;
 
     public SingletonExecutable(List<Attribute> output, Object... values) {
-        Check.isTrue(output.size() == values.length, "Output %s and values %s are out of sync", output, values);
+        Check.isTrue(output.size() == values.length, "Attributes {} and values {} are out of sync", output, values);
         this.output = output;
         this.values = values;
     }

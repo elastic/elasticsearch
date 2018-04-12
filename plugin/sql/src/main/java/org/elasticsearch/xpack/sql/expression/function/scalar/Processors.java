@@ -11,16 +11,18 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.BinaryA
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.UnaryArithmeticProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.BucketExtractorProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.ChainingProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.ConstantProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.HitExtractorProcessor;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.MatrixFieldProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public abstract class Processors {
+public final class Processors {
+
+    private Processors() {}
 
     /**
      * All of the named writeables needed to deserialize the instances of
@@ -31,9 +33,9 @@ public abstract class Processors {
         // base
         entries.add(new Entry(Processor.class, ConstantProcessor.NAME, ConstantProcessor::new));
         entries.add(new Entry(Processor.class, HitExtractorProcessor.NAME, HitExtractorProcessor::new));
+        entries.add(new Entry(Processor.class, BucketExtractorProcessor.NAME, BucketExtractorProcessor::new));
         entries.add(new Entry(Processor.class, CastProcessor.NAME, CastProcessor::new));
         entries.add(new Entry(Processor.class, ChainingProcessor.NAME, ChainingProcessor::new));
-        entries.add(new Entry(Processor.class, MatrixFieldProcessor.NAME, MatrixFieldProcessor::new));
 
         // arithmetic
         entries.add(new Entry(Processor.class, BinaryArithmeticProcessor.NAME, BinaryArithmeticProcessor::new));

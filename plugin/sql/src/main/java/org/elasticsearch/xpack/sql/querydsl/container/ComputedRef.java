@@ -22,11 +22,6 @@ public class ComputedRef implements FieldExtraction {
     }
 
     @Override
-    public int depth() {
-        return processor.depth();
-    }
-
-    @Override
     public boolean supportedByAggsOnlyQuery() {
         return processor.supportedByAggsOnlyQuery();
     }

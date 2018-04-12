@@ -353,7 +353,7 @@ abstract class Verifier {
 
             return true;
         } else if (e instanceof Score) {
-            // Score can't be an aggretate function
+            // Score can't be an aggregate function
             missing.put(e, source);
             return true;
         }

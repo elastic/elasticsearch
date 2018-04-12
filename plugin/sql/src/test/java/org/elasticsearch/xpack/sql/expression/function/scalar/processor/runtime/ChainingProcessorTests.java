@@ -9,16 +9,15 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.ChainingProcessor;
 
 import java.io.IOException;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.sql.execution.search.extractor.ProcessingHitExtractorTests.randomProcessor;
+import static org.elasticsearch.xpack.sql.execution.search.extractor.ComputingExtractorTests.randomProcessor;
 
 public class ChainingProcessorTests extends AbstractWireSerializingTestCase<ChainingProcessor> {
-    public static ChainingProcessor randomComposeProcessor(int depth) {
-        return new ChainingProcessor(randomProcessor(depth + 1), randomProcessor(depth + 1));
+    public static ChainingProcessor randomComposeProcessor() {
+        return new ChainingProcessor(randomProcessor(), randomProcessor());
     }
 
     @Override
@@ -28,7 +27,7 @@ public class ChainingProcessorTests extends AbstractWireSerializingTestCase<Chai
 
     @Override
     protected ChainingProcessor createTestInstance() {
-        return randomComposeProcessor(0);
+        return randomComposeProcessor();
     }
 
     @Override
@@ -41,9 +40,9 @@ public class ChainingProcessorTests extends AbstractWireSerializingTestCase<Chai
         @SuppressWarnings("unchecked")
         Supplier<ChainingProcessor> supplier = randomFrom(
             () -> new ChainingProcessor(
-                    instance.first(), randomValueOtherThan(instance.second(), () -> randomProcessor(0))),
+                    instance.first(), randomValueOtherThan(instance.second(), () -> randomProcessor())),
             () -> new ChainingProcessor(
-                    randomValueOtherThan(instance.first(), () -> randomProcessor(0)), instance.second()));
+                    randomValueOtherThan(instance.first(), () -> randomProcessor()), instance.second()));
         return supplier.get();
     }
 }

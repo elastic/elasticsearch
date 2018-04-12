@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
@@ -37,14 +38,14 @@ public class ConstantExtractorTests extends AbstractWireSerializingTestCase<Cons
 
     @Override
     protected ConstantExtractor mutateInstance(ConstantExtractor instance) throws IOException {
-        return new ConstantExtractor(instance.get(null) + "mutated");
+        return new ConstantExtractor(instance.extract((SearchHit) null) + "mutated");
     }
 
     public void testGet() {
         Object expected = randomValidConstant();
         int times = between(1, 1000);
         for (int i = 0; i < times; i++) {
-            assertSame(expected, new ConstantExtractor(expected).get(null));
+            assertSame(expected, new ConstantExtractor(expected).extract((SearchHit) null));
         }
     }
 

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.processor.definit
 import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
+
 import java.util.Arrays;
 import java.util.List;
 
@@ -50,11 +51,6 @@ public abstract class BinaryProcessorDefinition extends ProcessorDefinition {
             return this;
         }
         return replaceChildren(newLeft, newRight);
-    }
-
-    @Override
-    public final int depth() {
-        return Math.max(left.depth(), right.depth());
     }
 
     /**

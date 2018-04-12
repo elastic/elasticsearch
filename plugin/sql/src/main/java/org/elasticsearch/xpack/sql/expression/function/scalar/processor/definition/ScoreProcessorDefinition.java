@@ -8,14 +8,14 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.processor.definit
 import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.execution.search.extractor.ScoreExtractor;
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.HitExtractorProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.HitExtractorProcessor;
-
-import static java.util.Collections.emptyList;
 
 import java.util.List;
+
+import static java.util.Collections.emptyList;
 
 public class ScoreProcessorDefinition extends ProcessorDefinition {
     public ScoreProcessorDefinition(Location location, Expression expression) {
@@ -55,10 +55,5 @@ public class ScoreProcessorDefinition extends ProcessorDefinition {
     @Override
     public void collectFields(SqlSourceBuilder sourceBuilder) {
         sourceBuilder.trackScores();
-    }
-
-    @Override
-    public int depth() {
-        return 0;
     }
 }

@@ -5,9 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+
 public abstract class LeafAgg extends Agg {
 
-    LeafAgg(String id, String propertyPath, String fieldName) {
-        super(id, propertyPath, fieldName);
+    LeafAgg(String id, String fieldName) {
+        super(id, fieldName);
     }
+
+    abstract AggregationBuilder toBuilder();
 }

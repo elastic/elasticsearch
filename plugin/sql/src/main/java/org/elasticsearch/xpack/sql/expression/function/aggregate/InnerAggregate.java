@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.Function;
-import org.elasticsearch.xpack.sql.querydsl.agg.AggPath;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -78,7 +77,12 @@ public class InnerAggregate extends AggregateFunction {
     public AggregateFunctionAttribute toAttribute() {
         // this is highly correlated with QueryFolder$FoldAggregate#addFunction (regarding the function name within the querydsl)
         return new AggregateFunctionAttribute(location(), name(), dataType(), outer.id(), functionId(),
-                AggPath.metricValue(functionId(), innerId));
+                aggMetricValue(functionId(), innerId));
+    }
+
+    public static String aggMetricValue(String aggPath, String valueName) {
+        // handle aggPath inconsistency (for percentiles and percentileRanks) percentile[99.9] (valid) vs percentile.99.9 (invalid)
+        return aggPath + "[" + valueName + "]";
     }
 
     @Override

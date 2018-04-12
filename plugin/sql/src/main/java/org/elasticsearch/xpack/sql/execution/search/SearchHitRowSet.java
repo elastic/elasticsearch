@@ -20,20 +20,20 @@ import java.util.Set;
 /**
  * Extracts rows from an array of {@link SearchHit}.
  */
-abstract class AbstractSearchHitRowSet extends AbstractRowSet {
+class SearchHitRowSet extends AbstractRowSet {
     private final SearchHit[] hits;
     private final Cursor cursor;
     private final String scrollId;
     private final List<HitExtractor> extractors;
     private final Set<String> innerHits = new LinkedHashSet<>();
     private final String innerHit;
-    private final int limit;
 
     private final int size;
     private final int[] indexPerLevel;
     private int row = 0;
 
-    AbstractSearchHitRowSet(List<HitExtractor> exts, SearchHit[] hits, int limitHits, String scrollId) {
+    SearchHitRowSet(List<HitExtractor> exts, SearchHit[] hits, int limit, String scrollId) {
+
         this.hits = hits;
         this.scrollId = scrollId;
         this.extractors = exts;
@@ -60,8 +60,7 @@ abstract class AbstractSearchHitRowSet extends AbstractRowSet {
             maxDepth = 1;
 
             sz = 0;
-            for (int i = 0; i < hits.length; i++) {
-                SearchHit hit = hits[i];
+            for (SearchHit hit : hits) {
                 for (String ih : innerHits) {
                     SearchHits sh = hit.getInnerHits().get(ih);
                     if (sh != null) {
@@ -70,10 +69,8 @@ abstract class AbstractSearchHitRowSet extends AbstractRowSet {
                 }
             }
         }
-        // overall limit
-        limit = limitHits;
         // page size
-        size = limitHits < 0 ? sz : Math.min(sz, limitHits);
+        size = limit < 0 ? sz : Math.min(sz, limit);
         indexPerLevel = new int[maxDepth + 1];
         this.innerHit = innerHit;
 
@@ -82,8 +79,8 @@ abstract class AbstractSearchHitRowSet extends AbstractRowSet {
              * scroll but all results fit in the first page. */
             cursor = Cursor.EMPTY;
         } else {
-            // compute remaining limit
-            int remainingLimit = limit - size;
+            // compute remaining limit (only if the limit is specified - that is, positive).
+            int remainingLimit = limit < 0 ? limit : limit - size;
             // if the computed limit is zero, or the size is zero it means either there's nothing left or the limit has been reached
             if (size == 0 || remainingLimit == 0) {
                 cursor = Cursor.EMPTY;
@@ -91,6 +88,11 @@ abstract class AbstractSearchHitRowSet extends AbstractRowSet {
                 cursor = new ScrollCursor(scrollId, extractors, remainingLimit);
             }
         }
+    }
+
+    @Override
+    public int columnCount() {
+        return extractors.size();
     }
 
     @Override
@@ -109,7 +111,7 @@ abstract class AbstractSearchHitRowSet extends AbstractRowSet {
             hit = sh[indexPerLevel[lvl]];
         }
 
-        return e.get(hit);
+        return e.extract(hit);
     }
 
     @Override

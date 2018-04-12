@@ -49,6 +49,11 @@ public class DocumentSubsetReaderTests extends ESTestCase {
 
     @Before
     public void setUpDirectory() {
+        // We check it is empty at the end of the test, so make sure it is empty in the
+        // beginning as well so that we can easily distinguish from garbage added by
+        // this test and garbage not cleaned up by other tests.
+        assertTrue(DocumentSubsetReader.NUM_DOCS_CACHE.toString(),
+                DocumentSubsetReader.NUM_DOCS_CACHE.isEmpty());
         directory = newDirectory();
         IndexSettings settings = IndexSettingsModule.newIndexSettings("_index", Settings.EMPTY);
         bitsetFilterCache = new BitsetFilterCache(settings, new BitsetFilterCache.Listener() {
@@ -69,6 +74,8 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         if (directoryReader != null) {
             directoryReader.close();
         }
+        assertTrue(DocumentSubsetReader.NUM_DOCS_CACHE.toString(),
+                DocumentSubsetReader.NUM_DOCS_CACHE.isEmpty());
         directory.close();
         bitsetFilterCache.close();
     }
@@ -225,6 +232,9 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         assertEquals(1, ir2.leaves().size());
         assertSame(ir.leaves().get(0).reader().getCoreCacheHelper().getKey(),
                 ir2.leaves().get(0).reader().getCoreCacheHelper().getKey());
+        // However we don't support caching on the reader cache key since we override deletes
+        assertNull(ir.leaves().get(0).reader().getReaderCacheHelper());
+        assertNull(ir2.leaves().get(0).reader().getReaderCacheHelper());
 
         TestUtil.checkReader(ir);
         IOUtils.close(ir, ir2, iw, dir);

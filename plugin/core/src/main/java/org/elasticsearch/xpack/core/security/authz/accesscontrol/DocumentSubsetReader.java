@@ -8,18 +8,25 @@ package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.FilteredDocIdSetIterator;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 
 /**
  * A reader that only exposes documents via {@link #getLiveDocs()} that matches with the provided role query.
@@ -29,6 +36,74 @@ public final class DocumentSubsetReader extends FilterLeafReader {
     public static DocumentSubsetDirectoryReader wrap(DirectoryReader in, BitsetFilterCache bitsetFilterCache,
             Query roleQuery) throws IOException {
         return new DocumentSubsetDirectoryReader(in, bitsetFilterCache, roleQuery);
+    }
+
+    /**
+     * Cache of the number of live docs for a given (segment, role query) pair.
+     * This is useful because numDocs() is called eagerly by BaseCompositeReader so computing
+     * numDocs() lazily doesn't help. Plus it helps reuse the result of the computation either
+     * between refreshes, or across refreshes if no more documents were deleted in the
+     * considered segment. The size of the top-level map is bounded by the number of segments
+     * on the node.
+     */
+    static final Map<IndexReader.CacheKey, Cache<Query, Integer>> NUM_DOCS_CACHE = new ConcurrentHashMap<>();
+
+    /**
+     * Compute the number of live documents. This method is SLOW.
+     */
+    private static int computeNumDocs(LeafReader reader, Query roleQuery, BitSet roleQueryBits) {
+        final Bits liveDocs = reader.getLiveDocs();
+        if (roleQueryBits == null) {
+            return 0;
+        } else if (liveDocs == null) {
+            // slow
+            return roleQueryBits.cardinality();
+        } else {
+            // very slow, but necessary in order to be correct
+            int numDocs = 0;
+            DocIdSetIterator it = new BitSetIterator(roleQueryBits, 0L); // we don't use the cost
+            try {
+                for (int doc = it.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = it.nextDoc()) {
+                    if (liveDocs.get(doc)) {
+                        numDocs++;
+                    }
+                }
+                return numDocs;
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+    }
+
+    /**
+     * Like {@link #computeNumDocs} but caches results.
+     */
+    private static int getNumDocs(LeafReader reader, Query roleQuery, BitSet roleQueryBits) throws IOException, ExecutionException {
+        IndexReader.CacheHelper cacheHelper = reader.getReaderCacheHelper(); // this one takes deletes into account
+        if (cacheHelper == null) {
+            throw new IllegalStateException("Reader " + reader + " does not support caching");
+        }
+        final boolean[] added = new boolean[] { false };
+        Cache<Query, Integer> perReaderCache = NUM_DOCS_CACHE.computeIfAbsent(cacheHelper.getKey(),
+                key -> {
+                    added[0] = true;
+                    return CacheBuilder.<Query, Integer>builder()
+                            // Not configurable, this limit only exists so that if a role query is updated
+                            // then we won't risk OOME because of old role queries that are not used anymore
+                            .setMaximumWeight(1000)
+                            .weigher((k, v) -> 1) // just count
+                            .build();
+                });
+        if (added[0]) {
+            IndexReader.ClosedListener closedListener = NUM_DOCS_CACHE::remove;
+            try {
+                cacheHelper.addClosedListener(closedListener);
+            } catch (AlreadyClosedException e) {
+                closedListener.onClose(cacheHelper.getKey());
+                throw e;
+            }
+        }
+        return perReaderCache.computeIfAbsent(roleQuery, q -> computeNumDocs(reader, roleQuery, roleQueryBits));
     }
 
     public static final class DocumentSubsetDirectoryReader extends FilterDirectoryReader {
@@ -78,11 +153,12 @@ public final class DocumentSubsetReader extends FilterLeafReader {
     }
 
     private final BitSet roleQueryBits;
-    private volatile int numDocs = -1;
+    private final int numDocs;
 
     private DocumentSubsetReader(final LeafReader in, BitsetFilterCache bitsetFilterCache, final Query roleQuery) throws Exception {
         super(in);
         this.roleQueryBits = bitsetFilterCache.getBitSetProducer(roleQuery).getBitSet(in.getContext());
+        this.numDocs = getNumDocs(in, roleQuery, roleQueryBits);
     }
 
     @Override
@@ -113,36 +189,6 @@ public final class DocumentSubsetReader extends FilterLeafReader {
 
     @Override
     public int numDocs() {
-        // The reason the implement this method is that numDocs should be equal to the number of set bits in liveDocs. (would be weird
-        // otherwise)
-        // for the security DSL use case this get invoked in the QueryPhase class (in core ES) if match_all query is used as main query
-        // and this is also invoked in tests.
-        if (numDocs == -1) {
-            final Bits liveDocs = in.getLiveDocs();
-            if (roleQueryBits == null) {
-                numDocs = 0;
-            } else if (liveDocs == null) {
-                numDocs = roleQueryBits.cardinality();
-            } else {
-                // this is slow, but necessary in order to be correct:
-                try {
-                    DocIdSetIterator iterator = new FilteredDocIdSetIterator(new BitSetIterator(roleQueryBits, roleQueryBits
-                            .approximateCardinality())) {
-                        @Override
-                        protected boolean match(int doc) {
-                            return liveDocs.get(doc);
-                        }
-                    };
-                    int counter = 0;
-                    for (int docId = iterator.nextDoc(); docId < DocIdSetIterator.NO_MORE_DOCS; docId = iterator.nextDoc()) {
-                        counter++;
-                    }
-                    numDocs = counter;
-                } catch (IOException e) {
-                    throw ExceptionsHelper.convertToElastic(e);
-                }
-            }
-        }
         return numDocs;
     }
 
@@ -152,8 +198,6 @@ public final class DocumentSubsetReader extends FilterLeafReader {
         return true;
     }
 
-    // Don't delegate getCombinedCoreAndDeletesKey(), because we change the live docs here.
-
     @Override
     public CacheHelper getCoreCacheHelper() {
         return in.getCoreCacheHelper();
@@ -161,7 +205,8 @@ public final class DocumentSubsetReader extends FilterLeafReader {
 
     @Override
     public CacheHelper getReaderCacheHelper() {
-        return in.getReaderCacheHelper();
+        // Not delegated since we change the live docs
+        return null;
     }
 
     BitSet getRoleQueryBits() {

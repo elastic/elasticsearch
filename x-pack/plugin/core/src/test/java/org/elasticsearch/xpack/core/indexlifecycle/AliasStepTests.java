@@ -17,8 +17,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncActionStep.Listener;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.junit.Before;
@@ -26,14 +24,12 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class AliasStepTests extends ESTestCase {
+public class AliasStepTests extends AbstractStepTestCase<AliasStep> {
 
     private Client client;
 
@@ -42,12 +38,14 @@ public class AliasStepTests extends ESTestCase {
         client = Mockito.mock(Client.class);
     }
 
+    @Override
     public AliasStep createRandomInstance() {
         StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         return new AliasStep(stepKey, nextStepKey, client);
     }
 
+    @Override
     public AliasStep mutateInstance(AliasStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
@@ -61,18 +59,15 @@ public class AliasStepTests extends ESTestCase {
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-
         return new AliasStep(key, nextKey, instance.getClient());
     }
 
-    public void testHashcodeAndEquals() {
-        EqualsHashCodeTestUtils
-                .checkEqualsAndHashCode(createRandomInstance(),
-                        instance -> new AliasStep(instance.getKey(), instance.getNextStepKey(), instance.getClient()),
-                        this::mutateInstance);
+    @Override
+    public AliasStep copyInstance(AliasStep instance) {
+        return new AliasStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
     }
 
-    public void testPerformAction() throws Exception {
+    public void testPerformAction() {
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         AliasStep step = createRandomInstance();
@@ -124,7 +119,7 @@ public class AliasStepTests extends ESTestCase {
         Mockito.verify(indicesClient, Mockito.only()).aliases(Mockito.any(), Mockito.any());
     }
 
-    public void testPerformActionFailure() throws Exception {
+    public void testPerformActionFailure() {
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         Exception exception = new RuntimeException();

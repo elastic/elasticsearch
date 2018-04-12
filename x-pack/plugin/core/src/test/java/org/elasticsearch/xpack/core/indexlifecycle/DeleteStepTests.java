@@ -15,8 +15,6 @@ import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -25,7 +23,7 @@ import org.mockito.stubbing.Answer;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DeleteStepTests extends ESTestCase {
+public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
 
     private Client client;
 
@@ -34,6 +32,7 @@ public class DeleteStepTests extends ESTestCase {
         client = Mockito.mock(Client.class);
     }
 
+    @Override
     public DeleteStep createRandomInstance() {
         StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
@@ -41,6 +40,7 @@ public class DeleteStepTests extends ESTestCase {
         return new DeleteStep(stepKey, nextStepKey, client);
     }
 
+    @Override
     public DeleteStep mutateInstance(DeleteStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
@@ -59,9 +59,9 @@ public class DeleteStepTests extends ESTestCase {
         return new DeleteStep(key, nextKey, instance.getClient());
     }
 
-    public void testHashcodeAndEquals() {
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createRandomInstance(),
-                instance -> new DeleteStep(instance.getKey(), instance.getNextStepKey(), instance.getClient()), this::mutateInstance);
+    @Override
+    public DeleteStep copyInstance(DeleteStep instance) {
+        return new DeleteStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
     }
 
     public void testIndexSurvives() {

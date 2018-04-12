@@ -12,14 +12,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class InitializePolicyContextStepTests extends ESTestCase {
+public class InitializePolicyContextStepTests extends AbstractStepTestCase<InitializePolicyContextStep> {
 
+    @Override
     public InitializePolicyContextStep createRandomInstance() {
         StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
@@ -27,6 +26,7 @@ public class InitializePolicyContextStepTests extends ESTestCase {
         return new InitializePolicyContextStep(stepKey, nextStepKey);
     }
 
+    @Override
     public InitializePolicyContextStep mutateInstance(InitializePolicyContextStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
@@ -45,9 +45,9 @@ public class InitializePolicyContextStepTests extends ESTestCase {
         return new InitializePolicyContextStep(key, nextKey);
     }
 
-    public void testHashcodeAndEquals() {
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createRandomInstance(),
-                instance -> new InitializePolicyContextStep(instance.getKey(), instance.getNextStepKey()), this::mutateInstance);
+    @Override
+    public InitializePolicyContextStep copyInstance(InitializePolicyContextStep instance) {
+        return new InitializePolicyContextStep(instance.getKey(), instance.getNextStepKey());
     }
 
     public void testAddCreationDate() {

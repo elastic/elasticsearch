@@ -25,14 +25,13 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.util.Map;
 
-public class AllocationRoutedStepTests extends ESTestCase {
+public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRoutedStep> {
 
+    @Override
     public AllocationRoutedStep createRandomInstance() {
         StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
@@ -40,6 +39,7 @@ public class AllocationRoutedStepTests extends ESTestCase {
         return new AllocationRoutedStep(stepKey, nextStepKey);
     }
 
+    @Override
     public AllocationRoutedStep mutateInstance(AllocationRoutedStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
@@ -58,9 +58,9 @@ public class AllocationRoutedStepTests extends ESTestCase {
         return new AllocationRoutedStep(key, nextKey);
     }
 
-    public void testHashcodeAndEquals() {
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createRandomInstance(),
-                instance -> new AllocationRoutedStep(instance.getKey(), instance.getNextStepKey()), this::mutateInstance);
+    @Override
+    public AllocationRoutedStep copyInstance(AllocationRoutedStep instance) {
+        return new AllocationRoutedStep(instance.getKey(), instance.getNextStepKey());
     }
 
     public void testConditionMet() {

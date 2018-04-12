@@ -17,10 +17,8 @@ import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
-import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
 
 import java.util.ArrayList;
@@ -32,8 +30,9 @@ import java.util.Spliterator;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 
-public class SegmentCountStepTests extends ESTestCase {
+public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep> {
 
+    @Override
     public SegmentCountStep createRandomInstance() {
         Step.StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
@@ -43,6 +42,7 @@ public class SegmentCountStepTests extends ESTestCase {
         return new SegmentCountStep(stepKey, nextStepKey, null, maxNumSegments, bestCompression);
     }
 
+    @Override
     public SegmentCountStep mutateInstance(SegmentCountStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
@@ -69,11 +69,10 @@ public class SegmentCountStepTests extends ESTestCase {
         return new SegmentCountStep(key, nextKey, null, maxNumSegments, bestCompression);
     }
 
-
-    public void testHashcodeAndEquals() {
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createRandomInstance(),
-            instance -> new SegmentCountStep(instance.getKey(), instance.getNextStepKey(),
-                null, instance.getMaxNumSegments(), instance.isBestCompression()), this::mutateInstance);
+    @Override
+    public SegmentCountStep copyInstance(SegmentCountStep instance) {
+        return new SegmentCountStep(instance.getKey(), instance.getNextStepKey(),
+            null, instance.getMaxNumSegments(), instance.isBestCompression());
     }
 
     public void testIsConditionMet() {

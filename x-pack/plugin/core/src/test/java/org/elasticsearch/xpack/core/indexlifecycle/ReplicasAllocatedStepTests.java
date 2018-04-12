@@ -22,12 +22,11 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
-public class ReplicasAllocatedStepTests extends ESTestCase {
+public class ReplicasAllocatedStepTests extends AbstractStepTestCase<ReplicasAllocatedStep> {
 
+    @Override
     public ReplicasAllocatedStep createRandomInstance() {
         StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
@@ -35,6 +34,7 @@ public class ReplicasAllocatedStepTests extends ESTestCase {
         return new ReplicasAllocatedStep(stepKey, nextStepKey, numberReplicas);
     }
 
+    @Override
     public ReplicasAllocatedStep mutateInstance(ReplicasAllocatedStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
@@ -56,10 +56,9 @@ public class ReplicasAllocatedStepTests extends ESTestCase {
         return new ReplicasAllocatedStep(key, nextKey, numberReplicas);
     }
 
-    public void testHashcodeAndEquals() {
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createRandomInstance(),
-                instance -> new ReplicasAllocatedStep(instance.getKey(), instance.getNextStepKey(), instance.getNumberReplicas()),
-                this::mutateInstance);
+    @Override
+    public ReplicasAllocatedStep copyInstance(ReplicasAllocatedStep instance) {
+        return new ReplicasAllocatedStep(instance.getKey(), instance.getNextStepKey(), instance.getNumberReplicas());
     }
 
     public void testConditionMet() {

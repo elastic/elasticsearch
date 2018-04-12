@@ -195,7 +195,7 @@ public class SocketEventHandlerTests extends ESTestCase {
         private final TestSelectionKey selectionKey;
 
         DoNotRegisterContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,
-                             TestSelectionKey selectionKey, BytesFlushProducer flushProducer) {
+                             TestSelectionKey selectionKey, FlushProducer flushProducer) {
             super(channel, selector, exceptionHandler, mock(ReadConsumer.class), flushProducer,
                 InboundChannelBuffer.allocatingInstance());
             this.selectionKey = selectionKey;

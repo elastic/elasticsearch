@@ -21,18 +21,15 @@ package org.elasticsearch.http.nio;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.handler.codec.DecoderException;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -47,7 +44,20 @@ public class NettyAdaptorTests extends ESTestCase {
         }
         message.flip();
         ByteBuffer[] buffers = {message};
-        nettyAdaptor.read(buffers);
+        assertEquals(40, nettyAdaptor.read(buffers));
+        assertEquals("0123456789", handler.result);
+    }
+
+    public void testBasicReadWithExcessData() {
+        TenIntsToStringsHandler handler = new TenIntsToStringsHandler();
+        NettyAdaptor nettyAdaptor = new NettyAdaptor(handler);
+        ByteBuffer message = ByteBuffer.allocate(52);
+        for (int i = 0; i < 13; ++i) {
+            message.putInt(i);
+        }
+        message.flip();
+        ByteBuffer[] buffers = {message};
+        assertEquals(40, nettyAdaptor.read(buffers));
         assertEquals("0123456789", handler.result);
     }
 
@@ -83,9 +93,22 @@ public class NettyAdaptorTests extends ESTestCase {
         assertTrue(promiseCheckerHandler.isCalled.get());
     }
 
+    public void testCloseListener() {
+        AtomicBoolean listenerCalled = new AtomicBoolean(false);
+        CloseChannelHandler handler = new CloseChannelHandler();
+        NettyAdaptor nettyAdaptor = new NettyAdaptor(handler);
+        byte[] bytes = "SHOULD_CLOSE".getBytes(StandardCharsets.UTF_8);
+        ByteBuffer[] buffers = {ByteBuffer.wrap(bytes)};
+        nettyAdaptor.addCloseListener((v, e) -> listenerCalled.set(true));
+        assertFalse(listenerCalled.get());
+        nettyAdaptor.read(buffers);
+        assertTrue(listenerCalled.get());
+
+    }
+
     private class TenIntsToStringsHandler extends SimpleChannelInboundHandler<ByteBuf> {
 
-        String result;
+        private String result;
         boolean wasCalled = false;
 
         @Override
@@ -111,7 +134,7 @@ public class NettyAdaptorTests extends ESTestCase {
             if (bufferString.equals("SHOULD_WRITE")) {
                 ctx.writeAndFlush("Failed");
             } else {
-                super.channelRead(ctx, msg);
+                throw new IllegalArgumentException("Only accept SHOULD_WRITE message");
             }
         }
     }
@@ -128,12 +151,26 @@ public class NettyAdaptorTests extends ESTestCase {
 
     private class PromiseCheckerHandler extends ChannelOutboundHandlerAdapter {
 
-        AtomicBoolean isCalled = new AtomicBoolean(false);
+        private AtomicBoolean isCalled = new AtomicBoolean(false);
 
         @Override
         public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
             promise.addListener((f) -> isCalled.set(true));
             super.write(ctx, msg, promise);
+        }
+    }
+
+    private class CloseChannelHandler extends ChannelInboundHandlerAdapter {
+
+        @Override
+        public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+            ByteBuf buffer = (ByteBuf) msg;
+            String bufferString = buffer.toString(StandardCharsets.UTF_8);
+            if (bufferString.equals("SHOULD_CLOSE")) {
+                ctx.close();
+            } else {
+                throw new IllegalArgumentException("Only accept SHOULD_CLOSE message");
+            }
         }
     }
 }

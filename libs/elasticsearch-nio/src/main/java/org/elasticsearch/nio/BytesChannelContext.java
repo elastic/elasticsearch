@@ -32,7 +32,7 @@ public class BytesChannelContext extends SocketChannelContext {
     }
 
     public BytesChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,
-                               ReadConsumer readConsumer, BytesFlushProducer writeProducer, InboundChannelBuffer channelBuffer) {
+                               ReadConsumer readConsumer, FlushProducer writeProducer, InboundChannelBuffer channelBuffer) {
         super(channel, selector, exceptionHandler, readConsumer, writeProducer, channelBuffer);
         this.channelBuffer = channelBuffer;
     }

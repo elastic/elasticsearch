@@ -45,7 +45,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
 
     protected final NioSocketChannel channel;
     protected final ReadConsumer readConsumer;
-    protected final BytesFlushProducer flushProducer;
+    protected final FlushProducer flushProducer;
     protected final InboundChannelBuffer channelBuffer;
     protected final AtomicBoolean isClosing = new AtomicBoolean(false);
     private final SocketSelector selector;
@@ -56,7 +56,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     private FlushOperation pendingFlush;
 
     protected SocketChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,
-                                   ReadConsumer readConsumer, BytesFlushProducer flushProducer, InboundChannelBuffer channelBuffer) {
+                                   ReadConsumer readConsumer, FlushProducer flushProducer, InboundChannelBuffer channelBuffer) {
         super(channel.getRawChannel(), exceptionHandler);
         this.selector = selector;
         this.channel = channel;
@@ -272,7 +272,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     }
 
     // Public for tests
-    public static class BytesFlushProducer {
+    public static class BytesFlushProducer implements FlushProducer {
 
         private final LinkedList<FlushOperation> flushOperations = new LinkedList<>();
         private final SocketSelector selector;
@@ -281,15 +281,18 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             this.selector = selector;
         }
 
+        @Override
         public void produceWrites(WriteOperation writeOperation) {
             assert writeOperation instanceof FlushReadyWrite : "Write operation must be flush ready";
             flushOperations.addLast((FlushReadyWrite) writeOperation);
         }
 
+        @Override
         public FlushOperation pollFlushOperation() {
             return flushOperations.pollFirst();
         }
 
+        @Override
         public void close() throws IOException {
             for (FlushOperation flushOperation : flushOperations) {
                 selector.executeFailedListener(flushOperation.getListener(), new ClosedChannelException());

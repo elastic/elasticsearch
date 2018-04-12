@@ -68,10 +68,12 @@ public class NettyAdaptor implements AutoCloseable {
         nettyChannel.pipeline().addLast(handlers);
     }
 
+    // TODO: Need to close pending flushes
+
     @Override
     public void close() throws Exception {
-        // This should be safe as we are not a real network channel
         ChannelFuture closeFuture = nettyChannel.close();
+        // This should be safe as we are not a real network channel
         closeFuture.await();
         if (closeFuture.isSuccess() == false) {
             Throwable cause = closeFuture.cause();
@@ -80,21 +82,24 @@ public class NettyAdaptor implements AutoCloseable {
         }
     }
 
-    public void addCloseListener(BiConsumer<Void, Exception> consumer) {
+    public void addCloseListener(BiConsumer<Void, Exception> listener) {
         nettyChannel.closeFuture().addListener(f -> {
             if (f.isSuccess()) {
-                consumer.accept(null, null);
+                listener.accept(null, null);
             } else {
                 final Throwable cause = f.cause();
                 ExceptionsHelper.dieOnError(cause);
                 assert cause instanceof Exception;
-                consumer.accept(null, (Exception) cause);
+                listener.accept(null, (Exception) cause);
             }
         });
     }
 
-    public void read(ByteBuffer[] buffers) {
-        nettyChannel.writeInbound(Unpooled.wrappedBuffer(buffers));
+    public int read(ByteBuffer[] buffers) {
+        ByteBuf byteBuf = Unpooled.wrappedBuffer(buffers);
+        int initialReaderIndex = byteBuf.readerIndex();
+        nettyChannel.writeInbound(byteBuf);
+        return byteBuf.readerIndex() - initialReaderIndex;
     }
 
     public void write(WriteOperation writeOperation) {

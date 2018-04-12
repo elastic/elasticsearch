@@ -242,6 +242,13 @@ public final class IndexSettings {
     public static final Setting<TimeValue> INDEX_GC_DELETES_SETTING =
         Setting.timeSetting("index.gc_deletes", DEFAULT_GC_DELETES, new TimeValue(-1, TimeUnit.MILLISECONDS), Property.Dynamic,
             Property.IndexScope);
+
+    /**
+     * Specifies if the index should use soft-delete instead of hard-delete for update/delete operations.
+     */
+    public static final Setting<Boolean> INDEX_SOFT_DELETES_SETTING =
+        Setting.boolSetting("index.soft_deletes.enabled", true, Property.IndexScope);
+
     /**
      * The maximum number of refresh listeners allows on this shard.
      */
@@ -294,6 +301,7 @@ public final class IndexSettings {
     private final IndexSortConfig indexSortConfig;
     private final IndexScopedSettings scopedSettings;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
+    private final boolean softDeleteEnabled;
     private volatile boolean warmerEnabled;
     private volatile int maxResultWindow;
     private volatile int maxInnerResultWindow;
@@ -401,6 +409,7 @@ public final class IndexSettings {
         generationThresholdSize = scopedSettings.get(INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
+        softDeleteEnabled = version.onOrAfter(Version.V_6_4_0) && scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
         maxResultWindow = scopedSettings.get(MAX_RESULT_WINDOW_SETTING);
         maxInnerResultWindow = scopedSettings.get(MAX_INNER_RESULT_WINDOW_SETTING);
@@ -806,4 +815,11 @@ public final class IndexSettings {
     }
 
     public IndexScopedSettings getScopedSettings() { return scopedSettings;}
+
+    /**
+     * Returns <code>true</code> if soft-delete is enabled.
+     */
+    public boolean isSoftDeleteEnabled() {
+        return softDeleteEnabled;
+    }
 }

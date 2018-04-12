@@ -27,6 +27,7 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
@@ -95,6 +96,8 @@ public class Lucene {
         annotation = DocValuesFormat.forName(LATEST_DOC_VALUES_FORMAT).getClass().getAnnotation(Deprecated.class);
         assert annotation == null : "DocValuesFormat " + LATEST_DOC_VALUES_FORMAT + " is deprecated" ;
     }
+
+    public static final String SOFT_DELETE_FIELD = "__soft_delete";
 
     public static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("_standard", AnalyzerScope.GLOBAL, new StandardAnalyzer());
     public static final NamedAnalyzer KEYWORD_ANALYZER = new NamedAnalyzer("_keyword", AnalyzerScope.GLOBAL, new KeywordAnalyzer());
@@ -828,5 +831,12 @@ public class Lucene {
                 return maxDoc;
             }
         };
+    }
+
+    /**
+     * Returns a numeric docvalues which can be used to soft-delete documents.
+     */
+    public static NumericDocValuesField newSoftDeleteField() {
+        return new NumericDocValuesField(SOFT_DELETE_FIELD, 1);
     }
 }

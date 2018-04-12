@@ -2805,6 +2805,12 @@ public class InternalEngineTests extends EngineTestCase {
         }
 
         @Override
+        public long softUpdateDocument(Term term, Iterable<? extends IndexableField> doc, Field... softDeletes) throws IOException {
+            maybeThrowFailure();
+            return super.softUpdateDocument(term, doc, softDeletes);
+        }
+
+        @Override
         public long deleteDocuments(Term... terms) throws IOException {
             maybeThrowFailure();
             return super.deleteDocuments(terms);

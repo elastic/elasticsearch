@@ -13,9 +13,8 @@ description = 'Request and response objects shared by the cli, jdbc ' +
         'and the Elasticsearch plugin'
 
 dependencies {
-    /* We'd like to just depend on xcontent but that hasn't been factored
-     * into its own project yet. So we drag in the server and a bunch of
-     * its dependencies. */
+    /* We'd like to just depend on xcontent but there are some bits of
+     * :server that we rely on.... */
     compile (project(':server')) {
         transitive = false
     }

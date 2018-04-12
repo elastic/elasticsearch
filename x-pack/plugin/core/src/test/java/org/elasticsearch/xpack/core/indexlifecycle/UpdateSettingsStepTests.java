@@ -17,8 +17,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncActionStep.Listener;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.junit.Before;
@@ -26,7 +24,7 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-public class UpdateSettingsStepTests extends ESTestCase {
+public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettingsStep> {
 
     private Client client;
 
@@ -35,6 +33,7 @@ public class UpdateSettingsStepTests extends ESTestCase {
         client = Mockito.mock(Client.class);
     }
 
+    @Override
     public UpdateSettingsStep createRandomInstance() {
         StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
@@ -43,6 +42,7 @@ public class UpdateSettingsStepTests extends ESTestCase {
         return new UpdateSettingsStep(stepKey, nextStepKey, client, settings);
     }
 
+    @Override
     public UpdateSettingsStep mutateInstance(UpdateSettingsStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
@@ -65,9 +65,9 @@ public class UpdateSettingsStepTests extends ESTestCase {
         return new UpdateSettingsStep(key, nextKey, client, settings);
     }
 
-    public void testHashcodeAndEquals() {
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createRandomInstance(), instance -> new UpdateSettingsStep(instance.getKey(),
-                instance.getNextStepKey(), instance.getClient(), instance.getSettings()), this::mutateInstance);
+    @Override
+    public UpdateSettingsStep copyInstance(UpdateSettingsStep instance) {
+        return new UpdateSettingsStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getSettings());
     }
 
     public void testPerformAction() {

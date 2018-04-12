@@ -13,14 +13,13 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.util.concurrent.TimeUnit;
 
-public class PhaseAfterStepTests extends ESTestCase {
+public class PhaseAfterStepTests extends AbstractStepTestCase<PhaseAfterStep> {
 
+    @Override
     public PhaseAfterStep createRandomInstance() {
         StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
@@ -32,6 +31,7 @@ public class PhaseAfterStepTests extends ESTestCase {
         return new TimeValue(randomLongBetween(1, 10000), randomFrom(TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS));
     }
 
+    @Override
     public PhaseAfterStep mutateInstance(PhaseAfterStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
@@ -54,9 +54,10 @@ public class PhaseAfterStepTests extends ESTestCase {
         return new PhaseAfterStep(instance.getNowSupplier(), after, key, nextKey);
     }
 
-    public void testHashcodeAndEquals() {
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createRandomInstance(), instance -> new PhaseAfterStep(instance.getNowSupplier(),
-                instance.getAfter(), instance.getKey(), instance.getNextStepKey()), this::mutateInstance);
+    @Override
+    public PhaseAfterStep copyInstance(PhaseAfterStep instance) {
+        return new PhaseAfterStep(instance.getNowSupplier(), instance.getAfter(),
+            instance.getKey(), instance.getNextStepKey());
     }
 
     public void testConditionMet() {

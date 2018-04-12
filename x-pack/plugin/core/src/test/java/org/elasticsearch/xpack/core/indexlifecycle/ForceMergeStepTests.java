@@ -16,8 +16,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.mockito.Mockito;
 
@@ -26,8 +24,9 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ForceMergeStepTests extends ESTestCase {
+public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
 
+    @Override
     public ForceMergeStep createRandomInstance() {
         Step.StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
@@ -36,6 +35,7 @@ public class ForceMergeStepTests extends ESTestCase {
         return new ForceMergeStep(stepKey, nextStepKey, null, maxNumSegments);
     }
 
+    @Override
     public ForceMergeStep mutateInstance(ForceMergeStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
@@ -55,14 +55,13 @@ public class ForceMergeStepTests extends ESTestCase {
                 throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new ForceMergeStep(key, nextKey, null, maxNumSegments);
+        return new ForceMergeStep(key, nextKey, instance.getClient(), maxNumSegments);
     }
 
-
-    public void testHashcodeAndEquals() {
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createRandomInstance(),
-            instance -> new ForceMergeStep(instance.getKey(), instance.getNextStepKey(),
-                null, instance.getMaxNumSegments()), this::mutateInstance);
+    @Override
+    public ForceMergeStep copyInstance(ForceMergeStep instance) {
+        return new ForceMergeStep(instance.getKey(), instance.getNextStepKey(),
+            instance.getClient(), instance.getMaxNumSegments());
     }
 
     public void testPerformActionComplete() {

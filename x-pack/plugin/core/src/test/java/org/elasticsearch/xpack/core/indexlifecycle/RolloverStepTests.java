@@ -22,8 +22,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncActionStep.Listener;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.junit.Before;
@@ -34,7 +32,7 @@ import org.mockito.stubbing.Answer;
 import java.util.HashSet;
 import java.util.Set;
 
-public class RolloverStepTests extends ESTestCase {
+public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
 
     private Client client;
 
@@ -43,6 +41,7 @@ public class RolloverStepTests extends ESTestCase {
         client = Mockito.mock(Client.class);
     }
 
+    @Override
     public RolloverStep createRandomInstance() {
         StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
@@ -56,6 +55,7 @@ public class RolloverStepTests extends ESTestCase {
         return new RolloverStep(stepKey, nextStepKey, client, alias, maxSize, maxAge, maxDocs);
     }
 
+    @Override
     public RolloverStep mutateInstance(RolloverStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
@@ -93,12 +93,10 @@ public class RolloverStepTests extends ESTestCase {
         return new RolloverStep(key, nextKey, instance.getClient(), alias, maxSize, maxAge, maxDocs);
     }
 
-    public void testHashcodeAndEquals() {
-        EqualsHashCodeTestUtils
-                .checkEqualsAndHashCode(createRandomInstance(),
-                        instance -> new RolloverStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(),
-                                instance.getAlias(), instance.getMaxSize(), instance.getMaxAge(), instance.getMaxDocs()),
-                        this::mutateInstance);
+    @Override
+    public RolloverStep copyInstance(RolloverStep instance) {
+        return new RolloverStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(),
+            instance.getAlias(), instance.getMaxSize(), instance.getMaxAge(), instance.getMaxDocs());
     }
 
     public void testPerformAction() throws Exception {

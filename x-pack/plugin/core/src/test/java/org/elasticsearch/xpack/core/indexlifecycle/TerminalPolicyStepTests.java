@@ -5,13 +5,37 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
-import org.elasticsearch.test.ESTestCase;
+public class TerminalPolicyStepTests extends AbstractStepTestCase<TerminalPolicyStep> {
 
-public class TerminalPolicyStepTests extends ESTestCase {
+    @Override
+    public TerminalPolicyStep createRandomInstance() {
+        StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        return new TerminalPolicyStep(stepKey, nextStepKey);
+    }
 
-    public void testKeys() {
+    @Override
+    public TerminalPolicyStep mutateInstance(TerminalPolicyStep instance) {
+        StepKey key = instance.getKey();
+        StepKey nextKey = instance.getNextStepKey();
+
+        if (randomBoolean()) {
+            key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+        } else {
+            nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+        }
+
+        return new TerminalPolicyStep(key, nextKey);
+    }
+
+    @Override
+    public TerminalPolicyStep copyInstance(TerminalPolicyStep instance) {
+        return new TerminalPolicyStep(instance.getKey(), instance.getNextStepKey());
+    }
+    public void testInstance() {
         assertEquals(new Step.StepKey("completed", "completed", "completed"), TerminalPolicyStep.INSTANCE.getKey());
-        assertEquals(null, TerminalPolicyStep.INSTANCE.getNextStepKey());
+        assertNull(TerminalPolicyStep.INSTANCE.getNextStepKey());
     }
 }

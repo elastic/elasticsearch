@@ -10,11 +10,36 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ShrunkenIndexCheckStepTests extends ESTestCase {
+public class ShrunkenIndexCheckStepTests extends AbstractStepTestCase<ShrunkenIndexCheckStep> {
+
+    @Override
+    public ShrunkenIndexCheckStep createRandomInstance() {
+        StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        return new ShrunkenIndexCheckStep(stepKey, nextStepKey);
+    }
+
+    @Override
+    public ShrunkenIndexCheckStep mutateInstance(ShrunkenIndexCheckStep instance) {
+        StepKey key = instance.getKey();
+        StepKey nextKey = instance.getNextStepKey();
+
+        if (randomBoolean()) {
+            key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+        } else {
+            nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+        }
+        return new ShrunkenIndexCheckStep(key, nextKey);
+    }
+
+    @Override
+    public ShrunkenIndexCheckStep copyInstance(ShrunkenIndexCheckStep instance) {
+        return new ShrunkenIndexCheckStep(instance.getKey(), instance.getNextStepKey());
+    }
 
     public void testConditionMet() {
         String sourceIndex = randomAlphaOfLengthBetween(1, 10);

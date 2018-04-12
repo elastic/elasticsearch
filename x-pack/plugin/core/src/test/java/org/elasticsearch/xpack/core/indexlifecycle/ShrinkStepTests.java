@@ -20,8 +20,6 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncActionStep.Listener;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.junit.Before;
@@ -33,7 +31,7 @@ import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ShrinkStepTests extends ESTestCase {
+public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
 
     private Client client;
 
@@ -42,6 +40,7 @@ public class ShrinkStepTests extends ESTestCase {
         client = Mockito.mock(Client.class);
     }
 
+    @Override
     public ShrinkStep createRandomInstance() {
         StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
@@ -49,6 +48,7 @@ public class ShrinkStepTests extends ESTestCase {
         return new ShrinkStep(stepKey, nextStepKey, client, numberOfShards);
     }
 
+    @Override
     public ShrinkStep mutateInstance(ShrinkStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
@@ -71,12 +71,9 @@ public class ShrinkStepTests extends ESTestCase {
         return new ShrinkStep(key, nextKey, instance.getClient(), numberOfShards);
     }
 
-    public void testHashcodeAndEquals() {
-        EqualsHashCodeTestUtils
-                .checkEqualsAndHashCode(createRandomInstance(),
-                        instance -> new ShrinkStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(),
-                                instance.getNumberOfShards()),
-                        this::mutateInstance);
+    @Override
+    public ShrinkStep copyInstance(ShrinkStep instance) {
+        return new ShrinkStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getNumberOfShards());
     }
 
     public void testPerformAction() throws Exception {

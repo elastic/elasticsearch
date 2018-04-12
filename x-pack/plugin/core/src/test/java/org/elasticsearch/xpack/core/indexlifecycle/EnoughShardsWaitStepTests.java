@@ -20,9 +20,44 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
-public class EnoughShardsWaitStepTests extends ESTestCase {
+public class EnoughShardsWaitStepTests extends AbstractStepTestCase<EnoughShardsWaitStep> {
+
+    @Override
+    public EnoughShardsWaitStep createRandomInstance() {
+        StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        int numberOfShards = randomIntBetween(1, 10);
+        return new EnoughShardsWaitStep(stepKey, nextStepKey, numberOfShards);
+    }
+
+    @Override
+    public EnoughShardsWaitStep mutateInstance(EnoughShardsWaitStep instance) {
+        StepKey key = instance.getKey();
+        StepKey nextKey = instance.getNextStepKey();
+        int numberOfShards = instance.getNumberOfShards();
+        switch (between(0, 2)) {
+            case 0:
+                key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+                break;
+            case 1:
+                nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+                break;
+            case 2:
+                numberOfShards = numberOfShards + 1;
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new EnoughShardsWaitStep(key, nextKey, numberOfShards);
+    }
+
+    @Override
+    public EnoughShardsWaitStep copyInstance(EnoughShardsWaitStep instance) {
+        return new EnoughShardsWaitStep(instance.getKey(), instance.getNextStepKey(), instance.getNumberOfShards());
+    }
 
     public void testConditionMet() {
         int numberOfShards = randomIntBetween(1, 10);

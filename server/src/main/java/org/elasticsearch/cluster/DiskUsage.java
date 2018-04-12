@@ -75,9 +75,9 @@ public class DiskUsage implements ToXContentFragment, Writeable {
 
     XContentBuilder toShortXContent(XContentBuilder builder) throws IOException {
         builder.field("path", this.path);
-        builder.byteSizeField("total_bytes", "total", this.totalBytes);
-        builder.byteSizeField("used_bytes", "used", this.getUsedBytes());
-        builder.byteSizeField("free_bytes", "free", this.freeBytes);
+        builder.humanReadableField("total_bytes", "total", new ByteSizeValue(this.totalBytes));
+        builder.humanReadableField("used_bytes", "used", new ByteSizeValue(this.getUsedBytes()));
+        builder.humanReadableField("free_bytes", "free", new ByteSizeValue(this.freeBytes));
         builder.field("free_disk_percent", truncatePercent(this.getFreeDiskAsPercentage()));
         builder.field("used_disk_percent", truncatePercent(this.getUsedDiskAsPercentage()));
         return builder;

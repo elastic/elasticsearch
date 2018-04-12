@@ -18,14 +18,81 @@
  */
 package org.elasticsearch.percolator;
 
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collections;
 import java.util.stream.IntStream;
 
 public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
+
+    public void testHitsExecute() throws Exception {
+        try (Directory directory = newDirectory()) {
+            // Need a one doc index:
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                Document document = new Document();
+                indexWriter.addDocument(document);
+            }
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = new IndexSearcher(reader);
+
+                // A match:
+                {
+                    SearchHit[] hits = new SearchHit[]{new SearchHit(0)};
+                    PercolateQuery.QueryStore queryStore = ctx -> docId -> new TermQuery(new Term("field", "value"));
+                    MemoryIndex memoryIndex = new MemoryIndex();
+                    memoryIndex.addField("field", "value", new WhitespaceAnalyzer());
+                    PercolateQuery percolateQuery =  new PercolateQuery("_name", queryStore, Collections.emptyList(),
+                        new MatchAllDocsQuery(), memoryIndex.createSearcher(), new MatchNoDocsQuery());
+
+                    PercolatorMatchedSlotSubFetchPhase.innerHitsExecute(percolateQuery, indexSearcher, hits);
+                    assertNotNull(hits[0].field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX));
+                    assertEquals(0, (int) hits[0].field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX).getValue());
+                }
+
+                // No match:
+                {
+                    SearchHit[] hits = new SearchHit[]{new SearchHit(0)};
+                    PercolateQuery.QueryStore queryStore = ctx -> docId -> new TermQuery(new Term("field", "value"));
+                    MemoryIndex memoryIndex = new MemoryIndex();
+                    memoryIndex.addField("field", "value1", new WhitespaceAnalyzer());
+                    PercolateQuery percolateQuery =  new PercolateQuery("_name", queryStore, Collections.emptyList(),
+                        new MatchAllDocsQuery(), memoryIndex.createSearcher(), new MatchNoDocsQuery());
+
+                    PercolatorMatchedSlotSubFetchPhase.innerHitsExecute(percolateQuery, indexSearcher, hits);
+                    assertNull(hits[0].field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX));
+                }
+
+                // No query:
+                {
+                    SearchHit[] hits = new SearchHit[]{new SearchHit(0)};
+                    PercolateQuery.QueryStore queryStore = ctx -> docId -> null;
+                    MemoryIndex memoryIndex = new MemoryIndex();
+                    memoryIndex.addField("field", "value", new WhitespaceAnalyzer());
+                    PercolateQuery percolateQuery =  new PercolateQuery("_name", queryStore, Collections.emptyList(),
+                        new MatchAllDocsQuery(), memoryIndex.createSearcher(), new MatchNoDocsQuery());
+
+                    PercolatorMatchedSlotSubFetchPhase.innerHitsExecute(percolateQuery, indexSearcher, hits);
+                    assertNull(hits[0].field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX));
+                }
+            }
+        }
+    }
 
     public void testConvertTopDocsToSlots() {
         ScoreDoc[] scoreDocs = new ScoreDoc[randomInt(128)];

@@ -23,8 +23,10 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
@@ -34,6 +36,7 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
+import java.io.InputStream;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
@@ -61,7 +64,6 @@ public class RestGetSourceAction extends BaseRestHandler {
         final GetRequest getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
         getRequest.refresh(request.paramAsBoolean("refresh", getRequest.refresh()));
         getRequest.routing(request.param("routing"));
-        getRequest.parent(request.param("parent"));
         getRequest.preference(request.param("preference"));
         getRequest.realtime(request.paramAsBoolean("realtime", getRequest.realtime()));
 
@@ -81,7 +83,10 @@ public class RestGetSourceAction extends BaseRestHandler {
                         if (response.isSourceEmpty()) {
                             return new BytesRestResponse(NOT_FOUND, builder);
                         } else {
-                            builder.rawValue(response.getSourceInternal());
+                            final BytesReference source = response.getSourceInternal();
+                            try (InputStream stream = source.streamInput()) {
+                                builder.rawValue(stream, XContentHelper.xContentType(source));
+                            }
                             return new BytesRestResponse(OK, builder);
                         }
                     }

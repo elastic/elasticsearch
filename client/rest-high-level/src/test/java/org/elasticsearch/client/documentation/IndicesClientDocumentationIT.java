@@ -27,23 +27,32 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
+import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RestHighLevelClient;
@@ -66,8 +75,8 @@ import java.util.concurrent.TimeUnit;
 /**
  * This class is used to generate the Java Indices API documentation.
  * You need to wrap your code between two tags like:
- * // tag::example[]
- * // end::example[]
+ * // tag::example
+ * // end::example
  *
  * Where example is your tag name.
  *
@@ -76,6 +85,10 @@ import java.util.concurrent.TimeUnit;
  * --------------------------------------------------
  * include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[example]
  * --------------------------------------------------
+ *
+ * The column width of the code block is 84. If the code contains a line longer
+ * than 84, the line will be cut and a horizontal scroll bar will be displayed.
+ * (the code indentation of the tag is not included in the width)
  */
 public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
@@ -207,7 +220,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             DeleteIndexRequest request = new DeleteIndexRequest("posts");
 
             // tag::delete-index-execute-listener
-            ActionListener<DeleteIndexResponse> listener = new ActionListener<DeleteIndexResponse>() {
+            ActionListener<DeleteIndexResponse> listener =
+                    new ActionListener<DeleteIndexResponse>() {
                 @Override
                 public void onResponse(DeleteIndexResponse deleteIndexResponse) {
                     // <1>
@@ -378,7 +392,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             CreateIndexRequest request = new CreateIndexRequest("twitter");
 
             // tag::create-index-execute-listener
-            ActionListener<CreateIndexResponse> listener = new ActionListener<CreateIndexResponse>() {
+            ActionListener<CreateIndexResponse> listener =
+                    new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse createIndexResponse) {
                     // <1>
@@ -507,7 +522,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             PutMappingRequest request = new PutMappingRequest("twitter").type("tweet");
 
             // tag::put-mapping-execute-listener
-            ActionListener<PutMappingResponse> listener = new ActionListener<PutMappingResponse>() {
+            ActionListener<PutMappingResponse> listener =
+                    new ActionListener<PutMappingResponse>() {
                 @Override
                 public void onResponse(PutMappingResponse putMappingResponse) {
                     // <1>
@@ -574,7 +590,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             assertTrue(shardsAcked);
 
             // tag::open-index-execute-listener
-            ActionListener<OpenIndexResponse> listener = new ActionListener<OpenIndexResponse>() {
+            ActionListener<OpenIndexResponse> listener =
+                    new ActionListener<OpenIndexResponse>() {
                 @Override
                 public void onResponse(OpenIndexResponse openIndexResponse) {
                     // <1>
@@ -609,6 +626,307 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 }
             }
             // end::open-index-notfound
+        }
+    }
+
+    public void testRefreshIndex() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            createIndex("index1", Settings.EMPTY);
+        }
+
+        {
+            // tag::refresh-request
+            RefreshRequest request = new RefreshRequest("index1"); // <1>
+            RefreshRequest requestMultiple = new RefreshRequest("index1", "index2"); // <2>
+            RefreshRequest requestAll = new RefreshRequest(); // <3>
+            // end::refresh-request
+
+            // tag::refresh-request-indicesOptions
+            request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+            // end::refresh-request-indicesOptions
+
+            // tag::refresh-execute
+            RefreshResponse refreshResponse = client.indices().refresh(request);
+            // end::refresh-execute
+
+            // tag::refresh-response
+            int totalShards = refreshResponse.getTotalShards(); // <1>
+            int successfulShards = refreshResponse.getSuccessfulShards(); // <2>
+            int failedShards = refreshResponse.getFailedShards(); // <3>
+            DefaultShardOperationFailedException[] failures = refreshResponse.getShardFailures(); // <4>
+            // end::refresh-response
+
+            // tag::refresh-execute-listener
+            ActionListener<RefreshResponse> listener = new ActionListener<RefreshResponse>() {
+                @Override
+                public void onResponse(RefreshResponse refreshResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::refresh-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::refresh-execute-async
+            client.indices().refreshAsync(request, listener); // <1>
+            // end::refresh-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
+        {
+            // tag::refresh-notfound
+            try {
+                RefreshRequest request = new RefreshRequest("does_not_exist");
+                client.indices().refresh(request);
+            } catch (ElasticsearchException exception) {
+                if (exception.status() == RestStatus.NOT_FOUND) {
+                    // <1>
+                }
+            }
+            // end::refresh-notfound
+        }
+    }
+
+    public void testFlushIndex() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            createIndex("index1", Settings.EMPTY);
+        }
+
+        {
+            // tag::flush-request
+            FlushRequest request = new FlushRequest("index1"); // <1>
+            FlushRequest requestMultiple = new FlushRequest("index1", "index2"); // <2>
+            FlushRequest requestAll = new FlushRequest(); // <3>
+            // end::flush-request
+
+            // tag::flush-request-indicesOptions
+            request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+            // end::flush-request-indicesOptions
+
+            // tag::flush-request-wait
+            request.waitIfOngoing(true); // <1>
+            // end::flush-request-wait
+
+            // tag::flush-request-force
+            request.force(true); // <1>
+            // end::flush-request-force
+
+            // tag::flush-execute
+            FlushResponse flushResponse = client.indices().flush(request);
+            // end::flush-execute
+
+            // tag::flush-response
+            int totalShards = flushResponse.getTotalShards(); // <1>
+            int successfulShards = flushResponse.getSuccessfulShards(); // <2>
+            int failedShards = flushResponse.getFailedShards(); // <3>
+            DefaultShardOperationFailedException[] failures = flushResponse.getShardFailures(); // <4>
+            // end::flush-response
+
+            // tag::flush-execute-listener
+            ActionListener<FlushResponse> listener = new ActionListener<FlushResponse>() {
+                @Override
+                public void onResponse(FlushResponse refreshResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::flush-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::flush-execute-async
+            client.indices().flushAsync(request, listener); // <1>
+            // end::flush-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
+        {
+            // tag::flush-notfound
+            try {
+                FlushRequest request = new FlushRequest("does_not_exist");
+                client.indices().flush(request);
+            } catch (ElasticsearchException exception) {
+                if (exception.status() == RestStatus.NOT_FOUND) {
+                    // <1>
+                }
+            }
+            // end::flush-notfound
+        }
+    }
+
+    public void testForceMergeIndex() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            createIndex("index", Settings.EMPTY);
+        }
+
+        {
+            // tag::force-merge-request
+            ForceMergeRequest request = new ForceMergeRequest("index1"); // <1>
+            ForceMergeRequest requestMultiple = new ForceMergeRequest("index1", "index2"); // <2>
+            ForceMergeRequest requestAll = new ForceMergeRequest(); // <3>
+            // end::force-merge-request
+
+            // tag::force-merge-request-indicesOptions
+            request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+            // end::force-merge-request-indicesOptions
+
+            // tag::force-merge-request-segments-num
+            request.maxNumSegments(1); // <1>
+            // end::force-merge-request-segments-num
+
+            // tag::force-merge-request-only-expunge-deletes
+            request.onlyExpungeDeletes(true); // <1>
+            // end::force-merge-request-only-expunge-deletes
+
+            // tag::force-merge-request-flush
+            request.flush(true); // <1>
+            // end::force-merge-request-flush
+
+            // tag::force-merge-execute
+            ForceMergeResponse forceMergeResponse = client.indices().forceMerge(request);
+            // end::force-merge-execute
+
+            // tag::force-merge-response
+            int totalShards = forceMergeResponse.getTotalShards(); // <1>
+            int successfulShards = forceMergeResponse.getSuccessfulShards(); // <2>
+            int failedShards = forceMergeResponse.getFailedShards(); // <3>
+            DefaultShardOperationFailedException[] failures = forceMergeResponse.getShardFailures(); // <4>
+            // end::force-merge-response
+
+            // tag::force-merge-execute-listener
+            ActionListener<ForceMergeResponse> listener = new ActionListener<ForceMergeResponse>() {
+                @Override
+                public void onResponse(ForceMergeResponse forceMergeResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::force-merge-execute-listener
+
+            // tag::force-merge-execute-async
+            client.indices().forceMergeAsync(request, listener); // <1>
+            // end::force-merge-execute-async
+        }
+        {
+            // tag::force-merge-notfound
+            try {
+                ForceMergeRequest request = new ForceMergeRequest("does_not_exist");
+                client.indices().forceMerge(request);
+            } catch (ElasticsearchException exception) {
+                if (exception.status() == RestStatus.NOT_FOUND) {
+                    // <1>
+                }
+            }
+            // end::force-merge-notfound
+        }
+    }
+
+    public void testClearCache() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            createIndex("index1", Settings.EMPTY);
+        }
+
+        {
+            // tag::clear-cache-request
+            ClearIndicesCacheRequest request = new ClearIndicesCacheRequest("index1"); // <1>
+            ClearIndicesCacheRequest requestMultiple = new ClearIndicesCacheRequest("index1", "index2"); // <2>
+            ClearIndicesCacheRequest requestAll = new ClearIndicesCacheRequest(); // <3>
+            // end::clear-cache-request
+
+            // tag::clear-cache-request-indicesOptions
+            request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+            // end::clear-cache-request-indicesOptions
+
+            // tag::clear-cache-request-query
+            request.queryCache(true); // <1>
+            // end::clear-cache-request-query
+
+            // tag::clear-cache-request-request
+            request.requestCache(true); // <1>
+            // end::clear-cache-request-request
+
+            // tag::clear-cache-request-fielddata
+            request.fieldDataCache(true); // <1>
+            // end::clear-cache-request-fielddata
+
+            // tag::clear-cache-request-fields
+            request.fields("field1", "field2", "field3"); // <1>
+            // end::clear-cache-request-fields
+
+            // tag::clear-cache-execute
+            ClearIndicesCacheResponse clearCacheResponse = client.indices().clearCache(request);
+            // end::clear-cache-execute
+
+            // tag::clear-cache-response
+            int totalShards = clearCacheResponse.getTotalShards(); // <1>
+            int successfulShards = clearCacheResponse.getSuccessfulShards(); // <2>
+            int failedShards = clearCacheResponse.getFailedShards(); // <3>
+            DefaultShardOperationFailedException[] failures = clearCacheResponse.getShardFailures(); // <4>
+            // end::clear-cache-response
+
+            // tag::clear-cache-execute-listener
+            ActionListener<ClearIndicesCacheResponse> listener = new ActionListener<ClearIndicesCacheResponse>() {
+                @Override
+                public void onResponse(ClearIndicesCacheResponse clearCacheResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::clear-cache-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::clear-cache-execute-async
+            client.indices().clearCacheAsync(request, listener); // <1>
+            // end::clear-cache-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
+        {
+            // tag::clear-cache-notfound
+            try {
+                ClearIndicesCacheRequest request = new ClearIndicesCacheRequest("does_not_exist");
+                client.indices().clearCache(request);
+            } catch (ElasticsearchException exception) {
+                if (exception.status() == RestStatus.NOT_FOUND) {
+                    // <1>
+                }
+            }
+            // end::clear-cache-notfound
         }
     }
 
@@ -648,7 +966,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             assertTrue(acknowledged);
 
             // tag::close-index-execute-listener
-            ActionListener<CloseIndexResponse> listener = new ActionListener<CloseIndexResponse>() {
+            ActionListener<CloseIndexResponse> listener =
+                    new ActionListener<CloseIndexResponse>() {
                 @Override
                 public void onResponse(CloseIndexResponse closeIndexResponse) {
                     // <1>
@@ -686,7 +1005,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::exists-alias-request
             GetAliasesRequest request = new GetAliasesRequest();
             GetAliasesRequest requestWithAlias = new GetAliasesRequest("alias1");
-            GetAliasesRequest requestWithAliases = new GetAliasesRequest(new String[]{"alias1", "alias2"});
+            GetAliasesRequest requestWithAliases =
+                    new GetAliasesRequest(new String[]{"alias1", "alias2"});
             // end::exists-alias-request
 
             // tag::exists-alias-request-alias
@@ -860,7 +1180,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.setWaitForActiveShards(ActiveShardCount.DEFAULT); // <2>
         // end::shrink-index-request-waitForActiveShards
         // tag::shrink-index-request-settings
-        request.getTargetIndexRequest().settings(Settings.builder().put("index.number_of_shards", 2)); // <1>
+        request.getTargetIndexRequest().settings(Settings.builder()
+                .put("index.number_of_shards", 2)); // <1>
         // end::shrink-index-request-settings
         // tag::shrink-index-request-aliases
         request.getTargetIndexRequest().alias(new Alias("target_alias")); // <1>
@@ -929,7 +1250,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.setWaitForActiveShards(ActiveShardCount.DEFAULT); // <2>
         // end::split-index-request-waitForActiveShards
         // tag::split-index-request-settings
-        request.getTargetIndexRequest().settings(Settings.builder().put("index.number_of_shards", 4)); // <1>
+        request.getTargetIndexRequest().settings(Settings.builder()
+                .put("index.number_of_shards", 4)); // <1>
         // end::split-index-request-settings
         // tag::split-index-request-aliases
         request.getTargetIndexRequest().alias(new Alias("target_alias")); // <1>
@@ -1001,7 +1323,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.getCreateIndexRequest().waitForActiveShards(ActiveShardCount.DEFAULT); // <2>
         // end::rollover-request-waitForActiveShards
         // tag::rollover-request-settings
-        request.getCreateIndexRequest().settings(Settings.builder().put("index.number_of_shards", 4)); // <1>
+        request.getCreateIndexRequest().settings(Settings.builder()
+                .put("index.number_of_shards", 4)); // <1>
         // end::rollover-request-settings
         // tag::rollover-request-mapping
         request.getCreateIndexRequest().mapping("type", "field", "type=keyword"); // <1>

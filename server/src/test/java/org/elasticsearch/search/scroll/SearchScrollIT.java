@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -533,7 +534,7 @@ public class SearchScrollIT extends ESIntegTestCase {
             client().admin().cluster().prepareUpdateSettings()
                 .setPersistentSettings(Settings.builder().put("search.max_keep_alive", "1m").put("search.default_keep_alive", "2m")).get
             ());
-        assertThat(exc.getMessage(), containsString("was (2 minutes > 1 minute)"));
+        assertThat(exc.getMessage(), containsString("was (2m > 1m)"));
 
         assertAcked(client().admin().cluster().prepareUpdateSettings()
             .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "5m").put("search.max_keep_alive", "5m")).get());
@@ -547,14 +548,14 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         exc = expectThrows(IllegalArgumentException.class, () -> client().admin().cluster().prepareUpdateSettings()
             .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "3m")).get());
-        assertThat(exc.getMessage(), containsString("was (3 minutes > 2 minutes)"));
+        assertThat(exc.getMessage(), containsString("was (3m > 2m)"));
 
         assertAcked(client().admin().cluster().prepareUpdateSettings()
             .setPersistentSettings(Settings.builder().put("search.default_keep_alive", "1m")).get());
 
         exc = expectThrows(IllegalArgumentException.class, () -> client().admin().cluster().prepareUpdateSettings()
             .setPersistentSettings(Settings.builder().put("search.max_keep_alive", "30s")).get());
-        assertThat(exc.getMessage(), containsString("was (1 minute > 30 seconds)"));
+        assertThat(exc.getMessage(), containsString("was (1m > 30s)"));
     }
 
     public void testInvalidScrollKeepAlive() throws IOException {
@@ -576,7 +577,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         IllegalArgumentException illegalArgumentException =
             (IllegalArgumentException) ExceptionsHelper.unwrap(exc, IllegalArgumentException.class);
         assertNotNull(illegalArgumentException);
-        assertThat(illegalArgumentException.getMessage(), containsString("Keep alive for scroll (2 hours) is too large"));
+        assertThat(illegalArgumentException.getMessage(), containsString("Keep alive for scroll (2h) is too large"));
 
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -593,13 +594,13 @@ public class SearchScrollIT extends ESIntegTestCase {
         illegalArgumentException =
             (IllegalArgumentException) ExceptionsHelper.unwrap(exc, IllegalArgumentException.class);
         assertNotNull(illegalArgumentException);
-        assertThat(illegalArgumentException.getMessage(), containsString("Keep alive for scroll (3 hours) is too large"));
+        assertThat(illegalArgumentException.getMessage(), containsString("Keep alive for scroll (3h) is too large"));
     }
 
     private void assertToXContentResponse(ClearScrollResponse response, boolean succeed, int numFreed) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        Map<String, Object> map = XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2();
+        Map<String, Object> map = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
         assertThat(map.get("succeeded"), is(succeed));
         assertThat(map.get("num_freed"), equalTo(numFreed));
     }

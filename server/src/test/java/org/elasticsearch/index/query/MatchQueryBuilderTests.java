@@ -32,6 +32,7 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -111,7 +112,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         }
 
         if (randomBoolean()) {
-            matchQuery.zeroTermsQuery(randomFrom(MatchQuery.ZeroTermsQuery.values()));
+            matchQuery.zeroTermsQuery(randomFrom(ZeroTermsQuery.ALL, ZeroTermsQuery.NONE));
         }
 
         if (randomBoolean()) {
@@ -350,10 +351,10 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        mapperService.merge("_doc", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(
+        mapperService.merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(
                 "_doc",
                 "string_boost", "type=text,boost=4", "string_no_pos",
-                "type=text,index_options=docs").string()
+                "type=text,index_options=docs"))
             ),
             MapperService.MergeReason.MAPPING_UPDATE);
     }

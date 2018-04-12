@@ -27,6 +27,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
@@ -85,46 +87,21 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
- * This class is used to generate the Java High Level REST Client Search API documentation.
- * <p>
- * You need to wrap your code between two tags like:
- * // tag::example[]
- * // end::example[]
- * <p>
- * Where example is your tag name.
- * <p>
- * Then in the documentation, you can extract what is between tag and end tags with
- * ["source","java",subs="attributes,callouts,macros"]
- * --------------------------------------------------
- * include-tagged::{doc-tests}/SearchDocumentationIT.java[example]
- * --------------------------------------------------
+ * Documentation for search APIs in the high level java client.
+ * Code wrapped in {@code tag} and {@code end} tags is included in the docs.
  */
 public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
     @SuppressWarnings({"unused", "unchecked"})
     public void testSearch() throws Exception {
+        indexSearchTestData();
         RestHighLevelClient client = highLevelClient();
-        {
-            BulkRequest request = new BulkRequest();
-            request.add(new IndexRequest("posts", "doc", "1")
-                    .source(XContentType.JSON, "title", "In which order are my Elasticsearch queries executed?", "user",
-                            Arrays.asList("kimchy", "luca"), "innerObject", Collections.singletonMap("key", "value")));
-            request.add(new IndexRequest("posts", "doc", "2")
-                    .source(XContentType.JSON, "title", "Current status and upcoming changes in Elasticsearch", "user",
-                            Arrays.asList("kimchy", "christoph"), "innerObject", Collections.singletonMap("key", "value")));
-            request.add(new IndexRequest("posts", "doc", "3")
-                    .source(XContentType.JSON, "title", "The Future of Federated Search in Elasticsearch", "user",
-                            Arrays.asList("kimchy", "tanguy"), "innerObject", Collections.singletonMap("key", "value")));
-            request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            BulkResponse bulkResponse = client.bulk(request);
-            assertSame(RestStatus.OK, bulkResponse.status());
-            assertFalse(bulkResponse.hasFailures());
-        }
         {
             // tag::search-request-basic
             SearchRequest searchRequest = new SearchRequest(); // <1>
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder(); // <2>
             searchSourceBuilder.query(QueryBuilders.matchAllQuery()); // <3>
+            searchRequest.source(searchSourceBuilder); // <4>
             // end::search-request-basic
         }
         {
@@ -154,7 +131,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // tag::search-source-sorting
             sourceBuilder.sort(new ScoreSortBuilder().order(SortOrder.DESC)); // <1>
-            sourceBuilder.sort(new FieldSortBuilder("_uid").order(SortOrder.ASC));  // <2>
+            sourceBuilder.sort(new FieldSortBuilder("_id").order(SortOrder.ASC));  // <2>
             // end::search-source-sorting
 
             // tag::search-source-filtering-off
@@ -242,7 +219,8 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
                 Map<String, Object> sourceAsMap = hit.getSourceAsMap();
                 String documentTitle = (String) sourceAsMap.get("title");
                 List<Object> users = (List<Object>) sourceAsMap.get("user");
-                Map<String, Object> innerObject = (Map<String, Object>) sourceAsMap.get("innerObject");
+                Map<String, Object> innerObject =
+                        (Map<String, Object>) sourceAsMap.get("innerObject");
                 // end::search-hits-singleHit-source
             }
             assertEquals(3, totalHits);
@@ -483,8 +461,9 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
             SearchResponse searchResponse = client.search(searchRequest);
             // tag::search-request-profiling-get
-            Map<String, ProfileShardResult> profilingResults = searchResponse.getProfileResults(); // <1>
-            for (Map.Entry<String, ProfileShardResult> profilingResult : profilingResults.entrySet()) {  // <2>
+            Map<String, ProfileShardResult> profilingResults =
+                    searchResponse.getProfileResults(); // <1>
+            for (Map.Entry<String, ProfileShardResult> profilingResult : profilingResults.entrySet()) { // <2>
                 String key = profilingResult.getKey(); // <3>
                 ProfileShardResult profileShardResult = profilingResult.getValue(); // <4>
             }
@@ -494,7 +473,8 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             assertNotNull(profileShardResult);
 
             // tag::search-request-profiling-queries
-            List<QueryProfileShardResult> queryProfileShardResults = profileShardResult.getQueryProfileResults(); // <1>
+            List<QueryProfileShardResult> queryProfileShardResults =
+                    profileShardResult.getQueryProfileResults(); // <1>
             for (QueryProfileShardResult queryProfileResult : queryProfileShardResults) { // <2>
 
             }
@@ -519,7 +499,8 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             }
 
             // tag::search-request-profiling-aggs
-            AggregationProfileShardResult aggsProfileResults = profileShardResult.getAggregationProfileResults(); // <1>
+            AggregationProfileShardResult aggsProfileResults =
+                    profileShardResult.getAggregationProfileResults(); // <1>
             for (ProfileResult profileResult : aggsProfileResults.getProfileResults()) { // <2>
                 String aggName = profileResult.getQueryName(); // <3>
                 long aggTimeInMillis = profileResult.getTime(); // <4>
@@ -530,7 +511,6 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testScroll() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
@@ -602,7 +582,8 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             assertEquals(3L, searchResponse.getHits().getTotalHits());
 
             // tag::search-scroll-execute-listener
-            ActionListener<SearchResponse> scrollListener =  new ActionListener<SearchResponse>() {
+            ActionListener<SearchResponse> scrollListener =
+                    new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
                     // <1>
@@ -652,7 +633,8 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(released, greaterThan(0));
 
             // tag::clear-scroll-execute-listener
-            ActionListener<ClearScrollResponse> listener =new ActionListener<ClearScrollResponse>() {
+            ActionListener<ClearScrollResponse> listener =
+                    new ActionListener<ClearScrollResponse>() {
                 @Override
                 public void onResponse(ClearScrollResponse clearScrollResponse) {
                     // <1>
@@ -704,5 +686,91 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::search-scroll-example
             assertTrue(succeeded);
         }
+    }
+
+    public void testMultiSearch() throws Exception {
+        indexSearchTestData();
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::multi-search-request-basic
+            MultiSearchRequest request = new MultiSearchRequest();    // <1>
+            SearchRequest firstSearchRequest = new SearchRequest();   // <2>
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+            searchSourceBuilder.query(QueryBuilders.matchQuery("user", "kimchy"));
+            firstSearchRequest.source(searchSourceBuilder);
+            request.add(firstSearchRequest);                          // <3>
+            SearchRequest secondSearchRequest = new SearchRequest();  // <4>
+            searchSourceBuilder = new SearchSourceBuilder();
+            searchSourceBuilder.query(QueryBuilders.matchQuery("user", "luca"));
+            secondSearchRequest.source(searchSourceBuilder);
+            request.add(secondSearchRequest);
+            // end::multi-search-request-basic
+            // tag::multi-search-execute
+            MultiSearchResponse response = client.multiSearch(request);
+            // end::multi-search-execute
+            // tag::multi-search-response
+            MultiSearchResponse.Item firstResponse = response.getResponses()[0];   // <1>
+            assertNull(firstResponse.getFailure());                                // <2>
+            SearchResponse searchResponse = firstResponse.getResponse();           // <3>
+            assertEquals(3, searchResponse.getHits().getTotalHits());
+            MultiSearchResponse.Item secondResponse = response.getResponses()[1];  // <4>
+            assertNull(secondResponse.getFailure());
+            searchResponse = secondResponse.getResponse();
+            assertEquals(1, searchResponse.getHits().getTotalHits());
+            // end::multi-search-response
+
+            // tag::multi-search-execute-listener
+            ActionListener<MultiSearchResponse> listener = new ActionListener<MultiSearchResponse>() {
+                @Override
+                public void onResponse(MultiSearchResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::multi-search-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::multi-search-execute-async
+            client.multiSearchAsync(request, listener); // <1>
+            // end::multi-search-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+        {
+            // tag::multi-search-request-index
+            MultiSearchRequest request = new MultiSearchRequest();
+            request.add(new SearchRequest("posts")  // <1>
+                    .types("doc"));                 // <2>
+            // end::multi-search-request-index
+            MultiSearchResponse response = client.multiSearch(request);
+            MultiSearchResponse.Item firstResponse = response.getResponses()[0];
+            assertNull(firstResponse.getFailure());
+            SearchResponse searchResponse = firstResponse.getResponse();
+            assertEquals(3, searchResponse.getHits().getTotalHits());
+        }
+    }
+
+    private void indexSearchTestData() throws IOException {
+        BulkRequest request = new BulkRequest();
+        request.add(new IndexRequest("posts", "doc", "1")
+                .source(XContentType.JSON, "title", "In which order are my Elasticsearch queries executed?", "user",
+                        Arrays.asList("kimchy", "luca"), "innerObject", Collections.singletonMap("key", "value")));
+        request.add(new IndexRequest("posts", "doc", "2")
+                .source(XContentType.JSON, "title", "Current status and upcoming changes in Elasticsearch", "user",
+                        Arrays.asList("kimchy", "christoph"), "innerObject", Collections.singletonMap("key", "value")));
+        request.add(new IndexRequest("posts", "doc", "3")
+                .source(XContentType.JSON, "title", "The Future of Federated Search in Elasticsearch", "user",
+                        Arrays.asList("kimchy", "tanguy"), "innerObject", Collections.singletonMap("key", "value")));
+        request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        BulkResponse bulkResponse = highLevelClient().bulk(request);
+        assertSame(RestStatus.OK, bulkResponse.status());
+        assertFalse(bulkResponse.hasFailures());
     }
 }

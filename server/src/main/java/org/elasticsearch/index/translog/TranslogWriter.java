@@ -23,7 +23,7 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.OutputStreamDataOutput;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -164,16 +164,20 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         return tragedy;
     }
 
-    private synchronized void closeWithTragicEvent(Exception exception) throws IOException {
-        assert exception != null;
+    private synchronized void closeWithTragicEvent(final Exception ex) {
+        assert ex != null;
         if (tragedy == null) {
-            tragedy = exception;
-        } else if (tragedy != exception) {
+            tragedy = ex;
+        } else if (tragedy != ex) {
             // it should be safe to call closeWithTragicEvents on multiple layers without
             // worrying about self suppression.
-            tragedy.addSuppressed(exception);
+            tragedy.addSuppressed(ex);
         }
-        close();
+        try {
+            close();
+        } catch (final IOException | RuntimeException e) {
+            ex.addSuppressed(e);
+        }
     }
 
     /**
@@ -194,11 +198,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         try {
             data.writeTo(outputStream);
         } catch (final Exception ex) {
-            try {
-                closeWithTragicEvent(ex);
-            } catch (final Exception inner) {
-                ex.addSuppressed(inner);
-            }
+            closeWithTragicEvent(ex);
             throw ex;
         }
         totalOffset += data.length();
@@ -290,13 +290,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             synchronized (this) {
                 try {
                     sync(); // sync before we close..
-                } catch (IOException e) {
-                    try {
-                        closeWithTragicEvent(e);
-                    } catch (Exception inner) {
-                        e.addSuppressed(inner);
-                    }
-                    throw e;
+                } catch (final Exception ex) {
+                    closeWithTragicEvent(ex);
+                    throw ex;
                 }
                 if (closed.compareAndSet(false, true)) {
                     return new TranslogReader(getLastSyncedCheckpoint(), channel, path, getFirstOperationOffset());
@@ -346,12 +342,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                         try {
                             outputStream.flush();
                             checkpointToSync = getCheckpoint();
-                        } catch (Exception ex) {
-                            try {
-                                closeWithTragicEvent(ex);
-                            } catch (Exception inner) {
-                                ex.addSuppressed(inner);
-                            }
+                        } catch (final Exception ex) {
+                            closeWithTragicEvent(ex);
                             throw ex;
                         }
                     }
@@ -360,12 +352,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     try {
                         channel.force(false);
                         writeCheckpoint(channelFactory, path.getParent(), checkpointToSync);
-                    } catch (Exception ex) {
-                        try {
-                            closeWithTragicEvent(ex);
-                        } catch (Exception inner) {
-                            ex.addSuppressed(inner);
-                        }
+                    } catch (final Exception ex) {
+                        closeWithTragicEvent(ex);
                         throw ex;
                     }
                     assert lastSyncedCheckpoint.offset <= checkpointToSync.offset :
@@ -380,36 +368,25 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     @Override
     protected void readBytes(ByteBuffer targetBuffer, long position) throws IOException {
-        if (position + targetBuffer.remaining() > getWrittenOffset()) {
-            synchronized (this) {
-                // we only flush here if it's really really needed - try to minimize the impact of the read operation
-                // in some cases ie. a tragic event we might still be able to read the relevant value
-                // which is not really important in production but some test can make most strict assumptions
-                // if we don't fail in this call unless absolutely necessary.
-                if (position + targetBuffer.remaining() > getWrittenOffset()) {
-                    outputStream.flush();
+        try {
+            if (position + targetBuffer.remaining() > getWrittenOffset()) {
+                synchronized (this) {
+                    // we only flush here if it's really really needed - try to minimize the impact of the read operation
+                    // in some cases ie. a tragic event we might still be able to read the relevant value
+                    // which is not really important in production but some test can make most strict assumptions
+                    // if we don't fail in this call unless absolutely necessary.
+                    if (position + targetBuffer.remaining() > getWrittenOffset()) {
+                        outputStream.flush();
+                    }
                 }
             }
+        } catch (final Exception ex) {
+            closeWithTragicEvent(ex);
+            throw ex;
         }
         // we don't have to have a lock here because we only write ahead to the file, so all writes has been complete
         // for the requested location.
         Channels.readFromFileChannelWithEofException(channel, position, targetBuffer);
-    }
-
-    private static Checkpoint writeCheckpoint(
-            ChannelFactory channelFactory,
-            long syncPosition,
-            int numOperations,
-            long minSeqNo,
-            long maxSeqNo,
-            long globalCheckpoint,
-            long minTranslogGeneration,
-            Path translogFile,
-            long generation) throws IOException {
-        final Checkpoint checkpoint =
-            new Checkpoint(syncPosition, numOperations, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration);
-        writeCheckpoint(channelFactory, translogFile, checkpoint);
-        return checkpoint;
     }
 
     private static void writeCheckpoint(
@@ -458,12 +435,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 try {
                     ensureOpen();
                     super.flush();
-                } catch (Exception ex) {
-                    try {
-                        closeWithTragicEvent(ex);
-                    } catch (Exception inner) {
-                        ex.addSuppressed(inner);
-                    }
+                } catch (final Exception ex) {
+                    closeWithTragicEvent(ex);
                     throw ex;
                 }
             }

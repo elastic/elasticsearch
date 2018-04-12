@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.indices.mapping.put;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 public class PutMappingResponseTests extends AbstractStreamableXContentTestCase<PutMappingResponse> {
 
@@ -48,7 +47,7 @@ public class PutMappingResponseTests extends AbstractStreamableXContentTestCase<
     }
 
     @Override
-    protected EqualsHashCodeTestUtils.MutateFunction<PutMappingResponse> getMutateFunction() {
-        return response -> new PutMappingResponse(response.isAcknowledged() == false);
+    protected PutMappingResponse mutateInstance(PutMappingResponse response) {
+        return new PutMappingResponse(response.isAcknowledged() == false);
     }
 }

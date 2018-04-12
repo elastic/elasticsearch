@@ -18,10 +18,12 @@
  */
 package org.elasticsearch.gradle.precommit
 
+import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.plugins.JavaBasePlugin
+import org.gradle.api.plugins.quality.Checkstyle
 
 /**
  * Validation tasks which should be run before committing. These run before tests.
@@ -36,6 +38,7 @@ class PrecommitTasks {
             configureNamingConventions(project),
             project.tasks.create('forbiddenPatterns', ForbiddenPatternsTask.class),
             project.tasks.create('licenseHeaders', LicenseHeadersTask.class),
+            project.tasks.create('filepermissions', FilePermissionsTask.class),
             project.tasks.create('jarHell', JarHellTask.class),
             project.tasks.create('thirdPartyAudit', ThirdPartyAuditTask.class)]
 
@@ -81,17 +84,14 @@ class PrecommitTasks {
                               getClass().getResource('/forbidden/es-all-signatures.txt')]
             suppressAnnotations = ['**.SuppressForbidden']
         }
-        Task mainForbidden = project.tasks.findByName('forbiddenApisMain')
-        if (mainForbidden != null) {
-            mainForbidden.configure {
-                signaturesURLs += getClass().getResource('/forbidden/es-server-signatures.txt')
-            }
-        }
-        Task testForbidden = project.tasks.findByName('forbiddenApisTest')
-        if (testForbidden != null) {
-            testForbidden.configure {
-                signaturesURLs += getClass().getResource('/forbidden/es-test-signatures.txt')
-                signaturesURLs += getClass().getResource('/forbidden/http-signatures.txt')
+        project.tasks.withType(CheckForbiddenApis) {
+            // we do not use the += operator to add signatures, as conventionMappings of Gradle do not work when it's configured using withType:
+            if (name.endsWith('Test')) {
+                signaturesURLs = project.forbiddenApis.signaturesURLs +
+                    [ getClass().getResource('/forbidden/es-test-signatures.txt'), getClass().getResource('/forbidden/http-signatures.txt') ]
+            } else {
+                signaturesURLs = project.forbiddenApis.signaturesURLs +
+                    [ getClass().getResource('/forbidden/es-server-signatures.txt') ]
             }
         }
         Task forbiddenApis = project.tasks.findByName('forbiddenApis')
@@ -142,18 +142,17 @@ class PrecommitTasks {
             ]
             toolVersion = 7.5
         }
-        for (String taskName : ['checkstyleMain', 'checkstyleTest']) {
-            Task task = project.tasks.findByName(taskName)
-            if (task != null) {
-                project.tasks['check'].dependsOn.remove(task)
-                checkstyleTask.dependsOn(task)
-                task.dependsOn(copyCheckstyleConf)
-                task.inputs.file(checkstyleSuppressions)
-                task.reports {
-                    html.enabled false
-                }
+
+        project.tasks.withType(Checkstyle) { task ->
+            project.tasks[JavaBasePlugin.CHECK_TASK_NAME].dependsOn.remove(task)
+            checkstyleTask.dependsOn(task)
+            task.dependsOn(copyCheckstyleConf)
+            task.inputs.file(checkstyleSuppressions)
+            task.reports {
+                html.enabled false
             }
         }
+
         return checkstyleTask
     }
 

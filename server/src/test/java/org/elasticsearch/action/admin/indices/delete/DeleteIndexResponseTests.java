@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.indices.delete;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 public class DeleteIndexResponseTests extends AbstractStreamableXContentTestCase<DeleteIndexResponse> {
 
@@ -48,7 +47,7 @@ public class DeleteIndexResponseTests extends AbstractStreamableXContentTestCase
     }
 
     @Override
-    protected EqualsHashCodeTestUtils.MutateFunction<DeleteIndexResponse> getMutateFunction() {
-        return response -> new DeleteIndexResponse(response.isAcknowledged() == false);
+    protected DeleteIndexResponse mutateInstance(DeleteIndexResponse response) {
+        return new DeleteIndexResponse(response.isAcknowledged() == false);
     }
 }

@@ -24,7 +24,7 @@ import joptsimple.OptionSpec;
 
 import org.apache.lucene.search.spell.LevensteinDistance;
 import org.apache.lucene.util.CollectionUtil;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
@@ -208,7 +208,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         String pluginId = arguments.value(options);
-        boolean isBatch = options.has(batchOption) || System.console() == null;
+        final boolean isBatch = options.has(batchOption);
         execute(terminal, pluginId, isBatch, env);
     }
 
@@ -532,6 +532,12 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
     // checking for existing version of the plugin
     private void verifyPluginName(Path pluginPath, String pluginName, Path candidateDir) throws UserException, IOException {
+        // don't let user install plugin conflicting with module...
+        // they might be unavoidably in maven central and are packaged up the same way)
+        if (MODULES.contains(pluginName)) {
+            throw new UserException(ExitCodes.USAGE, "plugin '" + pluginName + "' cannot be installed as a plugin, it is a system module");
+        }
+
         final Path destination = pluginPath.resolve(pluginName);
         if (Files.exists(destination)) {
             final String message = String.format(
@@ -573,13 +579,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         PluginsService.checkForFailedPluginRemovals(env.pluginsFile());
 
         terminal.println(VERBOSE, info.toString());
-
-        // don't let user install plugin as a module...
-        // they might be unavoidably in maven central and are packaged up the same way)
-        if (MODULES.contains(info.getName())) {
-            throw new UserException(ExitCodes.USAGE, "plugin '" + info.getName() +
-                "' cannot be installed like this, it is a system module");
-        }
 
         // check for jar hell before any copying
         jarHellCheck(info, pluginRoot, env.pluginsFile(), env.modulesFile());
@@ -686,12 +685,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             }
         }
         movePlugin(tmpRoot, destination);
-        for (PluginInfo info : pluginInfos) {
-            if (info.requiresKeystore()) {
-                createKeystoreIfNeeded(terminal, env, info);
-                break;
-            }
-        }
         String[] plugins = pluginInfos.stream().map(PluginInfo::getName).toArray(String[]::new);
         terminal.println("-> Installed " + metaInfo.getName() + " with: " + Strings.arrayToCommaDelimitedString(plugins));
     }
@@ -716,9 +709,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         installPluginSupportFiles(info, tmpRoot, env.binFile().resolve(info.getName()),
                                   env.configFile().resolve(info.getName()), deleteOnFailure);
         movePlugin(tmpRoot, destination);
-        if (info.requiresKeystore()) {
-            createKeystoreIfNeeded(terminal, env, info);
-        }
         terminal.println("-> Installed " + info.getName());
     }
 
@@ -822,15 +812,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             }
         }
         IOUtils.rm(tmpConfigDir); // clean up what we just copied
-    }
-
-    private void createKeystoreIfNeeded(Terminal terminal, Environment env, PluginInfo info) throws Exception {
-        KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
-        if (keystore == null) {
-            terminal.println("Elasticsearch keystore is required by plugin [" + info.getName() + "], creating...");
-            keystore = KeyStoreWrapper.create();
-            keystore.save(env.configFile(), new char[0]);
-        }
     }
 
     private static void setOwnerGroup(final Path path, final PosixFileAttributes attributes) throws IOException {

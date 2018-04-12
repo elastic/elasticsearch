@@ -25,7 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.AcknowledgedRestListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 
@@ -50,6 +50,6 @@ public class RestDeleteSnapshotAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         DeleteSnapshotRequest deleteSnapshotRequest = deleteSnapshotRequest(request.param("repository"), request.param("snapshot"));
         deleteSnapshotRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteSnapshotRequest.masterNodeTimeout()));
-        return channel -> client.admin().cluster().deleteSnapshot(deleteSnapshotRequest, new AcknowledgedRestListener<>(channel));
+        return channel -> client.admin().cluster().deleteSnapshot(deleteSnapshotRequest, new RestToXContentListener<>(channel));
     }
 }

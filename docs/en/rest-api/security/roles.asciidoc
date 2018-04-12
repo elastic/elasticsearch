@@ -164,6 +164,10 @@ GET /_xpack/security/role
 // CONSOLE
 // TEST[continued]
 
+NOTE: If single role is requested, that role is returned as the response. When 
+requesting multiple roles, an object is returned holding the found roles, each 
+keyed by the relevant role name.
+
 [[security-api-delete-role]]
 To delete a role, submit a DELETE request to the `/_xpack/security/role/<rolename>`
 endpoint:

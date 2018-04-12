@@ -82,7 +82,7 @@ public class Phase implements ToXContentObject, Writeable {
      */
     public Phase(StreamInput in) throws IOException {
         this.name = in.readString();
-        this.after = new TimeValue(in);
+        this.after = in.readTimeValue();
         int size = in.readVInt();
         TreeMap<String, LifecycleAction> actions = new TreeMap<>();
         for (int i = 0; i < size; i++) {
@@ -94,7 +94,7 @@ public class Phase implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        after.writeTo(out);
+        out.writeTimeValue(after);
         out.writeVInt(actions.size());
         for (Map.Entry<String, LifecycleAction> entry : actions.entrySet()) {
             out.writeString(entry.getKey());

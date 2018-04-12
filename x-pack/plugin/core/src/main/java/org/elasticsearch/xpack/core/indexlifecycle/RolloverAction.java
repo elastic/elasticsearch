@@ -73,11 +73,7 @@ public class RolloverAction implements LifecycleAction {
         } else {
             maxSize = null;
         }
-        if (in.readBoolean()) {
-            maxAge = new TimeValue(in);
-        } else {
-            maxAge = null;
-        }
+        maxAge = in.readOptionalTimeValue();
         if (in.readBoolean()) {
             maxDocs = in.readVLong();
         } else {
@@ -93,11 +89,7 @@ public class RolloverAction implements LifecycleAction {
         if (hasMaxSize) {
             maxSize.writeTo(out);
         }
-        boolean hasMaxAge = maxAge != null;
-        out.writeBoolean(hasMaxAge);
-        if (hasMaxAge) {
-            maxAge.writeTo(out);
-        }
+        out.writeOptionalTimeValue(maxAge);
         boolean hasMaxDocs = maxDocs != null;
         out.writeBoolean(hasMaxDocs);
         if (hasMaxDocs) {

@@ -74,12 +74,10 @@ teardown:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       search:
         index: ".security"
-        type: "doc"
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       search:
         index: ".secu*rity"
-        type: "doc"
   - match: { hits.total: 0 }
 

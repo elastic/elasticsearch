@@ -9,6 +9,8 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.index.Index;
 
+import java.util.Objects;
+
 public class EnoughShardsWaitStep extends ClusterStateWaitStep {
     public static final String NAME = "enough-shards-allocated";
     private final int numberOfShards;
@@ -27,5 +29,23 @@ public class EnoughShardsWaitStep extends ClusterStateWaitStep {
         // We only want to make progress if all shards are active
         return clusterState.metaData().index(index).getNumberOfShards() == numberOfShards &&
             ActiveShardCount.ALL.enoughShardsActive(clusterState, index.getName());
+    }
+    
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), numberOfShards);
+    }
+    
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        EnoughShardsWaitStep other = (EnoughShardsWaitStep) obj;
+        return super.equals(obj) &&
+                Objects.equals(numberOfShards, other.numberOfShards);
     }
 }

@@ -141,6 +141,8 @@ class ClusterConfiguration {
 
     Map<String, String> keystoreSettings = new HashMap<>()
 
+    Map<String, Object> keystoreFiles = new HashMap<>()
+
     // map from destination path, to source file
     Map<String, Object> extraConfigFiles = new HashMap<>()
 
@@ -165,6 +167,15 @@ class ClusterConfiguration {
     @Input
     void keystoreSetting(String name, String value) {
         keystoreSettings.put(name, value)
+    }
+
+    /**
+     * Adds a file to the keystore. The name is the secure setting name, and the sourceFile
+     * is anything accepted by project.file()
+     */
+    @Input
+    void keystoreFile(String name, Object sourceFile) {
+        keystoreFiles.put(name, sourceFile)
     }
 
     @Input

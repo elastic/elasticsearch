@@ -21,6 +21,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
@@ -137,6 +138,7 @@ public class InternalEngine extends Engine {
     private final CounterMetric numDocDeletes = new CounterMetric();
     private final CounterMetric numDocAppends = new CounterMetric();
     private final CounterMetric numDocUpdates = new CounterMetric();
+    private final NumericDocValuesField softDeleteField = Lucene.newSoftDeleteField();
     private final boolean softDeleteEnabled;
 
     /**
@@ -1070,9 +1072,9 @@ public class InternalEngine extends Engine {
     private void updateDocs(final Term uid, final List<ParseContext.Document> docs, final IndexWriter indexWriter) throws IOException {
         if (softDeleteEnabled) {
             if (docs.size() > 1) {
-                indexWriter.softUpdateDocuments(uid, docs, Lucene.newSoftDeleteField());
+                indexWriter.softUpdateDocuments(uid, docs, softDeleteField);
             } else {
-                indexWriter.softUpdateDocument(uid, docs.get(0), Lucene.newSoftDeleteField());
+                indexWriter.softUpdateDocument(uid, docs.get(0), softDeleteField);
             }
         } else {
             if (docs.size() > 1) {

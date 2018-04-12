@@ -345,7 +345,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         final int timeout = randomIntBetween(1, 1024);
         final String query = "{ \"query\": { \"match_all\": {}}, \"timeout\": \"" + timeout + "\"}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, query)) {
-            final ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> SearchSourceBuilder.fromXContent(
+            final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SearchSourceBuilder.fromXContent(
                     parser));
             assertThat(e, hasToString(containsString("unit is missing or unrecognized")));
         }

@@ -129,7 +129,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(TYPE_FIELD.getPreferredName(), type.getType());
+        builder.field(TYPE_FIELD.getPreferredName(), type.getWriteableName());
             builder.startObject(PHASES_FIELD.getPreferredName());
                 for (Phase phase : phases.values()) {
                     builder.field(phase.getName(), phase);

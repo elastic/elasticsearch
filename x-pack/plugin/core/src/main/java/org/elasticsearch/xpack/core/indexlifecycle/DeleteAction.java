@@ -53,7 +53,7 @@ public class DeleteAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
-        Step.StepKey deleteStepKey = new Step.StepKey(phase, NAME, "delete-step");
+        Step.StepKey deleteStepKey = new Step.StepKey(phase, NAME, DeleteStep.NAME);
         return Collections.singletonList(new DeleteStep(deleteStepKey, nextStepKey, client));
     }
 

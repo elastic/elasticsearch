@@ -31,13 +31,4 @@ public interface LifecycleType extends NamedWriteable {
      *             if a specific phase or lack of a specific phase is invalid.
      */
     void validate(Collection<Phase> phases);
-
-    /**
-     * Each {@link LifecyclePolicy} has a specific type to differentiate
-     * themselves. Every implementation is responsible to providing its specific
-     * type.
-     * 
-     * @return the {@link LifecyclePolicy} type.
-     */
-    String getType();
 }

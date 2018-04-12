@@ -55,11 +55,6 @@ public class TimeseriesLifecycleType implements LifecycleType {
     }
 
     @Override
-    public String getType() {
-        return TYPE;
-    }
-
-    @Override
     public String getWriteableName() {
         return TYPE;
     }

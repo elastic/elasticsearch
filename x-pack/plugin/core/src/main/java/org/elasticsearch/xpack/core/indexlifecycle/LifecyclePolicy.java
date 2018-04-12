@@ -177,9 +177,9 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
             new Step.StepKey("pre-phase", "pre-action", "init"), lastStepKey));
 
         Collections.reverse(steps);
-        logger.error("STEP COUNT: " + steps.size());
+        logger.debug("STEP COUNT: " + steps.size());
         for (Step step : steps) {
-            logger.error(step.getKey() + " -> " + step.getNextStepKey());
+            logger.debug(step.getKey() + " -> " + step.getNextStepKey());
         }
         return steps;
     }

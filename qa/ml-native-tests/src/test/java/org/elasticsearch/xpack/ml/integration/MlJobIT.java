@@ -228,7 +228,7 @@ public class MlJobIT extends ESRestTestCase {
         responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString("\"count\":2"));
 
-        response = client().performRequest("get", AnomalyDetectorsIndex.jobResultsAliasedName(jobId1) + "/doc/_search");
+        response = client().performRequest("get", AnomalyDetectorsIndex.jobResultsAliasedName(jobId1) + "/_search");
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString("\"total\":2"));

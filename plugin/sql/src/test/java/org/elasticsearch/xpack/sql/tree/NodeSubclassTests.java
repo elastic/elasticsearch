@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.InnerAggregate;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.AggValueInput;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.AggExtractorInput;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.sql.expression.regex.LikePattern;
 import org.elasticsearch.xpack.sql.tree.NodeTests.ChildrenAreAProperty;
@@ -360,7 +360,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
                 return EnumSet.of(enm);
             }
             if (pt.getRawType() == Supplier.class) {
-                if (toBuildClass == AggValueInput.class) {
+                if (toBuildClass == AggExtractorInput.class) {
                     // AggValueInput just needs a valid java type in a supplier
                     Object o = randomBoolean() ? null : randomAlphaOfLength(5);
                     // But the supplier has to implement equals for randomValueOtherThan

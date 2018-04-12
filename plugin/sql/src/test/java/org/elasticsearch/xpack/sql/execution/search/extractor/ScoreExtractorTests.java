@@ -15,7 +15,7 @@ public class ScoreExtractorTests extends ESTestCase {
             float score = randomFloat();
             SearchHit hit = new SearchHit(1);
             hit.score(score);
-            assertEquals(score, ScoreExtractor.INSTANCE.get(hit));
+            assertEquals(score, ScoreExtractor.INSTANCE.extract(hit));
         }
     }
 

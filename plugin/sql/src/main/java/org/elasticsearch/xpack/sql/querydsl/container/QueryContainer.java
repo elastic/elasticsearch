@@ -21,10 +21,10 @@ import org.elasticsearch.xpack.sql.expression.function.ScoreAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ScoreProcessorDefinition;
-import org.elasticsearch.xpack.sql.querydsl.agg.AggPath;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
-import org.elasticsearch.xpack.sql.querydsl.agg.GroupingAgg;
+import org.elasticsearch.xpack.sql.querydsl.agg.GroupByKey;
 import org.elasticsearch.xpack.sql.querydsl.agg.LeafAgg;
+import org.elasticsearch.xpack.sql.querydsl.container.GroupByRef.Property;
 import org.elasticsearch.xpack.sql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.sql.querydsl.query.NestedQuery;
@@ -60,7 +60,7 @@ public class QueryContainer {
     private final Map<Attribute, Attribute> aliases;
 
     // pseudo functions (like count) - that are 'extracted' from other aggs
-    private final Map<String, GroupingAgg> pseudoFunctions;
+    private final Map<String, GroupByKey> pseudoFunctions;
 
     // scalar function processors - recorded as functions get folded;
     // at scrolling, their inputs (leaves) get updated
@@ -71,14 +71,13 @@ public class QueryContainer {
 
     // computed
     private final boolean aggsOnly;
-    private final int aggDepth;
 
     public QueryContainer() {
         this(null, null, null, null, null, null, null, -1);
     }
 
     public QueryContainer(Query query, Aggs aggs, List<FieldExtraction> refs, Map<Attribute, Attribute> aliases,
-            Map<String, GroupingAgg> pseudoFunctions,
+            Map<String, GroupByKey> pseudoFunctions,
             Map<Attribute, ProcessorDefinition> scalarFunctions,
             Set<Sort> sort, int limit) {
         this.query = query;
@@ -90,7 +89,6 @@ public class QueryContainer {
         this.sort = sort == null || sort.isEmpty() ? emptySet() : sort;
         this.limit = limit;
         aggsOnly = columns.stream().allMatch(FieldExtraction::supportedByAggsOnlyQuery);
-        aggDepth = columns.stream().mapToInt(FieldExtraction::depth).max().orElse(0);
     }
 
     public Query query() {
@@ -109,7 +107,7 @@ public class QueryContainer {
         return aliases;
     }
 
-    public Map<String, GroupingAgg> pseudoFunctions() {
+    public Map<String, GroupByKey> pseudoFunctions() {
         return pseudoFunctions;
     }
 
@@ -123,10 +121,6 @@ public class QueryContainer {
 
     public boolean isAggsOnly() {
         return aggsOnly;
-    }
-
-    public int aggDepth() {
-        return aggDepth;
     }
 
     public boolean hasColumns() {
@@ -149,7 +143,7 @@ public class QueryContainer {
         return new QueryContainer(query, aggs, columns, a, pseudoFunctions, scalarFunctions, sort, limit);
     }
 
-    public QueryContainer withPseudoFunctions(Map<String, GroupingAgg> p) {
+    public QueryContainer withPseudoFunctions(Map<String, GroupByKey> p) {
         return new QueryContainer(query, aggs, columns, aliases, p, scalarFunctions, sort, limit);
     }
 
@@ -299,39 +293,28 @@ public class QueryContainer {
     //
     // agg methods
     //
-    public QueryContainer addAggColumn(String aggPath) {
-        return with(combine(columns, new AggRef(aggPath)));
-    }
 
-    public QueryContainer addAggColumn(String aggPath, String innerKey) {
-        return with(combine(columns, new AggRef(aggPath, innerKey)));
-    }
-
-    public QueryContainer addAggCount(GroupingAgg parentGroup, String functionId) {
-        FieldExtraction ref = parentGroup == null ? TotalCountRef.INSTANCE : new AggRef(AggPath.bucketCount(parentGroup.asParentPath()));
-        Map<String, GroupingAgg> pseudoFunctions = new LinkedHashMap<>(this.pseudoFunctions);
-        pseudoFunctions.put(functionId, parentGroup);
+    public QueryContainer addAggCount(GroupByKey group, String functionId) {
+        FieldExtraction ref = group == null ? GlobalCountRef.INSTANCE : new GroupByRef(group.id(), Property.COUNT, null);
+        Map<String, GroupByKey> pseudoFunctions = new LinkedHashMap<>(this.pseudoFunctions);
+        pseudoFunctions.put(functionId, group);
         return new QueryContainer(query, aggs, combine(columns, ref), aliases, pseudoFunctions, scalarFunctions, sort, limit);
     }
 
     public QueryContainer addAgg(String groupId, LeafAgg agg) {
-        return addAgg(groupId, agg, agg.propertyPath());
+        return with(aggs.addAgg(agg));
     }
 
-    public QueryContainer addAgg(String groupId, LeafAgg agg, String aggRefPath) {
-        return new QueryContainer(query, aggs.addAgg(groupId, agg), columns, aliases, pseudoFunctions, scalarFunctions, sort, limit);
-    }
-
-    public QueryContainer addGroups(Collection<GroupingAgg> values) {
+    public QueryContainer addGroups(Collection<GroupByKey> values) {
         return with(aggs.addGroups(values));
     }
 
-    public QueryContainer updateGroup(GroupingAgg group) {
-        return with(aggs.updateGroup(group));
+    public GroupByKey findGroupForAgg(String aggId) {
+        return aggs.findGroupForAgg(aggId);
     }
 
-    public GroupingAgg findGroupForAgg(String aggId) {
-        return aggs.findGroupForAgg(aggId);
+    public QueryContainer updateGroup(GroupByKey group) {
+        return with(aggs.updateGroup(group));
     }
 
     //

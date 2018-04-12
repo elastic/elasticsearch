@@ -16,6 +16,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursor;
+import org.elasticsearch.xpack.sql.session.Cursors;
 
 import static org.elasticsearch.xpack.sql.plugin.SqlClearCursorAction.NAME;
 
@@ -38,7 +39,12 @@ public class TransportSqlClearCursorAction extends HandledTransportAction<SqlCle
     @Override
     protected void doExecute(SqlClearCursorRequest request, ActionListener<SqlClearCursorResponse> listener) {
         sqlLicenseChecker.checkIfSqlAllowed(request.mode());
-        Cursor cursor = Cursor.decodeFromString(request.getCursor());
+        operation(planExecutor, request, listener);
+    }
+
+    public static void operation(PlanExecutor planExecutor, SqlClearCursorRequest request,
+            ActionListener<SqlClearCursorResponse> listener) {
+        Cursor cursor = Cursors.decodeFromString(request.getCursor());
         planExecutor.cleanCursor(Configuration.DEFAULT, cursor, ActionListener.wrap(
                 success -> listener.onResponse(new SqlClearCursorResponse(success)), listener::onFailure));
     }

@@ -7,12 +7,14 @@ package org.elasticsearch.xpack.sql.execution.search.extractor;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
-import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public abstract class HitExtractors {
+public final class HitExtractors {
+
+    private HitExtractors() {}
+
     /**
      * All of the named writeables needed to deserialize the instances of
      * {@linkplain HitExtractor}.
@@ -21,9 +23,8 @@ public abstract class HitExtractors {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.add(new Entry(HitExtractor.class, ConstantExtractor.NAME, ConstantExtractor::new));
         entries.add(new Entry(HitExtractor.class, FieldHitExtractor.NAME, FieldHitExtractor::new));
-        entries.add(new Entry(HitExtractor.class, ComputingHitExtractor.NAME, ComputingHitExtractor::new));
+        entries.add(new Entry(HitExtractor.class, ComputingExtractor.NAME, ComputingExtractor::new));
         entries.add(new Entry(HitExtractor.class, ScoreExtractor.NAME, in -> ScoreExtractor.INSTANCE));
-        entries.addAll(Processors.getNamedWriteables());
         return entries;
     }
 }

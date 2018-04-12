@@ -11,8 +11,8 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 
 public class AvgAgg extends LeafAgg {
 
-    public AvgAgg(String id, String propertyPath, String fieldName) {
-        super(id, propertyPath, fieldName);
+    public AvgAgg(String id, String fieldName) {
+        super(id, fieldName);
     }
 
     @Override

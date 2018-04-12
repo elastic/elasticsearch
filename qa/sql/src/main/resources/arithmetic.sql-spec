@@ -60,19 +60,19 @@ SELECT emp_no, ((emp_no % 10000) + YEAR(hire_date)) / MONTH(birth_date) AS x FRO
 
 // variable scalar agg
 aggVariablePlus
-SELECT COUNT(*) + 10000 AS x FROM test_emp GROUP BY gender;
+SELECT COUNT(*) + 10000 AS x FROM test_emp GROUP BY gender ORDER BY gender;
 aggVariableMinus
-SELECT COUNT(*) - 10000 AS x FROM test_emp GROUP BY gender;
+SELECT COUNT(*) - 10000 AS x FROM test_emp GROUP BY gender ORDER BY gender;
 aggVariableMul
-SELECT COUNT(*) * 2 AS x FROM test_emp GROUP BY gender;
+SELECT COUNT(*) * 2 AS x FROM test_emp GROUP BY gender ORDER BY gender;
 aggVariableDiv
-SELECT COUNT(*) / 5000 AS x FROM test_emp GROUP BY gender;
+SELECT COUNT(*) / 5000 AS x FROM test_emp GROUP BY gender ORDER BY gender;
 aggVariableMod
-SELECT COUNT(*) % 10000 AS x FROM test_emp GROUP BY gender;
+SELECT COUNT(*) % 10000 AS x FROM test_emp GROUP BY gender ORDER BY gender;
 aggVariableTwoInputs
-SELECT MAX(emp_no) - MIN(emp_no) AS x FROM test_emp GROUP BY gender;
+SELECT MAX(emp_no) - MIN(emp_no) AS x FROM test_emp GROUP BY gender ORDER BY gender;
 aggVariableThreeInputs
-SELECT (MAX(emp_no) - MIN(emp_no)) + AVG(emp_no) AS x FROM test_emp GROUP BY gender;
+SELECT (MAX(emp_no) - MIN(emp_no)) + AVG(emp_no) AS x FROM test_emp GROUP BY gender ORDER BY gender;
 
 // ordering
 orderByPlus

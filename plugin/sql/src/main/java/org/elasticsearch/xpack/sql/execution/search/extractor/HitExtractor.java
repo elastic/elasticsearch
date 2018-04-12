@@ -16,7 +16,7 @@ public interface HitExtractor extends NamedWriteable {
     /**
      * Extract the value from a hit.
      */
-    Object get(SearchHit hit);
+    Object extract(SearchHit hit);
 
     /**
      * Name of the inner hit needed by this extractor if it needs one, {@code null} otherwise.

@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.expression.function.scalar.CastProcessorTests;
+import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessorTests;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathFunctionProcessorTests;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor;
@@ -18,7 +19,6 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.ChainingProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.ChainingProcessorTests;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.HitExtractorProcessor;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.MatrixFieldProcessorTests;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
 
 import java.io.IOException;
@@ -28,43 +28,41 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 
-public class ProcessingHitExtractorTests extends AbstractWireSerializingTestCase<ComputingHitExtractor> {
-    public static ComputingHitExtractor randomProcessingHitExtractor(int depth) {
-        return new ComputingHitExtractor(randomProcessor(0), randomAlphaOfLength(10));
+public class ComputingExtractorTests extends AbstractWireSerializingTestCase<ComputingExtractor> {
+    public static ComputingExtractor randomComputingExtractor() {
+        return new ComputingExtractor(randomProcessor(), randomAlphaOfLength(10));
     }
 
-    public static Processor randomProcessor(int depth) {
+    public static Processor randomProcessor() {
         List<Supplier<Processor>> options = new ArrayList<>();
-        if (depth < 5) {
-            options.add(() -> ChainingProcessorTests.randomComposeProcessor(depth));
-        }
+        options.add(() -> ChainingProcessorTests.randomComposeProcessor());
         options.add(CastProcessorTests::randomCastProcessor);
         options.add(DateTimeProcessorTests::randomDateTimeProcessor);
         options.add(MathFunctionProcessorTests::randomMathFunctionProcessor);
-        options.add(MatrixFieldProcessorTests::randomMatrixFieldProcessor);
         return randomFrom(options).get();
     }
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(HitExtractors.getNamedWriteables());
+        return new NamedWriteableRegistry(combine(Processors.getNamedWriteables(), HitExtractors.getNamedWriteables()));
     }
 
     @Override
-    protected ComputingHitExtractor createTestInstance() {
-        return randomProcessingHitExtractor(0);
+    protected ComputingExtractor createTestInstance() {
+        return randomComputingExtractor();
     }
 
     @Override
-    protected Reader<ComputingHitExtractor> instanceReader() {
-        return ComputingHitExtractor::new;
+    protected Reader<ComputingExtractor> instanceReader() {
+        return ComputingExtractor::new;
     }
 
     @Override
-    protected ComputingHitExtractor mutateInstance(ComputingHitExtractor instance) throws IOException {
-        return new ComputingHitExtractor(
-                randomValueOtherThan(instance.processor(), () -> randomProcessor(0)),
+    protected ComputingExtractor mutateInstance(ComputingExtractor instance) throws IOException {
+        return new ComputingExtractor(
+                randomValueOtherThan(instance.processor(), () -> randomProcessor()),
                 randomValueOtherThan(instance.hitName(), () -> randomAlphaOfLength(10))
                 );
     }

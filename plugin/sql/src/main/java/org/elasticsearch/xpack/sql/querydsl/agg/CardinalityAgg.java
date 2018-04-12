@@ -11,8 +11,8 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.cardinal
 
 public class CardinalityAgg extends LeafAgg {
 
-    public CardinalityAgg(String id, String propertyPath, String fieldName) {
-        super(id, propertyPath, fieldName);
+    public CardinalityAgg(String id, String fieldName) {
+        super(id, fieldName);
     }
 
     @Override AggregationBuilder toBuilder() {

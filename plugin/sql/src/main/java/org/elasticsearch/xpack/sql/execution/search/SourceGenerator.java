@@ -9,7 +9,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -17,20 +17,14 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilder;
-import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
-import org.elasticsearch.xpack.sql.querydsl.agg.GroupByColumnAgg;
-import org.elasticsearch.xpack.sql.querydsl.agg.GroupingAgg;
 import org.elasticsearch.xpack.sql.querydsl.container.AttributeSort;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.querydsl.container.ScoreSort;
 import org.elasticsearch.xpack.sql.querydsl.container.ScriptSort;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort;
-import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
@@ -50,57 +44,44 @@ public abstract class SourceGenerator {
                 source.query(new ConstantScoreQueryBuilder(filter));
             }
         } else {
-            if (filter == null) {
-                source.query(container.query().asBuilder());
-            } else {
+            if (filter != null) {
                 source.query(new BoolQueryBuilder().must(container.query().asBuilder()).filter(filter));
+            } else {
+                source.query(container.query().asBuilder());
             }
         }
 
         SqlSourceBuilder sortBuilder = new SqlSourceBuilder();
         // Iterate through all the columns requested, collecting the fields that
         // need to be retrieved from the result documents
+
+        // NB: the sortBuilder takes care of eliminating duplicates
         container.columns().forEach(cr -> cr.collectFields(sortBuilder));
         sortBuilder.build(source);
         optimize(sortBuilder, source);
 
-        // add the aggs
-        Aggs aggs = container.aggs();
+        // add the aggs (if present)
+        AggregationBuilder aggBuilder = container.aggs().asAggBuilder();
 
-        // push limit onto group aggs
-        if (container.limit() > 0) {
-            List<GroupingAgg> groups = new ArrayList<>(aggs.groups());
-            if (groups.size() > 0) {
-                // get just the root agg
-                GroupingAgg mainAgg = groups.get(0);
-                if (mainAgg instanceof GroupByColumnAgg) {
-                    groups.set(0, ((GroupByColumnAgg) mainAgg).withLimit(container.limit()));
-                    aggs = aggs.with(groups);
-                }
-            }
-        }
-
-
-        for (AggregationBuilder builder : aggs.asAggBuilders()) {
-            source.aggregation(builder);
+        if (aggBuilder != null) {
+            source.aggregation(aggBuilder);
         }
 
         sorting(container, source);
 
-        // add the pipeline aggs
-        for (PipelineAggregationBuilder builder : aggs.asPipelineBuilders()) {
-            source.aggregation(builder);
+        // set page size
+        if (size != null) {
+            int sz = container.limit() > 0 ? Math.min(container.limit(), size) : size;
+
+            if (source.size() == -1) {
+                source.size(sz);
+            }
+            if (aggBuilder instanceof CompositeAggregationBuilder) {
+                ((CompositeAggregationBuilder) aggBuilder).size(sz);
+            }
         }
 
         optimize(container, source);
-
-        // set size
-        if (size != null) {
-            if (source.size() == -1) {
-                int sz = container.limit() > 0 ? Math.min(container.limit(), size) : size;
-                source.size(sz);
-            }
-        }
 
         return source;
     }
@@ -158,7 +139,7 @@ public abstract class SourceGenerator {
             }
 
             if (sortBuilder != null) {
-                sortBuilder.order(sortable.direction() == Direction.ASC ? SortOrder.ASC : SortOrder.DESC);
+                sortBuilder.order(sortable.direction().asOrder());
                 source.sort(sortBuilder);
             }
         }
@@ -171,9 +152,10 @@ public abstract class SourceGenerator {
     }
 
     private static void optimize(QueryContainer query, SearchSourceBuilder builder) {
-        // if only aggs are needed, don't retrieve any docs
+        // if only aggs are needed, don't retrieve any docs and remove scoring
         if (query.isAggsOnly()) {
             builder.size(0);
+            builder.trackScores(false);
             // disable source fetching (only doc values are used)
             disableSource(builder);
         }

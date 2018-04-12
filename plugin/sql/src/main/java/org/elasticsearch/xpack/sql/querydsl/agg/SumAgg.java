@@ -11,8 +11,8 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 
 public class SumAgg extends LeafAgg {
 
-    public SumAgg(String id, String propertyPath, String fieldName) {
-        super(id, propertyPath, fieldName);
+    public SumAgg(String id, String fieldName) {
+        super(id, fieldName);
     }
 
     @Override AggregationBuilder toBuilder() {

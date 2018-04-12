@@ -34,7 +34,7 @@ public class ScoreExtractor implements HitExtractor {
     }
 
     @Override
-    public Object get(SearchHit hit) {
+    public Object extract(SearchHit hit) {
         return hit.getScore();
     }
 

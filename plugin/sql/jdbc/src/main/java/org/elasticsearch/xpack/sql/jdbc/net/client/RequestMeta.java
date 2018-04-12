@@ -9,14 +9,17 @@ public class RequestMeta {
 
     private int fetchSize;
     private long timeoutInMs;
+    private long queryTimeoutInMs;
 
-    public RequestMeta() {
-        this(-1, 0);
-    }
-
-    public RequestMeta(int fetchSize, int timeout) {
+    public RequestMeta(int fetchSize, long timeout, long queryTimeoutInMs) {
         this.fetchSize = fetchSize;
         this.timeoutInMs = timeout;
+        this.queryTimeoutInMs = queryTimeoutInMs;
+    }
+
+    public RequestMeta queryTimeout(long timeout) {
+        this.queryTimeoutInMs = timeout;
+        return this;
     }
 
     public RequestMeta timeout(long timeout) {
@@ -37,4 +40,7 @@ public class RequestMeta {
         return timeoutInMs;
     }
 
+    public long queryTimeoutInMs() {
+        return queryTimeoutInMs;
+    }
 }

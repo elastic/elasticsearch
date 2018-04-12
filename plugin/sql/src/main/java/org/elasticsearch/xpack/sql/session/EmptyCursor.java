@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.session;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
@@ -30,7 +31,7 @@ class EmptyCursor implements Cursor {
     }
 
     @Override
-    public void nextPage(Configuration cfg, Client client, ActionListener<RowSet> listener) {
+    public void nextPage(Configuration cfg, Client client, NamedWriteableRegistry registry, ActionListener<RowSet> listener) {
         throw new IllegalArgumentException("there is no next page");
     }
 

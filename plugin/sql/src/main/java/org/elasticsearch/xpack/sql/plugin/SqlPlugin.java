@@ -45,7 +45,6 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
 
     private final boolean enabled;
     private final SqlLicenseChecker sqlLicenseChecker;
-    private IndexResolver indexResolver;
 
     SqlPlugin(boolean enabled, SqlLicenseChecker sqlLicenseChecker) {
         this.enabled = enabled;
@@ -79,18 +78,19 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
-        return createComponents(client, clusterService.getClusterName().value());
+
+        return createComponents(client, clusterService.getClusterName().value(), namedWriteableRegistry);
     }
 
     /**
      * Create components used by the sql plugin.
      */
-    Collection<Object> createComponents(Client client, String clusterName) {
+    Collection<Object> createComponents(Client client, String clusterName, NamedWriteableRegistry namedWriteableRegistry) {
         if (false == enabled) {
             return emptyList();
         }
-        indexResolver = new IndexResolver(client, clusterName);
-        return Arrays.asList(sqlLicenseChecker, indexResolver, new PlanExecutor(client, indexResolver));
+        IndexResolver indexResolver = new IndexResolver(client, clusterName);
+        return Arrays.asList(sqlLicenseChecker, indexResolver, new PlanExecutor(client, indexResolver, namedWriteableRegistry));
     }
 
     @Override

@@ -35,9 +35,4 @@ public class ReferenceInput extends NonExecutableInput<FieldExtraction> {
     public final void collectFields(SqlSourceBuilder sourceBuilder) {
         context().collectFields(sourceBuilder);
     }
-
-    @Override
-    public int depth() {
-        return context().depth();
-    }
 }

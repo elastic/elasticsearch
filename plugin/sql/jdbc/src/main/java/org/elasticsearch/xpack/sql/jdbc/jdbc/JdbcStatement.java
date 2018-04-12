@@ -29,11 +29,12 @@ class JdbcStatement implements Statement, JdbcWrapper {
     private boolean ignoreResultSetClose = false;
 
     protected JdbcResultSet rs;
-    final RequestMeta requestMeta = new RequestMeta();
+    final RequestMeta requestMeta;
 
     JdbcStatement(JdbcConnection jdbcConnection, JdbcConfiguration info) {
         this.con = jdbcConnection;
         this.cfg = info;
+        this.requestMeta = new RequestMeta(info.pageSize(), info.pageTimeout(), info.queryTimeout());
     }
 
     @Override
@@ -111,7 +112,7 @@ class JdbcStatement implements Statement, JdbcWrapper {
     @Override
     public int getQueryTimeout() throws SQLException {
         checkOpen();
-        return (int) TimeUnit.MILLISECONDS.toSeconds(requestMeta.timeoutInMs());
+        return (int) TimeUnit.MILLISECONDS.toSeconds(requestMeta.queryTimeoutInMs());
     }
 
     @Override
@@ -120,7 +121,7 @@ class JdbcStatement implements Statement, JdbcWrapper {
         if (seconds < 0) {
             throw new SQLException("Query timeout must be positive");
         }
-        requestMeta.timeout(TimeUnit.SECONDS.toMillis(seconds));
+        requestMeta.queryTimeout(TimeUnit.SECONDS.toMillis(seconds));
     }
 
     @Override
@@ -153,7 +154,7 @@ class JdbcStatement implements Statement, JdbcWrapper {
         return true;
     }
 
-    // execute the query and handle the rs closing and initialization 
+    // execute the query and handle the rs closing and initialization
     protected void initResultSet(String sql, List<SqlTypedParamValue> params) throws SQLException {
         // close previous result set
         closeResultSet();
@@ -190,7 +191,7 @@ class JdbcStatement implements Statement, JdbcWrapper {
     @Override
     public void setFetchDirection(int direction) throws SQLException {
         checkOpen();
-        if (ResultSet.FETCH_REVERSE != direction 
+        if (ResultSet.FETCH_REVERSE != direction
                 || ResultSet.FETCH_FORWARD != direction
                 || ResultSet.FETCH_UNKNOWN != direction) {
             throw new SQLException("Invalid direction specified");
@@ -215,14 +216,13 @@ class JdbcStatement implements Statement, JdbcWrapper {
     @Override
     public int getFetchSize() throws SQLException {
         checkOpen();
-        int fetchSize = requestMeta.fetchSize();
         // the spec is somewhat unclear. It looks like there are 3 states:
         // unset (in this case -1 which the user cannot set) - in this case, the default fetch size is returned
         // 0 meaning the hint is disabled (the user has called setFetch)
         // >0 means actual hint
         
-        // tl;dr - if invalid, it means it was not set so return default - otherwise return the set value
-        return fetchSize < 0 ? cfg.pageSize() : fetchSize;
+        // tl;dr - unless the user set it, returning the default is fine
+        return requestMeta.fetchSize();
     }
 
     @Override

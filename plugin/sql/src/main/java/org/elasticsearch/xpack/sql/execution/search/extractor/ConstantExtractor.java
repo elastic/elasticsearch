@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.execution.search.extractor;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -15,7 +16,7 @@ import java.util.Objects;
 /**
  * Returns the a constant for every search hit against which it is run.
  */
-public class ConstantExtractor implements HitExtractor {
+public class ConstantExtractor implements HitExtractor, BucketExtractor {
     /**
      * Stands for {@code constant}. We try to use short names for {@link HitExtractor}s
      * to save a few bytes when when we send them back to the user.
@@ -42,7 +43,12 @@ public class ConstantExtractor implements HitExtractor {
     }
 
     @Override
-    public Object get(SearchHit hit) {
+    public Object extract(SearchHit hit) {
+        return constant;
+    }
+
+    @Override
+    public Object extract(Bucket bucket) {
         return constant;
     }
 

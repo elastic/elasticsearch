@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.execution.search.extractor;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.HitExtractorProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
 
@@ -15,7 +16,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * HitExtractor that delegates to a processor. The difference between this class
+ * Hit/BucketExtractor that delegates to a processor. The difference between this class
  * and {@link HitExtractorProcessor} is that the latter is used inside a
  * {@link Processor} tree as a leaf (and thus can effectively parse the
  * {@link SearchHit} while this class is used when scrolling and passing down
@@ -25,7 +26,7 @@ import java.util.Objects;
  * to reduce API complexity (and keep the {@link HitExtractor} only as an
  * internal implementation detail).
  */
-public class ComputingHitExtractor implements HitExtractor {
+public class ComputingExtractor implements HitExtractor, BucketExtractor {
     /**
      * Stands for {@code comPuting}. We try to use short names for {@link HitExtractor}s
      * to save a few bytes when when we send them back to the user.
@@ -34,12 +35,16 @@ public class ComputingHitExtractor implements HitExtractor {
     private final Processor processor;
     private final String hitName;
 
-    public ComputingHitExtractor(Processor processor, String hitName) {
+    public ComputingExtractor(Processor processor) {
+        this(processor, null);
+    }
+
+    public ComputingExtractor(Processor processor, String hitName) {
         this.processor = processor;
         this.hitName = hitName;
     }
 
-    ComputingHitExtractor(StreamInput in) throws IOException {
+    ComputingExtractor(StreamInput in) throws IOException {
         processor = in.readNamedWriteable(Processor.class);
         hitName = in.readOptionalString();
     }
@@ -59,8 +64,17 @@ public class ComputingHitExtractor implements HitExtractor {
         return processor;
     }
 
+    public Object extract(Object input) {
+        return processor.process(input);
+    }
+    
     @Override
-    public Object get(SearchHit hit) {
+    public Object extract(Bucket bucket) {
+        return processor.process(bucket);
+    }
+
+    @Override
+    public Object extract(SearchHit hit) {
         return processor.process(hit);
     }
 
@@ -74,7 +88,7 @@ public class ComputingHitExtractor implements HitExtractor {
         if (obj == null || obj.getClass() != getClass()) {
             return false;
         }
-        ComputingHitExtractor other = (ComputingHitExtractor) obj;
+        ComputingExtractor other = (ComputingExtractor) obj;
         return Objects.equals(processor, other.processor)
                 && Objects.equals(hitName, other.hitName);
     }

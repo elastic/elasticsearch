@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.Schema;
 import org.elasticsearch.xpack.sql.util.Check;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public abstract class Rows {
 
@@ -40,8 +40,12 @@ public abstract class Rows {
     }
 
     public static SchemaRowSet singleton(List<Attribute> attrs, Object... values) {
-        Check.isTrue(attrs.size() == values.length, "Schema %s and values %s are out of sync", attrs, values);
-        return new SingletonRowSet(schema(attrs), values);
+        return singleton(schema(attrs), values);
+    }
+
+    public static SchemaRowSet singleton(Schema schema, Object... values) {
+        Check.isTrue(schema.size() == values.length, "Schema {} and values {} are out of sync", schema, values);
+        return new SingletonRowSet(schema, values);
     }
 
     public static SchemaRowSet empty(Schema schema) {

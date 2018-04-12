@@ -8,23 +8,26 @@ package org.elasticsearch.xpack.sql.plugin;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.session.Cursors;
 
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.empty;
 import static org.mockito.Mockito.mock;
 
-public class SqlPluginTests  extends ESTestCase {
+public class SqlPluginTests extends ESTestCase {
 
     public void testSqlDisabled() {
         SqlPlugin plugin = new SqlPlugin(false, new SqlLicenseChecker((mode) -> {}));
-        assertThat(plugin.createComponents(mock(Client.class), "cluster"), empty());
+        assertThat(plugin.createComponents(mock(Client.class), "cluster", new NamedWriteableRegistry(Cursors.getNamedWriteables())),
+                empty());
         assertThat(plugin.getActions(), empty());
         assertThat(plugin.getRestHandlers(Settings.EMPTY, mock(RestController.class),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),

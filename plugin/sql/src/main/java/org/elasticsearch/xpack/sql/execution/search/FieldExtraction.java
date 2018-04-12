@@ -24,13 +24,4 @@ public interface FieldExtraction {
      * ({@code true}) or should it force a scroll query ({@code false})?
      */
     boolean supportedByAggsOnlyQuery();
-
-    /**
-     * Indicates the depth of the result. Used for counting the actual size of a
-     * result by knowing how many nested levels there are. Typically used by
-     * aggregations.
-     *
-     * @return depth of the result
-     */
-    int depth();
 }

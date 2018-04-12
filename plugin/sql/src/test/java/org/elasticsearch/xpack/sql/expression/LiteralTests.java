@@ -5,53 +5,20 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.InnerAggregate;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.AggValueInput;
-import org.elasticsearch.xpack.sql.expression.predicate.fulltext.FullTextPredicate;
-import org.elasticsearch.xpack.sql.expression.regex.LikePattern;
 import org.elasticsearch.xpack.sql.tree.AbstractNodeTestCase;
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.LocationTests;
-import org.elasticsearch.xpack.sql.tree.NodeTests.ChildrenAreAProperty;
-import org.elasticsearch.xpack.sql.tree.NodeTests.Dummy;
-import org.elasticsearch.xpack.sql.tree.NodeTests.NoChildren;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
-import org.elasticsearch.xpack.sql.type.DataTypes;
-import org.mockito.exceptions.base.MockitoException;
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import java.io.IOException;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Modifier;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
-import java.lang.reflect.WildcardType;
-import java.nio.file.FileVisitResult;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
+
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static org.mockito.Mockito.mock;
 import static java.util.Collections.emptyList;
-import static java.util.stream.Collectors.toList;
 
 public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
     static class ValueAndCompatibleTypes {
@@ -117,14 +84,14 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
 
         // Replace value
         Object newValue = randomValueOfTypeOtherThan(literal.value(), literal.dataType());
-        assertEquals((Expression) new Literal(literal.location(), newValue, literal.dataType()),
+        assertEquals(new Literal(literal.location(), newValue, literal.dataType()),
                 literal.transformPropertiesOnly(p -> p == literal.value() ? newValue : p, Object.class));
 
         // Replace data type if there are more compatible data types
         List<DataType> validDataTypes = validReplacementDataTypes(literal.value(), literal.dataType());
         if (validDataTypes.size() > 1) {
             DataType newDataType = randomValueOtherThan(literal.dataType(), () -> randomFrom(validDataTypes));
-            assertEquals((Expression) new Literal(literal.location(), literal.value(), newDataType),
+            assertEquals(new Literal(literal.location(), literal.value(), newDataType),
                 literal.transformPropertiesOnly(p -> newDataType, DataType.class));
         }
     }

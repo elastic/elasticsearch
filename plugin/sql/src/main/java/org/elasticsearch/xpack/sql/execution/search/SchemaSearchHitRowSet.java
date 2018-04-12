@@ -14,13 +14,13 @@ import java.util.List;
 
 /**
  * Initial results from a scroll search. Distinct from the following pages
- * because it has a {@link Schema} available. See {@link ScrolledSearchHitRowSet}
+ * because it has a {@link Schema} available. See {@link SearchHitRowSet}
  * for the next pages.
  */
-public class InitialSearchHitRowSet extends AbstractSearchHitRowSet implements SchemaRowSet {
+class SchemaSearchHitRowSet extends SearchHitRowSet implements SchemaRowSet {
     private final Schema schema;
 
-    public InitialSearchHitRowSet(Schema schema, List<HitExtractor> exts, SearchHit[] hits, int limitHits, String scrollId) {
+    SchemaSearchHitRowSet(Schema schema, List<HitExtractor> exts, SearchHit[] hits, int limitHits, String scrollId) {
         super(exts, hits, limitHits, scrollId);
         this.schema = schema;
     }

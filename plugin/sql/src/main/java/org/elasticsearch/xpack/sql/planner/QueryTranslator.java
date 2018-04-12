@@ -53,15 +53,14 @@ import org.elasticsearch.xpack.sql.expression.regex.Like;
 import org.elasticsearch.xpack.sql.expression.regex.LikePattern;
 import org.elasticsearch.xpack.sql.expression.regex.RLike;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
-import org.elasticsearch.xpack.sql.querydsl.agg.AggPath;
 import org.elasticsearch.xpack.sql.querydsl.agg.AndAggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.AvgAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.CardinalityAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.ExtendedStatsAgg;
-import org.elasticsearch.xpack.sql.querydsl.agg.GroupByColumnAgg;
-import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateAgg;
-import org.elasticsearch.xpack.sql.querydsl.agg.GroupByScriptAgg;
-import org.elasticsearch.xpack.sql.querydsl.agg.GroupingAgg;
+import org.elasticsearch.xpack.sql.querydsl.agg.GroupByColumnKey;
+import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateKey;
+import org.elasticsearch.xpack.sql.querydsl.agg.GroupByKey;
+import org.elasticsearch.xpack.sql.querydsl.agg.GroupByScriptKey;
 import org.elasticsearch.xpack.sql.querydsl.agg.LeafAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.MatrixStatsAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.MaxAgg;
@@ -89,9 +88,7 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.Check;
 import org.elasticsearch.xpack.sql.util.ReflectionUtils;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -165,10 +162,10 @@ abstract class QueryTranslator {
         throw new UnsupportedOperationException(format(Locale.ROOT, "Don't know how to translate %s %s", e.nodeName(), e));
     }
 
-    static LeafAgg toAgg(String parent, String id, Function f) {
+    static LeafAgg toAgg(String id, Function f) {
 
         for (AggTranslator<?> translator : AGG_TRANSLATORS) {
-            LeafAgg agg = translator.apply(id, parent, f);
+            LeafAgg agg = translator.apply(id, f);
             if (agg != null) {
                 return agg;
             }
@@ -178,44 +175,26 @@ abstract class QueryTranslator {
     }
 
     static class GroupingContext {
-        final GroupingAgg head;
-        final GroupingAgg tail;
-        final ExpressionId headAggId;
+        final Map<ExpressionId, GroupByKey> groupMap;
+        final GroupByKey tail;
 
-        final Map<ExpressionId, GroupingAgg> groupMap;
-        final List<String> aggNames;
-        final String groupPath;
-
-        GroupingContext(Map<ExpressionId, GroupingAgg> groupMap, String propertyPath) {
+        GroupingContext(Map<ExpressionId, GroupByKey> groupMap) {
             this.groupMap = groupMap;
-            this.groupPath = propertyPath;
 
-            aggNames = new ArrayList<>(groupMap.size());
-            for (GroupingAgg gAgg : groupMap.values()) {
-                aggNames.add(gAgg.id());
+            GroupByKey lastAgg = null;
+            for (Entry<ExpressionId, GroupByKey> entry : groupMap.entrySet()) {
+                lastAgg = entry.getValue();
             }
 
-            Iterator<Entry<ExpressionId, GroupingAgg>> iterator = groupMap.entrySet().iterator();
-
-            Entry<ExpressionId, GroupingAgg> entry = iterator.next();
-            headAggId = entry.getKey();
-            head = entry.getValue();
-
-            GroupingAgg lastAgg = head;
-
-            while (iterator.hasNext()) {
-                lastAgg = iterator.next().getValue();
-            }
             tail = lastAgg;
         }
 
-
-        GroupingAgg groupFor(Expression exp) {
+        GroupByKey groupFor(Expression exp) {
             if (Functions.isAggregate(exp)) {
                 AggregateFunction f = (AggregateFunction) exp;
                 // if there's at least one agg in the tree
-                if (groupPath != null) {
-                    GroupingAgg matchingGroup = null;
+                if (!groupMap.isEmpty()) {
+                    GroupByKey matchingGroup = null;
                     // group found - finding the dedicated agg
                     if (f.field() instanceof NamedExpression) {
                         matchingGroup = groupMap.get(((NamedExpression) f.field()).id());
@@ -239,18 +218,16 @@ abstract class QueryTranslator {
         }
     }
 
-    // creates a tree of GroupBy aggs plus some extra information
-    // useful for tree validation/group referencing
+    /**
+     * Creates the list of GroupBy keys
+     */
     static GroupingContext groupBy(List<? extends Expression> groupings) {
         if (groupings.isEmpty()) {
             return null;
         }
 
-        Map<ExpressionId, GroupingAgg> aggMap = new LinkedHashMap<>();
+        Map<ExpressionId, GroupByKey> aggMap = new LinkedHashMap<>();
 
-        // nested the aggs but also
-        // identify each agg by an expression for later referencing
-        String propertyPath = "";
         for (Expression exp : groupings) {
             String aggId;
             if (exp instanceof NamedExpression) {
@@ -265,38 +242,36 @@ abstract class QueryTranslator {
                 }
                 aggId = ne.id().toString();
 
-                propertyPath = AggPath.path(propertyPath, aggId);
-
-                GroupingAgg agg = null;
+                GroupByKey key = null;
 
                 // handle functions differently
                 if (exp instanceof Function) {
                     // dates are handled differently because of date histograms
                     if (exp instanceof DateTimeHistogramFunction) {
                         DateTimeHistogramFunction dthf = (DateTimeHistogramFunction) exp;
-                        agg = new GroupByDateAgg(aggId, AggPath.bucketValue(propertyPath), nameOf(exp),
-                                dthf.interval(), dthf.timeZone());
+                        key = new GroupByDateKey(aggId, nameOf(exp), dthf.interval(), dthf.timeZone());
                     }
                     // all other scalar functions become a script
                     else if (exp instanceof ScalarFunction) {
                         ScalarFunction sf = (ScalarFunction) exp;
-                        agg = new GroupByScriptAgg(aggId, AggPath.bucketValue(propertyPath), nameOf(exp), sf.asScript());
+                        key = new GroupByScriptKey(aggId, nameOf(exp), sf.asScript());
                     }
+                    // bumped into into an invalid function (which should be caught by the verifier)
                     else {
                         throw new SqlIllegalArgumentException("Cannot GROUP BY function {}", exp);
                     }
                 }
                 else {
-                    agg = new GroupByColumnAgg(aggId, AggPath.bucketValue(propertyPath), ne.name());
+                    key = new GroupByColumnKey(aggId, ne.name());
                 }
 
-                aggMap.put(ne.id(), agg);
+                aggMap.put(ne.id(), key);
             }
             else {
                 throw new SqlIllegalArgumentException("Don't know how to group on {}", exp.nodeString());
             }
         }
-        return new GroupingContext(aggMap, propertyPath);
+        return new GroupingContext(aggMap);
     }
 
     static QueryTranslation and(Location loc, QueryTranslation left, QueryTranslation right) {
@@ -630,7 +605,7 @@ abstract class QueryTranslator {
                 return new TermQuery(loc, name, value);
             }
 
-            Check.isTrue(false, "don't know how to translate binary comparison %s in %s", bc.right().nodeString(), bc);
+            Check.isTrue(false, "don't know how to translate binary comparison [{}] in [{}]", bc.right().nodeString(), bc);
             return null;
         }
     }
@@ -739,91 +714,91 @@ abstract class QueryTranslator {
     static class DistinctCounts extends SingleValueAggTranslator<Count> {
 
         @Override
-        protected LeafAgg toAgg(String id, String path, Count c) {
+        protected LeafAgg toAgg(String id, Count c) {
             if (!c.distinct()) {
                 return null;
             }
-            return new CardinalityAgg(id, path, field(c));
+            return new CardinalityAgg(id, field(c));
         }
     }
 
     static class Sums extends SingleValueAggTranslator<Sum> {
 
         @Override
-        protected LeafAgg toAgg(String id, String path, Sum s) {
-            return new SumAgg(id, path, field(s));
+        protected LeafAgg toAgg(String id, Sum s) {
+            return new SumAgg(id, field(s));
         }
     }
 
     static class Avgs extends SingleValueAggTranslator<Avg> {
 
         @Override
-        protected LeafAgg toAgg(String id, String path, Avg a) {
-            return new AvgAgg(id, path, field(a));
+        protected LeafAgg toAgg(String id, Avg a) {
+            return new AvgAgg(id, field(a));
         }
     }
 
     static class Maxes extends SingleValueAggTranslator<Max> {
 
         @Override
-        protected LeafAgg toAgg(String id, String path, Max m) {
-            return new MaxAgg(id, path, field(m));
+        protected LeafAgg toAgg(String id, Max m) {
+            return new MaxAgg(id, field(m));
         }
     }
 
     static class Mins extends SingleValueAggTranslator<Min> {
 
         @Override
-        protected LeafAgg toAgg(String id, String path, Min m) {
-            return new MinAgg(id, path, field(m));
+        protected LeafAgg toAgg(String id, Min m) {
+            return new MinAgg(id, field(m));
         }
     }
 
     static class StatsAggs extends CompoundAggTranslator<Stats> {
 
         @Override
-        protected LeafAgg toAgg(String id, String path, Stats s) {
-            return new StatsAgg(id, path, field(s));
+        protected LeafAgg toAgg(String id, Stats s) {
+            return new StatsAgg(id, field(s));
         }
     }
 
     static class ExtendedStatsAggs extends CompoundAggTranslator<ExtendedStats> {
 
         @Override
-        protected LeafAgg toAgg(String id, String path, ExtendedStats e) {
-            return new ExtendedStatsAgg(id, path, field(e));
+        protected LeafAgg toAgg(String id, ExtendedStats e) {
+            return new ExtendedStatsAgg(id, field(e));
         }
     }
 
     static class MatrixStatsAggs extends CompoundAggTranslator<MatrixStats> {
 
         @Override
-        protected LeafAgg toAgg(String id, String path, MatrixStats m) {
-            return new MatrixStatsAgg(id, path, singletonList(field(m)));
+        protected LeafAgg toAgg(String id, MatrixStats m) {
+            return new MatrixStatsAgg(id, singletonList(field(m)));
         }
     }
 
     static class PercentilesAggs extends CompoundAggTranslator<Percentiles> {
 
         @Override
-        protected LeafAgg toAgg(String id, String path, Percentiles p) {
-            return new PercentilesAgg(id, path, field(p), doubleValuesOf(p.percents()));
+        protected LeafAgg toAgg(String id, Percentiles p) {
+            return new PercentilesAgg(id, field(p), doubleValuesOf(p.percents()));
         }
     }
 
     static class PercentileRanksAggs extends CompoundAggTranslator<PercentileRanks> {
 
         @Override
-        protected LeafAgg toAgg(String id, String path, PercentileRanks p) {
-            return new PercentileRanksAgg(id, path, field(p), doubleValuesOf(p.values()));
+        protected LeafAgg toAgg(String id, PercentileRanks p) {
+            return new PercentileRanksAgg(id, field(p), doubleValuesOf(p.values()));
         }
     }
 
     static class DateTimes extends SingleValueAggTranslator<Min> {
 
         @Override
-        protected LeafAgg toAgg(String id, String path, Min m) {
-            return new MinAgg(id, path, field(m));
+        protected LeafAgg toAgg(String id, Min m) {
+            return new MinAgg(id, field(m));
         }
     }
 
@@ -832,33 +807,31 @@ abstract class QueryTranslator {
         private final Class<?> typeToken = ReflectionUtils.detectSuperTypeForRuleLike(getClass());
 
         @SuppressWarnings("unchecked")
-        public final LeafAgg apply(String id, String parent, Function f) {
-            return (typeToken.isInstance(f) ? asAgg(id, parent, (F) f) : null);
+        public final LeafAgg apply(String id, Function f) {
+            return (typeToken.isInstance(f) ? asAgg(id, (F) f) : null);
         }
 
-        protected abstract LeafAgg asAgg(String id, String parent, F f);
+        protected abstract LeafAgg asAgg(String id, F f);
     }
 
     abstract static class SingleValueAggTranslator<F extends Function> extends AggTranslator<F> {
 
         @Override
-        protected final LeafAgg asAgg(String id, String parent, F function) {
-            String path = parent == null ? id : AggPath.path(parent, id);
-            return toAgg(id, AggPath.metricValue(path), function);
+        protected final LeafAgg asAgg(String id, F function) {
+            return toAgg(id, function);
         }
 
-        protected abstract LeafAgg toAgg(String id, String path, F f);
+        protected abstract LeafAgg toAgg(String id, F f);
     }
 
     abstract static class CompoundAggTranslator<C extends CompoundNumericAggregate> extends AggTranslator<C> {
 
         @Override
-        protected final LeafAgg asAgg(String id, String parent, C function) {
-            String path = parent == null ? id : AggPath.path(parent, id);
-            return toAgg(id, path, function);
+        protected final LeafAgg asAgg(String id, C function) {
+            return toAgg(id, function);
         }
 
-        protected abstract LeafAgg toAgg(String id, String path, C f);
+        protected abstract LeafAgg toAgg(String id, C f);
     }
 
 

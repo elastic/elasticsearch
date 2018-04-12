@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.xpack.sql.execution.search.AggRef;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.InnerAggregate;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeHistogramFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.AggPathInput;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
@@ -39,23 +41,26 @@ import org.elasticsearch.xpack.sql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.sql.planner.QueryTranslator.GroupingContext;
 import org.elasticsearch.xpack.sql.planner.QueryTranslator.QueryTranslation;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
-import org.elasticsearch.xpack.sql.querydsl.agg.AggPath;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
-import org.elasticsearch.xpack.sql.querydsl.agg.GroupingAgg;
+import org.elasticsearch.xpack.sql.querydsl.agg.GroupByKey;
 import org.elasticsearch.xpack.sql.querydsl.agg.LeafAgg;
 import org.elasticsearch.xpack.sql.querydsl.container.AttributeSort;
 import org.elasticsearch.xpack.sql.querydsl.container.ComputedRef;
+import org.elasticsearch.xpack.sql.querydsl.container.GlobalCountRef;
+import org.elasticsearch.xpack.sql.querydsl.container.GroupByRef;
+import org.elasticsearch.xpack.sql.querydsl.container.GroupByRef.Property;
+import org.elasticsearch.xpack.sql.querydsl.container.MetricAggRef;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.querydsl.container.ScoreSort;
 import org.elasticsearch.xpack.sql.querydsl.container.ScriptSort;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
-import org.elasticsearch.xpack.sql.querydsl.container.TotalCountRef;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
 import org.elasticsearch.xpack.sql.rule.Rule;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
+import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.Check;
-import org.elasticsearch.xpack.sql.util.StringUtils;
+import org.joda.time.DateTimeZone;
 
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -65,8 +70,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.and;
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.toAgg;
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.toQuery;
-import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 
+/**
+ * Folds the PhysicalPlan into a {@link Query}.
+ */
 class QueryFolder extends RuleExecutor<PhysicalPlan> {
     PhysicalPlan fold(PhysicalPlan plan) {
         return execute(plan);
@@ -175,51 +182,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             if (filter == null) {
                 return qContainer.aggs();
             }
-
-            // find the relevant groups and compute the shortest path (the highest group in the hierarchy)
-            Map<String, GroupingAgg> groupPaths = new LinkedHashMap<>();
-            // root group
-            String shortestPath = null;
-            GroupingAgg targetGroup = null;
-
-            for (String refId : filter.aggRefs()) {
-                // is it root group or agg property (_count)
-                if (refId == null) {
-                    shortestPath = StringUtils.EMPTY;
-                }
-                else {
-                    // find function group
-                    GroupingAgg groupAgg = qContainer.findGroupForAgg(refId);
-
-                    if (groupAgg == null) {
-                        groupAgg = qContainer.pseudoFunctions().get(refId);
-                    }
-
-                    if (groupAgg == null) {
-                        // Weird ctor call to make sure we don't interpret the message as a pattern
-                        throw new FoldingException(fexec, "Cannot find group for agg " + refId
-                                + " referrenced by agg filter " + filter.name() + "(" + filter + ")", (Exception) null);
-                    }
-
-                    String path = groupAgg.asParentPath();
-                    if (shortestPath == null || shortestPath.length() > path.length()) {
-                        shortestPath = path;
-                        targetGroup = groupAgg;
-                    }
-                    groupPaths.put(refId, groupAgg);
-                }
-            }
-
-            // and finally update the agg groups
-            if (targetGroup == GroupingAgg.DEFAULT_GROUP) {
-                throw new PlanningException("Aggregation filtering not supported (yet) without explicit grouping");
-                //aggs = aggs.addAgg(null, filter);
-            }
-            if (targetGroup == null) {
-                throw new PlanningException("Cannot determine group column; likely an invalid query - please report");
-            }
             else {
-                aggs = aggs.updateGroup(targetGroup.withPipelines(combine(targetGroup.subPipelines(), filter)));
+                aggs = aggs.addAgg(filter);
             }
 
             return aggs;
@@ -296,7 +260,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 // get the backing expression and check if it belongs to a agg group or whether it's
                                 // an expression in the first place
                                 Expression exp = p.expression();
-                                GroupingAgg matchingGroup = null;
+                                GroupByKey matchingGroup = null;
                                 if (groupingContext != null) {
                                     // is there a group (aggregation) for this expression ?
                                     matchingGroup = groupingContext.groupFor(exp);
@@ -315,6 +279,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 if (matchingGroup != null) {
                                     if (exp instanceof Attribute || exp instanceof ScalarFunction) {
                                         Processor action = null;
+                                        DateTimeZone tz = null;
                                         /*
                                          * special handling of dates since aggs return the typed Date object which needs
                                          * extraction instead of handling this in the scroller, the folder handles this
@@ -322,8 +287,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                          */
                                         if (exp instanceof DateTimeHistogramFunction) {
                                             action = ((UnaryProcessorDefinition) p).action();
+                                            tz = ((DateTimeFunction) exp).timeZone();
                                         }
-                                        return new AggPathInput(exp.location(), exp, matchingGroup.propertyPath(), null, action);
+                                        return new AggPathInput(exp.location(), exp, new GroupByRef(matchingGroup.id(), null, tz), action);
                                     }
                                 }
                                 // or found an aggregate expression (which has to work on an attribute used for grouping)
@@ -350,35 +316,41 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             // already used in the aggpath)
                             //aliases.put(as.toAttribute(), sf.toAttribute());
                         }
-                        // apply the same logic above (for function inputs) to non-scalar functions with small variantions:
+                        // apply the same logic above (for function inputs) to non-scalar functions with small variations:
                         //  instead of adding things as input, add them as full blown column
                         else {
-                            GroupingAgg matchingGroup = null;
+                            GroupByKey matchingGroup = null;
                             if (groupingContext != null) {
                                 // is there a group (aggregation) for this expression ?
                                 matchingGroup = groupingContext.groupFor(child);
                             }
                             // attributes can only refer to declared groups
                             if (child instanceof Attribute) {
-                                Check.notNull(matchingGroup, "Cannot find group '%s'", Expressions.name(child));
-                                queryC = queryC.addAggColumn(matchingGroup.propertyPath());
+                                Check.notNull(matchingGroup, "Cannot find group [{}]", Expressions.name(child));
+                                // check if the field is a date - if so mark it as such to interpret the long as a date
+                                // UTC is used since that's what the server uses and there's no conversion applied
+                                // (like for date histograms)
+                                DateTimeZone dt = DataType.DATE == child.dataType() ? DateTimeZone.UTC : null;
+                                queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, dt));
                             }
                             else {
                                 // the only thing left is agg function
                                 Check.isTrue(Functions.isAggregate(child),
-                                        "Expected aggregate function inside alias; got %s", child.nodeString());
+                                        "Expected aggregate function inside alias; got [{}]", child.nodeString());
                                 Tuple<QueryContainer, AggPathInput> withAgg = addAggFunction(matchingGroup,
                                         (AggregateFunction) child, compoundAggMap, queryC);
-                                queryC = withAgg.v1().addAggColumn(withAgg.v2().context(), withAgg.v2().innerKey());
+                                queryC = withAgg.v1().addColumn(withAgg.v2().context());
                             }
                         }
                     // not an Alias or Function means it's an Attribute so apply the same logic as above
                     } else {
-                        GroupingAgg matchingGroup = null;
+                        GroupByKey matchingGroup = null;
                         if (groupingContext != null) {
                             matchingGroup = groupingContext.groupFor(ne);
-                            Check.notNull(matchingGroup, "Cannot find group '%s'", Expressions.name(ne));
-                            queryC = queryC.addAggColumn(matchingGroup.propertyPath());
+                            Check.notNull(matchingGroup, "Cannot find group [{}]", Expressions.name(ne));
+
+                            DateTimeZone dt = DataType.DATE == ne.dataType() ? DateTimeZone.UTC : null;
+                            queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, dt));
                         }
                     }
                 }
@@ -393,25 +365,24 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             return a;
         }
 
-        private Tuple<QueryContainer, AggPathInput> addAggFunction(GroupingAgg parentAgg, AggregateFunction f,
+        private Tuple<QueryContainer, AggPathInput> addAggFunction(GroupByKey groupingAgg, AggregateFunction f,
                 Map<CompoundNumericAggregate, String> compoundAggMap, QueryContainer queryC) {
             String functionId = f.functionId();
             // handle count as a special case agg
             if (f instanceof Count) {
                 Count c = (Count) f;
                 if (!c.distinct()) {
-                    String path = parentAgg == null ? TotalCountRef.PATH : AggPath.bucketCount(parentAgg.asParentPath());
-                    Map<String, GroupingAgg> pseudoFunctions = new LinkedHashMap<>(queryC.pseudoFunctions());
-                    pseudoFunctions.put(functionId, parentAgg);
-                    return new Tuple<>(queryC.withPseudoFunctions(pseudoFunctions), new AggPathInput(f, path));
+                    AggRef ref = groupingAgg == null ?
+                            GlobalCountRef.INSTANCE :
+                            new GroupByRef(groupingAgg.id(), Property.COUNT, null);
+
+                    Map<String, GroupByKey> pseudoFunctions = new LinkedHashMap<>(queryC.pseudoFunctions());
+                    pseudoFunctions.put(functionId, groupingAgg);
+                    return new Tuple<>(queryC.withPseudoFunctions(pseudoFunctions), new AggPathInput(f, ref));
                 }
             }
 
             AggPathInput aggInput = null;
-
-            // otherwise translate the function into an actual agg
-            String parentPath = parentAgg != null ? parentAgg.asParentPath() : null;
-            String groupId = parentAgg != null ? parentAgg.id() : null;
 
             if (f instanceof InnerAggregate) {
                 InnerAggregate ia = (InnerAggregate) f;
@@ -420,22 +391,22 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                 // the compound agg hasn't been seen before so initialize it
                 if (cAggPath == null) {
-                    LeafAgg leafAgg = toAgg(parentPath, functionId, outer);
-                    cAggPath = leafAgg.propertyPath();
+                    LeafAgg leafAgg = toAgg(outer.functionId(), outer);
+                    cAggPath = leafAgg.id();
                     compoundAggMap.put(outer, cAggPath);
                     // add the agg (without any reference)
                     queryC = queryC.with(queryC.aggs().addAgg(leafAgg));
                 }
 
-                String aggPath = AggPath.metricValue(cAggPath, ia.innerId());
                 // FIXME: concern leak - hack around MatrixAgg which is not
                 // generalized (afaik)
-                aggInput = new AggPathInput(f, aggPath, ia.innerKey() != null ? QueryTranslator.nameOf(ia.innerKey()) : null);
+                aggInput = new AggPathInput(f,
+                        new MetricAggRef(cAggPath, ia.innerId(), ia.innerKey() != null ? QueryTranslator.nameOf(ia.innerKey()) : null));
             }
             else {
-                LeafAgg leafAgg = toAgg(parentPath, functionId, f);
-                aggInput = new AggPathInput(f, leafAgg.propertyPath());
-                queryC = queryC.with(queryC.aggs().addAgg(groupId, leafAgg));
+                LeafAgg leafAgg = toAgg(functionId, f);
+                aggInput = new AggPathInput(f, new MetricAggRef(leafAgg.id()));
+                queryC = queryC.with(queryC.aggs().addAgg(leafAgg));
             }
 
             return new Tuple<>(queryC, aggInput);
@@ -457,17 +428,17 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     // check whether there's an alias (occurs with scalar functions which are not named)
                     attr = qContainer.aliases().getOrDefault(attr, attr);
                     String lookup = attr.id().toString();
-                    GroupingAgg group = qContainer.findGroupForAgg(lookup);
+                    GroupByKey group = qContainer.findGroupForAgg(lookup);
 
                     // TODO: might need to validate whether the target field or group actually exist
-                    if (group != null && group != GroupingAgg.DEFAULT_GROUP) {
+                    if (group != null && group != Aggs.IMPLICIT_GROUP_KEY) {
                         // check whether the lookup matches a group
                         if (group.id().equals(lookup)) {
                             qContainer = qContainer.updateGroup(group.with(direction));
                         }
                         // else it's a leafAgg
                         else {
-                            qContainer = qContainer.updateGroup(group.with(lookup, direction));
+                            qContainer = qContainer.updateGroup(group.with(direction));
                         }
                     }
                     else {

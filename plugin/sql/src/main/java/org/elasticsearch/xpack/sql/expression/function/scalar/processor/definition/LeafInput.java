@@ -7,11 +7,11 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.processor.definit
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
+
+import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.emptyList;
-
-import java.util.List;
 
 public abstract class LeafInput<T> extends ProcessorDefinition {
 
@@ -52,7 +52,7 @@ public abstract class LeafInput<T> extends ProcessorDefinition {
         }
 
         LeafInput<?> other = (LeafInput<?>) obj;
-        return Objects.equals(context(), other.context())
+        return Objects.equals(context(), other.context()) 
                 && Objects.equals(expression(), other.expression());
     }
 }

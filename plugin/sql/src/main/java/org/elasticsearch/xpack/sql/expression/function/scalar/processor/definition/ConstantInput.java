@@ -42,9 +42,4 @@ public class ConstantInput extends LeafInput<Object> {
     public final void collectFields(SqlSourceBuilder sourceBuilder) {
         // Nothing to collect
     }
-
-    @Override
-    public final int depth() {
-        return 0;
-    }
 }

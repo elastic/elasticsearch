@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.plugin;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.sql.session.Cursor;
+import org.elasticsearch.xpack.sql.session.Cursors;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.List;
@@ -46,7 +47,7 @@ enum TextFormat {
 
         @Override
         Cursor wrapCursor(Cursor oldCursor, SqlQueryResponse response) {
-            CliFormatter formatter = (oldCursor instanceof CliFormatterCursor) ? 
+            CliFormatter formatter = (oldCursor instanceof CliFormatterCursor) ?
                     ((CliFormatterCursor) oldCursor).getCliFormatter() : new CliFormatter(response);
             return CliFormatterCursor.wrap(super.wrapCursor(oldCursor, response), formatter);
         }
@@ -232,7 +233,7 @@ enum TextFormat {
     }
 
     Cursor wrapCursor(Cursor oldCursor, SqlQueryResponse response) {
-        return Cursor.decodeFromString(response.cursor());
+        return Cursors.decodeFromString(response.cursor());
     }
 
     static TextFormat fromMediaTypeOrFormat(RestRequest request) {

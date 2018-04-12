@@ -51,7 +51,7 @@ public class ShrinkActionTests extends AbstractSerializingTestCase<ShrinkAction>
         assertThat(steps.size(), equalTo(4));
         StepKey expectedFirstKey = new StepKey(phase, ShrinkAction.NAME, ShrinkStep.NAME);
         StepKey expectedSecondKey = new StepKey(phase, ShrinkAction.NAME, ShrunkShardsAllocatedStep.NAME);
-        StepKey expectedThirdKey = new StepKey(phase, ShrinkAction.NAME, AliasStep.NAME);
+        StepKey expectedThirdKey = new StepKey(phase, ShrinkAction.NAME, ShrinkSetAliasStep.NAME);
         StepKey expectedFourthKey = new StepKey(phase, ShrinkAction.NAME, ShrunkenIndexCheckStep.NAME);
         assertTrue(steps.get(0) instanceof ShrinkStep);
         assertThat(steps.get(0).getKey(), equalTo(expectedFirstKey));
@@ -61,9 +61,9 @@ public class ShrinkActionTests extends AbstractSerializingTestCase<ShrinkAction>
         assertThat(steps.get(1).getKey(), equalTo(expectedSecondKey));
         assertThat(((ShrunkShardsAllocatedStep) steps.get(1)).getNumberOfShards(), equalTo(action.getNumberOfShards()));
         assertThat(((ShrunkShardsAllocatedStep) steps.get(1)).getShrunkIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
-        assertTrue(steps.get(2) instanceof AliasStep);
+        assertTrue(steps.get(2) instanceof ShrinkSetAliasStep);
         assertThat(steps.get(2).getKey(), equalTo(expectedThirdKey));
-        assertThat(((AliasStep) steps.get(2)).getShrunkIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
+        assertThat(((ShrinkSetAliasStep) steps.get(2)).getShrunkIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));
         assertTrue(steps.get(3) instanceof ShrunkenIndexCheckStep);
         assertThat(steps.get(3).getKey(), equalTo(expectedFourthKey));
         assertThat(((ShrunkenIndexCheckStep) steps.get(3)).getShrunkIndexPrefix(), equalTo(ShrinkAction.SHRUNKEN_INDEX_PREFIX));

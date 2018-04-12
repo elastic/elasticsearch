@@ -152,12 +152,10 @@ subprojects {
           // The setting didn't exist until 5.1.0
           setting 'xpack.security.system_key.required', 'true'
         }
-        if (version.before('6.0.0')) {
-          extraConfigFile 'x-pack/system_key',
-                  "${mainProject.projectDir}/src/test/resources/system_key"
+        if (version.onOrAfter('6.0.0')) {
+            keystoreFile 'xpack.watcher.encryption_key', "${mainProject.projectDir}/src/test/resources/system_key"
         } else {
-          setupCommand 'create-elasticsearch-keystore', 'bin/elasticsearch-keystore', 'create'
-          setupCommand 'add-key-elasticsearch-keystore', 'bin/elasticsearch-keystore', 'add-file', 'xpack.watcher.encryption_key', "${mainProject.projectDir}/src/test/resources/system_key"
+            extraConfigFile 'x-pack/system_key', "${mainProject.projectDir}/src/test/resources/system_key"
         }
         setting 'xpack.watcher.encrypt_sensitive_data', 'true'
       }
@@ -202,9 +200,7 @@ subprojects {
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
       if (withSystemKey) {
         setting 'xpack.watcher.encrypt_sensitive_data', 'true'
-        setupCommand 'create-elasticsearch-keystore', 'bin/elasticsearch-keystore', 'create'
-        setupCommand 'add-key-elasticsearch-keystore',
-                'bin/elasticsearch-keystore', 'add-file', 'xpack.watcher.encryption_key', "${mainProject.projectDir}/src/test/resources/system_key"
+        keystoreFile 'xpack.watcher.encryption_key', "${mainProject.projectDir}/src/test/resources/system_key"
       }
     }
 
@@ -246,9 +242,7 @@ subprojects {
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
       if (withSystemKey) {
         setting 'xpack.watcher.encrypt_sensitive_data', 'true'
-        setupCommand 'create-elasticsearch-keystore', 'bin/elasticsearch-keystore', 'create'
-        setupCommand 'add-key-elasticsearch-keystore',
-                'bin/elasticsearch-keystore', 'add-file', 'xpack.watcher.encryption_key', "${mainProject.projectDir}/src/test/resources/system_key"
+        keystoreFile 'xpack.watcher.encryption_key', "${mainProject.projectDir}/src/test/resources/system_key"
       }
     }
 

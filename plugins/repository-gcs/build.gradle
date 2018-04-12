@@ -58,6 +58,12 @@ thirdPartyAudit.excludes = [
         'org.apache.log.Logger',
 ]
 
+forbiddenApisTest {
+  // we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
+  bundledSignatures -= 'jdk-non-portable'
+  bundledSignatures += 'jdk-internal'
+}
+
 /** A task to start the GoogleCloudStorageFixture which emulates a Google Cloud Storage service **/
 task googleCloudStorageFixture(type: AntFixture) {
     dependsOn compileTestJava
@@ -94,9 +100,7 @@ task createServiceAccountFile() {
 
 integTestCluster {
   dependsOn createServiceAccountFile, googleCloudStorageFixture
-  setupCommand 'create-elasticsearch-keystore', 'bin/elasticsearch-keystore', 'create'
-  setupCommand 'add-credentials-to-elasticsearch-keystore',
-          'bin/elasticsearch-keystore', 'add-file', 'gcs.client.integration_test.credentials_file', "${serviceAccountFile.absolutePath}"
+  keystoreFile 'gcs.client.integration_test.credentials_file', "${serviceAccountFile.absolutePath}"
 
   /* Use a closure on the string to delay evaluation until tests are executed */
   setting 'gcs.client.integration_test.endpoint', "http://${ -> googleCloudStorageFixture.addressAndPort }"

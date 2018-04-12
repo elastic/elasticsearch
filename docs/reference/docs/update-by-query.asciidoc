@@ -531,7 +531,7 @@ Which results in a sensible `total` like this one:
 ==== Automatic slicing
 
 You can also let update-by-query automatically parallelize using
-<<sliced-scroll>> to slice on `_uid`. Use `slices` to specify the number of
+<<sliced-scroll>> to slice on `_id`. Use `slices` to specify the number of
 slices to use:
 
 [source,js]

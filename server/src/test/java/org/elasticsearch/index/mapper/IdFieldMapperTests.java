@@ -59,17 +59,7 @@ public class IdFieldMapperTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testDefaultsMultipleTypes() throws IOException {
-        Settings indexSettings = Settings.builder()
-                .put("index.version.created", Version.V_5_6_0)
-                .build();
-        MapperService mapperService = createIndex("test", indexSettings).mapperService();
-        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent("{\"type\":{}}"), MergeReason.MAPPING_UPDATE);
-        ParsedDocument document = mapper.parse(SourceToParse.source("index", "type", "id", new BytesArray("{}"), XContentType.JSON));
-        assertEquals(Collections.<IndexableField>emptyList(), Arrays.asList(document.rootDoc().getFields(IdFieldMapper.NAME)));
-    }
-
-    public void testDefaultsSingleType() throws IOException {
+    public void testDefaults() throws IOException {
         Settings indexSettings = Settings.EMPTY;
         MapperService mapperService = createIndex("test", indexSettings).mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent("{\"type\":{}}"), MergeReason.MAPPING_UPDATE);

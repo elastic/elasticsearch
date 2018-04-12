@@ -83,7 +83,12 @@ public final class HttpTransportSettings {
             return true;
         }, Property.NodeScope, Property.Deprecated);
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_CONTENT_LENGTH =
-        Setting.byteSizeSetting("http.max_content_length", new ByteSizeValue(100, ByteSizeUnit.MB), Property.NodeScope);
+        Setting.byteSizeSetting(
+                "http.max_content_length",
+                new ByteSizeValue(100, ByteSizeUnit.MB),
+                new ByteSizeValue(0, ByteSizeUnit.BYTES),
+                new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES),
+                Property.NodeScope);
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_CHUNK_SIZE =
         Setting.byteSizeSetting("http.max_chunk_size", new ByteSizeValue(8, ByteSizeUnit.KB), Property.NodeScope);
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_HEADER_SIZE =

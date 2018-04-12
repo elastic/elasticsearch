@@ -58,7 +58,7 @@ characters from the opening `/*` to the closing `*/` are ignored.
 ==== Keywords
 
 Painless reserves the following keywords for built-in language features.
-These keywords cannot be used used in other contexts, such as identifiers.
+These keywords cannot be used in other contexts, such as identifiers.
 
 [cols="^1,^1,^1,^1,^1"]
 |====

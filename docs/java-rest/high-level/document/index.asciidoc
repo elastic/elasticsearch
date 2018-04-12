@@ -51,12 +51,6 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[index-request-routing]
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[index-request-parent]
---------------------------------------------------
-<1> Parent value
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
 include-tagged::{doc-tests}/CRUDDocumentationIT.java[index-request-timeout]
 --------------------------------------------------
 <1> Timeout to wait for primary shard to become available as a `TimeValue`

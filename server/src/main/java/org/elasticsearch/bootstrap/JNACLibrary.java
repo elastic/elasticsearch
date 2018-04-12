@@ -28,6 +28,7 @@ import org.elasticsearch.common.logging.Loggers;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * java mapping to some libc functions
@@ -36,12 +37,24 @@ final class JNACLibrary {
 
     private static final Logger logger = Loggers.getLogger(JNACLibrary.class);
 
-    public static final int MCL_CURRENT = 1;
+    public static final int MCL_CURRENT = getMCL_CURRENT();
     public static final int ENOMEM = 12;
     public static final int RLIMIT_MEMLOCK = Constants.MAC_OS_X ? 6 : 8;
     public static final int RLIMIT_AS = Constants.MAC_OS_X ? 5 : 9;
     public static final int RLIMIT_FSIZE = Constants.MAC_OS_X ? 1 : 1;
     public static final long RLIM_INFINITY = Constants.MAC_OS_X ? 9223372036854775807L : -1L;
+
+    private static int getMCL_CURRENT() {
+        /* MCL_CURRENT varies depending on the OS/arch */
+        if (Constants.OS_ARCH.toLowerCase(Locale.ROOT).contains("ppc"))
+        {
+            if (Constants.OS_NAME.toLowerCase(Locale.ROOT).contains("linux"))
+            {
+               return 0x2000;
+            }
+        }
+        return 1;
+    }
 
     static {
         try {

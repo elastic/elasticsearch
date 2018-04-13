@@ -3,11 +3,9 @@
 // :issue: https://github.com/elastic/elasticsearch/issues/
 // :pull: https://github.com/elastic/elasticsearch/pull/
 
-////////////////////////////////////////////////////////////
-// Template, add newest changes here
 = Elasticsearch Release Notes
 
-== Elasticsearch version 7.0.0
+== Elasticsearch 7.0.0
 
 === Breaking Changes
 

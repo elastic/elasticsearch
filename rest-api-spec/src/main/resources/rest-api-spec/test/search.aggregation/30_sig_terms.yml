@@ -67,14 +67,12 @@
   - do:
       search:
         index: goodbad
-        type:  doc
 
   - match: {hits.total: 7}
   
   - do:
       search:
         index: goodbad
-        type:  doc
         body: {"aggs": {"class": {"terms": {"field": "class"},"aggs": {"sig_terms": {"significant_terms": {"field": "text"}}}}}}
 
   - match: {aggregations.class.buckets.0.sig_terms.buckets.0.key: "bad"}

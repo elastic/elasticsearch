@@ -72,10 +72,12 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -1867,7 +1869,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
         IndexShard newShard = newShard(
             ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE),
-            shard.shardPath(), shard.indexSettings().getIndexMetaData(), wrapper, null, () -> {});
+            shard.shardPath(), shard.indexSettings().getIndexMetaData(), wrapper, null, () -> {}, EMPTY_EVENT_LISTENER);
 
         recoverShardFromStore(newShard);
 
@@ -2013,7 +2015,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
         IndexShard newShard = newShard(
             ShardRoutingHelper.initWithSameId(shard.routingEntry(), RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE),
-            shard.shardPath(), shard.indexSettings().getIndexMetaData(), wrapper, null, () -> {});
+            shard.shardPath(), shard.indexSettings().getIndexMetaData(), wrapper, null, () -> {}, EMPTY_EVENT_LISTENER);
 
         recoverShardFromStore(newShard);
 
@@ -2496,7 +2498,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), randomFrom("false", "true", "checksum", "fix")))
             .build();
         final IndexShard newShard = newShard(shardRouting, indexShard.shardPath(), indexMetaData,
-            null, indexShard.engineFactory, indexShard.getGlobalCheckpointSyncer());
+            null, indexShard.engineFactory, indexShard.getGlobalCheckpointSyncer(), EMPTY_EVENT_LISTENER);
 
         Store.MetadataSnapshot storeFileMetaDatas = newShard.snapshotStoreMetadata();
         assertTrue("at least 2 files, commit and data: " + storeFileMetaDatas.toString(), storeFileMetaDatas.size() > 1);
@@ -2980,4 +2982,74 @@ public class IndexShardTests extends IndexShardTestCase {
         breaker = primary.circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
         assertThat(breaker.getUsed(), equalTo(0L));
     }
+
+    public void testFlushOnInactive() throws Exception {
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        IndexMetaData metaData = IndexMetaData.builder("test")
+            .putMapping("test", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .settings(settings)
+            .primaryTerm(0, 1).build();
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId(metaData.getIndex(), 0), "n1", true, ShardRoutingState
+            .INITIALIZING, RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE);
+        final ShardId shardId = shardRouting.shardId();
+        final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
+        ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
+        AtomicBoolean markedInactive = new AtomicBoolean();
+        AtomicReference<IndexShard> primaryRef = new AtomicReference<>();
+        IndexShard primary = newShard(shardRouting, shardPath, metaData, null, null, () -> {
+        }, new IndexEventListener() {
+            @Override
+            public void onShardInactive(IndexShard indexShard) {
+                markedInactive.set(true);
+                primaryRef.get().flush(new FlushRequest());
+            }
+        });
+        primaryRef.set(primary);
+        recoverShardFromStore(primary);
+        for (int i = 0; i < 3; i++) {
+            indexDoc(primary, "test", "" + i, "{\"foo\" : \"" + randomAlphaOfLength(10) + "\"}");
+            primary.refresh("test"); // produce segments
+        }
+        List<Segment> segments = primary.segments(false);
+        Set<String> names = new HashSet<>();
+        for (Segment segment : segments) {
+            assertFalse(segment.committed);
+            assertTrue(segment.search);
+            names.add(segment.getName());
+        }
+        assertEquals(3, segments.size());
+        primary.flush(new FlushRequest());
+        primary.forceMerge(new ForceMergeRequest().maxNumSegments(1).flush(false));
+        primary.refresh("test");
+        segments = primary.segments(false);
+        for (Segment segment : segments) {
+            if (names.contains(segment.getName())) {
+                assertTrue(segment.committed);
+                assertFalse(segment.search);
+            } else {
+                assertFalse(segment.committed);
+                assertTrue(segment.search);
+            }
+        }
+        assertEquals(4, segments.size());
+
+        assertFalse(markedInactive.get());
+        assertBusy(() -> {
+            primary.checkIdle(0);
+            assertFalse(primary.isActive());
+        });
+
+        assertTrue(markedInactive.get());
+        segments = primary.segments(false);
+        assertEquals(1, segments.size());
+        for (Segment segment : segments) {
+            assertTrue(segment.committed);
+            assertTrue(segment.search);
+        }
+        closeShards(primary);
+    }
+
 }

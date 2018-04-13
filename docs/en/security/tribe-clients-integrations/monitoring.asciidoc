@@ -168,7 +168,7 @@ can specify the location of the PEM encoded certificate with the
 
 [source,yaml]
 --------------------------------------------------
-xpack.monitoring.elasticsearch.ssl.ca: [ "/path/to/ca.crt" ]
+xpack.monitoring.elasticsearch.ssl.ca: /path/to/ca.crt
 --------------------------------------------------
 
 Alternatively, you can configure trusted certificates using a truststore

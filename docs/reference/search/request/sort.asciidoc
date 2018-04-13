@@ -466,7 +466,7 @@ GET /_search
             "type" : "number",
             "script" : {
                 "lang": "painless",
-                "source": "doc['field_name'].value * params.factor",
+                "inline": "doc['field_name'].value * params.factor",
                 "params" : {
                     "factor" : 1.1
                 }

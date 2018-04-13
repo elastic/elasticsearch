@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyTests;
 import org.elasticsearch.xpack.core.indexlifecycle.MockStep;

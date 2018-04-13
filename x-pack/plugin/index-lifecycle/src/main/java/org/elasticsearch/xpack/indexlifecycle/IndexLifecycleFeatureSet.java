@@ -13,6 +13,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleFeatureSetUsage;
 
 import java.util.Map;
 
@@ -54,8 +55,7 @@ public class IndexLifecycleFeatureSet implements XPackFeatureSet {
 
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
-        listener.onResponse(new Usage(name(), available(), enabled()) {
-        });
+        listener.onResponse(new IndexLifecycleFeatureSetUsage(available(), enabled()));
     }
 
 }

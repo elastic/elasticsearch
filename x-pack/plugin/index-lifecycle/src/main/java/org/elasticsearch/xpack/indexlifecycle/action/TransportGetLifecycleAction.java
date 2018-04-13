@@ -19,7 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction;
-import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction.Request;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction.Response;

@@ -176,8 +176,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
     public List<PreConfiguredCharFilter> getPreConfiguredCharFilters() {
         List<PreConfiguredCharFilter> filters = new ArrayList<>();
         filters.add(PreConfiguredCharFilter.singleton("html_strip", false, HTMLStripCharFilter::new));
-        filters.add(PreConfiguredCharFilter.singleton("htmlStrip", false, (reader, version) -> {
-            if (version.onOrAfter(org.elasticsearch.Version.V_7_0_0_alpha1)) {
+        filters.add(PreConfiguredCharFilter.singletonWithVersion("htmlStrip", false, (reader, version) -> {
+            if (version.onOrAfter(org.elasticsearch.Version.V_6_3_0)) {
                 DEPRECATION_LOGGER.deprecatedAndMaybeLog("htmlStrip_deprecation",
                         "The [htmpStrip] char filter name is deprecated and will be removed in a future version. "
                                 + "Please change the filter name to [html_strip] instead.");

@@ -20,8 +20,8 @@
 ---
 "htmlStrip_deprecated":
     - skip:
-        version: " - 6.0.99"
-        reason: deprecated in 6.1
+        version: " - 6.2.99"
+        reason: deprecated in 6.3
         features: "warnings"
 
     - do:
@@ -57,7 +57,7 @@
         index:
           index:   test_deprecated_htmlstrip
           type:    type
-          id:      1
+          id:      2
           body:    { "name": "foo baz" }
 
     - do:
@@ -70,4 +70,3 @@
             text: "<html>foo</html>"
     - length: { tokens: 1 }
     - match:  { tokens.0.token: "\nfoo\n" }
-

@@ -5,13 +5,11 @@
  */
 package org.elasticsearch.integration;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -21,12 +19,11 @@ import java.util.Map;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
+import static org.hamcrest.Matchers.is;
 
-@ClusterScope(scope = TEST)
 public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
 
-    public static final String ROLES =
+    private static final String ROLES =
                     "role_a:\n" +
                     "  cluster: [ all ]\n" +
                     "\n" +
@@ -38,17 +35,17 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
                     "    - names: 'someindex'\n" +
                     "      privileges: [ all ]\n";
 
-    public static final String USERS =
+    private static final String USERS =
                     "user_a:" + USERS_PASSWD_HASHED + "\n" +
                     "user_b:" + USERS_PASSWD_HASHED + "\n" +
                     "user_c:" + USERS_PASSWD_HASHED + "\n";
 
-    public static final String USERS_ROLES =
+    private static final String USERS_ROLES =
                     "role_a:user_a\n" +
                     "role_b:user_b\n" +
                     "role_c:user_c\n";
 
-    static Path repositoryLocation;
+    private static Path repositoryLocation;
 
     @BeforeClass
     public static void setupRepostoryPath() {
@@ -61,8 +58,8 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+    protected Settings nodeSettings() {
+        return Settings.builder().put(super.nodeSettings())
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .put("path.repo", repositoryLocation)
                 .build();
@@ -83,6 +80,10 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
         return super.configUsersRoles() + USERS_ROLES;
     }
 
+    protected boolean resetNodeAfterTest() {
+        return true;
+    }
+
     @TestLogging("org.elasticsearch.test.rest.client.http:TRACE")
     public void testThatClusterPrivilegesWorkAsExpectedViaHttp() throws Exception {
         // user_a can do all the things
@@ -96,6 +97,7 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsAllowed("user_a", "GET", "/_nodes/infos");
         assertAccessIsAllowed("user_a", "POST", "/_cluster/reroute");
         assertAccessIsAllowed("user_a", "PUT", "/_cluster/settings", "{ \"transient\" : { \"search.default_search_timeout\": \"1m\" } }");
+        assertAccessIsAllowed("user_a", "PUT", "/_cluster/settings", "{ \"transient\" : { \"search.default_search_timeout\": null } }");
 
         // user_b can do monitoring
         assertAccessIsAllowed("user_b", "GET", "/_cluster/state");
@@ -169,17 +171,10 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsAllowed("user_a", "DELETE", "/_snapshot/my-repo");
     }
 
-    private void waitForSnapshotToFinish(String repo, String snapshot) {
-        SnapshotsStatusResponse snapshotsStatusResponse;
-        int i = 0;
-        do {
-            snapshotsStatusResponse = client().admin().cluster().prepareSnapshotStatus(repo).setSnapshots(snapshot).get();
-            try {
-                Thread.sleep(200L);
-            } catch (InterruptedException e) {}
-            i++;
-            if (i >= 20) { throw new ElasticsearchException("Snapshot should have been successfully created after four seconds, was " +
-                    snapshotsStatusResponse.getSnapshots().get(0).getState()); }
-        } while (snapshotsStatusResponse.getSnapshots().get(0).getState() != SnapshotsInProgress.State.SUCCESS);
+    private void waitForSnapshotToFinish(String repo, String snapshot) throws Exception {
+        assertBusy(() -> {
+            SnapshotsStatusResponse response = client().admin().cluster().prepareSnapshotStatus(repo).setSnapshots(snapshot).get();
+            assertThat(response.getSnapshots().get(0).getState(), is(SnapshotsInProgress.State.SUCCESS));
+        });
     }
 }

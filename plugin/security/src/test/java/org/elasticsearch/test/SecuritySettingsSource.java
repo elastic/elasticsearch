@@ -8,7 +8,6 @@ package org.elasticsearch.test;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
@@ -29,14 +28,10 @@ import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.nio.file.FileSystemNotFoundException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -110,13 +105,13 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
         this.usePEM = randomBoolean();
     }
 
-    private Path nodePath(final Path parentFolder, final String subfolderPrefix, final int nodeOrdinal) {
+    Path nodePath(final int nodeOrdinal) {
         return parentFolder.resolve(subfolderPrefix + "-" + nodeOrdinal);
     }
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
-        final Path home = nodePath(parentFolder, subfolderPrefix, nodeOrdinal);
+        final Path home = nodePath(nodeOrdinal);
         final Path xpackConf = home.resolve("config").resolve(XPackField.NAME);
         try {
             Files.createDirectories(xpackConf);
@@ -146,7 +141,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
 
     @Override
     public Path nodeConfigPath(int nodeOrdinal) {
-        return nodePath(parentFolder, subfolderPrefix, nodeOrdinal).resolve("config");
+        return nodePath(nodeOrdinal).resolve("config");
     }
 
     @Override

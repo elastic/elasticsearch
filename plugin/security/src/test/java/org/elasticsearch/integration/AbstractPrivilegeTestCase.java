@@ -14,7 +14,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.not;
 /**
  * a helper class that contains a couple of HTTP helper methods
  */
-public abstract class AbstractPrivilegeTestCase extends SecurityIntegTestCase {
+public abstract class AbstractPrivilegeTestCase extends SecuritySingleNodeTestCase {
 
     protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecureString("passwd".toCharArray())));
 

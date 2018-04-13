@@ -10,25 +10,17 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.junit.Before;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
-import static org.apache.lucene.util.LuceneTestCase.BadApple;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.is;
 
-//test is just too slow, please fix it to not be sleep-based
-@BadApple(bugUrl = "https://github.com/elastic/x-plugins/issues/1007")
-@ESIntegTestCase.ClusterScope(maxNumDataNodes = 2)
 public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
 
     private String jsonDoc = "{ \"name\" : \"elasticsearch\", \"body\": \"foo bar\" }";
@@ -128,17 +120,10 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
             "index_a_role:u13\n";
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+    protected Settings nodeSettings() {
+        return Settings.builder().put(super.nodeSettings())
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(Netty4Plugin.class); // for http
-        return plugins;
     }
 
     @Override
@@ -154,17 +139,6 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
     @Override
     protected String configUsersRoles() {
         return super.configUsersRoles() + USERS_ROLES;
-    }
-
-    // we reduce the number of shards and replicas to help speed up this test since that is not the focus of this test
-    @Override
-    public int maximumNumberOfReplicas() {
-        return 1;
-    }
-
-    @Override
-    public int maximumNumberOfShards() {
-        return 2;
     }
 
     @Before
@@ -452,7 +426,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     assertAccessIsAllowed(user, "DELETE", "/" + index);
                     assertUserIsAllowed(user, "create_index", index);
                     // wait until index ready, but as admin
-                    client().admin().cluster().prepareHealth(index).setWaitForGreenStatus().get();
+                    assertNoTimeout(client().admin().cluster().prepareHealth(index).setWaitForGreenStatus().get());
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_refresh");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_analyze", "{ \"text\" : \"test\" }");
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_flush");
@@ -463,7 +437,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_cache/clear");
                     // indexing a document to have the mapping available, and wait for green state to make sure index is created
                     assertAccessIsAllowed("admin", "PUT", "/" + index + "/foo/1", jsonDoc, refreshParams);
-                    client().admin().cluster().prepareHealth(index).setWaitForGreenStatus().get();
+                    assertNoTimeout(client().admin().cluster().prepareHealth(index).setWaitForGreenStatus().get());
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_mapping/foo/field/name");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_settings");
                 } else {

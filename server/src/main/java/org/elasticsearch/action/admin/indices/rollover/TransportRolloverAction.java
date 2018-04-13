@@ -109,7 +109,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         final MetaData metaData = state.metaData();
         validate(metaData, rolloverRequest);
         final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(rolloverRequest.getAlias());
-        final IndexMetaData indexMetaData = aliasOrIndex.getIndices().get(0);
+        final IndexMetaData indexMetaData = ((AliasOrIndex.Alias) aliasOrIndex).getWriteIndices().get(0);
         final String sourceProvidedName = indexMetaData.getSettings().get(IndexMetaData.SETTING_INDEX_PROVIDED_NAME,
             indexMetaData.getIndex().getName());
         final String sourceIndexName = indexMetaData.getIndex().getName();
@@ -118,7 +118,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             : generateRolloverIndexName(sourceProvidedName, indexNameExpressionResolver);
         final String rolloverIndexName = indexNameExpressionResolver.resolveDateMathExpression(unresolvedName);
         MetaDataCreateIndexService.validateIndexName(rolloverIndexName, state); // will fail if the index already exists
-        checkNoDuplicatedAliasInIndexTemplate(metaData, rolloverIndexName, rolloverRequest.getAlias());
+        // checkNoDuplicatedAliasInIndexTemplate(metaData, rolloverIndexName, rolloverRequest.getAlias());
         client.admin().indices().prepareStats(sourceIndexName).clear().setDocs(true).execute(
             new ActionListener<IndicesStatsResponse>() {
                 @Override
@@ -172,9 +172,11 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
     static IndicesAliasesClusterStateUpdateRequest prepareRolloverAliasesUpdateRequest(String oldIndex, String newIndex,
                                                                                        RolloverRequest request) {
+        // TODO(talevy): why wasn't filter,routing inherited?
         List<AliasAction> actions = unmodifiableList(Arrays.asList(
-                new AliasAction.Add(newIndex, request.getAlias(), null, null, null),
-                new AliasAction.Remove(oldIndex, request.getAlias())));
+            new AliasAction.Add(oldIndex, request.getAlias(), null, null, null, false),
+            new AliasAction.Add(newIndex, request.getAlias(), null, null, null, true)
+        ));
         final IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest(actions)
             .ackTimeout(request.ackTimeout())
             .masterNodeTimeout(request.masterNodeTimeout());
@@ -221,8 +223,9 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         if (aliasOrIndex.isAlias() == false) {
             throw new IllegalArgumentException("source alias is a concrete index");
         }
-        if (aliasOrIndex.getIndices().size() != 1) {
-            throw new IllegalArgumentException("source alias maps to multiple indices");
+        AliasOrIndex.Alias alias = (AliasOrIndex.Alias) aliasOrIndex;
+        if (alias.getIndices().size() > 1 && alias.getWriteIndices().isEmpty()) {
+            throw new IllegalArgumentException("source alias maps to multiple indices with none set as write index");
         }
     }
 

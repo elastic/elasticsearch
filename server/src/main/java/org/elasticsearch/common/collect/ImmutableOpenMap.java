@@ -351,7 +351,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
 
         @Override
         public ObjectContainer<VType> values() {
-            return map.values();
+            return (map == null) ? EMPTY.values() : map.values();
         }
 
         @SuppressWarnings("unchecked")

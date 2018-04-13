@@ -553,7 +553,6 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
             Netty4Utils.maybeDie(cause);
             super.exceptionCaught(ctx, cause);
         }
-
     }
 
 }

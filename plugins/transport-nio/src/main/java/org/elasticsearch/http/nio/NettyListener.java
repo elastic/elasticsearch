@@ -32,15 +32,15 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 
 /**
- * This is an {@link ActionListener} that interfaces with netty code. It wraps a netty promise and will
- * complete that promise when onResponse or onFailure is called. It delegates the normal promise methods
- * to the underlying promise.
+ * This is an {@link BiConsumer} that interfaces with netty code. It wraps a netty promise and will
+ * complete that promise when accept is called. It delegates the normal promise methods to the underlying
+ * promise.
  */
 public class NettyListener implements BiConsumer<Void, Throwable>, ChannelPromise {
 
     private final ChannelPromise promise;
 
-    public NettyListener(ChannelPromise promise) {
+    NettyListener(ChannelPromise promise) {
         this.promise = promise;
     }
 

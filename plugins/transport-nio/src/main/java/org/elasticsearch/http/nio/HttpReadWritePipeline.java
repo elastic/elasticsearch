@@ -72,7 +72,9 @@ public class HttpReadWritePipeline implements SocketChannelContext.ReadConsumer,
 
     @Override
     public int consumeReads(InboundChannelBuffer channelBuffer) throws IOException {
-        return adaptor.read(channelBuffer.sliceBuffersTo(channelBuffer.getIndex()));
+        int bytesConsumed = adaptor.read(channelBuffer.sliceBuffersTo(channelBuffer.getIndex()));
+        // Handle requests
+        return bytesConsumed;
     }
 
     @Override

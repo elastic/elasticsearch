@@ -502,7 +502,7 @@ will contain your change.
 
 For some BWC testing scenarios, you want to use the local clone of the
 repository without fetching latest. For these use cases, you can set the system
-property `tests.bwc.git.fetch.latest` to `false` and the BWC builds will skip
+property `tests.bwc.git_fetch_latest` to `false` and the BWC builds will skip
 fetching the latest from the remote.
 
 == Test coverage analysis

@@ -40,7 +40,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.DocumentSourceMissingException;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -152,7 +151,7 @@ public class UpdateHelper extends AbstractComponent {
 
             indexRequest.index(request.index())
                     .type(request.type()).id(request.id()).setRefreshPolicy(request.getRefreshPolicy()).routing(request.routing())
-                    .parent(request.parent()).timeout(request.timeout()).waitForActiveShards(request.waitForActiveShards())
+                    .timeout(request.timeout()).waitForActiveShards(request.waitForActiveShards())
                     // it has to be a "create!"
                     .create(true);
 
@@ -192,20 +191,6 @@ public class UpdateHelper extends AbstractComponent {
     }
 
     /**
-     * Calculate a parent value to be used, either the included index request's parent, or retrieved document's parent when defined.
-     */
-    @Nullable
-    static String calculateParent(GetResult getResult, @Nullable IndexRequest updateIndexRequest) {
-        if (updateIndexRequest != null && updateIndexRequest.parent() != null) {
-            return updateIndexRequest.parent();
-        } else if (getResult.getFields().containsKey(ParentFieldMapper.NAME)) {
-            return getResult.field(ParentFieldMapper.NAME).getValue().toString();
-        } else {
-            return null;
-        }
-    }
-
-    /**
      * Prepare the request for merging the existing document with a new one, can optionally detect a noop change. Returns a {@code Result}
      * containing a new {@code IndexRequest} to be executed on the primary and replicas.
      */
@@ -213,7 +198,6 @@ public class UpdateHelper extends AbstractComponent {
         final long updateVersion = calculateUpdateVersion(request, getResult);
         final IndexRequest currentRequest = request.doc();
         final String routing = calculateRouting(getResult, currentRequest);
-        final String parent = calculateParent(getResult, currentRequest);
         final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
         final XContentType updateSourceContentType = sourceAndContent.v1();
         final Map<String, Object> updatedSourceAsMap = sourceAndContent.v2();
@@ -230,7 +214,7 @@ public class UpdateHelper extends AbstractComponent {
             return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
         } else {
             final IndexRequest finalIndexRequest = Requests.indexRequest(request.index())
-                    .type(request.type()).id(request.id()).routing(routing).parent(parent)
+                    .type(request.type()).id(request.id()).routing(routing)
                     .source(updatedSourceAsMap, updateSourceContentType).version(updateVersion).versionType(request.versionType())
                     .waitForActiveShards(request.waitForActiveShards()).timeout(request.timeout())
                     .setRefreshPolicy(request.getRefreshPolicy());
@@ -247,7 +231,6 @@ public class UpdateHelper extends AbstractComponent {
         final long updateVersion = calculateUpdateVersion(request, getResult);
         final IndexRequest currentRequest = request.doc();
         final String routing = calculateRouting(getResult, currentRequest);
-        final String parent = calculateParent(getResult, currentRequest);
         final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
         final XContentType updateSourceContentType = sourceAndContent.v1();
         final Map<String, Object> sourceAsMap = sourceAndContent.v2();
@@ -259,7 +242,6 @@ public class UpdateHelper extends AbstractComponent {
         ctx.put(ContextFields.ID, getResult.getId());
         ctx.put(ContextFields.VERSION, getResult.getVersion());
         ctx.put(ContextFields.ROUTING, routing);
-        ctx.put(ContextFields.PARENT, parent);
         ctx.put(ContextFields.SOURCE, sourceAsMap);
         ctx.put(ContextFields.NOW, nowInMillis.getAsLong());
 
@@ -272,14 +254,14 @@ public class UpdateHelper extends AbstractComponent {
         switch (operation) {
             case INDEX:
                 final IndexRequest indexRequest = Requests.indexRequest(request.index())
-                        .type(request.type()).id(request.id()).routing(routing).parent(parent)
+                        .type(request.type()).id(request.id()).routing(routing)
                         .source(updatedSourceAsMap, updateSourceContentType).version(updateVersion).versionType(request.versionType())
                         .waitForActiveShards(request.waitForActiveShards()).timeout(request.timeout())
                         .setRefreshPolicy(request.getRefreshPolicy());
                 return new Result(indexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
             case DELETE:
                 DeleteRequest deleteRequest = Requests.deleteRequest(request.index())
-                        .type(request.type()).id(request.id()).routing(routing).parent(parent)
+                        .type(request.type()).id(request.id()).routing(routing)
                         .version(updateVersion).versionType(request.versionType()).waitForActiveShards(request.waitForActiveShards())
                         .timeout(request.timeout()).setRefreshPolicy(request.getRefreshPolicy());
                 return new Result(deleteRequest, DocWriteResponse.Result.DELETED, updatedSourceAsMap, updateSourceContentType);
@@ -452,6 +434,5 @@ public class UpdateHelper extends AbstractComponent {
         public static final String ID = "_id";
         public static final String VERSION = "_version";
         public static final String ROUTING = "_routing";
-        public static final String PARENT = "_parent";
     }
 }

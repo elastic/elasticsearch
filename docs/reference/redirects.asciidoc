@@ -60,6 +60,11 @@ directory.  Instead, mappings should be created using the API with:
 
 The `_parent` field has been removed in favour of the <<parent-join,`join` field>>.
 
+[role="exclude",id="mapping-uid-field"]
+=== `_uid` field
+
+The `_uid` field has been removed in favour of the <<mapping-id-field,`_id` field>>.
+
 [role="exclude",id="modules-memcached"]
 === memcached
 

@@ -164,11 +164,10 @@ public class PipelineExecutionService implements ClusterStateApplier {
             String type = indexRequest.type();
             String id = indexRequest.id();
             String routing = indexRequest.routing();
-            String parent = indexRequest.parent();
             Long version = indexRequest.version();
             VersionType versionType = indexRequest.versionType();
             Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
-            IngestDocument ingestDocument = new IngestDocument(index, type, id, routing, parent, version, versionType, sourceAsMap);
+            IngestDocument ingestDocument = new IngestDocument(index, type, id, routing, version, versionType, sourceAsMap);
             pipeline.execute(ingestDocument);
 
             Map<IngestDocument.MetaData, Object> metadataMap = ingestDocument.extractMetadata();
@@ -178,7 +177,6 @@ public class PipelineExecutionService implements ClusterStateApplier {
             indexRequest.type((String) metadataMap.get(IngestDocument.MetaData.TYPE));
             indexRequest.id((String) metadataMap.get(IngestDocument.MetaData.ID));
             indexRequest.routing((String) metadataMap.get(IngestDocument.MetaData.ROUTING));
-            indexRequest.parent((String) metadataMap.get(IngestDocument.MetaData.PARENT));
             indexRequest.version(((Number) metadataMap.get(IngestDocument.MetaData.VERSION)).longValue());
             if (metadataMap.get(IngestDocument.MetaData.VERSION_TYPE) != null) {
                 indexRequest.versionType(VersionType.fromString((String) metadataMap.get(IngestDocument.MetaData.VERSION_TYPE)));

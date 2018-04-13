@@ -54,6 +54,16 @@ subprojects {
 
   final String remote = System.getProperty("tests.bwc.remote", "elastic")
 
+  final boolean gitFetchLatest
+  final String gitFetchLatestProperty = System.getProperty("tests.bwc.git_fetch_latest", "true")
+  if ("true".equals(gitFetchLatestProperty)) {
+    gitFetchLatest = true
+  } else if ("false".equals(gitFetchLatestProperty)) {
+    gitFetchLatest = false
+  } else {
+    throw new GradleException("tests.bwc.git_fetch_latest must be [true] or [false] but was [" + gitFetchLatestProperty + "]")
+  }
+
   task createClone(type: LoggedExec) {
     onlyIf { checkoutDir.exists() == false }
     commandLine = ['git', 'clone', rootDir, checkoutDir]
@@ -83,7 +93,7 @@ subprojects {
   }
 
   task fetchLatest(type: LoggedExec) {
-    onlyIf { project.gradle.startParameter.isOffline() == false }
+    onlyIf { project.gradle.startParameter.isOffline() == false && gitFetchLatest }
     dependsOn addRemote
     workingDir = checkoutDir
     commandLine = ['git', 'fetch', '--all']

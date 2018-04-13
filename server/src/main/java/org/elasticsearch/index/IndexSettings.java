@@ -185,7 +185,7 @@ public final class IndexSettings {
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING =
         Setting.byteSizeSetting("index.translog.flush_threshold_size", new ByteSizeValue(512, ByteSizeUnit.MB),
             /*
-             * An empty translog occupies 43 bytes on disk. If the flush threshold is below this, the flush thread
+             * An empty translog occupies 55 bytes on disk. If the flush threshold is below this, the flush thread
              * can get stuck in an infinite loop as the shouldPeriodicallyFlush can still be true after flushing.
              * However, small thresholds are useful for testing so we do not add a large lower bound here.
              */
@@ -220,7 +220,7 @@ public final class IndexSettings {
                     "index.translog.generation_threshold_size",
                     new ByteSizeValue(64, ByteSizeUnit.MB),
                     /*
-                     * An empty translog occupies 43 bytes on disk. If the generation threshold is
+                     * An empty translog occupies 55 bytes on disk. If the generation threshold is
                      * below this, the flush thread can get stuck in an infinite loop repeatedly
                      * rolling the generation as every new generation will already exceed the
                      * generation threshold. However, small thresholds are useful for testing so we
@@ -255,20 +255,6 @@ public final class IndexSettings {
      */
     public static final Setting<Integer> MAX_REGEX_LENGTH_SETTING = Setting.intSetting("index.max_regex_length",
         1000, 1, Property.Dynamic, Property.IndexScope);
-
-    public static final String INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY = "index.mapping.single_type";
-    private static final Setting<Boolean> INDEX_MAPPING_SINGLE_TYPE_SETTING; // private - should not be registered
-    static {
-        Function<Settings, String> defValue = settings -> {
-            boolean singleType = true;
-            if (settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null) != null) {
-                singleType = Version.indexCreated(settings).onOrAfter(Version.V_6_0_0_alpha1);
-            }
-            return Boolean.valueOf(singleType).toString();
-        };
-        INDEX_MAPPING_SINGLE_TYPE_SETTING = Setting.boolSetting(INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY, defValue, Property.IndexScope,
-            Property.Final);
-    }
 
     private final Index index;
     private final Version version;
@@ -324,11 +310,6 @@ public final class IndexSettings {
      * The maximum length of regex string allowed in a regexp query.
      */
     private volatile int maxRegexLength;
-
-    /**
-     * Whether the index is required to have at most one type.
-     */
-    private final boolean singleType;
 
     /**
      * Returns the default search fields for this index.
@@ -431,11 +412,6 @@ public final class IndexSettings {
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
         this.indexSortConfig = new IndexSortConfig(this);
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
-        singleType = INDEX_MAPPING_SINGLE_TYPE_SETTING.get(indexMetaData.getSettings()); // get this from metadata - it's not registered
-        if ((singleType || version.before(Version.V_6_0_0_alpha1)) == false) {
-            throw new AssertionError(index.toString()  + "multiple types are only allowed on pre 6.x indices but version is: ["
-                + version + "]");
-        }
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING, mergePolicyConfig::setExpungeDeletesAllowed);
@@ -569,11 +545,6 @@ public final class IndexSettings {
      * Returns the number of replicas this index has.
      */
     public int getNumberOfReplicas() { return settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, null); }
-
-    /**
-     * Returns whether the index enforces at most one type.
-     */
-    public boolean isSingleType() { return singleType; }
 
     /**
      * Returns the node settings. The settings returned from {@link #getSettings()} are a merged version of the

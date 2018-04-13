@@ -5,7 +5,7 @@ Elasticsearch is provided as a `.zip` and as a `.tar.gz` package.  These
 packages can be used to install Elasticsearch on any system and are the
 easiest package format to use when trying out Elasticsearch.
 
-NOTE: These packages contain both open source and commercial features. All free 
+These packages contain both open source and commercial features. All free 
 features are included and enabled by default and do not expire. You can try 
 additional commercial features with a trial license. For more information, see {xpack-ref}/license-management.html[License Management]. 
 

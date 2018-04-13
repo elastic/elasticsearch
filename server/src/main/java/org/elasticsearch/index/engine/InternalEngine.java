@@ -422,7 +422,7 @@ public class InternalEngine extends Engine {
         final TranslogConfig translogConfig = engineConfig.getTranslogConfig();
         final String translogUUID = loadTranslogUUIDFromLastCommit();
         // We expect that this shard already exists, so it must already have an existing translog else something is badly wrong!
-        return new Translog(translogConfig, translogUUID, translogDeletionPolicy, globalCheckpointSupplier);
+        return new Translog(translogConfig, translogUUID, translogDeletionPolicy, globalCheckpointSupplier, engineConfig.getPrimaryTermSupplier());
     }
 
     @Override

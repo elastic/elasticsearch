@@ -236,7 +236,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertEquals(2, searcher.reader().numDocs());
         }
         assertFalse("safe access should NOT be required last indexing round was only append only", engine.isSafeAccessRequired());
-        engine.delete(new Engine.Delete(operation.type(), operation.id(), operation.uid()));
+        engine.delete(new Engine.Delete(operation.type(), operation.id(), operation.uid(), primaryTerm.get()));
         assertTrue("safe access should be required", engine.isSafeAccessRequired());
         engine.refresh("test");
         assertTrue("safe access should be required", engine.isSafeAccessRequired());
@@ -318,7 +318,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(segments.get(1).isCompound(), equalTo(true));
 
 
-            engine.delete(new Engine.Delete("test", "1", newUid(doc)));
+            engine.delete(new Engine.Delete("test", "1", newUid(doc), primaryTerm.get()));
             engine.refresh("test");
 
             segments = engine.segments(false);
@@ -891,7 +891,7 @@ public class InternalEngineTests extends EngineTestCase {
         searchResult.close();
 
         // now delete
-        engine.delete(new Engine.Delete("test", "1", newUid(doc)));
+        engine.delete(new Engine.Delete("test", "1", newUid(doc), primaryTerm.get()));
 
         // its not deleted yet
         searchResult = engine.acquireSearcher("test");
@@ -918,7 +918,7 @@ public class InternalEngineTests extends EngineTestCase {
         document = testDocumentWithTextField();
         document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
         doc = testParsedDocument("1", null, document, B_1, null);
-        engine.index(new Engine.Index(newUid(doc), doc, Versions.MATCH_DELETED));
+        engine.index(new Engine.Index(newUid(doc), primaryTerm.get(), doc, Versions.MATCH_DELETED));
 
         // its not there...
         searchResult = engine.acquireSearcher("test");
@@ -995,7 +995,7 @@ public class InternalEngineTests extends EngineTestCase {
         // don't release the search result yet...
 
         // delete, refresh and do a new search, it should not be there
-        engine.delete(new Engine.Delete("test", "1", newUid(doc)));
+        engine.delete(new Engine.Delete("test", "1", newUid(doc), primaryTerm.get()));
         engine.refresh("test");
         Engine.Searcher updateSearchResult = engine.acquireSearcher("test");
         MatcherAssert.assertThat(updateSearchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
@@ -1114,7 +1114,7 @@ public class InternalEngineTests extends EngineTestCase {
                     engine.index(doc4);
                     assertEquals(engine.getLastWriteNanos(), doc4.startTime());
                 } else {
-                    Engine.Delete delete = new Engine.Delete(doc1.type(), doc1.id(), doc1.uid());
+                    Engine.Delete delete = new Engine.Delete(doc1.type(), doc1.id(), doc1.uid(), primaryTerm.get());
                     engine.delete(delete);
                     assertEquals(engine.getLastWriteNanos(), delete.startTime());
                 }
@@ -1148,7 +1148,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
         if (randomBoolean()) {
             final String translogUUID = Translog.createEmptyTranslog(config.getTranslogConfig().getTranslogPath(),
-                SequenceNumbers.UNASSIGNED_SEQ_NO, shardId);
+                SequenceNumbers.UNASSIGNED_SEQ_NO, shardId, primaryTerm.get());
             store.associateIndexWithNewTranslog(translogUUID);
         }
         trimUnsafeCommits(config);
@@ -1178,7 +1178,7 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testVersioningNewCreate() throws IOException {
         ParsedDocument doc = testParsedDocument("1", null, testDocument(), B_1, null);
-        Engine.Index create = new Engine.Index(newUid(doc), doc, Versions.MATCH_DELETED);
+        Engine.Index create = new Engine.Index(newUid(doc), primaryTerm.get(), doc, Versions.MATCH_DELETED);
         Engine.IndexResult indexResult = engine.index(create);
         assertThat(indexResult.getVersion(), equalTo(1L));
 
@@ -1190,7 +1190,7 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testReplicatedVersioningWithFlush() throws IOException {
         ParsedDocument doc = testParsedDocument("1", null, testDocument(), B_1, null);
-        Engine.Index create = new Engine.Index(newUid(doc), doc, Versions.MATCH_DELETED);
+        Engine.Index create = new Engine.Index(newUid(doc), primaryTerm.get(), doc, Versions.MATCH_DELETED);
         Engine.IndexResult indexResult = engine.index(create);
         assertThat(indexResult.getVersion(), equalTo(1L));
         assertTrue(indexResult.isCreated());
@@ -1209,7 +1209,7 @@ public class InternalEngineTests extends EngineTestCase {
             replicaEngine.flush();
         }
 
-        Engine.Index update = new Engine.Index(newUid(doc), doc, 1);
+        Engine.Index update = new Engine.Index(newUid(doc), primaryTerm.get(), doc, 1);
         Engine.IndexResult updateResult = engine.index(update);
         assertThat(updateResult.getVersion(), equalTo(2L));
         assertFalse(updateResult.isCreated());
@@ -1238,14 +1238,14 @@ public class InternalEngineTests extends EngineTestCase {
         final BiFunction<String, Engine.SearcherScope, Searcher> searcherFactory = engine::acquireSearcher;
 
         ParsedDocument doc = testParsedDocument("1", null, testDocument(), B_1, null);
-        Engine.Index create = new Engine.Index(newUid(doc), doc, Versions.MATCH_DELETED);
+        Engine.Index create = new Engine.Index(newUid(doc), primaryTerm.get(), doc, Versions.MATCH_DELETED);
         Engine.IndexResult indexResult = engine.index(create);
         assertThat(indexResult.getVersion(), equalTo(1L));
         try (Engine.GetResult get = engine.get(new Engine.Get(true, false, doc.type(), doc.id(), create.uid()), searcherFactory)) {
             assertEquals(1, get.version());
         }
 
-        Engine.Index update_1 = new Engine.Index(newUid(doc), doc, 1);
+        Engine.Index update_1 = new Engine.Index(newUid(doc), primaryTerm.get(), doc, 1);
         Engine.IndexResult update_1_result = engine.index(update_1);
         assertThat(update_1_result.getVersion(), equalTo(2L));
 
@@ -1253,7 +1253,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertEquals(2, get.version());
         }
 
-        Engine.Index update_2 = new Engine.Index(newUid(doc), doc, 2);
+        Engine.Index update_2 = new Engine.Index(newUid(doc), primaryTerm.get(), doc, 2);
         Engine.IndexResult update_2_result = engine.index(update_2);
         assertThat(update_2_result.getVersion(), equalTo(3L));
 
@@ -1294,7 +1294,7 @@ public class InternalEngineTests extends EngineTestCase {
 
             ParsedDocument doc = testParsedDocument(Integer.toString(0), null, testDocument(), B_1, null);
             Engine.Index index = indexForDoc(doc);
-            engine.delete(new Engine.Delete(index.type(), index.id(), index.uid()));
+            engine.delete(new Engine.Delete(index.type(), index.id(), index.uid(), primaryTerm.get()));
             engine.forceMerge(true, 10, true, false, false); //expunge deletes
             engine.refresh("test");
 
@@ -1306,7 +1306,7 @@ public class InternalEngineTests extends EngineTestCase {
 
             doc = testParsedDocument(Integer.toString(1), null, testDocument(), B_1, null);
             index = indexForDoc(doc);
-            engine.delete(new Engine.Delete(index.type(), index.id(), index.uid()));
+            engine.delete(new Engine.Delete(index.type(), index.id(), index.uid(), primaryTerm.get()));
             engine.forceMerge(true, 10, false, false, false); //expunge deletes
             engine.refresh("test");
             assertEquals(engine.segments(true).size(), 1);
@@ -1772,7 +1772,7 @@ public class InternalEngineTests extends EngineTestCase {
         indexResult = engine.index(index);
         assertFalse(indexResult.isCreated());
 
-        engine.delete(new Engine.Delete("doc", "1", newUid(doc)));
+        engine.delete(new Engine.Delete("doc", "1", newUid(doc), primaryTerm.get()));
 
         index = indexForDoc(doc);
         indexResult = engine.index(index);
@@ -2248,7 +2248,7 @@ public class InternalEngineTests extends EngineTestCase {
             {
                 store.createEmpty();
                 final String translogUUID =
-                    Translog.createEmptyTranslog(config.getTranslogConfig().getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId);
+                    Translog.createEmptyTranslog(config.getTranslogConfig().getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
                 store.associateIndexWithNewTranslog(translogUUID);
                 ParsedDocument doc = testParsedDocument(Integer.toString(0), null, testDocument(), new BytesArray("{}"), null);
                 Engine.Index firstIndexRequest = new Engine.Index(newUid(doc), doc, SequenceNumbers.UNASSIGNED_SEQ_NO, 0,
@@ -2289,7 +2289,7 @@ public class InternalEngineTests extends EngineTestCase {
             // open index with new tlog
             {
                 final String translogUUID =
-                    Translog.createEmptyTranslog(config.getTranslogConfig().getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId);
+                    Translog.createEmptyTranslog(config.getTranslogConfig().getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
                 store.associateIndexWithNewTranslog(translogUUID);
                 trimUnsafeCommits(config);
                 try (InternalEngine engine = new InternalEngine(config)) {
@@ -2324,7 +2324,8 @@ public class InternalEngineTests extends EngineTestCase {
         // test that we can force start the engine , even if the translog is missing.
         engine.close();
         // fake a new translog, causing the engine to point to a missing one.
-        Translog translog = createTranslog();
+        final long primaryTerm = randomNonNegativeLong();
+        Translog translog = createTranslog(() -> primaryTerm);
         long id = translog.currentFileGeneration();
         translog.close();
         IOUtils.rm(translog.location().resolve(Translog.getFilename(id)));
@@ -2335,7 +2336,7 @@ public class InternalEngineTests extends EngineTestCase {
             // expected
         }
         // when a new translog is created it should be ok
-        final String translogUUID = Translog.createEmptyTranslog(primaryTranslogDir, SequenceNumbers.UNASSIGNED_SEQ_NO, shardId);
+        final String translogUUID = Translog.createEmptyTranslog(primaryTranslogDir, SequenceNumbers.UNASSIGNED_SEQ_NO, shardId, primaryTerm);
         store.associateIndexWithNewTranslog(translogUUID);
         EngineConfig config = config(defaultSettings, store, primaryTranslogDir, newMergePolicy(), null);
         engine = new InternalEngine(config);
@@ -2401,7 +2402,7 @@ public class InternalEngineTests extends EngineTestCase {
             final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
             final LongSupplier globalCheckpointSupplier = () -> globalCheckpoint.get();
             store.createEmpty();
-            final String translogUUID = Translog.createEmptyTranslog(translogPath, globalCheckpoint.get(), shardId);
+            final String translogUUID = Translog.createEmptyTranslog(translogPath, globalCheckpoint.get(), shardId, primaryTerm.get());
             store.associateIndexWithNewTranslog(translogUUID);
             try (InternalEngine engine =
                      new InternalEngine(config(indexSettings, store, translogPath, newMergePolicy(), null, null,
@@ -2539,7 +2540,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
         parser = (TranslogHandler) engine.config().getTranslogRecoveryRunner();
         assertEquals(flush ? 1 : 2, parser.appliedOperations());
-        engine.delete(new Engine.Delete("test", Integer.toString(randomId), newUid(doc)));
+        engine.delete(new Engine.Delete("test", Integer.toString(randomId), newUid(doc), primaryTerm.get()));
         if (randomBoolean()) {
             engine.refresh("test");
         } else {
@@ -2565,11 +2566,11 @@ public class InternalEngineTests extends EngineTestCase {
         engine.close();
 
         final Path badTranslogLog = createTempDir();
-        final String badUUID = Translog.createEmptyTranslog(badTranslogLog, SequenceNumbers.NO_OPS_PERFORMED, shardId);
+        final String badUUID = Translog.createEmptyTranslog(badTranslogLog, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
         Translog translog = new Translog(
             new TranslogConfig(shardId, badTranslogLog, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE),
-            badUUID, createTranslogDeletionPolicy(INDEX_SETTINGS), () -> SequenceNumbers.NO_OPS_PERFORMED);
-        translog.add(new Translog.Index("test", "SomeBogusId", 0, "{}".getBytes(Charset.forName("UTF-8"))));
+            badUUID, createTranslogDeletionPolicy(INDEX_SETTINGS), () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get);
+        translog.add(new Translog.Index("test", "SomeBogusId", 0, primaryTerm.get(), "{}".getBytes(Charset.forName("UTF-8"))));
         assertEquals(generation.translogFileGeneration, translog.currentFileGeneration());
         translog.close();
 
@@ -2583,7 +2584,7 @@ public class InternalEngineTests extends EngineTestCase {
                 new CodecService(null, logger), config.getEventListener(), IndexSearcher.getDefaultQueryCache(),
                 IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5),
                 config.getExternalRefreshListener(), config.getInternalRefreshListener(), null, config.getTranslogRecoveryRunner(),
-                new NoneCircuitBreakerService(), () -> SequenceNumbers.UNASSIGNED_SEQ_NO);
+                new NoneCircuitBreakerService(), () -> SequenceNumbers.UNASSIGNED_SEQ_NO, primaryTerm::get);
         try {
             InternalEngine internalEngine = new InternalEngine(brokenConfig);
             fail("translog belongs to a different engine");
@@ -2772,11 +2773,11 @@ public class InternalEngineTests extends EngineTestCase {
                 final Engine.DeleteResult deleteResult;
                 if (randomBoolean()) {
                     throwingIndexWriter.get().setThrowFailure(() -> new IOException("simulated"));
-                    deleteResult = engine.delete(new Engine.Delete("test", "1", newUid(doc1)));
+                    deleteResult = engine.delete(new Engine.Delete("test", "1", newUid(doc1), primaryTerm.get()));
                     assertThat(deleteResult.getFailure(), instanceOf(IOException.class));
                 } else {
                     throwingIndexWriter.get().setThrowFailure(() -> new IllegalArgumentException("simulated max token length"));
-                    deleteResult = engine.delete(new Engine.Delete("test", "1", newUid(doc1)));
+                    deleteResult = engine.delete(new Engine.Delete("test", "1", newUid(doc1), primaryTerm.get()));
                     assertThat(deleteResult.getFailure(),
                         instanceOf(IllegalArgumentException.class));
                 }
@@ -2809,7 +2810,7 @@ public class InternalEngineTests extends EngineTestCase {
                     if (randomBoolean()) {
                         engine.index(indexForDoc(doc1));
                     } else {
-                        engine.delete(new Engine.Delete("test", "", newUid(doc1)));
+                        engine.delete(new Engine.Delete("test", "", newUid(doc1), primaryTerm.get()));
                     }
                     fail("engine should be closed");
                 } catch (Exception e) {
@@ -3210,7 +3211,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
         try (Store store = createStore(newFSDirectory(storeDir))) {
             if (randomBoolean() || true) {
-                final String translogUUID = Translog.createEmptyTranslog(translogDir, SequenceNumbers.NO_OPS_PERFORMED, shardId);
+                final String translogUUID = Translog.createEmptyTranslog(translogDir, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
                 store.associateIndexWithNewTranslog(translogUUID);
             }
             try (Engine engine = new InternalEngine(configSupplier.apply(store))) {
@@ -3364,7 +3365,7 @@ public class InternalEngineTests extends EngineTestCase {
         seqID = getSequenceID(engine, newGet(false, doc));
         logger.info("--> got seqID: {}", seqID);
         assertThat(seqID.v1(), equalTo(0L));
-        assertThat(seqID.v2(), equalTo(2L));
+        assertThat(seqID.v2(), equalTo(primaryTerm.get()));
 
         // Index the same document again
         document = testDocumentWithTextField();
@@ -3376,7 +3377,7 @@ public class InternalEngineTests extends EngineTestCase {
         seqID = getSequenceID(engine, newGet(false, doc));
         logger.info("--> got seqID: {}", seqID);
         assertThat(seqID.v1(), equalTo(1L));
-        assertThat(seqID.v2(), equalTo(2L));
+        assertThat(seqID.v2(), equalTo(primaryTerm.get()));
 
         // Index the same document for the third time, this time changing the primary term
         document = testDocumentWithTextField();
@@ -3590,13 +3591,12 @@ public class InternalEngineTests extends EngineTestCase {
                 }
             };
             noOpEngine.recoverFromTranslog();
-            final long primaryTerm = randomNonNegativeLong();
-            final int gapsFilled = noOpEngine.fillSeqNoGaps(primaryTerm);
+            final int gapsFilled = noOpEngine.fillSeqNoGaps(primaryTerm.get());
             final String reason = randomAlphaOfLength(16);
             noOpEngine.noOp(
                     new Engine.NoOp(
                             maxSeqNo + 1,
-                            primaryTerm,
+                            primaryTerm.get(),
                             randomFrom(PRIMARY, REPLICA, PEER_RECOVERY, LOCAL_TRANSLOG_RECOVERY),
                             System.nanoTime(),
                             reason));
@@ -3614,7 +3614,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(last, instanceOf(Translog.NoOp.class));
             final Translog.NoOp noOp = (Translog.NoOp) last;
             assertThat(noOp.seqNo(), equalTo((long) (maxSeqNo + 1)));
-            assertThat(noOp.primaryTerm(), equalTo(primaryTerm));
+            assertThat(noOp.primaryTerm(), equalTo(primaryTerm.get()));
             assertThat(noOp.reason(), equalTo(reason));
         } finally {
             IOUtils.close(noOpEngine);
@@ -3817,7 +3817,7 @@ public class InternalEngineTests extends EngineTestCase {
                     if (operation.opType() == Translog.Operation.Type.NO_OP) {
                         assertEquals(2, operation.primaryTerm());
                     } else {
-                        assertEquals(1, operation.primaryTerm());
+                        assertEquals(primaryTerm.get(), operation.primaryTerm());
                     }
 
                 }
@@ -4017,7 +4017,7 @@ public class InternalEngineTests extends EngineTestCase {
         store = createStore();
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         store.createEmpty();
-        final String translogUUID = Translog.createEmptyTranslog(translogPath, globalCheckpoint.get(), shardId);
+        final String translogUUID = Translog.createEmptyTranslog(translogPath, globalCheckpoint.get(), shardId, primaryTerm.get());
         store.associateIndexWithNewTranslog(translogUUID);
 
         final EngineConfig engineConfig = config(indexSettings, store, translogPath, NoMergePolicy.INSTANCE, null, null,
@@ -4087,7 +4087,7 @@ public class InternalEngineTests extends EngineTestCase {
                    Engine.Index operation = appendOnlyPrimary(doc, false, 1);
                    engine.index(operation);
                    if (rarely()) {
-                       engine.delete(new Engine.Delete(operation.type(), operation.id(), operation.uid()));
+                       engine.delete(new Engine.Delete(operation.type(), operation.id(), operation.uid(), primaryTerm.get()));
                        numDeletes.incrementAndGet();
                    } else {
                        doc = testParsedDocument(docID, null, testDocumentWithTextField("updated"),
@@ -4226,7 +4226,7 @@ public class InternalEngineTests extends EngineTestCase {
             engine.index(indexForDoc(doc));
         }
         assertThat("Not exceeded translog flush threshold yet", engine.shouldPeriodicallyFlush(), equalTo(false));
-        long flushThreshold = RandomNumbers.randomLongBetween(random(), 100,
+        long flushThreshold = RandomNumbers.randomLongBetween(random(), 120,
             engine.getTranslog().stats().getUncommittedSizeInBytes()- extraTranslogSizeInNewEngine);
         final IndexSettings indexSettings = engine.config().getIndexSettings();
         final IndexMetaData indexMetaData = IndexMetaData.builder(indexSettings.getIndexMetaData())
@@ -4268,7 +4268,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testStressShouldPeriodicallyFlush() throws Exception {
-        final long flushThreshold = randomLongBetween(100, 5000);
+        final long flushThreshold = randomLongBetween(120, 5000);
         final long generationThreshold = randomLongBetween(1000, 5000);
         final IndexSettings indexSettings = engine.config().getIndexSettings();
         final IndexMetaData indexMetaData = IndexMetaData.builder(indexSettings.getIndexMetaData())
@@ -4309,7 +4309,7 @@ public class InternalEngineTests extends EngineTestCase {
                     Versions.MATCH_ANY, VersionType.INTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), 0, false);
                 // first index an append only document and then delete it. such that we have it in the tombstones
                 engine.index(doc);
-                engine.delete(new Engine.Delete(doc.type(), doc.id(), doc.uid()));
+                engine.delete(new Engine.Delete(doc.type(), doc.id(), doc.uid(), primaryTerm.get()));
 
                 // now index more append only docs and refresh so we re-enabel the optimization for unsafe version map
                 ParsedDocument document1 = testParsedDocument(Integer.toString(1), null, testDocumentWithTextField(), SOURCE, null);
@@ -4445,7 +4445,7 @@ public class InternalEngineTests extends EngineTestCase {
                     if (randomBoolean()) {
                         engine.index(indexForDoc(parsedDocument));
                     } else {
-                        engine.delete(new Engine.Delete(parsedDocument.type(), parsedDocument.id(), newUid(parsedDocument.id())));
+                        engine.delete(new Engine.Delete(parsedDocument.type(), parsedDocument.id(), newUid(parsedDocument.id()), primaryTerm.get()));
                     }
                 }
             }

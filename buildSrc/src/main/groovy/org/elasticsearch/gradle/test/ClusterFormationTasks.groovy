@@ -99,7 +99,7 @@ class ClusterFormationTasks {
 
             configureDistributionDependency(project, config.distribution, bwcDistro, config.bwcVersion)
             for (Map.Entry<String, Project> entry : config.plugins.entrySet()) {
-                configureBwcPluginDependency("${prefix}_elasticsearchBwcPlugins", project, entry.getValue(), bwcPlugins, config.bwcVersion)
+                configureBwcPluginDependency("${prefix}_elasticsearchBwcPlugins", project, entry.getValue(), bwcPlugins, Version.fromString(config.bwcVersion))
             }
             bwcDistro.resolutionStrategy.cacheChangingModulesFor(0, TimeUnit.SECONDS)
             bwcPlugins.resolutionStrategy.cacheChangingModulesFor(0, TimeUnit.SECONDS)
@@ -107,11 +107,14 @@ class ClusterFormationTasks {
         for (int i = 0; i < config.numNodes; i++) {
             // we start N nodes and out of these N nodes there might be M bwc nodes.
             // for each of those nodes we might have a different configuration
-            String elasticsearchVersion = VersionProperties.elasticsearch
-            Configuration distro = currentDistro
+            final Configuration distro
+            final Version elasticsearchVersion
             if (i < config.numBwcNodes) {
-                elasticsearchVersion = config.bwcVersion
+                elasticsearchVersion = Version.fromString(config.bwcVersion)
                 distro = bwcDistro
+            } else {
+                elasticsearchVersion = Version.fromString(VersionProperties.elasticsearch)
+                distro = currentDistro
             }
             NodeInfo node = new NodeInfo(config, i, project, prefix, elasticsearchVersion, sharedDir)
             nodes.add(node)
@@ -137,7 +140,7 @@ class ClusterFormationTasks {
     }
 
     /** Adds a dependency on a different version of the given plugin, which will be retrieved using gradle's dependency resolution */
-    static void configureBwcPluginDependency(String name, Project project, Project pluginProject, Configuration configuration, String elasticsearchVersion) {
+    static void configureBwcPluginDependency(String name, Project project, Project pluginProject, Configuration configuration, Version elasticsearchVersion) {
         verifyProjectHasBuildPlugin(name, elasticsearchVersion, project, pluginProject)
         final String pluginName = findPluginName(pluginProject)
         project.dependencies.add(configuration.name, "org.elasticsearch.plugin:${pluginName}:${elasticsearchVersion}@zip")
@@ -183,7 +186,7 @@ class ClusterFormationTasks {
         setup = configureAddKeystoreFileTasks(prefix, project, setup, node)
 
         if (node.config.plugins.isEmpty() == false) {
-            if (node.nodeVersion == VersionProperties.elasticsearch) {
+            if (node.nodeVersion == Version.fromString(VersionProperties.elasticsearch)) {
                 setup = configureCopyPluginsTask(taskName(prefix, node, 'copyPlugins'), project, setup, node, prefix)
             } else {
                 setup = configureCopyBwcPluginsTask(taskName(prefix, node, 'copyBwcPlugins'), project, setup, node, prefix)
@@ -303,7 +306,7 @@ class ClusterFormationTasks {
         // Default the watermarks to absurdly low to prevent the tests from failing on nodes without enough disk space
         esConfig['cluster.routing.allocation.disk.watermark.low'] = '1b'
         esConfig['cluster.routing.allocation.disk.watermark.high'] = '1b'
-        if (Version.fromString(node.nodeVersion).major >= 6) {
+        if (node.nodeVersion.major >= 6) {
             esConfig['cluster.routing.allocation.disk.watermark.flood_stage'] = '1b'
         }
         // increase script compilation limit since tests can rapid-fire script compilations
@@ -514,7 +517,7 @@ class ClusterFormationTasks {
 
     static Task configureInstallPluginTask(String name, Project project, Task setup, NodeInfo node, Project plugin, String prefix) {
         final FileCollection pluginZip;
-        if (node.nodeVersion != VersionProperties.elasticsearch) {
+        if (node.nodeVersion != Version.fromString(VersionProperties.elasticsearch)) {
             pluginZip = project.configurations.getByName(pluginBwcConfigurationName(prefix, plugin))
         } else {
             pluginZip = project.configurations.getByName(pluginConfigurationName(prefix, plugin))
@@ -803,7 +806,7 @@ class ClusterFormationTasks {
         return retVal
     }
 
-    static void verifyProjectHasBuildPlugin(String name, String version, Project project, Project pluginProject) {
+    static void verifyProjectHasBuildPlugin(String name, Version version, Project project, Project pluginProject) {
         if (pluginProject.plugins.hasPlugin(PluginBuildPlugin) == false && pluginProject.plugins.hasPlugin(MetaPluginBuildPlugin) == false) {
             throw new GradleException("Task [${name}] cannot add plugin [${pluginProject.path}] with version [${version}] to project's " +
                     "[${project.path}] dependencies: the plugin is not an esplugin or es_meta_plugin")

@@ -64,12 +64,16 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
     @Override
     public void validate(ShardFollowTask params, ClusterState clusterState) {
-        IndexRoutingTable routingTable = clusterState.getRoutingTable().index(params.getLeaderShardId().getIndex());
-        if (routingTable.shard(params.getLeaderShardId().id()).primaryShard().started() == false) {
-            throw new IllegalArgumentException("Not all copies of leader shard are started");
+        if (params.getLeaderClusterAlias() == null) {
+            // We can only validate IndexRoutingTable in local cluster,
+            // for remote cluster we would need to make a remote call and we cannot do this here.
+            IndexRoutingTable routingTable = clusterState.getRoutingTable().index(params.getLeaderShardId().getIndex());
+            if (routingTable.shard(params.getLeaderShardId().id()).primaryShard().started() == false) {
+                throw new IllegalArgumentException("Not all copies of leader shard are started");
+            }
         }
 
-        routingTable = clusterState.getRoutingTable().index(params.getFollowShardId().getIndex());
+        IndexRoutingTable routingTable = clusterState.getRoutingTable().index(params.getFollowShardId().getIndex());
         if (routingTable.shard(params.getFollowShardId().id()).primaryShard().started() == false) {
             throw new IllegalArgumentException("Not all copies of follow shard are started");
         }
@@ -85,12 +89,14 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     @Override
     protected void nodeOperation(AllocatedPersistentTask task, ShardFollowTask params, Task.Status status) {
         ShardFollowNodeTask shardFollowNodeTask = (ShardFollowNodeTask) task;
+        Client leaderClient = params.getLeaderClusterAlias() != null ?
+                this.client.getRemoteClusterClient(params.getLeaderClusterAlias()) : this.client;
         logger.info("Starting shard following [{}]", params);
-        fetchGlobalCheckpoint(params.getFollowShardId(),
-                followGlobalCheckPoint -> prepare(shardFollowNodeTask, params, followGlobalCheckPoint), task::markAsFailed);
+        fetchGlobalCheckpoint(client, params.getFollowShardId(),
+                followGlobalCheckPoint -> prepare(leaderClient, shardFollowNodeTask, params, followGlobalCheckPoint), task::markAsFailed);
     }
 
-    void prepare(ShardFollowNodeTask task, ShardFollowTask params, long followGlobalCheckPoint) {
+    void prepare(Client leaderClient, ShardFollowNodeTask task, ShardFollowTask params, long followGlobalCheckPoint) {
         if (task.getState() != AllocatedPersistentTask.State.STARTED) {
             // TODO: need better cancellation control
             return;
@@ -98,10 +104,10 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
         final ShardId leaderShard = params.getLeaderShardId();
         final ShardId followerShard = params.getFollowShardId();
-        fetchGlobalCheckpoint(leaderShard, leaderGlobalCheckPoint -> {
+        fetchGlobalCheckpoint(leaderClient, leaderShard, leaderGlobalCheckPoint -> {
             // TODO: check if both indices have the same history uuid
             if (leaderGlobalCheckPoint == followGlobalCheckPoint) {
-                retry(task, params, followGlobalCheckPoint);
+                retry(leaderClient, task, params, followGlobalCheckPoint);
             } else {
                 assert followGlobalCheckPoint < leaderGlobalCheckPoint : "followGlobalCheckPoint [" + followGlobalCheckPoint +
                         "] is not below leaderGlobalCheckPoint [" + leaderGlobalCheckPoint + "]";
@@ -109,12 +115,12 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 Consumer<Exception> handler = e -> {
                     if (e == null) {
                         task.updateProcessedGlobalCheckpoint(leaderGlobalCheckPoint);
-                        prepare(task, params, leaderGlobalCheckPoint);
+                        prepare(leaderClient, task, params, leaderGlobalCheckPoint);
                     } else {
                         task.markAsFailed(e);
                     }
                 };
-                ChunksCoordinator coordinator = new ChunksCoordinator(client, ccrExecutor, params.getMaxChunkSize(),
+                ChunksCoordinator coordinator = new ChunksCoordinator(client, leaderClient, ccrExecutor, params.getMaxChunkSize(),
                         params.getNumConcurrentChunks(), params.getProcessorMaxTranslogBytes(), leaderShard, followerShard, handler);
                 coordinator.createChucks(followGlobalCheckPoint, leaderGlobalCheckPoint);
                 coordinator.start();
@@ -122,7 +128,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         }, task::markAsFailed);
     }
 
-    private void retry(ShardFollowNodeTask task, ShardFollowTask params, long followGlobalCheckPoint) {
+    private void retry(Client leaderClient, ShardFollowNodeTask task, ShardFollowTask params, long followGlobalCheckPoint) {
         threadPool.schedule(RETRY_TIMEOUT, Ccr.CCR_THREAD_POOL_NAME, new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
@@ -131,12 +137,12 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
             @Override
             protected void doRun() throws Exception {
-                prepare(task, params, followGlobalCheckPoint);
+                prepare(leaderClient, task, params, followGlobalCheckPoint);
             }
         });
     }
 
-    private void fetchGlobalCheckpoint(ShardId shardId, LongConsumer handler, Consumer<Exception> errorHandler) {
+    private void fetchGlobalCheckpoint(Client client, ShardId shardId, LongConsumer handler, Consumer<Exception> errorHandler) {
         client.admin().indices().stats(new IndicesStatsRequest().indices(shardId.getIndexName()), ActionListener.wrap(r -> {
             IndexStats indexStats = r.getIndex(shardId.getIndexName());
             Optional<ShardStats> filteredShardStats = Arrays.stream(indexStats.getShards())
@@ -158,7 +164,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
         private static final Logger LOGGER = Loggers.getLogger(ChunksCoordinator.class);
 
-        private final Client client;
+        private final Client followerClient;
+        private final Client leaderClient;
         private final Executor ccrExecutor;
 
         private final long batchSize;
@@ -172,9 +179,10 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         private final Queue<long[]> chunks = new ConcurrentLinkedQueue<>();
         private final AtomicReference<Exception> failureHolder = new AtomicReference<>();
 
-        ChunksCoordinator(Client client, Executor ccrExecutor, long batchSize, int concurrentProcessors,
+        ChunksCoordinator(Client followerClient, Client leaderClient, Executor ccrExecutor, long batchSize, int concurrentProcessors,
                           long processorMaxTranslogBytes, ShardId leaderShard, ShardId followerShard, Consumer<Exception> handler) {
-            this.client = client;
+            this.followerClient = followerClient;
+            this.leaderClient = leaderClient;
             this.ccrExecutor = ccrExecutor;
             this.batchSize = batchSize;
             this.concurrentProcessors = concurrentProcessors;
@@ -220,7 +228,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 return;
             }
             LOGGER.debug("{} Processing chunk [{}/{}]", leaderShard, chunk[0], chunk[1]);
-            ChunkProcessor processor = new ChunkProcessor(client, chunks, ccrExecutor, leaderShard, followerShard, e -> {
+            Consumer<Exception> processorHandler = e -> {
                 if (e == null) {
                     LOGGER.debug("{} Successfully processed chunk [{}/{}]", leaderShard, chunk[0], chunk[1]);
                     processNextChunk();
@@ -229,7 +237,9 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                             leaderShard, chunk[0], chunk[1]), e);
                     postProcessChuck(e);
                 }
-            });
+            };
+            ChunkProcessor processor = new ChunkProcessor(leaderClient, followerClient, chunks, ccrExecutor, leaderShard,
+                    followerShard, processorHandler);
             processor.start(chunk[0], chunk[1], processorMaxTranslogBytes);
         }
 
@@ -251,7 +261,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
     static class ChunkProcessor {
 
-        private final Client client;
+        private final Client leaderClient;
+        private final Client followerClient;
         private final Queue<long[]> chunks;
         private final Executor ccrExecutor;
 
@@ -260,9 +271,10 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         private final Consumer<Exception> handler;
         final AtomicInteger retryCounter = new AtomicInteger(0);
 
-        ChunkProcessor(Client client, Queue<long[]> chunks, Executor ccrExecutor, ShardId leaderShard,
+        ChunkProcessor(Client leaderClient, Client followerClient, Queue<long[]> chunks, Executor ccrExecutor, ShardId leaderShard,
                        ShardId followerShard, Consumer<Exception> handler) {
-            this.client = client;
+            this.leaderClient = leaderClient;
+            this.followerClient = followerClient;
             this.chunks = chunks;
             this.ccrExecutor = ccrExecutor;
             this.leaderShard = leaderShard;
@@ -275,7 +287,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             request.setMinSeqNo(from);
             request.setMaxSeqNo(to);
             request.setMaxTranslogsBytes(maxTranslogsBytes);
-            client.execute(ShardChangesAction.INSTANCE, request, new ActionListener<ShardChangesAction.Response>() {
+            leaderClient.execute(ShardChangesAction.INSTANCE, request, new ActionListener<ShardChangesAction.Response>() {
                 @Override
                 public void onResponse(ShardChangesAction.Response response) {
                     handleResponse(to, response);
@@ -317,7 +329,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 @Override
                 protected void doRun() throws Exception {
                     final BulkShardOperationsRequest request = new BulkShardOperationsRequest(followerShard, response.getOperations());
-                    client.execute(BulkShardOperationsAction.INSTANCE, request, new ActionListener<BulkShardOperationsResponse>() {
+                    followerClient.execute(BulkShardOperationsAction.INSTANCE, request, new ActionListener<BulkShardOperationsResponse>() {
                         @Override
                         public void onResponse(final BulkShardOperationsResponse bulkShardOperationsResponse) {
                             handler.accept(null);

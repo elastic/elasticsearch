@@ -24,6 +24,7 @@ public class ShardFollowTask implements PersistentTaskParams {
 
     public static final String NAME = "shard_follow";
 
+    static final ParseField LEADER_CLUSTER_ALIAS_FIELD = new ParseField("leader_cluster_alias");
     static final ParseField FOLLOW_SHARD_INDEX_FIELD = new ParseField("follow_shard_index");
     static final ParseField FOLLOW_SHARD_INDEX_UUID_FIELD = new ParseField("follow_shard_index_uuid");
     static final ParseField FOLLOW_SHARD_SHARDID_FIELD = new ParseField("follow_shard_shard");
@@ -35,10 +36,11 @@ public class ShardFollowTask implements PersistentTaskParams {
     public static final ParseField PROCESSOR_MAX_TRANSLOG_BYTES_PER_REQUEST = new ParseField("processor_max_translog_bytes");
 
     public static ConstructingObjectParser<ShardFollowTask, Void> PARSER = new ConstructingObjectParser<>(NAME,
-            (a) -> new ShardFollowTask(new ShardId((String) a[0], (String) a[1], (int) a[2]),
-                    new ShardId((String) a[3], (String) a[4], (int) a[5]), (long) a[6], (int) a[7], (long) a[8]));
+            (a) -> new ShardFollowTask((String) a[0], new ShardId((String) a[1], (String) a[2], (int) a[3]),
+                    new ShardId((String) a[4], (String) a[5], (int) a[6]), (long) a[7], (int) a[8], (long) a[9]));
 
     static {
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), LEADER_CLUSTER_ALIAS_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FOLLOW_SHARD_INDEX_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FOLLOW_SHARD_INDEX_UUID_FIELD);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), FOLLOW_SHARD_SHARDID_FIELD);
@@ -50,14 +52,16 @@ public class ShardFollowTask implements PersistentTaskParams {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), PROCESSOR_MAX_TRANSLOG_BYTES_PER_REQUEST);
     }
 
+    private final String leaderClusterAlias;
     private final ShardId followShardId;
     private final ShardId leaderShardId;
     private final long maxChunkSize;
     private final int numConcurrentChunks;
     private final long processorMaxTranslogBytes;
 
-    ShardFollowTask(ShardId followShardId, ShardId leaderShardId, long maxChunkSize, int numConcurrentChunks,
-                    long processorMaxTranslogBytes) {
+    ShardFollowTask(String leaderClusterAlias, ShardId followShardId, ShardId leaderShardId, long maxChunkSize,
+                    int numConcurrentChunks, long processorMaxTranslogBytes) {
+        this.leaderClusterAlias = leaderClusterAlias;
         this.followShardId = followShardId;
         this.leaderShardId = leaderShardId;
         this.maxChunkSize = maxChunkSize;
@@ -66,11 +70,16 @@ public class ShardFollowTask implements PersistentTaskParams {
     }
 
     public ShardFollowTask(StreamInput in) throws IOException {
+        this.leaderClusterAlias = in.readOptionalString();
         this.followShardId = ShardId.readShardId(in);
         this.leaderShardId = ShardId.readShardId(in);
         this.maxChunkSize = in.readVLong();
         this.numConcurrentChunks = in.readVInt();
         this.processorMaxTranslogBytes = in.readVLong();
+    }
+
+    public String getLeaderClusterAlias() {
+        return leaderClusterAlias;
     }
 
     public ShardId getFollowShardId() {
@@ -100,6 +109,7 @@ public class ShardFollowTask implements PersistentTaskParams {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalString(leaderClusterAlias);
         followShardId.writeTo(out);
         leaderShardId.writeTo(out);
         out.writeVLong(maxChunkSize);
@@ -114,6 +124,9 @@ public class ShardFollowTask implements PersistentTaskParams {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        if (leaderClusterAlias != null) {
+            builder.field(LEADER_CLUSTER_ALIAS_FIELD.getPreferredName(), leaderClusterAlias);
+        }
         builder.field(FOLLOW_SHARD_INDEX_FIELD.getPreferredName(), followShardId.getIndex().getName());
         builder.field(FOLLOW_SHARD_INDEX_UUID_FIELD.getPreferredName(), followShardId.getIndex().getUUID());
         builder.field(FOLLOW_SHARD_SHARDID_FIELD.getPreferredName(), followShardId.id());
@@ -131,7 +144,8 @@ public class ShardFollowTask implements PersistentTaskParams {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ShardFollowTask that = (ShardFollowTask) o;
-        return Objects.equals(followShardId, that.followShardId) &&
+        return Objects.equals(leaderClusterAlias, that.leaderClusterAlias) &&
+                Objects.equals(followShardId, that.followShardId) &&
                 Objects.equals(leaderShardId, that.leaderShardId) &&
                 maxChunkSize == that.maxChunkSize &&
                 numConcurrentChunks == that.numConcurrentChunks &&
@@ -140,7 +154,8 @@ public class ShardFollowTask implements PersistentTaskParams {
 
     @Override
     public int hashCode() {
-        return Objects.hash(followShardId, leaderShardId, maxChunkSize, numConcurrentChunks, processorMaxTranslogBytes);
+        return Objects.hash(leaderClusterAlias, followShardId, leaderShardId, maxChunkSize, numConcurrentChunks,
+                processorMaxTranslogBytes);
     }
 
     public String toString() {

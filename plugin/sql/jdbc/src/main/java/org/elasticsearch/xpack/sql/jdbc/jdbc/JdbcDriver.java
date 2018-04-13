@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
+import org.elasticsearch.xpack.sql.client.shared.Version;
 import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
 import org.elasticsearch.xpack.sql.jdbc.debug.Debug;
-import org.elasticsearch.xpack.sql.client.shared.Version;
 
 import java.io.PrintWriter;
 import java.sql.Connection;
@@ -16,10 +16,7 @@ import java.sql.DriverPropertyInfo;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.Properties;
-import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
-
-import static org.elasticsearch.xpack.sql.client.shared.ConnectionConfiguration.CONNECT_TIMEOUT;
 
 public class JdbcDriver implements java.sql.Driver {
 
@@ -67,6 +64,7 @@ public class JdbcDriver implements java.sql.Driver {
     //
     // Jdbc 4.0
     //
+    @Override
     public Connection connect(String url, Properties props) throws SQLException {
         if (url == null) {
             throw new JdbcSQLException("Non-null url required");
@@ -116,6 +114,7 @@ public class JdbcDriver implements java.sql.Driver {
     // Jdbc 4.1
     //
 
+    @Override
     public Logger getParentLogger() throws SQLFeatureNotSupportedException {
         throw new SQLFeatureNotSupportedException();
     }

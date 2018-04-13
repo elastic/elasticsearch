@@ -18,17 +18,21 @@ import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
+import org.elasticsearch.xpack.sql.plugin.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
+import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
 import org.joda.time.DateTimeZone;
 
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
 import static java.util.Arrays.asList;
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -67,6 +71,16 @@ public class SysTablesTests extends ESTestCase {
         }, index, alias);
     }
 
+    public void testSysTablesPatternParameterized() throws Exception {
+        List<SqlTypedParamValue> params = asList(param("%"));
+        executeCommand("SYS TABLES LIKE ?", params, r -> {
+            assertEquals(2, r.size());
+            assertEquals("test", r.column(2));
+            assertTrue(r.advanceRow());
+            assertEquals("alias", r.column(2));
+        }, index, alias);
+    }
+
     public void testSysTablesOnlyAliases() throws Exception {
         executeCommand("SYS TABLES LIKE 'test' TYPE 'ALIAS'", r -> {
             assertEquals(1, r.size());
@@ -74,8 +88,23 @@ public class SysTablesTests extends ESTestCase {
         }, alias);
     }
 
+    public void testSysTablesOnlyAliasesParameterized() throws Exception {
+        List<SqlTypedParamValue> params = asList(param("ALIAS"));
+        executeCommand("SYS TABLES LIKE 'test' TYPE ?", params, r -> {
+            assertEquals(1, r.size());
+            assertEquals("alias", r.column(2));
+        }, alias);
+    }
+
     public void testSysTablesOnlyIndices() throws Exception {
         executeCommand("SYS TABLES LIKE 'test' TYPE 'BASE TABLE'", r -> {
+            assertEquals(1, r.size());
+            assertEquals("test", r.column(2));
+        }, index);
+    }
+
+    public void testSysTablesOnlyIndicesParameterized() throws Exception {
+        executeCommand("SYS TABLES LIKE 'test' TYPE ?", asList(param("ALIAS")), r -> {
             assertEquals(1, r.size());
             assertEquals("test", r.column(2));
         }, index);
@@ -90,15 +119,33 @@ public class SysTablesTests extends ESTestCase {
         }, index, alias);
     }
 
+    public void testSysTablesOnlyIndicesAndAliasesParameterized() throws Exception {
+        List<SqlTypedParamValue> params = asList(param("ALIAS"), param("BASE TABLE"));
+        executeCommand("SYS TABLES LIKE 'test' TYPE ?, ?", params, r -> {
+            assertEquals(2, r.size());
+            assertEquals("test", r.column(2));
+            assertTrue(r.advanceRow());
+            assertEquals("alias", r.column(2));
+        }, index, alias);
+    }
+
     public void testSysTablesWithInvalidType() throws Exception {
         ParsingException pe = expectThrows(ParsingException.class, () -> sql("SYS TABLES LIKE 'test' TYPE 'QUE HORA ES'"));
         assertEquals("line 1:2: Invalid table type [QUE HORA ES]", pe.getMessage());
     }
 
+    private SqlTypedParamValue param(Object value) {
+        return new SqlTypedParamValue(value, DataTypes.fromJava(value));
+    }
+
     private Tuple<Command, SqlSession> sql(String sql) {
+        return sql(sql, emptyList());
+    }
+
+    private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params) {
         EsIndex test = new EsIndex("test", mapping);
         Analyzer analyzer = new Analyzer(new FunctionRegistry(), IndexResolution.valid(test), DateTimeZone.UTC);
-        Command cmd = (Command) analyzer.analyze(parser.createStatement(sql), true);
+        Command cmd = (Command) analyzer.analyze(parser.createStatement(sql, params), true);
 
         IndexResolver resolver = mock(IndexResolver.class);
         when(resolver.clusterName()).thenReturn("cluster");
@@ -107,9 +154,14 @@ public class SysTablesTests extends ESTestCase {
         return new Tuple<>(cmd, session);
     }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
     private void executeCommand(String sql, Consumer<SchemaRowSet> consumer, IndexInfo... infos) throws Exception {
-        Tuple<Command, SqlSession> tuple = sql(sql);
+        executeCommand(sql, emptyList(), consumer, infos);
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private void executeCommand(String sql, List<SqlTypedParamValue> params, Consumer<SchemaRowSet> consumer, IndexInfo... infos)
+            throws Exception {
+        Tuple<Command, SqlSession> tuple = sql(sql, params);
 
         IndexResolver resolver = tuple.v2().indexResolver();
 

@@ -719,17 +719,17 @@ interface SqlBaseListener extends ParseTreeListener {
    */
   void exitStringLiteral(SqlBaseParser.StringLiteralContext ctx);
   /**
-   * Enter a parse tree produced by the {@code param}
+   * Enter a parse tree produced by the {@code paramLiteral}
    * labeled alternative in {@link SqlBaseParser#constant}.
    * @param ctx the parse tree
    */
-  void enterParam(SqlBaseParser.ParamContext ctx);
+  void enterParamLiteral(SqlBaseParser.ParamLiteralContext ctx);
   /**
-   * Exit a parse tree produced by the {@code param}
+   * Exit a parse tree produced by the {@code paramLiteral}
    * labeled alternative in {@link SqlBaseParser#constant}.
    * @param ctx the parse tree
    */
-  void exitParam(SqlBaseParser.ParamContext ctx);
+  void exitParamLiteral(SqlBaseParser.ParamLiteralContext ctx);
   /**
    * Enter a parse tree produced by {@link SqlBaseParser#comparisonOperator}.
    * @param ctx the parse tree
@@ -864,6 +864,16 @@ interface SqlBaseListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitIntegerLiteral(SqlBaseParser.IntegerLiteralContext ctx);
+  /**
+   * Enter a parse tree produced by {@link SqlBaseParser#string}.
+   * @param ctx the parse tree
+   */
+  void enterString(SqlBaseParser.StringContext ctx);
+  /**
+   * Exit a parse tree produced by {@link SqlBaseParser#string}.
+   * @param ctx the parse tree
+   */
+  void exitString(SqlBaseParser.StringContext ctx);
   /**
    * Enter a parse tree produced by {@link SqlBaseParser#nonReserved}.
    * @param ctx the parse tree

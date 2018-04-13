@@ -13,7 +13,6 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -75,8 +74,12 @@ public class SqlTypedParamValue implements ToXContentObject, Writeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SqlTypedParamValue that = (SqlTypedParamValue) o;
         return Objects.equals(value, that.value) &&
                 dataType == that.dataType;
@@ -84,7 +87,11 @@ public class SqlTypedParamValue implements ToXContentObject, Writeable {
 
     @Override
     public int hashCode() {
-
         return Objects.hash(value, dataType);
+    }
+
+    @Override
+    public String toString() {
+        return String.valueOf(value) + "[" + dataType + "]";
     }
 }

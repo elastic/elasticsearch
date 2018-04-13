@@ -93,13 +93,6 @@ abstract class AbstractBuilder extends SqlBaseBaseVisitor<Object> {
     }
 
     /**
-     * Extracts the actual unescaped string (literal) value of a token.
-     */
-    static String string(Token token) {
-        return token == null ? null : unquoteString(token.getText());
-    }
-
-    /**
      * Extracts the actual unescaped string (literal) value of a terminal node.
      */
     static String string(TerminalNode node) {

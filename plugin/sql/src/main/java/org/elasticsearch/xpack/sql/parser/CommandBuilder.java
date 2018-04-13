@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import org.antlr.v4.runtime.Token;
-import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexType;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DebugContext;
@@ -15,6 +14,7 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowColumnsContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowFunctionsContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowSchemasContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowTablesContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StringContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SysCatalogsContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SysColumnsContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SysTableTypesContext;
@@ -43,6 +43,7 @@ import java.util.Locale;
 import java.util.Map;
 
 abstract class CommandBuilder extends LogicalPlanBuilder {
+
     protected CommandBuilder(Map<Token, SqlTypedParamValue> params) {
         super(params);
     }
@@ -146,7 +147,7 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
     @Override
     public SysTables visitSysTables(SysTablesContext ctx) {
         List<IndexType> types = new ArrayList<>();
-        for (TerminalNode string : ctx.STRING()) {
+        for (StringContext string : ctx.string()) {
             String value = string(string);
             if (value != null) {
                 IndexType type = IndexType.from(value);
@@ -163,7 +164,7 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
     @Override
     public Object visitSysColumns(SysColumnsContext ctx) {
         Location loc = source(ctx);
-        return new SysColumns(loc, stringOrParam(ctx.cluster, loc), visitPattern(ctx.indexPattern), visitPattern(ctx.columnPattern));
+        return new SysColumns(loc, string(ctx.cluster), visitPattern(ctx.indexPattern), visitPattern(ctx.columnPattern));
     }
 
     @Override
@@ -171,6 +172,7 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
         return new SysTypes(source(ctx));
     }
 
+    @Override
     public Object visitSysTableTypes(SysTableTypesContext ctx) {
         return new SysTableTypes(source(ctx));
     }

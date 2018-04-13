@@ -40,10 +40,6 @@ import java.util.function.Function;
 public class SqlParser {
     private static final Logger log = Loggers.getLogger(SqlParser.class);
 
-    /**
-     * Time zone in which the SQL is parsed. This is attached to functions
-     * that deal with dates and times.
-     */
     private final boolean DEBUG = false;
 
     /**
@@ -119,7 +115,7 @@ public class SqlParser {
 
         parser.addParseListener(parser.new TraceListener());
 
-        parser.addErrorListener(new DiagnosticErrorListener() {
+        parser.addErrorListener(new DiagnosticErrorListener(false) {
             @Override
             public void reportAttemptingFullContext(Parser recognizer, DFA dfa,
                     int startIndex, int stopIndex, BitSet conflictingAlts, ATNConfigSet configs) {}

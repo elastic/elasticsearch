@@ -9,9 +9,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.regex.Like;
 import org.elasticsearch.xpack.sql.expression.regex.LikePattern;
+import org.elasticsearch.xpack.sql.plugin.SqlTypedParamValue;
+import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.Locale;
 
+import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -27,14 +30,20 @@ public class LikeEscapingParsingTests extends ESTestCase {
     }
 
     private LikePattern like(String pattern) {
-        Expression exp = parser.createExpression(String.format(Locale.ROOT, "exp LIKE %s", pattern));
+        Expression exp = null;
+        boolean parameterized = randomBoolean();
+        if (parameterized) {
+            exp = parser.createExpression("exp LIKE ?", singletonList(new SqlTypedParamValue(pattern, DataType.KEYWORD)));
+        } else {
+            exp = parser.createExpression(String.format(Locale.ROOT, "exp LIKE '%s'", pattern));
+        }
         assertThat(exp, instanceOf(Like.class));
         Like l = (Like) exp;
         return l.right();
     }
 
     public void testNoEscaping() {
-        LikePattern like = like("'string'");
+        LikePattern like = like("string");
         assertThat(like.pattern(), is("string"));
         assertThat(like.asJavaRegex(), is("^string$"));
         assertThat(like.asLuceneWildcard(), is("string"));

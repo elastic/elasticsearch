@@ -484,7 +484,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             return routing;
         }
         AliasOrIndex.Alias alias = (AliasOrIndex.Alias) result;
-        if (result.getIndices().size() > 1) {
+        if (alias.getIndices().size() > 1 && alias.getWriteIndices().isEmpty()) {
             rejectSingleIndexOperation(aliasOrIndex, result);
         }
         AliasMetaData aliasMd = alias.getFirstAliasMetaData();
@@ -885,6 +885,10 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             return this;
         }
 
+        public ImmutableOpenMap.Builder<String, IndexMetaData> indices() {
+            return this.indices;
+        }
+
         public Builder put(IndexTemplateMetaData.Builder template) {
             return put(template.build());
         }
@@ -1003,7 +1007,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             //    while these datastructures aren't even used.
             // 2) The aliasAndIndexLookup can be updated instead of rebuilding it all the time.
 
-            final Set<String> allIndices = new HashSet<>(indices.size());
+            final Set<String> allIndices = new HashSet<>();
             final List<String> allOpenIndices = new ArrayList<>();
             final List<String> allClosedIndices = new ArrayList<>();
             final Set<String> duplicateAliasesIndices = new HashSet<>();
@@ -1036,6 +1040,37 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
             }
 
+            // validate that there is only one write-index per alias
+            Map<String, Set<String>> aliasWriteIndexLookup = new HashMap<>();
+            for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
+                IndexMetaData indexMetaData  = cursor.value;
+                for (ObjectObjectCursor<String, AliasMetaData> aliasCursor : indexMetaData.getAliases()) {
+                    AliasMetaData aliasMetaData = aliasCursor.value;
+                    if (aliasMetaData.isWriteIndex()) {
+                        aliasWriteIndexLookup.compute(aliasMetaData.getAlias(), (aliasName, writeIndices) -> {
+                            if (writeIndices == null) {
+                                return new HashSet<>(Collections.singleton(indexMetaData.getIndex().getName()));
+                            }
+                            writeIndices.add(indexMetaData.getIndex().getName());
+                            return writeIndices;
+                        });
+                    }
+                }
+            }
+
+            List<String> duplicateWriteIndices = new ArrayList<>();
+            for (Map.Entry<String, Set<String>> entry : aliasWriteIndexLookup.entrySet()) {
+                if (entry.getValue().size() > 1) {
+                    duplicateWriteIndices
+                        .add(entry.getKey() + " (write alias to " + Strings.collectionToCommaDelimitedString(entry.getValue()));
+                }
+            }
+            if (duplicateWriteIndices.size() > 0) {
+                throw new IllegalStateException("aliases cannot have multiple write indices ["
+                    + Strings.collectionToCommaDelimitedString(duplicateWriteIndices) + "]");
+            }
+
+
             // build all indices map
             SortedMap<String, AliasOrIndex> aliasAndIndexLookup = new TreeMap<>();
             for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
@@ -1056,7 +1091,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                     });
                 }
             }
-            aliasAndIndexLookup = Collections.unmodifiableSortedMap(aliasAndIndexLookup);
+
             // build all concrete indices arrays:
             // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
             // When doing an operation across all indices, most of the time is spent on actually going to all shards and

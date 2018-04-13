@@ -19,9 +19,14 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableOpenIntMap;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -30,13 +35,18 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.indices.InvalidAliasNameException;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
@@ -149,5 +159,59 @@ public class AliasValidator extends AbstractComponent {
         QueryBuilder parseInnerQueryBuilder = parseInnerQueryBuilder(parser);
         QueryBuilder queryBuilder = Rewriteable.rewrite(parseInnerQueryBuilder, queryShardContext, true);
         queryBuilder.toFilter(queryShardContext);
+    }
+
+    /**
+     * throws exception if specified alias is attempting to be write_only while this alias points to another index
+     *
+     * @param aliasName the alias in question
+     * @param metaData the Cluster metadata
+     * @throws IllegalArgumentException if the alias cannot be write_only
+     */
+    public void validateAliasWriteOnly(String aliasName, boolean isWriteIndex, MetaData metaData) {
+        if (isWriteIndex) {
+            AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(aliasName);
+            if (aliasOrIndex != null && aliasOrIndex.isAlias()) {
+                AliasOrIndex.Alias alias = (AliasOrIndex.Alias) aliasOrIndex;
+                List<IndexMetaData> writeIndices = alias.getWriteIndices();
+                if (writeIndices.size() >= 1) {
+                    throw new IllegalArgumentException("Alias [" + aliasName +
+                        "] already has a write index set [" + writeIndices.get(0).getIndex().getName() + "]");
+                }
+            }
+        }
+    }
+
+    public void validateAliasWriteOnly(String checkAlias, String checkIndex, boolean writeIndex,
+                                       ImmutableOpenMap.Builder<String, IndexMetaData> indices) {
+        if (writeIndex) {
+            Index existing = getExistingWriteIndex(checkAlias, indices);
+            if (existing != null && existing.getName().equals(checkIndex) == false) {
+                throw new IllegalArgumentException("Alias [" + checkAlias +
+                    "] already has a write index set [" + existing.getName() + "]");
+            }
+        }
+    }
+
+    public static boolean validAliasWriteOnly(String aliasName, boolean writeIndex,
+                                              ImmutableOpenMap.Builder<String, IndexMetaData> indices) {
+        return writeIndex && getExistingWriteIndex(aliasName, indices) == null;
+    }
+
+    public static boolean validAliasWriteOnly(String aliasName, boolean writeIndex, ImmutableOpenMap<String, IndexMetaData> indices) {
+        return validAliasWriteOnly(aliasName, writeIndex, ImmutableOpenMap.builder(indices));
+    }
+
+    private static Index getExistingWriteIndex(String checkAlias, ImmutableOpenMap.Builder<String, IndexMetaData> indices) {
+        for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
+            IndexMetaData indexMetaData = cursor.value;
+            for (ObjectObjectCursor<String, AliasMetaData> aliasCursor : indexMetaData.getAliases()) {
+                AliasMetaData aliasMetaData = aliasCursor.value;
+                if (aliasMetaData.getAlias().equals(checkAlias) && aliasMetaData.isWriteIndex()) {
+                    return indexMetaData.getIndex();
+                }
+            }
+        }
+        return null;
     }
 }

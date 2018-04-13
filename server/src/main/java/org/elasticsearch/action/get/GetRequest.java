@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -237,6 +238,11 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
 
     public VersionType versionType() {
         return this.versionType;
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return INDICES_OPTIONS;
     }
 
     @Override

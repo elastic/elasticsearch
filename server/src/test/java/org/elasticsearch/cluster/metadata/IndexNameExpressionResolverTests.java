@@ -425,45 +425,45 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .put(indexBuilder("foofoo").putAlias(AliasMetaData.builder("barbaz")));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
 
-        //error on both unavailable and no indices + every alias needs to expand to a single index
+        //error on both unavailable and no indices + every alias needs to expand to a single write index
 
         {
-            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.strictSingleIndexNoExpandForbidClosed());
+            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.strictAliasToWriteIndexNoExpandForbidClosed());
             IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
                     () -> indexNameExpressionResolver.concreteIndexNames(context, "baz*"));
             assertThat(infe.getIndex().getName(), equalTo("baz*"));
         }
 
         {
-            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.strictSingleIndexNoExpandForbidClosed());
+            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.strictAliasToWriteIndexNoExpandForbidClosed());
             IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
                     () -> indexNameExpressionResolver.concreteIndexNames(context, "foo", "baz*"));
             assertThat(infe.getIndex().getName(), equalTo("baz*"));
         }
 
         {
-            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.strictSingleIndexNoExpandForbidClosed());
+            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.strictAliasToWriteIndexNoExpandForbidClosed());
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                     () -> indexNameExpressionResolver.concreteIndexNames(context, "foofoobar"));
-            assertThat(e.getMessage(), containsString("Alias [foofoobar] has more than one indices associated with it"));
+            assertThat(e.getMessage(), containsString("Alias [foofoobar] points to multiple indices with none set as a write-index [is_write_index=true]"));
         }
 
         {
-            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.strictSingleIndexNoExpandForbidClosed());
+            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.strictAliasToWriteIndexNoExpandForbidClosed());
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                     () -> indexNameExpressionResolver.concreteIndexNames(context, "foo", "foofoobar"));
-            assertThat(e.getMessage(), containsString("Alias [foofoobar] has more than one indices associated with it"));
+            assertThat(e.getMessage(), containsString("Alias [foofoobar] points to multiple indices with none set as a write-index [is_write_index=true]"));
         }
 
         {
-            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.strictSingleIndexNoExpandForbidClosed());
+            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.strictAliasToWriteIndexNoExpandForbidClosed());
             IndexClosedException ince = expectThrows(IndexClosedException.class,
                     () -> indexNameExpressionResolver.concreteIndexNames(context, "foofoo-closed", "foofoobar"));
             assertThat(ince.getMessage(), equalTo("closed"));
             assertEquals(ince.getIndex().getName(), "foofoo-closed");
         }
 
-        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.strictSingleIndexNoExpandForbidClosed());
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.strictAliasToWriteIndexNoExpandForbidClosed());
         String[] results = indexNameExpressionResolver.concreteIndexNames(context, "foo", "barbaz");
         assertEquals(2, results.length);
         assertThat(results, arrayContainingInAnyOrder("foo", "foofoo"));
@@ -994,6 +994,39 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         String[] strings = indexNameExpressionResolver.indexAliases(state, "test-0", x -> true, true, "test-*");
         Arrays.sort(strings);
         assertArrayEquals(new String[] {"test-alias-0", "test-alias-1", "test-alias-non-filtering"}, strings);
+    }
+
+    public void testIndexAliasesWithOneWriteOnly() {
+        MetaData.Builder mdBuilder = MetaData.builder()
+            .put(indexBuilder("test-0").state(State.OPEN)
+                .putAlias(AliasMetaData.builder("test-alias").writeIndex(true)))
+            .put(indexBuilder("test-1").state(State.OPEN)
+                .putAlias(AliasMetaData.builder("test-alias").writeIndex(false)));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+        String[] strings = indexNameExpressionResolver.indexAliases(state, "test-0", x -> true, true, "test-*");
+        Arrays.sort(strings);
+        assertArrayEquals(new String[] {"test-alias"}, strings);
+        String[] indices = indexNameExpressionResolver
+            .concreteIndexNames(state, IndicesOptions.strictAliasToWriteIndexNoExpandForbidClosed(), "test-alias");
+        assertArrayEquals(new String[] {"test-0"}, indices);
+    }
+
+    public void testIndexAliasesWithNoWriteOnly() {
+        MetaData.Builder mdBuilder = MetaData.builder()
+            .put(indexBuilder("test-0").state(State.OPEN)
+                .putAlias(AliasMetaData.builder("test-alias").writeIndex(false)))
+            .put(indexBuilder("test-1").state(State.OPEN)
+                .putAlias(AliasMetaData.builder("test-alias").writeIndex(false)));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+        String[] strings = indexNameExpressionResolver
+            .indexAliases(state, "test-0", x -> true, true, "test-*");
+        Arrays.sort(strings);
+        assertArrayEquals(new String[] {"test-alias"}, strings);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> indexNameExpressionResolver.concreteIndexNames(state, IndicesOptions.strictAliasToWriteIndexNoExpandForbidClosed(),
+                "test-alias"));
+        assertThat(exception.getMessage(),
+            equalTo("Alias [test-alias] points to multiple indices with none set as a write-index [is_write_index=true]"));
     }
 
     public void testDeleteIndexIgnoresAliases() {

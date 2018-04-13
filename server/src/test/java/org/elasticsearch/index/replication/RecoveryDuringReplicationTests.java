@@ -186,7 +186,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     false,
                     SourceToParse.source("index", "type", "replica", new BytesArray("{}"), XContentType.JSON),
                     mapping -> {});
-            shards.promoteReplicaToPrimary(promotedReplica);
+            shards.promoteReplicaToPrimary(promotedReplica).get();
             oldPrimary.close("demoted", randomBoolean());
             oldPrimary.store().close();
             shards.removeReplica(remainingReplica);

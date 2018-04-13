@@ -99,7 +99,7 @@ class ClusterFormationTasks {
 
             configureDistributionDependency(project, config.distribution, bwcDistro, config.bwcVersion)
             for (Map.Entry<String, Project> entry : config.plugins.entrySet()) {
-                configureBwcPluginDependency("${prefix}_elasticsearchBwcPlugins", project, entry.getValue(), bwcPlugins, Version.fromString(config.bwcVersion))
+                configureBwcPluginDependency("${prefix}_elasticsearchBwcPlugins", project, entry.getValue(), bwcPlugins, config.bwcVersion)
             }
             bwcDistro.resolutionStrategy.cacheChangingModulesFor(0, TimeUnit.SECONDS)
             bwcPlugins.resolutionStrategy.cacheChangingModulesFor(0, TimeUnit.SECONDS)
@@ -110,10 +110,10 @@ class ClusterFormationTasks {
             final Configuration distro
             final Version elasticsearchVersion
             if (i < config.numBwcNodes) {
-                elasticsearchVersion = Version.fromString(config.bwcVersion)
+                elasticsearchVersion = config.bwcVersion
                 distro = bwcDistro
             } else {
-                elasticsearchVersion = Version.fromString(VersionProperties.elasticsearch)
+                elasticsearchVersion = VersionProperties.elasticsearch
                 distro = currentDistro
             }
             NodeInfo node = new NodeInfo(config, i, project, prefix, elasticsearchVersion, sharedDir)
@@ -129,7 +129,7 @@ class ClusterFormationTasks {
     }
 
     /** Adds a dependency on the given distribution */
-    static void configureDistributionDependency(Project project, String distro, Configuration configuration, String elasticsearchVersion) {
+    static void configureDistributionDependency(Project project, String distro, Configuration configuration, Version elasticsearchVersion) {
         String packaging = distro
         if (distro == 'tar') {
             packaging = 'tar.gz'
@@ -186,7 +186,7 @@ class ClusterFormationTasks {
         setup = configureAddKeystoreFileTasks(prefix, project, setup, node)
 
         if (node.config.plugins.isEmpty() == false) {
-            if (node.nodeVersion == Version.fromString(VersionProperties.elasticsearch)) {
+            if (node.nodeVersion == VersionProperties.elasticsearch) {
                 setup = configureCopyPluginsTask(taskName(prefix, node, 'copyPlugins'), project, setup, node, prefix)
             } else {
                 setup = configureCopyBwcPluginsTask(taskName(prefix, node, 'copyBwcPlugins'), project, setup, node, prefix)
@@ -517,7 +517,7 @@ class ClusterFormationTasks {
 
     static Task configureInstallPluginTask(String name, Project project, Task setup, NodeInfo node, Project plugin, String prefix) {
         final FileCollection pluginZip;
-        if (node.nodeVersion != Version.fromString(VersionProperties.elasticsearch)) {
+        if (node.nodeVersion != VersionProperties.elasticsearch) {
             pluginZip = project.configurations.getByName(pluginBwcConfigurationName(prefix, plugin))
         } else {
             pluginZip = project.configurations.getByName(pluginConfigurationName(prefix, plugin))

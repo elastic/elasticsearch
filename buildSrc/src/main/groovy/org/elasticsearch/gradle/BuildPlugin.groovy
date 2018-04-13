@@ -550,8 +550,8 @@ class BuildPlugin implements Plugin<Project> {
             jarTask.destinationDir = new File(project.buildDir, 'distributions')
             // fixup the jar manifest
             jarTask.doFirst {
-                boolean isSnapshot = VersionProperties.elasticsearch.endsWith("-SNAPSHOT");
-                String version = VersionProperties.elasticsearch;
+                final String version = VersionProperties.elasticsearch.toString()
+                boolean isSnapshot = version.endsWith("-SNAPSHOT");
                 if (isSnapshot) {
                     version = version.substring(0, version.length() - 9)
                 }

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.test
 
+import org.elasticsearch.gradle.Version
 import org.gradle.api.GradleException
 import org.gradle.api.Project
 import org.gradle.api.tasks.Input
@@ -37,7 +38,7 @@ class ClusterConfiguration {
     int numBwcNodes = 0
 
     @Input
-    String bwcVersion = null
+    Version bwcVersion = null
 
     @Input
     int httpPort = 0

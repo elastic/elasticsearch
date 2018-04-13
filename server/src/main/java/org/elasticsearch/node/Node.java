@@ -538,7 +538,7 @@ public class Node implements Closeable {
             resourcesToClose.addAll(pluginLifecycleComponents);
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
             client.initialize(injector.getInstance(new Key<Map<GenericAction, TransportAction>>() {}),
-                    () -> clusterService.localNode().getId());
+                    () -> clusterService.localNode().getId(), transportService.getRemoteClusterService());
 
             if (NetworkModule.HTTP_ENABLED.get(settings)) {
                 logger.debug("initializing HTTP handlers ...");

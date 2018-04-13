@@ -532,7 +532,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         return ClusterState.builder(new ClusterName("my_cluster")).metaData(metadata).build();
     }
 
-    private void assertClusterStateOnNextStep(ClusterState oldClusterState, Index index, StepKey currentStep, StepKey nextStep, ClusterState newClusterState, long now) {
+    private void assertClusterStateOnNextStep(ClusterState oldClusterState, Index index, StepKey currentStep, StepKey nextStep,
+            ClusterState newClusterState, long now) {
         assertNotSame(oldClusterState, newClusterState);
         MetaData newMetadata = newClusterState.metaData();
         assertNotSame(oldClusterState.metaData(), newMetadata);

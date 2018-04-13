@@ -480,7 +480,7 @@ public interface Client extends ElasticsearchClient, Releasable {
 
     /**
      * Returns a client to a remote cluster with the given cluster alias.
-     * 
+     *
      * @throws IllegalArgumentException if the given clusterAlias doesn't exist
      * @throws UnsupportedOperationException if this functionality is not available on this client.
      */

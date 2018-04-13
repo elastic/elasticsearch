@@ -404,7 +404,9 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     /**
      * Returns a client to the remote cluster if the given cluster alias exists.
      * @param threadPool the {@link ThreadPool} for the client
-     * @param clusterAlias the cluster alias the remote cluster is registred under
+     * @param clusterAlias the cluster alias the remote cluster is registered under
+     *
+     * @throws IllegalArgumentException if the given clusterAlias doesn't exist
      */
     public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias) {
         if (transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias) == false) {

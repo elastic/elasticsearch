@@ -42,7 +42,8 @@ public class ScrollCursorTests extends AbstractWireSerializingTestCase<ScrollCur
 
     @Override
     protected ScrollCursor mutateInstance(ScrollCursor instance) throws IOException {
-        return new ScrollCursor(instance.scrollId(), instance.extractors(), randomIntBetween(1, 1024));
+        return new ScrollCursor(instance.scrollId(), instance.extractors(),
+                randomValueOtherThan(instance.limit(), () -> randomIntBetween(1, 1024)));
     }
 
     @Override

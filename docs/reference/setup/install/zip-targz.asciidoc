@@ -7,7 +7,7 @@ easiest package format to use when trying out Elasticsearch.
 
 NOTE: These packages contain both open source and commercial features. All free 
 features are included and enabled by default and do not expire. You can try 
-additional commercial features with a trial license. For more information, see {xpack-ref}/xpack-introduction.html[Introduction to {xpack}]. 
+additional commercial features with a trial license. For more information, see {xpack-ref}/license-management.html[License Management]. 
 
 The latest stable version of Elasticsearch can be found on the
 link:/downloads/elasticsearch[Download Elasticsearch] page.

@@ -53,6 +53,7 @@ import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 
 abstract class LogicalPlanBuilder extends ExpressionBuilder {
+
     protected LogicalPlanBuilder(Map<Token, SqlTypedParamValue> params) {
         super(params);
     }
@@ -80,6 +81,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
         return new SubQueryAlias(source(ctx), plan(ctx.queryNoWith()), ctx.name.getText());
     }
 
+    @Override
     public LogicalPlan visitQueryNoWith(QueryNoWithContext ctx) {
         LogicalPlan plan = plan(ctx.queryTerm());
 

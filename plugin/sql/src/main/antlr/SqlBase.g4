@@ -58,10 +58,10 @@ statement
     | SYS CATALOGS                                                                                        #sysCatalogs
     | SYS TABLES (CATALOG LIKE? clusterPattern=pattern)?
                  (LIKE? tablePattern=pattern)?
-                 (TYPE STRING (',' STRING)* )?                                                            #sysTables
-    | SYS COLUMNS (CATALOG cluster=(STRING | PARAM))?
+                 (TYPE string (',' string)* )?                                                            #sysTables
+    | SYS COLUMNS (CATALOG cluster=string)?
                   (TABLE LIKE? indexPattern=pattern)?
-                  (LIKE? columnPattern=pattern)?                                                   #sysColumns
+                  (LIKE? columnPattern=pattern)?                                                          #sysColumns
     | SYS TYPES                                                                                           #sysTypes
     | SYS TABLE TYPES                                                                                     #sysTableTypes  
     ;
@@ -158,9 +158,9 @@ expression
 booleanExpression
     : NOT booleanExpression                                                                 #logicalNot
     | EXISTS '(' query ')'                                                                  #exists
-    | QUERY '(' queryString=STRING (',' options=STRING)* ')'                                #stringQuery
-    | MATCH '(' singleField=qualifiedName ',' queryString=STRING (',' options=STRING)* ')'  #matchQuery
-    | MATCH '(' multiFields=STRING ',' queryString=STRING (',' options=STRING)* ')'         #multiMatchQuery
+    | QUERY '(' queryString=string (',' options=string)* ')'                                #stringQuery
+    | MATCH '(' singleField=qualifiedName ',' queryString=string (',' options=string)* ')'  #matchQuery
+    | MATCH '(' multiFields=string ',' queryString=string (',' options=string)* ')'         #multiMatchQuery
     | predicated                                                                            #booleanDefault
     | left=booleanExpression operator=AND right=booleanExpression                           #logicalBinary
     | left=booleanExpression operator=OR right=booleanExpression                            #logicalBinary
@@ -180,13 +180,12 @@ predicate
     | NOT? kind=IN '(' expression (',' expression)* ')'
     | NOT? kind=IN '(' query ')'
     | NOT? kind=LIKE pattern
-    | NOT? kind=RLIKE regex=STRING
+    | NOT? kind=RLIKE regex=string
     | IS NOT? kind=NULL
     ;
 
 pattern
-    : value=STRING (ESCAPE escape=STRING)?
-    | PARAM
+    : value=string (ESCAPE escape=string)?
     ;
 
 valueExpression
@@ -216,7 +215,7 @@ constant
     | number                                                                                   #numericLiteral
     | booleanValue                                                                             #booleanLiteral
     | STRING+                                                                                  #stringLiteral
-    | PARAM                                                                                    #param
+    | PARAM                                                                                    #paramLiteral
     ;
 
 comparisonOperator
@@ -259,6 +258,11 @@ unquoteIdentifier
 number
     : DECIMAL_VALUE  #decimalLiteral
     | INTEGER_VALUE  #integerLiteral
+    ;
+
+string
+    : PARAM
+    | STRING
     ;
 
 // http://developer.mimer.se/validator/sql-reserved-words.tml

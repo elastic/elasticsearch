@@ -765,13 +765,13 @@ class SqlBaseBaseListener implements SqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterParam(SqlBaseParser.ParamContext ctx) { }
+  @Override public void enterParamLiteral(SqlBaseParser.ParamLiteralContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitParam(SqlBaseParser.ParamContext ctx) { }
+  @Override public void exitParamLiteral(SqlBaseParser.ParamLiteralContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -916,6 +916,18 @@ class SqlBaseBaseListener implements SqlBaseListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitIntegerLiteral(SqlBaseParser.IntegerLiteralContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterString(SqlBaseParser.StringContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitString(SqlBaseParser.StringContext ctx) { }
   /**
    * {@inheritDoc}
    *

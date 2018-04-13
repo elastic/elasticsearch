@@ -19,40 +19,30 @@ import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.type.TypesTests;
 import org.joda.time.DateTimeZone;
 
-import static java.util.Collections.singletonList;
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class SysTableTypesTests extends ESTestCase {
 
     private final SqlParser parser = new SqlParser();
 
-    @SuppressWarnings({ "rawtypes", "unchecked" })
     private Tuple<Command, SqlSession> sql(String sql) {
         EsIndex test = new EsIndex("test", TypesTests.loadMapping("mapping-multi-field-with-nested.json", true));
         Analyzer analyzer = new Analyzer(new FunctionRegistry(), IndexResolution.valid(test), DateTimeZone.UTC);
         Command cmd = (Command) analyzer.analyze(parser.createStatement(sql), true);
 
         IndexResolver resolver = mock(IndexResolver.class);
-        when(resolver.clusterName()).thenReturn("cluster");
-
-        doAnswer(invocation -> {
-            ((ActionListener) invocation.getArguments()[2]).onResponse(singletonList(test));
-            return Void.TYPE;
-        }).when(resolver).resolveAsSeparateMappings(any(), any(), any());
-
         SqlSession session = new SqlSession(null, null, null, resolver, null, null, null);
         return new Tuple<>(cmd, session);
     }
 
     public void testSysCatalogs() throws Exception {
-        Tuple<Command, SqlSession> sql = sql("SYS CATALOGS");
+        Tuple<Command, SqlSession> sql = sql("SYS TABLE TYPES");
 
         sql.v1().execute(sql.v2(), ActionListener.wrap(r -> {
-            assertEquals(1, r.size());
-            assertEquals("cluster", r.column(0));
+            assertEquals(2, r.size());
+            assertEquals("BASE TABLE", r.column(0));
+            r.advanceRow();
+            assertEquals("ALIAS", r.column(0));
         }, ex -> fail(ex.getMessage())));
     }
 }

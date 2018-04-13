@@ -46,7 +46,7 @@ public abstract class DataTypes {
         if (value instanceof DateTime) {
             return DataType.DATE;
         }
-        if (value instanceof String) {
+        if (value instanceof String || value instanceof Character) {
             return DataType.KEYWORD;
         }
         throw new SqlIllegalArgumentException("No idea what's the DataType for {}", value.getClass());

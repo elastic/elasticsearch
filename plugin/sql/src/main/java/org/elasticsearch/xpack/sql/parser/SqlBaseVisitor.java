@@ -431,12 +431,12 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitStringLiteral(SqlBaseParser.StringLiteralContext ctx);
   /**
-   * Visit a parse tree produced by the {@code param}
+   * Visit a parse tree produced by the {@code paramLiteral}
    * labeled alternative in {@link SqlBaseParser#constant}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitParam(SqlBaseParser.ParamContext ctx);
+  T visitParamLiteral(SqlBaseParser.ParamLiteralContext ctx);
   /**
    * Visit a parse tree produced by {@link SqlBaseParser#comparisonOperator}.
    * @param ctx the parse tree
@@ -516,6 +516,12 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitIntegerLiteral(SqlBaseParser.IntegerLiteralContext ctx);
+  /**
+   * Visit a parse tree produced by {@link SqlBaseParser#string}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitString(SqlBaseParser.StringContext ctx);
   /**
    * Visit a parse tree produced by {@link SqlBaseParser#nonReserved}.
    * @param ctx the parse tree

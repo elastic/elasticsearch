@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.MatchQueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.MultiMatchQueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.NullLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.OrderByContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ParamLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ParenthesizedExpressionContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.PatternContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.PredicateContext;
@@ -71,6 +72,7 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.PrimitiveDataTypeContext
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SelectExpressionContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SingleExpressionContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StarContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StringContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StringLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StringQueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SubqueryExpressionContext;
@@ -88,14 +90,10 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.type.DataTypeConversion.conversionFor;
 
 abstract class ExpressionBuilder extends IdentifierBuilder {
+
     private final Map<Token, SqlTypedParamValue> params;
 
-    /**
-     * ExpressionBuilder constructor
-     *
-     * @param params   a map between '?' tokens that represent parameters and the actual parameter values
-     */
-    protected ExpressionBuilder(Map<Token, SqlTypedParamValue> params) {
+    ExpressionBuilder(Map<Token, SqlTypedParamValue> params) {
         this.params = params;
     }
 
@@ -213,11 +211,6 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     public LikePattern visitPattern(PatternContext ctx) {
         if (ctx == null) {
             return null;
-        }
-
-        if (ctx.PARAM() != null) {
-            Object pattern = paramValue(ctx.PARAM().getSymbol(), source(ctx));
-            return new LikePattern(source(ctx), pattern.toString(), (char) 0);
         }
 
         String pattern = string(ctx.value);
@@ -452,16 +445,21 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Object visitParam(SqlBaseParser.ParamContext ctx) {
-        Token token = ctx.PARAM().getSymbol();
-        return paramValue(token, source(ctx));
+    public Object visitDecimalLiteral(DecimalLiteralContext ctx) {
+        return new Literal(source(ctx), new BigDecimal(ctx.getText()).doubleValue(), DataType.DOUBLE);
     }
 
-    private Object paramValue(Token token, Location loc) {
-        if (params.containsKey(token) == false) {
-            throw new ParsingException(loc, "Unexpected parameter");
-        }
-        SqlTypedParamValue param = params.get(token);
+    @Override
+    public Object visitIntegerLiteral(IntegerLiteralContext ctx) {
+        BigDecimal bigD = new BigDecimal(ctx.getText());
+        // TODO: this can be improved to use the smallest type available
+        return new Literal(source(ctx), bigD.longValueExact(), DataType.INTEGER);
+    }
+
+    @Override
+    public Object visitParamLiteral(ParamLiteralContext ctx) {
+        SqlTypedParamValue param = param(ctx.PARAM());
+        Location loc = source(ctx);
         if (param.value == null) {
             // no conversion is required for null values
             return new Literal(loc, null, param.dataType);
@@ -470,8 +468,8 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         try {
             sourceType = DataTypes.fromJava(param.value);
         } catch (SqlIllegalArgumentException ex) {
-            throw new ParsingException(ex, loc, "Unexpected actual parameter type [{}] for type [{}]",
-                    param.value.getClass().getName(), param.dataType);
+            throw new ParsingException(ex, loc, "Unexpected actual parameter type [{}] for type [{}]", param.value.getClass().getName(),
+                    param.dataType);
         }
         if (sourceType == param.dataType) {
             // no conversion is required if the value is already have correct type
@@ -485,32 +483,37 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         }
     }
 
+    @Override
+    public String visitString(StringContext ctx) {
+        return string(ctx);
+    }
+
     /**
-     * Extracts the actual unescaped string (literal) value of a token or a parameter value
+     * Extracts the string (either as unescaped literal) or parameter.
      */
-    public String stringOrParam(Token token, Location loc) {
-        if (token == null) {
+    String string(StringContext ctx) {
+        if (ctx == null) {
             return null;
         }
-        if (token.getType() == SqlBaseLexer.PARAM) {
-            if (params.containsKey(token) == false) {
-                throw new ParsingException(loc, "Unexpected parameter");
-            }
-            SqlTypedParamValue param = params.get(token);
-            return param.value == null ? null : param.value.toString();
+        SqlTypedParamValue param = param(ctx.PARAM());
+        if (param != null) {
+            return param.value != null ? param.value.toString() : null;
+        } else {
+            return unquoteString(ctx.getText());
         }
-        return unquoteString(token.getText());
     }
 
-    @Override
-    public Object visitDecimalLiteral(DecimalLiteralContext ctx) {
-        return new Literal(source(ctx), new BigDecimal(ctx.getText()).doubleValue(), DataType.DOUBLE);
-    }
+    private SqlTypedParamValue param(TerminalNode node) {
+        if (node == null) {
+            return null;
+        }
 
-    @Override
-    public Object visitIntegerLiteral(IntegerLiteralContext ctx) {
-        BigDecimal bigD = new BigDecimal(ctx.getText());
-        // TODO: this can be improved to use the smallest type available
-        return new Literal(source(ctx), bigD.longValueExact(), DataType.INTEGER);
+        Token token = node.getSymbol();
+
+        if (params.containsKey(token) == false) {
+            throw new ParsingException(source(node), "Unexpected parameter");
+        }
+
+        return params.get(token);
     }
 }

@@ -121,7 +121,7 @@ public class ClientYamlTestClient {
             }
             String contentType = entity.getContentType().getValue();
             //randomly test the GET with source param instead of GET/POST with body
-            if (sendBodyAsSourceParam(supportedMethods, contentType)) {
+            if (sendBodyAsSourceParam(supportedMethods, contentType, entity.getContentLength())) {
                 logger.debug("sending the request body as source param with GET method");
                 queryStringParams.put("source", EntityUtils.toString(entity));
                 queryStringParams.put("source_content_type", contentType);
@@ -177,14 +177,25 @@ public class ClientYamlTestClient {
         }
     }
 
-    private static boolean sendBodyAsSourceParam(List<String> supportedMethods, String contentType) {
-        if (supportedMethods.contains(HttpGet.METHOD_NAME)) {
-            if (contentType.startsWith(ContentType.APPLICATION_JSON.getMimeType()) ||
-                    contentType.startsWith(YAML_CONTENT_TYPE.getMimeType())) {
-                return RandomizedTest.rarely();
-            }
+    private static boolean sendBodyAsSourceParam(List<String> supportedMethods, String contentType, long contentLength) {
+        if (false == supportedMethods.contains(HttpGet.METHOD_NAME)) {
+            // The API doesn't claim to support GET anyway
+            return false;
         }
-        return false;
+        if (contentLength < 0) {
+            // Negative length means "unknown" or "huge" in this case. Either way we can't send it as a parameter
+            return false;
+        }
+        if (contentLength > 2000) {
+            // Long bodies won't fit in the parameter and will cause a too_long_frame_exception
+            return false;
+        }
+        if (false == contentType.startsWith(ContentType.APPLICATION_JSON.getMimeType())
+                && false == contentType.startsWith(YAML_CONTENT_TYPE.getMimeType())) {
+            // We can only encode JSON or YAML this way.
+            return false;
+        }
+        return RandomizedTest.rarely();
     }
 
     private ClientYamlSuiteRestApi restApi(String apiName) {

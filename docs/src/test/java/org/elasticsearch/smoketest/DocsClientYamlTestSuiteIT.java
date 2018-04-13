@@ -20,17 +20,18 @@
 package org.elasticsearch.smoketest;
 
 import org.apache.http.HttpHost;
+import org.apache.lucene.util.BytesRef;
+
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.test.rest.yaml.ClientYamlDocsTestClient;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestClient;
@@ -43,17 +44,15 @@ import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
-import javax.lang.model.element.ExecutableElement;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.hamcrest.Matchers.hasSize;
 
 public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
@@ -95,26 +94,33 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         private static ConstructingObjectParser<TestAnalyzer, XContentLocation> PARSER =
             new ConstructingObjectParser<>("test_analyzer", false, (a, location) -> {
                 String index = (String) a[0];
-                String name = (String) a[0];
-                return new TestAnalyzer(location, index, name);
+                String builtIn = (String) a[1];
+                String rebuilt = (String) a[2];
+                return new TestAnalyzer(location, index, builtIn, rebuilt);
             });
         static {
             PARSER.declareString(constructorArg(), new ParseField("index"));
-            PARSER.declareString(constructorArg(), new ParseField("name"));
+            PARSER.declareString(constructorArg(), new ParseField("built_in"));
+            PARSER.declareString(constructorArg(), new ParseField("rebuilt"));
         }
         private static TestAnalyzer parse(XContentParser parser) throws IOException {
             XContentLocation location = parser.getTokenLocation();
-            return PARSER.parse(parser, location);
+            TestAnalyzer section = PARSER.parse(parser, location);
+            assert parser.currentToken() == Token.END_OBJECT;
+            parser.nextToken(); // throw out the END_OBJECT to conform with other ExecutableSections
+            return section;
         }
 
         private final XContentLocation location;
         private final String index;
-        private final String name;
+        private final String builtIn;
+        private final String rebuilt;
 
-        private TestAnalyzer(XContentLocation location, String index, String name) {
+        private TestAnalyzer(XContentLocation location, String index, String builtIn, String rebuilt) {
             this.location = location;
             this.index = index;
-            this.name = name;
+            this.builtIn = builtIn;
+            this.rebuilt = rebuilt;
         }
 
         @Override
@@ -124,25 +130,47 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
         @Override
         public void execute(ClientYamlTestExecutionContext executionContext) throws IOException {
-            int size = 1000;
+            int size = 100;
             List<String> testText = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                testText.add(randomRealisticUnicodeOfCodepointLength(10));
+                testText.add(randomRealisticUnicodeOfCodepointLength(between(1, 15))
+                    // Don't look up stashed values
+                    .replace("$", "\\$"));
             }
             Map<String, Object> body = new HashMap<>(2);
-            body.put("analyzer", name);
+            body.put("analyzer", builtIn);
             body.put("text", testText);
-            ClientYamlTestResponse response = executionContext.callApi("anlayze", singletonMap("index", index),
+            ClientYamlTestResponse response = executionContext.callApi("indices.analyze", singletonMap("index", index),
                     singletonList(body), emptyMap());
-            List<?> rebuilt = (List<?>) response.evaluate("path");
-            response = executionContext.callApi("anlayze", emptyMap(), singletonList(body), emptyMap());
-            List<?> builtIn = (List<?>) response.evaluate("path");
-            assertThat(rebuilt, hasSize(size));
-            assertThat(builtIn, hasSize(size));
-            for (int i = 0; i < size; i++) {
-                Map<?, ?> rebuiltToken = (Map<?, ?>) rebuilt.get(i);
-                Map<?, ?> builtInToken = (Map<?, ?>) builtIn.get(i);
+            Iterator<?> builtInTokens = ((List<?>) response.evaluate("tokens")).iterator();
+            body.put("analyzer", rebuilt);
+            response = executionContext.callApi("indices.analyze", singletonMap("index", index),
+                    singletonList(body), emptyMap());
+            Iterator<?> rebuiltTokens = ((List<?>) response.evaluate("tokens")).iterator();
+
+            Object previousRebuilt = null;
+            Object previousBuiltIn = null;
+            while (builtInTokens.hasNext()) {
+                if (false == rebuiltTokens.hasNext()) {
+                    fail("rebuilt token filter has fewer tokens. built in has [" + builtInTokens.next()
+                        + "]. Previous built in was [" + previousBuiltIn + "] and previous rebuilt was ["
+                        + previousRebuilt + "]");
+                }
+                Map<?, ?> builtInToken = (Map<?, ?>) builtInTokens.next();
+                Map<?, ?> rebuiltToken = (Map<?, ?>) rebuiltTokens.next();
+                String builtInText = (String) builtInToken.get("token");
+                String rebuiltText = (String) rebuiltToken.get("token");
+                // Check the text and produce an error message with the utf8 sequence if they don't match.
+                if (false == rebuiltText.equals(builtInText)) {
+                    fail("text differs. built in was [" + builtInText + "] but rebuilt was [" + rebuiltText + "]. In utf8 those are\n"
+                        + new BytesRef(builtInText) + " and\n" + new BytesRef(rebuiltText));
+                }
+                // Now check the whole map just in case the text matches but something else differs
                 assertEquals(builtInToken, rebuiltToken);
+            }
+            if (rebuiltTokens.hasNext()) {
+                fail("rebuilt token filter has more tokens. it has [" + rebuiltTokens.next() + "]. Previous built in was ["
+                    + previousBuiltIn + "] and previous rebuilt was [" + previousRebuilt + "]");
             }
         }
     }

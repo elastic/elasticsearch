@@ -13,10 +13,6 @@ can be customised when a mapping type is created.
 
     The index to which the document belongs.
 
-<<mapping-uid-field,`_uid`>>::
-
-    A composite field consisting of the `_type` and the `_id`.
-
 <<mapping-type-field,`_type`>>::
 
     The document's <<mapping-type,mapping type>>.
@@ -72,6 +68,4 @@ include::fields/routing-field.asciidoc[]
 include::fields/source-field.asciidoc[]
 
 include::fields/type-field.asciidoc[]
-
-include::fields/uid-field.asciidoc[]
 

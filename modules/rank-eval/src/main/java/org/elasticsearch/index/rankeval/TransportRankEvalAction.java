@@ -107,7 +107,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
                 String resolvedRequest = templateScript.newInstance(params).execute();
                 try (XContentParser subParser = createParser(namedXContentRegistry,
                     LoggingDeprecationHandler.INSTANCE, new BytesArray(resolvedRequest), XContentType.JSON)) {
-                    ratedSearchSource = SearchSourceBuilder.fromXContent(subParser);
+                    ratedSearchSource = SearchSourceBuilder.fromXContent(subParser, false);
                 } catch (IOException e) {
                     // if we fail parsing, put the exception into the errors map and continue
                     errors.put(ratedRequest.getId(), e);

@@ -571,7 +571,9 @@ public final class QueryBuilders {
 
     /**
      * A filter based on doc/mapping type.
+     * @deprecated Types are going away, prefer filtering on a field.
      */
+    @Deprecated
     public static TypeQueryBuilder typeQuery(String type) {
         return new TypeQueryBuilder(type);
     }

@@ -480,7 +480,9 @@ public interface Client extends ElasticsearchClient, Releasable {
 
     /**
      * Returns a client to a remote cluster with the given cluster alias.
-     * This method is optinoal and might throw {@link UnsupportedOperationException}
+     * 
+     * @throws IllegalArgumentException if the given clusterAlias doesn't exist
+     * @throws UnsupportedOperationException if this functionality is not available on this client.
      */
     default Client getRemoteClusterClient(String clusterAlias) {
         throw new UnsupportedOperationException("this client doesn't support remote cluster connections");

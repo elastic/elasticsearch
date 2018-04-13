@@ -53,7 +53,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -189,7 +188,7 @@ public abstract class EngineTestCase extends ESTestCase {
             new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
             config.getTranslogConfig(), config.getFlushMergesAfter(),
             config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(), config.getTranslogRecoveryRunner(),
-            config.getCircuitBreakerService(), globalCheckpointSupplier, config.getPrimaryTermSupplier());
+            config.getCircuitBreakerService(), globalCheckpointSupplier, config.getPrimaryTermSupplier(), EngineTestCase::newMetaDoc);
     }
 
     public EngineConfig copy(EngineConfig config, Analyzer analyzer) {
@@ -198,7 +197,8 @@ public abstract class EngineTestCase extends ESTestCase {
                 new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
                 config.getTranslogConfig(), config.getFlushMergesAfter(),
                 config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(), config.getTranslogRecoveryRunner(),
-                config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.getPrimaryTermSupplier());
+                config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.getPrimaryTermSupplier(),
+                config.getMetaDocSupplier());
     }
 
     @Override
@@ -251,6 +251,23 @@ public abstract class EngineTestCase extends ESTestCase {
         document.add(new StoredField(SourceFieldMapper.NAME, ref.bytes, ref.offset, ref.length));
         return new ParsedDocument(versionField, seqID, id, "test", routing, Arrays.asList(document), source, XContentType.JSON,
                 mappingUpdate);
+    }
+
+    /**
+     * Creates an empty document that only includes uid, seq#, term and version fields.
+     */
+    public static ParseContext.Document newMetaDoc(String type, String id, long seqno, long primaryTerm, long version) {
+        final ParseContext.Document document = new ParseContext.Document();
+        SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+        seqID.seqNo.setLongValue(seqno);
+        seqID.seqNoDocValue.setLongValue(seqno);
+        seqID.primaryTerm.setLongValue(primaryTerm);
+        document.add(seqID.seqNo);
+        document.add(seqID.seqNoDocValue);
+        document.add(seqID.primaryTerm);
+        document.add(new Field("_id", Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE));
+        document.add(new NumericDocValuesField("_version", version));
+        return document;
     }
 
     protected Store createStore() throws IOException {
@@ -461,7 +478,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 new NoneCircuitBreakerService(),
                 globalCheckpointSupplier == null ?
                     new ReplicationTracker(shardId, allocationId.getId(), indexSettings, SequenceNumbers.NO_OPS_PERFORMED) :
-                    globalCheckpointSupplier, primaryTerm::get);
+                    globalCheckpointSupplier, primaryTerm::get, EngineTestCase::newMetaDoc);
         return config;
     }
 

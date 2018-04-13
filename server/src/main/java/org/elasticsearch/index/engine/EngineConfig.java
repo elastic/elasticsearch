@@ -34,6 +34,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -80,6 +81,7 @@ public final class EngineConfig {
     private final CircuitBreakerService circuitBreakerService;
     private final LongSupplier globalCheckpointSupplier;
     private final LongSupplier primaryTermSupplier;
+    private final MetaDocSupplier metaDocSupplier;
 
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
@@ -126,7 +128,8 @@ public final class EngineConfig {
                         List<ReferenceManager.RefreshListener> externalRefreshListener,
                         List<ReferenceManager.RefreshListener> internalRefreshListener, Sort indexSort,
                         TranslogRecoveryRunner translogRecoveryRunner, CircuitBreakerService circuitBreakerService,
-                        LongSupplier globalCheckpointSupplier, LongSupplier primaryTermSupplier) {
+                        LongSupplier globalCheckpointSupplier, LongSupplier primaryTermSupplier,
+                        MetaDocSupplier metaDocSupplier) {
         this.shardId = shardId;
         this.allocationId = allocationId;
         this.indexSettings = indexSettings;
@@ -154,6 +157,7 @@ public final class EngineConfig {
         this.circuitBreakerService = circuitBreakerService;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.primaryTermSupplier = primaryTermSupplier;
+        this.metaDocSupplier = metaDocSupplier;
     }
 
     /**
@@ -362,5 +366,18 @@ public final class EngineConfig {
      */
     public LongSupplier getPrimaryTermSupplier() {
         return primaryTermSupplier;
+    }
+
+    @FunctionalInterface
+    public interface MetaDocSupplier {
+        /**
+         * Creates a meta document that only includes uid, seq#, term and version fields.
+         * The returned document should exclude source, routing and other metadata fields.
+         */
+        ParseContext.Document newMetaDoc(String type, String id, long seqno, long primaryTerm, long version);
+    }
+
+    public MetaDocSupplier getMetaDocSupplier() {
+        return metaDocSupplier;
     }
 }

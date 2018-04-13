@@ -1220,7 +1220,14 @@ public class InternalEngine extends Engine {
             if (plan.currentlyDeleted == false) {
                 // any exception that comes from this is a either an ACE or a fatal exception there
                 // can't be any document failures  coming from this
-                indexWriter.deleteDocuments(delete.uid());
+                if (softDeleteEnabled) {
+                    final ParseContext.Document tombstone = engineConfig.getMetaDocSupplier().newMetaDoc(
+                        delete.type(), delete.id(), plan.seqNoOfDeletion, delete.primaryTerm(), plan.versionOfDeletion);
+                    tombstone.add(softDeleteField);
+                    indexWriter.softUpdateDocument(delete.uid(), tombstone, softDeleteField);
+                } else {
+                    indexWriter.deleteDocuments(delete.uid());
+                }
                 numDocDeletes.inc();
             }
             versionMap.putUnderLock(delete.uid().bytes(),

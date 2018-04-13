@@ -52,6 +52,7 @@ import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
@@ -65,6 +66,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -95,9 +97,12 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
@@ -138,6 +143,8 @@ import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -238,6 +245,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final AtomicLong lastSearcherAccess = new AtomicLong();
     private final AtomicReference<Translog.Location> pendingRefreshLocation = new AtomicReference<>();
+
+    private static final Collection<String> META_DOC_FIELDS =
+        Arrays.asList(SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME, VersionFieldMapper.NAME, IdFieldMapper.NAME);
 
     public IndexShard(
             ShardRouting shardRouting,
@@ -2135,7 +2145,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
             Collections.singletonList(refreshListeners),
             Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
-            indexSort, this::runTranslogRecovery, circuitBreakerService, replicationTracker, this::getPrimaryTerm);
+            indexSort, this::runTranslogRecovery, circuitBreakerService, replicationTracker, this::getPrimaryTerm,
+            this::newMetaDoc);
     }
 
     /**
@@ -2555,5 +2566,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             refreshMetric.inc(System.nanoTime() - currentRefreshStartTime);
         }
+    }
+
+    private ParseContext.Document newMetaDoc(String type, String id, long seqno, long primaryTerm, long version) {
+        final SourceToParse source = SourceToParse.source(shardId.getIndexName(), type, id, new BytesArray("{}"), XContentType.JSON);
+        final ParsedDocument parsedDocument = docMapper(type).getDocumentMapper().parse(source);
+        parsedDocument.updateSeqID(seqno, primaryTerm);
+        parsedDocument.version().setLongValue(version);
+        assert parsedDocument.docs().size() == 1 : "Meta doc should has exactly one doc [" + parsedDocument + "]";
+        final ParseContext.Document doc = parsedDocument.docs().get(0);
+        doc.getFields().removeIf(field -> META_DOC_FIELDS.contains(field.name()) == false);
+        return doc;
     }
 }

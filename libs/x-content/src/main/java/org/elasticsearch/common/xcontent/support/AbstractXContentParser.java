@@ -141,6 +141,10 @@ public abstract class AbstractXContentParser implements XContentParser {
 
             double doubleValue = Double.parseDouble(text());
 
+            if (doubleValue % 1 != 0) {
+                throw new IllegalArgumentException("Value [" + text() + "] has a decimal part");
+            }
+
             if (doubleValue < Short.MIN_VALUE || doubleValue > Short.MAX_VALUE) {
                 throw new IllegalArgumentException("Value [" + text() + "] is out of range for a short");
             }
@@ -166,6 +170,10 @@ public abstract class AbstractXContentParser implements XContentParser {
             checkCoerceString(coerce, Integer.class);
             double doubleValue = Double.parseDouble(text());
 
+            if (doubleValue % 1 != 0) {
+                throw new IllegalArgumentException("Value [" + text() + "] has a decimal part");
+            }
+
             if (doubleValue < Integer.MIN_VALUE || doubleValue > Integer.MAX_VALUE) {
                 throw new IllegalArgumentException("Value [" + text() + "] is out of range for an integer");
             }
@@ -180,9 +188,9 @@ public abstract class AbstractXContentParser implements XContentParser {
     protected abstract int doIntValue() throws IOException;
 
     /** Return the long that {@code stringValue} stores or throws an exception if the
-     *  stored value cannot be converted to a long that stores the exact same
-     *  value and {@code coerce} is false. */
-    private static long toLong(String stringValue, boolean coerce) {
+     *  stored value cannot be converted to a long that stores the exact same value
+     */
+    private static long toLong(String stringValue) {
         try {
             return Long.parseLong(stringValue);
         } catch (NumberFormatException e) {
@@ -192,7 +200,7 @@ public abstract class AbstractXContentParser implements XContentParser {
         final BigInteger bigIntegerValue;
         try {
             BigDecimal bigDecimalValue = new BigDecimal(stringValue);
-            bigIntegerValue = coerce ? bigDecimalValue.toBigInteger() : bigDecimalValue.toBigIntegerExact();
+            bigIntegerValue = bigDecimalValue.toBigIntegerExact();
         } catch (ArithmeticException e) {
             throw new IllegalArgumentException("Value [" + stringValue + "] has a decimal part");
         } catch (NumberFormatException e) {
@@ -217,7 +225,7 @@ public abstract class AbstractXContentParser implements XContentParser {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
             checkCoerceString(coerce, Long.class);
-            return toLong(text(), coerce);
+            return toLong(text());
         }
         long result = doLongValue();
         ensureNumberConversion(coerce, result, Long.class);

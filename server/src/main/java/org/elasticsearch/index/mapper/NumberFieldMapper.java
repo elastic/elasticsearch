@@ -436,11 +436,12 @@ public class NumberFieldMapper extends FieldMapper {
             public Byte parse(Object value, boolean coerce) {
                 double doubleValue = objectToDouble(value);
 
+                if (doubleValue % 1 != 0) {
+                    throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
+                }
+
                 if (doubleValue < Byte.MIN_VALUE || doubleValue > Byte.MAX_VALUE) {
                     throw new IllegalArgumentException("Value [" + value + "] is out of range for a byte");
-                }
-                if (!coerce && doubleValue % 1 != 0) {
-                    throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
                 }
 
                 if (value instanceof Number) {
@@ -492,11 +493,12 @@ public class NumberFieldMapper extends FieldMapper {
             public Short parse(Object value, boolean coerce) {
                 double doubleValue = objectToDouble(value);
 
+                if (doubleValue % 1 != 0) {
+                    throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
+                }
+
                 if (doubleValue < Short.MIN_VALUE || doubleValue > Short.MAX_VALUE) {
                     throw new IllegalArgumentException("Value [" + value + "] is out of range for a short");
-                }
-                if (!coerce && doubleValue % 1 != 0) {
-                    throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
                 }
 
                 if (value instanceof Number) {
@@ -544,11 +546,12 @@ public class NumberFieldMapper extends FieldMapper {
             public Integer parse(Object value, boolean coerce) {
                 double doubleValue = objectToDouble(value);
 
+                if (doubleValue % 1 != 0) {
+                    throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
+                }
+
                 if (doubleValue < Integer.MIN_VALUE || doubleValue > Integer.MAX_VALUE) {
                     throw new IllegalArgumentException("Value [" + value + "] is out of range for an integer");
-                }
-                if (!coerce && doubleValue % 1 != 0) {
-                    throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
                 }
 
                 if (value instanceof Number) {
@@ -658,18 +661,20 @@ public class NumberFieldMapper extends FieldMapper {
                 }
 
                 double doubleValue = objectToDouble(value);
+
+                if (doubleValue % 1 != 0) {
+                    throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
+                }
+
                 // this check does not guarantee that value is inside MIN_VALUE/MAX_VALUE because values up to 9223372036854776832 will
                 // be equal to Long.MAX_VALUE after conversion to double. More checks ahead.
                 if (doubleValue < Long.MIN_VALUE || doubleValue > Long.MAX_VALUE) {
                     throw new IllegalArgumentException("Value [" + value + "] is out of range for a long");
                 }
-                if (!coerce && doubleValue % 1 != 0) {
-                    throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
-                }
 
                 // longs need special handling so we don't lose precision while parsing
                 String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
-                return Numbers.toLong(stringValue, coerce);
+                return Numbers.toLong(stringValue);
             }
 
             @Override

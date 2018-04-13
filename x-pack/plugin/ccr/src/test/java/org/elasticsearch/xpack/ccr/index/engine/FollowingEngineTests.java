@@ -52,6 +52,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -62,12 +63,14 @@ public class FollowingEngineTests extends ESTestCase {
     private ThreadPool threadPool;
     private Index index;
     private ShardId shardId;
+    private AtomicLong primaryTerm = new AtomicLong();
 
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool("following-engine-tests");
         index = new Index("index", "uuid");
         shardId = new ShardId(index, 0);
+        primaryTerm.set(randomIntBetween(1, 8));
     }
 
     public void tearDown() throws Exception {
@@ -183,7 +186,7 @@ public class FollowingEngineTests extends ESTestCase {
                         new Term("_id", parsedDocument.id()),
                         parsedDocument,
                         seqNo,
-                        (long) randomIntBetween(1, 8),
+                        primaryTerm.get(),
                         version,
                         VersionType.EXTERNAL,
                         origin,
@@ -229,7 +232,7 @@ public class FollowingEngineTests extends ESTestCase {
                         id,
                         new Term("_id", id),
                         seqNo,
-                        randomIntBetween(1, 8),
+                        primaryTerm.get(),
                         randomNonNegativeLong(),
                         VersionType.EXTERNAL,
                         origin,
@@ -240,7 +243,7 @@ public class FollowingEngineTests extends ESTestCase {
         }
     }
 
-    private static EngineConfig engineConfig(
+    private EngineConfig engineConfig(
             final ShardId shardId,
             final IndexSettings indexSettings,
             final ThreadPool threadPool,
@@ -277,7 +280,8 @@ public class FollowingEngineTests extends ESTestCase {
                 new TranslogHandler(
                         xContentRegistry, IndexSettingsModule.newIndexSettings(shardId.getIndexName(), indexSettings.getSettings())),
                 new NoneCircuitBreakerService(),
-                () -> SequenceNumbers.NO_OPS_PERFORMED
+                () -> SequenceNumbers.NO_OPS_PERFORMED,
+                () -> primaryTerm.get()
         );
     }
 
@@ -294,8 +298,8 @@ public class FollowingEngineTests extends ESTestCase {
 
     private FollowingEngine createEngine(Store store, EngineConfig config) throws IOException {
         store.createEmpty();
-        final String translogUuid =
-                Translog.createEmptyTranslog(config.getTranslogConfig().getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId);
+        final String translogUuid = Translog.createEmptyTranslog(config.getTranslogConfig().getTranslogPath(),
+                SequenceNumbers.NO_OPS_PERFORMED, shardId, 1L);
         store.associateIndexWithNewTranslog(translogUuid);
         FollowingEngine followingEngine = new FollowingEngine(config);
         followingEngine.recoverFromTranslog();

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline.moving.avg;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -67,6 +68,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29456")
 @ESIntegTestCase.SuiteScopeTestCase
 public class MovAvgIT extends ESIntegTestCase {
     private static final String INTERVAL_FIELD = "l_value";
@@ -599,6 +601,7 @@ public class MovAvgIT extends ESIntegTestCase {
             assertBucketContents(actual, expectedCount, expectedValue);
         }
     }
+
 
     public void testHoltWintersValuedField() {
         SearchResponse response = client()
@@ -1292,8 +1295,8 @@ public class MovAvgIT extends ESIntegTestCase {
             assertThat("[_count] movavg should be NaN, but is ["+countMovAvg.value()+"] instead", countMovAvg.value(), equalTo(Double.NaN));
         } else {
             assertThat("[_count] movavg is null", countMovAvg, notNullValue());
-            assertTrue("[_count] movavg does not match expected [" + countMovAvg.value() + " vs " + expectedCount + "]",
-                    nearlyEqual(countMovAvg.value(), expectedCount, 0.1));
+            assertEquals("[_count] movavg does not match expected [" + countMovAvg.value() + " vs " + expectedCount + "]",
+                    countMovAvg.value(), expectedCount, 0.1);
         }
 
         // This is a gap bucket
@@ -1304,29 +1307,8 @@ public class MovAvgIT extends ESIntegTestCase {
             assertThat("[value] movavg should be NaN, but is ["+valuesMovAvg.value()+"] instead", valuesMovAvg.value(), equalTo(Double.NaN));
         } else {
             assertThat("[value] movavg is null", valuesMovAvg, notNullValue());
-            assertTrue("[value] movavg does not match expected [" + valuesMovAvg.value() + " vs " + expectedValue + "]",
-                    nearlyEqual(valuesMovAvg.value(), expectedValue, 0.1));
-        }
-    }
-
-    /**
-     * Better floating point comparisons courtesy of https://github.com/brazzy/floating-point-gui.de
-     *
-     * Snippet adapted to use doubles instead of floats
-     */
-    private static boolean nearlyEqual(double a, double b, double epsilon) {
-        final double absA = Math.abs(a);
-        final double absB = Math.abs(b);
-        final double diff = Math.abs(a - b);
-
-        if (a == b) { // shortcut, handles infinities
-            return true;
-        } else if (a == 0 || b == 0 || diff < Double.MIN_NORMAL) {
-            // a or b is zero or both are extremely close to it
-            // relative error is less meaningful here
-            return diff < (epsilon * Double.MIN_NORMAL);
-        } else { // use relative error
-            return diff / Math.min((absA + absB), Double.MAX_VALUE) < epsilon;
+            assertEquals("[value] movavg does not match expected [" + valuesMovAvg.value() + " vs " + expectedValue + "]",
+                    valuesMovAvg.value(), expectedValue, 0.1);
         }
     }
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -90,6 +91,32 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         }
         verify(failureHandler, never()).accept(any(Exception.class));
         verify(completionHandler, never()).accept(anyBoolean());
+    }
+
+    public void testExecuteIndexPipelineExistsButFailedParsing() {
+        when(store.get("_id")).thenReturn(new Pipeline("_id", "stub", null,
+                new CompoundProcessor(new AbstractProcessor("mock") {
+            @Override
+            public void execute(IngestDocument ingestDocument) {
+                throw new IllegalStateException("error");
+            }
+
+            @Override
+            public String getType() {
+                return null;
+            }
+        })));
+        SetOnce<Boolean> failed = new SetOnce<>();
+        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).setPipeline("_id");
+        Consumer<Exception> failureHandler = (e) -> {
+            assertThat(e.getCause().getClass(), equalTo(IllegalArgumentException.class));
+            assertThat(e.getCause().getCause().getClass(), equalTo(IllegalStateException.class));
+            assertThat(e.getCause().getCause().getMessage(), equalTo("error"));
+            failed.set(true);
+        };
+        Consumer<Boolean> completionHandler = (e) -> failed.set(false);
+        executionService.executeIndexRequest(indexRequest, failureHandler, completionHandler);
+        assertTrue(failed.get());
     }
 
     public void testExecuteBulkPipelineDoesNotExist() {
@@ -188,7 +215,6 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         assertThat(indexRequest.type(), equalTo("update_type"));
         assertThat(indexRequest.id(), equalTo("update_id"));
         assertThat(indexRequest.routing(), equalTo("update_routing"));
-        assertThat(indexRequest.parent(), equalTo("update_parent"));
         assertThat(indexRequest.version(), equalTo(newVersion));
         assertThat(indexRequest.versionType(), equalTo(VersionType.fromString(versionType)));
     }
@@ -409,11 +435,11 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         private final IngestDocument ingestDocument;
 
         IngestDocumentMatcher(String index, String type, String id, Map<String, Object> source) {
-            this.ingestDocument = new IngestDocument(index, type, id, null, null, null, null, source);
+            this.ingestDocument = new IngestDocument(index, type, id, null, null, null, source);
         }
 
         IngestDocumentMatcher(String index, String type, String id, Long version, VersionType versionType, Map<String, Object> source) {
-            this.ingestDocument = new IngestDocument(index, type, id, null, null, version, versionType, source);
+            this.ingestDocument = new IngestDocument(index, type, id, null, version, versionType, source);
         }
 
         @Override

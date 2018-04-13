@@ -36,6 +36,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -207,9 +208,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             IndicesOptions defaultOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
             // now parse the action
             if (nextMarker - from > 0) {
-                try (XContentParser parser = xContent
-                        .createParser(registry, LoggingDeprecationHandler.INSTANCE,
-                            data.slice(from, nextMarker - from).streamInput())) {
+                try (InputStream stream = data.slice(from, nextMarker - from).streamInput();
+                     XContentParser parser = xContent.createParser(registry, LoggingDeprecationHandler.INSTANCE, stream)) {
                     Map<String, Object> source = parser.map();
                     for (Map.Entry<String, Object> entry : source.entrySet()) {
                         Object value = entry.getValue();
@@ -245,7 +245,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                 break;
             }
             BytesReference bytes = data.slice(from, nextMarker - from);
-            try (XContentParser parser = xContent.createParser(registry, LoggingDeprecationHandler.INSTANCE, bytes.streamInput())) {
+            try (InputStream stream = bytes.streamInput();
+                 XContentParser parser = xContent.createParser(registry, LoggingDeprecationHandler.INSTANCE, stream)) {
                 consumer.accept(searchRequest, parser);
             }
             // move pointers
@@ -305,7 +306,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                     xContentBuilder.field("allow_partial_search_results", request.allowPartialSearchResults());
                 }
                 xContentBuilder.endObject();
-                xContentBuilder.bytes().writeTo(output);
+                BytesReference.bytes(xContentBuilder).writeTo(output);
             }
             output.write(xContent.streamSeparator());
             try (XContentBuilder xContentBuilder = XContentBuilder.builder(xContent)) {
@@ -315,7 +316,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                     xContentBuilder.startObject();
                     xContentBuilder.endObject();
                 }
-                xContentBuilder.bytes().writeTo(output);
+                BytesReference.bytes(xContentBuilder).writeTo(output);
             }
             output.write(xContent.streamSeparator());
         }

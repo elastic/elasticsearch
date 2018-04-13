@@ -563,7 +563,7 @@ to set the index that the document will be indexed into:
 --------------------------------------------------
 // NOTCONSOLE
 
-Dynamic field names are also supported. This example sets the field named after the 
+Dynamic field names are also supported. This example sets the field named after the
 value of `service` to the value of the field `code`:
 
 [source,js]
@@ -1216,8 +1216,8 @@ expression that supports aliased expressions that can be reused.
 
 This tool is perfect for syslog logs, apache and other webserver logs, mysql logs, and in general, any log format
 that is generally written for humans and not computer consumption.
-This processor comes packaged with over
-https://github.com/elastic/elasticsearch/tree/master/modules/ingest-common/src/main/resources/patterns[120 reusable patterns].
+This processor comes packaged with many
+https://github.com/elastic/elasticsearch/blob/{branch}/libs/grok/src/main/resources/patterns[reusable patterns].
 
 If you need help building patterns to match your logs, you will find the {kibana-ref}/xpack-grokdebugger.html[Grok Debugger] tool quite useful! The Grok Debugger is an {xpack} feature under the Basic License and is therefore *free to use*. The Grok Constructor at <http://grokconstructor.appspot.com/> is also a useful tool.
 
@@ -1341,7 +1341,7 @@ Here is an example of a pipeline specifying custom pattern definitions:
     {
       "grok": {
         "field": "message",
-        "patterns": ["my %{FAVORITE_DOG:dog} is colored %{RGB:color}"]
+        "patterns": ["my %{FAVORITE_DOG:dog} is colored %{RGB:color}"],
         "pattern_definitions" : {
           "FAVORITE_DOG" : "beagle",
           "RGB" : "RED|GREEN|BLUE"
@@ -1829,7 +1829,10 @@ PUT _ingest/pipeline/my_index
     "processors": [
       {
         "script": {
-          "source": " ctx._index = 'my_index'; ctx._type = '_doc' "
+          "source": """
+            ctx._index = 'my_index';
+            ctx._type = '_doc';
+          """
         }
       }
     ]

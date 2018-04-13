@@ -108,6 +108,13 @@ class Elasticsearch extends EnvironmentAwareCommand {
         final Path pidFile = pidfileOption.value(options);
         final boolean quiet = options.has(quietOption);
 
+        // a misconfigured java.io.tmpdir can cause hard-to-diagnose problems later, so reject it immediately
+        try {
+            env.validateTmpFile();
+        } catch (IOException e) {
+            throw new UserException(ExitCodes.CONFIG, e.getMessage());
+        }
+
         try {
             init(daemonize, pidFile, quiet, env);
         } catch (NodeValidationException e) {

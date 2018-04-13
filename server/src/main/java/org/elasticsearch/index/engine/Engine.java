@@ -21,7 +21,6 @@ package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
@@ -597,7 +596,7 @@ public abstract class Engine implements Closeable {
             try {
                 directory = engineConfig.getCodec().compoundFormat().getCompoundReader(segmentReader.directory(), segmentCommitInfo.info, IOContext.READ);
             } catch (IOException e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("Error when opening compound reader for Directory [{}] and SegmentCommitInfo [{}]", segmentReader.directory(), segmentCommitInfo), e);
+                logger.warn(() -> new ParameterizedMessage("Error when opening compound reader for Directory [{}] and SegmentCommitInfo [{}]", segmentReader.directory(), segmentCommitInfo), e);
 
                 return ImmutableOpenMap.of();
             }
@@ -613,15 +612,14 @@ public abstract class Engine implements Closeable {
                 files = directory.listAll();
             } catch (IOException e) {
                 final Directory finalDirectory = directory;
-                logger.warn(
-                    (Supplier<?>) () -> new ParameterizedMessage("Couldn't list Compound Reader Directory [{}]", finalDirectory), e);
+                logger.warn(() -> new ParameterizedMessage("Couldn't list Compound Reader Directory [{}]", finalDirectory), e);
                 return ImmutableOpenMap.of();
             }
         } else {
             try {
                 files = segmentReader.getSegmentInfo().files().toArray(new String[]{});
             } catch (IOException e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("Couldn't list Directory from SegmentReader [{}] and SegmentInfo [{}]", segmentReader, segmentReader.getSegmentInfo()), e);
+                logger.warn(() -> new ParameterizedMessage("Couldn't list Directory from SegmentReader [{}] and SegmentInfo [{}]", segmentReader, segmentReader.getSegmentInfo()), e);
                 return ImmutableOpenMap.of();
             }
         }
@@ -634,13 +632,10 @@ public abstract class Engine implements Closeable {
                 length = directory.fileLength(file);
             } catch (NoSuchFileException | FileNotFoundException e) {
                 final Directory finalDirectory = directory;
-                logger.warn((Supplier<?>)
-                    () -> new ParameterizedMessage("Tried to query fileLength but file is gone [{}] [{}]", finalDirectory, file), e);
+                logger.warn(() -> new ParameterizedMessage("Tried to query fileLength but file is gone [{}] [{}]", finalDirectory, file), e);
             } catch (IOException e) {
                 final Directory finalDirectory = directory;
-                logger.warn(
-                    (Supplier<?>)
-                        () -> new ParameterizedMessage("Error when trying to query fileLength [{}] [{}]", finalDirectory, file), e);
+                logger.warn(() -> new ParameterizedMessage("Error when trying to query fileLength [{}] [{}]", finalDirectory, file), e);
             }
             if (length == 0L) {
                 continue;
@@ -653,9 +648,7 @@ public abstract class Engine implements Closeable {
                 directory.close();
             } catch (IOException e) {
                 final Directory finalDirectory = directory;
-                logger.warn(
-                    (Supplier<?>)
-                        () -> new ParameterizedMessage("Error when closing compound reader on Directory [{}]", finalDirectory), e);
+                logger.warn(() -> new ParameterizedMessage("Error when closing compound reader on Directory [{}]", finalDirectory), e);
             }
         }
 
@@ -706,7 +699,7 @@ public abstract class Engine implements Closeable {
                     try {
                         segment.sizeInBytes = info.sizeInBytes();
                     } catch (IOException e) {
-                        logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
+                        logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
                     }
                     segments.put(info.info.name, segment);
                 } else {
@@ -732,7 +725,7 @@ public abstract class Engine implements Closeable {
         try {
             segment.sizeInBytes = info.sizeInBytes();
         } catch (IOException e) {
-            logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
+            logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
         }
         segment.memoryInBytes = segmentReader.ramBytesUsed();
         segment.segmentSort = info.info.getIndexSort();
@@ -848,15 +841,39 @@ public abstract class Engine implements Closeable {
     public abstract IndexCommitRef acquireSafeIndexCommit() throws EngineException;
 
     /**
+     * If the specified throwable contains a fatal error in the throwable graph, such a fatal error will be thrown. Callers should ensure
+     * that there are no catch statements that would catch an error in the stack as the fatal error here should go uncaught and be handled
+     * by the uncaught exception handler that we install during bootstrap. If the specified throwable does indeed contain a fatal error, the
+     * specified message will attempt to be logged before throwing the fatal error. If the specified throwable does not contain a fatal
+     * error, this method is a no-op.
+     *
+     * @param maybeMessage the message to maybe log
+     * @param maybeFatal   the throwable that maybe contains a fatal error
+     */
+    @SuppressWarnings("finally")
+    private void maybeDie(final String maybeMessage, final Throwable maybeFatal) {
+        ExceptionsHelper.maybeError(maybeFatal, logger).ifPresent(error -> {
+            try {
+                logger.error(maybeMessage, error);
+            } finally {
+                throw error;
+            }
+        });
+    }
+
+    /**
      * fail engine due to some error. the engine will also be closed.
      * The underlying store is marked corrupted iff failure is caused by index corruption
      */
     public void failEngine(String reason, @Nullable Exception failure) {
+        if (failure != null) {
+            maybeDie(reason, failure);
+        }
         if (failEngineLock.tryLock()) {
             store.incRef();
             try {
                 if (failedEngine.get() != null) {
-                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("tried to fail engine but engine is already failed. ignoring. [{}]", reason), failure);
+                    logger.warn(() -> new ParameterizedMessage("tried to fail engine but engine is already failed. ignoring. [{}]", reason), failure);
                     return;
                 }
                 // this must happen before we close IW or Translog such that we can check this state to opt out of failing the engine
@@ -866,7 +883,7 @@ public abstract class Engine implements Closeable {
                     // we just go and close this engine - no way to recover
                     closeNoLock("engine failed on: [" + reason + "]", closedLatch);
                 } finally {
-                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed engine [{}]", reason), failure);
+                    logger.warn(() -> new ParameterizedMessage("failed engine [{}]", reason), failure);
                     // we must set a failure exception, generate one if not supplied
                     // we first mark the store as corrupted before we notify any listeners
                     // this must happen first otherwise we might try to reallocate so quickly
@@ -889,7 +906,7 @@ public abstract class Engine implements Closeable {
                 store.decRef();
             }
         } else {
-            logger.debug((Supplier<?>) () -> new ParameterizedMessage("tried to fail engine but could not acquire lock - engine should be failed by now [{}]", reason), failure);
+            logger.debug(() -> new ParameterizedMessage("tried to fail engine but could not acquire lock - engine should be failed by now [{}]", reason), failure);
         }
     }
 
@@ -1049,14 +1066,13 @@ public abstract class Engine implements Closeable {
             this.autoGeneratedIdTimestamp = autoGeneratedIdTimestamp;
         }
 
-        public Index(Term uid, ParsedDocument doc) {
-            this(uid, doc, Versions.MATCH_ANY);
+        public Index(Term uid, long primaryTerm, ParsedDocument doc) {
+            this(uid, primaryTerm, doc, Versions.MATCH_ANY);
         } // TEST ONLY
 
-        Index(Term uid, ParsedDocument doc, long version) {
-            // use a primary term of 2 to allow tests to reduce it to a valid >0 term
-            this(uid, doc, SequenceNumbers.UNASSIGNED_SEQ_NO, 2, version, VersionType.INTERNAL,
-                    Origin.PRIMARY, System.nanoTime(), -1, false);
+        Index(Term uid, long primaryTerm, ParsedDocument doc, long version) {
+            this(uid, doc, SequenceNumbers.UNASSIGNED_SEQ_NO, primaryTerm, version, VersionType.INTERNAL,
+                Origin.PRIMARY, System.nanoTime(), -1, false);
         } // TEST ONLY
 
         public ParsedDocument parsedDoc() {
@@ -1080,10 +1096,6 @@ public abstract class Engine implements Closeable {
 
         public String routing() {
             return this.doc.routing();
-        }
-
-        public String parent() {
-            return this.doc.parent();
         }
 
         public List<Document> docs() {
@@ -1130,8 +1142,8 @@ public abstract class Engine implements Closeable {
             this.id = Objects.requireNonNull(id);
         }
 
-        public Delete(String type, String id, Term uid) {
-            this(type, id, uid, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, Versions.MATCH_ANY, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime());
+        public Delete(String type, String id, Term uid, long primaryTerm) {
+            this(type, id, uid, SequenceNumbers.UNASSIGNED_SEQ_NO, primaryTerm, Versions.MATCH_ANY, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime());
         }
 
         public Delete(Delete template, VersionType versionType) {
@@ -1215,14 +1227,16 @@ public abstract class Engine implements Closeable {
         private final boolean realtime;
         private final Term uid;
         private final String type, id;
+        private final boolean readFromTranslog;
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
 
-        public Get(boolean realtime, String type, String id, Term uid) {
+        public Get(boolean realtime, boolean readFromTranslog, String type, String id, Term uid) {
             this.realtime = realtime;
             this.type = type;
             this.id = id;
             this.uid = uid;
+            this.readFromTranslog = readFromTranslog;
         }
 
         public boolean realtime() {
@@ -1257,6 +1271,10 @@ public abstract class Engine implements Closeable {
         public Get versionType(VersionType versionType) {
             this.versionType = versionType;
             return this;
+        }
+
+        public boolean isReadFromTranslog() {
+            return readFromTranslog;
         }
     }
 

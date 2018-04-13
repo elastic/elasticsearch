@@ -49,6 +49,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -74,7 +75,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     private static final ParseField TYPE = new ParseField("_type");
     private static final ParseField ID = new ParseField("_id");
     private static final ParseField ROUTING = new ParseField("routing");
-    private static final ParseField PARENT = new ParseField("parent");
     private static final ParseField OP_TYPE = new ParseField("op_type");
     private static final ParseField VERSION = new ParseField("version");
     private static final ParseField VERSION_TYPE = new ParseField("version_type");
@@ -305,9 +305,9 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
             // now parse the action
             // EMPTY is safe here because we never call namedObject
-            try (XContentParser parser = xContent
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
-                        data.slice(from, nextMarker - from).streamInput())) {
+            try (InputStream stream = data.slice(from, nextMarker - from).streamInput();
+                 XContentParser parser = xContent
+                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
                 // move pointers
                 from = nextMarker + 1;
 
@@ -332,7 +332,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                 String type = defaultType;
                 String id = null;
                 String routing = defaultRouting;
-                String parent = null;
                 FetchSourceContext fetchSourceContext = defaultFetchSourceContext;
                 String[] fields = defaultFields;
                 String opType = null;
@@ -362,8 +361,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                                 id = parser.text();
                             } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
                                 routing = parser.text();
-                            } else if (PARENT.match(currentFieldName, parser.getDeprecationHandler())) {
-                                parent = parser.text();
                             } else if (OP_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                                 opType = parser.text();
                             } else if (VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -401,7 +398,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                 }
 
                 if ("delete".equals(action)) {
-                    add(new DeleteRequest(index, type, id).routing(routing).parent(parent).version(version).versionType(versionType), payload);
+                    add(new DeleteRequest(index, type, id).routing(routing).version(version).versionType(versionType), payload);
                 } else {
                     nextMarker = findNextMarker(marker, from, data, length);
                     if (nextMarker == -1) {
@@ -413,26 +410,26 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                     // of index request.
                     if ("index".equals(action)) {
                         if (opType == null) {
-                            internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).version(version).versionType(versionType)
+                            internalAdd(new IndexRequest(index, type, id).routing(routing).version(version).versionType(versionType)
                                     .setPipeline(pipeline)
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker,xContentType), xContentType), payload);
                         } else {
-                            internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).version(version).versionType(versionType)
+                            internalAdd(new IndexRequest(index, type, id).routing(routing).version(version).versionType(versionType)
                                     .create("create".equals(opType)).setPipeline(pipeline)
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType), payload);
                         }
                     } else if ("create".equals(action)) {
-                        internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).version(version).versionType(versionType)
+                        internalAdd(new IndexRequest(index, type, id).routing(routing).version(version).versionType(versionType)
                                 .create(true).setPipeline(pipeline)
                                 .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType), payload);
                     } else if ("update".equals(action)) {
-                        UpdateRequest updateRequest = new UpdateRequest(index, type, id).routing(routing).parent(parent).retryOnConflict(retryOnConflict)
+                        UpdateRequest updateRequest = new UpdateRequest(index, type, id).routing(routing).retryOnConflict(retryOnConflict)
                                 .version(version).versionType(versionType)
-                                .routing(routing)
-                                .parent(parent);
+                                .routing(routing);
                         // EMPTY is safe here because we never call namedObject
-                        try (XContentParser sliceParser = xContent.createParser(NamedXContentRegistry.EMPTY,
-                                LoggingDeprecationHandler.INSTANCE, sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType).streamInput())) {
+                        try (InputStream dataStream = sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType).streamInput();
+                             XContentParser sliceParser = xContent.createParser(NamedXContentRegistry.EMPTY,
+                                 LoggingDeprecationHandler.INSTANCE, dataStream)) {
                             updateRequest.fromXContent(sliceParser);
                         }
                         if (fetchSourceContext != null) {
@@ -591,7 +588,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
             requests.add(DocWriteRequest.readDocumentRequest(in));
         }
         refreshPolicy = RefreshPolicy.readFrom(in);
-        timeout = new TimeValue(in);
+        timeout = in.readTimeValue();
     }
 
     @Override
@@ -603,7 +600,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
             DocWriteRequest.writeDocumentRequest(out, request);
         }
         refreshPolicy.writeTo(out);
-        timeout.writeTo(out);
+        out.writeTimeValue(timeout);
     }
 
     @Override

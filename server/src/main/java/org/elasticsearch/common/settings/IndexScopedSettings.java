@@ -127,6 +127,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.INDEX_CHECK_ON_STARTUP,
         IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD,
         IndexSettings.MAX_SLICES_PER_SCROLL,
+        IndexSettings.MAX_REGEX_LENGTH_SETTING,
         ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING,
         IndexSettings.INDEX_GC_DELETES_SETTING,
         IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING,
@@ -206,9 +207,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             case IndexMetaData.INDEX_SHRINK_SOURCE_NAME_KEY:
             case IndexMetaData.INDEX_RESIZE_SOURCE_UUID_KEY:
             case IndexMetaData.INDEX_RESIZE_SOURCE_NAME_KEY:
-            case IndexSettings.INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY:
-                // this was settable in 5.x but not anymore in 6.x so we have to preserve the value ie. make it read-only
-                // this can be removed in later versions
                 return true;
             default:
                 return IndexMetaData.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getRawKey().match(key);

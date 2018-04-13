@@ -225,6 +225,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
             Key key = (Key) o;
             if (!indexCache.equals(key.indexCache)) return false;
             if (!readerKey.equals(key.readerKey)) return false;

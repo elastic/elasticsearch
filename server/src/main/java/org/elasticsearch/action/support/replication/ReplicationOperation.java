@@ -178,7 +178,7 @@ public class ReplicationOperation<
 
             @Override
             public void onFailure(Exception replicaException) {
-                logger.trace((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
+                logger.trace(() -> new ParameterizedMessage(
                     "[{}] failure while performing [{}] on replica {}, request [{}]",
                     shard.shardId(), opType, shard, replicaRequest), replicaException);
                 // Only report "critical" exceptions - TODO: Reach out to the master node to get the latest shard state then report.

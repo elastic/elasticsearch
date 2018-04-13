@@ -364,19 +364,6 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         }
         {
             ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> {
-                IndexRequest indexRequest = new IndexRequest("index", "type", "missing_parent");
-                indexRequest.source(XContentBuilder.builder(xContentType.xContent()).startObject().field("field", "test").endObject());
-                indexRequest.parent("missing");
-
-                execute(indexRequest, highLevelClient()::index, highLevelClient()::indexAsync);
-            });
-
-            assertEquals(RestStatus.BAD_REQUEST, exception.status());
-            assertEquals("Elasticsearch exception [type=illegal_argument_exception, " +
-                         "reason=can't specify parent if no parent field has been configured]", exception.getMessage());
-        }
-        {
-            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> {
                 IndexRequest indexRequest = new IndexRequest("index", "type", "missing_pipeline");
                 indexRequest.source(XContentBuilder.builder(xContentType.xContent()).startObject().field("field", "test").endObject());
                 indexRequest.setPipeline("missing");
@@ -455,22 +442,6 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals(RestStatus.CONFLICT, exception.status());
             assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, reason=[type][id]: version conflict, " +
                             "current version [2] is different than the one provided [1]]", exception.getMessage());
-        }
-        {
-            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> {
-                UpdateRequest updateRequest = new UpdateRequest("index", "type", "id");
-                updateRequest.doc(singletonMap("field", "updated"), randomFrom(XContentType.values()));
-                if (randomBoolean()) {
-                    updateRequest.parent("missing");
-                } else {
-                    updateRequest.routing("missing");
-                }
-                execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync);
-            });
-
-            assertEquals(RestStatus.NOT_FOUND, exception.status());
-            assertEquals("Elasticsearch exception [type=document_missing_exception, reason=[type][id]: document missing]",
-                    exception.getMessage());
         }
         {
             IndexRequest indexRequest = new IndexRequest("index", "type", "with_script");
@@ -617,7 +588,8 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
                 bulkRequest.add(deleteRequest);
 
             } else {
-                BytesReference source = XContentBuilder.builder(xContentType.xContent()).startObject().field("id", i).endObject().bytes();
+                BytesReference source = BytesReference.bytes(XContentBuilder.builder(xContentType.xContent())
+                        .startObject().field("id", i).endObject());
                 if (opType == DocWriteRequest.OpType.INDEX) {
                     IndexRequest indexRequest = new IndexRequest("index", "test", id).source(source, xContentType);
                     if (erroneous) {

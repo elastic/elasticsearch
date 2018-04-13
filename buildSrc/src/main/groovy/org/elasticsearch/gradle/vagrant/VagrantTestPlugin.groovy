@@ -1,8 +1,8 @@
 package org.elasticsearch.gradle.vagrant
 
-import com.carrotsearch.gradle.junit4.RandomizedTestingPlugin
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.FileContentsTask
+import org.elasticsearch.gradle.LoggedExec
 import org.gradle.api.*
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.execution.TaskExecutionAdapter
@@ -42,8 +42,9 @@ class VagrantTestPlugin implements Plugin<Project> {
     /** Packages onboarded for upgrade tests **/
     static List<String> UPGRADE_FROM_ARCHIVES = ['rpm', 'deb']
 
+    private static final PACKAGING_CONFIGURATION = 'packaging'
     private static final BATS = 'bats'
-    private static final String BATS_TEST_COMMAND ="cd \$BATS_ARCHIVES && sudo bats --tap \$BATS_TESTS/*.$BATS"
+    private static final String BATS_TEST_COMMAND ="cd \$PACKAGING_ARCHIVES && sudo bats --tap \$BATS_TESTS/*.$BATS"
     private static final String PLATFORM_TEST_COMMAND ="rm -rf ~/elasticsearch && rsync -r /elasticsearch/ ~/elasticsearch && cd ~/elasticsearch && ./gradlew test integTest"
 
     @Override
@@ -52,11 +53,11 @@ class VagrantTestPlugin implements Plugin<Project> {
         // Creates the Vagrant extension for the project
         project.extensions.create('esvagrant', VagrantPropertiesExtension, listVagrantBoxes(project))
 
-        // Add required repositories for Bats tests
-        configureBatsRepositories(project)
+        // Add required repositories for packaging tests
+        configurePackagingArchiveRepositories(project)
 
         // Creates custom configurations for Bats testing files (and associated scripts and archives)
-        createBatsConfiguration(project)
+        createPackagingConfiguration(project)
 
         // Creates all the main Vagrant tasks
         createVagrantTasks(project)
@@ -86,7 +87,7 @@ class VagrantTestPlugin implements Plugin<Project> {
         }
     }
 
-    private static void configureBatsRepositories(Project project) {
+    private static void configurePackagingArchiveRepositories(Project project) {
         RepositoryHandler repos = project.repositories
 
         // Try maven central first, it'll have releases before 5.0.0
@@ -101,10 +102,10 @@ class VagrantTestPlugin implements Plugin<Project> {
         }
     }
 
-    private static void createBatsConfiguration(Project project) {
-        project.configurations.create(BATS)
+    private static void createPackagingConfiguration(Project project) {
+        project.configurations.create(PACKAGING_CONFIGURATION)
 
-        String upgradeFromVersion = System.getProperty("tests.packaging.upgradeVersion");
+        String upgradeFromVersion = System.getProperty("tests.packaging.upgradeVersion")
         if (upgradeFromVersion == null) {
             String firstPartOfSeed = project.rootProject.testSeed.tokenize(':').get(0)
             final long seed = Long.parseUnsignedLong(firstPartOfSeed, 16)
@@ -119,12 +120,14 @@ class VagrantTestPlugin implements Plugin<Project> {
             } else {
                 it = "packages:${it}"
             }
-            project.dependencies.add(BATS, project.dependencies.project(path: ":distribution:${it}", configuration: 'default'))
+            project.dependencies.add(PACKAGING_CONFIGURATION,
+                    project.dependencies.project(path: ":distribution:${it}", configuration: 'default'))
         }
 
         UPGRADE_FROM_ARCHIVES.each {
             // The version of elasticsearch that we upgrade *from*
-            project.dependencies.add(BATS, "org.elasticsearch.distribution.${it}:elasticsearch:${upgradeFromVersion}@${it}")
+            project.dependencies.add(PACKAGING_CONFIGURATION,
+                    "org.elasticsearch.distribution.${it}:elasticsearch:${upgradeFromVersion}@${it}")
         }
 
         project.extensions.esvagrant.upgradeFromVersion = upgradeFromVersion
@@ -153,22 +156,28 @@ class VagrantTestPlugin implements Plugin<Project> {
     }
 
     private static void createPrepareVagrantTestEnvTask(Project project) {
-        File batsDir = new File("${project.buildDir}/${BATS}")
+        File packagingDir = new File(project.buildDir, PACKAGING_CONFIGURATION)
 
-        Task createBatsDirsTask = project.tasks.create('createBatsDirs')
-        createBatsDirsTask.outputs.dir batsDir
-        createBatsDirsTask.doLast {
-            batsDir.mkdirs()
+        File archivesDir = new File(packagingDir, 'archives')
+        Copy copyPackagingArchives = project.tasks.create('copyPackagingArchives', Copy) {
+            into archivesDir
+            from project.configurations[PACKAGING_CONFIGURATION]
         }
 
-        Copy copyBatsArchives = project.tasks.create('copyBatsArchives', Copy) {
-            dependsOn createBatsDirsTask
-            into "${batsDir}/archives"
-            from project.configurations[BATS]
+        Task createVersionFile = project.tasks.create('createVersionFile', FileContentsTask) {
+            dependsOn copyPackagingArchives
+            file "${archivesDir}/version"
+            contents project.version
         }
 
+        Task createUpgradeFromFile = project.tasks.create('createUpgradeFromFile', FileContentsTask) {
+            dependsOn copyPackagingArchives
+            file "${archivesDir}/upgrade_from_version"
+            contents project.extensions.esvagrant.upgradeFromVersion
+        }
+
+        File batsDir = new File(packagingDir, BATS)
         Copy copyBatsTests = project.tasks.create('copyBatsTests', Copy) {
-            dependsOn createBatsDirsTask
             into "${batsDir}/tests"
             from {
                 "${project.extensions.esvagrant.batsDir}/tests"
@@ -176,7 +185,6 @@ class VagrantTestPlugin implements Plugin<Project> {
         }
 
         Copy copyBatsUtils = project.tasks.create('copyBatsUtils', Copy) {
-            dependsOn createBatsDirsTask
             into "${batsDir}/utils"
             from {
                 "${project.extensions.esvagrant.batsDir}/utils"
@@ -184,42 +192,30 @@ class VagrantTestPlugin implements Plugin<Project> {
         }
 
         // Now we iterate over dependencies of the bats configuration. When a project dependency is found,
-        // we bring back its own archives, test files or test utils.
+        // we bring back its test files or test utils.
         project.afterEvaluate {
-            project.configurations.bats.dependencies.findAll {it.targetConfiguration == BATS }.each { d ->
-                if (d instanceof DefaultProjectDependency) {
-                    DefaultProjectDependency externalBatsDependency = (DefaultProjectDependency) d
-                    Project externalBatsProject = externalBatsDependency.dependencyProject
-                    String externalBatsDir = externalBatsProject.extensions.esvagrant.batsDir
+            project.configurations[PACKAGING_CONFIGURATION].dependencies
+                .findAll {it.targetConfiguration == PACKAGING_CONFIGURATION }
+                .each { d ->
+                    if (d instanceof DefaultProjectDependency) {
+                        DefaultProjectDependency externalBatsDependency = (DefaultProjectDependency) d
+                        Project externalBatsProject = externalBatsDependency.dependencyProject
+                        String externalBatsDir = externalBatsProject.extensions.esvagrant.batsDir
 
-                    if (project.extensions.esvagrant.inheritTests) {
-                        copyBatsTests.from(externalBatsProject.files("${externalBatsDir}/tests"))
+                        if (project.extensions.esvagrant.inheritTests) {
+                            copyBatsTests.from(externalBatsProject.files("${externalBatsDir}/tests"))
+                        }
+                        if (project.extensions.esvagrant.inheritTestUtils) {
+                            copyBatsUtils.from(externalBatsProject.files("${externalBatsDir}/utils"))
+                        }
                     }
-                    if (project.extensions.esvagrant.inheritTestArchives) {
-                        copyBatsArchives.from(externalBatsDependency.projectConfiguration.files)
-                    }
-                    if (project.extensions.esvagrant.inheritTestUtils) {
-                        copyBatsUtils.from(externalBatsProject.files("${externalBatsDir}/utils"))
-                    }
-                }
             }
         }
 
-        Task createVersionFile = project.tasks.create('createVersionFile', FileContentsTask) {
-            dependsOn createBatsDirsTask
-            file "${batsDir}/archives/version"
-            contents project.version
-        }
-
-        Task createUpgradeFromFile = project.tasks.create('createUpgradeFromFile', FileContentsTask) {
-            dependsOn createBatsDirsTask
-            file "${batsDir}/archives/upgrade_from_version"
-            contents project.extensions.esvagrant.upgradeFromVersion
-        }
-
-        Task vagrantSetUpTask = project.tasks.create('setupBats')
+        Task vagrantSetUpTask = project.tasks.create('setupPackagingTest')
         vagrantSetUpTask.dependsOn 'vagrantCheckVersion'
-        vagrantSetUpTask.dependsOn copyBatsTests, copyBatsUtils, copyBatsArchives, createVersionFile, createUpgradeFromFile
+        vagrantSetUpTask.dependsOn copyPackagingArchives, createVersionFile, createUpgradeFromFile
+        vagrantSetUpTask.dependsOn copyBatsTests, copyBatsUtils
     }
 
     private static void createPackagingTestTask(Project project) {
@@ -269,8 +265,8 @@ class VagrantTestPlugin implements Plugin<Project> {
         assert project.tasks.virtualboxCheckVersion != null
         Task virtualboxCheckVersion = project.tasks.virtualboxCheckVersion
 
-        assert project.tasks.setupBats != null
-        Task setupBats = project.tasks.setupBats
+        assert project.tasks.setupPackagingTest != null
+        Task setupPackagingTest = project.tasks.setupPackagingTest
 
         assert project.tasks.packagingTest != null
         Task packagingTest = project.tasks.packagingTest
@@ -307,17 +303,37 @@ class VagrantTestPlugin implements Plugin<Project> {
                 environmentVars vagrantEnvVars
                 dependsOn vagrantCheckVersion, virtualboxCheckVersion
             }
-            update.mustRunAfter(setupBats)
+            update.mustRunAfter(setupPackagingTest)
+
+            /*
+             * Destroying before every execution can be annoying while iterating on tests locally. Therefore, we provide a flag
+             * vagrant.destroy that defaults to true that can be used to control whether or not to destroy any test boxes before test
+             * execution.
+             */
+            final String vagrantDestroyProperty = project.getProperties().get('vagrant.destroy', 'true')
+            final boolean vagrantDestroy
+            if ("true".equals(vagrantDestroyProperty)) {
+                vagrantDestroy = true;
+            } else if ("false".equals(vagrantDestroyProperty)) {
+                vagrantDestroy = false
+            } else {
+                throw new GradleException("[vagrant.destroy] must be [true] or [false] but was [" + vagrantDestroyProperty + "]")
+            }
+            /*
+             * Some versions of Vagrant will fail destroy if the box does not exist. Therefore we check if the box exists before attempting
+             * to destroy the box.
+             */
+            final Task destroy = project.tasks.create("vagrant${boxTask}#destroy", LoggedExec) {
+                commandLine "bash", "-c", "vagrant status ${box} | grep -q \"${box}\\s\\+not created\" || vagrant destroy ${box} --force"
+                workingDir project.rootProject.rootDir
+            }
+            destroy.onlyIf { vagrantDestroy }
+            update.mustRunAfter(destroy)
 
             Task up = project.tasks.create("vagrant${boxTask}#up", VagrantCommandTask) {
                 command 'up'
                 boxName box
                 environmentVars vagrantEnvVars
-                /* Its important that we try to reprovision the box even if it already
-                  exists. That way updates to the vagrant configuration take automatically.
-                  That isn't to say that the updates will always be compatible. Its ok to
-                  just destroy the boxes if they get busted but that is a manual step
-                  because its slow-ish. */
                 /* We lock the provider to virtualbox because the Vagrantfile specifies
                   lots of boxes that only work properly in virtualbox. Virtualbox is
                   vagrant's default but its possible to change that default and folks do.
@@ -326,7 +342,7 @@ class VagrantTestPlugin implements Plugin<Project> {
                 args '--provision', '--provider', 'virtualbox'
                 /* It'd be possible to check if the box is already up here and output
                   SKIPPED but that would require running vagrant status which is slow! */
-                dependsOn update
+                dependsOn destroy, update
             }
 
             Task smoke = project.tasks.create("vagrant${boxTask}#smoketest", Exec) {
@@ -338,32 +354,39 @@ class VagrantTestPlugin implements Plugin<Project> {
             }
             vagrantSmokeTest.dependsOn(smoke)
 
-            Task packaging = project.tasks.create("vagrant${boxTask}#packagingTest", BatsOverVagrantTask) {
+            Task batsPackagingTest = project.tasks.create("vagrant${boxTask}#batsPackagingTest", BatsOverVagrantTask) {
                 remoteCommand BATS_TEST_COMMAND
                 boxName box
                 environmentVars vagrantEnvVars
-                dependsOn up, setupBats
+                dependsOn up, setupPackagingTest
                 finalizedBy halt
             }
 
-            TaskExecutionAdapter packagingReproListener = new TaskExecutionAdapter() {
-                @Override
-                void afterExecute(Task task, TaskState state) {
-                    final String gradlew = Os.isFamily(Os.FAMILY_WINDOWS) ? "gradlew" : "./gradlew"
-                    if (state.failure != null) {
-                        println "REPRODUCE WITH: ${gradlew} ${packaging.path} " +
-                            "-Dtests.seed=${project.testSeed} "
-                    }
-                }
+            TaskExecutionAdapter batsPackagingReproListener = createReproListener(project, batsPackagingTest.path)
+            batsPackagingTest.doFirst {
+                project.gradle.addListener(batsPackagingReproListener)
             }
-            packaging.doFirst {
-                project.gradle.addListener(packagingReproListener)
-            }
-            packaging.doLast {
-                project.gradle.removeListener(packagingReproListener)
+            batsPackagingTest.doLast {
+                project.gradle.removeListener(batsPackagingReproListener)
             }
             if (project.extensions.esvagrant.boxes.contains(box)) {
-                packagingTest.dependsOn(packaging)
+                packagingTest.dependsOn(batsPackagingTest)
+            }
+
+            // This task doesn't do anything yet. In the future it will execute a jar containing tests on the vm
+            Task groovyPackagingTest = project.tasks.create("vagrant${boxTask}#groovyPackagingTest")
+            groovyPackagingTest.dependsOn(up)
+            groovyPackagingTest.finalizedBy(halt)
+
+            TaskExecutionAdapter groovyPackagingReproListener = createReproListener(project, groovyPackagingTest.path)
+            groovyPackagingTest.doFirst {
+                project.gradle.addListener(groovyPackagingReproListener)
+            }
+            groovyPackagingTest.doLast {
+                project.gradle.removeListener(groovyPackagingReproListener)
+            }
+            if (project.extensions.esvagrant.boxes.contains(box)) {
+                packagingTest.dependsOn(groovyPackagingTest)
             }
 
             Task platform = project.tasks.create("vagrant${boxTask}#platformTest", VagrantCommandTask) {
@@ -374,15 +397,7 @@ class VagrantTestPlugin implements Plugin<Project> {
                 finalizedBy halt
                 args '--command', PLATFORM_TEST_COMMAND + " -Dtests.seed=${-> project.testSeed}"
             }
-            TaskExecutionAdapter platformReproListener = new TaskExecutionAdapter() {
-                @Override
-                void afterExecute(Task task, TaskState state) {
-                    if (state.failure != null) {
-                        println "REPRODUCE WITH: gradle ${platform.path} " +
-                            "-Dtests.seed=${project.testSeed} "
-                    }
-                }
-            }
+            TaskExecutionAdapter platformReproListener = createReproListener(project, platform.path)
             platform.doFirst {
                 project.gradle.addListener(platformReproListener)
             }
@@ -391,6 +406,18 @@ class VagrantTestPlugin implements Plugin<Project> {
             }
             if (project.extensions.esvagrant.boxes.contains(box)) {
                 platformTest.dependsOn(platform)
+            }
+        }
+    }
+
+    private static TaskExecutionAdapter createReproListener(Project project, String reproTaskPath) {
+        return new TaskExecutionAdapter() {
+            @Override
+            void afterExecute(Task task, TaskState state) {
+                final String gradlew = Os.isFamily(Os.FAMILY_WINDOWS) ? "gradlew" : "./gradlew"
+                if (state.failure != null) {
+                    println "REPRODUCE WITH: ${gradlew} ${reproTaskPath} -Dtests.seed=${project.testSeed} "
+                }
             }
         }
     }

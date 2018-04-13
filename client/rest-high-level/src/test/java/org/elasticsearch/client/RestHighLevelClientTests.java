@@ -55,6 +55,7 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -163,7 +164,7 @@ public class RestHighLevelClientTests extends ESTestCase {
     public void testInfo() throws IOException {
         Header[] headers = randomHeaders(random(), "Header");
         MainResponse testInfo = new MainResponse("nodeName", Version.CURRENT, new ClusterName("clusterName"), "clusterUuid",
-                Build.CURRENT, true);
+                Build.CURRENT);
         mockResponse(testInfo);
         MainResponse receivedInfo = restHighLevelClient.info(headers);
         assertEquals(testInfo, receivedInfo);
@@ -272,7 +273,7 @@ public class RestHighLevelClientTests extends ESTestCase {
             builder.startObject();
             builder.field("field", "value");
             builder.endObject();
-            return new ByteArrayEntity(builder.bytes().toBytesRef().bytes, contentType);
+            return new ByteArrayEntity(BytesReference.bytes(builder).toBytesRef().bytes, contentType);
         }
     }
 

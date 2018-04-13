@@ -66,6 +66,8 @@ public class SysParserTests extends ESTestCase {
             assertFalse(r.schema().types().contains(DataType.NULL));
             // test numeric as signed
             assertFalse(r.column(9, Boolean.class));
+            // make sure precision is returned as boolean (not int)
+            assertFalse(r.column(10, Boolean.class));
             
             for (int i = 0; i < r.size(); i++) {
                 assertEquals(names.get(i), r.column(0));

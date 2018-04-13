@@ -64,7 +64,6 @@ setup:
   - do:
       search:
         index: test
-        type:  test
         body:
           collapse: { field: numeric_group }
           sort: [{ sort: desc }]
@@ -100,7 +99,6 @@ setup:
   - do:
       search:
         index: test
-        type:  test
         body:
           from: 2
           collapse: { field: numeric_group }
@@ -125,7 +123,6 @@ setup:
   - do:
       search:
         index: test
-        type:  test
         body:
           collapse: { field: numeric_group, inner_hits: { name: sub_hits, size: 2, sort: [{ sort: asc }] } }
           sort: [{ sort: desc }]
@@ -169,7 +166,6 @@ setup:
   - do:
       search:
         index: test
-        type:  test
         body:
           collapse: { field: numeric_group, max_concurrent_group_searches: 10, inner_hits: { name: sub_hits, size: 2, sort: [{ sort: asc }] } }
           sort: [{ sort: desc }]
@@ -215,7 +211,6 @@ setup:
       catch:      /cannot use \`collapse\` in a scroll context/
       search:
         index: test
-        type:  test
         scroll: 1s
         body:
           collapse: { field: numeric_group }
@@ -231,7 +226,6 @@ setup:
       catch:      /cannot use \`collapse\` in conjunction with \`search_after\`/
       search:
         index: test
-        type:  test
         body:
           collapse: { field: numeric_group }
           search_after: [6]
@@ -248,7 +242,6 @@ setup:
       catch:      /cannot use \`collapse\` in conjunction with \`rescore\`/
       search:
         index: test
-        type:  test
         body:
           collapse: { field: numeric_group }
           rescore:
@@ -269,7 +262,6 @@ setup:
   - do:
       search:
         index: test
-        type:  test
         body:
           size: 0
           collapse: { field: numeric_group, inner_hits: { name: sub_hits, size: 1} }
@@ -288,7 +280,6 @@ setup:
   - do:
       search:
         index: test
-        type:  test
         body:
           collapse: 
             field: numeric_group
@@ -345,7 +336,6 @@ setup:
   - do:
       search:
         index: test
-        type:  test
         body:
           collapse: { field: numeric_group, inner_hits: { name: sub_hits, version: true, size: 2, sort: [{ sort: asc }] } }
           sort: [{ sort: desc }]

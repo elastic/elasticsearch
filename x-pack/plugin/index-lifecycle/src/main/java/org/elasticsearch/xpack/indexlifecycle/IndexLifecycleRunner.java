@@ -24,14 +24,18 @@ import org.elasticsearch.xpack.core.indexlifecycle.Step;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 
+import java.util.function.LongSupplier;
+
 public class IndexLifecycleRunner {
     private static final Logger logger = ESLoggerFactory.getLogger(IndexLifecycleRunner.class);
     private PolicyStepsRegistry stepRegistry;
     private ClusterService clusterService;
+    private LongSupplier nowSupplier;
 
-    public IndexLifecycleRunner(PolicyStepsRegistry stepRegistry, ClusterService clusterService) {
+    public IndexLifecycleRunner(PolicyStepsRegistry stepRegistry, ClusterService clusterService, LongSupplier nowSupplier) {
         this.stepRegistry = stepRegistry;
         this.clusterService = clusterService;
+        this.nowSupplier = nowSupplier;
     }
 
     public void runPolicy(String policy, IndexMetaData indexMetaData, Settings indexSettings, boolean fromClusterStateChange) {
@@ -92,7 +96,7 @@ public class IndexLifecycleRunner {
 
     private void executeClusterStateSteps(Index index, String policy, Step step) {
         assert step instanceof InitializePolicyContextStep || step instanceof ClusterStateWaitStep;
-        clusterService.submitStateUpdateTask("ILM", new ExecuteStepsUpdateTask(policy, index, step, stepRegistry));
+        clusterService.submitStateUpdateTask("ILM", new ExecuteStepsUpdateTask(policy, index, step, stepRegistry, nowSupplier));
     }
 
     /**
@@ -128,11 +132,18 @@ public class IndexLifecycleRunner {
         }
     }
 
-    static ClusterState moveClusterStateToNextStep(Index index, ClusterState clusterState, StepKey nextStep) {
+    static ClusterState moveClusterStateToNextStep(Index index, ClusterState clusterState, StepKey currentStep, StepKey nextStep,
+            LongSupplier nowSupplier) {
         ClusterState.Builder newClusterStateBuilder = ClusterState.builder(clusterState);
         IndexMetaData idxMeta = clusterState.getMetaData().index(index);
         Builder indexSettings = Settings.builder().put(idxMeta.getSettings()).put(LifecycleSettings.LIFECYCLE_PHASE, nextStep.getPhase())
                 .put(LifecycleSettings.LIFECYCLE_ACTION, nextStep.getAction()).put(LifecycleSettings.LIFECYCLE_STEP, nextStep.getName());
+        if (currentStep.getPhase().equals(nextStep.getPhase()) == false) {
+            indexSettings.put(LifecycleSettings.LIFECYCLE_PHASE_TIME, nowSupplier.getAsLong());
+        }
+        if (currentStep.getAction().equals(nextStep.getAction()) == false) {
+            indexSettings.put(LifecycleSettings.LIFECYCLE_ACTION_TIME, nowSupplier.getAsLong());
+        }
         newClusterStateBuilder.metaData(MetaData.builder(clusterState.getMetaData()).put(IndexMetaData
                 .builder(clusterState.getMetaData().index(index))
                 .settings(indexSettings)));
@@ -143,6 +154,6 @@ public class IndexLifecycleRunner {
         logger.error("moveToStep[" + policy + "] [" + index.getName() + "]" + currentStepKey + " -> "
                 + nextStepKey);
         clusterService.submitStateUpdateTask("ILM", new MoveToNextStepUpdateTask(index, policy, currentStepKey,
-                nextStepKey, newState -> runPolicy(newState.getMetaData().index(index))));
+                nextStepKey, nowSupplier, newState -> runPolicy(newState.getMetaData().index(index))));
     }
 }

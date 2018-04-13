@@ -12,19 +12,23 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 
+import java.util.function.LongSupplier;
+
 public class MoveToNextStepUpdateTask extends ClusterStateUpdateTask {
     private final Index index;
     private final String policy;
     private final Step.StepKey currentStepKey;
     private final Step.StepKey nextStepKey;
     private final Listener listener;
+    private LongSupplier nowSupplier;
 
     public MoveToNextStepUpdateTask(Index index, String policy, Step.StepKey currentStepKey, Step.StepKey nextStepKey,
-                                    Listener listener) {
+            LongSupplier nowSupplier, Listener listener) {
         this.index = index;
         this.policy = policy;
         this.currentStepKey = currentStepKey;
         this.nextStepKey = nextStepKey;
+        this.nowSupplier = nowSupplier;
         this.listener = listener;
     }
 
@@ -49,7 +53,7 @@ public class MoveToNextStepUpdateTask extends ClusterStateUpdateTask {
         Settings indexSettings = currentState.getMetaData().index(index).getSettings();
         if (policy.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings))
             && currentStepKey.equals(IndexLifecycleRunner.getCurrentStepKey(indexSettings))) {
-            return IndexLifecycleRunner.moveClusterStateToNextStep(index, currentState, nextStepKey);
+            return IndexLifecycleRunner.moveClusterStateToNextStep(index, currentState, currentStepKey, nextStepKey, nowSupplier);
         } else {
             // either the policy has changed or the step is now
             // not the same as when we submitted the update task. In

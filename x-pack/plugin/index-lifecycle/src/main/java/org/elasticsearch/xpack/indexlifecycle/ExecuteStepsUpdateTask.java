@@ -14,18 +14,23 @@ import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.indexlifecycle.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 
+import java.util.function.LongSupplier;
+
 public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
     private static final Logger logger = ESLoggerFactory.getLogger(ExecuteStepsUpdateTask.class);
     private final String policy;
     private final Index index;
     private final Step startStep;
     private final PolicyStepsRegistry policyStepsRegistry;
+    private LongSupplier nowSupplier;
 
-    public ExecuteStepsUpdateTask(String policy, Index index, Step startStep, PolicyStepsRegistry policyStepsRegistry) {
+    public ExecuteStepsUpdateTask(String policy, Index index, Step startStep, PolicyStepsRegistry policyStepsRegistry,
+            LongSupplier nowSupplier) {
         this.policy = policy;
         this.index = index;
         this.startStep = startStep;
         this.policyStepsRegistry = policyStepsRegistry;
+        this.nowSupplier = nowSupplier;
     }
 
     String getPolicy() {
@@ -59,7 +64,8 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                     if (currentStep.getNextStepKey() == null) {
                         return currentState;
                     }
-                    currentState = IndexLifecycleRunner.moveClusterStateToNextStep(index, currentState, currentStep.getNextStepKey());
+                    currentState = IndexLifecycleRunner.moveClusterStateToNextStep(index, currentState, currentStep.getKey(),
+                            currentStep.getNextStepKey(), nowSupplier);
                 } else {
                     // cluster state wait step so evaluate the
                     // condition, if the condition is met move to the
@@ -72,7 +78,8 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                         if (currentStep.getNextStepKey() == null) {
                             return currentState;
                         }
-                        currentState = IndexLifecycleRunner.moveClusterStateToNextStep(index, currentState, currentStep.getNextStepKey());
+                        currentState = IndexLifecycleRunner.moveClusterStateToNextStep(index, currentState, currentStep.getKey(),
+                                currentStep.getNextStepKey(), nowSupplier);
                     } else {
                         logger.warn("condition not met, returning existing state");
                         return currentState;

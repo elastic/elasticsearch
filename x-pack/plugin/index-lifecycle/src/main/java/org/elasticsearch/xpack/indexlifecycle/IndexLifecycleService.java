@@ -56,7 +56,7 @@ public class IndexLifecycleService extends AbstractComponent
         this.nowSupplier = nowSupplier;
         this.scheduledJob = null;
         this.policyRegistry = new PolicyStepsRegistry();
-        this.lifecycleRunner = new IndexLifecycleRunner(policyRegistry, clusterService);
+        this.lifecycleRunner = new IndexLifecycleRunner(policyRegistry, clusterService, nowSupplier);
         clusterService.addListener(this);
     }
 

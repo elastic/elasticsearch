@@ -40,7 +40,8 @@ public class CompositeAggregationCursorTests extends AbstractWireSerializingTest
 
     @Override
     protected CompositeAggregationCursor mutateInstance(CompositeAggregationCursor instance) throws IOException {
-        return new CompositeAggregationCursor(instance.next(), instance.extractors(), randomIntBetween(1, 512), instance.indices());
+        return new CompositeAggregationCursor(instance.next(), instance.extractors(),
+                randomValueOtherThan(instance.limit(), () -> randomIntBetween(1, 512)), instance.indices());
     }
 
     @Override

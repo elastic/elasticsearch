@@ -221,6 +221,13 @@ class BuildPlugin implements Plugin<Project> {
         return System.getenv('JAVA' + version + '_HOME')
     }
 
+    public static getJavaHome(final Project project, final int version, final String message) {
+        if (project.javaVersions.get(version) == null) {
+            throw new GradleException(message)
+        }
+        return project.javaVersions.get(version)
+    }
+
     private static String findRuntimeJavaHome(final String compilerJavaHome) {
         assert compilerJavaHome != null
         return System.getenv('RUNTIME_JAVA_HOME') ?: compilerJavaHome

@@ -221,7 +221,17 @@ class BuildPlugin implements Plugin<Project> {
         return System.getenv('JAVA' + version + '_HOME')
     }
 
-    public static getJavaHome(final Project project, final int version, final String message) {
+    /**
+     * Get Java home for the project for the specified version. If the specified version is not configured, an exception with the specified
+     * message is thrown.
+     *
+     * @param project the project
+     * @param version the version of Java home to obtain
+     * @param message the exception message if Java home for the specified version is not configured
+     * @return Java home for the specified version
+     * @throws GradleException if Java home for the specified version is not configured
+     */
+    static String getJavaHome(final Project project, final int version, final String message) {
         if (project.javaVersions.get(version) == null) {
             throw new GradleException(message)
         }

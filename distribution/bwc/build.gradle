@@ -17,11 +17,12 @@
  * under the License.
  */
 
+
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
 
-import java.util.regex.Matcher
+import static org.elasticsearch.gradle.BuildPlugin.getJavaHome
 
 /**
  * This is a dummy project which does a local checkout of the previous
@@ -146,15 +147,9 @@ subprojects {
     workingDir = checkoutDir
     if (["5.6", "6.0", "6.1"].contains(bwcBranch)) {
       // we are building branches that are officially built with JDK 8, push JAVA8_HOME to JAVA_HOME for these builds
-      if (project.javaVersions.get(8) == null) {
-        throw new GradleException("JAVA8_HOME is required to build BWC versions for BWC branch [" + bwcBranch + "]")
-      }
-      environment('JAVA_HOME', project.javaVersions.get(8))
+      environment('JAVA_HOME', "${-> getJavaHome(project, 8, "JAVA8_HOME is required to build BWC versions for BWC branch [" + bwcBranch + "]")}")
     } else if ("6.2".equals(bwcBranch)) {
-      if (project.javaVersions.get(9) == null) {
-        throw new GradleException("JAVA9_HOME is required to build BWC versions for BWC branch [" + bwcBranch + "]")
-      }
-      environment('JAVA_HOME', project.javaVersions.get(9))
+      environment('JAVA_HOME', "${-> getJavaHome(project, 9, "JAVA9_HOME is required to build BWC versions for BWC branch [" + bwcBranch + "]")}")
     } else {
       environment('JAVA_HOME', project.compilerJavaHome)
     }

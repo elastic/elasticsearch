@@ -16,20 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.gradle.test
 
 import com.sun.jna.Native
 import com.sun.jna.WString
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.Version
-import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
-import org.gradle.api.JavaVersion
 import org.gradle.api.Project
 
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+
+import static org.elasticsearch.gradle.BuildPlugin.getJavaHome
 
 /**
  * A container for the files and configuration associated with a single node in a test cluster.
@@ -165,24 +166,14 @@ class NodeInfo {
         }
 
         final String javaHome
-        final Map<Integer, JavaVersion> javaVersions = project.javaVersions
         if (nodeVersion.before("6.2.0")) {
-            final String java8Home = javaVersions.get(8)
-            if (java8Home == null) {
-                throw new GradleException("JAVA8_HOME must be set to run BWC tests against [" + nodeVersion + "]")
-            }
-            javaHome = java8Home
+            env = ['JAVA_HOME':"${-> getJavaHome(project, 8, "JAVA8_HOME must be set to run BWC tests against [" + nodeVersion + "]")}"]
         } else if (nodeVersion.onOrAfter("6.2.0") && nodeVersion.before("6.3.0")) {
-            final String java9Home = javaVersions.get(9)
-            if (java9Home == null) {
-                throw new GradleException("JAVA9_HOME must be set to run BWC tests against [" + nodeVersion + "]")
-            }
-            javaHome = java9Home
+            env = ['JAVA_HOME':"${-> getJavaHome(project, 9, "JAVA9_HOME must be set to run BWC tests against [" + nodeVersion + "]")}"]
         } else {
-            javaHome = project.compilerJavaHome
+            env = ['JAVA_HOME':project.runtimeJavaHome]
         }
 
-        env = ['JAVA_HOME':javaHome]
         args.addAll("-E", "node.portsfile=true")
         String collectedSystemProperties = config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" ")
         String esJavaOpts = config.jvmArgs.isEmpty() ? collectedSystemProperties : collectedSystemProperties + " " + config.jvmArgs

@@ -171,7 +171,7 @@ class NodeInfo {
         } else if (nodeVersion.onOrAfter("6.2.0") && nodeVersion.before("6.3.0")) {
             env = ['JAVA_HOME':"${-> getJavaHome(project, 9, "JAVA9_HOME must be set to run BWC tests against [" + nodeVersion + "]")}"]
         } else {
-            env = ['JAVA_HOME':project.compilerJavaHome]
+            env = ['JAVA_HOME':project.runtimeJavaHome]
         }
 
         args.addAll("-E", "node.portsfile=true")

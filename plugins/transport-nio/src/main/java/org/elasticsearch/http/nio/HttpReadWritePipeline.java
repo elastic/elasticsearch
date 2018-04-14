@@ -37,6 +37,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.FlushProducer;
 import org.elasticsearch.nio.InboundChannelBuffer;
+import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.nio.WriteOperation;
 import org.elasticsearch.rest.RestRequest;
@@ -47,25 +48,27 @@ import java.util.Collections;
 public class HttpReadWritePipeline implements SocketChannelContext.ReadConsumer, FlushProducer {
 
     private final NettyAdaptor adaptor;
+    private final NioSocketChannel nioChannel;
     private final NioHttpServerTransport transport;
+    private final HttpHandlerSettings settings;
     private final NamedXContentRegistry xContentRegistry;
     private final ThreadContext threadContext;
-    private boolean detailedErrorsEnabled;
 
-    public HttpReadWritePipeline(NioHttpServerTransport transport, NamedXContentRegistry xContentRegistry, ThreadContext threadContext) {
+    public HttpReadWritePipeline(NioSocketChannel nioChannel, NioHttpServerTransport transport, HttpHandlerSettings settings,
+                                 NamedXContentRegistry xContentRegistry, ThreadContext threadContext) {
+        this.nioChannel = nioChannel;
         this.transport = transport;
+        this.settings = settings;
         this.xContentRegistry = xContentRegistry;
         this.threadContext = threadContext;
-        // TODO: These use all the default settings level. The settings still need to be implemented.
-        HttpRequestDecoder decoder = new HttpRequestDecoder(
-            Math.toIntExact(new ByteSizeValue(4, ByteSizeUnit.KB).getBytes()),
-            Math.toIntExact(new ByteSizeValue(8, ByteSizeUnit.KB).getBytes()),
-            Math.toIntExact(new ByteSizeValue(8, ByteSizeUnit.KB).getBytes()));
+        HttpRequestDecoder decoder = new HttpRequestDecoder(settings.getMaxInitialLineLength(), settings.getMaxHeaderSize(),
+            settings.getMaxChunkSize());
         decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
         HttpContentDecompressor decompressor = new HttpContentDecompressor();
         HttpResponseEncoder encoder = new HttpResponseEncoder();
-        HttpObjectAggregator aggregator = new HttpObjectAggregator(Math.toIntExact(new ByteSizeValue(100, ByteSizeUnit.MB).getBytes()));
-        HttpContentCompressor compressor = new HttpContentCompressor(3);
+        HttpObjectAggregator aggregator = new HttpObjectAggregator(settings.getMaxContentLength());
+        // TODO: Implement optional compression
+        HttpContentCompressor compressor = new HttpContentCompressor(settings.getCompressionLevel());
 
         adaptor = new NettyAdaptor(decoder, decompressor, encoder, aggregator, compressor);
     }
@@ -142,7 +145,7 @@ public class HttpReadWritePipeline implements SocketChannelContext.ReadConsumer,
         {
             NioHttpChannel innerChannel;
             try {
-                innerChannel = new NioHttpChannel(transport, httpRequest, detailedErrorsEnabled, threadContext);
+                innerChannel = new NioHttpChannel(nioChannel, transport, httpRequest, settings.getDetailedErrorsEnabled(), threadContext);
             } catch (final IllegalArgumentException e) {
                 if (badRequestCause == null) {
                     badRequestCause = e;
@@ -155,7 +158,7 @@ public class HttpReadWritePipeline implements SocketChannelContext.ReadConsumer,
                         Collections.emptyMap(), // we are going to dispatch the request as a bad request, drop all parameters
                         copiedRequest.uri(),
                         copiedRequest);
-                innerChannel = new NioHttpChannel(transport, innerRequest, detailedErrorsEnabled, threadContext);
+                innerChannel = new NioHttpChannel(nioChannel, transport, innerRequest, settings.getDetailedErrorsEnabled(), threadContext);
             }
             channel = innerChannel;
         }

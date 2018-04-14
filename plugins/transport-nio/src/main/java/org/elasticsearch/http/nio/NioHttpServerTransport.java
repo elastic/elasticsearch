@@ -13,9 +13,16 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
+import org.elasticsearch.nio.AcceptingSelector;
+import org.elasticsearch.nio.ChannelFactory;
+import org.elasticsearch.nio.NioServerSocketChannel;
+import org.elasticsearch.nio.NioSocketChannel;
+import org.elasticsearch.nio.SocketSelector;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
 import java.util.List;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_BIND_HOST;
@@ -43,22 +50,23 @@ public class NioHttpServerTransport extends AbstractLifecycleComponent implement
     private final NamedXContentRegistry xContentRegistry;
     private final Dispatcher dispatcher;
 
-    private final ByteSizeValue maxChunkSize;
-    private final ByteSizeValue maxHeaderSize;
-    private final ByteSizeValue maxInitialLineLength;
-    private final Boolean resetCookies;
+    private final int maxContentLength;
+    private final int maxChunkSize;
+    private final int maxHeaderSize;
+    private final int maxInitialLineLength;
+    private final boolean resetCookies;
+    private final boolean detailedErrorsEnabled;
+    private final boolean compression;
+    private final int compressionLevel;
+
     private final PortsRange port;
     private final String[] bindHosts;
     private final String[] publishHosts;
     private final boolean tcpNoDelay;
     private final boolean tcpKeepAlive;
     private final boolean reuseAddress;
-    private final ByteSizeValue tcpSendBufferSize;
-    private final ByteSizeValue tcpReceiveBufferSize;
-    private final boolean detailedErrorsEnabled;
-    private final boolean compression;
-    private final int compressionLevel;
-    private final ByteSizeValue maxContentLength;
+    private final int tcpSendBufferSize;
+    private final int tcpReceiveBufferSize;
 
     public NioHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
                                   NamedXContentRegistry xContentRegistry, HttpServerTransport.Dispatcher dispatcher) {
@@ -69,11 +77,15 @@ public class NioHttpServerTransport extends AbstractLifecycleComponent implement
         this.xContentRegistry = xContentRegistry;
         this.dispatcher = dispatcher;
 
-        this.maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings);
-        this.maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);
-        this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
-        this.maxInitialLineLength = SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.get(settings);
+        this.maxContentLength = Math.toIntExact(SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings).getBytes());
+        this.maxChunkSize = Math.toIntExact(SETTING_HTTP_MAX_CHUNK_SIZE.get(settings).getBytes());
+        this.maxHeaderSize = Math.toIntExact(SETTING_HTTP_MAX_HEADER_SIZE.get(settings).getBytes());
+        this.maxInitialLineLength =  Math.toIntExact(SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.get(settings).getBytes());
         this.resetCookies = SETTING_HTTP_RESET_COOKIES.get(settings);
+        this.detailedErrorsEnabled = SETTING_HTTP_DETAILED_ERRORS_ENABLED.get(settings);
+        this.compression = SETTING_HTTP_COMPRESSION.get(settings);
+        this.compressionLevel = SETTING_HTTP_COMPRESSION_LEVEL.get(settings);
+
 //        this.workerCount = SETTING_HTTP_WORKER_COUNT.get(settings);
         this.port = SETTING_HTTP_PORT.get(settings);
         // we can't make the network.bind_host a fallback since we already fall back to http.host hence the extra conditional here
@@ -87,12 +99,9 @@ public class NioHttpServerTransport extends AbstractLifecycleComponent implement
         this.tcpNoDelay = SETTING_HTTP_TCP_NO_DELAY.get(settings);
         this.tcpKeepAlive = SETTING_HTTP_TCP_KEEP_ALIVE.get(settings);
         this.reuseAddress = SETTING_HTTP_TCP_REUSE_ADDRESS.get(settings);
-        this.tcpSendBufferSize = SETTING_HTTP_TCP_SEND_BUFFER_SIZE.get(settings);
-        this.tcpReceiveBufferSize = SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE.get(settings);
-        this.detailedErrorsEnabled = SETTING_HTTP_DETAILED_ERRORS_ENABLED.get(settings);
+        this.tcpSendBufferSize = Math.toIntExact(SETTING_HTTP_TCP_SEND_BUFFER_SIZE.get(settings).getBytes());
+        this.tcpReceiveBufferSize = Math.toIntExact(SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE.get(settings).getBytes());
 
-        this.compression = SETTING_HTTP_COMPRESSION.get(settings);
-        this.compressionLevel = SETTING_HTTP_COMPRESSION_LEVEL.get(settings);
 
         logger.debug("using max_chunk_size[{}], max_header_size[{}], max_initial_line_length[{}], max_content_length[{}]",
             maxChunkSize, maxHeaderSize, maxInitialLineLength, maxContentLength);
@@ -144,11 +153,28 @@ public class NioHttpServerTransport extends AbstractLifecycleComponent implement
         if (boundTransportAddress == null) {
             return null;
         }
-        return new HttpInfo(boundTransportAddress, maxContentLength.getBytes());
+        return new HttpInfo(boundTransportAddress, maxContentLength);
     }
 
     @Override
     public HttpStats stats() {
         return null;
+    }
+
+    private class HttpChannelFactory extends ChannelFactory<NioServerSocketChannel, NioSocketChannel> {
+
+        private HttpChannelFactory() {
+            super(new RawChannelFactory(tcpNoDelay, tcpKeepAlive, reuseAddress, tcpSendBufferSize, tcpReceiveBufferSize));
+        }
+
+        @Override
+        public NioSocketChannel createChannel(SocketSelector selector, SocketChannel channel) throws IOException {
+            return null;
+        }
+
+        @Override
+        public NioServerSocketChannel createServerChannel(AcceptingSelector selector, ServerSocketChannel channel) throws IOException {
+            return null;
+        }
     }
 }

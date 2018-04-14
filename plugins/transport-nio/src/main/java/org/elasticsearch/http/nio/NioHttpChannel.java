@@ -36,14 +36,17 @@ public class NioHttpChannel extends AbstractRestChannel {
     private final NioHttpServerTransport transport;
     private final ThreadContext threadContext;
     private final FullHttpRequest nettyRequest;
-    private final NioSocketChannel nioSocketChannel = null;
+    private final NioSocketChannel nioChannel;
+    private final boolean resetCookies;
 
-    public NioHttpChannel(NioHttpServerTransport transport, NioHttpRequest request, boolean detailedErrorsEnabled,
-                          ThreadContext threadContext) {
-        super(request, detailedErrorsEnabled);
+    public NioHttpChannel(NioSocketChannel nioChannel, NioHttpServerTransport transport, NioHttpRequest request,
+                          HttpHandlerSettings settings, ThreadContext threadContext) {
+        super(request, settings.getDetailedErrorsEnabled());
+        this.nioChannel = nioChannel;
         this.transport = transport;
         this.threadContext = threadContext;
         this.nettyRequest = request.getRequest();
+        this.resetCookies = settings.isResetCookies();
     }
 
     @Override
@@ -90,10 +93,10 @@ public class NioHttpChannel extends AbstractRestChannel {
             }
 
             if (isCloseConnection()) {
-                listeners.add(nioSocketChannel::close);
+                listeners.add(nioChannel::close);
             }
 
-            nioSocketChannel.getContext().sendMessage(resp, (aVoid, throwable) -> {
+            nioChannel.getContext().sendMessage(resp, (aVoid, throwable) -> {
                 RuntimeException listenerException = null;
                 for (Runnable listener : listeners) {
                     try {
@@ -138,9 +141,7 @@ public class NioHttpChannel extends AbstractRestChannel {
     }
 
     private void addCookies(HttpResponse resp) {
-        // TODO: Fix
-//        if (transport.resetCookies) {
-        if (true) {
+        if (resetCookies) {
             String cookieString = nettyRequest.headers().get(HttpHeaderNames.COOKIE);
             if (cookieString != null) {
                 Set<Cookie> cookies = ServerCookieDecoder.STRICT.decode(cookieString);

@@ -209,7 +209,7 @@ class NodeInfo {
         else {
             env.put('ES_PATH_CONF', pathConf)
         }
-        if (Version.fromString(nodeVersion).major == 5) {
+        if (nodeVersion.major == 5) {
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
                 /*
                  * We have to delay building the string as the path will not exist during configuration which will fail on Windows due to

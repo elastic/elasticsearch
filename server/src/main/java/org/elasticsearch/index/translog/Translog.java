@@ -744,6 +744,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     private void closeOnTragicEvent(final Exception ex) {
         // we can not hold a read lock here because closing will attempt to obtain a write lock and that would result in self-deadlock
         assert readLock.isHeldByCurrentThread() == false : Thread.currentThread().getName();
+        Objects.requireNonNull(ex);
         if (current.getTragicException() != null) {
             try {
                 close();
@@ -754,7 +755,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                  * https://github.com/elastic/elasticsearch/issues/15941.
                  */
             } catch (final Exception inner) {
-                assert (ex != null && ex != inner.getCause());
+                assert ex != inner.getCause();
                 ex.addSuppressed(inner);
             }
         }

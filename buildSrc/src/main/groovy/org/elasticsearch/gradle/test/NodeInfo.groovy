@@ -165,13 +165,12 @@ class NodeInfo {
             args.add("${esScript}")
         }
 
-        final String javaHome
         if (nodeVersion.before("6.2.0")) {
-            env = ['JAVA_HOME':"${-> getJavaHome(project, 8, "JAVA8_HOME must be set to run BWC tests against [" + nodeVersion + "]")}"]
+            env = ['JAVA_HOME': "${-> getJavaHome(project, 8, "JAVA8_HOME must be set to run BWC tests against [" + nodeVersion + "]")}"]
         } else if (nodeVersion.onOrAfter("6.2.0") && nodeVersion.before("6.3.0")) {
-            env = ['JAVA_HOME':"${-> getJavaHome(project, 9, "JAVA9_HOME must be set to run BWC tests against [" + nodeVersion + "]")}"]
+            env = ['JAVA_HOME': "${-> getJavaHome(project, 9, "JAVA9_HOME must be set to run BWC tests against [" + nodeVersion + "]")}"]
         } else {
-            env = ['JAVA_HOME':project.runtimeJavaHome]
+            env = ['JAVA_HOME': (String) project.runtimeJavaHome]
         }
 
         args.addAll("-E", "node.portsfile=true")

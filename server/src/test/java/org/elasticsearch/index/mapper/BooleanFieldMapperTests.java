@@ -32,7 +32,6 @@ import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -49,16 +48,19 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
 public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
+
+    private static final boolean FIELD1_IGNORE_MALFORMED = true;
+    private static final boolean FIELD1_DONT_IGNORE_MALFORMED = !FIELD1_IGNORE_MALFORMED;
+    private static final String FIELD1 = "field1";
+    private static final String FIELD2 = "field2";
+
     private IndexService indexService;
     private DocumentMapperParser parser;
-    private DocumentMapperParser preEs6Parser;
 
     @Before
     public void setup() {
@@ -130,26 +132,176 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals("{\"field\":{\"type\":\"boolean\",\"doc_values\":false,\"null_value\":true}}", Strings.toString(builder));
     }
 
-    public void testParsesBooleansStrict() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+    public void test_null() throws Exception{
+        this.parseAndCheck(FIELD1_IGNORE_MALFORMED, null, null);
+    }
+
+    public void test_true() throws Exception{
+        this.parseAndCheck(FIELD1_IGNORE_MALFORMED,true, BooleanFieldMapper.TRUE);
+    }
+
+    public void test_false() throws Exception{
+        this.parseAndCheck(FIELD1_IGNORE_MALFORMED,false, BooleanFieldMapper.FALSE);
+    }
+
+    public void test_on() throws Exception{
+        this.parseFails("on");
+    }
+
+    public void test_off() throws Exception{
+        this.parseFails("off");
+    }
+
+    public void test_yes() throws Exception{
+        this.parseFails("yes");
+    }
+
+    public void test_no() throws Exception{
+        this.parseFails("no");
+    }
+
+    public void test_0() throws Exception{
+        this.parseFails("0");
+    }
+
+    public void test_1() throws Exception{
+        this.parseFails("1");
+    }
+
+    public void test_string_IgnoreMalformed() throws Exception{
+        this.parseAndCheck(FIELD1_IGNORE_MALFORMED,
+            sourceWithString(),
+            null, BooleanFieldMapper.TRUE);
+    }
+
+    public void test_string() throws Exception{
+        this.parseFails(sourceWithString());
+    }
+
+    private BytesReference sourceWithString() throws Exception{
+        return BytesReference.bytes(XContentFactory.jsonBuilder()
             .startObject()
-                .startObject("type")
-                    .startObject("properties")
-                        .startObject("field")
-                            .field("type", "boolean")
-                        .endObject()
-                    .endObject()
-                .endObject()
+            .field(FIELD1, "**Never convertable to boolean**") // IGNORED
+            .field(FIELD2, true)
             .endObject());
-        DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
-        BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject()
-                    // omit "false"/"true" here as they should still be parsed correctly
-                    .field("field", randomFrom("off", "no", "0", "on", "yes", "1"))
-                .endObject());
+    }
+
+    public void test_number_IgnoreMalformed() throws Exception{
+        this.parseAndCheck(FIELD1_IGNORE_MALFORMED,
+            this.sourceWithNumber(1),
+            null, BooleanFieldMapper.TRUE);
+    }
+
+    public void test_number() throws Exception{
+        this.parseFails(this.sourceWithNumber(1));
+    }
+
+    private BytesReference sourceWithNumber(final int value) throws Exception{
+        return BytesReference.bytes(XContentFactory.jsonBuilder()
+            .startObject()
+            .field(FIELD1, value) // IGNORED
+            .field(FIELD2, true)
+            .endObject());
+    }
+
+    public void test_object_IgnoreMalformed() throws Exception{
+        this.parseAndCheck(FIELD1_IGNORE_MALFORMED,
+            this.sourceWithObject(),
+            null, BooleanFieldMapper.TRUE);
+    }
+
+    public void test_object() throws Exception{
+        this.parseFails(FIELD1_DONT_IGNORE_MALFORMED,
+            this.sourceWithObject());
+    }
+
+    private BytesReference sourceWithObject() throws Exception{
+        return BytesReference.bytes(XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject(FIELD1) // IGNORED
+            .field("field3", false)
+            .endObject()
+            .field(FIELD2, true)
+            .endObject());
+    }
+
+    public void test_array_IgnoreMalformed() throws Exception{
+        this.parseAndCheck(FIELD1_IGNORE_MALFORMED,
+            sourceWithArray(),
+            null, BooleanFieldMapper.TRUE);
+    }
+
+    public void test_array() throws Exception{
+        this.parseFails(sourceWithArray());
+    }
+
+    private BytesReference sourceWithArray() throws Exception{
+        return BytesReference.bytes(XContentFactory.jsonBuilder()
+            .startObject()
+            .startArray(FIELD1) // IGNORED
+            .startObject()
+            .endObject()
+            .endArray()
+            .field(FIELD2, true)
+            .endObject());
+    }
+
+    private BytesReference source(final Object value1, final Object value2) throws IOException{
+        return BytesReference.bytes(XContentFactory.jsonBuilder()
+            .startObject()
+            .field(FIELD1, value1)
+            .field(FIELD2, value2)
+            .endObject());
+    }
+
+    private Document parse(final boolean field1IgnoreMalformed, final BytesReference source) throws IOException{
+        final String mapping = this.mapping(field1IgnoreMalformed);
+        final DocumentMapper mapper = this.parser.parse("type", new CompressedXContent(mapping));
+        return mapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON)).rootDoc();
+    }
+
+    private void parseAndCheck(final boolean field1IgnoreMalformed,
+                               final Object value,
+                               final String expected) throws IOException
+    {
+        this.parseAndCheck(field1IgnoreMalformed, this.source(value, value), expected, expected);
+    }
+
+    private String mapping(final boolean field1IgnoreMalformed) throws IOException{
+        return Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("type")
+            .startObject("properties")
+            .startObject(FIELD1)
+            .field("type", "boolean")
+            .field("ignore_malformed", field1IgnoreMalformed)
+            .endObject()
+            .startObject(FIELD2)
+            .field("type", "boolean")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject());
+    }
+
+    private void parseAndCheck(final boolean field1IgnoreMalformed,
+                               final BytesReference source,
+                               final String expected1,
+                               final String expected2) throws IOException{
+        final Document document = this.parse(field1IgnoreMalformed, source);
+        assertEquals(FIELD2, expected2, document.get(FIELD2));
+        assertEquals(FIELD1, expected1, document.get(FIELD1));
+    }
+
+    private void parseFails(final Object value) throws IOException{
+        parseFails(FIELD1_DONT_IGNORE_MALFORMED, this.source(value, null));
+    }
+
+    private void parseFails(final boolean field1IgnoreMalformed,
+                            final BytesReference source) {
         MapperParsingException ex = expectThrows(MapperParsingException.class,
-                () -> defaultMapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON)));
-        assertEquals("failed to parse [field]", ex.getMessage());
+            () -> parse(field1IgnoreMalformed, source));
+        assertEquals("failed to parse [field1]", ex.getMessage());
     }
 
     public void testMultiFields() throws IOException {

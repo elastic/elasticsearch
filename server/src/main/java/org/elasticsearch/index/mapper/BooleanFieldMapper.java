@@ -29,6 +29,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -70,14 +72,22 @@ public class BooleanFieldMapper extends FieldMapper {
             FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.freeze();
         }
+        public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
     }
 
+    // @VisibleForTesting
+    static final String TRUE = "T";
+    // @VisibleForTesting
+    static final String FALSE = "F";
+
     public static class Values {
-        public static final BytesRef TRUE = new BytesRef("T");
-        public static final BytesRef FALSE = new BytesRef("F");
+        public static final BytesRef TRUE = new BytesRef(BooleanFieldMapper.TRUE);
+        public static final BytesRef FALSE = new BytesRef(BooleanFieldMapper.FALSE);
     }
 
     public static class Builder extends FieldMapper.Builder<Builder, BooleanFieldMapper> {
+
+        private Boolean ignoreMalformed;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -92,11 +102,31 @@ public class BooleanFieldMapper extends FieldMapper {
             return super.tokenized(tokenized);
         }
 
+        public Builder ignoreMalformed(boolean ignoreMalformed) {
+            this.ignoreMalformed = ignoreMalformed;
+            return builder;
+        }
+
+        protected Explicit<Boolean> ignoreMalformed(BuilderContext context) {
+            if (ignoreMalformed != null) {
+                return new Explicit<>(ignoreMalformed, true);
+            }
+            if (context.indexSettings() != null) {
+                return new Explicit<>(IGNORE_MALFORMED_SETTING.get(context.indexSettings()), false);
+            }
+            return BooleanFieldMapper.Defaults.IGNORE_MALFORMED;
+        }
+
         @Override
         public BooleanFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            return new BooleanFieldMapper(name, fieldType, defaultFieldType,
-                context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+            return new BooleanFieldMapper(name,
+                fieldType,
+                defaultFieldType,
+                context.indexSettings(),
+                multiFieldsBuilder.build(this, context),
+                ignoreMalformed(context),
+                copyTo);
         }
     }
 
@@ -114,6 +144,9 @@ public class BooleanFieldMapper extends FieldMapper {
                         throw new MapperParsingException("Property [null_value] cannot be null.");
                     }
                     builder.nullValue(XContentMapValues.nodeBooleanValue(propNode, name + ".null_value"));
+                    iterator.remove();
+                } else if (propName.equals("ignore_malformed")) {
+                    builder.ignoreMalformed(XContentMapValues.nodeBooleanValue(propNode, name + ".ignore_malformed"));
                     iterator.remove();
                 }
             }
@@ -184,12 +217,12 @@ public class BooleanFieldMapper extends FieldMapper {
                 return null;
             }
             switch(value.toString()) {
-            case "F":
+            case FALSE:
                 return false;
-            case "T":
+            case TRUE:
                 return true;
             default:
-                throw new IllegalArgumentException("Expected [T] or [F] but got [" + value + "]");
+                throw new IllegalArgumentException("Expected [" + TRUE + "] or [" + FALSE + "] but got [" + value + "]");
             }
         }
 
@@ -221,9 +254,17 @@ public class BooleanFieldMapper extends FieldMapper {
         }
     }
 
-    protected BooleanFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+    private Explicit<Boolean> ignoreMalformed;
+
+    protected BooleanFieldMapper(String simpleName,
+                                 MappedFieldType fieldType,
+                                 MappedFieldType defaultFieldType,
+                                 Settings indexSettings,
+                                 MultiFields multiFields,
+                                 Explicit<Boolean> ignoreMalformed,
+                                 CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+        this.ignoreMalformed = ignoreMalformed;
     }
 
     @Override
@@ -239,13 +280,23 @@ public class BooleanFieldMapper extends FieldMapper {
 
         Boolean value = context.parseExternalValue(Boolean.class);
         if (value == null) {
-            XContentParser.Token token = context.parser().currentToken();
+            final XContentParser parser = context.parser();
+            XContentParser.Token token = parser.currentToken();
             if (token == XContentParser.Token.VALUE_NULL) {
                 if (fieldType().nullValue() != null) {
                     value = fieldType().nullValue();
                 }
             } else {
-                value = context.parser().booleanValue();
+                if (ignoreMalformed.value()) {
+                    if(parser.isBooleanValue()){
+                        value = parser.booleanValue();
+                    } else {
+                        parser.skipChildren();
+                    }
+                } else {
+                    // if value is really an array/object/number let parser crash and burn!
+                    value = parser.booleanValue();
+                }
             }
         }
 
@@ -253,7 +304,7 @@ public class BooleanFieldMapper extends FieldMapper {
             return;
         }
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            fields.add(new Field(fieldType().name(), value ? "T" : "F", fieldType()));
+            fields.add(new Field(fieldType().name(), value ? TRUE : FALSE, fieldType()));
         }
         if (fieldType().hasDocValues()) {
             fields.add(new SortedNumericDocValuesField(fieldType().name(), value ? 1 : 0));

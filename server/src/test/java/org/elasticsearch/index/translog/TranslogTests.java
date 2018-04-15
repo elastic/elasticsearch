@@ -1812,7 +1812,6 @@ public class TranslogTests extends ESTestCase {
         assertTrue(translog.getTragicException() instanceof UnknownException);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29509")
     public void testFatalIOExceptionsWhileWritingConcurrently() throws IOException, InterruptedException {
         Path tempDir = createTempDir();
         final FailSwitch fail = new FailSwitch();

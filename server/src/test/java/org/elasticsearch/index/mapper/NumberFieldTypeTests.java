@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FloatPoint;
 import org.apache.lucene.document.HalfFloatPoint;
@@ -37,8 +36,8 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.hamcrest.Matchers;
@@ -273,15 +272,19 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         assertEquals(3f, NumberType.FLOAT.parse(3d, true));
         assertEquals(3d, NumberType.DOUBLE.parse(3d, true));
 
-        assertEquals((byte) 3, NumberType.BYTE.parse(3.5, true));
-        assertEquals((short) 3, NumberType.SHORT.parse(3.5, true));
-        assertEquals(3, NumberType.INTEGER.parse(3.5, true));
-        assertEquals(3L, NumberType.LONG.parse(3.5, true));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> NumberType.BYTE.parse(3.5, true));
+        assertEquals("Value [3.5] has a decimal part", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> NumberType.SHORT.parse(3.5, true));
+        assertEquals("Value [3.5] has a decimal part", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> NumberType.INTEGER.parse(3.5, true));
+        assertEquals("Value [3.5] has a decimal part", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> NumberType.LONG.parse(3.5, true));
+        assertEquals("Value [3.5] has a decimal part", e.getMessage());
 
         assertEquals(3.5f, NumberType.FLOAT.parse(3.5, true));
         assertEquals(3.5d, NumberType.DOUBLE.parse(3.5, true));
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> NumberType.BYTE.parse(128, true));
+        e = expectThrows(IllegalArgumentException.class, () -> NumberType.BYTE.parse(128, true));
         assertEquals("Value [128] is out of range for a byte", e.getMessage());
         e = expectThrows(IllegalArgumentException.class, () -> NumberType.SHORT.parse(65536, true));
         assertEquals("Value [65536] is out of range for a short", e.getMessage());
@@ -298,27 +301,40 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         assertEquals((byte) 5, NumberType.BYTE.parse((short) 5, true));
         assertEquals((byte) 5, NumberType.BYTE.parse("5", true));
         assertEquals((byte) 5, NumberType.BYTE.parse("5.0", true));
-        assertEquals((byte) 5, NumberType.BYTE.parse("5.9", true));
-        assertEquals((byte) 5, NumberType.BYTE.parse(new BytesRef("5.3".getBytes(StandardCharsets.UTF_8)), true));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> NumberType.BYTE.parse("5.9", true));
+        assertEquals("Value [5.9] has a decimal part", e.getMessage());
+        BytesRef bytesRef = new BytesRef("5.3".getBytes(StandardCharsets.UTF_8));
+        e = expectThrows(IllegalArgumentException.class,
+            () -> NumberType.BYTE.parse(bytesRef, true));
+        assertEquals("Value [" + bytesRef + "] has a decimal part", e.getMessage());
 
         assertEquals((short) 5, NumberType.SHORT.parse((byte) 5, true));
         assertEquals((short) 5, NumberType.SHORT.parse("5", true));
         assertEquals((short) 5, NumberType.SHORT.parse("5.0", true));
-        assertEquals((short) 5, NumberType.SHORT.parse("5.9", true));
-        assertEquals((short) 5, NumberType.SHORT.parse(new BytesRef("5.3".getBytes(StandardCharsets.UTF_8)), true));
+        e = expectThrows(IllegalArgumentException.class, () -> NumberType.SHORT.parse("5.9", true));
+        assertEquals("Value [5.9] has a decimal part", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class,
+            () -> NumberType.SHORT.parse(bytesRef, true));
+        assertEquals("Value [" + bytesRef + "] has a decimal part", e.getMessage());
 
         assertEquals(5, NumberType.INTEGER.parse((byte) 5, true));
         assertEquals(5, NumberType.INTEGER.parse("5", true));
         assertEquals(5, NumberType.INTEGER.parse("5.0", true));
-        assertEquals(5, NumberType.INTEGER.parse("5.9", true));
-        assertEquals(5, NumberType.INTEGER.parse(new BytesRef("5.3".getBytes(StandardCharsets.UTF_8)), true));
+        e = expectThrows(IllegalArgumentException.class, () -> NumberType.INTEGER.parse("5.9", true));
+        assertEquals("Value [5.9] has a decimal part", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class,
+            () -> NumberType.INTEGER.parse(bytesRef, true));
+        assertEquals("Value [" + bytesRef + "] has a decimal part", e.getMessage());
         assertEquals(Integer.MAX_VALUE, NumberType.INTEGER.parse(Integer.MAX_VALUE, true));
 
         assertEquals((long) 5, NumberType.LONG.parse((byte) 5, true));
         assertEquals((long) 5, NumberType.LONG.parse("5", true));
         assertEquals((long) 5, NumberType.LONG.parse("5.0", true));
-        assertEquals((long) 5, NumberType.LONG.parse("5.9", true));
-        assertEquals((long) 5, NumberType.LONG.parse(new BytesRef("5.3".getBytes(StandardCharsets.UTF_8)), true));
+        e = expectThrows(IllegalArgumentException.class, () -> NumberType.LONG.parse("5.9", true));
+        assertEquals("Value [5.9] has a decimal part", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class,
+            () -> NumberType.LONG.parse(bytesRef, true));
+        assertEquals("Value [" + bytesRef + "] has a decimal part", e.getMessage());
 
         // these will lose precision if they get treated as a double
         assertEquals(-4115420654264075766L, NumberType.LONG.parse("-4115420654264075766", true));

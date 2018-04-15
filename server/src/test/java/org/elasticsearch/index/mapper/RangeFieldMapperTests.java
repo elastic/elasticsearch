@@ -287,28 +287,29 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
         assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
 
-        ParsedDocument doc1 = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("field")
-            .field(GT_FIELD.getPreferredName(), "2.34")
-            .field(LT_FIELD.getPreferredName(), "5.67")
-            .endObject()
-            .endObject()),
-            XContentType.JSON));
+        MapperParsingException e = expectThrows(MapperParsingException.class,
+            () -> mapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("field")
+                    .field(GT_FIELD.getPreferredName(), "2.34")
+                    .field(LT_FIELD.getPreferredName(), "5")
+                    .endObject()
+                    .endObject()),
+                XContentType.JSON)));
 
-        ParsedDocument doc2 = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("field")
-            .field(GT_FIELD.getPreferredName(), "2")
-            .field(LT_FIELD.getPreferredName(), "5")
-            .endObject()
-            .endObject()),
-            XContentType.JSON));
+        assertEquals("Value [2.34] has a decimal part", e.getCause().getMessage());
 
-        IndexableField[] fields1 = doc1.rootDoc().getFields("field");
-        IndexableField[] fields2 = doc2.rootDoc().getFields("field");
+        e = expectThrows(MapperParsingException.class,
+            () -> mapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("field")
+                    .field(GT_FIELD.getPreferredName(), "2")
+                    .field(LT_FIELD.getPreferredName(), "5.67")
+                    .endObject()
+                    .endObject()),
+                XContentType.JSON)));
 
-        assertEquals(fields1[1].binaryValue(), fields2[1].binaryValue());
+        assertEquals("Value [5.67] has a decimal part", e.getCause().getMessage());
     }
 
     @Override

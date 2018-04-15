@@ -603,30 +603,32 @@ public class NumberFieldMapper extends FieldMapper {
                 int l = Integer.MIN_VALUE;
                 int u = Integer.MAX_VALUE;
                 if (lowerTerm != null) {
-                    l = parse(lowerTerm, true);
                     // if the lower bound is decimal:
                     // - if the bound is positive then we increment it:
                     //      if lowerTerm=1.5 then the (inclusive) bound becomes 2
                     // - if the bound is negative then we leave it as is:
                     //      if lowerTerm=-1.5 then the (inclusive) bound becomes -1 due to the call to longValue
-                    boolean lowerTermHasDecimalPart = hasDecimalPart(lowerTerm);
-                    if ((lowerTermHasDecimalPart == false && includeLower == false) ||
-                            (lowerTermHasDecimalPart && signum(lowerTerm) > 0)) {
-                        if (l == Integer.MAX_VALUE) {
-                            return new MatchNoDocsQuery();
+                    double lowerValue = NumberType.objectToDouble(lowerTerm);
+                    if (lowerValue > Integer.MAX_VALUE || (lowerValue == Integer.MAX_VALUE && includeLower == false)) {
+                        return new MatchNoDocsQuery();
+                    }
+                    if (lowerValue > Integer.MIN_VALUE) {
+                        l = (int) Math.ceil(lowerValue);
+                        if (l == lowerValue && includeLower == false) {
+                            l++;
                         }
-                        ++l;
                     }
                 }
                 if (upperTerm != null) {
-                    u = parse(upperTerm, true);
-                    boolean upperTermHasDecimalPart = hasDecimalPart(upperTerm);
-                    if ((upperTermHasDecimalPart == false && includeUpper == false) ||
-                            (upperTermHasDecimalPart && signum(upperTerm) < 0)) {
-                        if (u == Integer.MIN_VALUE) {
-                            return new MatchNoDocsQuery();
+                    double upperValue = NumberType.objectToDouble(upperTerm);
+                    if (upperValue < Integer.MIN_VALUE || (upperValue == Integer.MIN_VALUE && includeUpper == false)) {
+                        return new MatchNoDocsQuery();
+                    }
+                    if (upperValue < Integer.MAX_VALUE) {
+                        u = (int) Math.floor(upperValue);
+                        if (u == upperValue && includeUpper == false) {
+                            u--;
                         }
-                        --u;
                     }
                 }
                 Query query = IntPoint.newRangeQuery(field, l, u);
@@ -657,7 +659,7 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public Long parse(Object value, boolean coerce) {
                 if (value instanceof Long) {
-                    return (Long)value;
+                    return (Long) value;
                 }
 
                 double doubleValue = objectToDouble(value);
@@ -719,30 +721,32 @@ public class NumberFieldMapper extends FieldMapper {
                 long l = Long.MIN_VALUE;
                 long u = Long.MAX_VALUE;
                 if (lowerTerm != null) {
-                    l = parse(lowerTerm, true);
                     // if the lower bound is decimal:
                     // - if the bound is positive then we increment it:
                     //      if lowerTerm=1.5 then the (inclusive) bound becomes 2
                     // - if the bound is negative then we leave it as is:
                     //      if lowerTerm=-1.5 then the (inclusive) bound becomes -1 due to the call to longValue
-                    boolean lowerTermHasDecimalPart = hasDecimalPart(lowerTerm);
-                    if ((lowerTermHasDecimalPart == false && includeLower == false) ||
-                            (lowerTermHasDecimalPart && signum(lowerTerm) > 0)) {
-                        if (l == Long.MAX_VALUE) {
-                            return new MatchNoDocsQuery();
+                    double lowerValue = NumberType.objectToDouble(lowerTerm);
+                    if (lowerValue > Long.MAX_VALUE || (lowerValue == Long.MAX_VALUE && includeLower == false)) {
+                        return new MatchNoDocsQuery();
+                    }
+                    if (lowerValue > Long.MIN_VALUE) {
+                        l = (long) Math.ceil(lowerValue);
+                        if (l == lowerValue && includeLower == false) {
+                            l++;
                         }
-                        ++l;
                     }
                 }
                 if (upperTerm != null) {
-                    u = parse(upperTerm, true);
-                    boolean upperTermHasDecimalPart = hasDecimalPart(upperTerm);
-                    if ((upperTermHasDecimalPart == false && includeUpper == false) ||
-                            (upperTermHasDecimalPart && signum(upperTerm) < 0)) {
-                        if (u == Long.MIN_VALUE) {
-                            return new MatchNoDocsQuery();
+                    double upperValue = NumberType.objectToDouble(upperTerm);
+                    if (upperValue < Long.MIN_VALUE || (upperValue == Long.MIN_VALUE && includeUpper == false)) {
+                        return new MatchNoDocsQuery();
+                    }
+                    if (upperValue < Long.MAX_VALUE) {
+                        u = (long) Math.floor(upperValue);
+                        if (u == upperValue && includeUpper == false) {
+                            u--;
                         }
-                        --u;
                     }
                 }
                 Query query = LongPoint.newRangeQuery(field, l, u);

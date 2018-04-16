@@ -105,61 +105,7 @@ public class KeyStoreWrapperTests extends ESTestCase {
         keystore.decrypt(new char[0]);
         assertEquals(seed.toString(), keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey()).toString());
     }
-
-    public void testReadFullyDoesNotReadGarbage() throws Exception {
-        Path configDir = env.configFile();
-        SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
-        try (IndexOutput indexOutput = directory.createOutput("elasticsearch.keystore", IOContext.DEFAULT)) {
-            CodecUtil.writeHeader(indexOutput, "elasticsearch.keystore", 3);
-            indexOutput.writeByte((byte) 0); // No password
-            SecureRandom random = Randomness.createSecure();
-            byte[] salt = new byte[64];
-            random.nextBytes(salt);
-            byte[] iv = new byte[12];
-            random.nextBytes(iv);
-            byte[] garbage = new byte[64];
-            random.nextBytes(garbage);
-
-            PBEKeySpec keySpec = new PBEKeySpec(new char[0], salt, 10000, 128);
-            SecretKeyFactory keyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA512");
-            SecretKey secretKey = keyFactory.generateSecret(keySpec);
-            SecretKeySpec secret = new SecretKeySpec(secretKey.getEncoded(), "AES");
-            GCMParameterSpec spec = new GCMParameterSpec(128, iv);
-            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            cipher.init(Cipher.ENCRYPT_MODE, secret, spec);
-            cipher.updateAAD(salt);
-
-            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-            CipherOutputStream cipherStream = new CipherOutputStream(bytes, cipher);
-            DataOutputStream output = new DataOutputStream(cipherStream);
-
-            byte[] secret_value = "super_secret_value".getBytes(StandardCharsets.UTF_8);
-            output.writeInt(1); // One entry
-            output.writeUTF("string_setting");
-            output.writeUTF("STRING");
-            output.writeInt(secret_value.length);
-            output.write(secret_value);
-            output.write(garbage);
-
-            cipherStream.close();
-            final byte[] encryptedBytes = bytes.toByteArray();
-
-            indexOutput.writeInt(4 + salt.length + 4 + iv.length + 4 + encryptedBytes.length);
-            indexOutput.writeInt(salt.length);
-            indexOutput.writeBytes(salt, salt.length);
-            indexOutput.writeInt(iv.length);
-            indexOutput.writeBytes(iv, iv.length);
-            indexOutput.writeInt(encryptedBytes.length);
-            indexOutput.writeBytes(encryptedBytes, encryptedBytes.length);
-            CodecUtil.writeFooter(indexOutput);
-        }
-
-        KeyStoreWrapper keystore = KeyStoreWrapper.load(configDir);
-        keystore.decrypt(new char[0]);
-        SecureString testValue = keystore.getString("string_setting");
-        assertThat(testValue.toString(), equalTo("super_secret_value"));
-    }
-
+    
     public void testUpgradeAddsSeed() throws Exception {
         KeyStoreWrapper keystore = KeyStoreWrapper.create();
         keystore.remove(KeyStoreWrapper.SEED_SETTING.getKey());

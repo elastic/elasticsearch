@@ -132,7 +132,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
                 .replace(Rollup.MAPPING_METADATA_PLACEHOLDER, jobMetadata);
 
         CreateIndexRequest request = new CreateIndexRequest(job.getConfig().getRollupIndex());
-        request.mapping(RollupField.NAME, mapping, XContentType.JSON);
+        request.mapping(RollupField.TYPE_NAME, mapping, XContentType.JSON);
 
         client.execute(CreateIndexAction.INSTANCE, request,
                 ActionListener.wrap(createIndexResponse -> startPersistentTask(job, listener, persistentTasksService), e -> {
@@ -154,7 +154,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
         final String indexName = job.getConfig().getRollupIndex();
 
         CheckedConsumer<GetMappingsResponse, Exception> getMappingResponseHandler = getMappingResponse -> {
-            MappingMetaData mappings = getMappingResponse.getMappings().get(indexName).get(RollupField.NAME);
+            MappingMetaData mappings = getMappingResponse.getMappings().get(indexName).get(RollupField.TYPE_NAME);
             Object m = mappings.getSourceAsMap().get("_meta");
             if (m == null) {
                 String msg = "Expected to find _meta key in mapping of rollup index [" + indexName + "] but not found.";
@@ -186,7 +186,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
             Map<String, Object> newMapping = mappings.getSourceAsMap();
             newMapping.put("_meta", metadata);
             PutMappingRequest request = new PutMappingRequest(indexName);
-            request.type(RollupField.NAME);
+            request.type(RollupField.TYPE_NAME);
             request.source(newMapping);
             client.execute(PutMappingAction.INSTANCE, request,
                     ActionListener.wrap(putMappingResponse -> startPersistentTask(job, listener, persistentTasksService),

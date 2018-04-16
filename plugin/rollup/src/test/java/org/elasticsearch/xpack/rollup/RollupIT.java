@@ -20,6 +20,7 @@ import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -460,6 +461,14 @@ public class RollupIT extends ESIntegTestCase {
             Assert.assertThat(rollupAgg.getType(), equalTo(agg.getType()));
             verifyAgg((InternalDateHistogram)agg, (InternalDateHistogram)rollupAgg);
         }
+
+        // And a quick sanity check for doc type
+        SearchRequest rollupRawRequest = new SearchRequest("rolled")
+                .source(new SearchSourceBuilder().query(new MatchAllQueryBuilder())
+                        .size(1));
+        SearchResponse searchRawResponse = client().execute(SearchAction.INSTANCE, rollupRawRequest).get();
+        Assert.assertNotNull(searchRawResponse);
+        assertThat(searchRawResponse.getHits().getAt(0).getType(), equalTo("_doc"));
     }
 
     private void verifyAgg(InternalDateHistogram verify, InternalDateHistogram rollup) {

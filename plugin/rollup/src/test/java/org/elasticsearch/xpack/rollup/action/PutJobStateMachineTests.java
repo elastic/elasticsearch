@@ -120,8 +120,8 @@ public class PutJobStateMachineTests extends ESTestCase {
         ArgumentCaptor<ActionListener> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
         ArgumentCaptor<CreateIndexRequest> requestCaptor = ArgumentCaptor.forClass(CreateIndexRequest.class);
         doAnswer(invocation -> {
-            assertNotNull(requestCaptor.getValue().mappings().get("rollup"));
-            String mapping = requestCaptor.getValue().mappings().get("rollup");
+            assertNotNull(requestCaptor.getValue().mappings().get("_doc"));
+            String mapping = requestCaptor.getValue().mappings().get("_doc");
 
             // Make sure the version is present, and we have our date template (the most important aspects)
             assertThat(mapping, containsString("\"rollup-version\": \"" + Version.CURRENT.toString() + "\""));
@@ -187,9 +187,9 @@ public class PutJobStateMachineTests extends ESTestCase {
         ArgumentCaptor<ActionListener> requestCaptor = ArgumentCaptor.forClass(ActionListener.class);
         doAnswer(invocation -> {
             GetMappingsResponse response = mock(GetMappingsResponse.class);
-            MappingMetaData meta = new MappingMetaData(RollupField.NAME, Collections.emptyMap());
+            MappingMetaData meta = new MappingMetaData(RollupField.TYPE_NAME, Collections.emptyMap());
             ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(1);
-            builder.put(RollupField.NAME, meta);
+            builder.put(RollupField.TYPE_NAME, meta);
 
             ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> builder2 = ImmutableOpenMap.builder(1);
             builder2.put(job.getConfig().getRollupIndex(), builder.build());
@@ -219,12 +219,12 @@ public class PutJobStateMachineTests extends ESTestCase {
         ArgumentCaptor<ActionListener> requestCaptor = ArgumentCaptor.forClass(ActionListener.class);
         doAnswer(invocation -> {
             GetMappingsResponse response = mock(GetMappingsResponse.class);
-            MappingMetaData meta = new MappingMetaData(RollupField.NAME,
+            MappingMetaData meta = new MappingMetaData(RollupField.TYPE_NAME,
                     Collections.singletonMap("_meta",
                             Collections.singletonMap(RollupField.ROLLUP_META,
                                     Collections.singletonMap(job.getConfig().getId(), job.getConfig()))));
             ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(1);
-            builder.put(RollupField.NAME, meta);
+            builder.put(RollupField.TYPE_NAME, meta);
 
             ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> builder2 = ImmutableOpenMap.builder(1);
             builder2.put(job.getConfig().getRollupIndex(), builder.build());
@@ -258,11 +258,11 @@ public class PutJobStateMachineTests extends ESTestCase {
         ArgumentCaptor<ActionListener> requestCaptor = ArgumentCaptor.forClass(ActionListener.class);
         doAnswer(invocation -> {
             GetMappingsResponse response = mock(GetMappingsResponse.class);
-            MappingMetaData meta = new MappingMetaData(RollupField.NAME,
+            MappingMetaData meta = new MappingMetaData(RollupField.TYPE_NAME,
                     Collections.singletonMap("_meta", Collections.singletonMap(RollupField.ROLLUP_META,
                                     Collections.singletonMap(unrelatedJob.getId(), unrelatedJob))));
             ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(1);
-            builder.put(RollupField.NAME, meta);
+            builder.put(RollupField.TYPE_NAME, meta);
 
             ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> builder2 = ImmutableOpenMap.builder(1);
             builder2.put(unrelatedJob.getRollupIndex(), builder.build());

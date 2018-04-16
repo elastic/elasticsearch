@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
 
 public class RollupIndexCaps implements Writeable, ToXContentFragment {
     static ParseField ROLLUP_JOBS = new ParseField("rollup_jobs");
-    private static ParseField INDEX_NAME = new ParseField(RollupField.NAME);
+    private static ParseField INDEX_NAME = new ParseField(RollupField.TYPE_NAME);
 
     //TODO find a way to make this parsing less hacky :(
     // Note: we ignore unknown fields since there may be unrelated metadata
@@ -43,7 +43,7 @@ public class RollupIndexCaps implements Writeable, ToXContentFragment {
         /*
             Rollup index metadata layout is:
 
-            "rollup": {
+            "_doc": {
               "_meta" : {
                 "_rollup": {
                   "job-1": {
@@ -58,8 +58,8 @@ public class RollupIndexCaps implements Writeable, ToXContentFragment {
             }
          */
         METADATA_PARSER.declareField((parser, rollupIndexCaps, aVoid) -> {
-            // "rollup"
-            if (parser.currentName().equals(RollupField.NAME) && parser.currentToken().equals(XContentParser.Token.START_OBJECT)) {
+            // "_doc"
+            if (parser.currentName().equals(RollupField.TYPE_NAME) && parser.currentToken().equals(XContentParser.Token.START_OBJECT)) {
                 parser.nextToken();// START_OBJECT
                 List<RollupJobConfig> jobs = new ArrayList<>();
 

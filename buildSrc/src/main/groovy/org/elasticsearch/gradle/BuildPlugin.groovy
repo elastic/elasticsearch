@@ -38,6 +38,7 @@ import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
+import org.gradle.api.execution.TaskExecutionGraph
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
@@ -221,20 +222,20 @@ class BuildPlugin implements Plugin<Project> {
         return System.getenv('JAVA' + version + '_HOME')
     }
 
-    /**
-     * Get Java home for the project for the specified version. If the specified version is not configured, an exception with the specified
-     * message is thrown.
-     *
-     * @param project the project
-     * @param version the version of Java home to obtain
-     * @param message the exception message if Java home for the specified version is not configured
-     * @return Java home for the specified version
-     * @throws GradleException if Java home for the specified version is not configured
-     */
-    static String getJavaHome(final Project project, final int version, final String message) {
-        if (project.javaVersions.get(version) == null) {
-            throw new GradleException(message)
+    /** Add a check before gradle execution phase which ensures java home for the given java version is set. */
+    static void requireJavaHome(Project project, Task task, int version) {
+        project.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
+            if (taskGraph.hasTask(task)) {
+                if (project.javaVersions.get(version) == null) {
+                    throw new GradleException("JAVA${version}_HOME required to run task ${task.path}")
+                }
+            }
         }
+    }
+
+    /** A convenience method for getting java home for a version of java and requiring that version for the given task to execute */
+    static String getJavaHome(final Project project, final Task task, final int version) {
+        requireJavaHome(project, task, version)
         return project.javaVersions.get(version)
     }
 

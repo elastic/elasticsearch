@@ -1,5 +1,5 @@
 [[painless-api-reference]]
-= Painless API Reference
+== Painless API Reference
 
 Painless has a strict whitelist for methods and classes to ensure all
 painless scripts are secure. Most of these methods are exposed directly

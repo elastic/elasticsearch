@@ -23,7 +23,7 @@ Single-line comments.
 ----
 // single-line comment
 
-int value = 0; // single-line comment
+int value; // single-line comment
 ----
 
 Multi-line comments.
@@ -33,6 +33,16 @@ Multi-line comments.
 /* multi-
    line
    comment */
+
+int value; /* multi-
+              line
+              comment */ value = 0;
+
+int value; /* multi-line
+              comment */
+
+/* multi-line
+   comment */ int value;
 
 int value; /* multi-line
               comment */ value = 0;

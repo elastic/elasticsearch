@@ -1,11 +1,11 @@
 [[painless-variables]]
 === Variables
 
-Variables in Painless must be declared and can be statically or <<dynamic-types,
-dynamically typed>>.
+Variables in Painless must be declared and can be
+statically or <<dynamic-types, dynamically typed>>.
 
-[[variable-identifiers]]
-==== Variable Identifiers
+[[identifiers]]
+==== Identifiers
 
 Specify variable identifiers using the following grammar. Variable identifiers
 must start with a letter or underscore. You cannot use
@@ -29,8 +29,8 @@ MAP25
 _map25
 ----
 
-[[variable-declaration]]
-==== Variable Declaration
+[[declaration]]
+==== Declaration
 
 Variables must be declared before you use them. The format is `type-name
 identifier-name`. To declare multiple variables of the same type, specify a
@@ -55,7 +55,7 @@ int i = 10;   // Declare the int variable i and set it to the int literal 10
 ----
 
 [[variable-assignment]]
-==== Variable Assignment
+==== Assignment
 
 Use the equals operator (`=`) to assign a value to a variable. The format is
 `identifier-name = value`. Any value expression can be assigned to any variable

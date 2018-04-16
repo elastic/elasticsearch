@@ -171,27 +171,62 @@ final class DocumentParser {
         return new MapperParsingException("failed to parse", e);
     }
 
-    private static String[] splitAndValidatePath(String fullFieldPath) {
-        if (fullFieldPath.contains(".")) {
-            String[] parts = fullFieldPath.split("\\.");
+    private static String[] splitAndValidatePath(final String path, final ParseContext context) {
+        if (Strings.isEmpty(path)) {
+            throw new IllegalArgumentException(pathContainsEmptyString(makeFullPath(path, context)));
+        }
+        if(path.contains("..")) {
+            throw new IllegalArgumentException(pathContainsEmptyComponent(makeFullPath(path, context)));
+        }
+        // test before split because String.split on dot drops trailing empty in result.
+
+        if (path.contains(".")) {
+            if(path.endsWith(".")) {
+                throw new IllegalArgumentException(pathStartOrEndingWithDotAmbiguous(makeFullPath(path, context)));
+            }
+
+            String[] parts = path.split("\\.");
             for (String part : parts) {
                 if (Strings.hasText(part) == false) {
                     // check if the field name contains only whitespace
                     if (Strings.isEmpty(part) == false) {
-                        throw new IllegalArgumentException(
-                                "object field cannot contain only whitespace: ['" + fullFieldPath + "']");
+                        throw new IllegalArgumentException(pathContainsOnlyWhitespace(makeFullPath(path, context)));
                     }
-                    throw new IllegalArgumentException(
-                            "object field starting or ending with a [.] makes object resolution ambiguous: [" + fullFieldPath + "]");
+                    throw new IllegalArgumentException(pathStartOrEndingWithDotAmbiguous(makeFullPath(path, context)));
                 }
             }
             return parts;
         } else {
-            if (Strings.isEmpty(fullFieldPath)) {
-                throw new IllegalArgumentException("field name cannot be an empty string");
+            if (Strings.hasText(path) == false) {
+                throw new IllegalArgumentException(pathContainsOnlyWhitespace(makeFullPath(path, context)));
             }
-            return new String[] {fullFieldPath};
+            if(path.endsWith(".")) {
+                throw new IllegalArgumentException(pathStartOrEndingWithDotAmbiguous(makeFullPath(path, context)));
+            }
+
+            return new String[] {path};
         }
+    }
+
+    private static String makeFullPath(final String path, final ParseContext context)
+    {
+        return null == context ? path : context.path().pathAsText(path);
+    }
+
+    static String pathContainsEmptyString(final String path) {
+        return "field name cannot be an empty string ['" + path + "']";
+    }
+
+    static String pathContainsEmptyComponent(final String path) {
+        return  "object field cannot contain empty component: ['" + path + "']";
+    }
+
+    static String pathContainsOnlyWhitespace(final String path){
+        return "object field cannot contain only whitespace: ['" + path + "']";
+    }
+
+    static String pathStartOrEndingWithDotAmbiguous(final String path){
+        return "object field starting or ending with a [.] makes object resolution ambiguous: [" + path + "]";
     }
 
     /** Creates a Mapping containing any dynamically added fields, or returns null if there were no dynamic mappings. */
@@ -206,7 +241,7 @@ final class DocumentParser {
         Iterator<Mapper> dynamicMapperItr = dynamicMappers.iterator();
         List<ObjectMapper> parentMappers = new ArrayList<>();
         Mapper firstUpdate = dynamicMapperItr.next();
-        parentMappers.add(createUpdate(mapping.root(), splitAndValidatePath(firstUpdate.name()), 0, firstUpdate));
+        parentMappers.add(createUpdate(mapping.root(), splitAndValidatePath(firstUpdate.name(), null), 0, firstUpdate));
         Mapper previousMapper = null;
         while (dynamicMapperItr.hasNext()) {
             Mapper newMapper = dynamicMapperItr.next();
@@ -218,7 +253,7 @@ final class DocumentParser {
                 continue;
             }
             previousMapper = newMapper;
-            String[] nameParts = splitAndValidatePath(newMapper.name());
+            String[] nameParts = splitAndValidatePath(newMapper.name(), null);
 
             // We first need the stack to only contain mappers in common with the previously processed mapper
             // For example, if the first mapper processed was a.b.c, and we now have a.d, the stack will contain
@@ -472,7 +507,7 @@ final class DocumentParser {
     private static void parseObject(final ParseContext context, ObjectMapper mapper, String currentFieldName) throws IOException {
         assert currentFieldName != null;
 
-        final String[] paths = splitAndValidatePath(currentFieldName);
+        final String[] paths = splitAndValidatePath(currentFieldName, context);
         Mapper objectMapper = getMapper(mapper, currentFieldName, paths);
         if (objectMapper != null) {
             context.path().add(currentFieldName);
@@ -509,7 +544,7 @@ final class DocumentParser {
     private static void parseArray(ParseContext context, ObjectMapper parentMapper, String lastFieldName) throws IOException {
         String arrayFieldName = lastFieldName;
 
-        final String[] paths = splitAndValidatePath(arrayFieldName);
+        final String[] paths = splitAndValidatePath(arrayFieldName, context);
         Mapper mapper = getMapper(parentMapper, lastFieldName, paths);
         if (mapper != null) {
             // There is a concrete mapper for this field already. Need to check if the mapper
@@ -580,7 +615,7 @@ final class DocumentParser {
             throw new MapperParsingException("object mapping [" + parentMapper.name() + "] trying to serialize a value with no field associated with it, current value [" + context.parser().textOrNull() + "]");
         }
 
-        final String[] paths = splitAndValidatePath(currentFieldName);
+        final String[] paths = splitAndValidatePath(currentFieldName, context);
         Mapper mapper = getMapper(parentMapper, currentFieldName, paths);
         if (mapper != null) {
             parseObjectOrField(context, mapper);
@@ -597,7 +632,7 @@ final class DocumentParser {
 
     private static void parseNullValue(ParseContext context, ObjectMapper parentMapper, String lastFieldName) throws IOException {
         // we can only handle null values if we have mappings for them
-        Mapper mapper = getMapper(parentMapper, lastFieldName, splitAndValidatePath(lastFieldName));
+        Mapper mapper = getMapper(parentMapper, lastFieldName, splitAndValidatePath(lastFieldName, context));
         if (mapper != null) {
             // TODO: passing null to an object seems bogus?
             parseObjectOrField(context, mapper);
@@ -820,13 +855,13 @@ final class DocumentParser {
                 } else {
                     copyToContext = context.switchDoc(targetDoc);
                 }
-                parseCopy(field, copyToContext);
+                parseCopy(field, "", copyToContext);
             }
         }
     }
 
     /** Creates an copy of the current field with given field name and boost */
-    private static void parseCopy(String field, ParseContext context) throws IOException {
+    private static void parseCopy(String field, String parentPath, ParseContext context) throws IOException {
         FieldMapper fieldMapper = context.docMapper().mappers().getMapper(field);
         if (fieldMapper != null) {
             fieldMapper.parse(context);
@@ -834,7 +869,7 @@ final class DocumentParser {
             // The path of the dest field might be completely different from the current one so we need to reset it
             context = context.overridePath(new ContentPath(0));
 
-            final String[] paths = splitAndValidatePath(field);
+            final String[] paths = splitAndValidatePath(field, context);
             final String fieldName = paths[paths.length-1];
             Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, paths, null);
             ObjectMapper mapper = parentMapperTuple.v2();

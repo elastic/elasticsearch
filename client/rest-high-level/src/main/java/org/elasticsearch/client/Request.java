@@ -137,7 +137,6 @@ public final class Request {
 
         Params parameters = Params.builder();
         parameters.withRouting(deleteRequest.routing());
-        parameters.withParent(deleteRequest.parent());
         parameters.withTimeout(deleteRequest.timeout());
         parameters.withVersion(deleteRequest.version());
         parameters.withVersionType(deleteRequest.versionType());
@@ -316,9 +315,6 @@ public final class Request {
                     if (Strings.hasLength(request.routing())) {
                         metadata.field("routing", request.routing());
                     }
-                    if (Strings.hasLength(request.parent())) {
-                        metadata.field("parent", request.parent());
-                    }
                     if (request.version() != Versions.MATCH_ANY) {
                         metadata.field("version", request.version());
                     }
@@ -395,7 +391,6 @@ public final class Request {
         Params parameters = Params.builder();
         parameters.withPreference(getRequest.preference());
         parameters.withRouting(getRequest.routing());
-        parameters.withParent(getRequest.parent());
         parameters.withRefresh(getRequest.refresh());
         parameters.withRealtime(getRequest.realtime());
         parameters.withStoredFields(getRequest.storedFields());
@@ -423,7 +418,6 @@ public final class Request {
 
         Params parameters = Params.builder();
         parameters.withRouting(indexRequest.routing());
-        parameters.withParent(indexRequest.parent());
         parameters.withTimeout(indexRequest.timeout());
         parameters.withVersion(indexRequest.version());
         parameters.withVersionType(indexRequest.versionType());
@@ -447,7 +441,6 @@ public final class Request {
 
         Params parameters = Params.builder();
         parameters.withRouting(updateRequest.routing());
-        parameters.withParent(updateRequest.parent());
         parameters.withTimeout(updateRequest.timeout());
         parameters.withRefreshPolicy(updateRequest.getRefreshPolicy());
         parameters.withWaitForActiveShards(updateRequest.waitForActiveShards());
@@ -545,8 +538,10 @@ public final class Request {
 
     static Request rankEval(RankEvalRequest rankEvalRequest) throws IOException {
         String endpoint = endpoint(rankEvalRequest.indices(), Strings.EMPTY_ARRAY, "_rank_eval");
+        Params params = Params.builder();
+        params.withIndicesOptions(rankEvalRequest.indicesOptions());
         HttpEntity entity = createEntity(rankEvalRequest.getRankEvalSpec(), REQUEST_BODY_CONTENT_TYPE);
-        return new Request(HttpGet.METHOD_NAME, endpoint, Collections.emptyMap(), entity);
+        return new Request(HttpGet.METHOD_NAME, endpoint, params.getParams(), entity);
     }
 
     static Request split(ResizeRequest resizeRequest) throws IOException {
@@ -722,10 +717,6 @@ public final class Request {
 
         Params withMasterTimeout(TimeValue masterTimeout) {
             return putParam("master_timeout", masterTimeout);
-        }
-
-        Params withParent(String parent) {
-            return putParam("parent", parent);
         }
 
         Params withPipeline(String pipeline) {

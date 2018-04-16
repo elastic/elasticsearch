@@ -61,6 +61,7 @@ public class XContentElasticsearchExtension implements XContentBuilderExtension 
         writers.put(FixedDateTimeZone.class, (b, v) -> b.value(Objects.toString(v)));
         writers.put(MutableDateTime.class, XContentBuilder::timeValue);
         writers.put(DateTime.class, XContentBuilder::timeValue);
+        writers.put(TimeValue.class, (b, v) -> b.value(v.toString()));
 
         writers.put(BytesReference.class, (b, v) -> {
             if (v == null) {

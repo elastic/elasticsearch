@@ -111,8 +111,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField ALL_FIELDS_FIELDS = new ParseField("all_fields");
 
     public static SearchSourceBuilder fromXContent(XContentParser parser) throws IOException {
+        return fromXContent(parser, true);
+    }
+
+    public static SearchSourceBuilder fromXContent(XContentParser parser, boolean checkTrailingTokens) throws IOException {
         SearchSourceBuilder builder = new SearchSourceBuilder();
-        builder.parseXContent(parser);
+        builder.parseXContent(parser, checkTrailingTokens);
         return builder;
     }
 
@@ -220,7 +224,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         suggestBuilder = in.readOptionalWriteable(SuggestBuilder::new);
         terminateAfter = in.readVInt();
-        timeout = in.readOptionalWriteable(TimeValue::new);
+        timeout = in.readOptionalTimeValue();
         trackScores = in.readBoolean();
         version = in.readOptionalBoolean();
         extBuilders = in.readNamedWriteableList(SearchExtBuilder.class);
@@ -276,7 +280,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         out.writeOptionalWriteable(suggestBuilder);
         out.writeVInt(terminateAfter);
-        out.writeOptionalWriteable(timeout);
+        out.writeOptionalTimeValue(timeout);
         out.writeBoolean(trackScores);
         out.writeOptionalBoolean(version);
         out.writeNamedWriteableList(extBuilders);
@@ -951,12 +955,19 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return rewrittenBuilder;
     }
 
+    public void parseXContent(XContentParser parser) throws IOException {
+        parseXContent(parser, true);
+    }
+
     /**
      * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent. Use this if you need to set up
-     * different defaults than a regular SearchSourceBuilder would have and use
-     * {@link #fromXContent(XContentParser)} if you have normal defaults.
+     * different defaults than a regular SearchSourceBuilder would have and use {@link #fromXContent(XContentParser, boolean)} if you have
+     * normal defaults.
+     *
+     * @param parser The xContent parser.
+     * @param checkTrailingTokens If true throws a parsing exception when extra tokens are found after the main object.
      */
-    public void parseXContent(XContentParser parser) throws IOException {
+    public void parseXContent(XContentParser parser, boolean checkTrailingTokens) throws IOException {
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = null;
         if (token != XContentParser.Token.START_OBJECT && (token = parser.nextToken()) != XContentParser.Token.START_OBJECT) {
@@ -1104,6 +1115,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
                         parser.getTokenLocation());
+            }
+        }
+        if (checkTrailingTokens) {
+            token = parser.nextToken();
+            if (token != null) {
+                throw new ParsingException(parser.getTokenLocation(), "Unexpected token [" + token + "] found after the main object.");
             }
         }
     }

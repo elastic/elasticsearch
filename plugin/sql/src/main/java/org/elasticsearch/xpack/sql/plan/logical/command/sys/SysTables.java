@@ -15,7 +15,9 @@ import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.util.CollectionUtils;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
@@ -24,6 +26,7 @@ import java.util.regex.Pattern;
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.sql.util.StringUtils.EMPTY;
+import static org.elasticsearch.xpack.sql.util.StringUtils.SQL_WILDCARD;
 
 public class SysTables extends Command {
 
@@ -62,6 +65,36 @@ public class SysTables extends Command {
     public final void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
         String cluster = session.indexResolver().clusterName();
 
+        // first check if where dealing with ODBC enumeration
+        // namely one param specified with '%', everything else empty string
+        // https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqltables-function?view=ssdt-18vs2017#comments
+
+        if (clusterPattern != null && clusterPattern.pattern().equals(SQL_WILDCARD)) {
+            if (pattern != null && pattern.pattern().isEmpty() && CollectionUtils.isEmpty(types)) {
+                Object[] enumeration = new Object[10];
+                // send only the cluster, everything else null
+                enumeration[0] = cluster;
+                listener.onResponse(Rows.singleton(output(), enumeration));
+                return;
+            }
+        }
+        
+        // if no types were specified (the parser takes care of the % case)
+        if (CollectionUtils.isEmpty(types)) {
+            if (clusterPattern != null && clusterPattern.pattern().isEmpty()) {
+                List<List<?>> values = new ArrayList<>();
+                // send only the types, everything else null
+                for (IndexType type : IndexType.VALID) {
+                    Object[] enumeration = new Object[10];
+                    enumeration[3] = type.toSql();
+                    values.add(asList(enumeration));
+                }
+                listener.onResponse(Rows.of(output(), values));
+                return;
+            }
+        }
+
+        
         String cRegex = clusterPattern != null ? clusterPattern.asJavaRegex() : null;
 
         // if the catalog doesn't match, don't return any results

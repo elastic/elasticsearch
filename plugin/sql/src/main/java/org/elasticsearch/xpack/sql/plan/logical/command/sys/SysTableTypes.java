@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.List;
-import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
@@ -43,7 +42,7 @@ public class SysTableTypes extends Command {
 
     @Override
     public final void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
-        listener.onResponse(Rows.of(output(), Stream.of(IndexType.values())
+        listener.onResponse(Rows.of(output(), IndexType.VALID.stream()
                 .map(t -> singletonList(t.toSql()))
                 .collect(toList())));
     }

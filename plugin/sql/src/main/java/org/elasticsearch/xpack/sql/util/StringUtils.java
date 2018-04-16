@@ -26,6 +26,7 @@ public abstract class StringUtils {
 
     public static final String EMPTY = "";
     public static final String NEW_LINE = "\n";
+    public static final String SQL_WILDCARD = "%";
 
     //CamelCase to camel_case
     public static String camelCaseToUnderscore(String string) {
@@ -82,7 +83,7 @@ public abstract class StringUtils {
             else {
                 switch (curr) {
                     case '%':
-                        regex.append(escaped ? "%" : ".*");
+                        regex.append(escaped ? SQL_WILDCARD : ".*");
                         break;
                     case '_':
                         regex.append(escaped ? "_" : ".");
@@ -145,7 +146,7 @@ public abstract class StringUtils {
             } else {
                 switch (curr) {
                     case '%':
-                        wildcard.append(escaped ? "%" : "*");
+                        wildcard.append(escaped ? SQL_WILDCARD : "*");
                         break;
                     case '_':
                         wildcard.append(escaped ? "_" : "?");
@@ -191,7 +192,7 @@ public abstract class StringUtils {
             } else {
                 switch (curr) {
                     case '%':
-                        wildcard.append(escaped ? "%" : "*");
+                        wildcard.append(escaped ? SQL_WILDCARD : "*");
                         break;
                     case '_':
                         wildcard.append(escaped ? "_" : "*");

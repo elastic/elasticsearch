@@ -25,6 +25,7 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.ingest.DeletePipelineAction;
 import org.elasticsearch.action.ingest.GetPipelineAction;
 import org.elasticsearch.action.ingest.PutPipelineAction;
+import org.elasticsearch.action.main.MainAction;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.update.UpdateAction;
@@ -263,6 +264,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
         Role monitoringUserRole = Role.builder(roleDescriptor, null).build();
+        assertThat(monitoringUserRole.cluster().check(MainAction.NAME), is(true));
         assertThat(monitoringUserRole.cluster().check(ClusterHealthAction.NAME), is(false));
         assertThat(monitoringUserRole.cluster().check(ClusterStateAction.NAME), is(false));
         assertThat(monitoringUserRole.cluster().check(ClusterStatsAction.NAME), is(false));

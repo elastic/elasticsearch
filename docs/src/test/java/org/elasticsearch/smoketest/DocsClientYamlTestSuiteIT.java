@@ -64,7 +64,8 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     public static Iterable<Object[]> parameters() throws Exception {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ExecutableSection.DEFAULT_EXECUTABLE_CONTEXTS.size() + 1);
         entries.addAll(ExecutableSection.DEFAULT_EXECUTABLE_CONTEXTS);
-        entries.add(new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("test_analyzer"), TestAnalyzer::parse));
+        entries.add(new NamedXContentRegistry.Entry(ExecutableSection.class,
+                new ParseField("compare_analyzers"), CompareAnalyzers::parse));
         NamedXContentRegistry executeableSectionRegistry = new NamedXContentRegistry(entries);
         return ESClientYamlSuiteTestCase.createParameters(executeableSectionRegistry);
     }
@@ -90,22 +91,25 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         return new ClientYamlDocsTestClient(restSpec, restClient, hosts, esVersion);
     }
 
-    private static class TestAnalyzer implements ExecutableSection {
-        private static ConstructingObjectParser<TestAnalyzer, XContentLocation> PARSER =
+    /**
+     * Compares the the results of running two analyzers against many random strings.
+     */
+    private static class CompareAnalyzers implements ExecutableSection {
+        private static ConstructingObjectParser<CompareAnalyzers, XContentLocation> PARSER =
             new ConstructingObjectParser<>("test_analyzer", false, (a, location) -> {
                 String index = (String) a[0];
-                String builtIn = (String) a[1];
-                String rebuilt = (String) a[2];
-                return new TestAnalyzer(location, index, builtIn, rebuilt);
+                String first = (String) a[1];
+                String second = (String) a[2];
+                return new CompareAnalyzers(location, index, first, second);
             });
         static {
             PARSER.declareString(constructorArg(), new ParseField("index"));
-            PARSER.declareString(constructorArg(), new ParseField("built_in"));
-            PARSER.declareString(constructorArg(), new ParseField("rebuilt"));
+            PARSER.declareString(constructorArg(), new ParseField("first"));
+            PARSER.declareString(constructorArg(), new ParseField("second"));
         }
-        private static TestAnalyzer parse(XContentParser parser) throws IOException {
+        private static CompareAnalyzers parse(XContentParser parser) throws IOException {
             XContentLocation location = parser.getTokenLocation();
-            TestAnalyzer section = PARSER.parse(parser, location);
+            CompareAnalyzers section = PARSER.parse(parser, location);
             assert parser.currentToken() == Token.END_OBJECT;
             parser.nextToken(); // throw out the END_OBJECT to conform with other ExecutableSections
             return section;
@@ -113,14 +117,14 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
         private final XContentLocation location;
         private final String index;
-        private final String builtIn;
-        private final String rebuilt;
+        private final String first;
+        private final String second;
 
-        private TestAnalyzer(XContentLocation location, String index, String builtIn, String rebuilt) {
+        private CompareAnalyzers(XContentLocation location, String index, String first, String second) {
             this.location = location;
             this.index = index;
-            this.builtIn = builtIn;
-            this.rebuilt = rebuilt;
+            this.first = first;
+            this.second = second;
         }
 
         @Override
@@ -138,40 +142,42 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                     .replace("$", "\\$"));
             }
             Map<String, Object> body = new HashMap<>(2);
-            body.put("analyzer", builtIn);
+            body.put("analyzer", first);
             body.put("text", testText);
             ClientYamlTestResponse response = executionContext.callApi("indices.analyze", singletonMap("index", index),
                     singletonList(body), emptyMap());
-            Iterator<?> builtInTokens = ((List<?>) response.evaluate("tokens")).iterator();
-            body.put("analyzer", rebuilt);
+            Iterator<?> firstTokens = ((List<?>) response.evaluate("tokens")).iterator();
+            body.put("analyzer", second);
             response = executionContext.callApi("indices.analyze", singletonMap("index", index),
                     singletonList(body), emptyMap());
-            Iterator<?> rebuiltTokens = ((List<?>) response.evaluate("tokens")).iterator();
+            Iterator<?> secondTokens = ((List<?>) response.evaluate("tokens")).iterator();
 
-            Object previousRebuilt = null;
-            Object previousBuiltIn = null;
-            while (builtInTokens.hasNext()) {
-                if (false == rebuiltTokens.hasNext()) {
-                    fail("rebuilt token filter has fewer tokens. built in has [" + builtInTokens.next()
-                        + "]. Previous built in was [" + previousBuiltIn + "] and previous rebuilt was ["
-                        + previousRebuilt + "]");
+            Object previousFirst = null;
+            Object previousSecond = null;
+            while (firstTokens.hasNext()) {
+                if (false == secondTokens.hasNext()) {
+                    fail(second + " has fewer tokens than " + first + ". "
+                        + first + " has [" + firstTokens.next() + "] but " + second + " is out of tokens. "
+                        + first + "'s last token was [" + previousFirst + "] and "
+                        + second + "'s last token was' [" + previousSecond + "]");
                 }
-                Map<?, ?> builtInToken = (Map<?, ?>) builtInTokens.next();
-                Map<?, ?> rebuiltToken = (Map<?, ?>) rebuiltTokens.next();
-                String builtInText = (String) builtInToken.get("token");
-                String rebuiltText = (String) rebuiltToken.get("token");
+                Map<?, ?> firstToken = (Map<?, ?>) firstTokens.next();
+                Map<?, ?> secondToken = (Map<?, ?>) secondTokens.next();
+                String firstText = (String) firstToken.get("token");
+                String secondText = (String) secondToken.get("token");
                 // Check the text and produce an error message with the utf8 sequence if they don't match.
-                if (false == rebuiltText.equals(builtInText)) {
-                    fail("text differs. built in was [" + builtInText + "] but rebuilt was [" + rebuiltText + "]. In utf8 those are\n"
-                        + new BytesRef(builtInText) + " and\n" + new BytesRef(rebuiltText));
+                if (false == secondText.equals(firstText)) {
+                    fail("text differs: " + first + " was [" + firstText + "] but " + second + " was [" + secondText
+                        + "]. In utf8 those are\n" + new BytesRef(firstText) + " and\n" + new BytesRef(secondText));
                 }
                 // Now check the whole map just in case the text matches but something else differs
-                assertEquals(builtInToken, rebuiltToken);
+                assertEquals(firstToken, secondToken);
             }
-            if (rebuiltTokens.hasNext()) {
-                fail("rebuilt token filter has more tokens. it has [" + rebuiltTokens.next() + "]. Previous built in was ["
-                    + previousBuiltIn + "] and previous rebuilt was [" + previousRebuilt + "]");
-            }
+            if (secondTokens.hasNext()) {
+                fail(second + " has more tokens than " + first + ". "
+                    + second + " has [" + secondTokens.next() + "] but " + first + " is out of tokens. "
+                    + first + "'s last token was [" + previousFirst + "] and "
+                    + second + "'s last token was' [" + previousSecond + "]");            }
         }
     }
 }

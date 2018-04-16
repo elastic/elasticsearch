@@ -33,9 +33,11 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -82,6 +84,7 @@ public class TextFieldMapper extends FieldMapper {
 
         private int positionIncrementGap = POSITION_INCREMENT_GAP_USE_ANALYZER;
         private PrefixFieldType prefixFieldType;
+        private Boolean ignoreMalformed;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
@@ -141,6 +144,21 @@ public class TextFieldMapper extends FieldMapper {
             return this;
         }
 
+        public Builder ignoreMalformed(boolean ignoreMalformed) {
+            this.ignoreMalformed = ignoreMalformed;
+            return builder;
+        }
+
+        protected Explicit<Boolean> ignoreMalformed(BuilderContext context) {
+            if (ignoreMalformed != null) {
+                return new Explicit<>(ignoreMalformed, true);
+            }
+            if (context.indexSettings() != null) {
+                return new Explicit<>(IGNORE_MALFORMED_SETTING.get(context.indexSettings()), false);
+            }
+            return NumberFieldMapper.Defaults.IGNORE_MALFORMED;
+        }
+
         @Override
         public TextFieldMapper build(BuilderContext context) {
             if (positionIncrementGap != POSITION_INCREMENT_GAP_USE_ANALYZER) {
@@ -168,8 +186,15 @@ public class TextFieldMapper extends FieldMapper {
                 prefixMapper = new PrefixFieldMapper(prefixFieldType, context.indexSettings());
             }
             return new TextFieldMapper(
-                    name, fieldType, defaultFieldType, positionIncrementGap, prefixMapper,
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    name,
+                    fieldType,
+                    defaultFieldType,
+                    positionIncrementGap,
+                    prefixMapper,
+                    context.indexSettings(),
+                    multiFieldsBuilder.build(this, context),
+                    ignoreMalformed(context),
+                    copyTo);
         }
     }
 
@@ -211,6 +236,9 @@ public class TextFieldMapper extends FieldMapper {
                         Defaults.INDEX_PREFIX_MAX_CHARS);
                     builder.indexPrefixes(minChars, maxChars);
                     DocumentMapperParser.checkNoRemainingFields(propName, indexPrefix, parserContext.indexVersionCreated());
+                    iterator.remove();
+                } else if (propName.equals("ignore_malformed")) {
+                    builder.ignoreMalformed(XContentMapValues.nodeBooleanValue(propNode, propName + ".ignore_malformed"));
                     iterator.remove();
                 }
             }
@@ -468,10 +496,17 @@ public class TextFieldMapper extends FieldMapper {
 
     private int positionIncrementGap;
     private PrefixFieldMapper prefixFieldMapper;
+    private Explicit<Boolean> ignoreMalformed;
 
-    protected TextFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                int positionIncrementGap, PrefixFieldMapper prefixFieldMapper,
-                                Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+    protected TextFieldMapper(String simpleName,
+                              MappedFieldType fieldType,
+                              MappedFieldType defaultFieldType,
+                              int positionIncrementGap,
+                              PrefixFieldMapper prefixFieldMapper,
+                              Settings indexSettings,
+                              MultiFields multiFields,
+                              Explicit<Boolean> ignoreMalformed,
+                              CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         assert fieldType.tokenized();
         assert fieldType.hasDocValues() == false;
@@ -480,6 +515,7 @@ public class TextFieldMapper extends FieldMapper {
         }
         this.positionIncrementGap = positionIncrementGap;
         this.prefixFieldMapper = prefixFieldMapper;
+        this.ignoreMalformed = ignoreMalformed;
     }
 
     @Override
@@ -493,11 +529,19 @@ public class TextFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
-        final String value;
+        String value = null;
         if (context.externalValueSet()) {
             value = context.externalValue().toString();
         } else {
-            value = context.parser().textOrNull();
+            final XContentParser parser = context.parser();
+            try {
+                value = parser.textOrNull();
+            } catch (final IllegalStateException failed) {
+                if (!ignoreMalformed.value()) {
+                    throw failed;
+                }
+                parser.skipChildren();
+            }
         }
 
         if (value == null) {

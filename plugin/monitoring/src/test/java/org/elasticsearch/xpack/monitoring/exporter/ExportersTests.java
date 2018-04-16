@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.monitoring.exporter;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -59,12 +60,13 @@ public class ExportersTests extends ESTestCase {
     private Map<String, Exporter.Factory> factories;
     private ClusterService clusterService;
     private ClusterState state;
+    private final MetaData metadata = mock(MetaData.class);
     private final XPackLicenseState licenseState = mock(XPackLicenseState.class);
     private ClusterSettings clusterSettings;
     private ThreadContext threadContext;
 
     @Before
-    public void init() throws Exception {
+    public void init() {
         factories = new HashMap<>();
 
         Client client = mock(Client.class);
@@ -80,6 +82,7 @@ public class ExportersTests extends ESTestCase {
         clusterSettings = new ClusterSettings(Settings.EMPTY, settingsSet);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(clusterService.state()).thenReturn(state);
+        when(state.metaData()).thenReturn(metadata);
 
         // we always need to have the local exporter as it serves as the default one
         factories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, mock(CleanerService.class)));
@@ -208,8 +211,12 @@ public class ExportersTests extends ESTestCase {
     }
 
     public void testExporterBlocksOnClusterState() {
-        when(state.version()).thenReturn(ClusterState.UNKNOWN_VERSION);
-
+        if (rarely()) {
+            when(metadata.clusterUUID()).thenReturn(ClusterState.UNKNOWN_UUID);
+        } else {
+            when(state.version()).thenReturn(ClusterState.UNKNOWN_VERSION);
+        }
+        
         final int nbExporters = randomIntBetween(1, 5);
         final Settings.Builder settings = Settings.builder();
 

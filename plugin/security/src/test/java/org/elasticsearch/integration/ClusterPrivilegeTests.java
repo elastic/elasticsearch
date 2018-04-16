@@ -10,7 +10,6 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -48,7 +47,7 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
     private static Path repositoryLocation;
 
     @BeforeClass
-    public static void setupRepostoryPath() {
+    public static void setupRepositoryPath() {
         repositoryLocation = createTempDir();
     }
 
@@ -80,11 +79,6 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
         return super.configUsersRoles() + USERS_ROLES;
     }
 
-    protected boolean resetNodeAfterTest() {
-        return true;
-    }
-
-    @TestLogging("org.elasticsearch.test.rest.client.http:TRACE")
     public void testThatClusterPrivilegesWorkAsExpectedViaHttp() throws Exception {
         // user_a can do all the things
         assertAccessIsAllowed("user_a", "GET", "/_cluster/state");
@@ -125,7 +119,6 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsDenied("user_c", "PUT", "/_cluster/settings", "{ \"transient\" : { \"search.default_search_timeout\": \"1m\" } }");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/4383")
     public void testThatSnapshotAndRestore() throws Exception {
         String repoJson = Strings.toString(jsonBuilder().startObject().field("type", "fs").startObject("settings").field("location",
                 repositoryLocation.toString()).endObject().endObject());

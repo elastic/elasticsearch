@@ -82,4 +82,20 @@ public class GeoHashTests extends ESTestCase {
         assertEquals("xbpbpbpbpbpb", GeoHashUtils.stringEncode(180, 0));
         assertEquals("zzzzzzzzzzzz", GeoHashUtils.stringEncode(180, 90));
     }
+
+    public void testLongGeohashes() {
+        for (int i = 0; i < 100000; i++) {
+            String geohash = randomGeohash(12, 12);
+            GeoPoint expected = GeoPoint.fromGeohash(geohash);
+            // Adding some random geohash characters at the end
+            String extendedGeohash = geohash + randomGeohash(1, 10);
+            GeoPoint actual = GeoPoint.fromGeohash(extendedGeohash);
+            assertEquals("Additional data points above 12 should be ignored [" + extendedGeohash + "]" , expected, actual);
+
+            Rectangle expectedBbox = GeoHashUtils.bbox(geohash);
+            Rectangle actualBbox = GeoHashUtils.bbox(extendedGeohash);
+            assertEquals("Additional data points above 12 should be ignored [" + extendedGeohash + "]" , expectedBbox, actualBbox);
+
+        }
+    }
 }

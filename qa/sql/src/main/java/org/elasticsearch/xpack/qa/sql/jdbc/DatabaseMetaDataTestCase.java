@@ -71,6 +71,23 @@ public class DatabaseMetaDataTestCase extends JdbcIntegrationTestCase {
         }
     }
 
+    public void testGetTableTypes() throws Exception {
+        index("test1", body -> body.field("name", "bob"));
+        index("test2", body -> body.field("name", "bob"));
+
+        try (Connection h2 = LocalH2.anonymousDb(); Connection es = esJdbc()) {
+            h2.createStatement().executeUpdate("RUNSCRIPT FROM 'classpath:/setup_mock_metadata_get_table_types.sql'");
+
+            CheckedSupplier<ResultSet, SQLException> all = () -> h2.createStatement()
+                    .executeQuery("SELECT '" + clusterName() + "' AS TABLE_CAT, * FROM mock");
+            assertResultSets(all.get(), es.getMetaData().getTables("%", "%", "%", new String[] { "BASE TABLE" }));
+            assertResultSets(
+                    h2.createStatement()
+                            .executeQuery("SELECT '" + clusterName() + "' AS TABLE_CAT, * FROM mock WHERE TABLE_NAME = 'test1'"),
+                    es.getMetaData().getTables("%", "%", "test1", new String[] { "BASE TABLE" }));
+        }
+    }
+
     public void testColumns() throws Exception {
         index("test1", body -> body.field("name", "bob"));
         index("test2", body -> {

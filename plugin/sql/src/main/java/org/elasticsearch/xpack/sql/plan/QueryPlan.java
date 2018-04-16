@@ -5,19 +5,19 @@
  */
 package org.elasticsearch.xpack.sql.plan;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Consumer;
-import java.util.function.Function;
-
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.AttributeSet;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.type.DataType;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * There are two main types of plans, {@code LogicalPlan} and {@code PhysicalPlan}
@@ -83,7 +83,7 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
             boolean hasChanged = false;
             for (Object e : c) {
                 Object next = doTransformExpression(e, traversal);
-                if (!c.equals(next)) {
+                if (!e.equals(next)) {
                     hasChanged = true;
                 }
                 else {

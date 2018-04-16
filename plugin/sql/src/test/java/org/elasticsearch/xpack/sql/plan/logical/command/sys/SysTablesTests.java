@@ -129,6 +129,13 @@ public class SysTablesTests extends ESTestCase {
         }, index, alias);
     }
 
+    public void testSysTablesWithCatalogOnlyAliases() throws Exception {
+        executeCommand("SYS TABLES CATALOG LIKE '%' LIKE 'test' TYPE 'ALIAS'", r -> {
+            assertEquals(1, r.size());
+            assertEquals("alias", r.column(2));
+        }, alias);
+    }
+
     public void testSysTablesWithInvalidType() throws Exception {
         ParsingException pe = expectThrows(ParsingException.class, () -> sql("SYS TABLES LIKE 'test' TYPE 'QUE HORA ES'"));
         assertEquals("line 1:2: Invalid table type [QUE HORA ES]", pe.getMessage());

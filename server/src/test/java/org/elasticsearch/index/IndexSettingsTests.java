@@ -405,15 +405,6 @@ public class IndexSettingsTests extends ESTestCase {
         assertEquals(-1, settings.getGcDeletesInMillis());
     }
 
-    public void testIsTTLPurgeDisabled() {
-        final Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexSettings.INDEX_TTL_DISABLE_PURGE_SETTING.getKey(), true)
-            .build();
-        assertTrue(IndexSettings.INDEX_TTL_DISABLE_PURGE_SETTING.get(settings));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{IndexSettings.INDEX_TTL_DISABLE_PURGE_SETTING});
-    }
-
     public void testTranslogFlushSizeThreshold() {
         ByteSizeValue translogFlushThresholdSize = new ByteSizeValue(Math.abs(randomInt()));
         ByteSizeValue actualValue = ByteSizeValue.parseBytesSizeValue(translogFlushThresholdSize.getBytes() + "B",

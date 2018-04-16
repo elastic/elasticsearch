@@ -70,9 +70,6 @@ public final class IndexSettings {
             (value) -> Translog.Durability.valueOf(value.toUpperCase(Locale.ROOT)), Property.Dynamic, Property.IndexScope);
     public static final Setting<Boolean> INDEX_WARMER_ENABLED_SETTING =
         Setting.boolSetting("index.warmer.enabled", true, Property.Dynamic, Property.IndexScope);
-    @Deprecated
-    public static final Setting<Boolean> INDEX_TTL_DISABLE_PURGE_SETTING =
-        Setting.boolSetting("index.ttl.disable_purge", false, Property.Dynamic, Property.IndexScope, Property.Deprecated);
     public static final Setting<String> INDEX_CHECK_ON_STARTUP = new Setting<>("index.shard.check_on_startup", "false", (s) -> {
         switch(s) {
             case "false":

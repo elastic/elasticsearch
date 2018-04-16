@@ -41,9 +41,8 @@ public class GetInfluencersActionRequestTests extends AbstractStreamableXContent
             request.setDescending(randomBoolean());
         }
         if (randomBoolean()) {
-            int from = randomInt(PageParams.MAX_FROM_SIZE_SUM);
-            int maxSize = PageParams.MAX_FROM_SIZE_SUM - from;
-            int size = randomInt(maxSize);
+            int from = randomInt(10000);
+            int size = randomInt(10000);
             request.setPageParams(new PageParams(from, size));
         }
         return request;

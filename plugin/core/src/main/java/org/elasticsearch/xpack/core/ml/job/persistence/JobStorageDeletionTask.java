@@ -54,6 +54,9 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  refactoring to move it back to core. See DeleteJobAction for its use.
 */
 public class JobStorageDeletionTask extends Task {
+
+    private static final int MAX_SNAPSHOTS_TO_DELETE = 10000;
+
     private final Logger logger;
 
     public JobStorageDeletionTask(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {
@@ -147,7 +150,7 @@ public class JobStorageDeletionTask extends Task {
 
     private void deleteModelState(String jobId, Client client, ActionListener<BulkResponse> listener) {
         GetModelSnapshotsAction.Request request = new GetModelSnapshotsAction.Request(jobId, null);
-        request.setPageParams(new PageParams(0, PageParams.MAX_FROM_SIZE_SUM));
+        request.setPageParams(new PageParams(0, MAX_SNAPSHOTS_TO_DELETE));
         executeAsyncWithOrigin(client, ML_ORIGIN, GetModelSnapshotsAction.INSTANCE, request, ActionListener.wrap(
                 response -> {
                     List<ModelSnapshot> deleteCandidates = response.getPage().results();

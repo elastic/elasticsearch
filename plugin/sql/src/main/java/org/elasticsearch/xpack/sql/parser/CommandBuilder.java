@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTables;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTypes;
 import org.elasticsearch.xpack.sql.plugin.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -150,13 +151,19 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
         for (StringContext string : ctx.string()) {
             String value = string(string);
             if (value != null) {
-                IndexType type = IndexType.from(value);
-                if (type == null) {
-                    throw new ParsingException(source(ctx), "Invalid table type [{}]", value);
+                // check special ODBC wildcard case
+                if (value.equals(StringUtils.SQL_WILDCARD) && ctx.string().size() == 1) {
+                    // since % is the same as not specifying a value, choose
+                    // https://docs.microsoft.com/en-us/sql/odbc/reference/develop-app/value-list-arguments?view=ssdt-18vs2017
+                    // that is skip the value
+                } else {
+                    IndexType type = IndexType.from(value);
+                    types.add(type);
                 }
-                types.add(type);
             }
         }
+
+        // if the ODBC enumeration is specified, skip validation
         EnumSet<IndexType> set = types.isEmpty() ? null : EnumSet.copyOf(types);
         return new SysTables(source(ctx), visitPattern(ctx.clusterPattern), visitPattern(ctx.tablePattern), set);
     }

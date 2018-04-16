@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexInfo;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexType;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.plugin.SqlTypedParamValue;
@@ -26,6 +25,7 @@ import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
 import org.joda.time.DateTimeZone;
 
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +40,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class SysTablesTests extends ESTestCase {
+
+    private static final String CLUSTER_NAME = "cluster";
 
     private final SqlParser parser = new SqlParser();
     private final Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json", true);
@@ -137,16 +139,66 @@ public class SysTablesTests extends ESTestCase {
     }
 
     public void testSysTablesWithInvalidType() throws Exception {
-        ParsingException pe = expectThrows(ParsingException.class, () -> sql("SYS TABLES LIKE 'test' TYPE 'QUE HORA ES'"));
-        assertEquals("line 1:2: Invalid table type [QUE HORA ES]", pe.getMessage());
+        executeCommand("SYS TABLES LIKE 'test' TYPE 'QUE HORA ES'", r -> {
+            assertEquals(0, r.size());
+        }, new IndexInfo[0]);
+    }
+
+    public void testSysTablesCatalogEnumeration() throws Exception {
+        executeCommand("SYS TABLES CATALOG LIKE '%' LIKE ''", r -> {
+            assertEquals(1, r.size());
+            assertEquals(CLUSTER_NAME, r.column(0));
+            // everything else should be null
+            for (int i = 1; i < 10; i++) {
+                assertNull(r.column(i));
+            }
+        }, new IndexInfo[0]);
+    }
+
+    public void testSysTablesTypesEnumeration() throws Exception {
+        executeCommand("SYS TABLES CATALOG LIKE '' LIKE '' TYPE '%'", r -> {
+            assertEquals(2, r.size());
+
+            Iterator<IndexType> it = IndexType.VALID.iterator();
+
+            for (int t = 0; t < r.size(); t++) {
+                assertEquals(it.next().toSql(), r.column(3));
+
+                // everything else should be null
+                for (int i = 0; i < 10; i++) {
+                    if (i != 3) {
+                        assertNull(r.column(i));
+                    }
+                }
+
+                r.advanceRow();
+            }
+        }, new IndexInfo[0]);
+    }
+
+    public void testSysTablesTypesEnumerationWoString() throws Exception {
+        executeCommand("SYS TABLES CATALOG LIKE '' LIKE '' ", r -> {
+            assertEquals(2, r.size());
+
+            Iterator<IndexType> it = IndexType.VALID.iterator();
+
+            for (int t = 0; t < r.size(); t++) {
+                assertEquals(it.next().toSql(), r.column(3));
+
+                // everything else should be null
+                for (int i = 0; i < 10; i++) {
+                    if (i != 3) {
+                        assertNull(r.column(i));
+                    }
+                }
+
+                r.advanceRow();
+            }
+        }, new IndexInfo[0]);
     }
 
     private SqlTypedParamValue param(Object value) {
         return new SqlTypedParamValue(value, DataTypes.fromJava(value));
-    }
-
-    private Tuple<Command, SqlSession> sql(String sql) {
-        return sql(sql, emptyList());
     }
 
     private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params) {
@@ -155,7 +207,7 @@ public class SysTablesTests extends ESTestCase {
         Command cmd = (Command) analyzer.analyze(parser.createStatement(sql, params), true);
 
         IndexResolver resolver = mock(IndexResolver.class);
-        when(resolver.clusterName()).thenReturn("cluster");
+        when(resolver.clusterName()).thenReturn(CLUSTER_NAME);
 
         SqlSession session = new SqlSession(null, null, null, resolver, null, null, null);
         return new Tuple<>(cmd, session);

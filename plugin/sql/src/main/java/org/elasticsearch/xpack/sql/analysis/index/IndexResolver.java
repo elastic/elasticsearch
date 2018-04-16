@@ -44,7 +44,11 @@ public class IndexResolver {
     public enum IndexType {
 
         INDEX("BASE TABLE"),
-        ALIAS("ALIAS");
+        ALIAS("ALIAS"),
+        // value for user types unrecognized
+        UNKNOWN("UKNOWN");
+
+        public static final EnumSet<IndexType> VALID = EnumSet.of(INDEX, ALIAS);
 
         private final String toSql;
 
@@ -59,13 +63,13 @@ public class IndexResolver {
         public static IndexType from(String name) {
             if (name != null) {
                 name = name.toUpperCase(Locale.ROOT);
-                for (IndexType type : IndexType.values()) {
+                for (IndexType type : IndexType.VALID) {
                     if (type.toSql.equals(name)) {
                         return type;
                     }
                 }
             }
-            return null;
+            return IndexType.UNKNOWN;
         }
     }
 

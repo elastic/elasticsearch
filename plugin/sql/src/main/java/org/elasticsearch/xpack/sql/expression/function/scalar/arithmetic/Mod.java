@@ -30,9 +30,4 @@ public class Mod extends ArithmeticFunction {
     protected BinaryScalarFunction replaceChildren(Expression newLeft, Expression newRight) {
         return new Mod(location(), newLeft, newRight);
     }
-
-    @Override
-    public Object fold() {
-        return Arithmetics.mod((Number) left().fold(), (Number) right().fold());
-    }
 }

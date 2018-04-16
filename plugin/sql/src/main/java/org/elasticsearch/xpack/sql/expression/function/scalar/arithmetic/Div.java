@@ -33,11 +33,6 @@ public class Div extends ArithmeticFunction {
     }
 
     @Override
-    public Object fold() {
-        return Arithmetics.div((Number) left().fold(), (Number) right().fold());
-    }
-
-    @Override
     public DataType dataType() {
         return DataTypeConversion.commonType(left().dataType(), right().dataType());
     }

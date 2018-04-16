@@ -13,15 +13,26 @@ import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.Order.OrderDirection;
+import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Add;
+import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Div;
+import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Mod;
+import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Mul;
+import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Sub;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MonthOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.WeekOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Year;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.ACos;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.ASin;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.ATan;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Abs;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.E;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.sql.expression.predicate.And;
 import org.elasticsearch.xpack.sql.expression.predicate.Equals;
 import org.elasticsearch.xpack.sql.expression.predicate.GreaterThan;
@@ -54,8 +65,8 @@ import org.elasticsearch.xpack.sql.session.EmptyExecutable;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.joda.time.DateTimeZone;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -265,16 +276,37 @@ public class OptimizerTests extends ESTestCase {
 
     public void testConstantFoldingDatetime() {
         Expression cast = new Cast(EMPTY, Literal.of(EMPTY, "2018-01-19T10:23:27Z"), DataType.DATE);
-        assertEquals(2018, unwrapAlias(new ConstantFolding().rule(new Year(EMPTY, cast, DateTimeZone.UTC))));
-        assertEquals(1, unwrapAlias(new ConstantFolding().rule(new MonthOfYear(EMPTY, cast, DateTimeZone.UTC))));
-        assertEquals(19, unwrapAlias(new ConstantFolding().rule(new DayOfMonth(EMPTY, cast, DateTimeZone.UTC))));
-        assertEquals(19, unwrapAlias(new ConstantFolding().rule(new DayOfYear(EMPTY, cast, DateTimeZone.UTC))));
-        assertEquals(3, unwrapAlias(new ConstantFolding().rule(new WeekOfYear(EMPTY, cast, DateTimeZone.UTC))));
-        assertNull(unwrapAlias(new ConstantFolding().rule(
-            new WeekOfYear(EMPTY, new Literal(EMPTY, null, DataType.NULL), DateTimeZone.UTC))));
+        assertEquals(2018, foldFunction(new Year(EMPTY, cast, DateTimeZone.UTC)));
+        assertEquals(1, foldFunction(new MonthOfYear(EMPTY, cast, DateTimeZone.UTC)));
+        assertEquals(19, foldFunction(new DayOfMonth(EMPTY, cast, DateTimeZone.UTC)));
+        assertEquals(19, foldFunction(new DayOfYear(EMPTY, cast, DateTimeZone.UTC)));
+        assertEquals(3, foldFunction(new WeekOfYear(EMPTY, cast, DateTimeZone.UTC)));
+        assertNull(foldFunction(
+                new WeekOfYear(EMPTY, new Literal(EMPTY, null, DataType.NULL), DateTimeZone.UTC)));
     }
 
-    private Object unwrapAlias(Expression e) {
+    public void testArithmeticFolding() {
+        assertEquals(10, foldFunction(new Add(EMPTY, L(7), L(3))));
+        assertEquals(4, foldFunction(new Sub(EMPTY, L(7), L(3))));
+        assertEquals(21, foldFunction(new Mul(EMPTY, L(7), L(3))));
+        assertEquals(2, foldFunction(new Div(EMPTY, L(7), L(3))));
+        assertEquals(1, foldFunction(new Mod(EMPTY, L(7), L(3))));
+    }
+
+    public void testMathFolding() {
+        assertEquals(7, foldFunction(new Abs(EMPTY, L(7))));
+        assertEquals(0d, (double) foldFunction(new ACos(EMPTY, L(1))), 0.01d);
+        assertEquals(1.57076d, (double) foldFunction(new ASin(EMPTY, L(1))), 0.01d);
+        assertEquals(0.78539d, (double) foldFunction(new ATan(EMPTY, L(1))), 0.01d);
+        assertEquals(7, foldFunction(new Floor(EMPTY, L(7))));
+        assertEquals(Math.E, foldFunction(new E(EMPTY)));
+    }
+
+    private static Object foldFunction(Function f) {
+        return unwrapAlias(new ConstantFolding().rule(f));
+    }
+
+    private static Object unwrapAlias(Expression e) {
         Alias a = (Alias) e;
         Literal l = (Literal) a.child();
         return l.value();

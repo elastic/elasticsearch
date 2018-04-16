@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTempl
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 public class Pi extends MathFunction {

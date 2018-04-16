@@ -115,6 +115,7 @@ class NodeInfo {
     NodeInfo(ClusterConfiguration config, int nodeNum, Project project, String prefix, Version nodeVersion, File sharedDir) {
         this.config = config
         this.nodeNum = nodeNum
+        this.project = project
         this.sharedDir = sharedDir
         if (config.clusterName != null) {
             clusterName = config.clusterName

@@ -29,7 +29,12 @@ For more information, see
 [[general-monitoring-settings]]
 ==== General Monitoring Settings
 `xpack.monitoring.enabled`::
-Set to `true` (default) to enable {es} {monitoring} for {es} on the node.
+Set to `true` (default) to enable {es} {monitoring} for {es} on the node. 
++
+--
+NOTE: To enable data collection, you must also set `xpack.monitoring.collection.enabled` 
+to `true`. Its default value is `false`. 
+--
 
 [float]
 [[monitoring-collection-settings]]

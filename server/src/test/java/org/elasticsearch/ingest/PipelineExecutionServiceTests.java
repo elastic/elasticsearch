@@ -384,14 +384,12 @@ public class PipelineExecutionServiceTests extends ESTestCase {
     }
 
     public void testStats() {
-        {
-            final IngestStats initialStats = executionService.stats();
-            assertThat(initialStats.getStatsPerPipeline().size(), equalTo(0));
-            assertThat(initialStats.getTotalStats().getIngestCount(), equalTo(0L));
-            assertThat(initialStats.getTotalStats().getIngestCurrent(), equalTo(0L));
-            assertThat(initialStats.getTotalStats().getIngestFailedCount(), equalTo(0L));
-            assertThat(initialStats.getTotalStats().getIngestTimeInMillis(), equalTo(0L));
-        }
+        final IngestStats initialStats = executionService.stats();
+        assertThat(initialStats.getStatsPerPipeline().size(), equalTo(0));
+        assertThat(initialStats.getTotalStats().getIngestCount(), equalTo(0L));
+        assertThat(initialStats.getTotalStats().getIngestCurrent(), equalTo(0L));
+        assertThat(initialStats.getTotalStats().getIngestFailedCount(), equalTo(0L));
+        assertThat(initialStats.getTotalStats().getIngestTimeInMillis(), equalTo(0L));
 
         when(store.get("_id1")).thenReturn(new Pipeline("_id1", null, version, new CompoundProcessor(mock(Processor.class))));
         when(store.get("_id2")).thenReturn(new Pipeline("_id2", null, null, new CompoundProcessor(mock(Processor.class))));
@@ -409,13 +407,11 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         final IndexRequest indexRequest = new IndexRequest("_index");
         indexRequest.setPipeline("_id1");
         executionService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler);
-        {
-            final IngestStats afterFirstRequestStats = executionService.stats();
-            assertThat(afterFirstRequestStats.getStatsPerPipeline().size(), equalTo(2));
-            assertThat(afterFirstRequestStats.getStatsPerPipeline().get("_id1").getIngestCount(), equalTo(1L));
-            assertThat(afterFirstRequestStats.getStatsPerPipeline().get("_id2").getIngestCount(), equalTo(0L));
-            assertThat(afterFirstRequestStats.getTotalStats().getIngestCount(), equalTo(1L));
-        }
+        final IngestStats afterFirstRequestStats = executionService.stats();
+        assertThat(afterFirstRequestStats.getStatsPerPipeline().size(), equalTo(2));
+        assertThat(afterFirstRequestStats.getStatsPerPipeline().get("_id1").getIngestCount(), equalTo(1L));
+        assertThat(afterFirstRequestStats.getStatsPerPipeline().get("_id2").getIngestCount(), equalTo(0L));
+        assertThat(afterFirstRequestStats.getTotalStats().getIngestCount(), equalTo(1L));
 
         indexRequest.setPipeline("_id2");
         executionService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler);

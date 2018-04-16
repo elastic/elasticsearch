@@ -178,6 +178,18 @@ public class DataTypeConversionTests extends ESTestCase {
         }
     }
 
+    public void testConversionToNull() {
+        Conversion conversion = DataTypeConversion.conversionFor(DataType.DOUBLE, DataType.NULL);
+        assertNull(conversion.convert(null));
+        assertNull(conversion.convert(10.0));
+    }
+
+    public void testConversionToIdentity() {
+        Conversion conversion = DataTypeConversion.conversionFor(DataType.INTEGER, DataType.INTEGER);
+        assertNull(conversion.convert(null));
+        assertEquals(10, conversion.convert(10));
+    }
+
     public void testCommonType() {
         assertEquals(DataType.BOOLEAN, DataTypeConversion.commonType(DataType.BOOLEAN, DataType.NULL));
         assertEquals(DataType.BOOLEAN, DataTypeConversion.commonType(DataType.NULL, DataType.BOOLEAN));

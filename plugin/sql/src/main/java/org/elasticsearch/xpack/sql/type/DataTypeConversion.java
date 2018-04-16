@@ -89,6 +89,14 @@ public abstract class DataTypeConversion {
      * Get the conversion from one type to another.
      */
     public static Conversion conversionFor(DataType from, DataType to) {
+        // Special handling for nulls and if conversion is not requires
+        if (from == to) {
+            return Conversion.IDENTITY;
+        }
+        if (to == DataType.NULL) {
+            return Conversion.NULL;
+        }
+
         Conversion conversion = conversion(from, to);
         if (conversion == null) {
             throw new SqlIllegalArgumentException("cannot convert from [" + from + "] to [" + to + "]");
@@ -306,6 +314,8 @@ public abstract class DataTypeConversion {
      * is important because it is used for serialization.
      */
     public enum Conversion {
+        IDENTITY(Function.identity()),
+        NULL(value -> null),
         DATE_TO_STRING(Object::toString),
         OTHER_TO_STRING(String::valueOf),
         RATIONAL_TO_LONG(fromDouble(DataTypeConversion::safeToLong)),
@@ -334,7 +344,7 @@ public abstract class DataTypeConversion {
         STRING_TO_DOUBLE(fromString(Double::valueOf, "Double")),
         STRING_TO_DATE(fromString(UTC_DATE_FORMATTER::parseMillis, "Date")),
         NUMERIC_TO_BOOLEAN(fromLong(value -> value != 0)),
-        STRING_TO_BOOLEAN(fromString(DataTypeConversion::convertToBoolean, "Boolean")),;
+        STRING_TO_BOOLEAN(fromString(DataTypeConversion::convertToBoolean, "Boolean"));
 
         private final Function<Object, Object> converter;
 

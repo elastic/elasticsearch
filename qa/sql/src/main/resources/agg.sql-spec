@@ -18,16 +18,14 @@ SELECT gender g FROM "test_emp" WHERE emp_no < 10020 GROUP BY g ORDER BY gender;
 groupByOnTextOnAliasOrderDesc
 SELECT gender g FROM "test_emp" WHERE emp_no < 10020 GROUP BY g ORDER BY g DESC;
 
-// FIXME: waiting on feedback from Jim
-
-//groupByOnDate
-//SELECT birth_date b FROM "test_emp" GROUP BY birth_date ORDER BY birth_date DESC;
-//groupByOnDateWithWhereClause
-//SELECT birth_date b FROM "test_emp" WHERE emp_no < 10020 GROUP BY birth_date ORDER BY birth_date DESC;
-//groupByOnDateWithWhereAndLimit
-//SELECT birth_date b FROM "test_emp" WHERE emp_no < 10020 GROUP BY birth_date ORDER BY birth_date DESC LIMIT 1;
-//groupByOnDateOnAlias
-//SELECT birth_date b FROM "test_emp" WHERE emp_no < 10020 GROUP BY b ORDER BY birth_date DESC;
+groupByOnDate
+SELECT birth_date b FROM "test_emp" GROUP BY birth_date ORDER BY birth_date DESC;
+groupByOnDateWithWhereClause
+SELECT birth_date b FROM "test_emp" WHERE emp_no < 10020 GROUP BY birth_date ORDER BY birth_date DESC;
+groupByOnDateWithWhereAndLimit
+SELECT birth_date b FROM "test_emp" WHERE emp_no < 10020 GROUP BY birth_date ORDER BY birth_date DESC LIMIT 1;
+groupByOnDateOnAlias
+SELECT birth_date b FROM "test_emp" WHERE emp_no < 10020 GROUP BY b ORDER BY birth_date DESC;
 
 groupByOnNumber
 SELECT emp_no e FROM "test_emp" GROUP BY emp_no ORDER BY emp_no ASC;

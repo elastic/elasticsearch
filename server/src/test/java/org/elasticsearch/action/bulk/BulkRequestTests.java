@@ -94,12 +94,12 @@ public class BulkRequestTests extends ESTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON);
         assertThat(bulkRequest.numberOfActions(), equalTo(4));
-        assertThat(((UpdateRequest) bulkRequest.requests().get(0)).id(), equalTo("1"));
+        assertThat(bulkRequest.requests().get(0).id(), equalTo("1"));
         assertThat(((UpdateRequest) bulkRequest.requests().get(0)).retryOnConflict(), equalTo(2));
         assertThat(((UpdateRequest) bulkRequest.requests().get(0)).doc().source().utf8ToString(), equalTo("{\"field\":\"value\"}"));
-        assertThat(((UpdateRequest) bulkRequest.requests().get(1)).id(), equalTo("0"));
-        assertThat(((UpdateRequest) bulkRequest.requests().get(1)).type(), equalTo("type1"));
-        assertThat(((UpdateRequest) bulkRequest.requests().get(1)).index(), equalTo("index1"));
+        assertThat(bulkRequest.requests().get(1).id(), equalTo("0"));
+        assertThat(bulkRequest.requests().get(1).type(), equalTo("type1"));
+        assertThat(bulkRequest.requests().get(1).index(), equalTo("index1"));
         Script script = ((UpdateRequest) bulkRequest.requests().get(1)).script();
         assertThat(script, notNullValue());
         assertThat(script.getIdOrCode(), equalTo("counter += param1"));
@@ -107,20 +107,18 @@ public class BulkRequestTests extends ESTestCase {
         Map<String, Object> scriptParams = script.getParams();
         assertThat(scriptParams, notNullValue());
         assertThat(scriptParams.size(), equalTo(1));
-        assertThat(((Integer) scriptParams.get("param1")), equalTo(1));
+        assertThat(scriptParams.get("param1"), equalTo(1));
         assertThat(((UpdateRequest) bulkRequest.requests().get(1)).upsertRequest().source().utf8ToString(), equalTo("{\"counter\":1}"));
     }
 
     public void testBulkAllowExplicitIndex() throws Exception {
-        String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk.json");
-        try {
-            new BulkRequest().add(new BytesArray(bulkAction.getBytes(StandardCharsets.UTF_8)), null, null, false, XContentType.JSON);
-            fail();
-        } catch (Exception e) {
+        String bulkAction1 = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk.json");
+        Exception ex = expectThrows(Exception.class,
+            () -> new BulkRequest().add(
+                new BytesArray(bulkAction1.getBytes(StandardCharsets.UTF_8)), null, null, false, XContentType.JSON));
+        assertEquals("explicit index in bulk is not allowed", ex.getMessage());
 
-        }
-
-        bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk5.json");
+        String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk5.json");
         new BulkRequest().add(new BytesArray(bulkAction.getBytes(StandardCharsets.UTF_8)), "test", null, false, XContentType.JSON);
     }
 
@@ -175,6 +173,16 @@ public class BulkRequestTests extends ESTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON);
         assertThat(bulkRequest.numberOfActions(), equalTo(9));
+    }
+
+    public void testBulkActionShouldNotContainArray() throws Exception {
+        String bulkAction = "{ \"index\":{\"_index\":[\"index1\", \"index2\"],\"_type\":\"type1\",\"_id\":\"1\"} }\r\n"
+            + "{ \"field1\" : \"value1\" }\r\n";
+        BulkRequest bulkRequest = new BulkRequest();
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON));
+        assertEquals(exc.getMessage(), "Malformed action/metadata line [1]" +
+            ", expected a simple value for field [_index] but found [START_ARRAY]");
     }
 
     public void testBulkEmptyObject() throws Exception {
@@ -299,7 +307,7 @@ public class BulkRequestTests extends ESTestCase {
             out.write(xContentType.xContent().streamSeparator());
             try(XContentBuilder builder = XContentFactory.contentBuilder(xContentType, out)) {
                 builder.startObject();
-                builder.field("doc", "{}");
+                builder.startObject("doc").endObject();
                 Map<String,Object> values = new HashMap<>();
                 values.put("version", 2L);
                 values.put("_index", "index");

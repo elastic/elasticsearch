@@ -698,6 +698,9 @@ public class FullClusterRestartIT extends ESRestTestCase {
             shouldHaveTranslog = randomBoolean();
 
             indexRandomDocuments(count, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
+
+            // make sure all recoveries are done
+            ensureNoInitializingShards();
             // Explicitly flush so we're sure to have a bunch of documents in the Lucene index
             client().performRequest("POST", "/_flush");
             if (shouldHaveTranslog) {

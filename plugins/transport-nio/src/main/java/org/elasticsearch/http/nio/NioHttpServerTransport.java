@@ -1,36 +1,45 @@
 package org.elasticsearch.http.nio;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.PortsRange;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.http.HttpInfo;
+import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
+import org.elasticsearch.http.netty4.AbstractHttpServerTransport;
 import org.elasticsearch.nio.AcceptingSelector;
+import org.elasticsearch.nio.AcceptorEventHandler;
 import org.elasticsearch.nio.ChannelFactory;
+import org.elasticsearch.nio.NioGroup;
 import org.elasticsearch.nio.NioServerSocketChannel;
 import org.elasticsearch.nio.NioSocketChannel;
+import org.elasticsearch.nio.SocketEventHandler;
 import org.elasticsearch.nio.SocketSelector;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.nio.NioTransport;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_BIND_HOST;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION_LEVEL;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
@@ -42,15 +51,16 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_RECE
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_REUSE_ADDRESS;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_SEND_BUFFER_SIZE;
 
-public class NioHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
+public class NioHttpServerTransport extends AbstractHttpServerTransport {
 
-    private final NetworkService networkService;
+    private static final String TRANSPORT_WORKER_THREAD_NAME_PREFIX = "http_nio_transport_worker";
+    private static final String TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX = "http_nio_transport_acceptor";
+
     private final BigArrays bigArrays;
     private final ThreadPool threadPool;
     private final NamedXContentRegistry xContentRegistry;
     private final Dispatcher dispatcher;
 
-    private final int maxContentLength;
     private final int maxChunkSize;
     private final int maxHeaderSize;
     private final int maxInitialLineLength;
@@ -68,16 +78,17 @@ public class NioHttpServerTransport extends AbstractLifecycleComponent implement
     private final int tcpSendBufferSize;
     private final int tcpReceiveBufferSize;
 
+    private NioGroup nioGroup;
+    private final List<NioServerSocketChannel> serverChannels = new ArrayList<>();
+
     public NioHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
                                   NamedXContentRegistry xContentRegistry, HttpServerTransport.Dispatcher dispatcher) {
-        super(settings);
-        this.networkService = networkService;
+        super(settings, networkService, threadPool, dispatcher);
         this.bigArrays = bigArrays;
         this.threadPool = threadPool;
         this.xContentRegistry = xContentRegistry;
         this.dispatcher = dispatcher;
 
-        this.maxContentLength = Math.toIntExact(SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings).getBytes());
         this.maxChunkSize = Math.toIntExact(SETTING_HTTP_MAX_CHUNK_SIZE.get(settings).getBytes());
         this.maxHeaderSize = Math.toIntExact(SETTING_HTTP_MAX_HEADER_SIZE.get(settings).getBytes());
         this.maxInitialLineLength =  Math.toIntExact(SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.get(settings).getBytes());
@@ -129,6 +140,53 @@ public class NioHttpServerTransport extends AbstractLifecycleComponent implement
 
     @Override
     protected void doStart() {
+        boolean success = false;
+        try {
+            int acceptorCount = 0;
+            nioGroup = new NioGroup(logger, daemonThreadFactory(this.settings, TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX), acceptorCount,
+                AcceptorEventHandler::new, daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX),
+                NioTransport.NIO_WORKER_COUNT.get(settings), SocketEventHandler::new);
+//            this.serverOpenChannels = new Netty4OpenChannelsHandler(logger);
+
+//            serverBootstrap = new ServerBootstrap();
+//
+//            serverBootstrap.group(new NioEventLoopGroup(workerCount, daemonThreadFactory(settings,
+//                HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)));
+//            serverBootstrap.channel(io.netty.channel.socket.nio.NioServerSocketChannel.class);
+//
+//            serverBootstrap.childHandler(configureServerChannelHandler());
+//
+//            serverBootstrap.childOption(ChannelOption.TCP_NODELAY, SETTING_HTTP_TCP_NO_DELAY.get(settings));
+//            serverBootstrap.childOption(ChannelOption.SO_KEEPALIVE, SETTING_HTTP_TCP_KEEP_ALIVE.get(settings));
+//
+//            final ByteSizeValue tcpSendBufferSize = SETTING_HTTP_TCP_SEND_BUFFER_SIZE.get(settings);
+//            if (tcpSendBufferSize.getBytes() > 0) {
+//                serverBootstrap.childOption(ChannelOption.SO_SNDBUF, Math.toIntExact(tcpSendBufferSize.getBytes()));
+//            }
+//
+//            final ByteSizeValue tcpReceiveBufferSize = SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE.get(settings);
+//            if (tcpReceiveBufferSize.getBytes() > 0) {
+//                serverBootstrap.childOption(ChannelOption.SO_RCVBUF, Math.toIntExact(tcpReceiveBufferSize.getBytes()));
+//            }
+//
+//            serverBootstrap.option(ChannelOption.RCVBUF_ALLOCATOR, recvByteBufAllocator);
+//            serverBootstrap.childOption(ChannelOption.RCVBUF_ALLOCATOR, recvByteBufAllocator);
+//
+//            final boolean reuseAddress = SETTING_HTTP_TCP_REUSE_ADDRESS.get(settings);
+//            serverBootstrap.option(ChannelOption.SO_REUSEADDR, reuseAddress);
+//            serverBootstrap.childOption(ChannelOption.SO_REUSEADDR, reuseAddress);
+
+            if (logger.isInfoEnabled()) {
+                logger.info("{}", boundAddress);
+            }
+            success = true;
+        } catch (IOException e) {
+            throw new ElasticsearchException(e);
+        } finally {
+            if (success == false) {
+                doStop(); // otherwise we leak threads since we never moved to started
+            }
+        }
 
     }
 
@@ -138,27 +196,38 @@ public class NioHttpServerTransport extends AbstractLifecycleComponent implement
     }
 
     @Override
-    protected void doClose() throws IOException {
-
-    }
+    protected void doClose() throws IOException {}
 
     @Override
-    public BoundTransportAddress boundAddress() {
-        return null;
-    }
-
-    @Override
-    public HttpInfo info() {
-        BoundTransportAddress boundTransportAddress = boundAddress();
-        if (boundTransportAddress == null) {
-            return null;
+    protected TransportAddress bindAddress(InetAddress hostAddress) {
+        final AtomicReference<Exception> lastException = new AtomicReference<>();
+        final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
+        boolean success = port.iterate(portNumber -> {
+            try {
+                synchronized (serverChannels) {
+                    NioServerSocketChannel channel = nioGroup.bindServerChannel(new InetSocketAddress(hostAddress, portNumber), null);
+                    serverChannels.add(channel);
+                    boundSocket.set(channel.getLocalAddress());
+                }
+            } catch (Exception e) {
+                lastException.set(e);
+                return false;
+            }
+            return true;
+        });
+        if (!success) {
+            throw new BindHttpException("Failed to bind to [" + port.getPortRangeString() + "]", lastException.get());
         }
-        return new HttpInfo(boundTransportAddress, maxContentLength);
+
+        if (logger.isDebugEnabled()) {
+            logger.debug("Bound http to address {{}}", NetworkAddress.format(boundSocket.get()));
+        }
+        return new TransportAddress(boundSocket.get());
     }
 
     @Override
     public HttpStats stats() {
-        return null;
+        return new HttpStats(0, 0);
     }
 
     private class HttpChannelFactory extends ChannelFactory<NioServerSocketChannel, NioSocketChannel> {

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.http.netty4;
 
-import com.carrotsearch.hppc.IntHashSet;
-import com.carrotsearch.hppc.IntSet;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -44,13 +42,11 @@ import io.netty.handler.timeout.ReadTimeoutHandler;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -62,18 +58,13 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.http.BindHttpException;
-import org.elasticsearch.http.HttpInfo;
-import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfig;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfigBuilder;
 import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
 import org.elasticsearch.http.netty4.pipelining.HttpPipeliningHandler;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.netty4.Netty4OpenChannelsHandler;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
@@ -94,17 +85,13 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ME
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_MAX_AGE;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_BIND_HOST;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION_LEVEL;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_PORT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_RESET_COOKIES;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_KEEP_ALIVE;
@@ -116,7 +103,7 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING_MAX_EVENTS;
 import static org.elasticsearch.http.netty4.cors.Netty4CorsHandler.ANY_ORIGIN;
 
-public class Netty4HttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
+public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
     static {
         Netty4Utils.setup();
@@ -132,11 +119,8 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
     public static final Setting<ByteSizeValue> SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE =
         Setting.byteSizeSetting("http.netty.receive_predictor_size", new ByteSizeValue(64, ByteSizeUnit.KB), Property.NodeScope);
 
-
-    protected final NetworkService networkService;
     protected final BigArrays bigArrays;
 
-    protected final ByteSizeValue maxContentLength;
     protected final ByteSizeValue maxInitialLineLength;
     protected final ByteSizeValue maxHeaderSize;
     protected final ByteSizeValue maxChunkSize;
@@ -153,14 +137,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
 
     protected final boolean resetCookies;
 
-    protected final PortsRange port;
-
-    protected final String bindHosts[];
-
-    protected final String publishHosts[];
-
     protected final boolean detailedErrorsEnabled;
-    protected final ThreadPool threadPool;
     /**
      * The registry used to construct parsers so they support {@link XContentParser#namedObject(Class, String, Object)}.
      */
@@ -176,11 +153,8 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
     private final int readTimeoutMillis;
 
     protected final int maxCompositeBufferComponents;
-    private final Dispatcher dispatcher;
 
     protected volatile ServerBootstrap serverBootstrap;
-
-    protected volatile BoundTransportAddress boundAddress;
 
     protected final List<Channel> serverChannels = new ArrayList<>();
 
@@ -192,30 +166,18 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
 
     public Netty4HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
                                      NamedXContentRegistry xContentRegistry, Dispatcher dispatcher) {
-        super(settings);
+        super(settings, networkService, threadPool, dispatcher);
         Netty4Utils.setAvailableProcessors(EsExecutors.PROCESSORS_SETTING.get(settings));
-        this.networkService = networkService;
         this.bigArrays = bigArrays;
-        this.threadPool = threadPool;
         this.xContentRegistry = xContentRegistry;
-        this.dispatcher = dispatcher;
 
-        ByteSizeValue maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings);
         this.maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
         this.maxInitialLineLength = SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.get(settings);
         this.resetCookies = SETTING_HTTP_RESET_COOKIES.get(settings);
         this.maxCompositeBufferComponents = SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS.get(settings);
         this.workerCount = SETTING_HTTP_WORKER_COUNT.get(settings);
-        this.port = SETTING_HTTP_PORT.get(settings);
-        // we can't make the network.bind_host a fallback since we already fall back to http.host hence the extra conditional here
-        List<String> httpBindHost = SETTING_HTTP_BIND_HOST.get(settings);
-        this.bindHosts = (httpBindHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_BINDHOST_SETTING.get(settings) : httpBindHost)
-            .toArray(Strings.EMPTY_ARRAY);
-        // we can't make the network.publish_host a fallback since we already fall back to http.host hence the extra conditional here
-        List<String> httpPublishHost = SETTING_HTTP_PUBLISH_HOST.get(settings);
-        this.publishHosts = (httpPublishHost.isEmpty() ? NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING.get(settings) : httpPublishHost)
-            .toArray(Strings.EMPTY_ARRAY);
+
         this.tcpNoDelay = SETTING_HTTP_TCP_NO_DELAY.get(settings);
         this.tcpKeepAlive = SETTING_HTTP_TCP_KEEP_ALIVE.get(settings);
         this.reuseAddress = SETTING_HTTP_TCP_REUSE_ADDRESS.get(settings);
@@ -232,8 +194,6 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         this.pipelining = SETTING_PIPELINING.get(settings);
         this.pipeliningMaxEvents = SETTING_PIPELINING_MAX_EVENTS.get(settings);
         this.corsConfig = buildCorsConfig(settings);
-
-        this.maxContentLength = maxContentLength;
 
         logger.debug("using max_chunk_size[{}], max_header_size[{}], max_initial_line_length[{}], max_content_length[{}], " +
                 "receive_predictor[{}], pipelining[{}], pipelining_max_events[{}]",
@@ -290,65 +250,6 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         }
     }
 
-    private BoundTransportAddress createBoundHttpAddress() {
-        // Bind and start to accept incoming connections.
-        InetAddress hostAddresses[];
-        try {
-            hostAddresses = networkService.resolveBindHostAddresses(bindHosts);
-        } catch (IOException e) {
-            throw new BindHttpException("Failed to resolve host [" + Arrays.toString(bindHosts) + "]", e);
-        }
-
-        List<TransportAddress> boundAddresses = new ArrayList<>(hostAddresses.length);
-        for (InetAddress address : hostAddresses) {
-            boundAddresses.add(bindAddress(address));
-        }
-
-        final InetAddress publishInetAddress;
-        try {
-            publishInetAddress = networkService.resolvePublishHostAddresses(publishHosts);
-        } catch (Exception e) {
-            throw new BindTransportException("Failed to resolve publish address", e);
-        }
-
-        final int publishPort = resolvePublishPort(settings, boundAddresses, publishInetAddress);
-        final InetSocketAddress publishAddress = new InetSocketAddress(publishInetAddress, publishPort);
-        return new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[0]), new TransportAddress(publishAddress));
-    }
-
-    // package private for tests
-    static int resolvePublishPort(Settings settings, List<TransportAddress> boundAddresses, InetAddress publishInetAddress) {
-        int publishPort = SETTING_HTTP_PUBLISH_PORT.get(settings);
-
-        if (publishPort < 0) {
-            for (TransportAddress boundAddress : boundAddresses) {
-                InetAddress boundInetAddress = boundAddress.address().getAddress();
-                if (boundInetAddress.isAnyLocalAddress() || boundInetAddress.equals(publishInetAddress)) {
-                    publishPort = boundAddress.getPort();
-                    break;
-                }
-            }
-        }
-
-        // if no matching boundAddress found, check if there is a unique port for all bound addresses
-        if (publishPort < 0) {
-            final IntSet ports = new IntHashSet();
-            for (TransportAddress boundAddress : boundAddresses) {
-                ports.add(boundAddress.getPort());
-            }
-            if (ports.size() == 1) {
-                publishPort = ports.iterator().next().value;
-            }
-        }
-
-        if (publishPort < 0) {
-            throw new BindHttpException("Failed to auto-resolve http publish port, multiple bound addresses " + boundAddresses +
-                " with distinct ports and none of them matched the publish address (" + publishInetAddress + "). " +
-                "Please specify a unique port by setting " + SETTING_HTTP_PORT.getKey() + " or " + SETTING_HTTP_PUBLISH_PORT.getKey());
-        }
-        return publishPort;
-    }
-
     // package private for testing
     static Netty4CorsConfig buildCorsConfig(Settings settings) {
         if (SETTING_CORS_ENABLED.get(settings) == false) {
@@ -383,7 +284,8 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
             .build();
     }
 
-    private TransportAddress bindAddress(final InetAddress hostAddress) {
+    @Override
+    protected TransportAddress bindAddress(final InetAddress hostAddress) {
         final AtomicReference<Exception> lastException = new AtomicReference<>();
         final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
         boolean success = port.iterate(portNumber -> {
@@ -438,20 +340,6 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
     }
 
     @Override
-    public BoundTransportAddress boundAddress() {
-        return this.boundAddress;
-    }
-
-    @Override
-    public HttpInfo info() {
-        BoundTransportAddress boundTransportAddress = boundAddress();
-        if (boundTransportAddress == null) {
-            return null;
-        }
-        return new HttpInfo(boundTransportAddress, maxContentLength.getBytes());
-    }
-
-    @Override
     public HttpStats stats() {
         Netty4OpenChannelsHandler channels = serverOpenChannels;
         return new HttpStats(channels == null ? 0 : channels.numberOfOpenChannels(), channels == null ? 0 : channels.totalChannels());
@@ -459,20 +347,6 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
 
     public Netty4CorsConfig getCorsConfig() {
         return corsConfig;
-    }
-
-    void dispatchRequest(final RestRequest request, final RestChannel channel) {
-        final ThreadContext threadContext = threadPool.getThreadContext();
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            dispatcher.dispatchRequest(request, channel, threadContext);
-        }
-    }
-
-    void dispatchBadRequest(final RestRequest request, final RestChannel channel, final Throwable cause) {
-        final ThreadContext threadContext = threadPool.getThreadContext();
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            dispatcher.dispatchBadRequest(request, channel, threadContext, cause);
-        }
     }
 
     protected void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {

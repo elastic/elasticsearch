@@ -102,7 +102,9 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
     }
 
     ExportBulk openBulk() {
-        if (clusterService.state().version() == ClusterState.UNKNOWN_VERSION) {
+        final ClusterState state = clusterService.state();
+
+        if (ClusterState.UNKNOWN_UUID.equals(state.metaData().clusterUUID()) || state.version() == ClusterState.UNKNOWN_VERSION) {
             logger.trace("skipping exporters because the cluster state is not loaded");
             return null;
         }

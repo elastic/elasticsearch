@@ -74,20 +74,36 @@ public class Version {
         return "${major}.${minor}.${revision}${suffix}${snapshotStr}"
     }
 
+    public boolean before(Version compareTo) {
+        return id < compareTo.id
+    }
+
     public boolean before(String compareTo) {
-        return id < fromString(compareTo).id
+        return before(fromString(compareTo))
+    }
+
+    public boolean onOrBefore(Version compareTo) {
+        return id <= compareTo.id
     }
 
     public boolean onOrBefore(String compareTo) {
-        return id <= fromString(compareTo).id
+        return onOrBefore(fromString(compareTo))
+    }
+
+    public boolean onOrAfter(Version compareTo) {
+        return id >= compareTo.id
     }
 
     public boolean onOrAfter(String compareTo) {
-        return id >= fromString(compareTo).id
+        return onOrAfter(fromString(compareTo))
+    }
+
+    public boolean after(Version compareTo) {
+        return id > compareTo.id
     }
 
     public boolean after(String compareTo) {
-        return id > fromString(compareTo).id
+        return after(fromString(compareTo))
     }
 
     public boolean onOrBeforeIncludingSuffix(Version otherVersion) {

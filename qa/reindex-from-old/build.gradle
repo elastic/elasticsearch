@@ -24,7 +24,10 @@ should be able to use the standard launching mechanism which
 is more flexible and reliable.
 """
 
+
 import org.apache.tools.ant.taskdefs.condition.Os
+
+import static org.elasticsearch.gradle.BuildPlugin.getJavaHome
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
@@ -51,9 +54,8 @@ dependencies {
   es090 'org.elasticsearch:elasticsearch:0.90.13@zip'
 }
 
-if (project.runtimeJavaVersion >= JavaVersion.VERSION_1_9 || Os.isFamily(Os.FAMILY_WINDOWS)) {
-  /* We can't run the dependencies with Java 9 so for now we'll skip the whole
-   * thing. We can't get the pid files in windows so we skip that as well.... */
+if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+  // we can't get the pid files in windows so we skip that
   integTest.enabled = false
 } else {
   /* Set up tasks to unzip and run the old versions of ES before running the
@@ -75,7 +77,7 @@ if (project.runtimeJavaVersion >= JavaVersion.VERSION_1_9 || Os.isFamily(Os.FAMI
       dependsOn unzip
       executable = new File(project.runtimeJavaHome, 'bin/java')
       env 'CLASSPATH', "${ -> project.configurations.oldesFixture.asPath }"
-      env 'JAVA_HOME', project.runtimeJavaHome
+      env 'JAVA_HOME', "${-> getJavaHome(project, 7, "JAVA7_HOME must be set to run reindex-from-old")}"
       args 'oldes.OldElasticsearch',
            baseDir,
            unzip.temporaryDir,

@@ -23,10 +23,10 @@ public class DataTypeConversionTests extends ESTestCase {
     }
 
     /**
-     * Test conversion to a date or long. These are almost the same.
+     * Test conversion to long.
      */
-    public void testConversionToLongOrDate() {
-        DataType to = randomBoolean() ? DataType.LONG : DataType.DATE;
+    public void testConversionToLong() {
+        DataType to = DataType.LONG;
         {
             Conversion conversion = DataTypeConversion.conversionFor(DataType.DOUBLE, to);
             assertNull(conversion.convert(null));
@@ -50,19 +50,44 @@ public class DataTypeConversionTests extends ESTestCase {
         }
         Conversion conversion = DataTypeConversion.conversionFor(DataType.KEYWORD, to);
         assertNull(conversion.convert(null));
-        if (to == DataType.LONG) {
-            assertEquals(1L, conversion.convert("1"));
-            assertEquals(0L, conversion.convert("-0"));
-            Exception e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert("0xff"));
-            assertEquals("cannot cast [0xff] to [Long]", e.getMessage());
-        } else {
-            // TODO we'd like to be able to optionally parse millis here I think....
-            assertEquals(1000L, conversion.convert("1970-01-01T00:00:01Z"));
-            assertEquals(1483228800000L, conversion.convert("2017-01-01T00:00:00Z"));
-            assertEquals(18000000L, conversion.convert("1970-01-01T00:00:00-05:00"));
-            Exception e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert("0xff"));
-            assertEquals("cannot cast [0xff] to [Date]:Invalid format: \"0xff\" is malformed at \"xff\"", e.getMessage());
+        assertEquals(1L, conversion.convert("1"));
+        assertEquals(0L, conversion.convert("-0"));
+        Exception e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert("0xff"));
+        assertEquals("cannot cast [0xff] to [Long]", e.getMessage());
+    }
+
+    public void testConversionToDate() {
+        DataType to = DataType.DATE;
+        {
+            Conversion conversion = DataTypeConversion.conversionFor(DataType.DOUBLE, to);
+            assertNull(conversion.convert(null));
+            assertEquals(new DateTime(10L, DateTimeZone.UTC), conversion.convert(10.0));
+            assertEquals(new DateTime(10L, DateTimeZone.UTC), conversion.convert(10.1));
+            assertEquals(new DateTime(11L, DateTimeZone.UTC), conversion.convert(10.6));
+            Exception e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert(Double.MAX_VALUE));
+            assertEquals("[" + Double.MAX_VALUE + "] out of [Long] range", e.getMessage());
         }
+        {
+            Conversion conversion = DataTypeConversion.conversionFor(DataType.INTEGER, to);
+            assertNull(conversion.convert(null));
+            assertEquals(new DateTime(10L, DateTimeZone.UTC), conversion.convert(10));
+            assertEquals(new DateTime(-134L, DateTimeZone.UTC), conversion.convert(-134));
+        }
+        {
+            Conversion conversion = DataTypeConversion.conversionFor(DataType.BOOLEAN, to);
+            assertNull(conversion.convert(null));
+            assertEquals(new DateTime(1, DateTimeZone.UTC), conversion.convert(true));
+            assertEquals(new DateTime(0, DateTimeZone.UTC), conversion.convert(false));
+        }
+        Conversion conversion = DataTypeConversion.conversionFor(DataType.KEYWORD, to);
+        assertNull(conversion.convert(null));
+
+        // TODO we'd like to be able to optionally parse millis here I think....
+        assertEquals(new DateTime(1000L, DateTimeZone.UTC), conversion.convert("1970-01-01T00:00:01Z"));
+        assertEquals(new DateTime(1483228800000L, DateTimeZone.UTC), conversion.convert("2017-01-01T00:00:00Z"));
+        assertEquals(new DateTime(18000000L, DateTimeZone.UTC), conversion.convert("1970-01-01T00:00:00-05:00"));
+        Exception e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert("0xff"));
+        assertEquals("cannot cast [0xff] to [Date]:Invalid format: \"0xff\" is malformed at \"xff\"", e.getMessage());
     }
 
     public void testConversionToDouble() {

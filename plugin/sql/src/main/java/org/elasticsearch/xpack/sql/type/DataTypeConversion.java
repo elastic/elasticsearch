@@ -7,6 +7,9 @@ package org.elasticsearch.xpack.sql.type;
 
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
+import org.joda.time.ReadableInstant;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
 
@@ -15,6 +18,10 @@ import java.util.function.DoubleFunction;
 import java.util.function.Function;
 import java.util.function.LongFunction;
 
+import static org.elasticsearch.xpack.sql.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.sql.type.DataType.DATE;
+import static org.elasticsearch.xpack.sql.type.DataType.LONG;
+import static org.elasticsearch.xpack.sql.type.DataType.NULL;
 /**
  * Conversions from one Elasticsearch data type to another Elasticsearch data types.
  * <p>
@@ -78,7 +85,7 @@ public abstract class DataTypeConversion {
      */
     public static boolean canConvert(DataType from, DataType to) {
         // Special handling for nulls and if conversion is not requires
-        if (from == to || from == DataType.NULL) {
+        if (from == to || from == NULL) {
             return true;
         }
         // only primitives are supported so far
@@ -96,7 +103,7 @@ public abstract class DataTypeConversion {
         if (to == DataType.NULL) {
             return Conversion.NULL;
         }
-
+        
         Conversion conversion = conversion(from, to);
         if (conversion == null) {
             throw new SqlIllegalArgumentException("cannot convert from [" + from + "] to [" + to + "]");
@@ -132,7 +139,7 @@ public abstract class DataTypeConversion {
     }
 
     private static Conversion conversionToString(DataType from) {
-        if (from == DataType.DATE) {
+        if (from == DATE) {
             return Conversion.DATE_TO_STRING;
         }
         return Conversion.OTHER_TO_STRING;
@@ -145,11 +152,14 @@ public abstract class DataTypeConversion {
         if (from.isInteger) {
             return Conversion.INTEGER_TO_LONG;
         }
-        if (from == DataType.BOOLEAN) {
+        if (from == BOOLEAN) {
             return Conversion.BOOL_TO_INT; // We emit an int here which is ok because of Java's casting rules
         }
         if (from.isString()) {
             return Conversion.STRING_TO_LONG;
+        }
+        if (from == DATE) {
+            return Conversion.DATE_TO_LONG;
         }
         return null;
     }
@@ -161,11 +171,14 @@ public abstract class DataTypeConversion {
         if (from.isInteger) {
             return Conversion.INTEGER_TO_INT;
         }
-        if (from == DataType.BOOLEAN) {
+        if (from == BOOLEAN) {
             return Conversion.BOOL_TO_INT;
         }
         if (from.isString()) {
             return Conversion.STRING_TO_INT;
+        }
+        if (from == DATE) {
+            return Conversion.DATE_TO_INT;
         }
         return null;
     }
@@ -177,11 +190,14 @@ public abstract class DataTypeConversion {
         if (from.isInteger) {
             return Conversion.INTEGER_TO_SHORT;
         }
-        if (from == DataType.BOOLEAN) {
+        if (from == BOOLEAN) {
             return Conversion.BOOL_TO_SHORT;
         }
         if (from.isString()) {
             return Conversion.STRING_TO_SHORT;
+        }
+        if (from == DATE) {
+            return Conversion.DATE_TO_SHORT;
         }
         return null;
     }
@@ -193,11 +209,14 @@ public abstract class DataTypeConversion {
         if (from.isInteger) {
             return Conversion.INTEGER_TO_BYTE;
         }
-        if (from == DataType.BOOLEAN) {
+        if (from == BOOLEAN) {
             return Conversion.BOOL_TO_BYTE;
         }
         if (from.isString()) {
             return Conversion.STRING_TO_BYTE;
+        }
+        if (from == DATE) {
+            return Conversion.DATE_TO_BYTE;
         }
         return null;
     }
@@ -209,11 +228,14 @@ public abstract class DataTypeConversion {
         if (from.isInteger) {
             return Conversion.INTEGER_TO_FLOAT;
         }
-        if (from == DataType.BOOLEAN) {
+        if (from == BOOLEAN) {
             return Conversion.BOOL_TO_FLOAT;
         }
         if (from.isString()) {
             return Conversion.STRING_TO_FLOAT;
+        }
+        if (from == DATE) {
+            return Conversion.DATE_TO_FLOAT;
         }
         return null;
     }
@@ -225,24 +247,27 @@ public abstract class DataTypeConversion {
         if (from.isInteger) {
             return Conversion.INTEGER_TO_DOUBLE;
         }
-        if (from == DataType.BOOLEAN) {
+        if (from == BOOLEAN) {
             return Conversion.BOOL_TO_DOUBLE;
         }
         if (from.isString()) {
             return Conversion.STRING_TO_DOUBLE;
+        }
+        if (from == DATE) {
+            return Conversion.DATE_TO_DOUBLE;
         }
         return null;
     }
 
     private static Conversion conversionToDate(DataType from) {
         if (from.isRational) {
-            return Conversion.RATIONAL_TO_LONG;
+            return Conversion.RATIONAL_TO_DATE;
         }
         if (from.isInteger) {
-            return Conversion.INTEGER_TO_LONG;
+            return Conversion.INTEGER_TO_DATE;
         }
-        if (from == DataType.BOOLEAN) {
-            return Conversion.BOOL_TO_INT; // We emit an int here which is ok because of Java's casting rules
+        if (from == BOOLEAN) {
+            return Conversion.BOOL_TO_DATE; // We emit an int here which is ok because of Java's casting rules
         }
         if (from.isString()) {
             return Conversion.STRING_TO_DATE;
@@ -256,6 +281,9 @@ public abstract class DataTypeConversion {
         }
         if (from.isString()) {
             return Conversion.STRING_TO_BOOLEAN;
+        }
+        if (from == DATE) {
+            return Conversion.DATE_TO_BOOLEAN;
         }
         return null;
     }
@@ -316,35 +344,54 @@ public abstract class DataTypeConversion {
     public enum Conversion {
         IDENTITY(Function.identity()),
         NULL(value -> null),
+        
         DATE_TO_STRING(Object::toString),
         OTHER_TO_STRING(String::valueOf),
+
         RATIONAL_TO_LONG(fromDouble(DataTypeConversion::safeToLong)),
         INTEGER_TO_LONG(fromLong(value -> value)),
         STRING_TO_LONG(fromString(Long::valueOf, "Long")),
+        DATE_TO_LONG(fromDate(value -> value)),
+
         RATIONAL_TO_INT(fromDouble(value -> safeToInt(safeToLong(value)))),
         INTEGER_TO_INT(fromLong(DataTypeConversion::safeToInt)),
         BOOL_TO_INT(fromBool(value -> value ? 1 : 0)),
         STRING_TO_INT(fromString(Integer::valueOf, "Int")),
+        DATE_TO_INT(fromDate(DataTypeConversion::safeToInt)),
+
         RATIONAL_TO_SHORT(fromDouble(value -> safeToShort(safeToLong(value)))),
         INTEGER_TO_SHORT(fromLong(DataTypeConversion::safeToShort)),
         BOOL_TO_SHORT(fromBool(value -> value ? (short) 1 : (short) 0)),
         STRING_TO_SHORT(fromString(Short::valueOf, "Short")),
+        DATE_TO_SHORT(fromDate(DataTypeConversion::safeToShort)),
+
         RATIONAL_TO_BYTE(fromDouble(value -> safeToByte(safeToLong(value)))),
         INTEGER_TO_BYTE(fromLong(DataTypeConversion::safeToByte)),
         BOOL_TO_BYTE(fromBool(value -> value ? (byte) 1 : (byte) 0)),
         STRING_TO_BYTE(fromString(Byte::valueOf, "Byte")),
+        DATE_TO_BYTE(fromDate(DataTypeConversion::safeToByte)),
+
         // TODO floating point conversions are lossy but conversions to integer conversions are not. Are we ok with that?
         RATIONAL_TO_FLOAT(fromDouble(value -> (float) value)),
         INTEGER_TO_FLOAT(fromLong(value -> (float) value)),
         BOOL_TO_FLOAT(fromBool(value -> value ? 1f : 0f)),
         STRING_TO_FLOAT(fromString(Float::valueOf, "Float")),
-        RATIONAL_TO_DOUBLE(fromDouble(value -> value)),
+        DATE_TO_FLOAT(fromDate(value -> (float) value)),
+
+        RATIONAL_TO_DOUBLE(fromDouble(Double::valueOf)),
         INTEGER_TO_DOUBLE(fromLong(Double::valueOf)),
         BOOL_TO_DOUBLE(fromBool(value -> value ? 1d : 0d)),
         STRING_TO_DOUBLE(fromString(Double::valueOf, "Double")),
-        STRING_TO_DATE(fromString(UTC_DATE_FORMATTER::parseMillis, "Date")),
+        DATE_TO_DOUBLE(fromDate(Double::valueOf)),
+
+        RATIONAL_TO_DATE(toDate(RATIONAL_TO_LONG)),
+        INTEGER_TO_DATE(toDate(INTEGER_TO_LONG)),
+        BOOL_TO_DATE(toDate(BOOL_TO_INT)),
+        STRING_TO_DATE(fromString(UTC_DATE_FORMATTER::parseDateTime, "Date")),
+
         NUMERIC_TO_BOOLEAN(fromLong(value -> value != 0)),
-        STRING_TO_BOOLEAN(fromString(DataTypeConversion::convertToBoolean, "Boolean"));
+        STRING_TO_BOOLEAN(fromString(DataTypeConversion::convertToBoolean, "Boolean")),
+        DATE_TO_BOOLEAN(fromDate(value -> value != 0));
 
         private final Function<Object, Object> converter;
 
@@ -359,7 +406,7 @@ public abstract class DataTypeConversion {
         private static Function<Object, Object> fromLong(LongFunction<Object> converter) {
             return (Object l) -> converter.apply(((Number) l).longValue());
         }
-
+        
         private static Function<Object, Object> fromString(Function<String, Object> converter, String to) {
             return (Object value) -> {
                 try {
@@ -375,6 +422,14 @@ public abstract class DataTypeConversion {
         private static Function<Object, Object> fromBool(Function<Boolean, Object> converter) {
             return (Object l) -> converter.apply(((Boolean) l));
         }
+        
+        private static Function<Object, Object> fromDate(Function<Long, Object> converter) {
+            return l -> ((ReadableInstant) l).getMillis();
+        }
+
+        private static Function<Object, Object> toDate(Conversion conversion) {
+            return l -> new DateTime(((Number) conversion.convert(l)).longValue(), DateTimeZone.UTC);
+        }
 
         public Object convert(Object l) {
             if (l == null) {
@@ -389,6 +444,6 @@ public abstract class DataTypeConversion {
             return dataType;
         }
 
-        return dataType.isInteger ? dataType : DataType.LONG;
+        return dataType.isInteger ? dataType : LONG;
     }
 }

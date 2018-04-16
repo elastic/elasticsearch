@@ -21,14 +21,14 @@ Security/Authentication::
 * Adds missing `idp.use_single_logout` and `populate_user_metadata` SAML realm 
 settings. See <<ref-saml-settings>>. 
 // https://github.com/elastic/x-pack-elasticsearch/pull/4221[#4221] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/4219[#4219])
-////
+
 Watcher::
-* Watcher: Reenable email property settings
+* Re-enables `smtp.*` account configuration properties in the notification 
+settings. See <<email-notification-settings>>.  
 // https://github.com/elastic/x-pack-elasticsearch/pull/4319[#4319] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/4048[#4048])
-* Watcher: Refactor/Fix TransportWatcherServiceAction
+* Ensures starting and stopping {watcher} is properly acknowledged as a master 
+node action. 
 // https://github.com/elastic/x-pack-elasticsearch/pull/4240[#4240] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/4225[#4225])
-* Watcher: Prevent question mark in HttpClient with empty params
+* Refrains from appending a question mark to an HTTP request if no parameters 
+are used. 
 // https://github.com/elastic/x-pack-elasticsearch/pull/4206[#4206]
-* Watcher: Refactor/Fix TransportWatcherServiceAction (#4240)
-// https://github.com/elastic/x-pack-elasticsearch/pull/4306[#4306] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/4225[#4225])
-////

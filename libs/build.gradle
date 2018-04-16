@@ -26,15 +26,11 @@ subprojects {
 
     /*
      * Subprojects may depend on the "core" lib but may not depend on any
-     * other Elasticsearch code. This keeps are dependencies simpler to think
-     * about.
+     * other libs. This keeps are dependencies simpler.
      */
     project.afterEvaluate {
         configurations.all { Configuration conf ->
             dependencies.all { Dependency dep ->
-                if (project.name.equals('elasticsearch-nio')) {
-                    System.err.println("ccc $conf.name $dep")
-                }
                 Project depProject = dependencyToProject(dep)
                 if (depProject != null
                         && false == depProject.path.equals(':libs:elasticsearch-core')
@@ -42,7 +38,7 @@ subprojects {
                     throw new InvalidUserDataException("projects in :libs "
                             + "may not depend on other projects libs except "
                             + ":libs:elasticsearch-core but "
-                            + "$project.path depends on $depProject.path")
+                            + "${project.path} depends on ${depProject.path}")
                 }
             }
         }

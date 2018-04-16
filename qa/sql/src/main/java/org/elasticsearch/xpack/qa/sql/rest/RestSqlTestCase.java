@@ -84,7 +84,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
                 new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
 
         String request = "{\"query\":\""
-                + "   SELECT text, number, SIN(number) AS s, SCORE()"
+                + "   SELECT text, number, SQRT(number) AS s, SCORE()"
                 + "     FROM test"
                 + " ORDER BY number, SCORE()\", "
                 + "\"mode\":\"" + mode + "\", "
@@ -109,8 +109,8 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
                         columnInfo(mode, "SCORE()", "float", JDBCType.REAL, 15)));
             }
             expected.put("rows", Arrays.asList(
-                    Arrays.asList("text" + i, i, Math.sin(i), 1.0),
-                    Arrays.asList("text" + (i + 1), i + 1, Math.sin(i + 1), 1.0)));
+                    Arrays.asList("text" + i, i, Math.sqrt(i), 1.0),
+                    Arrays.asList("text" + (i + 1), i + 1, Math.sqrt(i + 1), 1.0)));
             cursor = (String) response.remove("cursor");
             assertResponse(expected, response);
             assertNotNull(cursor);

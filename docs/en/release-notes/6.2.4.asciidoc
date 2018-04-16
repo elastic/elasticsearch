@@ -6,11 +6,10 @@
 ++++
 
 coming[6.2.4]
-////
+
 [[xes-bug-6.2.4]]
 [float]
 === Bug fixes
-////
 ////
 Machine Learning::
 * [ML] Don't open failed jobs after node loss
@@ -18,11 +17,10 @@ Machine Learning::
 * [ML] Return error when process has been killed
 // https://github.com/elastic/x-pack-elasticsearch/pull/4211[#4211] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/4210[#4210])
 ////
-////
 Security/Authentication::
-* Adds missing SAML Realm Settings
+* Adds missing `idp.use_single_logout` and `populate_user_metadata` SAML realm 
+settings. See <<ref-saml-settings>>. 
 // https://github.com/elastic/x-pack-elasticsearch/pull/4221[#4221] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/4219[#4219])
-////
 ////
 Watcher::
 * Watcher: Reenable email property settings

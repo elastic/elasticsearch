@@ -31,6 +31,7 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
@@ -100,6 +101,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 
@@ -128,6 +130,7 @@ import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomAl
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class RequestTests extends ESTestCase {
@@ -1365,6 +1368,66 @@ public class RequestTests extends ESTestCase {
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
         assertToXContentBody(updateSettingsRequest, request.getEntity());
         assertEquals(expectedParams, request.getParameters());
+    }
+
+    public void testListTasks() {
+        {
+            ListTasksRequest request = new ListTasksRequest();
+            Map<String, String> expectedParams = new HashMap<>();
+            if (randomBoolean()) {
+                request.setDetailed(randomBoolean());
+                if (request.getDetailed()) {
+                    expectedParams.put("detailed", "true");
+                }
+            }
+            if (randomBoolean()) {
+                request.setWaitForCompletion(randomBoolean());
+                if (request.getWaitForCompletion()) {
+                    expectedParams.put("wait_for_completion", "true");
+                }
+            }
+            if (randomBoolean()) {
+                String timeout = randomTimeValue();
+                request.setTimeout(timeout);
+                expectedParams.put("timeout", timeout);
+            }
+            if (randomBoolean()) {
+                if (randomBoolean()) {
+                    TaskId taskId = new TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
+                    request.setParentTaskId(taskId);
+                    expectedParams.put("parent_task_id", taskId.toString());
+                } else {
+                    request.setParentTask(TaskId.EMPTY_TASK_ID);
+                }
+            }
+            if (randomBoolean()) {
+                String[] nodes = generateRandomStringArray(10, 8, false);
+                request.setNodes(nodes);
+                if (nodes.length > 0) {
+                    expectedParams.put("nodes", String.join(",", nodes));
+                }
+            }
+            if (randomBoolean()) {
+                String[] actions = generateRandomStringArray(10, 8, false);
+                request.setActions(actions);
+                if (actions.length > 0) {
+                    expectedParams.put("actions", String.join(",", actions));
+                }
+            }
+            expectedParams.put("group_by", "none");
+            Request httpRequest = Request.listTasks(request);
+            assertThat(httpRequest, notNullValue());
+            assertThat(httpRequest.getMethod(), equalTo(HttpGet.METHOD_NAME));
+            assertThat(httpRequest.getEntity(), nullValue());
+            assertThat(httpRequest.getEndpoint(), equalTo("/_tasks"));
+            assertThat(httpRequest.getParameters(), equalTo(expectedParams));
+        }
+        {
+            ListTasksRequest request = new ListTasksRequest();
+            request.setTaskId(new TaskId(randomAlphaOfLength(5), randomNonNegativeLong()));
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> Request.listTasks(request));
+            assertEquals("TaskId cannot be used for list tasks request", exception.getMessage());
+        }
     }
 
     private static void assertToXContentBody(ToXContent expectedBody, HttpEntity actualEntity) throws IOException {

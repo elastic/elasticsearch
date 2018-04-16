@@ -103,18 +103,17 @@ public class RestListTasksAction extends BaseRestHandler {
                     return new BytesRestResponse(RestStatus.OK, builder);
                 }
             };
-        } else if ("none".equals(groupBy)) {
+        } else if ("parents".equals(groupBy)) {
             return new RestBuilderListener<T>(channel) {
                 @Override
                 public RestResponse buildResponse(T response, XContentBuilder builder) throws Exception {
                     builder.startObject();
-                    response.toXContentGroupedByNone(builder, channel.request());
+                    response.toXContentGroupedByParents(builder, channel.request());
                     builder.endObject();
                     return new BytesRestResponse(RestStatus.OK, builder);
                 }
             };
-
-        } else if ("parents".equals(groupBy)) {
+        } else if ("none".equals(groupBy)) {
             return new RestToXContentListener<>(channel);
         } else {
             throw new IllegalArgumentException("[group_by] must be one of [nodes], [parents] or [none] but was [" + groupBy + "]");

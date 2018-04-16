@@ -95,5 +95,7 @@ include::indices/put_settings.asciidoc[]
 The Java High Level REST Client supports the following Cluster APIs:
 
 * <<java-rest-high-cluster-put-settings>>
+* <<java-rest-high-cluster-list-tasks>>
 
 include::cluster/put_settings.asciidoc[]
+include::cluster/list_tasks.asciidoc[]

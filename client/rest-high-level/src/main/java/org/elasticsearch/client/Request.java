@@ -29,6 +29,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -77,6 +78,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -579,6 +581,21 @@ public final class Request {
         return new Request(HttpPut.METHOD_NAME, "/_cluster/settings", parameters.getParams(), entity);
     }
 
+    static Request listTasks(ListTasksRequest request) {
+        if (request.getTaskId() != null && request.getTaskId().isSet()) {
+            throw new IllegalArgumentException("TaskId cannot be used for list tasks request");
+        }
+        Params params = Params.builder()
+            .withTimeout(request.getTimeout())
+            .withDetailed(request.getDetailed())
+            .withWaitForCompletion(request.getWaitForCompletion())
+            .withParentTaskId(request.getParentTaskId())
+            .withNodes(request.getNodes())
+            .withActions(request.getActions())
+            .putParam("group_by", "none");
+        return new Request(HttpGet.METHOD_NAME, "/_tasks", params.getParams(), null);
+    }
+
     static Request rollover(RolloverRequest rolloverRequest) throws IOException {
         Params params = Params.builder();
         params.withTimeout(rolloverRequest.timeout());
@@ -842,6 +859,41 @@ public final class Request {
         Params withPreserveExisting(boolean preserveExisting) {
             if (preserveExisting) {
                 return putParam("preserve_existing", Boolean.TRUE.toString());
+            }
+            return this;
+        }
+
+        Params withDetailed(boolean detailed) {
+            if (detailed) {
+                return putParam("detailed", Boolean.TRUE.toString());
+            }
+            return this;
+        }
+
+        Params withWaitForCompletion(boolean waitForCompletion) {
+            if (waitForCompletion) {
+                return putParam("wait_for_completion", Boolean.TRUE.toString());
+            }
+            return this;
+        }
+
+        Params withNodes(String[] nodes) {
+            if (nodes != null && nodes.length > 0) {
+                return putParam("nodes", String.join(",", nodes));
+            }
+            return this;
+        }
+
+        Params withActions(String[] actions) {
+            if (actions != null && actions.length > 0) {
+                return putParam("actions", String.join(",", actions));
+            }
+            return this;
+        }
+
+        Params withParentTaskId(TaskId parentTaskId) {
+            if (parentTaskId != null && parentTaskId.isSet()) {
+                return putParam("parent_task_id", parentTaskId.toString());
             }
             return this;
         }

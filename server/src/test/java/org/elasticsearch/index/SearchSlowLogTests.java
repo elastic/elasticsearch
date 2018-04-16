@@ -63,6 +63,11 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 }
 
                 @Override
+                public int remapShardId() {
+                    return 0;
+                }
+
+                @Override
                 public String[] types() {
                     return new String[0];
                 }
@@ -89,6 +94,11 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
 
                 @Override
                 public int numberOfShards() {
+                    return 0;
+                }
+
+                @Override
+                public int numberOfIndexShards() {
                     return 0;
                 }
 

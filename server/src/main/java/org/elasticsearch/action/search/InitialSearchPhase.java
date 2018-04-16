@@ -23,15 +23,18 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -131,7 +134,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         if (shardsIts.size() > 0) {
             int maxConcurrentShardRequests = Math.min(this.maxConcurrentShardRequests, shardsIts.size());
             final boolean success = shardExecutionIndex.compareAndSet(0, maxConcurrentShardRequests);
-            assert success;            
+            assert success;
             assert request.allowPartialSearchResults() != null : "SearchRequest missing setting for allowPartialSearchResults";
             if (request.allowPartialSearchResults() == false) {
                 final StringBuilder missingShards = new StringBuilder();
@@ -140,7 +143,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
                     final SearchShardIterator shardRoutings = shardsIts.get(index);
                     if (shardRoutings.size() == 0) {
                         if(missingShards.length() >0 ){
-                            missingShards.append(", ");                            
+                            missingShards.append(", ");
                         }
                         missingShards.append(shardRoutings.shardId());
                     }
@@ -375,6 +378,20 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     protected void skipShard(SearchShardIterator iterator) {
         assert iterator.skip();
         successfulShardExecution(iterator);
+    }
+
+    /**
+     * Returns the list of shard ids in the request that match the provided {@link Index}.
+     */
+    protected int[] getIndexShards(Index index) {
+        List<Integer> shards = new ArrayList<>();
+        for (ShardIterator it : shardsIts) {
+            if (index.equals(it.shardId().getIndex())) {
+                shards.add(it.shardId().getId());
+            }
+        }
+        Collections.sort(shards);
+        return shards.stream().mapToInt((i) -> i).toArray();
     }
 
 }

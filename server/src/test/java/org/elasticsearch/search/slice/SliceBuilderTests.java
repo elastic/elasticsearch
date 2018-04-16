@@ -171,13 +171,13 @@ public class SliceBuilderTests extends ESTestCase {
             IndexSettings indexSettings = new IndexSettings(indexState, Settings.EMPTY);
             when(context.getIndexSettings()).thenReturn(indexSettings);
             SliceBuilder builder = new SliceBuilder(5, 10);
-            Query query = builder.toFilter(context, 0, 1);
+            Query query = builder.toFilter(context, 0, 1, Version.CURRENT);
             assertThat(query, instanceOf(TermsSliceQuery.class));
 
-            assertThat(builder.toFilter(context, 0, 1), equalTo(query));
+            assertThat(builder.toFilter(context, 0, 1, Version.CURRENT), equalTo(query));
             try (IndexReader newReader = DirectoryReader.open(dir)) {
                 when(context.getIndexReader()).thenReturn(newReader);
-                assertThat(builder.toFilter(context, 0, 1), equalTo(query));
+                assertThat(builder.toFilter(context, 0, 1, Version.CURRENT), equalTo(query));
             }
         }
 
@@ -210,13 +210,13 @@ public class SliceBuilderTests extends ESTestCase {
             IndexNumericFieldData fd = mock(IndexNumericFieldData.class);
             when(context.getForField(fieldType)).thenReturn(fd);
             SliceBuilder builder = new SliceBuilder("field_doc_values", 5, 10);
-            Query query = builder.toFilter(context, 0, 1);
+            when(context.getShardId()).thenReturn(0);
+            Query query = builder.toFilter(context, 0, 1, Version.CURRENT);
             assertThat(query, instanceOf(DocValuesSliceQuery.class));
-
-            assertThat(builder.toFilter(context, 0, 1), equalTo(query));
+            assertThat(builder.toFilter(context, 0, 1, Version.CURRENT), equalTo(query));
             try (IndexReader newReader = DirectoryReader.open(dir)) {
                 when(context.getIndexReader()).thenReturn(newReader);
-                assertThat(builder.toFilter(context, 0, 1), equalTo(query));
+                assertThat(builder.toFilter(context, 0, 1, Version.CURRENT), equalTo(query));
             }
 
             // numSlices > numShards
@@ -226,7 +226,7 @@ public class SliceBuilderTests extends ESTestCase {
             for (int i = 0; i < numSlices; i++) {
                 for (int j = 0; j < numShards; j++) {
                     SliceBuilder slice = new SliceBuilder("_id", i, numSlices);
-                    Query q = slice.toFilter(context, j, numShards);
+                    Query q = slice.toFilter(context, j, numShards, Version.CURRENT);
                     if (q instanceof TermsSliceQuery || q instanceof MatchAllDocsQuery) {
                         AtomicInteger count = numSliceMap.get(j);
                         if (count == null) {
@@ -255,7 +255,7 @@ public class SliceBuilderTests extends ESTestCase {
             for (int i = 0; i < numSlices; i++) {
                 for (int j = 0; j < numShards; j++) {
                     SliceBuilder slice = new SliceBuilder("_id", i, numSlices);
-                    Query q = slice.toFilter(context, j, numShards);
+                    Query q = slice.toFilter(context, j, numShards, Version.CURRENT);
                     if (q instanceof MatchNoDocsQuery == false) {
                         assertThat(q, instanceOf(MatchAllDocsQuery.class));
                         targetShards.add(j);
@@ -271,7 +271,7 @@ public class SliceBuilderTests extends ESTestCase {
             for (int i = 0; i < numSlices; i++) {
                 for (int j = 0; j < numShards; j++) {
                     SliceBuilder slice = new SliceBuilder("_id", i, numSlices);
-                    Query q = slice.toFilter(context, j, numShards);
+                    Query q = slice.toFilter(context, j, numShards, Version.CURRENT);
                     if (i == j) {
                         assertThat(q, instanceOf(MatchAllDocsQuery.class));
                     } else {
@@ -306,8 +306,9 @@ public class SliceBuilderTests extends ESTestCase {
             when(context.fieldMapper("field_without_doc_values")).thenReturn(fieldType);
             when(context.getIndexReader()).thenReturn(reader);
             SliceBuilder builder = new SliceBuilder("field_without_doc_values", 5, 10);
+            when(context.getShardId()).thenReturn(0);
             IllegalArgumentException exc =
-                expectThrows(IllegalArgumentException.class, () -> builder.toFilter(context, 0, 1));
+                expectThrows(IllegalArgumentException.class, () -> builder.toFilter(context, 0, 1, Version.CURRENT));
             assertThat(exc.getMessage(), containsString("cannot load numeric doc values"));
         }
     }
@@ -353,12 +354,12 @@ public class SliceBuilderTests extends ESTestCase {
             IndexSettings indexSettings = new IndexSettings(indexState, Settings.EMPTY);
             when(context.getIndexSettings()).thenReturn(indexSettings);
             SliceBuilder builder = new SliceBuilder("_uid", 5, 10);
-            Query query = builder.toFilter(context, 0, 1);
+            when(context.getShardId()).thenReturn(0);
+            Query query = builder.toFilter(context, 0, 1, Version.CURRENT);
             assertThat(query, instanceOf(TermsSliceQuery.class));
-            assertThat(builder.toFilter(context, 0, 1), equalTo(query));
+            assertThat(builder.toFilter(context, 0, 1, Version.CURRENT), equalTo(query));
             assertWarnings("Computing slices on the [_uid] field is deprecated for 6.x indices, use [_id] instead");
         }
-
     }
 
     public void testSerializationBackcompat() throws IOException {
@@ -374,5 +375,69 @@ public class SliceBuilderTests extends ESTestCase {
                 new NamedWriteableRegistry(Collections.emptyList()),
                 SliceBuilder::new, Version.V_6_3_0);
         assertEquals(sliceBuilder, copy63);
+    }
+
+    public void testRemapShards() {
+        QueryShardContext context = mock(QueryShardContext.class);
+        Settings settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 10)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build();
+        IndexMetaData indexState = IndexMetaData.builder("index").settings(settings).build();
+        IndexSettings indexSettings = new IndexSettings(indexState, Settings.EMPTY);
+        when(context.getIndexSettings()).thenReturn(indexSettings);
+        MappedFieldType fieldType = new MappedFieldType() {
+            @Override
+            public MappedFieldType clone() {
+                return null;
+            }
+
+            @Override
+            public String typeName() {
+                return null;
+            }
+
+            @Override
+            public Query termQuery(Object value, @Nullable QueryShardContext context) {
+                return null;
+            }
+
+            public Query existsQuery(QueryShardContext context) {
+                return null;
+            }
+        };
+        fieldType.setName(IdFieldMapper.NAME);
+        fieldType.setHasDocValues(false);
+        when(context.fieldMapper(IdFieldMapper.NAME)).thenReturn(fieldType);
+
+        for (int id = 0; id < 10; id++) {
+            SliceBuilder builder = new SliceBuilder("_id", id, 10);
+            for (int shard = 0; shard < 10; shard++) {
+                when(context.getShardId()).thenReturn(shard);
+                Query query = builder.toFilter(context, -1, -1, Version.CURRENT);
+                if (id == shard) {
+                    assertThat(query, equalTo(new MatchAllDocsQuery()));
+                } else {
+                    assertThat(query, equalTo(new MatchNoDocsQuery()));
+                }
+                query = builder.toFilter(context, shard, 10, Version.CURRENT);
+                if (id == shard) {
+                    assertThat(query, equalTo(new MatchAllDocsQuery()));
+                } else {
+                    assertThat(query, equalTo(new MatchNoDocsQuery()));
+                }
+                query = builder.toFilter(context, shard, 5, Version.CURRENT);
+                if (shard >= 5) {
+                    assertThat(query, equalTo(new MatchNoDocsQuery()));
+                } else if (shard == id) {
+                    assertThat(query, equalTo(new TermsSliceQuery("_id", 0, 2)));
+                } else if (id % 5 == shard) {
+                    assertThat(query, equalTo(new TermsSliceQuery("_id", 1, 2)));
+                } else {
+                    assertThat(query, equalTo(new MatchNoDocsQuery()));
+                }
+            }
+        }
     }
 }

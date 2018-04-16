@@ -64,6 +64,8 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
 
     private String clusterAlias;
     private ShardId shardId;
+    private int remapShardId;
+    private int numberOfIndexShards;
     private int numberOfShards;
     private SearchType searchType;
     private Scroll scroll;
@@ -80,10 +82,10 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     ShardSearchLocalRequest() {
     }
 
-    ShardSearchLocalRequest(SearchRequest searchRequest, ShardId shardId, int numberOfShards,
+    ShardSearchLocalRequest(SearchRequest searchRequest, ShardId shardId, int remapShardId, int numberOfIndexShards, int numberOfShards,
                             AliasFilter aliasFilter, float indexBoost, long nowInMillis, String clusterAlias) {
-        this(shardId, numberOfShards, searchRequest.searchType(),
-                searchRequest.source(), searchRequest.types(), searchRequest.requestCache(), aliasFilter, indexBoost, 
+        this(shardId, remapShardId, numberOfIndexShards, numberOfShards, searchRequest.searchType(),
+                searchRequest.source(), searchRequest.types(), searchRequest.requestCache(), aliasFilter, indexBoost,
                 searchRequest.allowPartialSearchResults());
         // If allowPartialSearchResults is unset (ie null), the cluster-level default should have been substituted
         // at this stage. Any NPEs in the above are therefore an error in request preparation logic.
@@ -101,9 +103,12 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         indexBoost = 1.0f;
     }
 
-    public ShardSearchLocalRequest(ShardId shardId, int numberOfShards, SearchType searchType, SearchSourceBuilder source, String[] types,
-            Boolean requestCache, AliasFilter aliasFilter, float indexBoost, boolean allowPartialSearchResults) {
+    public ShardSearchLocalRequest(ShardId shardId, int remapShardId, int numberOfIndexShards, int numberOfShards,
+                                   SearchType searchType, SearchSourceBuilder source, String[] types,
+                                   Boolean requestCache, AliasFilter aliasFilter, float indexBoost, boolean allowPartialSearchResults) {
         this.shardId = shardId;
+        this.remapShardId = remapShardId;
+        this.numberOfIndexShards = numberOfIndexShards;
         this.numberOfShards = numberOfShards;
         this.searchType = searchType;
         this.source = source;
@@ -113,7 +118,6 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         this.indexBoost = indexBoost;
         this.allowPartialSearchResults = allowPartialSearchResults;
     }
-
 
     @Override
     public ShardId shardId() {
@@ -151,6 +155,16 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     }
 
     @Override
+    public int numberOfIndexShards() {
+        return numberOfIndexShards;
+    }
+
+    @Override
+    public int remapShardId() {
+        return remapShardId;
+    }
+
+    @Override
     public SearchType searchType() {
         return searchType;
     }
@@ -169,12 +183,12 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     public Boolean requestCache() {
         return requestCache;
     }
-    
+
     @Override
     public Boolean allowPartialSearchResults() {
         return allowPartialSearchResults;
     }
-    
+
 
     @Override
     public Scroll scroll() {
@@ -199,6 +213,14 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         shardId = ShardId.readShardId(in);
         searchType = SearchType.fromId(in.readByte());
         numberOfShards = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            remapShardId = in.readVInt();
+            numberOfIndexShards = in.readVInt();
+            assert remapShardId != -1 && numberOfIndexShards != -1;
+        } else {
+            remapShardId = -1;
+            numberOfIndexShards = -1;
+        }
         scroll = in.readOptionalWriteable(Scroll::new);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
         types = in.readStringArray();
@@ -232,6 +254,10 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         out.writeByte(searchType.id());
         if (!asKey) {
             out.writeVInt(numberOfShards);
+            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                out.writeVInt(remapShardId);
+                out.writeVInt(numberOfIndexShards);
+            }
         }
         out.writeOptionalWriteable(scroll);
         out.writeOptionalWriteable(source);
@@ -250,7 +276,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
             out.writeOptionalBoolean(allowPartialSearchResults);
         }
-        
+
     }
 
     @Override

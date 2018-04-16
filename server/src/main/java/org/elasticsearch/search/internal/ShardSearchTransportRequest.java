@@ -56,9 +56,11 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     public ShardSearchTransportRequest(){
     }
 
-    public ShardSearchTransportRequest(OriginalIndices originalIndices, SearchRequest searchRequest, ShardId shardId, int numberOfShards,
-                                       AliasFilter aliasFilter, float indexBoost, long nowInMillis, String clusterAlias) {
-        this.shardSearchLocalRequest = new ShardSearchLocalRequest(searchRequest, shardId, numberOfShards, aliasFilter, indexBoost,
+    public ShardSearchTransportRequest(OriginalIndices originalIndices, SearchRequest searchRequest, ShardId shardId, int remapShardId,
+                                       int numberOfIndexShards, int numberOfShards, AliasFilter aliasFilter, float indexBoost,
+                                       long nowInMillis, String clusterAlias) {
+        this.shardSearchLocalRequest = new ShardSearchLocalRequest(searchRequest, shardId, remapShardId,
+            numberOfIndexShards, numberOfShards, aliasFilter, indexBoost,
             nowInMillis, clusterAlias);
         this.originalIndices = originalIndices;
     }
@@ -103,6 +105,11 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     @Override
+    public int remapShardId() {
+        return shardSearchLocalRequest.remapShardId();
+    }
+
+    @Override
     public String[] types() {
         return shardSearchLocalRequest.types();
     }
@@ -133,6 +140,11 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     @Override
+    public int numberOfIndexShards() {
+        return shardSearchLocalRequest.numberOfIndexShards();
+    }
+
+    @Override
     public SearchType searchType() {
         return shardSearchLocalRequest.searchType();
     }
@@ -151,11 +163,11 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     public Boolean requestCache() {
         return shardSearchLocalRequest.requestCache();
     }
-    
+
     @Override
     public Boolean allowPartialSearchResults() {
         return shardSearchLocalRequest.allowPartialSearchResults();
-    }    
+    }
 
     @Override
     public Scroll scroll() {

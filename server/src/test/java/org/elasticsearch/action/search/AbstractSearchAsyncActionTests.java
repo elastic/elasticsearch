@@ -31,7 +31,11 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -41,6 +45,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class AbstractSearchAsyncActionTests extends ESTestCase {
 
     private AbstractSearchAsyncAction<SearchPhaseResult> createAction(
+            final GroupShardsIterator<SearchShardIterator> shardsIt,
             final boolean controlled,
             final AtomicLong expected) {
 
@@ -61,12 +66,17 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         }
 
         final SearchRequest request = new SearchRequest();
+        Map<String, AliasFilter> aliasFilterMap = new HashMap<>();
+        Map<String, Float> concreteIndexBoosts = new HashMap<>();
+        for (SearchShardIterator it : shardsIt) {
+            aliasFilterMap.put(it.shardId().getIndex().getUUID(), new AliasFilter(new MatchAllQueryBuilder()));
+            concreteIndexBoosts.put(it.shardId().getIndex().getUUID(), 2.0f);
+        }
         request.allowPartialSearchResults(true);
         return new AbstractSearchAsyncAction<SearchPhaseResult>("test", null, null, null,
-                Collections.singletonMap("foo", new AliasFilter(new MatchAllQueryBuilder())), Collections.singletonMap("foo", 2.0f), null,
-                request, null, new GroupShardsIterator<>(Collections.singletonList(
-                new SearchShardIterator(null, null, Collections.emptyList(), null))), timeProvider, 0, null,
-                new InitialSearchPhase.ArraySearchPhaseResults<>(10), request.getMaxConcurrentShardRequests(),
+                aliasFilterMap, concreteIndexBoosts, null,
+                request, null, shardsIt, timeProvider, 0, null,
+                new InitialSearchPhase.ArraySearchPhaseResults<>(shardsIt.size()), request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY) {
             @Override
             protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, final SearchPhaseContext context) {
@@ -96,7 +106,13 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
 
     private void runTestTook(final boolean controlled) {
         final AtomicLong expected = new AtomicLong();
-        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(controlled, expected);
+        GroupShardsIterator<SearchShardIterator> shardsIt = new GroupShardsIterator<>(
+            Collections.singletonList(
+                new SearchShardIterator(null, new ShardId(new Index("name", "foo"), 0),
+                    Collections.emptyList(), null)
+            )
+        );
+        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(shardsIt, controlled, expected);
         final long actual = action.buildTookInMillis();
         if (controlled) {
             // with a controlled clock, we can assert the exact took time
@@ -109,7 +125,13 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
 
     public void testBuildShardSearchTransportRequest() {
         final AtomicLong expected = new AtomicLong();
-        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(false, expected);
+        GroupShardsIterator<SearchShardIterator> shardsIt = new GroupShardsIterator<>(
+            Collections.singletonList(
+                new SearchShardIterator(null, new ShardId(new Index("name", "foo"), 1),
+                    Collections.emptyList(), null)
+            )
+        );
+        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(shardsIt, false, expected);
         SearchShardIterator iterator = new SearchShardIterator("test-cluster", new ShardId(new Index("name", "foo"), 1),
             Collections.emptyList(), new OriginalIndices(new String[] {"name", "name1"}, IndicesOptions.strictExpand()));
         ShardSearchTransportRequest shardSearchTransportRequest = action.buildShardSearchRequest(iterator);
@@ -117,5 +139,56 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertArrayEquals(new String[] {"name", "name1"}, shardSearchTransportRequest.indices());
         assertEquals(new MatchAllQueryBuilder(), shardSearchTransportRequest.getAliasFilter().getQueryBuilder());
         assertEquals(2.0f, shardSearchTransportRequest.indexBoost(), 0.0f);
+        assertEquals(0, shardSearchTransportRequest.remapShardId());
+        assertEquals(1, shardSearchTransportRequest.numberOfIndexShards());
+        assertEquals(1, shardSearchTransportRequest.numberOfShards());
+    }
+
+    public void testBuildFilteredShardSearchTransportRequest() {
+        final AtomicLong expected = new AtomicLong();
+        int numIndex = randomIntBetween(1, 5);
+        List<SearchShardIterator> shards = new ArrayList<>();
+        int[] numIndexShards = new int[numIndex];
+        Map<Integer, Map<Integer, Integer>> remapShards = new HashMap<>();
+        int totalShards = 0;
+        for (int i = 0; i < numIndex; i++) {
+            int numShards = randomIntBetween(1, 10);
+            numIndexShards[i] = numShards;
+            String indexName = Integer.toString(i);
+            int shardIndex = 0;
+            Map<Integer, Integer> shardMap = new HashMap<>();
+            for (int j = 0; j < numShards; j++) {
+                if (randomBoolean()) {
+                    shards.add(new SearchShardIterator(null, new ShardId(new Index(indexName, indexName), j),
+                        Collections.emptyList(), null));
+                    shardMap.put(j, shardIndex++);
+                    totalShards++;
+                }
+            }
+            remapShards.put(i, shardMap);
+        }
+        Collections.shuffle(shards, random());
+        GroupShardsIterator<SearchShardIterator> shardsIt = new GroupShardsIterator<>(shards);
+        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(shardsIt,false, expected);
+
+        for (int i = 0; i < numIndex; i++) {
+            int numShards = numIndexShards[i];
+            String indexName = Integer.toString(i);
+            Map<Integer, Integer> shardMap = remapShards.get(i);
+            if (shardMap.size() == 0) {
+                continue;
+            }
+            for (int j = 0; j < numShards; j++) {
+                if (shardMap.containsKey(j) == false) {
+                    continue;
+                }
+                SearchShardIterator iterator = new SearchShardIterator("test-cluster", new ShardId(new Index(indexName, indexName), j),
+                    Collections.emptyList(), new OriginalIndices(new String[]{"name", "name1"}, IndicesOptions.strictExpand()));
+                ShardSearchTransportRequest shardSearchTransportRequest = action.buildShardSearchRequest(iterator);
+                assertThat(shardSearchTransportRequest.numberOfIndexShards(), equalTo(shardMap.size()));
+                assertThat(shardSearchTransportRequest.remapShardId(), equalTo(shardMap.get(j)));
+                assertThat(shardSearchTransportRequest.numberOfShards(), equalTo(totalShards));
+            }
+        }
     }
 }

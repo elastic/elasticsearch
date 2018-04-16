@@ -49,6 +49,15 @@ public interface ShardSearchRequest {
 
     ShardId shardId();
 
+    /**
+     * Returns the remapped shard id of the requested shard for this request
+     * or -1 if this information is not available.
+     * The remapped shard id is the id of the requested shard among all shards
+     * of this index that are part of the request. Note that the remapped shard id
+     * is equal to the original shard id if all shards of this index are part of the request.
+     */
+    int remapShardId();
+
     String[] types();
 
     SearchSourceBuilder source();
@@ -59,6 +68,15 @@ public interface ShardSearchRequest {
 
     void source(SearchSourceBuilder source);
 
+    /**
+     * Returns the number of shards of this index ({@link ShardId#getIndex()}) that participates in the request
+     * or -1 if this information is not available.
+     */
+    int numberOfIndexShards();
+
+    /**
+     * Returns the number of shards that participates in the request.
+     */
     int numberOfShards();
 
     SearchType searchType();
@@ -68,7 +86,7 @@ public interface ShardSearchRequest {
     long nowInMillis();
 
     Boolean requestCache();
-    
+
     Boolean allowPartialSearchResults();
 
     Scroll scroll();

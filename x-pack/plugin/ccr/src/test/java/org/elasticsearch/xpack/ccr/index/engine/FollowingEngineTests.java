@@ -70,7 +70,7 @@ public class FollowingEngineTests extends ESTestCase {
         threadPool = new TestThreadPool("following-engine-tests");
         index = new Index("index", "uuid");
         shardId = new ShardId(index, 0);
-        primaryTerm.set(randomIntBetween(1, 8));
+        primaryTerm.set(randomLongBetween(1, Long.MAX_VALUE));
     }
 
     public void tearDown() throws Exception {

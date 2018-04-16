@@ -279,13 +279,14 @@ public final class SamlRealm extends Realm implements Releasable {
 
 
     // Package-private for testing
-    static X509Credential buildEncryptionCredential(RealmConfig config) throws IOException, GeneralSecurityException {
-        return buildCredential(config, ENCRYPTION_SETTINGS, ENCRYPTION_KEY_ALIAS);
+    static List<X509Credential> buildEncryptionCredential(RealmConfig config) throws IOException, GeneralSecurityException {
+        return buildCredential(config, ENCRYPTION_SETTINGS, ENCRYPTION_KEY_ALIAS, true);
     }
 
     static SigningConfiguration buildSigningConfiguration(RealmConfig config) throws IOException, GeneralSecurityException {
-        final X509Credential credential = buildCredential(config, SIGNING_SETTINGS, SIGNING_KEY_ALIAS);
-        if (credential == null) {
+        final List<X509Credential> credentials = buildCredential(config, SIGNING_SETTINGS, SIGNING_KEY_ALIAS, false);
+
+        if (credentials == null || credentials.isEmpty()) {
             if (SIGNING_MESSAGE_TYPES.exists(config.settings())) {
                 throw new IllegalArgumentException("The setting [" + RealmSettings.getFullSettingKey(config, SIGNING_MESSAGE_TYPES)
                         + "] cannot be specified if there are no signing credentials");
@@ -294,21 +295,21 @@ public final class SamlRealm extends Realm implements Releasable {
             }
         } else {
             final List<String> types = SIGNING_MESSAGE_TYPES.get(config.settings());
-            return new SigningConfiguration(Sets.newHashSet(types), credential);
+            return new SigningConfiguration(Sets.newHashSet(types), credentials.get(0));
         }
     }
 
-    private static X509Credential buildCredential(RealmConfig config, X509KeyPairSettings keyPairSettings,
-            Setting<String> aliasSetting) {
+    private static List<X509Credential> buildCredential(RealmConfig config, X509KeyPairSettings keyPairSettings,
+            Setting<String> aliasSetting, final boolean allowMultiple) {
         final X509KeyManager keyManager = CertUtils.getKeyManager(keyPairSettings, config.settings(), null, config.env());
         if (keyManager == null) {
             return null;
         }
 
-        String alias = aliasSetting.get(config.settings());
-        if (Strings.isNullOrEmpty(alias)) {
+        final Set<String> aliases = new HashSet<>();
+        final String configuredAlias = aliasSetting.get(config.settings());
+        if (Strings.isNullOrEmpty(configuredAlias)) {
 
-            final Set<String> aliases = new HashSet<>();
             final String[] serverAliases = keyManager.getServerAliases("RSA", null);
             if (serverAliases != null) {
                 aliases.addAll(Arrays.asList(serverAliases));
@@ -318,35 +319,37 @@ public final class SamlRealm extends Realm implements Releasable {
                 throw new IllegalArgumentException(
                         "The configured key store for " + RealmSettings.getFullSettingKey(config, keyPairSettings.getPrefix())
                                 + " does not contain any RSA key pairs");
-            } else if (aliases.size() > 1) {
-                /*
-                 * TODO bizybot : We need to fix this, for encryption we want to support
-                 * multiple keys Refer: #3980
-                 */
+            } else if (allowMultiple == false && aliases.size() > 1) {
                 throw new IllegalArgumentException(
                         "The configured key store for " + RealmSettings.getFullSettingKey(config, keyPairSettings.getPrefix())
                                 + " has multiple keys but no alias has been specified (from setting "
                                 + RealmSettings.getFullSettingKey(config, aliasSetting) + ")");
-            } else {
-                alias = aliases.iterator().next();
             }
+        } else {
+            aliases.add(configuredAlias);
         }
 
-        if (keyManager.getPrivateKey(alias) == null) {
-            throw new IllegalArgumentException(
-                    "The configured key store for " + RealmSettings.getFullSettingKey(config, keyPairSettings.getPrefix())
-                            + " does not have a certificate key pair associated with alias [" + alias + "] " + "(from setting "
-                            + RealmSettings.getFullSettingKey(config, aliasSetting) + ")");
+        final List<X509Credential> credentials = new ArrayList<>();
+        for (String alias : aliases) {
+            if (keyManager.getPrivateKey(alias) == null) {
+                throw new IllegalArgumentException(
+                        "The configured key store for " + RealmSettings.getFullSettingKey(config, keyPairSettings.getPrefix())
+                                + " does not have a key associated with alias [" + alias + "] "
+                                + ((Strings.isNullOrEmpty(configuredAlias) == false)
+                                        ? "(from setting " + RealmSettings.getFullSettingKey(config, aliasSetting) + ")"
+                                        : ""));
+            }
+
+            final String keyType = keyManager.getPrivateKey(alias).getAlgorithm();
+            if (keyType.equals("RSA") == false) {
+                throw new IllegalArgumentException("The key associated with alias [" + alias + "] " + "(from setting "
+                        + RealmSettings.getFullSettingKey(config, aliasSetting) + ") uses unsupported key algorithm type [" + keyType
+                        + "], only RSA is supported");
+            }
+            credentials.add(new X509KeyManagerX509CredentialAdapter(keyManager, alias));
         }
 
-        final String keyType = keyManager.getPrivateKey(alias).getAlgorithm();
-        if (keyType.equals("RSA") == false) {
-            throw new IllegalArgumentException("The key associated with alias [" + alias + "] " + "(from setting "
-                    + RealmSettings.getFullSettingKey(config, aliasSetting) + ") uses unsupported key algorithm type [" + keyType
-                    + "], only RSA is supported");
-        }
-
-        return new X509KeyManagerX509CredentialAdapter(keyManager, alias);
+        return credentials;
     }
 
     public static List<SamlRealm> findSamlRealms(Realms realms, String realmName, String acsUrl) {

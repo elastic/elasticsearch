@@ -10,6 +10,7 @@ import org.joda.time.DateTimeZone;
 import org.opensaml.saml.saml2.core.Issuer;
 import org.opensaml.saml.saml2.core.LogoutRequest;
 import org.opensaml.saml.saml2.core.NameID;
+import org.opensaml.security.x509.X509Credential;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
@@ -33,7 +34,8 @@ public class SamlRedirectTests extends SamlTestCase {
     }
 
     public void testRedirectUrlWithRelayStateAndSigning() throws Exception {
-        final SigningConfiguration signing = new SigningConfiguration(singleton("*"), buildOpenSamlCredential(createKeyPair()));
+        final SigningConfiguration signing =
+                new SigningConfiguration(singleton("*"), (X509Credential) buildOpenSamlCredential(createKeyPair()).get(0));
         final SamlRedirect redirect = new SamlRedirect(buildLogoutRequest(LOGOUT_URL), signing);
         final String url = redirect.getRedirectUrl("hello");
         assertThat(url, startsWith(LOGOUT_URL + "?SAMLRequest=nZFBa4QwFIT%2FSnh3Naa2ax%2FqsiAFYdtDu91DLyVo2AY0cX2x9Oc36gpLC" +

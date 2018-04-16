@@ -53,12 +53,14 @@ import org.opensaml.xmlsec.signature.impl.KeyInfoBuilder;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Constructs SAML Metadata to describe a <em>Service Provider</em>.
@@ -77,7 +79,7 @@ public class SamlSpMetadataBuilder {
     private String singleLogoutServiceUrl;
     private Boolean authnRequestsSigned;
     private X509Certificate signingCertificate;
-    private X509Certificate encryptionCertificate;
+    private List<X509Certificate> encryptionCertificates = new ArrayList<>();
     private OrganizationInfo organization;
 
     /**
@@ -163,16 +165,19 @@ public class SamlSpMetadataBuilder {
     /**
      * The certificate that should be used to send encrypted data to the service provider.
      */
-    public SamlSpMetadataBuilder encryptionCertificate(X509Certificate encryptionCertificate) {
-        this.encryptionCertificate = encryptionCertificate;
+    public SamlSpMetadataBuilder encryptionCertificates(Collection<X509Certificate> encryptionCertificates) {
+        if (encryptionCertificates != null) {
+            this.encryptionCertificates.addAll(encryptionCertificates);
+        }
         return this;
     }
 
     /**
      * The certificate credential that should be used to send encrypted data to the service provider.
      */
-    public SamlSpMetadataBuilder encryptionCredential(X509Credential credential) {
-        return encryptionCertificate(credential == null ? null : credential.getEntityCertificate());
+    public SamlSpMetadataBuilder encryptionCredentials(Collection<X509Credential> credentials) {
+        return encryptionCertificates(credentials == null ? Collections.emptyList()
+                : credentials.stream().map(credential -> credential.getEntityCertificate()).collect(Collectors.toList()));
     }
 
     /**
@@ -298,18 +303,18 @@ public class SamlSpMetadataBuilder {
     }
 
     private List<? extends KeyDescriptor> buildKeyDescriptors() throws CertificateEncodingException {
-        if (encryptionCertificate == null && signingCertificate == null) {
+        if (encryptionCertificates.isEmpty() && signingCertificate == null) {
             return Collections.emptyList();
         }
-        if (Objects.equals(encryptionCertificate, signingCertificate)) {
-            return Collections.singletonList(buildKeyDescriptor(encryptionCertificate, UsageType.UNSPECIFIED));
+        if (encryptionCertificates.size() == 1 && Objects.equals(encryptionCertificates.get(0), signingCertificate)) {
+            return Collections.singletonList(buildKeyDescriptor(encryptionCertificates.get(0), UsageType.UNSPECIFIED));
         }
         List<KeyDescriptor> keys = new ArrayList<>();
         if (signingCertificate != null) {
             keys.add(buildKeyDescriptor(signingCertificate, UsageType.SIGNING));
         }
-        if (encryptionCertificate != null) {
-            keys.add(buildKeyDescriptor(encryptionCertificate, UsageType.SIGNING));
+        for( X509Certificate encryptionCertificate : encryptionCertificates) {
+            keys.add(buildKeyDescriptor(encryptionCertificate, UsageType.ENCRYPTION));
         }
         return keys;
     }

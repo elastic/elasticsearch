@@ -6,8 +6,13 @@
 package org.elasticsearch.xpack.security.authc.saml;
 
 import joptsimple.OptionSet;
+
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.KeyStoreWrapper;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -29,13 +34,19 @@ import org.opensaml.xmlsec.signature.X509Data;
 import org.opensaml.xmlsec.signature.support.SignatureValidator;
 import org.w3c.dom.Element;
 
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
+import java.security.cert.CertificateException;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
@@ -45,19 +56,25 @@ import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SamlMetadataCommandTests extends SamlTestCase {
+
+    private KeyStoreWrapper keyStore;
 
     @Before
     public void setup() throws Exception {
         SamlUtils.initialize(logger);
+        this.keyStore = mock(KeyStoreWrapper.class);
+        when(keyStore.isLoaded()).thenReturn(true);
     }
 
     public void testDefaultOptions() throws Exception {
         final Path certPath = getDataPath("saml.crt");
         final Path keyPath = getDataPath("saml.key");
 
-        final SamlMetadataCommand command = new SamlMetadataCommand();
+        final SamlMetadataCommand command = new SamlMetadataCommand((e) -> randomFrom(keyStore, null));
         final OptionSet options = command.getParser().parse(new String[0]);
 
         final boolean useSigningCredentials = randomBoolean();
@@ -144,7 +161,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
                 .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
 
-        final SamlMetadataCommand command = new SamlMetadataCommand();
+        final SamlMetadataCommand command = new SamlMetadataCommand((e) -> randomFrom(keyStore, null));
         final OptionSet options = command.getParser().parse(new String[0]);
 
         final MockTerminal terminal = new MockTerminal();
@@ -168,7 +185,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
                 .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
 
-        final SamlMetadataCommand command = new SamlMetadataCommand();
+        final SamlMetadataCommand command = new SamlMetadataCommand((e) -> keyStore);
         final OptionSet options = command.getParser().parse(new String[] {
                 "-realm", "saml_b"
         });
@@ -198,7 +215,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
                 .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
 
-        final SamlMetadataCommand command = new SamlMetadataCommand();
+        final SamlMetadataCommand command = new SamlMetadataCommand((e) -> randomFrom(keyStore, null));
         final OptionSet options = command.getParser().parse(new String[] {
                 "-attribute", "urn:oid:0.9.2342.19200300.100.1.3",
                 "-attribute", "groups"
@@ -251,7 +268,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
                 .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
 
-        final SamlMetadataCommand command = new SamlMetadataCommand();
+        final SamlMetadataCommand command = new SamlMetadataCommand((e) -> randomFrom(keyStore, null));
         final OptionSet options = command.getParser().parse(new String[] {
                 "-attribute", "urn:oid:0.9.2342.19200300.100.1.3",
                 "-batch"
@@ -282,7 +299,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final Path certPath = getDataPath("saml.crt");
         final Path keyPath = getDataPath("saml.key");
         final Path p12Path = getDataPath("saml.p12");
-        final SamlMetadataCommand command = new SamlMetadataCommand();
+        final SamlMetadataCommand command = new SamlMetadataCommand((e) -> randomFrom(keyStore, null));
         final OptionSet options = command.getParser().parse(new String[]{
                 "-signing-bundle", p12Path.toString()
         });
@@ -341,7 +358,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final Path certPath = getDataPath("saml.crt");
         final Path keyPath = getDataPath("saml.key");
         final Path p12Path = getDataPath("saml_with_password.p12");
-        final SamlMetadataCommand command = new SamlMetadataCommand();
+        final SamlMetadataCommand command = new SamlMetadataCommand((e) -> randomFrom(keyStore, null));
         final OptionSet options = command.getParser().parse(new String[]{
                 "-signing-bundle", p12Path.toString(),
                 "-signing-key-password", "saml"
@@ -378,7 +395,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final Path certPath = getDataPath("saml.crt");
         final Path keyPath = getDataPath("saml.key");
         final Path p12Path = getDataPath("saml_with_password.p12");
-        final SamlMetadataCommand command = new SamlMetadataCommand();
+        final SamlMetadataCommand command = new SamlMetadataCommand((e) -> randomFrom(keyStore, null));
         final OptionSet options = command.getParser().parse(new String[]{
                 "-signing-bundle", p12Path.toString(),
                 "-signing-key-password", "wrong_password"
@@ -414,7 +431,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final Path certPath = getDataPath("saml.crt");
         final Path keyPath = getDataPath("saml.key");
 
-        final SamlMetadataCommand command = new SamlMetadataCommand();
+        final SamlMetadataCommand command = new SamlMetadataCommand((e) -> randomFrom(keyStore, null));
         final OptionSet options = command.getParser().parse(new String[]{
                 "-signing-cert", certPath.toString(),
                 "-signing-key", keyPath.toString()
@@ -453,7 +470,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final Path certPath = getDataPath("saml.crt");
         final Path keyPath = getDataPath("saml.key");
 
-        final SamlMetadataCommand command = new SamlMetadataCommand();
+        final SamlMetadataCommand command = new SamlMetadataCommand((e) -> keyStore);
         final OptionSet options = command.getParser().parse(new String[]{
                 "-signing-cert", certPath.toString(),
                 "-signing-key", signingKeyPath.toString(),
@@ -494,7 +511,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final Path certPath = getDataPath("saml.crt");
         final Path keyPath = getDataPath("saml.key");
 
-        final SamlMetadataCommand command = new SamlMetadataCommand();
+        final SamlMetadataCommand command = new SamlMetadataCommand((e) -> randomFrom(keyStore, null));
         final OptionSet options = command.getParser().parse(new String[]{
                 "-signing-cert", certPath.toString(),
                 "-signing-key", signingKeyPath.toString()
@@ -527,6 +544,141 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         // Verify generated signature
         assertThat(descriptor.getSignature(), notNullValue());
         assertThat(validateSignature(descriptor.getSignature()), equalTo(true));
+    }
+
+    public void testDefaultOptionsWithSigningAndMultipleEncryptionKeys() throws Exception {
+        final Path dir = createTempDir();
+
+        final Path ksEncryptionFile = dir.resolve("saml-encryption.p12");
+        final Tuple<java.security.cert.X509Certificate, PrivateKey> certEncKeyPair1 = createKeyPair("RSA");
+        final Tuple<java.security.cert.X509Certificate, PrivateKey> certEncKeyPair2 = createKeyPair("RSA");
+        final KeyStore ksEncrypt = KeyStore.getInstance("PKCS12");
+        ksEncrypt.load(null);
+        ksEncrypt.setKeyEntry(getAliasName(certEncKeyPair1), certEncKeyPair1.v2(), "key-password".toCharArray(),
+                new Certificate[] { certEncKeyPair1.v1() });
+        ksEncrypt.setKeyEntry(getAliasName(certEncKeyPair2), certEncKeyPair2.v2(), "key-password".toCharArray(),
+                new Certificate[] { certEncKeyPair2.v1() });
+        try (OutputStream out = Files.newOutputStream(ksEncryptionFile)) {
+            ksEncrypt.store(out, "ks-password".toCharArray());
+        }
+
+        final Path ksSigningFile = dir.resolve("saml-signing.p12");
+        final Tuple<java.security.cert.X509Certificate, PrivateKey> certKeyPairSign = createKeyPair("RSA");
+        final KeyStore ksSign = KeyStore.getInstance("PKCS12");
+        ksSign.load(null);
+        ksSign.setKeyEntry(getAliasName(certKeyPairSign), certKeyPairSign.v2(), "key-password".toCharArray(),
+                new Certificate[] { certKeyPairSign.v1() });
+        try (OutputStream out = Files.newOutputStream(ksSigningFile)) {
+            ksSign.store(out, "ks-password".toCharArray());
+        }
+
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(RealmSettings.PREFIX + "my_saml.signing.keystore.secure_password", "ks-password");
+        secureSettings.setString(RealmSettings.PREFIX + "my_saml.signing.keystore.secure_key_password", "key-password");
+        secureSettings.setString(RealmSettings.PREFIX + "my_saml.encryption.keystore.secure_password", "ks-password");
+        secureSettings.setString(RealmSettings.PREFIX + "my_saml.encryption.keystore.secure_key_password", "key-password");
+
+        final SamlMetadataCommand command = new SamlMetadataCommand((e) -> keyStore);
+        final OptionSet options = command.getParser().parse(new String[0]);
+
+        final boolean useSigningCredentials = randomBoolean();
+        final boolean useEncryptionCredentials = randomBoolean();
+        final Settings.Builder settingsBuilder = Settings.builder().put("path.home", dir).put(RealmSettings.PREFIX + "my_saml.type", "saml")
+                .put(RealmSettings.PREFIX + "my_saml.order", 1).put(RealmSettings.PREFIX + "my_saml.idp.entity_id", "https://okta.my.corp/")
+                .put(RealmSettings.PREFIX + "my_saml.sp.entity_id", "https://kibana.my.corp/")
+                .put(RealmSettings.PREFIX + "my_saml.sp.acs", "https://kibana.my.corp/saml/login")
+                .put(RealmSettings.PREFIX + "my_saml.sp.logout", "https://kibana.my.corp/saml/logout")
+                .put(RealmSettings.PREFIX + "my_saml.attributes.principal", "urn:oid:0.9.2342.19200300.100.1.1");
+        settingsBuilder.setSecureSettings(secureSettings);
+        if (useSigningCredentials) {
+            settingsBuilder.put(RealmSettings.PREFIX + "my_saml.signing.keystore.path", ksSigningFile.toString());
+            settingsBuilder.put(RealmSettings.PREFIX + "my_saml.signing.keystore.type", "PKCS12");
+        }
+        if (useEncryptionCredentials) {
+            settingsBuilder.put(RealmSettings.PREFIX + "my_saml.encryption.keystore.path", ksEncryptionFile.toString());
+            settingsBuilder.put(RealmSettings.PREFIX + "my_saml.encryption.keystore.type", "PKCS12");
+        }
+        final Settings settings = settingsBuilder.build();
+        final Environment env = TestEnvironment.newEnvironment(settings);
+
+        final MockTerminal terminal = new MockTerminal();
+
+        // What is the friendly name for "principal" attribute
+        // "urn:oid:0.9.2342.19200300.100.1.1" [default: principal]
+        terminal.addTextInput("");
+
+        final EntityDescriptor descriptor = command.buildEntityDescriptor(terminal, options, env);
+
+        assertThat(descriptor, notNullValue());
+        assertThat(descriptor.getEntityID(), equalTo("https://kibana.my.corp/"));
+
+        assertThat(descriptor.getRoleDescriptors(), iterableWithSize(1));
+        assertThat(descriptor.getRoleDescriptors().get(0), instanceOf(SPSSODescriptor.class));
+        final SPSSODescriptor spDescriptor = (SPSSODescriptor) descriptor.getRoleDescriptors().get(0);
+
+        assertThat(spDescriptor.getAssertionConsumerServices(), iterableWithSize(1));
+        assertThat(spDescriptor.getAssertionConsumerServices().get(0).getLocation(), equalTo("https://kibana.my.corp/saml/login"));
+        assertThat(spDescriptor.getAssertionConsumerServices().get(0).isDefault(), equalTo(true));
+        assertThat(spDescriptor.getAssertionConsumerServices().get(0).getIndex(), equalTo(1));
+        assertThat(spDescriptor.getAssertionConsumerServices().get(0).getBinding(), equalTo(SAMLConstants.SAML2_POST_BINDING_URI));
+
+        assertThat(spDescriptor.getAttributeConsumingServices(), iterableWithSize(1));
+        assertThat(spDescriptor.getAttributeConsumingServices().get(0).isDefault(), equalTo(true));
+        assertThat(spDescriptor.getAttributeConsumingServices().get(0).getIndex(), equalTo(1));
+        assertThat(spDescriptor.getAttributeConsumingServices().get(0).getRequestAttributes(), iterableWithSize(1));
+        final RequestedAttribute uidAttribute = spDescriptor.getAttributeConsumingServices().get(0).getRequestAttributes().get(0);
+        assertThat(uidAttribute.getName(), equalTo("urn:oid:0.9.2342.19200300.100.1.1"));
+        assertThat(uidAttribute.getFriendlyName(), equalTo("principal"));
+
+        assertThat(spDescriptor.getSingleLogoutServices(), iterableWithSize(1));
+        assertThat(spDescriptor.getSingleLogoutServices().get(0).getLocation(), equalTo("https://kibana.my.corp/saml/logout"));
+        assertThat(spDescriptor.getSingleLogoutServices().get(0).getBinding(), equalTo(SAMLConstants.SAML2_REDIRECT_BINDING_URI));
+
+        assertThat(spDescriptor.isAuthnRequestsSigned(), equalTo(useSigningCredentials));
+        assertThat(spDescriptor.getWantAssertionsSigned(), equalTo(true));
+
+        int expectedKeyDescriptorSize = (useSigningCredentials) ? 1 : 0;
+        expectedKeyDescriptorSize = (useEncryptionCredentials) ? expectedKeyDescriptorSize + 2 : expectedKeyDescriptorSize;
+
+        assertThat(spDescriptor.getKeyDescriptors(), iterableWithSize(expectedKeyDescriptorSize));
+        if (expectedKeyDescriptorSize > 0) {
+            final Set<java.security.cert.X509Certificate> encryptionCertificatesToMatch = new HashSet<>();
+            if (useEncryptionCredentials) {
+                encryptionCertificatesToMatch.add(certEncKeyPair1.v1());
+                encryptionCertificatesToMatch.add(certEncKeyPair2.v1());
+            }
+            spDescriptor.getKeyDescriptors().stream().forEach((keyDesc) -> {
+                UsageType usageType = keyDesc.getUse();
+                final List<X509Data> x509 = keyDesc.getKeyInfo().getX509Datas();
+                assertThat(x509, iterableWithSize(1));
+                assertThat(x509.get(0).getX509Certificates(), iterableWithSize(1));
+                final X509Certificate xmlCert = x509.get(0).getX509Certificates().get(0);
+                final java.security.cert.X509Certificate javaCert;
+                try {
+                    // Verify that OpenSAML things the XML representation is the same as our input
+                    javaCert = KeyInfoSupport.getCertificate(xmlCert);
+                } catch (CertificateException ce) {
+                    throw ExceptionsHelper.convertToRuntime(ce);
+                }
+                if (usageType == UsageType.SIGNING) {
+                    assertTrue("Found UsageType as SIGNING in SP metadata when not testing for signing credentials", useSigningCredentials);
+                    assertEquals("Signing Certificate from SP metadata does not match", certKeyPairSign.v1(), javaCert);
+                } else if (usageType == UsageType.ENCRYPTION) {
+                    assertTrue(useEncryptionCredentials);
+                    assertTrue("Encryption Certificate was not found in encryption certificates",
+                            encryptionCertificatesToMatch.remove(javaCert));
+                } else {
+                    fail("Usage type should have been either SIGNING or ENCRYPTION");
+                }
+            });
+            if (useEncryptionCredentials) {
+                assertTrue("Did not find all encryption certificates in exported SP metadata", encryptionCertificatesToMatch.isEmpty());
+            }
+        }
+    }
+
+    private String getAliasName(final Tuple<java.security.cert.X509Certificate, PrivateKey> certKeyPair) {
+        return certKeyPair.v1().getSubjectX500Principal().getName().toLowerCase(Locale.US) + "-alias";
     }
 
     private boolean validateSignature(Signature signature) {

@@ -38,6 +38,7 @@ import org.opensaml.saml.saml2.metadata.IDPSSODescriptor;
 import org.opensaml.saml.saml2.metadata.SingleLogoutService;
 import org.opensaml.saml.saml2.metadata.SingleSignOnService;
 import org.opensaml.security.credential.Credential;
+import org.opensaml.security.x509.X509Credential;
 
 import javax.security.auth.x500.X500Principal;
 
@@ -52,6 +53,7 @@ import java.security.KeyStore;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PrivilegedActionException;
+import java.security.PublicKey;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
@@ -312,7 +314,7 @@ public class SamlRealmTests extends SamlTestCase {
         builder.put(REALM_SETTINGS_PREFIX + ".encryption.certificate", writePemObject(dir, "enc.crt", cert).toString());
         final Settings settings = builder.build();
         final RealmConfig realmConfig = realmConfigFromGlobalSettings(settings);
-        final Credential credential = SamlRealm.buildEncryptionCredential(realmConfig);
+        final Credential credential = SamlRealm.buildEncryptionCredential(realmConfig).get(0);
 
         assertThat(credential, notNullValue());
         assertThat(credential.getPrivateKey(), equalTo(pair.getPrivate()));
@@ -325,30 +327,47 @@ public class SamlRealmTests extends SamlTestCase {
                 .put(REALM_SETTINGS_PREFIX + ".type", "saml")
                 .put("path.home", dir);
         final Path ksFile = dir.resolve("cred.p12");
-        final KeyPair pair = buildKeyPair();
-        final X509Certificate cert = buildCertificate(pair);
+        final boolean testMultipleEncryptionKeyPair = randomBoolean();
+        final Tuple<X509Certificate, PrivateKey> certKeyPair1 = createKeyPair("RSA");
+        final Tuple<X509Certificate, PrivateKey> certKeyPair2 = createKeyPair("RSA");
+
         final KeyStore ks = KeyStore.getInstance("PKCS12");
         ks.load(null);
-        ks.setKeyEntry("the-alias", pair.getPrivate(), "key-password".toCharArray(), new Certificate[] { cert });
+        ks.setKeyEntry(getAliasName(certKeyPair1), certKeyPair1.v2(), "key-password".toCharArray(),
+                new Certificate[] { certKeyPair1.v1() });
+        if (testMultipleEncryptionKeyPair) {
+            ks.setKeyEntry(getAliasName(certKeyPair2), certKeyPair2.v2(), "key-password".toCharArray(),
+                    new Certificate[] { certKeyPair2.v1() });
+        }
         try (OutputStream out = Files.newOutputStream(ksFile)) {
             ks.store(out, "ks-password".toCharArray());
         }
         builder.put(REALM_SETTINGS_PREFIX + ".encryption.keystore.path", ksFile.toString());
         builder.put(REALM_SETTINGS_PREFIX + ".encryption.keystore.type", "PKCS12");
-        builder.put(REALM_SETTINGS_PREFIX + ".encryption.keystore.alias", "the-alias");
+        final boolean isEncryptionKeyStoreAliasSet = randomBoolean();
+        if (isEncryptionKeyStoreAliasSet) {
+            builder.put(REALM_SETTINGS_PREFIX + ".encryption.keystore.alias", getAliasName(certKeyPair1));
+        }
 
-        MockSecureSettings secureSettings = new MockSecureSettings();
+        final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(REALM_SETTINGS_PREFIX + ".encryption.keystore.secure_password", "ks-password");
         secureSettings.setString(REALM_SETTINGS_PREFIX + ".encryption.keystore.secure_key_password", "key-password");
         builder.setSecureSettings(secureSettings);
 
         final Settings settings = builder.build();
         final RealmConfig realmConfig = realmConfigFromGlobalSettings(settings);
-        final Credential credential = SamlRealm.buildEncryptionCredential(realmConfig);
+        final List<X509Credential> credentials = SamlRealm.buildEncryptionCredential(realmConfig);
 
-        assertThat(credential, notNullValue());
-        assertThat(credential.getPrivateKey(), equalTo(pair.getPrivate()));
-        assertThat(credential.getPublicKey(), equalTo(pair.getPublic()));
+        assertThat("Encryption Credentials should not be null", credentials, notNullValue());
+        final int expectedCredentials = (isEncryptionKeyStoreAliasSet) ? 1 : (testMultipleEncryptionKeyPair) ? 2 : 1;
+        assertEquals("Expected encryption credentials size does not match", expectedCredentials, credentials.size());
+        credentials.stream().forEach((credential) -> {
+            assertTrue("Unexpected private key in the list of encryption credentials",
+                    Arrays.asList(new PrivateKey[] { certKeyPair1.v2(), certKeyPair2.v2() }).contains(credential.getPrivateKey()));
+            assertTrue("Unexpected public key in the list of encryption credentials",
+                    Arrays.asList(new PublicKey[] { (certKeyPair1.v1()).getPublicKey(), certKeyPair2.v1().getPublicKey() })
+                            .contains(credential.getPublicKey()));
+        });
     }
 
     public void testCreateSigningCredentialFromKeyStoreSuccessScenarios() throws Exception {
@@ -445,7 +464,7 @@ public class SamlRealmTests extends SamlTestCase {
                         expectThrows(IllegalArgumentException.class, () -> SamlRealm.buildSigningConfiguration(realmConfig));
                 final String expectedErrorMessage = "The configured key store for "
                         + RealmSettings.getFullSettingKey(realmConfig, SamlRealmSettings.SIGNING_SETTINGS.getPrefix())
-                        + " does not have a certificate key pair associated with alias [" + unknownAlias + "] " + "(from setting "
+                        + " does not have a key associated with alias [" + unknownAlias + "] " + "(from setting "
                         + RealmSettings.getFullSettingKey(realmConfig, SamlRealmSettings.SIGNING_KEY_ALIAS) + ")";
                 assertEquals(expectedErrorMessage, illegalArgumentException.getLocalizedMessage());
             } else {

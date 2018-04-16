@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
 import java.io.Writer;
@@ -15,6 +16,7 @@ import java.security.Key;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -41,6 +43,7 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -87,12 +90,21 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
     private final OptionSpec<String> signingCertPathSpec;
     private final OptionSpec<String> signingKeyPathSpec;
     private final OptionSpec<String> keyPasswordSpec;
+    private final CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction;
+    private KeyStoreWrapper keyStoreWrapper;
 
     public static void main(String[] args) throws Exception {
         new SamlMetadataCommand().main(args, Terminal.DEFAULT);
     }
 
     public SamlMetadataCommand() {
+        this((environment) -> {
+            KeyStoreWrapper ksWrapper = KeyStoreWrapper.load(environment.configFile());
+            return ksWrapper;
+        });
+    }
+
+    public SamlMetadataCommand(CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction) {
         super("Generate Service Provider Metadata for a SAML realm");
         outputPathSpec = parser.accepts("out", "path of the xml file that should be generated").withRequiredArg();
         batchSpec = parser.accepts("batch", "Do not prompt");
@@ -118,6 +130,15 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
                 .withRequiredArg();
         keyPasswordSpec = parser.accepts("signing-key-password", "password for an existing signing private key or keypair")
                 .withOptionalArg();
+        this.keyStoreFunction = keyStoreFunction;
+    }
+
+    @Override
+    public void close() throws IOException {
+        super.close();
+        if (keyStoreWrapper != null) {
+            keyStoreWrapper.close();
+        }
     }
 
     @Override
@@ -149,7 +170,7 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
         final SamlSpMetadataBuilder builder = new SamlSpMetadataBuilder(locale, spConfig.getEntityId())
                 .assertionConsumerServiceUrl(spConfig.getAscUrl())
                 .singleLogoutServiceUrl(spConfig.getLogoutUrl())
-                .encryptionCredential(spConfig.getEncryptionCredential())
+                .encryptionCredentials(spConfig.getEncryptionCredentials())
                 .signingCredential(spConfig.getSigningConfiguration().getCredential())
                 .authnRequestsSigned(spConfig.getSigningConfiguration().shouldSign(AuthnRequest.DEFAULT_ELEMENT_LOCAL_NAME))
                 .nameIdFormat(SamlRealmSettings.NAMEID_FORMAT.get(realm.settings()))
@@ -392,17 +413,34 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
         return new TreeSet<>(strings);
     }
 
-    private RealmConfig findRealm(Terminal terminal, OptionSet options, Environment env) throws UserException {
-        final Map<String, Settings> realms = RealmSettings.getRealmSettings(env.settings());
+    private RealmConfig findRealm(Terminal terminal, OptionSet options, Environment env) throws UserException, IOException, Exception {
+
+        keyStoreWrapper = keyStoreFunction.apply(env);
+        final Settings settings;
+        if (keyStoreWrapper != null) {
+            // TODO: We currently do not support keystore passwords
+            keyStoreWrapper.decrypt(new char[0]);
+
+            final Settings.Builder settingsBuilder = Settings.builder();
+            settingsBuilder.put(env.settings(), true);
+            if (settingsBuilder.getSecureSettings() == null) {
+                settingsBuilder.setSecureSettings(keyStoreWrapper);
+            }
+            settings = settingsBuilder.build();
+        } else {
+            settings = env.settings();
+        }
+
+        final Map<String, Settings> realms = RealmSettings.getRealmSettings(settings);
         if (options.has(realmSpec)) {
             final String name = realmSpec.value(options);
-            final Settings settings = realms.get(name);
-            if (settings == null) {
+            final Settings realmSettings = realms.get(name);
+            if (realmSettings == null) {
                 throw new UserException(ExitCodes.CONFIG, "No such realm '" + name + "' defined in " + env.configFile());
             }
-            final String realmType = getRealmType(settings);
+            final String realmType = getRealmType(realmSettings);
             if (isSamlRealm(realmType)) {
-                return buildRealm(name, settings, env);
+                return buildRealm(name, realmSettings, env);
             } else {
                 throw new UserException(ExitCodes.CONFIG, "Realm '" + name + "' is not a SAML realm (is '" + realmType + "')");
             }

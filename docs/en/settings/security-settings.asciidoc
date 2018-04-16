@@ -801,14 +801,16 @@ ends in ".p12", ".pfx" or "pkcs12", otherwise uses "jks".
 
 `encryption.keystore.alias`::
 Specifies the alias of the key within the keystore (`encryption.keystore.path`)
-that should be used for SAML message decryption. Must be specified if the
-keystore contains more than one private key.
+that should be used for SAML message decryption. If not specified, all compatible
+key pairs from the keystore will be considered as candidate keys for decryption.
 
 `encryption.keystore.secure_password` (<<secure-settings,Secure>>)::
 The password to the keystore (`encryption.keystore.path`).
 
 `encryption.keystore.secure_key_password` (<<secure-settings,Secure>>)::
-The password for the key in the keystore (`encryption.keystore.path`) .
+The password for the key in the keystore (`encryption.keystore.path`). Only a
+single password is supported. If you are using multiple decryption keys, then
+they cannot have individual passwords.
 
 `ssl.key`::
 If retrieving IDP metadata via https (see `idp.metadata.path`), specifies the

@@ -8,6 +8,9 @@ package org.elasticsearch.xpack.security.authc.saml;
 import org.elasticsearch.common.Nullable;
 import org.opensaml.security.x509.X509Credential;
 
+import java.util.Collections;
+import java.util.List;
+
 /**
  * A simple container class that holds all configuration related to a SAML Service Provider (SP).
  */
@@ -17,15 +20,19 @@ public class SpConfiguration {
     private final String ascUrl;
     private final String logoutUrl;
     private final SigningConfiguration signingConfiguration;
-    private final X509Credential encryptionCredential;
+    private final List<X509Credential> encryptionCredentials;
 
-    public SpConfiguration(String entityId, String ascUrl, String logoutUrl,
-                    SigningConfiguration signingConfiguration, @Nullable X509Credential encryptionCredential) {
+    public SpConfiguration(final String entityId, final String ascUrl, final String logoutUrl,
+                    final SigningConfiguration signingConfiguration, @Nullable final List<X509Credential> encryptionCredential) {
         this.entityId = entityId;
         this.ascUrl = ascUrl;
         this.logoutUrl = logoutUrl;
         this.signingConfiguration = signingConfiguration;
-        this.encryptionCredential = encryptionCredential;
+        if (encryptionCredential != null) {
+            this.encryptionCredentials = Collections.unmodifiableList(encryptionCredential);
+        } else {
+            this.encryptionCredentials = Collections.<X509Credential>emptyList();
+        }
     }
 
     /**
@@ -43,8 +50,8 @@ public class SpConfiguration {
         return logoutUrl;
     }
 
-    X509Credential getEncryptionCredential() {
-        return encryptionCredential;
+    List<X509Credential> getEncryptionCredentials() {
+        return encryptionCredentials;
     }
 
     SigningConfiguration getSigningConfiguration() {

@@ -14,17 +14,24 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.CertUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.opensaml.security.credential.Credential;
 import org.opensaml.security.x509.X509Credential;
 import org.opensaml.security.x509.impl.X509KeyManagerX509CredentialAdapter;
 
 import javax.security.auth.x500.X500Principal;
 
+import java.io.IOException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
+import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
+import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
@@ -100,14 +107,25 @@ public abstract class SamlTestCase extends ESTestCase {
         return new Tuple<>(cert, pair.getPrivate());
     }
 
-    protected static X509Credential buildOpenSamlCredential(Tuple<X509Certificate, PrivateKey> keyPair) {
+    protected static List<Credential> buildOpenSamlCredential(final Tuple<X509Certificate, PrivateKey> keyPair) {
         try {
-            final Certificate[] certificateChain = { keyPair.v1() };
-            final PrivateKey privateKey = keyPair.v2();
-            return new X509KeyManagerX509CredentialAdapter(CertUtils.keyManager(certificateChain, privateKey, new char[0]), "key");
+            return Arrays.asList(new X509KeyManagerX509CredentialAdapter(
+                    CertUtils.keyManager(new Certificate[] { keyPair.v1() }, keyPair.v2(), new char[0]), "key"));
         } catch (Exception e) {
             throw ExceptionsHelper.convertToRuntime(e);
         }
+    }
+
+    protected static List<Credential> buildOpenSamlCredential(final List<Tuple<X509Certificate, PrivateKey>> keyPairs) {
+        final List<Credential> credentials = keyPairs.stream().map((keyPair) -> {
+            try {
+                return new X509KeyManagerX509CredentialAdapter(
+                        CertUtils.keyManager(new Certificate[] { keyPair.v1() }, keyPair.v2(), new char[0]), "key");
+            } catch (Exception e) {
+                throw ExceptionsHelper.convertToRuntime(e);
+            }
+        }).collect(Collectors.toList());
+        return credentials;
     }
 
     protected ElasticsearchSecurityException expectSamlException(ThrowingRunnable runnable) {

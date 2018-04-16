@@ -34,6 +34,7 @@ import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.saml.saml2.core.Response;
 import org.opensaml.saml.saml2.core.StatusCode;
 import org.opensaml.security.credential.Credential;
+import org.opensaml.security.x509.X509Credential;
 import org.opensaml.xmlsec.encryption.support.DecryptionException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -72,6 +73,7 @@ import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -79,6 +81,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -111,7 +114,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
 
     private static Tuple<X509Certificate, PrivateKey> idpSigningCertificatePair;
     private static Tuple<X509Certificate, PrivateKey> spSigningCertificatePair;
-    private static Tuple<X509Certificate, PrivateKey> spEncryptionCertificatePair;
+    private static List<Tuple<X509Certificate, PrivateKey>> spEncryptionCertificatePairs;
 
     private static List<Integer> supportedAesKeyLengths;
     private static List<String> supportedAesTransformations;
@@ -152,7 +155,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     public static void initCredentials() throws Exception {
         idpSigningCertificatePair = createKeyPair(randomSigningAlgorithm());
         spSigningCertificatePair = createKeyPair(randomSigningAlgorithm());
-        spEncryptionCertificatePair = createKeyPair("RSA");
+        spEncryptionCertificatePairs = Arrays.asList(createKeyPair("RSA"), createKeyPair("RSA"));
     }
 
     private static String randomSigningAlgorithm() {
@@ -163,7 +166,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     public static void cleanup() {
         idpSigningCertificatePair = null;
         spSigningCertificatePair = null;
-        spEncryptionCertificatePair = null;
+        spEncryptionCertificatePairs = null;
         supportedAesKeyLengths = null;
         supportedAesTransformations = null;
     }
@@ -172,7 +175,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     public void setupAuthenticator() throws Exception {
         this.clock = new ClockMock();
         this.maxSkew = TimeValue.timeValueMinutes(1);
-        this.authenticator = buildAuthenticator(() -> singletonList(buildOpenSamlCredential(idpSigningCertificatePair)));
+        this.authenticator = buildAuthenticator(() -> buildOpenSamlCredential(idpSigningCertificatePair));
         this.requestId = randomId();
     }
 
@@ -181,10 +184,11 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final Settings realmSettings = Settings.EMPTY;
         final IdpConfiguration idp = new IdpConfiguration(IDP_ENTITY_ID, credentials);
 
-        final SigningConfiguration signingConfiguration =
-                new SigningConfiguration(Collections.singleton("*"), buildOpenSamlCredential(spSigningCertificatePair));
-        final SpConfiguration sp = new SpConfiguration(SP_ENTITY_ID, SP_ACS_URL, null, signingConfiguration,
-                buildOpenSamlCredential(spEncryptionCertificatePair));
+        final SigningConfiguration signingConfiguration = new SigningConfiguration(Collections.singleton("*"),
+                (X509Credential) buildOpenSamlCredential(spSigningCertificatePair).get(0));
+        final List<X509Credential> spEncryptionCredentials = buildOpenSamlCredential(spEncryptionCertificatePairs).stream()
+                .map((cred) -> (X509Credential) cred).collect(Collectors.<X509Credential>toList());
+        final SpConfiguration sp = new SpConfiguration(SP_ENTITY_ID, SP_ACS_URL, null, signingConfiguration, spEncryptionCredentials);
         final Environment env = TestEnvironment.newEnvironment(globalSettings);
         return new SamlAuthenticator(
                 new RealmConfig("saml_test", realmSettings, globalSettings, env, new ThreadContext(globalSettings)),
@@ -293,7 +297,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final Instant now = clock.instant();
         final String xml = getSimpleResponse(now);
 
-        final String encrypted = encryptAssertions(xml, spEncryptionCertificatePair);
+        final String encrypted = encryptAssertions(xml, randomFrom(spEncryptionCertificatePairs));
         assertThat(encrypted, not(equalTo(xml)));
 
         final String signed = signDoc(encrypted);
@@ -329,7 +333,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         });
 
         assertThat(signed, not(equalTo(xml)));
-        final String encrypted = encryptAssertions(signed, spEncryptionCertificatePair);
+        final String encrypted = encryptAssertions(signed, randomFrom(spEncryptionCertificatePairs));
         assertThat(encrypted, not(equalTo(signed)));
 
         final SamlToken token = token(encrypted);
@@ -348,7 +352,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final Instant now = clock.instant();
         final String xml = getSimpleResponse(now);
 
-        final String encrypted = encryptAttributes(xml, spEncryptionCertificatePair);
+        final String encrypted = encryptAttributes(xml, randomFrom(spEncryptionCertificatePairs));
         assertThat(encrypted, not(equalTo(xml)));
 
         final String signed = signer.transform(encrypted, idpSigningCertificatePair);
@@ -1011,7 +1015,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         for (int i = 0; i < numberOfKeys; i++) {
             final Tuple<X509Certificate, PrivateKey> key = createKeyPair(randomSigningAlgorithm());
             keys.add(key);
-            credentials.add(buildOpenSamlCredential(key));
+            credentials.addAll(buildOpenSamlCredential(key));
         }
         this.authenticator = buildAuthenticator(() -> credentials);
         final CryptoTransform signer = randomBoolean() ? this::signDoc : this::signAssertions;
@@ -1092,6 +1096,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
             }
         }
 
+        final Tuple<X509Certificate, PrivateKey> spEncryptionCertificatePair = randomFrom(spEncryptionCertificatePairs);
         final Response encryptedAssertion = toResponse(encryptAssertions(xml, spEncryptionCertificatePair));
         // Expect EncryptedAssertion
         assertThat(encryptedAssertion.getAssertions(), iterableWithSize(0));
@@ -1588,7 +1593,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         assertThat(exception.getMessage(), containsString("SAML Signature"));
         assertThat(exception.getMessage(), containsString("could not be validated"));
         //Restore the authenticator with credentials for the rest of the test cases
-        authenticator = buildAuthenticator(() -> singletonList(buildOpenSamlCredential(idpSigningCertificatePair)));
+        authenticator = buildAuthenticator(() -> buildOpenSamlCredential(idpSigningCertificatePair));
     }
 
     public void testFailureWhenIdPCredentialsAreNull() throws Exception {
@@ -1600,7 +1605,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         assertThat(exception.getMessage(), containsString("SAML Signature"));
         assertThat(exception.getMessage(), containsString("could not be validated"));
         //Restore the authenticator with credentials for the rest of the test cases
-        authenticator = buildAuthenticator(() -> singletonList(buildOpenSamlCredential(idpSigningCertificatePair)));
+        authenticator = buildAuthenticator(() -> buildOpenSamlCredential(idpSigningCertificatePair));
     }
 
     private interface CryptoTransform {

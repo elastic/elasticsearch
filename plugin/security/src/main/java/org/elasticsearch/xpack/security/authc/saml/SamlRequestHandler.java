@@ -5,20 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import javax.xml.parsers.DocumentBuilder;
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.security.PrivilegedActionException;
-import java.security.cert.CertificateEncodingException;
-import java.security.cert.X509Certificate;
-import java.time.Clock;
-import java.time.Instant;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.List;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
-
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -44,13 +30,38 @@ import org.opensaml.xmlsec.encryption.support.EncryptedKeyResolver;
 import org.opensaml.xmlsec.encryption.support.InlineEncryptedKeyResolver;
 import org.opensaml.xmlsec.encryption.support.SimpleKeyInfoReferenceEncryptedKeyResolver;
 import org.opensaml.xmlsec.encryption.support.SimpleRetrievalMethodEncryptedKeyResolver;
-import org.opensaml.xmlsec.keyinfo.impl.StaticKeyInfoCredentialResolver;
+import org.opensaml.xmlsec.keyinfo.KeyInfoCredentialResolver;
+import org.opensaml.xmlsec.keyinfo.impl.ChainingKeyInfoCredentialResolver;
+import org.opensaml.xmlsec.keyinfo.impl.CollectionKeyInfoCredentialResolver;
+import org.opensaml.xmlsec.keyinfo.impl.LocalKeyInfoCredentialResolver;
+import org.opensaml.xmlsec.keyinfo.impl.provider.DEREncodedKeyValueProvider;
+import org.opensaml.xmlsec.keyinfo.impl.provider.InlineX509DataProvider;
+import org.opensaml.xmlsec.keyinfo.impl.provider.KeyInfoReferenceProvider;
+import org.opensaml.xmlsec.keyinfo.impl.provider.RSAKeyValueProvider;
 import org.opensaml.xmlsec.signature.Signature;
 import org.opensaml.xmlsec.signature.support.SignatureException;
 import org.opensaml.xmlsec.signature.support.SignatureValidator;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.xml.sax.SAXException;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.security.PrivilegedActionException;
+import java.security.cert.CertificateEncodingException;
+import java.security.cert.X509Certificate;
+import java.time.Clock;
+import java.time.Instant;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+
+import javax.xml.parsers.DocumentBuilder;
 
 import static org.elasticsearch.xpack.security.authc.saml.SamlUtils.samlException;
 import static org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport.getUnmarshallerFactory;
@@ -90,17 +101,26 @@ public class SamlRequestHandler {
         this.sp = sp;
         this.maxSkew = maxSkew;
         this.unmarshallerFactory = getUnmarshallerFactory();
-        if (sp.getEncryptionCredential() == null) {
+        if (sp.getEncryptionCredentials().isEmpty()) {
             this.decrypter = null;
         } else {
-            StaticKeyInfoCredentialResolver keyInfoCredentialResolver = new StaticKeyInfoCredentialResolver(sp.getEncryptionCredential());
-            final EncryptedKeyResolver keyResolver = new ChainingEncryptedKeyResolver(Arrays.asList(
-                    new InlineEncryptedKeyResolver(), new SimpleRetrievalMethodEncryptedKeyResolver(),
-                    new SimpleKeyInfoReferenceEncryptedKeyResolver()));
-            this.decrypter = new Decrypter(null, keyInfoCredentialResolver, keyResolver);
+            this.decrypter = new Decrypter(null, createResolverForEncryptionKeys(), createResolverForEncryptedKeyElements());
         }
     }
 
+    private KeyInfoCredentialResolver createResolverForEncryptionKeys() {
+        final CollectionKeyInfoCredentialResolver collectionKeyInfoCredentialResolver =
+                new CollectionKeyInfoCredentialResolver(Collections.unmodifiableCollection(sp.getEncryptionCredentials()));
+        final LocalKeyInfoCredentialResolver localKeyInfoCredentialResolver =
+                new LocalKeyInfoCredentialResolver(Arrays.asList(new InlineX509DataProvider(), new KeyInfoReferenceProvider(),
+                        new RSAKeyValueProvider(), new DEREncodedKeyValueProvider()), collectionKeyInfoCredentialResolver);
+        return new ChainingKeyInfoCredentialResolver(Arrays.asList(localKeyInfoCredentialResolver, collectionKeyInfoCredentialResolver));
+    }
+
+    private EncryptedKeyResolver createResolverForEncryptedKeyElements() {
+        return new ChainingEncryptedKeyResolver(Arrays.asList(new InlineEncryptedKeyResolver(),
+                new SimpleRetrievalMethodEncryptedKeyResolver(), new SimpleKeyInfoReferenceEncryptedKeyResolver()));
+    }
 
     protected SpConfiguration getSpConfiguration() {
         return sp;
@@ -109,6 +129,10 @@ public class SamlRequestHandler {
     protected String describe(X509Certificate certificate) {
         return "X509Certificate{Subject=" + certificate.getSubjectDN() + "; SerialNo=" +
                 certificate.getSerialNumber().toString(16) + "}";
+    }
+
+    protected String describe(Collection<X509Credential> credentials) {
+        return credentials.stream().map(credential -> describe(credential.getEntityCertificate())).collect(Collectors.joining(","));
     }
 
     void validateSignature(Signature signature) {

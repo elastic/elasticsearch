@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
+import java.util.Arrays;
 import java.util.Collections;
 
 import org.elasticsearch.common.Nullable;
@@ -37,7 +38,7 @@ public class SamlRealmTestHelper {
         slo.setLocation(IDP_LOGOUT_URL);
 
         final SpConfiguration spConfiguration = new SpConfiguration(SP_ENTITY_ID, SP_ACS_URL, SP_LOGOUT_URL,
-                new SigningConfiguration(Collections.singleton("*"), credential), credential);
+                new SigningConfiguration(Collections.singleton("*"), credential), Arrays.asList(credential));
         return new SamlRealm(realmConfig, mock(UserRoleMapper.class), mock(SamlAuthenticator.class),
                 mock(SamlLogoutRequestHandler.class), () -> idpDescriptor, spConfiguration);
     }

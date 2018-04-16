@@ -172,7 +172,7 @@ public class SamlLogoutRequestHandler extends SamlRequestHandler {
             return decrypter.decrypt(encrypted);
         } catch (DecryptionException e) {
             logger.debug(() -> new ParameterizedMessage("Failed to decrypt SAML EncryptedID [{}] with [{}]",
-                    text(encrypted, 512), describe(getSpConfiguration().getEncryptionCredential().getEntityCertificate())), e);
+                    text(encrypted, 512), describe(getSpConfiguration().getEncryptionCredentials())), e);
             throw samlException("Failed to decrypt SAML EncryptedID " + text(encrypted, 32), e);
         }
     }

@@ -31,20 +31,32 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import java.io.IOException;
 import java.util.Iterator;
 
+import static org.elasticsearch.index.query.SpanNearQueryBuilder.SpanGapQueryBuilder;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
-public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQueryBuilder> {
+/*
+ * SpanGapQueryBuilder, unlike other QBs, is not used to build a Query. Therefore, it is not suited
+ * to test pattern of AbstractQueryTestCase. Since it is only used in SpanNearQueryBuilder, its test cases
+ * are same as those of later with SpanGapQueryBuilder included as clauses.
+ */
+
+public class SpanGapQueryBuilderTests extends AbstractQueryTestCase<SpanNearQueryBuilder> {
     @Override
     protected SpanNearQueryBuilder doCreateTestQueryBuilder() {
         SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(randomIntBetween(1, 6));
         SpanNearQueryBuilder queryBuilder = new SpanNearQueryBuilder(spanTermQueries[0], randomIntBetween(-10, 10));
         for (int i = 1; i < spanTermQueries.length; i++) {
-            queryBuilder.addClause(spanTermQueries[i]);
+            SpanTermQueryBuilder termQB = spanTermQueries[i];
+            queryBuilder.addClause(termQB);
+            if (i % 2 == 1) {
+                SpanGapQueryBuilder gapQB = new SpanGapQueryBuilder(termQB.fieldName(), randomIntBetween(1,2));
+                queryBuilder.addClause(gapQB);
+            }
         }
-        queryBuilder.inOrder(randomBoolean());
+        queryBuilder.inOrder(true);
         return queryBuilder;
     }
 
@@ -61,7 +73,9 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
             assertThat(spanNearQuery.getClauses().length, equalTo(queryBuilder.clauses().size()));
             Iterator<SpanQueryBuilder> spanQueryBuilderIterator = queryBuilder.clauses().iterator();
             for (SpanQuery spanQuery : spanNearQuery.getClauses()) {
-                assertThat(spanQuery, equalTo(spanQueryBuilderIterator.next().toQuery(context.getQueryShardContext())));
+                SpanQueryBuilder spanQB = spanQueryBuilderIterator.next();
+                if (spanQB instanceof SpanGapQueryBuilder) continue;
+                assertThat(spanQuery, equalTo(spanQB.toQuery(context.getQueryShardContext())));
             }
         } else if (query instanceof SpanTermQuery || query instanceof SpanBoostQuery) {
             assertThat(queryBuilder.clauses().size(), equalTo(1));
@@ -70,18 +84,8 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
     }
 
     public void testIllegalArguments() {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SpanNearQueryBuilder(null, 1));
-            assertEquals("[span_near] must include at least one clause", e.getMessage());
-
-            SpanNearQueryBuilder spanNearQueryBuilder = new SpanNearQueryBuilder(new SpanTermQueryBuilder("field", "value"), 1);
-            e = expectThrows(IllegalArgumentException.class, () -> spanNearQueryBuilder.addClause(null));
-            assertEquals("[span_near]  clauses cannot be null", e.getMessage());
-    }
-
-    public void testClausesUnmodifiable() {
-        SpanNearQueryBuilder spanNearQueryBuilder = new SpanNearQueryBuilder(new SpanTermQueryBuilder("field", "value"), 1);
-        expectThrows(UnsupportedOperationException.class,
-                () -> spanNearQueryBuilder.clauses().add(new SpanTermQueryBuilder("field", "value2")));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SpanGapQueryBuilder(null, 1));
+            assertEquals("[span_gap] field name is null or empty", e.getMessage());
     }
 
     public void testFromJson() throws IOException {
@@ -96,11 +100,8 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
                 "        }\n" +
                 "      }\n" +
                 "    }, {\n" +
-                "      \"span_term\" : {\n" +
-                "        \"field\" : {\n" +
-                "          \"value\" : \"value2\",\n" +
-                "          \"boost\" : 1.0\n" +
-                "        }\n" +
+                "      \"span_gap\" : {\n" +
+                "        \"field\" : 2" +
                 "      }\n" +
                 "    }, {\n" +
                 "      \"span_term\" : {\n" +
@@ -123,66 +124,4 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
         assertEquals(json, 12, parsed.slop());
         assertEquals(json, false, parsed.inOrder());
     }
-
-    public void testParsingSlopDefault() throws IOException {
-        String json =
-                "{\n" +
-                "  \"span_near\" : {\n" +
-                "    \"clauses\" : [ {\n" +
-                "      \"span_term\" : {\n" +
-                "        \"field\" : {\n" +
-                "          \"value\" : \"value1\",\n" +
-                "          \"boost\" : 1.0\n" +
-                "        }\n" +
-                "      }\n" +
-                "    }]\n" +
-                "  }\n" +
-                "}";
-
-        SpanNearQueryBuilder parsed = (SpanNearQueryBuilder) parseQuery(json);
-        assertEquals(json, 1, parsed.clauses().size());
-        assertEquals(json, SpanNearQueryBuilder.DEFAULT_SLOP, parsed.slop());
-        assertEquals(json, SpanNearQueryBuilder.DEFAULT_BOOST, parsed.boost(), 0.0);
-        assertEquals(json, SpanNearQueryBuilder.DEFAULT_IN_ORDER, parsed.inOrder());
-    }
-
-    public void testCollectPayloadsNoLongerSupported() throws Exception {
-        String json =
-                "{\n" +
-                "  \"span_near\" : {\n" +
-                "    \"clauses\" : [ {\n" +
-                "      \"span_term\" : {\n" +
-                "        \"field\" : {\n" +
-                "          \"value\" : \"value1\",\n" +
-                "          \"boost\" : 1.0\n" +
-                "        }\n" +
-                "      }\n" +
-                "    }, {\n" +
-                "      \"span_term\" : {\n" +
-                "        \"field\" : {\n" +
-                "          \"value\" : \"value2\",\n" +
-                "          \"boost\" : 1.0\n" +
-                "        }\n" +
-                "      }\n" +
-                "    }, {\n" +
-                "      \"span_term\" : {\n" +
-                "        \"field\" : {\n" +
-                "          \"value\" : \"value3\",\n" +
-                "          \"boost\" : 1.0\n" +
-                "        }\n" +
-                "      }\n" +
-                "    } ],\n" +
-                "    \"slop\" : 12,\n" +
-                "    \"in_order\" : false,\n" +
-                "    \"collect_payloads\" : false,\n" +
-                "    \"boost\" : 1.0\n" +
-                "  }\n" +
-                "}";
-
-        final ParsingException e = expectThrows(
-                ParsingException.class,
-                () -> parseQuery(json));
-        assertThat(e.getMessage(), containsString("[span_near] query does not support [collect_payloads]"));
-    }
-
 }

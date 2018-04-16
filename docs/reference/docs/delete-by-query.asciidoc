@@ -75,7 +75,7 @@ Back to the API format, this will delete tweets from the `twitter` index:
 
 [source,js]
 --------------------------------------------------
-POST twitter/_doc/_delete_by_query?conflicts=proceed
+POST twitter/_delete_by_query?conflicts=proceed
 {
   "query": {
     "match_all": {}
@@ -85,12 +85,12 @@ POST twitter/_doc/_delete_by_query?conflicts=proceed
 // CONSOLE
 // TEST[setup:twitter]
 
-It's also possible to delete documents of multiple indexes and multiple
-types at once, just like the search API:
+It's also possible to delete documents of multiple indexes at once, just like
+the search API:
 
 [source,js]
 --------------------------------------------------
-POST twitter,blog/_docs,post/_delete_by_query
+POST twitter,blog/_delete_by_query
 {
   "query": {
     "match_all": {}

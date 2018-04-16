@@ -39,6 +39,45 @@
   - match: { index.mappings.properties.foo.type: "keyword" }
   - match: { index.mappings.properties.bar.type: "float" }
 
+# Explicit id
+  - do:
+      index:
+          index:   index
+          id:      1
+          body:    { foo: bar }
+
+# Implicit id
+  - do:
+      index:
+          index:   index
+          body:    { foo: bar }
+
+# Bulk with explicit id
+  - do:
+      bulk:
+          index:   index
+          body: |
+            { "index": { "_id": "2" } }
+            { "doc": { "foo": "baz" } }
+
+# Bulk with implicit id
+  - do:
+      bulk:
+          index:   index
+          body: |
+            { "index": { } }
+            { "doc": { "foo": "baz" } }
+
+  - do:
+      indices.refresh:
+          index:  index
+
+  - do:
+      count:
+          index: index
+
+  - match: { count: 4 }
+
 ---
 "PUT mapping with a type and include_type_name: false":
 

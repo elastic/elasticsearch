@@ -105,6 +105,8 @@ import static org.hamcrest.Matchers.hasSize;
  */
 public abstract class IndexShardTestCase extends ESTestCase {
 
+    public static final IndexEventListener EMPTY_EVENT_LISTENER = new IndexEventListener() {};
+
     protected static final PeerRecoveryTargetService.RecoveryListener recoveryListener = new PeerRecoveryTargetService.RecoveryListener() {
         @Override
         public void onRecoveryDone(RecoveryState state) {
@@ -260,24 +262,25 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final ShardId shardId = routing.shardId();
         final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(createTempDir());
         ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
-        return newShard(routing, shardPath, indexMetaData, indexSearcherWrapper, engineFactory, globalCheckpointSyncer, listeners);
+        return newShard(routing, shardPath, indexMetaData, indexSearcherWrapper, engineFactory, globalCheckpointSyncer,
+            EMPTY_EVENT_LISTENER, listeners);
     }
 
     /**
      * creates a new initializing shard.
-     *
-     * @param routing                shard routing to use
+     *  @param routing                shard routing to use
      * @param shardPath              path to use for shard data
      * @param indexMetaData          indexMetaData for the shard, including any mapping
      * @param indexSearcherWrapper   an optional wrapper to be used during searchers
      * @param globalCheckpointSyncer callback for syncing global checkpoints
+     * @param indexEventListener
      * @param listeners              an optional set of listeners to add to the shard
      */
     protected IndexShard newShard(ShardRouting routing, ShardPath shardPath, IndexMetaData indexMetaData,
                                   @Nullable IndexSearcherWrapper indexSearcherWrapper,
                                   @Nullable EngineFactory engineFactory,
                                   Runnable globalCheckpointSyncer,
-                                  IndexingOperationListener... listeners) throws IOException {
+                                  IndexEventListener indexEventListener, IndexingOperationListener... listeners) throws IOException {
         final Settings nodeSettings = Settings.builder().put("node.name", routing.currentNodeId()).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, nodeSettings);
         final IndexShard indexShard;
@@ -289,8 +292,6 @@ public abstract class IndexShardTestCase extends ESTestCase {
                     indexSettings.getSettings(), "index");
             mapperService.merge(indexMetaData, MapperService.MergeReason.MAPPING_RECOVERY);
             SimilarityService similarityService = new SimilarityService(indexSettings, null, Collections.emptyMap());
-            final IndexEventListener indexEventListener = new IndexEventListener() {
-            };
             final Engine.Warmer warmer = searcher -> {
             };
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -335,7 +336,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 null,
                 current.engineFactory,
                 current.getGlobalCheckpointSyncer(),
-                listeners);
+            EMPTY_EVENT_LISTENER, listeners);
     }
 
     /**

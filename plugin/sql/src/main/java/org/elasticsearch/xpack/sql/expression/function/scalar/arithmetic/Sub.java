@@ -29,9 +29,4 @@ public class Sub extends ArithmeticFunction {
     protected BinaryScalarFunction replaceChildren(Expression newLeft, Expression newRight) {
         return new Sub(location(), newLeft, newRight);
     }
-
-    @Override
-    public Object fold() {
-        return Arithmetics.sub((Number) left().fold(), (Number) right().fold());
-    }
 }

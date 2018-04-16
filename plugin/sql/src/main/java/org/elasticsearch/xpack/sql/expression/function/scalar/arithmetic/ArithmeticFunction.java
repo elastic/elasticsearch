@@ -61,6 +61,11 @@ public abstract class ArithmeticFunction extends BinaryScalarFunction {
     }
 
     @Override
+    public Object fold() {
+        return operation.apply((Number) left().fold(), (Number) right().fold());
+    }
+
+    @Override
     protected ScriptTemplate asScriptFrom(ScriptTemplate leftScript, ScriptTemplate rightScript) {
         String op = operation.symbol();
         // escape %

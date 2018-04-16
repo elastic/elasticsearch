@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definiti
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.UnaryProcessorDefinition;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import java.util.Locale;
 import java.util.Objects;
@@ -33,6 +32,11 @@ public abstract class MathFunction extends UnaryScalarFunction {
     @Override
     public boolean foldable() {
         return field().foldable();
+    }
+
+    @Override
+    public Object fold() {
+        return operation().apply(field().fold());
     }
 
     @Override

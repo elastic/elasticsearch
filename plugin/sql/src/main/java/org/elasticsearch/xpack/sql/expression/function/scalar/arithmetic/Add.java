@@ -27,9 +27,4 @@ public class Add extends ArithmeticFunction {
     protected Add replaceChildren(Expression left, Expression right) {
         return new Add(location(), left, right);
     }
-
-    @Override
-    public Number fold() {
-        return Arithmetics.add((Number) left().fold(), (Number) right().fold());
-    }
 }

@@ -29,9 +29,4 @@ public class Mul extends ArithmeticFunction {
     protected BinaryScalarFunction replaceChildren(Expression newLeft, Expression newRight) {
         return new Mul(location(), newLeft, newRight);
     }
-
-    @Override
-    public Object fold() {
-        return Arithmetics.mul((Number) left().fold(), (Number) right().fold());
-    }
 }

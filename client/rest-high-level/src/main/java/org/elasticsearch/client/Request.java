@@ -43,6 +43,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -593,7 +594,7 @@ public final class Request {
     }
 
     static Request indicesExist(GetIndexRequest request) {
-        //this can be called with no indices as argument by transport client, not via REST though
+        // this can be called with no indices as argument by transport client, not via REST though
         if (request.indices() == null || request.indices().length == 0) {
             throw new IllegalArgumentException("indices are mandatory");
         }
@@ -605,6 +606,20 @@ public final class Request {
         params.withFlatSettings(request.flatSettings());
         params.withIncludeDefaults(request.includeDefaults());
         return new Request(HttpHead.METHOD_NAME, endpoint, params.getParams(), null);
+    }
+
+    static Request indexPutSettings(UpdateSettingsRequest updateSettingsRequest) throws IOException {
+        Params parameters = Params.builder();
+        parameters.withTimeout(updateSettingsRequest.timeout());
+        parameters.withMasterTimeout(updateSettingsRequest.masterNodeTimeout());
+        parameters.withIndicesOptions(updateSettingsRequest.indicesOptions());
+        parameters.withFlatSettings(updateSettingsRequest.flatSettings());
+        parameters.withPreserveExisting(updateSettingsRequest.isPreserveExisting());
+
+        String[] indices = updateSettingsRequest.indices() == null ? Strings.EMPTY_ARRAY : updateSettingsRequest.indices();
+        String endpoint = endpoint(indices, "_settings");
+        HttpEntity entity = createEntity(updateSettingsRequest, REQUEST_BODY_CONTENT_TYPE);
+        return new Request(HttpPut.METHOD_NAME, endpoint, parameters.getParams(), entity);
     }
 
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
@@ -820,6 +835,13 @@ public final class Request {
         Params withIncludeDefaults(boolean includeDefaults) {
             if (includeDefaults) {
                 return putParam("include_defaults", Boolean.TRUE.toString());
+            }
+            return this;
+        }
+
+        Params withPreserveExisting(boolean preserveExisting) {
+            if (preserveExisting) {
+                return putParam("preserve_existing", Boolean.TRUE.toString());
             }
             return this;
         }

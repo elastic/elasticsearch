@@ -77,6 +77,18 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
             BOOTSTRAP_PASSWORD.close();
             BOOTSTRAP_PASSWORD = null;
         }
+        tearDownRestClient();
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+        if (resetNodeAfterTest()) {
+            tearDownRestClient();
+        }
+    }
+
+    private static void tearDownRestClient() {
         if (restClient != null) {
             IOUtils.closeWhileHandlingException(restClient);
             restClient = null;

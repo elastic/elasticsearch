@@ -1,9 +1,9 @@
 [[xpack-security]]
-= Securing Elasticsearch and Kibana
+= Securing the Elastic Stack
 
 [partintro]
 --
-{security} enables you to easily secure a cluster. With Security,
+{security} enables you to easily secure a cluster. With {security},
 you can password-protect your data as well as implement more advanced security
 measures such as encrypting communications, role-based access control,
 IP filtering, and auditing. This guide describes how to configure the security

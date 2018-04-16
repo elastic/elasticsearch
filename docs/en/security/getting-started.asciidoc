@@ -7,91 +7,28 @@ with the cluster, you must specify a username and password.
 Unless you {xpack-ref}/anonymous-access.html[enable anonymous access], all
 requests that don't include a user name and password are rejected.
 
-{security} provides a built-in `elastic` superuser you can use
-to start setting things up. This `elastic` user has full access
-to the cluster, including all indices and data, so the `elastic` user
-does not have a password set by default.
-
 To get started with {security}:
 
-. Verify that the `xpack.security.enabled` setting is `true`. For more
-information, see {ref}/security-settings.html[Security Settings in {es}].
+. {ref}/configuring-security.html[Configure security in {es}]. Encrypt 
+inter-node communications, set passwords for the 
+<<built-in-users,built-in users>>, and manage your users and roles.  
 
-.  Start {es} and {kib}.
+. {kibana-ref}/using-kibana-with-security.html[Configure security in {kib}]. 
+Set the authentication credentials in {kib} and encrypt communications between 
+the browser and the {kib} server.
 
-. Set the passwords of the built in `elastic`, `kibana`, `logstash_system`, and
-`beats_system` users.
-In most cases, you can simply run the `bin/x-pack/setup-passwords` tool on one of the nodes in your cluster.
-Run that command with the same user that is running your {es} process.
-In "auto" mode this tool will randomly generate passwords and print them to the console.
-+
---
-[source,shell]
---------------------------------------------------
-bin/x-pack/setup-passwords auto
---------------------------------------------------
+. {logstash-ref}/ls-security.html[Configure security in Logstash]. Set the 
+authentication credentials for Logstash and encrypt communications between 
+Logstash and {es}. 
 
-For more information, see <<set-built-in-user-passwords>>.
---
+. <<beats,Configure security in the Beats>>. Configure authentication 
+credentials and encrypt connections to {es}. 
 
-. Set up roles and users to control access to {es} and {kib}.
-For example, to grant _John Doe_ full access to all indices that match
-the pattern `events*` and enable him to create visualizations and dashboards
-for those indices in Kibana, you could create an `events_admin` role and
-and assign the role to a new `johndoe` user.
-+
---
-[source,shell]
-----------------------------------------------------------
-curl -XPOST -u elastic 'localhost:9200/_xpack/security/role/events_admin' -H "Content-Type: application/json" -d '{
-  "indices" : [
-    {
-      "names" : [ "events*" ],
-      "privileges" : [ "all" ]
-    },
-    {
-      "names" : [ ".kibana*" ],
-      "privileges" : [ "manage", "read", "index" ]
-    }
-  ]
-}'
+. Configure the Java transport client to use encrypted communications.
+See <<java-clients>>.
 
-curl -XPOST -u elastic 'localhost:9200/_xpack/security/user/johndoe' -H "Content-Type: application/json" -d '{
-  "password" : "userpassword",
-  "full_name" : "John Doe",
-  "email" : "john.doe@anony.mous",
-  "roles" : [ "events_admin" ]
-}'
-----------------------------------------------------------
-// NOTCONSOLE
---
-
-[[enable-auditing]]
-. Enable Auditing to keep track of attempted and successful interactions with
-  your {es} cluster:
-+
---
-.. Add the following setting to `elasticsearch.yml` on all nodes in your cluster:
-+
-[source,yaml]
-----------------------------
-xpack.security.audit.enabled: true
-----------------------------
-.. Restart {es}.
-
-By default, events are logged to a dedicated `elasticsearch-access.log` file in
-`ES_HOME/logs`. You can also store the events in an {es} index for
-easier analysis and control what events are logged. For more information, see
-{xpack-ref}/auditing.html[Configuring Auditing].
---
-
-[[moving-on]]
-IMPORTANT:  Once you get these basic security measures in place, we strongly
-            recommend that you secure communications to and from nodes by
-            configuring your cluster to use {xpack-ref}/ssl-tls.html[SSL/TLS encryption].
-            Nodes that do not have encryption enabled send passwords in plain
-            text and will not be able to install a non-trial license that enables the use
-            of {security}.
+. Configure {es} for Apache Hadoop to use secured transport. See
+{hadoop-ref}/security.html[{es} for Apache Hadoop Security]. 
 
 Depending on your security requirements, you might also want to:
 

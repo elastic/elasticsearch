@@ -70,7 +70,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -85,7 +84,6 @@ import static org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateR
 import static org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField.WATCHES_TEMPLATE_NAME;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
@@ -452,14 +450,30 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                     .collect(Collectors.toList());
             List<WatcherState> states = currentStatesFromStatsRequest.stream().map(Tuple::v2).collect(Collectors.toList());
 
-            boolean isStateStarted = states.stream().allMatch(w -> w == WatcherState.STARTED);
-            if (isStateStarted == false){
-                assertAcked(watcherClient().prepareWatchService().start().get());
+            logger.info("waiting to start watcher, current states {}", currentStatesFromStatsRequest);
+
+            boolean isAllStateStarted = states.stream().allMatch(w -> w == WatcherState.STARTED);
+            if (isAllStateStarted) {
+                return;
             }
 
-            String message = String.format(Locale.ROOT, "Expected watcher to be started, but state was %s", currentStatesFromStatsRequest);
-            assertThat(message, states, everyItem(is(WatcherState.STARTED)));
-            assertThat(watcherStatsResponse.watcherMetaData().manuallyStopped(), is(false));
+            boolean isAnyStopping = states.stream().anyMatch(w -> w == WatcherState.STOPPING);
+            if (isAnyStopping) {
+                throw new AssertionError("at least one node is in state stopping, waiting to be stopped");
+            }
+
+            boolean isAllStateStopped = states.stream().allMatch(w -> w == WatcherState.STOPPED);
+            if (isAllStateStopped) {
+                assertAcked(watcherClient().prepareWatchService().start().get());
+                throw new AssertionError("all nodes are stopped, restarting");
+            }
+
+            boolean isAnyStarting = states.stream().anyMatch(w -> w == WatcherState.STARTING);
+            if (isAnyStarting) {
+                throw new AssertionError("at least one node is in state starting, waiting to be stopped");
+            }
+
+            throw new AssertionError("unexpected state, retrying with next run");
         });
 
     }
@@ -481,13 +495,30 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                     .collect(Collectors.toList());
             List<WatcherState> states = currentStatesFromStatsRequest.stream().map(Tuple::v2).collect(Collectors.toList());
 
-            boolean isStateStopped = states.stream().allMatch(w -> w == WatcherState.STOPPED);
-            if (isStateStopped == false){
+            logger.info("waiting to stop watcher, current states {}", currentStatesFromStatsRequest);
+
+            boolean isAllStateStarted = states.stream().allMatch(w -> w == WatcherState.STARTED);
+            if (isAllStateStarted) {
                 assertAcked(watcherClient().prepareWatchService().stop().get());
+                throw new AssertionError("all nodes are started, stopping");
             }
 
-            String message = String.format(Locale.ROOT, "Expected watcher to be stopped, but state was %s", currentStatesFromStatsRequest);
-            assertThat(message, states, everyItem(is(WatcherState.STOPPED)));
+            boolean isAnyStopping = states.stream().anyMatch(w -> w == WatcherState.STOPPING);
+            if (isAnyStopping) {
+                throw new AssertionError("at least one node is in state stopping, waiting to be stopped");
+            }
+
+            boolean isAllStateStopped = states.stream().allMatch(w -> w == WatcherState.STOPPED);
+            if (isAllStateStopped) {
+                return;
+            }
+
+            boolean isAnyStarting = states.stream().anyMatch(w -> w == WatcherState.STARTING);
+            if (isAnyStarting) {
+                throw new AssertionError("at least one node is in state starting, waiting to be started before stopping");
+            }
+
+            throw new AssertionError("unexpected state, retrying with next run");
         });
     }
 

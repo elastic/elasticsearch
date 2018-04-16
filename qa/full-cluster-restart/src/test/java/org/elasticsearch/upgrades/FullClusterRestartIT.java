@@ -59,6 +59,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -704,12 +705,12 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 ensureNoInitializingShards();
             } else {
                 assertBusy(() -> {
-                    final Response response = client().performRequest("GET", "/_cat/shards/" + index);
+                    final Response response =
+                            client().performRequest("GET", "/_cat/shards/" + index, Collections.singletonMap("h", "state"));
                     assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
                     final String[] shards = toStr(response).split("\n");
                     for (final String shard : shards) {
-                        final String[] columns = shard.split("\\s+");
-                        assertThat(columns[3], equalTo("STARTED"));
+                        assertThat(shard, equalTo("STARTED"));
                     }
                 });
             }

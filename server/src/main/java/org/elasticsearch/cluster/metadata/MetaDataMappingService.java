@@ -191,7 +191,7 @@ public class MetaDataMappingService extends AbstractComponent {
                 }
             }
         } catch (Exception e) {
-            logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to refresh-mapping in cluster state", index), e);
+            logger.warn(() -> new ParameterizedMessage("[{}] failed to refresh-mapping in cluster state", index), e);
         }
         return dirty;
     }
@@ -205,7 +205,7 @@ public class MetaDataMappingService extends AbstractComponent {
             refreshTask,
             ClusterStateTaskConfig.build(Priority.HIGH),
             refreshExecutor,
-                (source, e) -> logger.warn((Supplier<?>) () -> new ParameterizedMessage("failure during [{}]", source), e)
+                (source, e) -> logger.warn(() -> new ParameterizedMessage("failure during [{}]", source), e)
         );
     }
 
@@ -265,24 +265,6 @@ public class MetaDataMappingService extends AbstractComponent {
                     if (existingMapper != null) {
                         // first, simulate: just call merge and ignore the result
                         existingMapper.merge(newMapper.mapping());
-                    } else {
-                        // TODO: can we find a better place for this validation?
-                        // The reason this validation is here is that the mapper service doesn't learn about
-                        // new types all at once , which can create a false error.
-
-                        // For example in MapperService we can't distinguish between a create index api call
-                        // and a put mapping api call, so we don't which type did exist before.
-                        // Also the order of the mappings may be backwards.
-                        if (newMapper.parentFieldMapper().active()) {
-                            for (ObjectCursor<MappingMetaData> mapping : indexMetaData.getMappings().values()) {
-                                String parentType = newMapper.parentFieldMapper().type();
-                                if (parentType.equals(mapping.value.type()) &&
-                                        mapperService.getParentTypes().contains(parentType) == false) {
-                                    throw new IllegalArgumentException("can't add a _parent field that points to an " +
-                                        "already existing type, that isn't already a parent");
-                                }
-                            }
-                        }
                     }
                 }
                 if (mappingType == null) {

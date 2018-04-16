@@ -23,7 +23,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.locationtech.spatial4j.shape.Circle;
-import com.vividsolutions.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Coordinate;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -171,6 +171,10 @@ public class CircleBuilder extends ShapeBuilder<Circle, CircleBuilder> {
     @Override
     public String toWKT() {
         throw new UnsupportedOperationException("The WKT spec does not support CIRCLE geometry");
+    }
+
+    public int numDimensions() {
+        return Double.isNaN(center.z) ? 2 : 3;
     }
 
     @Override

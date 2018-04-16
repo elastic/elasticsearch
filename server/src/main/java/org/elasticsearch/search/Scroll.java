@@ -38,7 +38,7 @@ public final class Scroll implements Writeable {
     private final TimeValue keepAlive;
 
     public Scroll(StreamInput in) throws IOException {
-        this.keepAlive = new TimeValue(in);
+        this.keepAlive = in.readTimeValue();
     }
 
     /**
@@ -57,7 +57,7 @@ public final class Scroll implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        keepAlive.writeTo(out);
+        out.writeTimeValue(keepAlive);
     }
 
     @Override

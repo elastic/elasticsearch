@@ -26,6 +26,9 @@ recovery.
 include::synced-flush.asciidoc[]
 --
 
+. *Stop any machine learning jobs that are running.* See
+{xpack-ref}/stopping-ml.html[Stopping Machine Learning].
+
 . *Shutdown all nodes.*
 +
 --
@@ -124,3 +127,5 @@ GET _cat/recovery
 --------------------------------------------------
 // CONSOLE
 --
+
+. *Restart machine learning jobs.* 

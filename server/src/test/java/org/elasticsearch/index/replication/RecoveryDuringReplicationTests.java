@@ -185,7 +185,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     false,
                     SourceToParse.source("index", "type", "replica", new BytesArray("{}"), XContentType.JSON),
                     mapping -> {});
-            shards.promoteReplicaToPrimary(promotedReplica);
+            shards.promoteReplicaToPrimary(promotedReplica).get();
             oldPrimary.close("demoted", randomBoolean());
             oldPrimary.store().close();
             shards.removeReplica(remainingReplica);
@@ -236,7 +236,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "rollback_" + i)
                             .source("{}", XContentType.JSON);
                     final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
-                    indexOnReplica(bulkShardRequest, replica);
+                    indexOnReplica(bulkShardRequest, shards, replica);
                 }
                 if (randomBoolean()) {
                     oldPrimary.flush(new FlushRequest(index.getName()));
@@ -326,7 +326,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "stale_" + i)
                     .source("{}", XContentType.JSON);
                 final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
-                indexOnReplica(bulkShardRequest, replica);
+                indexOnReplica(bulkShardRequest, shards, replica);
             }
             shards.flush();
             shards.promoteReplicaToPrimary(newPrimary).get();
@@ -374,7 +374,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "extra_" + i)
                     .source("{}", XContentType.JSON);
                 final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
-                indexOnReplica(bulkShardRequest, newPrimary);
+                indexOnReplica(bulkShardRequest, shards, newPrimary);
             }
             logger.info("--> resyncing replicas");
             PrimaryReplicaSyncer.ResyncTask task = shards.promoteReplicaToPrimary(newPrimary).get();

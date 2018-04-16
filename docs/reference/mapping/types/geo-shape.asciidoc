@@ -91,6 +91,12 @@ false (default), malformed GeoJSON and WKT shapes throw an exception and reject 
 entire document.
 | `false`
 
+|`ignore_z_value` |If `true` (default) three dimension points will be accepted (stored in source)
+but only latitude and longitude values will be indexed; the third dimension is ignored. If `false`,
+geo-points containing any more than latitude and longitude (two dimensions) values throw an exception
+and reject the whole document.
+| `true`
+
 
 |=======================================================================
 
@@ -148,12 +154,12 @@ are provided:
 [float]
 ===== Accuracy
 
-Geo_shape does not provide 100% accuracy and depending on how it is
-configured it may return some false positives or false negatives for
-certain queries. To mitigate this, it is important to select an
-appropriate value for the tree_levels parameter and to adjust
-expectations accordingly. For example, a point may be near the border of
-a particular grid cell and may thus not match a query that only matches the
+Geo_shape does not provide 100% accuracy and depending on how it is configured
+it may return some false positives for `INTERSECTS`, `WITHIN` and `CONTAINS`
+queries, and some false negatives for `DISJOINT` queries. To mitigate this, it
+is important to select an appropriate value for the tree_levels parameter and
+to adjust expectations accordingly. For example, a point may be near the border
+of a particular grid cell and may thus not match a query that only matches the
 cell right next to it -- even though the shape is very close to the point.
 
 [float]
@@ -214,7 +220,7 @@ to Elasticsearch types:
 |=======================================================================
 |GeoJSON Type |WKT Type |Elasticsearch Type |Description
 
-|`Point` |`POINT` |`point` |A single geographic coordinate.
+|`Point` |`POINT` |`point` |A single geographic coordinate. Note: Elasticsearch uses WGS-84 coordinates only.
 |`LineString` |`LINESTRING` |`linestring` |An arbitrary line given two or more points.
 |`Polygon` |`POLYGON` |`polygon` |A _closed_ polygon whose first and last point
 must match, thus requiring `n + 1` vertices to create an `n`-sided
@@ -372,22 +378,24 @@ POST /example/doc
 // CONSOLE
 // TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
-*IMPORTANT NOTE:* GeoJSON and WKT do not enforce a specific order for vertices
-thus ambiguous polygons around the dateline and poles are possible. To alleviate
-ambiguity the Open Geospatial Consortium (OGC)
-http://www.opengeospatial.org/standards/sfa[Simple Feature Access] specification
-defines the following vertex ordering:
+*IMPORTANT NOTE:* WKT does not enforce a specific order for vertices thus
+ambiguous polygons around the dateline and poles are possible.
+https://tools.ietf.org/html/rfc7946#section-3.1.6[GeoJSON] mandates that the
+outer polygon must be counterclockwise and interior shapes must be clockwise,
+which agrees with the Open Geospatial Consortium (OGC)
+http://www.opengeospatial.org/standards/sfa[Simple Feature Access]
+specification for vertex ordering.
 
-* Outer Ring - Counterclockwise
-* Inner Ring(s) / Holes - Clockwise
+Elasticsearch accepts both clockwise and counterclockwise polygons if they
+appear not to cross the dateline (i.e. they cross less than 180° of longitude),
+but for polygons that do cross the dateline (or for other polygons wider than
+180°) Elasticsearch requires the vertex ordering to comply with the OGC and
+GeoJSON specifications. Otherwise, an unintended polygon may be created and
+unexpected query/filter results will be returned.
 
-For polygons that do not cross the dateline, vertex order will not matter in
-Elasticsearch. For polygons that do cross the dateline, Elasticsearch requires
-vertex ordering to comply with the OGC specification. Otherwise, an unintended polygon
-may be created and unexpected query/filter results will be returned.
-
-The following provides an example of an ambiguous polygon.  Elasticsearch will apply
-OGC standards to eliminate ambiguity resulting in a polygon that crosses the dateline.
+The following provides an example of an ambiguous polygon.  Elasticsearch will
+apply the GeoJSON standard to eliminate ambiguity resulting in a polygon that
+crosses the dateline.
 
 [source,js]
 --------------------------------------------------

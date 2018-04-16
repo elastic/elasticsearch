@@ -38,13 +38,13 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
+import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -236,8 +236,8 @@ public class RecoverySourceHandler {
             shard.acquirePrimaryOperationPermit(onAcquired, ThreadPool.Names.SAME, reason);
             try (Releasable ignored = onAcquired.actionGet()) {
                 // check that the IndexShard still has the primary authority. This needs to be checked under operation permit to prevent
-                // races, as IndexShard will change to RELOCATED only when it holds all operation permits, see IndexShard.relocated()
-                if (shard.state() == IndexShardState.RELOCATED) {
+                // races, as IndexShard will switch its authority only when it holds all operation permits, see IndexShard.relocated()
+                if (shard.isPrimaryMode() == false) {
                     throw new IndexShardRelocatedException(shard.shardId());
                 }
                 runnable.run();
@@ -407,12 +407,9 @@ public class RecoverySourceHandler {
                         RemoteTransportException exception = new RemoteTransportException("File corruption occurred on recovery but " +
                                 "checksums are ok", null);
                         exception.addSuppressed(targetException);
-                        logger.warn(
-                            (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
+                        logger.warn(() -> new ParameterizedMessage(
                                 "{} Remote file corruption during finalization of recovery on node {}. local checksum OK",
-                                shard.shardId(),
-                                request.targetNode()),
-                            corruptIndexException);
+                                shard.shardId(), request.targetNode()), corruptIndexException);
                         throw exception;
                     } else {
                         throw targetException;
@@ -504,9 +501,9 @@ public class RecoverySourceHandler {
         if (request.isPrimaryRelocation()) {
             logger.trace("performing relocation hand-off");
             // this acquires all IndexShard operation permits and will thus delay new recoveries until it is done
-            cancellableThreads.execute(() -> shard.relocated("to " + request.targetNode(), recoveryTarget::handoffPrimaryContext));
+            cancellableThreads.execute(() -> shard.relocated(recoveryTarget::handoffPrimaryContext));
             /*
-             * if the recovery process fails after setting the shard state to RELOCATED, both relocation source and
+             * if the recovery process fails after disabling primary mode on the source shard, both relocation source and
              * target are failed (see {@link IndexShard#updateRoutingEntry}).
              */
         }
@@ -681,13 +678,9 @@ public class RecoverySourceHandler {
                             RemoteTransportException exception = new RemoteTransportException("File corruption occurred on recovery but " +
                                     "checksums are ok", null);
                             exception.addSuppressed(e);
-                            logger.warn(
-                                (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
+                            logger.warn(() -> new ParameterizedMessage(
                                     "{} Remote file corruption on node {}, recovering {}. local checksum OK",
-                                    shardId,
-                                    request.targetNode(),
-                                    md),
-                                corruptIndexException);
+                                    shardId, request.targetNode(), md), corruptIndexException);
                             throw exception;
                         }
                     } else {

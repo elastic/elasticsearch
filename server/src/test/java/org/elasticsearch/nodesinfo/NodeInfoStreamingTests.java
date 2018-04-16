@@ -23,6 +23,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -101,7 +102,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         param2Builder.startObject();
         param2.toXContent(param2Builder, params);
         param2Builder.endObject();
-        assertThat(param1Builder.string(), equalTo(param2Builder.string()));
+        assertThat(Strings.toString(param1Builder), equalTo(Strings.toString(param2Builder)));
     }
 
     private static NodeInfo createNodeInfo() {
@@ -136,7 +137,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
                 new TransportAddress[]{buildNewFakeTransportAddress()}, buildNewFakeTransportAddress());
         profileAddresses.put("test_address", dummyBoundTransportAddress);
         TransportInfo transport = randomBoolean() ? null : new TransportInfo(dummyBoundTransportAddress, profileAddresses);
-        HttpInfo httpInfo = randomBoolean() ? null : new HttpInfo(dummyBoundTransportAddress, randomLong());
+        HttpInfo httpInfo = randomBoolean() ? null : new HttpInfo(dummyBoundTransportAddress, randomNonNegativeLong());
 
         PluginsAndModules pluginsAndModules = null;
         if (randomBoolean()) {

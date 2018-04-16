@@ -115,6 +115,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -330,7 +331,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         ScrollableHitSource.Response response = new ScrollableHitSource.Response(false, emptyList(), 0, emptyList(), null);
         simulateScrollResponse(new DummyAsyncBulkByScrollAction(), timeValueNanos(System.nanoTime()), 10, response);
         ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get());
-        assertThat(e.getMessage(), equalTo("EsRejectedExecutionException[test]"));
+        assertThat(e.getCause(), instanceOf(EsRejectedExecutionException.class));
+        assertThat(e.getCause(), hasToString(containsString("test")));
         assertThat(client.scrollsCleared, contains(scrollId));
 
         // When the task is rejected we don't increment the throttled timer

@@ -200,7 +200,8 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             final String historyUUIDtoUse = UUIDs.randomBase64UUID(random());
             if (randomBoolean()) {
                 // create a new translog
-                translogUUIDtoUse = Translog.createEmptyTranslog(replica.shardPath().resolveTranslog(), flushedDocs, replica.shardId());
+                translogUUIDtoUse = Translog.createEmptyTranslog(replica.shardPath().resolveTranslog(), flushedDocs,
+                    replica.shardId(), replica.getPrimaryTerm());
                 translogGenToUse = 1;
             } else {
                 translogUUIDtoUse = translogGeneration.translogUUID;
@@ -306,7 +307,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
         try (ReplicationGroup shards = createGroup(0)) {
             shards.startAll();
             int numDocs = shards.indexDocs(between(10, 100));
-            final long translogSizeOnPrimary = shards.getPrimary().getTranslog().uncommittedSizeInBytes();
+            final long translogSizeOnPrimary = shards.getPrimary().translogStats().getUncommittedSizeInBytes();
             shards.flush();
 
             final IndexShard replica = shards.addReplica();

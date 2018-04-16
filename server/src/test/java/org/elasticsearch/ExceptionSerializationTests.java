@@ -81,7 +81,6 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.ActionTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -116,7 +115,6 @@ import static java.lang.reflect.Modifier.isInterface;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertVersionSerializable;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -233,7 +231,6 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     private <T extends Exception> T serialize(T exception, Version version) throws IOException {
-        ElasticsearchAssertions.assertVersionSerializable(version, exception);
         BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(version);
         out.writeException(exception);
@@ -578,9 +575,6 @@ public class ExceptionSerializationTests extends ESTestCase {
             }
             assertArrayEquals(deserialized.getStackTrace(), ex.getStackTrace());
             assertTrue(deserialized.getStackTrace().length > 1);
-            assertVersionSerializable(VersionUtils.randomVersion(random()), cause);
-            assertVersionSerializable(VersionUtils.randomVersion(random()), ex);
-            assertVersionSerializable(VersionUtils.randomVersion(random()), deserialized);
         }
     }
 
@@ -728,7 +722,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(56, org.elasticsearch.common.settings.SettingsException.class);
         ids.put(57, org.elasticsearch.indices.IndexTemplateMissingException.class);
         ids.put(58, org.elasticsearch.transport.SendRequestTransportException.class);
-        ids.put(59, org.elasticsearch.common.util.concurrent.EsRejectedExecutionException.class);
+        ids.put(59, null); // was EsRejectedExecutionException, which is no longer an instance of ElasticsearchException
         ids.put(60, null); // EarlyTerminationException was removed in 6.0
         ids.put(61, null); // RoutingValidationException was removed in 5.0
         ids.put(62, org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper.class);

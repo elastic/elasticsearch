@@ -224,7 +224,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         suggestBuilder = in.readOptionalWriteable(SuggestBuilder::new);
         terminateAfter = in.readVInt();
-        timeout = in.readOptionalWriteable(TimeValue::new);
+        timeout = in.readOptionalTimeValue();
         trackScores = in.readBoolean();
         version = in.readOptionalBoolean();
         extBuilders = in.readNamedWriteableList(SearchExtBuilder.class);
@@ -280,7 +280,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         out.writeOptionalWriteable(suggestBuilder);
         out.writeVInt(terminateAfter);
-        out.writeOptionalWriteable(timeout);
+        out.writeOptionalTimeValue(timeout);
         out.writeBoolean(trackScores);
         out.writeOptionalBoolean(version);
         out.writeNamedWriteableList(extBuilders);

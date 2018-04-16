@@ -511,7 +511,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
             in.readOptionalString(); // timestamp
-            in.readOptionalWriteable(TimeValue::new); // ttl
+            in.readOptionalTimeValue(); // ttl
         }
         source = in.readBytesReference();
         opType = OpType.fromId(in.readByte());

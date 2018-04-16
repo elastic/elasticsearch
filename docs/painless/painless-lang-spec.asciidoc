@@ -17,30 +17,27 @@ into Java Virtual Machine (JVM) byte code and executed against a standard JVM.
 This specification uses ANTLR4 grammar notation to describe the allowed syntax.
 However, the actual Painless grammar is more compact than what is shown here.
 
-This specification is divided into the following sections:
-
-* <<painless-basic-syntax, Basic Syntax>>
-** <<comments, Comments>>
-** <<keywords, Keywords>>
-** <<literals, Literals>>
-** <<variables, Variables>>
-* <<painless-types, Data Types>>
-** <<dynamic-types, Dynamic Types>>
-** <<primitive-types, Primitive Types>>
-** <<reference-types, Reference Types>>
-** <<string-type, String Type>>
-** <<void-type, Void Type>>
-** <<array-type, Array Type>>
-* <<casting, Casting>>
-** <<numeric-casting, Numeric Casting>>
-** <<reference-casting, Reference Casting>>
-** <<boxing-unboxing, Boxing/Unboxing>>
-** <<promotion, Promotion>>
+* <<painless-comments, Comments>>
+* <<painless-keywords, Keywords>>
+* <<painless-literals, Literals>>
+* <<painless-variables, Variables>>
+* <<painless-types, Types>>
+* <<painless-casting, Casting>>
 * <<painless-operators, Operators>>
 * <<painless-general-syntax, General Syntax>>
 
-include::painless-basic-syntax.asciidoc[]
+include::painless-comments.asciidoc[]
+
+include::painless-keywords.asciidoc[]
+
+include::painless-literals.asciidoc[]
+
+include::painless-variables.asciidoc[]
 
 include::painless-types.asciidoc[]
 
+include::painless-casting.asciidoc[]
+
 include::painless-operators.asciidoc[]
+
+include::painless-general-syntax.asciidoc[]

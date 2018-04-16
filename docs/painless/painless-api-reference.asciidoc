@@ -1,4 +1,3 @@
-[appendix]
 [[painless-api-reference]]
 = Painless API Reference
 

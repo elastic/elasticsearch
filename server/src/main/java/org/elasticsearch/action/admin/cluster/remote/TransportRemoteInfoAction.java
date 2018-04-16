@@ -30,6 +30,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import static java.util.stream.Collectors.toList;
+
 public final class TransportRemoteInfoAction extends HandledTransportAction<RemoteInfoRequest, RemoteInfoResponse> {
 
     private final RemoteClusterService remoteClusterService;
@@ -45,7 +47,6 @@ public final class TransportRemoteInfoAction extends HandledTransportAction<Remo
 
     @Override
     protected void doExecute(RemoteInfoRequest remoteInfoRequest, ActionListener<RemoteInfoResponse> listener) {
-        remoteClusterService.getRemoteConnectionInfos(ActionListener.wrap(remoteConnectionInfos
-                -> listener.onResponse(new RemoteInfoResponse(remoteConnectionInfos)), listener::onFailure));
+        listener.onResponse(new RemoteInfoResponse(remoteClusterService.getRemoteConnectionInfos().collect(toList())));
     }
 }

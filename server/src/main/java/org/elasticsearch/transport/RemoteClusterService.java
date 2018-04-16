@@ -42,6 +42,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -56,6 +57,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 
@@ -348,17 +350,8 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         IOUtils.close(remoteClusters.values());
     }
 
-    public void getRemoteConnectionInfos(ActionListener<Collection<RemoteConnectionInfo>> listener) {
-        final Map<String, RemoteClusterConnection> remoteClusters = this.remoteClusters;
-        if (remoteClusters.isEmpty()) {
-            listener.onResponse(Collections.emptyList());
-        } else {
-            final GroupedActionListener<RemoteConnectionInfo> actionListener = new GroupedActionListener<>(listener,
-                remoteClusters.size(), Collections.emptyList());
-            for (RemoteClusterConnection connection : remoteClusters.values()) {
-                connection.getConnectionInfo(actionListener);
-            }
-        }
+    public Stream<RemoteConnectionInfo> getRemoteConnectionInfos() {
+        return remoteClusters.values().stream().map(RemoteClusterConnection::getConnectionInfo);
     }
 
     /**

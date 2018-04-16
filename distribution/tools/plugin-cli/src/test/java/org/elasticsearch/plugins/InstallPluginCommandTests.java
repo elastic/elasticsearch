@@ -1153,6 +1153,59 @@ public class InstallPluginCommandTests extends ESTestCase {
         return bytes -> MessageDigests.toHexString(digest.digest(bytes)) + s;
     }
 
+    // checks the plugin requires a policy confirmation, and does not install when that is rejected by the user
+    // the plugin is installed after this method completes
+    private void assertPolicyConfirmation(Tuple<Path, Environment> env, String pluginZip, String... warnings) throws Exception {
+        for (int i = 0; i < warnings.length; ++i) {
+            String warning = warnings[i];
+            for (int j = 0; j < i; ++j) {
+                terminal.addTextInput("y"); // accept warnings we have already tested
+            }
+            // default answer, does not install
+            terminal.addTextInput("");
+            UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
+            assertEquals("installation aborted by user", e.getMessage());
+
+            assertThat(terminal.getOutput(), containsString("WARNING: " + warning));
+            try (Stream<Path> fileStream = Files.list(env.v2().pluginsFile())) {
+                assertThat(fileStream.collect(Collectors.toList()), empty());
+            }
+
+            // explicitly do not install
+            terminal.reset();
+            for (int j = 0; j < i; ++j) {
+                terminal.addTextInput("y"); // accept warnings we have already tested
+            }
+            terminal.addTextInput("n");
+            e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
+            assertEquals("installation aborted by user", e.getMessage());
+            assertThat(terminal.getOutput(), containsString("WARNING: " + warning));
+            try (Stream<Path> fileStream = Files.list(env.v2().pluginsFile())) {
+                assertThat(fileStream.collect(Collectors.toList()), empty());
+            }
+        }
+
+        // allow installation
+        terminal.reset();
+        for (int j = 0; j < warnings.length; ++j) {
+            terminal.addTextInput("y");
+        }
+        installPlugin(pluginZip, env.v1());
+        for (String warning : warnings) {
+            assertThat(terminal.getOutput(), containsString("WARNING: " + warning));
+        }
+    }
+
+    public void testPolicyConfirmation() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        writePluginSecurityPolicy(pluginDir, "setAccessible", "setFactory");
+        String pluginZip = createPluginUrl("fake", pluginDir);
+
+        assertPolicyConfirmation(env, pluginZip, "plugin requires additional permissions");
+        assertPlugin("fake", pluginDir, env.v2());
+    }
+
     public void testMetaPluginPolicyConfirmation() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path metaDir = createPluginDir(temp);
@@ -1166,32 +1219,60 @@ public class InstallPluginCommandTests extends ESTestCase {
         writePlugin("fake2", fake2Dir);
         String pluginZip = createMetaPluginUrl("meta-plugin", metaDir);
 
-        // default answer, does not install
-        terminal.addTextInput("");
-        UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
-        assertEquals("installation aborted by user", e.getMessage());
-        assertThat(terminal.getOutput(), containsString("WARNING: plugin requires additional permissions"));
-        try (Stream<Path> fileStream = Files.list(env.v2().pluginsFile())) {
-            assertThat(fileStream.collect(Collectors.toList()), empty());
-        }
-
-        // explicitly do not install
-        terminal.reset();
-        terminal.addTextInput("n");
-        e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
-        assertEquals("installation aborted by user", e.getMessage());
-        assertThat(terminal.getOutput(), containsString("WARNING: plugin requires additional permissions"));
-        try (Stream<Path> fileStream = Files.list(env.v2().pluginsFile())) {
-            assertThat(fileStream.collect(Collectors.toList()), empty());
-        }
-
-        // allow installation
-        terminal.reset();
-        terminal.addTextInput("y");
-        installPlugin(pluginZip, env.v1());
-        assertThat(terminal.getOutput(), containsString("WARNING: plugin requires additional permissions"));
+        assertPolicyConfirmation(env, pluginZip, "plugin requires additional permissions");
         assertMetaPlugin("meta-plugin", "fake1", metaDir, env.v2());
         assertMetaPlugin("meta-plugin", "fake2", metaDir, env.v2());
     }
 
+    public void testNativeControllerConfirmation() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        String pluginZip = createPluginUrl("fake", pluginDir, "has.native.controller", "true");
+
+        assertPolicyConfirmation(env, pluginZip, "plugin forks a native controller");
+        assertPlugin("fake", pluginDir, env.v2());
+    }
+
+    public void testMetaPluginNativeControllerConfirmation() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path metaDir = createPluginDir(temp);
+        Path fake1Dir = metaDir.resolve("fake1");
+        Files.createDirectory(fake1Dir);
+        writePlugin("fake1", fake1Dir, "has.native.controller", "true");
+        Path fake2Dir = metaDir.resolve("fake2");
+        Files.createDirectory(fake2Dir);
+        writePlugin("fake2", fake2Dir);
+        String pluginZip = createMetaPluginUrl("meta-plugin", metaDir);
+
+        assertPolicyConfirmation(env, pluginZip, "plugin forks a native controller");
+        assertMetaPlugin("meta-plugin", "fake1", metaDir, env.v2());
+        assertMetaPlugin("meta-plugin", "fake2", metaDir, env.v2());
+    }
+
+    public void testNativeControllerAndPolicyConfirmation() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        writePluginSecurityPolicy(pluginDir, "setAccessible", "setFactory");
+        String pluginZip = createPluginUrl("fake", pluginDir, "has.native.controller", "true");
+
+        assertPolicyConfirmation(env, pluginZip, "plugin requires additional permissions", "plugin forks a native controller");
+        assertPlugin("fake", pluginDir, env.v2());
+    }
+
+    public void testMetaPluginNativeControllerAndPolicyConfirmation() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path metaDir = createPluginDir(temp);
+        Path fake1Dir = metaDir.resolve("fake1");
+        Files.createDirectory(fake1Dir);
+        writePluginSecurityPolicy(fake1Dir, "setAccessible", "setFactory");
+        writePlugin("fake1", fake1Dir);
+        Path fake2Dir = metaDir.resolve("fake2");
+        Files.createDirectory(fake2Dir);
+        writePlugin("fake2", fake2Dir, "has.native.controller", "true");
+        String pluginZip = createMetaPluginUrl("meta-plugin", metaDir);
+
+        assertPolicyConfirmation(env, pluginZip, "plugin requires additional permissions", "plugin forks a native controller");
+        assertMetaPlugin("meta-plugin", "fake1", metaDir, env.v2());
+        assertMetaPlugin("meta-plugin", "fake2", metaDir, env.v2());
+    }
 }

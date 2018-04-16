@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.test.AbstractStreamableTestCase;
-import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
 import org.elasticsearch.xpack.core.ml.action.GetFiltersAction.Request;
 import org.elasticsearch.xpack.core.ml.action.util.PageParams;
 
@@ -20,9 +19,8 @@ public class GetFiltersActionRequestTests extends AbstractStreamableTestCase<Get
             request.setFilterId(randomAlphaOfLengthBetween(1, 20));
         } else {
             if (randomBoolean()) {
-                int from = randomInt(PageParams.MAX_FROM_SIZE_SUM);
-                int maxSize = PageParams.MAX_FROM_SIZE_SUM - from;
-                int size = randomInt(maxSize);
+                int from = randomInt(10000);
+                int size = randomInt(10000);
                 request.setPageParams(new PageParams(from, size));
             }
         }

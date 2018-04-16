@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
-import org.elasticsearch.xpack.core.ml.action.GetCategoriesAction;
 import org.elasticsearch.xpack.core.ml.action.util.PageParams;
 
 public class GetCategoriesRequestTests extends AbstractStreamableXContentTestCase<GetCategoriesAction.Request> {
@@ -19,9 +18,8 @@ public class GetCategoriesRequestTests extends AbstractStreamableXContentTestCas
         if (randomBoolean()) {
             request.setCategoryId(randomNonNegativeLong());
         } else {
-            int from = randomInt(PageParams.MAX_FROM_SIZE_SUM);
-            int maxSize = PageParams.MAX_FROM_SIZE_SUM - from;
-            int size = randomInt(maxSize);
+            int from = randomInt(10000);
+            int size = randomInt(10000);
             request.setPageParams(new PageParams(from, size));
         }
         return request;

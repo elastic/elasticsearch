@@ -44,8 +44,10 @@ public class ReservedRolesStore {
                 .put("kibana_user", new RoleDescriptor("kibana_user", null, new RoleDescriptor.IndicesPrivileges[] {
                         RoleDescriptor.IndicesPrivileges.builder().indices(".kibana*").privileges("manage", "read", "index", "delete")
                                 .build() }, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
-                .put("monitoring_user", new RoleDescriptor("monitoring_user", null, new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder()
+                .put("monitoring_user", new RoleDescriptor("monitoring_user",
+                        new String[] { "cluster:monitor/main" },
+                        new RoleDescriptor.IndicesPrivileges[] {
+                            RoleDescriptor.IndicesPrivileges.builder()
                                 .indices(".monitoring-*").privileges("read", "read_cross_cluster").build()
                 },
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA))

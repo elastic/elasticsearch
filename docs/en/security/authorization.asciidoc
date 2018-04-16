@@ -120,8 +120,9 @@ which store {ml} results.
 
 [[built-in-roles-monitoring-user]] `monitoring_user`::
 Grants the minimum privileges required for any user of {monitoring} other than those
-required to use {kib}. This role grants access to the monitoring indices.
-Monitoring users should also be assigned the `kibana_user` role.
+required to use {kib}. This role grants access to the monitoring indices and grants
+privileges necessary for reading basic cluster information. Monitoring users should
+also be assigned the `kibana_user` role.
 
 [[built-in-roles-remote-monitoring-agent]] `remote_monitoring_agent`::
 Grants the minimum privileges required for a remote monitoring agent to write data

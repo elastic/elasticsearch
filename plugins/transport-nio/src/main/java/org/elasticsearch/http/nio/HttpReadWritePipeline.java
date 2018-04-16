@@ -30,8 +30,6 @@ import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.nio.FlushOperation;
@@ -145,7 +143,7 @@ public class HttpReadWritePipeline implements SocketChannelContext.ReadConsumer,
         {
             NioHttpChannel innerChannel;
             try {
-                innerChannel = new NioHttpChannel(nioChannel, transport, httpRequest, settings.getDetailedErrorsEnabled(), threadContext);
+                innerChannel = new NioHttpChannel(nioChannel, transport, httpRequest, settings, threadContext);
             } catch (final IllegalArgumentException e) {
                 if (badRequestCause == null) {
                     badRequestCause = e;
@@ -158,7 +156,7 @@ public class HttpReadWritePipeline implements SocketChannelContext.ReadConsumer,
                         Collections.emptyMap(), // we are going to dispatch the request as a bad request, drop all parameters
                         copiedRequest.uri(),
                         copiedRequest);
-                innerChannel = new NioHttpChannel(nioChannel, transport, innerRequest, settings.getDetailedErrorsEnabled(), threadContext);
+                innerChannel = new NioHttpChannel(nioChannel, transport, innerRequest, settings, threadContext);
             }
             channel = innerChannel;
         }

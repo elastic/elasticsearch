@@ -50,6 +50,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class KeyStoreWrapperTests extends ESTestCase {
@@ -105,7 +106,58 @@ public class KeyStoreWrapperTests extends ESTestCase {
         keystore.decrypt(new char[0]);
         assertEquals(seed.toString(), keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey()).toString());
     }
-    
+
+    public void testFailWhenStreamNotConsumed() throws Exception {
+        Path configDir = env.configFile();
+        SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
+        try (IndexOutput indexOutput = directory.createOutput("elasticsearch.keystore", IOContext.DEFAULT)) {
+            CodecUtil.writeHeader(indexOutput, "elasticsearch.keystore", 3);
+            indexOutput.writeByte((byte) 0); // No password
+            SecureRandom random = Randomness.createSecure();
+            byte[] salt = new byte[64];
+            random.nextBytes(salt);
+            byte[] iv = new byte[12];
+            random.nextBytes(iv);
+
+            PBEKeySpec keySpec = new PBEKeySpec(new char[0], salt, 10000, 128);
+            SecretKeyFactory keyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA512");
+            SecretKey secretKey = keyFactory.generateSecret(keySpec);
+            SecretKeySpec secret = new SecretKeySpec(secretKey.getEncoded(), "AES");
+            GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+            cipher.init(Cipher.ENCRYPT_MODE, secret, spec);
+            cipher.updateAAD(salt);
+
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            CipherOutputStream cipherStream = new CipherOutputStream(bytes, cipher);
+            DataOutputStream output = new DataOutputStream(cipherStream);
+
+            byte[] secret_value = "super_secret_value".getBytes(StandardCharsets.UTF_8);
+            output.writeInt(1); // One entry
+            output.writeUTF("string_setting");
+            output.writeUTF("STRING");
+            // So that readFully during decryption will not consume the entire stream
+            output.writeInt(secret_value.length - 4);
+            output.write(secret_value);
+
+            cipherStream.close();
+            final byte[] encryptedBytes = bytes.toByteArray();
+
+            indexOutput.writeInt(4 + salt.length + 4 + iv.length + 4 + encryptedBytes.length);
+            indexOutput.writeInt(salt.length);
+            indexOutput.writeBytes(salt, salt.length);
+            indexOutput.writeInt(iv.length);
+            indexOutput.writeBytes(iv, iv.length);
+            indexOutput.writeInt(encryptedBytes.length);
+            indexOutput.writeBytes(encryptedBytes, encryptedBytes.length);
+            CodecUtil.writeFooter(indexOutput);
+        }
+
+        KeyStoreWrapper keystore = KeyStoreWrapper.load(configDir);
+        SecurityException e = expectThrows(SecurityException.class, () -> keystore.decrypt(new char[0]));
+        assertThat(e.getMessage(), containsString("Keystore has been corrupted or tampered with"));
+    }
+
     public void testUpgradeAddsSeed() throws Exception {
         KeyStoreWrapper keystore = KeyStoreWrapper.create();
         keystore.remove(KeyStoreWrapper.SEED_SETTING.getKey());

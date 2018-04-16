@@ -225,7 +225,7 @@ public class UpdateIT extends ESIntegTestCase {
         UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
                 .setDoc(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
                 .setDocAsUpsert(true)
-                .setFields("_source")
+                .setFetchSource(true)
                 .execute().actionGet();
         assertThat(updateResponse.getIndex(), equalTo("test"));
         assertThat(updateResponse.getGetResult(), notNullValue());
@@ -241,7 +241,7 @@ public class UpdateIT extends ESIntegTestCase {
         assertThrows(client().prepareUpdate(indexOrAlias(), "type1", "1")
                 .setDoc(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
                 .setDocAsUpsert(false)
-                .setFields("_source")
+                .setFetchSource(true)
                 .execute(), DocumentMissingException.class);
     }
 
@@ -264,7 +264,7 @@ public class UpdateIT extends ESIntegTestCase {
         updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
                 .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, PUT_VALUES_SCRIPT, Collections.singletonMap("extra", "foo")))
-                .setFields("_source")
+                .setFetchSource(true)
                 .execute().actionGet();
 
         assertThat(updateResponse.getIndex(), equalTo("test"));
@@ -293,12 +293,9 @@ public class UpdateIT extends ESIntegTestCase {
         ensureGreen();
 
         Script fieldIncScript = new Script(ScriptType.INLINE, UPDATE_SCRIPTS, FIELD_INC_SCRIPT, Collections.singletonMap("field", "field"));
-        try {
-            client().prepareUpdate(indexOrAlias(), "type1", "1").setScript(fieldIncScript).execute().actionGet();
-            fail();
-        } catch (DocumentMissingException e) {
-            // all is well
-        }
+        DocumentMissingException ex = expectThrows(DocumentMissingException.class,
+            () -> client().prepareUpdate(indexOrAlias(), "type1", "1").setScript(fieldIncScript).execute().actionGet());
+        assertEquals("[type1][1]: document missing", ex.getMessage());
 
         client().prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
 
@@ -353,19 +350,6 @@ public class UpdateIT extends ESIntegTestCase {
             assertThat(getResponse.isExists(), equalTo(false));
         }
 
-        // check fields parameter
-        client().prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
-        updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
-            .setScript(fieldIncScript)
-            .setFields("field")
-            .setFetchSource(true)
-            .execute().actionGet();
-        assertThat(updateResponse.getIndex(), equalTo("test"));
-        assertThat(updateResponse.getGetResult(), notNullValue());
-        assertThat(updateResponse.getGetResult().getIndex(), equalTo("test"));
-        assertThat(updateResponse.getGetResult().sourceRef(), notNullValue());
-        assertThat(updateResponse.getGetResult().field("field").getValue(), notNullValue());
-
         // check _source parameter
         client().prepareIndex("test", "type1", "1").setSource("field1", 1, "field2", 2).execute().actionGet();
         updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
@@ -383,7 +367,7 @@ public class UpdateIT extends ESIntegTestCase {
         // check updates without script
         // add new field
         client().prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
-        updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1").setDoc(XContentFactory.jsonBuilder().startObject().field("field2", 2).endObject()).execute().actionGet();
+        client().prepareUpdate(indexOrAlias(), "type1", "1").setDoc(XContentFactory.jsonBuilder().startObject().field("field2", 2).endObject()).execute().actionGet();
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("1"));
@@ -391,7 +375,7 @@ public class UpdateIT extends ESIntegTestCase {
         }
 
         // change existing field
-        updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1").setDoc(XContentFactory.jsonBuilder().startObject().field("field", 3).endObject()).execute().actionGet();
+        client().prepareUpdate(indexOrAlias(), "type1", "1").setDoc(XContentFactory.jsonBuilder().startObject().field("field", 3).endObject()).execute().actionGet();
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("3"));
@@ -409,7 +393,7 @@ public class UpdateIT extends ESIntegTestCase {
         testMap.put("map1", 8);
 
         client().prepareIndex("test", "type1", "1").setSource("map", testMap).execute().actionGet();
-        updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1").setDoc(XContentFactory.jsonBuilder().startObject().field("map", testMap3).endObject()).execute().actionGet();
+        client().prepareUpdate(indexOrAlias(), "type1", "1").setDoc(XContentFactory.jsonBuilder().startObject().field("map", testMap3).endObject()).execute().actionGet();
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
             Map map1 = (Map) getResponse.getSourceAsMap().get("map");
@@ -581,7 +565,7 @@ public class UpdateIT extends ESIntegTestCase {
             assertThat(response.getId(), equalTo(Integer.toString(i)));
             assertThat(response.isExists(), equalTo(true));
             assertThat(response.getVersion(), equalTo((long) numberOfThreads));
-            assertThat((Integer) response.getSource().get("field"), equalTo(numberOfThreads));
+            assertThat(response.getSource().get("field"), equalTo(numberOfThreads));
         }
     }
 

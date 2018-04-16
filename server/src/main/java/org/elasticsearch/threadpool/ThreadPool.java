@@ -125,6 +125,7 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
         map.put(Names.GENERIC, ThreadPoolType.SCALING);
         map.put(Names.LISTENER, ThreadPoolType.FIXED);
         map.put(Names.GET, ThreadPoolType.FIXED);
+        map.put(Names.ANALYZE, ThreadPoolType.FIXED);
         map.put(Names.INDEX, ThreadPoolType.FIXED);
         map.put(Names.BULK, ThreadPoolType.FIXED);
         map.put(Names.SEARCH, ThreadPoolType.FIXED_AUTO_QUEUE_SIZE);

@@ -244,7 +244,7 @@ public class JobProviderIT extends MlSingleNodeTestCase {
             throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
-        jobProvider.updateCalendar(calendarId, idsToAdd, idsToRemove, mlMetadata,
+        jobProvider.updateCalendar(calendarId, idsToAdd, idsToRemove,
                 r -> latch.countDown(),
                 e -> {
                     exceptionHolder.set(e);

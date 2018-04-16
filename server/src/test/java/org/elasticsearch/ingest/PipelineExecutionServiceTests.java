@@ -235,15 +235,15 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         when(processor.getProcessors()).thenReturn(Collections.singletonList(mock(Processor.class)));
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", version, processor));
         final IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).setPipeline("_id");
-        doThrow(new RuntimeException()).when(processor).execute(eqIndexTypeId(
-                indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
+        doThrow(new RuntimeException())
+                .when(processor)
+                .execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
         @SuppressWarnings("unchecked")
         final BiConsumer<IndexRequest, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final Consumer<Exception> completionHandler = mock(Consumer.class);
         executionService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler);
-        verify(processor).execute(eqIndexTypeId(
-                indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
+        verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
         verify(failureHandler, times(1)).accept(eq(indexRequest), any(RuntimeException.class));
         verify(completionHandler, times(1)).accept(null);
     }
@@ -274,17 +274,18 @@ public class PipelineExecutionServiceTests extends ESTestCase {
                 false, Collections.singletonList(processor), Collections.singletonList(new CompoundProcessor(onFailureProcessor)));
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", version, compoundProcessor));
         final IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).setPipeline("_id");
-        doThrow(new RuntimeException()).when(processor).execute(eqIndexTypeId(
-                indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
-        doThrow(new RuntimeException()).when(onFailureProcessor).execute(eqIndexTypeId(indexRequest.version(),
-            indexRequest.versionType(), Collections.emptyMap()));
+        doThrow(new RuntimeException())
+                .when(processor)
+                .execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
+        doThrow(new RuntimeException())
+                .when(onFailureProcessor)
+                .execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
         @SuppressWarnings("unchecked")
         final BiConsumer<IndexRequest, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final Consumer<Exception> completionHandler = mock(Consumer.class);
         executionService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler);
-        verify(processor).execute(eqIndexTypeId(
-                indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
+        verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
         verify(failureHandler, times(1)).accept(eq(indexRequest), any(RuntimeException.class));
         verify(completionHandler, times(1)).accept(null);
     }
@@ -301,19 +302,21 @@ public class PipelineExecutionServiceTests extends ESTestCase {
                 Collections.singletonList(new CompoundProcessor(false, processors, onFailureProcessors)));
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", version, compoundProcessor));
         final IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).setPipeline("_id");
-        doThrow(new RuntimeException()).when(onFailureOnFailureProcessor).execute(eqIndexTypeId(
-                indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
-        doThrow(new RuntimeException()).when(onFailureProcessor).execute(eqIndexTypeId(
-                indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
-        doThrow(new RuntimeException()).when(processor).execute(eqIndexTypeId(
-                indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
+        doThrow(new RuntimeException())
+                .when(onFailureOnFailureProcessor)
+                .execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
+        doThrow(new RuntimeException())
+                .when(onFailureProcessor)
+                .execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
+        doThrow(new RuntimeException())
+                .when(processor)
+                .execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
         @SuppressWarnings("unchecked")
         final BiConsumer<IndexRequest, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final Consumer<Exception> completionHandler = mock(Consumer.class);
         executionService.executeBulkRequest(Collections.singletonList(indexRequest), failureHandler, completionHandler);
-        verify(processor).execute(eqIndexTypeId(
-                indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
+        verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Collections.emptyMap()));
         verify(failureHandler, times(1)).accept(eq(indexRequest), any(RuntimeException.class));
         verify(completionHandler, times(1)).accept(null);
     }

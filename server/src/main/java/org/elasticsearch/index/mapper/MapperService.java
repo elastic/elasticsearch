@@ -111,7 +111,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     //TODO this needs to be cleaned up: _timestamp and _ttl are not supported anymore, _field_names, _seq_no, _version and _source are
     //also missing, not sure if on purpose. See IndicesModule#getMetadataMappers
     private static ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(
-            "_uid", "_id", "_type", "_parent", "_routing", "_index",
+            "_id", "_type", "_routing", "_index",
             "_size", "_timestamp", "_ttl"
     );
 
@@ -134,8 +134,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final MapperAnalyzerWrapper searchQuoteAnalyzer;
 
     private volatile Map<String, MappedFieldType> unmappedFieldTypes = emptyMap();
-
-    private volatile Set<String> parentTypes = emptySet();
 
     final MapperRegistry mapperRegistry;
 
@@ -367,7 +365,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         boolean hasNested = this.hasNested;
         Map<String, ObjectMapper> fullPathObjectMappers = this.fullPathObjectMappers;
         FieldTypeLookup fieldTypes = this.fieldTypes;
-        Set<String> parentTypes = this.parentTypes;
         Map<String, DocumentMapper> mappers = new HashMap<>(this.mappers);
 
         Map<String, DocumentMapper> results = new LinkedHashMap<>(documentMappers.size() + 1);
@@ -385,7 +382,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             results.put(DEFAULT_MAPPING, defaultMapper);
         }
 
-        if (indexSettings.isSingleType()) {
+        {
             Set<String> actualTypes = new HashSet<>(mappers.keySet());
             documentMappers.forEach(mapper -> actualTypes.add(mapper.type()));
             actualTypes.remove(DEFAULT_MAPPING);
@@ -398,9 +395,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         for (DocumentMapper mapper : documentMappers) {
             // check naming
             validateTypeName(mapper.type());
-            if (mapper.type().equals(mapper.parentFieldMapper().type())) {
-                throw new IllegalArgumentException("The [_parent.type] option can't point to the same type");
-            }
 
             // compute the merged DocumentMapper
             DocumentMapper oldMapper = mappers.get(mapper.type());
@@ -436,9 +430,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 }
             }
 
-            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_0_0_beta1)) {
-                validateCopyTo(fieldMappers, fullPathObjectMappers, fieldTypes);
-            }
+            validateCopyTo(fieldMappers, fullPathObjectMappers, fieldTypes);
 
             if (reason == MergeReason.MAPPING_UPDATE) {
                 // this check will only be performed on the master node when there is
@@ -447,14 +439,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 // deserializing cluster state that was sent by the master node,
                 // this check will be skipped.
                 checkTotalFieldsLimit(objectMappers.size() + fieldMappers.size());
-            }
-
-            if (oldMapper == null && newMapper.parentFieldMapper().active()) {
-                if (parentTypes == this.parentTypes) {
-                    // first time through the loop
-                    parentTypes = new HashSet<>(this.parentTypes);
-                }
-                parentTypes.add(mapper.parentFieldMapper().type());
             }
 
             results.put(newMapper.type(), newMapper);
@@ -497,9 +481,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (fullPathObjectMappers != this.fullPathObjectMappers) {
             fullPathObjectMappers = Collections.unmodifiableMap(fullPathObjectMappers);
         }
-        if (parentTypes != this.parentTypes) {
-            parentTypes = Collections.unmodifiableSet(parentTypes);
-        }
 
         // commit the change
         if (defaultMappingSource != null) {
@@ -509,7 +490,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.fieldTypes = fieldTypes;
         this.hasNested = hasNested;
         this.fullPathObjectMappers = fullPathObjectMappers;
-        this.parentTypes = parentTypes;
 
         assert assertMappersShareSameFieldType();
         assert results.values().stream().allMatch(this::assertSerialization);
@@ -635,11 +615,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private void checkPartitionedIndexConstraints(DocumentMapper newMapper) {
         if (indexSettings.getIndexMetaData().isRoutingPartitionedIndex()) {
-            if (newMapper.parentFieldMapper().active()) {
-                throw new IllegalArgumentException("mapping type name [" + newMapper.type() + "] cannot have a "
-                        + "_parent field for the partitioned index [" + indexSettings.getIndex().getName() + "]");
-            }
-
             if (!newMapper.routingFieldMapper().required()) {
                 throw new IllegalArgumentException("mapping type [" + newMapper.type() + "] must have routing "
                         + "required for partitioned index [" + indexSettings.getIndex().getName() + "]");
@@ -818,10 +793,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return this.searchQuoteAnalyzer;
     }
 
-    public Set<String> getParentTypes() {
-        return parentTypes;
-    }
-
     @Override
     public void close() throws IOException {
         indexAnalyzers.close();
@@ -868,13 +839,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (hasMapping(type) == false) {
             return null;
         }
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_0_0_beta1)) {
-            assert indexSettings.isSingleType();
-            return new Term(IdFieldMapper.NAME, Uid.encodeId(id));
-        } else if (indexSettings.isSingleType()) {
-            return new Term(IdFieldMapper.NAME, id);
-        } else {
-            return new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(type, id));
-        }
+        return new Term(IdFieldMapper.NAME, Uid.encodeId(id));
     }
 }

@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -55,6 +56,7 @@ import java.io.IOException;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.hamcrest.Matchers.containsString;
 
 public class QueryRescorerBuilderTests extends ESTestCase {
 
@@ -262,8 +264,8 @@ public class QueryRescorerBuilderTests extends ESTestCase {
                 "}\n";
         {
             XContentParser parser = createParser(rescoreElement);
-            Exception e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser));
-            assertEquals("[query] failed to parse field [rescore_query]", e.getMessage());
+            Exception e = expectThrows(XContentParseException.class, () -> RescorerBuilder.parseFromXContent(parser));
+            assertThat(e.getMessage(), containsString("[query] failed to parse field [rescore_query]"));
         }
 
         rescoreElement = "{\n" +

@@ -430,14 +430,13 @@ public class RestClient implements Closeable {
     private void setHeaders(HttpRequest httpRequest, Header[] requestHeaders) {
         Objects.requireNonNull(requestHeaders, "request headers must not be null");
         // request headers override default headers, so we don't add default headers if they exist as request headers
-        final Set<String> requestNames = new HashSet<>(requestHeaders.length);
         for (Header requestHeader : requestHeaders) {
             Objects.requireNonNull(requestHeader, "request header must not be null");
             httpRequest.addHeader(requestHeader);
-            requestNames.add(requestHeader.getName());
         }
+        // default headers shouldnt override existing headers...
         for (Header defaultHeader : defaultHeaders) {
-            if (requestNames.contains(defaultHeader.getName()) == false) {
+            if (httpRequest.containsHeader(defaultHeader.getName()) == false) {
                 httpRequest.addHeader(defaultHeader);
             }
         }

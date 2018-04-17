@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
 public class InitializePolicyContextStep extends Step {
+    public static final StepKey KEY = new StepKey("pre-phase", "pre-action", "init");
 
     public InitializePolicyContextStep(Step.StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);

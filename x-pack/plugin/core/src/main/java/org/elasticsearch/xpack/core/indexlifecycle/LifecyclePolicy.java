@@ -139,6 +139,32 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         return builder;
     }
 
+    /**
+     * This method is used to compile this policy into its execution plan built out
+     * of {@link Step} instances. The order of the {@link Phase}s and {@link LifecycleAction}s is
+     * determined by the {@link LifecycleType} associated with this policy.
+     *
+     * The order of the policy will have this structure:
+     *
+     * - initialize policy context step
+     * - phase-1 phase-after-step
+     * - ... phase-1 action steps
+     * - phase-2 phase-after-step
+     * - ...
+     * - terminal policy step
+     *
+     * We first initialize the policy's context and ensure that the index has proper settings set.
+     * Then we begin each phase's after-step along with all its actions as steps. Finally, we have
+     * a terminal step to inform us that this policy's steps are all complete. Each phase's `after`
+     * step is associated with the previous phase's phase. For example, the warm phase's `after` is
+     * associated with the hot phase so that it is clear that we haven't stepped into the warm phase
+     * just yet (until this step is complete).
+     *
+     * @param client The Elasticsearch Client to use during execution of {@link AsyncActionStep}
+     *               and {@link AsyncWaitStep} steps.
+     * @param nowSupplier The supplier of the current time for {@link PhaseAfterStep} steps.
+     * @return The list of {@link Step} objects in order of their execution.
+     */
     public List<Step> toSteps(Client client, LongSupplier nowSupplier) {
         List<Step> steps = new ArrayList<>();
         List<Phase> orderedPhases = type.getOrderedPhases(phases);
@@ -148,9 +174,19 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         steps.add(TerminalPolicyStep.INSTANCE);
         Step.StepKey lastStepKey = TerminalPolicyStep.KEY;
 
+        Phase phase = null;
         // add steps for each phase, in reverse
         while (phaseIterator.hasPrevious()) {
-            Phase phase = phaseIterator.previous();
+
+            // add `after` step for phase before next
+            if (phase != null) {
+                Step.StepKey afterStepKey = new Step.StepKey(phase.getName(), "pre-" + lastStepKey.getAction(), "after");
+                Step phaseAfterStep = new PhaseAfterStep(nowSupplier, phase.getAfter(), afterStepKey, lastStepKey);
+                steps.add(phaseAfterStep);
+                lastStepKey = phaseAfterStep.getKey();
+            }
+
+            phase = phaseIterator.previous();
             List<LifecycleAction> orderedActions = type.getOrderedActions(phase);
             ListIterator<LifecycleAction> actionIterator = orderedActions.listIterator(orderedActions.size());
             // add steps for each action, in reverse
@@ -164,23 +200,24 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
                     lastStepKey = step.getKey();
                 }
             }
+        }
 
-            // add `after` step for phase
-            Step.StepKey afterStepKey = new Step.StepKey(phase.getName(), "pre-action", "after");
+        if (phase != null) {
+            Step.StepKey afterStepKey = new Step.StepKey(phase.getName(), "pre-" + lastStepKey.getAction(), "after");
             Step phaseAfterStep = new PhaseAfterStep(nowSupplier, phase.getAfter(), afterStepKey, lastStepKey);
             steps.add(phaseAfterStep);
             lastStepKey = phaseAfterStep.getKey();
         }
 
         // init step so that policy is guaranteed to have
-        steps.add(new InitializePolicyContextStep(
-            new Step.StepKey("pre-phase", "pre-action", "init"), lastStepKey));
+        steps.add(new InitializePolicyContextStep(InitializePolicyContextStep.KEY, lastStepKey));
 
         Collections.reverse(steps);
         logger.debug("STEP COUNT: " + steps.size());
         for (Step step : steps) {
             logger.debug(step.getKey() + " -> " + step.getNextStepKey());
         }
+
         return steps;
     }
 

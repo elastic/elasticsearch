@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring.action;
 
+import java.util.concurrent.ExecutorService;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
@@ -24,7 +25,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskManager;
@@ -82,13 +82,14 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
     private TransportService transportService;
     private ActionFilters filters;
     private IndexNameExpressionResolver resolver;
-    private XPackLicenseState licenseState;
-    private TaskManager taskManager;
     private final MonitoringService monitoringService = mock(MonitoringService.class);
 
     @Before
     @SuppressWarnings("unchecked")
     public void setUpMocks() {
+        final ExecutorService executor = mock(ExecutorService.class);
+        final TaskManager taskManager = mock(TaskManager.class);
+
         listener = mock(ActionListener.class);
         exporters = mock(Exporters.class);
         threadPool = mock(ThreadPool.class);
@@ -96,12 +97,17 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         transportService = mock(TransportService.class);
         filters = mock(ActionFilters.class);
         resolver = mock(IndexNameExpressionResolver.class);
-        licenseState = mock(XPackLicenseState.class);
-        taskManager = mock(TaskManager.class);
 
         when(transportService.getTaskManager()).thenReturn(taskManager);
         when(taskManager.register(anyString(), eq(MonitoringBulkAction.NAME), any(TaskAwareRequest.class))).thenReturn(null);
         when(filters.filters()).thenReturn(new ActionFilter[0]);
+        when(threadPool.executor(ThreadPool.Names.GENERIC)).thenReturn(executor);
+
+        // execute in the same thread
+        doAnswer(invocation -> {
+            ((Runnable)invocation.getArguments()[0]).run();
+            return null;
+        }).when(executor).execute(any(Runnable.class));
     }
 
     public void testExecuteWithGlobalBlock() throws Exception {
@@ -213,6 +219,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
                                                                                        monitoringService);
         action.execute(request).get();
 
+        verify(threadPool).executor(ThreadPool.Names.GENERIC);
         verify(exporters).export(any(Collection.class), any(ActionListener.class));
         verify(clusterService, times(2)).state();
         verify(clusterService).localNode();
@@ -230,7 +237,8 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         }
 
         final Collection<MonitoringDoc> results =
-                new TransportMonitoringBulkAction.AsyncAction(null, null, null, null, 0L, null).createMonitoringDocs(bulkDocs);
+                new TransportMonitoringBulkAction.AsyncAction(threadPool, null, null, null, null, 0L, null)
+                        .createMonitoringDocs(bulkDocs);
 
         assertThat(results, notNullValue());
         assertThat(results.size(), equalTo(0));
@@ -262,7 +270,8 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         }
 
         final Collection<MonitoringDoc> exportedDocs =
-                new TransportMonitoringBulkAction.AsyncAction(null, null, null, "_cluster", 123L, node).createMonitoringDocs(docs);
+                new TransportMonitoringBulkAction.AsyncAction(threadPool, null, null, null, "_cluster", 123L, node)
+                        .createMonitoringDocs(docs);
 
         assertThat(exportedDocs, notNullValue());
         assertThat(exportedDocs.size(), equalTo(nbDocs));
@@ -280,9 +289,10 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
     public void testAsyncActionCreateMonitoringDocWithNoTimestamp() {
         final MonitoringBulkDoc monitoringBulkDoc =
             new MonitoringBulkDoc(MonitoredSystem.LOGSTASH, "_type", "_id", 0L, 0L, BytesArray.EMPTY, XContentType.JSON);
-
         final MonitoringDoc monitoringDoc =
-            new TransportMonitoringBulkAction.AsyncAction(null, null, null, "", 456L, null).createMonitoringDoc(monitoringBulkDoc);
+            new TransportMonitoringBulkAction.AsyncAction(threadPool, null, null, null, "", 456L, null)
+                    .createMonitoringDoc(monitoringBulkDoc);
+
         assertThat(monitoringDoc.getTimestamp(), equalTo(456L));
     }
 
@@ -301,7 +311,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
                 new MonitoringBulkDoc(MonitoredSystem.LOGSTASH, "_type", "_id", 1502107402133L, 15_000L, source, xContentType);
 
         final MonitoringDoc monitoringDoc =
-                new TransportMonitoringBulkAction.AsyncAction(null, null, null, "_cluster_uuid", 3L, node)
+                new TransportMonitoringBulkAction.AsyncAction(threadPool, null, null, null, "_cluster_uuid", 3L, node)
                         .createMonitoringDoc(monitoringBulkDoc);
 
         final BytesReference xContent = XContentHelper.toXContent(monitoringDoc, XContentType.JSON, randomBoolean());
@@ -344,10 +354,11 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         }).when(exporters).export(any(Collection.class), any(ActionListener.class));
 
         final TransportMonitoringBulkAction.AsyncAction asyncAction =
-                new TransportMonitoringBulkAction.AsyncAction(null, null, exporters, null, 0L, null);
+                new TransportMonitoringBulkAction.AsyncAction(threadPool, null, null, exporters, null, 0L, null);
 
         asyncAction.executeExport(docs, randomNonNegativeLong(), listener);
 
+        verify(threadPool).executor(ThreadPool.Names.GENERIC);
         verify(exporters).export(eq(docs), any(ActionListener.class));
     }
 
@@ -364,9 +375,11 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
                     .export(any(Collection.class), any(ActionListener.class));
 
         final TransportMonitoringBulkAction.AsyncAction asyncAction =
-                new TransportMonitoringBulkAction.AsyncAction(null, null, exporters, null, 0L, null);
+                new TransportMonitoringBulkAction.AsyncAction(threadPool, null, null, exporters, null, 0L, null);
 
         asyncAction.executeExport(docs, randomNonNegativeLong(), listener);
+
+        verify(threadPool).executor(ThreadPool.Names.GENERIC);
 
         final ArgumentCaptor<Collection<MonitoringDoc>> argDocs = ArgumentCaptor.forClass((Class) Collection.class);
         verify(exporters).export(argDocs.capture(), any(ActionListener.class));

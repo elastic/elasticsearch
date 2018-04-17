@@ -72,7 +72,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
@@ -518,7 +517,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testPrimaryPromotionRollsGeneration() throws Exception {
         final IndexShard indexShard = newStartedShard(false);
 
-        final long currentTranslogGeneration = indexShard.getTranslog().getGeneration().translogFileGeneration;
+        final long currentTranslogGeneration = getTranslog(indexShard).getGeneration().translogFileGeneration;
 
         // promote the replica
         final ShardRouting replicaRouting = indexShard.routingEntry();
@@ -556,8 +555,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 ThreadPool.Names.GENERIC, "");
 
         latch.await();
-        assertThat(indexShard.getTranslog().getGeneration().translogFileGeneration, equalTo(currentTranslogGeneration + 1));
-        assertThat(TestTranslog.getCurrentTerm(indexShard.getTranslog()), equalTo(newPrimaryTerm));
+        assertThat(getTranslog(indexShard).getGeneration().translogFileGeneration, equalTo(currentTranslogGeneration + 1));
+        assertThat(TestTranslog.getCurrentTerm(getTranslog(indexShard)), equalTo(newPrimaryTerm));
 
         closeShards(indexShard);
     }
@@ -578,7 +577,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 true, ShardRoutingState.STARTED, replicaRouting.allocationId());
             final long newPrimaryTerm = indexShard.getPrimaryTerm() + between(1, 1000);
             indexShard.updateShardState(primaryRouting, newPrimaryTerm, (shard, listener) -> {
-                    assertThat(TestTranslog.getCurrentTerm(indexShard.getTranslog()), equalTo(newPrimaryTerm));
+                    assertThat(TestTranslog.getCurrentTerm(getTranslog(indexShard)), equalTo(newPrimaryTerm));
                 }, 0L,
                 Collections.singleton(indexShard.routingEntry().allocationId().getId()),
                 new IndexShardRoutingTable.Builder(indexShard.shardId()).addShard(primaryRouting).build(),
@@ -669,7 +668,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
 
         final long primaryTerm = indexShard.getPrimaryTerm();
-        final long translogGen = engineClosed ? -1 : indexShard.getTranslog().getGeneration().translogFileGeneration;
+        final long translogGen = engineClosed ? -1 : getTranslog(indexShard).getGeneration().translogFileGeneration;
 
         final Releasable operation1;
         final Releasable operation2;
@@ -747,7 +746,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     @Override
                     public void onResponse(Releasable releasable) {
                         assertThat(indexShard.getPrimaryTerm(), equalTo(newPrimaryTerm));
-                        assertThat(TestTranslog.getCurrentTerm(indexShard.getTranslog()), equalTo(newPrimaryTerm));
+                        assertThat(TestTranslog.getCurrentTerm(getTranslog(indexShard)), equalTo(newPrimaryTerm));
                         assertThat(indexShard.getLocalCheckpoint(), equalTo(expectedLocalCheckpoint));
                         assertThat(indexShard.getGlobalCheckpoint(), equalTo(newGlobalCheckPoint));
                         onResponse.set(true);
@@ -793,25 +792,25 @@ public class IndexShardTests extends IndexShardTestCase {
                 assertFalse(onResponse.get());
                 assertNull(onFailure.get());
                 assertThat(indexShard.getPrimaryTerm(), equalTo(primaryTerm));
-                assertThat(TestTranslog.getCurrentTerm(indexShard.getTranslog()), equalTo(primaryTerm));
+                assertThat(TestTranslog.getCurrentTerm(getTranslog(indexShard)), equalTo(primaryTerm));
                 Releasables.close(operation1);
                 // our operation should still be blocked
                 assertFalse(onResponse.get());
                 assertNull(onFailure.get());
                 assertThat(indexShard.getPrimaryTerm(), equalTo(primaryTerm));
-                assertThat(TestTranslog.getCurrentTerm(indexShard.getTranslog()), equalTo(primaryTerm));
+                assertThat(TestTranslog.getCurrentTerm(getTranslog(indexShard)), equalTo(primaryTerm));
                 Releasables.close(operation2);
                 barrier.await();
                 // now lock acquisition should have succeeded
                 assertThat(indexShard.getPrimaryTerm(), equalTo(newPrimaryTerm));
-                assertThat(TestTranslog.getCurrentTerm(indexShard.getTranslog()), equalTo(newPrimaryTerm));
+                assertThat(TestTranslog.getCurrentTerm(getTranslog(indexShard)), equalTo(newPrimaryTerm));
                 if (engineClosed) {
                     assertFalse(onResponse.get());
                     assertThat(onFailure.get(), instanceOf(AlreadyClosedException.class));
                 } else {
                     assertTrue(onResponse.get());
                     assertNull(onFailure.get());
-                    assertThat(indexShard.getTranslog().getGeneration().translogFileGeneration, equalTo(translogGen + 1));
+                    assertThat(getTranslog(indexShard).getGeneration().translogFileGeneration, equalTo(translogGen + 1));
                     assertThat(indexShard.getLocalCheckpoint(), equalTo(expectedLocalCheckpoint));
                     assertThat(indexShard.getGlobalCheckpoint(), equalTo(newGlobalCheckPoint));
                 }
@@ -1647,7 +1646,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(1, newShard.recoveryState().getTranslog().totalOperations());
         assertEquals(1, newShard.recoveryState().getTranslog().totalOperationsOnStart());
         assertEquals(100.0f, newShard.recoveryState().getTranslog().recoveredPercent(), 0.01f);
-        try (Translog.Snapshot snapshot = newShard.getTranslog().newSnapshot()) {
+        try (Translog.Snapshot snapshot = getTranslog(newShard).newSnapshot()) {
             Translog.Operation operation;
             int numNoops = 0;
             while ((operation = snapshot.next()) != null) {
@@ -2048,7 +2047,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 @Override
                 public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws IOException {
                     final long localCheckpoint = super.indexTranslogOperations(operations, totalTranslogOps);
-                    assertFalse(replica.getTranslog().syncNeeded());
+                    assertFalse(replica.isSyncNeeded());
                     return localCheckpoint;
                 }
             }, true);

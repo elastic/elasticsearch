@@ -28,22 +28,28 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * Request for an update index settings action
  */
-public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsRequest> implements IndicesRequest.Replaceable {
+public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsRequest>
+        implements IndicesRequest.Replaceable, ToXContentObject {
 
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
@@ -178,4 +184,55 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         writeSettingsToStream(settings, out);
         out.writeBoolean(preserveExisting);
     }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        settings.toXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    public UpdateSettingsRequest fromXContent(XContentParser parser) throws IOException {
+        Map<String, Object> settings = new HashMap<>();
+        Map<String, Object> bodySettings = parser.map();
+        Object innerBodySettings = bodySettings.get("settings");
+        // clean up in case the body is wrapped with "settings" : { ... }
+        if (innerBodySettings instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> innerBodySettingsMap = (Map<String, Object>) innerBodySettings;
+            settings.putAll(innerBodySettingsMap);
+        } else {
+            settings.putAll(bodySettings);
+        }
+        return this.settings(settings);
+    }
+
+    @Override
+    public String toString() {
+        return "indices : " + Arrays.toString(indices) + "," + Strings.toString(this);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        UpdateSettingsRequest that = (UpdateSettingsRequest) o;
+        return masterNodeTimeout.equals(that.masterNodeTimeout)
+                && timeout.equals(that.timeout)
+                && Objects.equals(settings, that.settings)
+                && Objects.equals(indicesOptions, that.indicesOptions)
+                && Objects.equals(preserveExisting, that.preserveExisting)
+                && Arrays.equals(indices, that.indices);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(masterNodeTimeout, timeout, settings, indicesOptions, preserveExisting, Arrays.hashCode(indices));
+    }
+
 }

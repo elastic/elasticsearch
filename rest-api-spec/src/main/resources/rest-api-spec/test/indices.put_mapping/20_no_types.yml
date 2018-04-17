@@ -1,0 +1,120 @@
+---
+"Create indices and manage mappings without types":
+
+  - skip:
+      version: " - 6.99.99"
+      reason:  include_type_name was introduced in 7.0.0
+
+  - do:
+      indices.create:
+        index: index
+        include_type_name: false
+        body:
+          mappings:
+            properties:
+              foo:
+                type: keyword
+
+  - do:
+      indices.get_mapping:
+        index: index
+        include_type_name: false
+
+  - match: { index.mappings.properties.foo.type: "keyword" }
+
+  - do:
+      indices.put_mapping:
+        index: index
+        include_type_name: false
+        body:
+          properties:
+            bar:
+              type: float
+
+  - do:
+      indices.get_mapping:
+        index: index
+        include_type_name: false
+
+  - match: { index.mappings.properties.foo.type: "keyword" }
+  - match: { index.mappings.properties.bar.type: "float" }
+
+# Explicit id
+  - do:
+      index:
+          index:   index
+          id:      1
+          body:    { foo: bar }
+
+# Implicit id
+  - do:
+      index:
+          index:   index
+          body:    { foo: bar }
+
+# Bulk with explicit id
+  - do:
+      bulk:
+          index:   index
+          body: |
+            { "index": { "_id": "2" } }
+            { "doc": { "foo": "baz" } }
+
+# Bulk with implicit id
+  - do:
+      bulk:
+          index:   index
+          body: |
+            { "index": { } }
+            { "doc": { "foo": "baz" } }
+
+  - do:
+      indices.refresh:
+          index:  index
+
+  - do:
+      count:
+          index: index
+
+  - match: { count: 4 }
+
+---
+"PUT mapping with a type and include_type_name: false":
+
+  - skip:
+      version: " - 6.99.99"
+      reason:  include_type_name was introduced in 7.0.0
+
+  - do:
+      indices.create:
+        index: index
+
+  - do:
+      catch: /illegal_argument_exception/
+      indices.put_mapping:
+        index: index
+        type: _doc
+        include_type_name: false
+        body:
+          properties:
+            bar:
+              type: float
+
+---
+"Empty index with the include_type_name=false option":
+
+  - skip:
+      version: " - 6.99.99"
+      reason:  include_type_name was introduced in 7.0.0
+
+  - do:
+      indices.create:
+        index: index
+        include_type_name: false
+
+  - do:
+      indices.get_mapping:
+        index: index
+        include_type_name: false
+
+  - match: { index.mappings: {} }

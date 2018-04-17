@@ -67,7 +67,7 @@ Back to the API format, this will update tweets from the `twitter` index:
 
 [source,js]
 --------------------------------------------------
-POST twitter/_doc/_update_by_query?conflicts=proceed
+POST twitter/_update_by_query?conflicts=proceed
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -145,12 +145,12 @@ This API doesn't allow you to move the documents it touches, just modify their
 source. This is intentional! We've made no provisions for removing the document
 from its original location.
 
-It's also possible to do this whole thing on multiple indexes and multiple
-types at once, just like the search API:
+It's also possible to do this whole thing on multiple indexes at once, just
+like the search API:
 
 [source,js]
 --------------------------------------------------
-POST twitter,blog/_doc,post/_update_by_query
+POST twitter,blog/_update_by_query
 --------------------------------------------------
 // CONSOLE
 // TEST[s/^/PUT twitter\nPUT blog\n/]
@@ -531,7 +531,7 @@ Which results in a sensible `total` like this one:
 ==== Automatic slicing
 
 You can also let update-by-query automatically parallelize using
-<<sliced-scroll>> to slice on `_uid`. Use `slices` to specify the number of
+<<sliced-scroll>> to slice on `_id`. Use `slices` to specify the number of
 slices to use:
 
 [source,js]

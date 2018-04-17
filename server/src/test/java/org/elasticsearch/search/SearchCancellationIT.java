@@ -266,7 +266,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
         public Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             return Collections.singletonMap(SCRIPT_NAME, params -> {
                 LeafFieldsLookup fieldsLookup = (LeafFieldsLookup) params.get("_fields");
-                Loggers.getLogger(SearchCancellationIT.class).info("Blocking on the document {}", fieldsLookup.get("_uid"));
+                Loggers.getLogger(SearchCancellationIT.class).info("Blocking on the document {}", fieldsLookup.get("_id"));
                 hits.incrementAndGet();
                 try {
                     awaitBusy(() -> shouldBlock.get() == false);

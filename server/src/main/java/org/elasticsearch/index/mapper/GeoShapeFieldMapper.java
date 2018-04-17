@@ -30,7 +30,6 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.PackedQuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -42,6 +41,7 @@ import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.locationtech.spatial4j.shape.Point;
@@ -222,18 +222,17 @@ public class GeoShapeFieldMapper extends FieldMapper {
                     builder.fieldType().setStrategyName(fieldNode.toString());
                     iterator.remove();
                 } else if (IGNORE_MALFORMED.equals(fieldName)) {
-                    builder.ignoreMalformed(TypeParsers.nodeBooleanValue(fieldName, "ignore_malformed", fieldNode, parserContext));
+                    builder.ignoreMalformed(XContentMapValues.nodeBooleanValue(fieldNode, name + ".ignore_malformed"));
                     iterator.remove();
                 } else if (Names.COERCE.equals(fieldName)) {
-                    builder.coerce(TypeParsers.nodeBooleanValue(fieldName, Names.COERCE, fieldNode, parserContext));
+                    builder.coerce(XContentMapValues.nodeBooleanValue(fieldNode, name + "." + Names.COERCE));
                     iterator.remove();
                 } else if (GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName().equals(fieldName)) {
-                    builder.ignoreZValue(TypeParsers.nodeBooleanValue(fieldName, GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName(),
-                        fieldNode, parserContext));
+                    builder.ignoreZValue(XContentMapValues.nodeBooleanValue(fieldNode, name + "." + GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName()));
                     iterator.remove();
                 } else if (Names.STRATEGY_POINTS_ONLY.equals(fieldName)
                     && builder.fieldType().strategyName.equals(SpatialStrategy.TERM.getStrategyName()) == false) {
-                    boolean pointsOnly = TypeParsers.nodeBooleanValue(fieldName, Names.STRATEGY_POINTS_ONLY, fieldNode, parserContext);
+                    boolean pointsOnly = XContentMapValues.nodeBooleanValue(fieldNode, name + "." + Names.STRATEGY_POINTS_ONLY);
                     builder.fieldType().setPointsOnly(pointsOnly);
                     iterator.remove();
                 }

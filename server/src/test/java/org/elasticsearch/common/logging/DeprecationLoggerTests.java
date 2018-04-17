@@ -33,6 +33,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.IntStream;
+import java.nio.charset.StandardCharsets;
 
 import static org.elasticsearch.common.logging.DeprecationLogger.WARNING_HEADER_PATTERN;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
@@ -244,6 +245,60 @@ public class DeprecationLoggerTests extends ESTestCase {
         assertThat(DeprecationLogger.encode(s), equalTo(s));
         // when no encoding is needed, the original string is returned (optimization)
         assertThat(DeprecationLogger.encode(s), IsSame.sameInstance(s));
+    }
+
+
+    public void testWarningHeaderCountSetting() throws IOException{
+        // Test that the number of warning headers don't exceed 'http.max_warning_header_count'
+        final int maxWarningHeaderCount = 2;
+        Settings settings = Settings.builder()
+            .put("http.max_warning_header_count", maxWarningHeaderCount)
+            .build();
+        try (ThreadContext threadContext = new ThreadContext(settings)) {
+            final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
+            // try to log three warning messages
+            logger.deprecated(threadContexts, "A simple message 1");
+            logger.deprecated(threadContexts, "A simple message 2");
+            logger.deprecated(threadContexts, "A simple message 3");
+            final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
+            final List<String> responses = responseHeaders.get("Warning");
+
+            assertEquals(maxWarningHeaderCount, responses.size());
+            assertThat(responses.get(0), warningValueMatcher);
+            assertThat(responses.get(0), containsString("\"A simple message 1"));
+            assertThat(responses.get(1), warningValueMatcher);
+            assertThat(responses.get(1), containsString("\"A simple message 2"));
+        }
+    }
+
+    public void testWarningHeaderSizeSetting() throws IOException{
+        // Test that the size of warning headers don't exceed 'http.max_warning_header_size'
+        Settings settings = Settings.builder()
+            .put("http.max_warning_header_size", "1Kb")
+            .build();
+
+        byte [] arr = new byte[300];
+        String message1 = new String(arr, StandardCharsets.UTF_8) + "1";
+        String message2 = new String(arr, StandardCharsets.UTF_8) + "2";
+        String message3 = new String(arr, StandardCharsets.UTF_8) + "3";
+
+        try (ThreadContext threadContext = new ThreadContext(settings)) {
+            final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
+            // try to log three warning messages
+            logger.deprecated(threadContexts, message1);
+            logger.deprecated(threadContexts, message2);
+            logger.deprecated(threadContexts, message3);
+            final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
+            final List<String> responses = responseHeaders.get("Warning");
+
+            long warningHeadersSize = 0L;
+            for (String response : responses){
+                warningHeadersSize += "Warning".getBytes(StandardCharsets.UTF_8).length +
+                    response.getBytes(StandardCharsets.UTF_8).length;
+            }
+            // assert that the size of all warning headers is less or equal to 1Kb
+            assertTrue(warningHeadersSize <= 1024);
+        }
     }
 
     private String range(int lowerInclusive, int upperInclusive) {

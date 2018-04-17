@@ -57,15 +57,6 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
     }
 
     /**
-     * Sets the parent id of this document. Will simply set the routing to this value, as it is only
-     * used for routing with delete requests.
-     */
-    public GetRequestBuilder setParent(String parent) {
-        request.parent(parent);
-        return this;
-    }
-
-    /**
      * Controls the shard routing of the request. Using this value to hash the shard
      * and not the id.
      */

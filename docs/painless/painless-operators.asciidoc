@@ -704,6 +704,7 @@ e = ~d;      // sets e the negation of d
 
 The cast operator can be used to explicitly convert one type to another.  See casting [MARK] for more information.
 
+[[constructor-call]]
 ==== Constructor Call
 
 A constructor call is a special type of method call [MARK] used to allocate a reference type instance using the new operator.  The format is the new operator followed by a type, an opening parenthesis, arguments if any, and a closing parenthesis.  Arguments are a series of zero-to-many expressions delimited by commas.  Auto-boxing and auto-unboxing will be applied automatically for arguments passed into a constructor call.  See boxing and unboxing [MARK] for more information on this topic.  Constructor argument types can always be resolved at run-time; if appropriate type conversions (casting) cannot be applied an error will occur.  Once a reference type instance has been allocated, its members may be used as part of other expressions.

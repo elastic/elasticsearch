@@ -38,6 +38,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
@@ -77,14 +78,18 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
         ActionListener<org.elasticsearch.index.query.QueryBuilder> rewriteListener = ActionListener.wrap(rewrittenQuery -> {
             request.query(rewrittenQuery);
             super.doExecute(task, request, listener);
-        }, ex -> {
+        },
+            ex -> {
+            if (ex instanceof IndexNotFoundException) {
+                listener.onFailure(ex);
+            }
             List<QueryExplanation> explanations = new ArrayList<>();
             // TODO[PCS]: given that we can have multiple indices, what's the best way to include
             // these in a query explanation?
             explanations.add(new QueryExplanation("",
                 QueryExplanation.RANDOM_SHARD,
                 false,
-                ex.getMessage(),
+                null,
                 // TODO[PCS]: duplicate information is never good, what is right for detail here?
                 ex.getMessage()));
             listener.onResponse(

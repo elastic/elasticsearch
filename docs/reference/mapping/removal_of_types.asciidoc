@@ -422,7 +422,7 @@ POST _reindex
 // NOTCONSOLE
 
 [float]
-=== Use `include_type_name=false` to prepare the upgrade to 8.0
+=== Use `include_type_name=false` to prepare for upgrade to 8.0
 
 Index creation, mappings and document APIs support the `include_type_name`
 option. When set to `false`, this option enables the behavior that will become

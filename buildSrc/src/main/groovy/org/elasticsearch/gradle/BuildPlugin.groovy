@@ -221,6 +221,23 @@ class BuildPlugin implements Plugin<Project> {
         return System.getenv('JAVA' + version + '_HOME')
     }
 
+    /**
+     * Get Java home for the project for the specified version. If the specified version is not configured, an exception with the specified
+     * message is thrown.
+     *
+     * @param project the project
+     * @param version the version of Java home to obtain
+     * @param message the exception message if Java home for the specified version is not configured
+     * @return Java home for the specified version
+     * @throws GradleException if Java home for the specified version is not configured
+     */
+    static String getJavaHome(final Project project, final int version, final String message) {
+        if (project.javaVersions.get(version) == null) {
+            throw new GradleException(message)
+        }
+        return project.javaVersions.get(version)
+    }
+
     private static String findRuntimeJavaHome(final String compilerJavaHome) {
         assert compilerJavaHome != null
         return System.getenv('RUNTIME_JAVA_HOME') ?: compilerJavaHome
@@ -550,17 +567,18 @@ class BuildPlugin implements Plugin<Project> {
             jarTask.destinationDir = new File(project.buildDir, 'distributions')
             // fixup the jar manifest
             jarTask.doFirst {
-                boolean isSnapshot = VersionProperties.elasticsearch.endsWith("-SNAPSHOT");
-                String version = VersionProperties.elasticsearch;
-                if (isSnapshot) {
-                    version = version.substring(0, version.length() - 9)
-                }
+                final Version versionWithoutSnapshot = new Version(
+                        VersionProperties.elasticsearch.major,
+                        VersionProperties.elasticsearch.minor,
+                        VersionProperties.elasticsearch.revision,
+                        VersionProperties.elasticsearch.suffix,
+                        false)
                 // this doFirst is added before the info plugin, therefore it will run
                 // after the doFirst added by the info plugin, and we can override attributes
                 jarTask.manifest.attributes(
-                        'X-Compile-Elasticsearch-Version': version,
+                        'X-Compile-Elasticsearch-Version': versionWithoutSnapshot,
                         'X-Compile-Lucene-Version': VersionProperties.lucene,
-                        'X-Compile-Elasticsearch-Snapshot': isSnapshot,
+                        'X-Compile-Elasticsearch-Snapshot': VersionProperties.elasticsearch.isSnapshot(),
                         'Build-Date': ZonedDateTime.now(ZoneOffset.UTC),
                         'Build-Java-Version': project.compilerJavaVersion)
                 if (jarTask.manifest.attributes.containsKey('Change') == false) {

@@ -99,7 +99,7 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
 
             indexToSettingsBuilder.put(concreteIndex.getName(), indexSettings);
             if (request.includeDefaults()) {
-                Settings defaultSettings = settingsFilter.filter(indexScopedSettings.diff(indexSettings, this.settings));
+                Settings defaultSettings = settingsFilter.filter(indexScopedSettings.diff(indexSettings, Settings.EMPTY));
                 if (isFilteredRequest(request)) {
                     defaultSettings = defaultSettings.filter(k -> Regex.simpleMatch(request.names(), k));
                 }

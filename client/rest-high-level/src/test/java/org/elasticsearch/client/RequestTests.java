@@ -443,11 +443,12 @@ public class RequestTests extends ESTestCase {
 
         if (randomBoolean()) {
             //the request object will not have include_defaults present unless it is set to true
-            getSettingsRequest.includeDefaults(true);
-            expectedParams.put("include_defaults", Boolean.toString(true));
+            getSettingsRequest.includeDefaults(randomBoolean());
+            if (getSettingsRequest.includeDefaults()) {
+                expectedParams.put("include_defaults", Boolean.toString(true));
+            }
         }
 
-        Request request = Request.getSettings(getSettingsRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         if (indicesUnderTest != null && indicesUnderTest.length > 0) {
             endpoint.add(String.join(",", indicesUnderTest));
@@ -466,6 +467,8 @@ public class RequestTests extends ESTestCase {
                 endpoint.add(String.join(",", names));
             }
         }
+
+        Request request = Request.getSettings(getSettingsRequest);
 
         assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
         assertThat(request.getParameters(), equalTo(expectedParams));

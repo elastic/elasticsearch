@@ -853,9 +853,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         GetSettingsRequest request = new GetSettingsRequest().indices("index");
         request.indicesOptions(IndicesOptions.lenientExpandOpen());
 
-        // tag::get-settings-include-defaults
+        // tag::get-settings-request-include-defaults
         request.includeDefaults(true); // <1>
-        // end::get-settings-include-defaults
+        // end::get-settings-request-include-defaults
 
         GetSettingsResponse getSettingsResponse = client.indices().getSettings(request);
         String numberOfShardsString = getSettingsResponse.getSetting("index", "index.number_of_shards");

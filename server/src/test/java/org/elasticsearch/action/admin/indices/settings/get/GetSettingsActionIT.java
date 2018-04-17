@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.indices.settings.get;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
-public class TransportGetSettingsActionIT extends ESIntegTestCase {
+public class GetSettingsActionIT extends ESIntegTestCase {
     public void testIncludeDefaults() {
         String indexName = "test_index";
         createIndex(indexName, Settings.EMPTY);

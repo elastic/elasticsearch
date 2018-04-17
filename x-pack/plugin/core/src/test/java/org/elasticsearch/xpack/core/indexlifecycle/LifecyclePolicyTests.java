@@ -15,6 +15,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,6 +28,7 @@ import java.util.Map;
 import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
 public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecyclePolicy> {
@@ -105,38 +107,55 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         assertSame(TimeseriesLifecycleType.INSTANCE, policy.getType());
     }
 
+    public void testFirstAndLastSteps() {
+        Client client = mock(Client.class);
+        LongSupplier nowSupplier = () -> 0L;
+        lifecycleName = randomAlphaOfLengthBetween(1, 20);
+        Map<String, Phase> phases = new LinkedHashMap<>();
+        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
+        List<Step> steps = policy.toSteps(client, nowSupplier);
+        assertThat(steps.size(), equalTo(2));
+        assertThat(steps.get(0), instanceOf(InitializePolicyContextStep.class));
+        assertThat(steps.get(0).getKey(), equalTo(new StepKey("pre-phase", "pre-action", "init")));
+        assertThat(steps.get(0).getNextStepKey(), equalTo(TerminalPolicyStep.KEY));
+        assertSame(steps.get(1), TerminalPolicyStep.INSTANCE);
+    }
+
     public void testToStepsWithOneStep() {
         Client client = mock(Client.class);
         LongSupplier nowSupplier = () -> 0L;
-        MockStep firstStep = new MockStep(new Step.StepKey("test", "test", "test"), null);
+        MockStep mockStep = new MockStep(
+            new Step.StepKey("test", "test", "test"), TerminalPolicyStep.KEY);
 
         lifecycleName = randomAlphaOfLengthBetween(1, 20);
         Map<String, Phase> phases = new LinkedHashMap<>();
-        LifecycleAction firstAction = new MockAction(Arrays.asList(firstStep));
+        LifecycleAction firstAction = new MockAction(Arrays.asList(mockStep));
         Map<String, LifecycleAction> actions = Collections.singletonMap(MockAction.NAME, firstAction);
         Phase firstPhase = new Phase("test", TimeValue.ZERO, actions);
         phases.put(firstPhase.getName(), firstPhase);
         LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
-
+        StepKey firstStepKey = InitializePolicyContextStep.KEY;
+        StepKey secondStepKey = new StepKey("test", "pre-test", "after");
         List<Step> steps = policy.toSteps(client, nowSupplier);
         assertThat(steps.size(), equalTo(4));
-        assertThat(steps.get(0).getKey(), equalTo(new Step.StepKey("pre-phase", "pre-action", "init")));
-        assertThat(steps.get(0).getNextStepKey(), equalTo(new Step.StepKey("test", "pre-action", "after")));
-        assertThat(steps.get(1).getKey(), equalTo(new Step.StepKey("test", "pre-action", "after")));
-        assertThat(steps.get(1).getNextStepKey(), equalTo(firstStep.getKey()));
-        assertThat(steps.get(2), equalTo(firstStep));
-        assertNull(steps.get(2).getNextStepKey());
+        assertSame(steps.get(0).getKey(), firstStepKey);
+        assertThat(steps.get(0).getNextStepKey(), equalTo(secondStepKey));
+        assertThat(steps.get(1).getKey(), equalTo(secondStepKey));
+        assertThat(steps.get(1).getNextStepKey(), equalTo(mockStep.getKey()));
+        assertThat(steps.get(2).getKey(), equalTo(mockStep.getKey()));
+        assertThat(steps.get(2).getNextStepKey(), equalTo(TerminalPolicyStep.KEY));
+        assertSame(steps.get(3), TerminalPolicyStep.INSTANCE);
     }
 
     public void testToStepsWithTwoPhases() {
         Client client = mock(Client.class);
         LongSupplier nowSupplier = () -> 0L;
-        MockStep secondActionStep = new MockStep(new Step.StepKey("second_phase", "test", "test"), null);
-        MockStep secondAfter = new MockStep(new Step.StepKey("second_phase", "pre-action", "after"), secondActionStep.getKey());
-        MockStep firstActionAnotherStep = new MockStep(new Step.StepKey("first_phase", "test", "test"), secondAfter.getKey());
-        MockStep firstActionStep = new MockStep(new Step.StepKey("first_phase", "test", "test"), firstActionAnotherStep.getKey());
-        MockStep firstAfter = new MockStep(new Step.StepKey("first_phase", "pre-action", "after"), firstActionStep.getKey());
-        MockStep init = new MockStep(new Step.StepKey("pre-phase", "pre-action", "init"), firstAfter.getKey());
+        MockStep secondActionStep = new MockStep(new StepKey("second_phase", "test2", "test"), TerminalPolicyStep.KEY);
+        MockStep secondAfter = new MockStep(new StepKey("second_phase", "pre-test2", "after"), secondActionStep.getKey());
+        MockStep firstActionAnotherStep = new MockStep(new StepKey("first_phase", "test", "bar"), secondAfter.getKey());
+        MockStep firstActionStep = new MockStep(new StepKey("first_phase", "test", "foo"), firstActionAnotherStep.getKey());
+        MockStep firstAfter = new MockStep(new StepKey("first_phase", "pre-test", "after"), firstActionStep.getKey());
+        MockStep init = new MockStep(InitializePolicyContextStep.KEY, firstAfter.getKey());
 
         lifecycleName = randomAlphaOfLengthBetween(1, 20);
         Map<String, Phase> phases = new LinkedHashMap<>();
@@ -164,6 +183,6 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         assertThat(steps.get(4).getKey(), equalTo(secondAfter.getKey()));
         assertThat(steps.get(4).getNextStepKey(), equalTo(secondAfter.getNextStepKey()));
         assertThat(steps.get(5), equalTo(secondActionStep));
-        assertThat(steps.get(6).getClass(), equalTo(TerminalPolicyStep.class));
+        assertSame(steps.get(6), TerminalPolicyStep.INSTANCE);
     }
 }

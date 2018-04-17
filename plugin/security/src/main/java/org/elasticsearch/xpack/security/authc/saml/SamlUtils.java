@@ -52,8 +52,8 @@ import org.opensaml.core.xml.io.MarshallingException;
 import org.opensaml.core.xml.util.XMLObjectSupport;
 import org.opensaml.saml.common.SAMLObject;
 import org.opensaml.saml.saml2.core.Assertion;
-import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.saml.saml2.core.Response;
+import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
 import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 import org.w3c.dom.ls.DOMImplementationLS;
@@ -81,6 +81,8 @@ public class SamlUtils {
      */
     static void initialize(Logger logger) throws PrivilegedActionException {
         if (INITIALISED.compareAndSet(false, true)) {
+            // We want to force these classes to be loaded _before_ we fiddle with the context classloader
+            LoggerFactory.getLogger(InitializationService.class);
             SpecialPermission.check();
             AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
                 logger.debug("Initializing OpenSAML");

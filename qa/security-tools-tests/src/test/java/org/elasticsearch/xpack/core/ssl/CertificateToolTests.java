@@ -9,7 +9,6 @@ import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.ASN1Sequence;
 import org.bouncycastle.asn1.ASN1String;
@@ -34,6 +33,7 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -53,7 +53,6 @@ import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import javax.security.auth.x500.X500Principal;
-
 import java.io.IOException;
 import java.io.Reader;
 import java.net.InetAddress;
@@ -83,6 +82,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -723,6 +723,42 @@ public class CertificateToolTests extends ESTestCase {
 
         checkTrust(node1KeyStore, node1Password.toCharArray(), node2TrustStore, true);
         checkTrust(node2KeyStore, new char[0], node1TrustStore, true);
+    }
+
+    public void testZipOutputFromCommandLineOptions() throws Exception {
+        final Path tempDir = initTempDir();
+
+        final MockTerminal terminal = new MockTerminal();
+        Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", tempDir).build());
+
+        final Path zip = tempDir.resolve("pem.zip");
+
+        final AtomicBoolean isZip = new AtomicBoolean(false);
+        final GenerateCertificateCommand genCommand = new PathAwareGenerateCertificateCommand(null, zip) {
+            @Override
+            void generateAndWriteSignedCertificates(Path output, boolean writeZipFile, OptionSet options,
+                                                    Collection<CertificateInformation> certs, CAInfo caInfo,
+                                                    Terminal terminal) throws Exception {
+                isZip.set(writeZipFile);
+                // do nothing, all we care about is the "zip" flag
+            }
+
+            @Override
+            Collection<CertificateInformation> getCertificateInformationList(Terminal terminal, OptionSet options) throws Exception {
+                // Regardless of the commandline options, just work with a single cert
+                return Collections.singleton(new CertificateInformation("node", "node",
+                        Collections.emptyList(), Collections.emptyList(), Collections.emptyList()));
+            }
+        };
+
+        final String optionThatTriggersZip = randomFrom("-pem", "-keep-ca-key", "-multiple", "-in=input.yml");
+        final OptionSet genOptions = genCommand.getParser().parse(
+                "-out", "<zip>",
+                optionThatTriggersZip
+        );
+        genCommand.execute(terminal, genOptions, env);
+
+        assertThat("For command line option " + optionThatTriggersZip, isZip.get(), equalTo(true));
     }
 
     private int getKeySize(Key node1Key) {

@@ -183,7 +183,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         OptionSpec<String> caDnSpec;
         OptionSpec<Void> keepCaKeySpec;
 
-        OptionSpec<Void> multipleNodes;
+        OptionSpec<Void> multipleNodesSpec;
         OptionSpec<String> nameSpec;
         OptionSpec<String> dnsNamesSpec;
         OptionSpec<String> ipAddressesSpec;
@@ -236,10 +236,10 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         }
 
         final void acceptInstanceDetails() {
-            multipleNodes = parser.accepts("multiple", "generate files for multiple instances");
-            nameSpec = parser.accepts("name", "name of the generated certificate").availableUnless(multipleNodes).withRequiredArg();
-            dnsNamesSpec = parser.accepts("dns", "comma separated DNS names").availableUnless(multipleNodes).withRequiredArg();
-            ipAddressesSpec = parser.accepts("ip", "comma separated IP addresses").availableUnless(multipleNodes).withRequiredArg();
+            multipleNodesSpec = parser.accepts("multiple", "generate files for multiple instances");
+            nameSpec = parser.accepts("name", "name of the generated certificate").availableUnless(multipleNodesSpec).withRequiredArg();
+            dnsNamesSpec = parser.accepts("dns", "comma separated DNS names").availableUnless(multipleNodesSpec).withRequiredArg();
+            ipAddressesSpec = parser.accepts("ip", "comma separated IP addresses").availableUnless(multipleNodesSpec).withRequiredArg();
         }
 
         final void acceptInputFile() {
@@ -394,7 +394,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
             if (input != null) {
                 return parseAndValidateFile(terminal, input.toAbsolutePath());
             }
-            if (options.has(multipleNodes)) {
+            if (options.has(multipleNodesSpec)) {
                 return readMultipleCertificateInformation(terminal);
             } else {
                 final Function<String, Stream<? extends String>> splitByComma = v -> Arrays.stream(Strings.splitStringByCommaToArray(v));
@@ -669,18 +669,19 @@ public class CertificateTool extends LoggingAwareMultiCommand {
             terminal.println("    * The private key for the instance certificate");
             terminal.println("    * The CA certificate");
             terminal.println("");
-            terminal.println("If you elect to generate PEM format certificates (the -pem option), then the output will");
-            terminal.println("be a zip file containing individual files for the instance certificate, the key and the CA certificate");
-            terminal.println("");
-            terminal.println("If you elect to generate multiple instances certificates, the output will be a zip file");
-            terminal.println("containing all the generated certificates");
+            terminal.println("If you specify any of the following options:");
+            terminal.println("    * -pem (PEM formatted output)");
+            terminal.println("    * -keep-ca-key (retain generated CA key)");
+            terminal.println("    * -multiple (generate multiple certificates)");
+            terminal.println("    * -in (generate certificates from an input file)");
+            terminal.println("then the output will be be a zip file containing individual certificate/key files");
             terminal.println("");
 
             CAInfo caInfo = getCAInfo(terminal, options, env);
             Collection<CertificateInformation> certInfo = getCertificateInformationList(terminal, options);
             final boolean keepCaKey = keepCaKey(options);
             final boolean usePemFormat = usePemFormat(options);
-            final boolean writeZipFile = certInfo.size() > 1 || keepCaKey || usePemFormat;
+            final boolean writeZipFile = options.has(multipleNodesSpec) || options.has(inputFileSpec) || keepCaKey || usePemFormat;
 
             final String outputName;
             if (writeZipFile) {

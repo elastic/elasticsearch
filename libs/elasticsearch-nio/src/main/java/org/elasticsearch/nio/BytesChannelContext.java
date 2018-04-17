@@ -58,6 +58,9 @@ public class BytesChannelContext extends SocketChannelContext {
             channelBuffer.release(bytesConsumed);
         }
 
+        // TODO: Check if this is the best option
+        checkForReadyFlush();
+
         return bytesRead;
     }
 

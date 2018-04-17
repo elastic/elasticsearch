@@ -99,5 +99,4 @@ public class Netty4BadRequestIT extends ESRestTestCase {
         assertThat(map.get("type"), equalTo("content_type_header_exception"));
         assertThat(map.get("reason"), equalTo("java.lang.IllegalArgumentException: invalid Content-Type header []"));
     }
-
 }

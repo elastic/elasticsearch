@@ -20,10 +20,12 @@
 package org.elasticsearch.http.nio;
 
 import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelHandler;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpHeaders;
@@ -37,11 +39,15 @@ import org.elasticsearch.nio.FlushProducer;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.SocketChannelContext;
+import org.elasticsearch.nio.SocketSelector;
 import org.elasticsearch.nio.WriteOperation;
 import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
+import java.util.function.BiConsumer;
 
 public class HttpReadWritePipeline implements SocketChannelContext.ReadConsumer, FlushProducer {
 
@@ -52,28 +58,37 @@ public class HttpReadWritePipeline implements SocketChannelContext.ReadConsumer,
     private final NamedXContentRegistry xContentRegistry;
     private final ThreadContext threadContext;
 
-    public HttpReadWritePipeline(NioSocketChannel nioChannel, NioHttpServerTransport transport, HttpHandlerSettings settings,
-                                 NamedXContentRegistry xContentRegistry, ThreadContext threadContext) {
+    HttpReadWritePipeline(NioSocketChannel nioChannel, SocketSelector selector, NioHttpServerTransport transport,
+                          HttpHandlerSettings settings, NamedXContentRegistry xContentRegistry, ThreadContext threadContext) {
         this.nioChannel = nioChannel;
         this.transport = transport;
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
         this.threadContext = threadContext;
+
+        List<ChannelHandler> handlers = new ArrayList<>(5);
         HttpRequestDecoder decoder = new HttpRequestDecoder(settings.getMaxInitialLineLength(), settings.getMaxHeaderSize(),
             settings.getMaxChunkSize());
         decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
-        HttpContentDecompressor decompressor = new HttpContentDecompressor();
-        HttpResponseEncoder encoder = new HttpResponseEncoder();
-        HttpObjectAggregator aggregator = new HttpObjectAggregator(settings.getMaxContentLength());
-        // TODO: Implement optional compression
-        HttpContentCompressor compressor = new HttpContentCompressor(settings.getCompressionLevel());
+        handlers.add(decoder);
+        handlers.add(new HttpContentDecompressor());
+        handlers.add(new HttpResponseEncoder());
+        handlers.add(new HttpObjectAggregator(settings.getMaxContentLength()));
+        if (settings.isCompression()) {
+            handlers.add(new HttpContentCompressor(settings.getCompressionLevel()));
+        }
 
-        adaptor = new NettyAdaptor(decoder, decompressor, encoder, aggregator, compressor);
+        adaptor = new NettyAdaptor(selector, handlers.toArray(new ChannelHandler[0]));
     }
 
     @Override
     public int consumeReads(InboundChannelBuffer channelBuffer) throws IOException {
         int bytesConsumed = adaptor.read(channelBuffer.sliceBuffersTo(channelBuffer.getIndex()));
+        Object message;
+        while ((message = adaptor.pollInboundMessage()) != null) {
+            handleRequest(message);
+        }
+
         // Handle requests
         return bytesConsumed;
     }
@@ -89,6 +104,11 @@ public class HttpReadWritePipeline implements SocketChannelContext.ReadConsumer,
     }
 
     @Override
+    public WriteOperation createWriteOperation(SocketChannelContext channelContext, Object message, BiConsumer<Void, Throwable> listener) {
+        return new HttpWriteOperation(channelContext, (FullHttpResponse) message, listener);
+    }
+
+    @Override
     public void close() throws IOException {
         try {
             adaptor.close();
@@ -97,7 +117,7 @@ public class HttpReadWritePipeline implements SocketChannelContext.ReadConsumer,
         }
     }
 
-    protected void handleRequest(Object msg) throws Exception {
+    protected void handleRequest(Object msg) {
         final FullHttpRequest request = (FullHttpRequest) msg;
 
         final FullHttpRequest copiedRequest =

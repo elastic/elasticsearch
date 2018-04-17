@@ -29,9 +29,11 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.nio.FlushOperation;
+import org.elasticsearch.nio.SocketSelector;
 import org.elasticsearch.nio.WriteOperation;
 
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedChannelException;
 import java.util.LinkedList;
 import java.util.function.BiConsumer;
 
@@ -39,8 +41,10 @@ public class NettyAdaptor implements AutoCloseable {
 
     private final EmbeddedChannel nettyChannel;
     private final LinkedList<FlushOperation> flushOperations = new LinkedList<>();
+    private final SocketSelector selector;
 
-    public NettyAdaptor(ChannelHandler... handlers) {
+    public NettyAdaptor(SocketSelector selector, ChannelHandler... handlers) {
+        this.selector = selector;
         nettyChannel = new EmbeddedChannel();
         nettyChannel.pipeline().addLast("write_captor", new ChannelOutboundHandlerAdapter() {
 
@@ -68,10 +72,13 @@ public class NettyAdaptor implements AutoCloseable {
         nettyChannel.pipeline().addLast(handlers);
     }
 
-    // TODO: Need to close pending flushes
-
     @Override
     public void close() throws Exception {
+        for (FlushOperation flushOperation : flushOperations) {
+            selector.executeFailedListener(flushOperation.getListener(), new ClosedChannelException());
+        }
+        flushOperations.clear();
+
         ChannelFuture closeFuture = nettyChannel.close();
         // This should be safe as we are not a real network channel
         closeFuture.await();
@@ -100,6 +107,10 @@ public class NettyAdaptor implements AutoCloseable {
         int initialReaderIndex = byteBuf.readerIndex();
         nettyChannel.writeInbound(byteBuf);
         return byteBuf.readerIndex() - initialReaderIndex;
+    }
+
+    public Object pollInboundMessage() {
+        return nettyChannel.readInbound();
     }
 
     public void write(WriteOperation writeOperation) {

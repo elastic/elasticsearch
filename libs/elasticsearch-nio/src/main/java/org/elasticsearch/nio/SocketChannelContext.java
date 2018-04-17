@@ -129,8 +129,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             return;
         }
 
-        assert message instanceof ByteBuffer[] : "Only support sending  ByteBuffer[] messages";
-        FlushReadyWrite writeOperation = new FlushReadyWrite(this, (ByteBuffer[]) message, listener);
+        WriteOperation writeOperation = flushProducer.createWriteOperation(this, message, listener);
 
         SocketSelector selector = getSelector();
         if (selector.isOnCurrentThread() == false) {
@@ -144,6 +143,10 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     public void queueWriteOperation(WriteOperation writeOperation) {
         getSelector().assertOnSelectorThread();
         flushProducer.produceWrites(writeOperation);
+        checkForReadyFlush();
+    }
+
+    protected void checkForReadyFlush() {
         if (pendingFlush == null) {
             pendingFlush = flushProducer.pollFlushOperation();
         }
@@ -298,6 +301,12 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
                 selector.executeFailedListener(flushOperation.getListener(), new ClosedChannelException());
             }
             flushOperations.clear();
+        }
+
+        @Override
+        public WriteOperation createWriteOperation(SocketChannelContext channelContext, Object message,
+                                                   BiConsumer<Void, Throwable> listener) {
+            return new FlushReadyWrite(channelContext, (ByteBuffer[]) message, listener);
         }
     }
 }

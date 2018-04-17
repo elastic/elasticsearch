@@ -295,13 +295,13 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
 
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         ReplicationResponse.ShardInfo shardInfo = getShardInfo();
-        builder.field(_INDEX, shardId.getIndexName())
-                .field(_ID, id)
-                .field(_VERSION, version)
-                .field(RESULT, getResult().getLowercase());
+        builder.field(_INDEX, shardId.getIndexName());
         if (params.paramAsBoolean("include_type_name", true)) {
             builder.field(_TYPE, type);
         }
+        builder.field(_ID, id)
+                .field(_VERSION, version)
+                .field(RESULT, getResult().getLowercase());
         if (forcedRefresh) {
             builder.field(FORCED_REFRESH, true);
         }

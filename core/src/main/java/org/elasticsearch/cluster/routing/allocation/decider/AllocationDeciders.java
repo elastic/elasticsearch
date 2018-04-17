@@ -229,39 +229,72 @@ public class AllocationDeciders extends AllocationDecider {
         }
         return ret;
     }
-    
-        
-   /**
-    * Aggregates {@link Decision}} from various {@link AllocationDecider} and selects the best {@link Decision}} based
-    * on the below criteria
-    * <ul>
-    * <li>{@link Decision#NO}} for a particular {@link AllocationDecider}} would be the best decision.
-    * <li>{@link Decision#YES}} for a particular {@link AllocationDecider}} would need all the other {@link AllocationDeciders}} to return
-    *     {@link Decision#YES}} for a {@link RoutingNode}} to skip iteration for all the {@link ShardRouting}}
-    * </ul>
-    */
+
     @Override
-    public Decision canRemainOnNode(RoutingNode node, RoutingAllocation allocation) {
-        Decision decision = Decision.ALWAYS;
+    public Decision canAllocateAnyShardToNode(RoutingNode node, RoutingAllocation allocation) {
+        Decision.Multi ret = new Decision.Multi();
         for (AllocationDecider decider : allocations) {
-            Decision throttlingDecision = decider.canMoveAnyShardFromNode(node, allocation);
-            if (throttlingDecision == Decision.NO) {
+            Decision decision = decider.canAllocateAnyShardToNode(node, allocation);
+            if (decision.type().canPremptivelyReturn()) {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("Pre-emptively returning decision [{}] from decider [{}] for node [{}]", throttlingDecision.type(),
-                    decider.getClass().getSimpleName(), node.nodeId());
+                    logger.trace("Shard can not be allocated on node [{}] due to [{}]", node.nodeId(), decider.getClass().getSimpleName());
                 }
-                return Decision.THROTTLE;
+                if (!allocation.debugDecision()) {
+                    return decision;
+                } else {
+                    ret.add(decision);
+                }
+            } else if (decision != Decision.ALWAYS
+                        && (allocation.getDebugMode() != EXCLUDE_YES_DECISIONS || decision.type() != Decision.Type.YES)) {
+                ret.add(decision);
             }
         }
+        return ret;
+    }
+    
+    @Override
+    public Decision canMoveAway(ShardRouting shardRouting, RoutingAllocation allocation) {
+        Decision.Multi ret = new Decision.Multi();
         for (AllocationDecider decider : allocations) {
-            decision = decider.canRemainOnNode(node, allocation);
-            if (decision == Decision.NO)
-                break;
+            Decision decision = decider.canMoveAway(shardRouting, allocation);
+            // short track if a NO is returned.
+            if (decision.type().canPremptivelyReturn()) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Shard [{}] can not be moved away due to [{}]", shardRouting, decider.getClass().getSimpleName());
+                }
+                if (!allocation.debugDecision()) {
+                    return decision;
+                } else {
+                    ret.add(decision);
+                }
+            } else if (decision != Decision.ALWAYS
+                        && (allocation.getDebugMode() != EXCLUDE_YES_DECISIONS || decision.type() != Decision.Type.YES)) {
+                ret.add(decision);
+            }
         }
-        if (logger.isTraceEnabled()) {
-            logger.trace("Returning decision after iterating all the deciders best decision [{}] for node [{}]", decision.type(),
-            node.nodeId());
+        return ret;
+    }
+    
+    @Override
+    public Decision canMoveAnyShard(RoutingAllocation allocation) {
+        Decision.Multi ret = new Decision.Multi();
+        for (AllocationDecider decider : allocations) {
+            Decision decision = decider.canMoveAnyShard(allocation);
+            // short track if a NO is returned.
+            if (decision.type().canPremptivelyReturn()) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("No shard can be moved away due to [{}]", decider.getClass().getSimpleName());
+                }
+                if (!allocation.debugDecision()) {
+                    return decision;
+                } else {
+                    ret.add(decision);
+                }
+            } else if (decision != Decision.ALWAYS
+                        && (allocation.getDebugMode() != EXCLUDE_YES_DECISIONS || decision.type() != Decision.Type.YES)) {
+                ret.add(decision);
+            }
         }
-        return decision;
+        return ret;
     }
 }

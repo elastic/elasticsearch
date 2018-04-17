@@ -24,21 +24,14 @@ import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.index.Index;
-
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.EnumSet;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.IP_VALIDATOR;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
@@ -184,32 +177,6 @@ public class FilterAllocationDecider extends AllocationDecider {
         }
         return null;
     }
-    
-    @Override
-    public Decision canRemainOnNode(RoutingNode node, RoutingAllocation allocation) {
-        Decision decision = shouldClusterFilter(node, allocation);
-        if (decision != null) return decision;
-        
-        decision = shouldIndexNodeFilter(node, allocation);
-        if (decision != null) return decision;
-
-        return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require filters");
-    }
-
-    private Decision shouldIndexNodeFilter(RoutingNode node, RoutingAllocation allocation) {
-        Decision decision = null;
-        Set<Index> indices = node.indices();
-        for (Index index : indices) {
-            ImmutableOpenMap<String, IndexMetaData> indexMd = allocation.metaData().getIndices();
-            IndexMetaData indexMetaData = indexMd.get(index.getName());
-            decision = shouldIndexFilter(indexMetaData, node, allocation);
-            if (decision != null) {
-                return decision;
-            }
-        }
-        return null;
-    }
-
 
     private Decision shouldClusterFilter(RoutingNode node, RoutingAllocation allocation) {
         if (clusterRequireFilters != null) {
@@ -231,6 +198,12 @@ public class FilterAllocationDecider extends AllocationDecider {
             }
         }
         return null;
+    }
+    
+    @Override
+    public Decision canAllocateAnyShardToNode(RoutingNode node, RoutingAllocation allocation) {
+        Decision decision = shouldClusterFilter(node, allocation);
+        return decision != null && decision == Decision.NO ? decision : Decision.ALWAYS;
     }
 
     private void setClusterRequireFilters(Map<String, String> filters) {

@@ -255,62 +255,54 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
         final ClusterInfo clusterInfo = allocation.clusterInfo();
         final ImmutableOpenMap<String, DiskUsage> usages = clusterInfo.getNodeLeastAvailableDiskUsages();
-        final DiskUsage usage = getDiskUsage(node, allocation, usages, true);
-        // If this node is already above the high threshold, the shard cannot remain
-        // (get it off!)
-        final String dataPath = clusterInfo.getDataPath(shardRouting);
-        if (dataPath == null || usage.getPath().equals(dataPath) == false) {
-            return allocation.decision(Decision.YES, NAME, "this shard is not allocated on the most utilized disk and can remain");
-        }
-        return canRemainOnNode(node, allocation);
-    }
-     
-    
-    @Override
-    public Decision canRemainOnNode(RoutingNode node, RoutingAllocation allocation) {
-        final ClusterInfo clusterInfo = allocation.clusterInfo();
-        final ImmutableOpenMap<String, DiskUsage> usages = clusterInfo.getNodeLeastAvailableDiskUsages();
         final Decision decision = earlyTerminate(allocation, usages);
         if (decision != null) {
             return decision;
         }
-     // subtractLeavingShards is passed as true here, since this is only for shards remaining, we will *eventually* have enough disk
+
+        // subtractLeavingShards is passed as true here, since this is only for shards remaining, we will *eventually* have enough disk
         // since shards are moving away. No new shards will be incoming since in canAllocate we pass false for this check.
         final DiskUsage usage = getDiskUsage(node, allocation, usages, true);
+        final String dataPath = clusterInfo.getDataPath(shardRouting);
+        // If this node is already above the high threshold, the shard cannot remain (get it off!)
         final double freeDiskPercentage = usage.getFreeDiskAsPercentage();
         final long freeBytes = usage.getFreeBytes();
         if (logger.isTraceEnabled()) {
             logger.trace("node [{}] has {}% free disk ({} bytes)", node.nodeId(), freeDiskPercentage, freeBytes);
         }
+        if (dataPath == null || usage.getPath().equals(dataPath) == false) {
+            return allocation.decision(Decision.YES, NAME,
+                    "this shard is not allocated on the most utilized disk and can remain");
+        }
         if (freeBytes < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes()) {
             if (logger.isDebugEnabled()) {
                 logger.debug("less than the required {} free bytes threshold ({} bytes free) on node {}, shard cannot remain",
-                       diskThresholdSettings.getFreeBytesThresholdHigh(), freeBytes, node.nodeId());
-           }
-           return allocation.decision(Decision.NO, NAME,
-               "the shard cannot remain on this node because it is above the high watermark cluster setting [%s=%s] " +
-                   "and there is less than the required [%s] free space on node, actual free: [%s]",
-               CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(),
-               diskThresholdSettings.getHighWatermarkRaw(),
-               diskThresholdSettings.getFreeBytesThresholdHigh(), new ByteSizeValue(freeBytes));
-       }
-       if (freeDiskPercentage < diskThresholdSettings.getFreeDiskThresholdHigh()) {
-           if (logger.isDebugEnabled()) {
-               logger.debug("less than the required {}% free disk threshold ({}% free) on node {}, shard cannot remain",
-                       diskThresholdSettings.getFreeDiskThresholdHigh(), freeDiskPercentage, node.nodeId());
-           }
-           return allocation.decision(Decision.NO, NAME,
-               "the shard cannot remain on this node because it is above the high watermark cluster setting [%s=%s] " +
-                   "and there is less than the required [%s%%] free disk on node, actual free: [%s%%]",
-               CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(),
-               diskThresholdSettings.getHighWatermarkRaw(),
-               diskThresholdSettings.getFreeDiskThresholdHigh(), freeDiskPercentage);
-       }
+                        diskThresholdSettings.getFreeBytesThresholdHigh(), freeBytes, node.nodeId());
+            }
+            return allocation.decision(Decision.NO, NAME,
+                "the shard cannot remain on this node because it is above the high watermark cluster setting [%s=%s] " +
+                    "and there is less than the required [%s] free space on node, actual free: [%s]",
+                CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(),
+                diskThresholdSettings.getHighWatermarkRaw(),
+                diskThresholdSettings.getFreeBytesThresholdHigh(), new ByteSizeValue(freeBytes));
+        }
+        if (freeDiskPercentage < diskThresholdSettings.getFreeDiskThresholdHigh()) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("less than the required {}% free disk threshold ({}% free) on node {}, shard cannot remain",
+                        diskThresholdSettings.getFreeDiskThresholdHigh(), freeDiskPercentage, node.nodeId());
+            }
+            return allocation.decision(Decision.NO, NAME,
+                "the shard cannot remain on this node because it is above the high watermark cluster setting [%s=%s] " +
+                    "and there is less than the required [%s%%] free disk on node, actual free: [%s%%]",
+                CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(),
+                diskThresholdSettings.getHighWatermarkRaw(),
+                diskThresholdSettings.getFreeDiskThresholdHigh(), freeDiskPercentage);
+        }
 
-       return allocation.decision(Decision.YES, NAME,
-               "there is enough disk on this node for the shard to remain, free: [%s]", new ByteSizeValue(freeBytes));
+        return allocation.decision(Decision.YES, NAME,
+                "there is enough disk on this node for the shard to remain, free: [%s]", new ByteSizeValue(freeBytes));
     }
-    
+
     private DiskUsage getDiskUsage(RoutingNode node, RoutingAllocation allocation,
                                    ImmutableOpenMap<String, DiskUsage> usages, boolean subtractLeavingShards) {
         DiskUsage usage = usages.get(node.nodeId());

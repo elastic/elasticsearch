@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
-import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,17 +28,15 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.sort.SortOrder;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -120,7 +117,7 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
             builder.field(Histogram.INTERVAL_FIELD.getPreferredName(), dateHistogramInterval.toString());
         }
         if (timeZone != null) {
-            builder.field("time_zone", timeZone);
+            builder.field("time_zone", timeZone.toString());
         }
     }
 
@@ -217,11 +214,7 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
     }
 
     @Override
-    protected CompositeValuesSourceConfig innerBuild(SearchContext context,
-                                                     ValuesSourceConfig<?> config,
-                                                     int pos,
-                                                     int numPos,
-                                                     SortField sortField) throws IOException {
+    protected CompositeValuesSourceConfig innerBuild(SearchContext context, ValuesSourceConfig<?> config) throws IOException {
         Rounding rounding = createRounding();
         ValuesSource orig = config.toValuesSource(context.getQueryShardContext());
         if (orig == null) {
@@ -230,19 +223,10 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
         if (orig instanceof ValuesSource.Numeric) {
             ValuesSource.Numeric numeric = (ValuesSource.Numeric) orig;
             RoundingValuesSource vs = new RoundingValuesSource(numeric, rounding);
-            boolean canEarlyTerminate = false;
-            final FieldContext fieldContext = config.fieldContext();
-            if (sortField != null &&
-                    pos == numPos-1 &&
-                    fieldContext != null)  {
-                canEarlyTerminate = checkCanEarlyTerminate(context.searcher().getIndexReader(),
-                    fieldContext.field(), order() == SortOrder.ASC ? false : true, sortField);
-            }
-            // dates are returned as timestamp in milliseconds-since-the-epoch unless a specific date format
             // is specified in the builder.
             final DocValueFormat docValueFormat = format() == null ? DocValueFormat.RAW : config.format();
-            return new CompositeValuesSourceConfig(name, vs, docValueFormat,
-                order(), canEarlyTerminate);
+            final MappedFieldType fieldType = config.fieldContext() != null ? config.fieldContext().fieldType() : null;
+            return new CompositeValuesSourceConfig(name, fieldType, vs, docValueFormat, order(), missing());
         } else {
             throw new IllegalArgumentException("invalid source, expected numeric, got " + orig.getClass().getSimpleName());
         }

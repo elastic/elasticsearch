@@ -1,8 +1,8 @@
 [[breaking_70_api_changes]]
-=== Breaking changes in 7.0
+=== Breaking API changes in 7.0
 
 ==== Camel case and underscore parameters deprecated in 6.x have been removed
-A  number of duplicate parameters deprecated in 6.x have been removed from
+A number of duplicate parameters deprecated in 6.x have been removed from
 Bulk request, Multi Get request, Term Vectors request, and More Like This Query
 requests.
 
@@ -22,3 +22,7 @@ The following parameters starting with underscore have been removed:
 Instead of these removed parameters, use their non camel case equivalents without
 starting underscore, e.g. use `version_type` instead of `_version_type` or `versionType`.
 
+
+==== The parameter `fields` deprecated in 6.x has been removed from Bulk request 
+and Update request. The Update API returns `400 - Bad request` if request contains 
+unknown parameters (instead of ignored in the previous version).

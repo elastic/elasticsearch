@@ -75,9 +75,9 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
     /** the default number of fragments size in characters */
     public static final int DEFAULT_FRAGMENT_CHAR_SIZE = 100;
     /** the default opening tag  */
-    public static final String[] DEFAULT_PRE_TAGS = new String[]{"<em>"};
+    static final String[] DEFAULT_PRE_TAGS = new String[]{"<em>"};
     /** the default closing tag  */
-    public static final String[] DEFAULT_POST_TAGS = new String[]{"</em>"};
+    static final String[] DEFAULT_POST_TAGS = new String[]{"</em>"};
 
     /** the default opening tags when <tt>tag_schema = "styled"</tt>  */
     public static final String[] DEFAULT_STYLED_PRE_TAG = {

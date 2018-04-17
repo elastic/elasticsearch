@@ -229,14 +229,14 @@ The result of the above index operation is:
     },
     "_index" : "twitter",
     "_type" : "_doc",
-    "_id" : "6a8ca01c-7896-48e9-81cc-9f70661fcb32",
+    "_id" : "W0tpsmIBdwcYyG50zbta",
     "_version" : 1,
     "_seq_no" : 0,
     "_primary_term" : 1,
     "result": "created"
 }
 --------------------------------------------------
-// TESTRESPONSE[s/6a8ca01c-7896-48e9-81cc-9f70661fcb32/$body._id/ s/"successful" : 2/"successful" : 1/]
+// TESTRESPONSE[s/W0tpsmIBdwcYyG50zbta/$body._id/ s/"successful" : 2/"successful" : 1/]
 
 [float]
 [[index-routing]]
@@ -249,7 +249,7 @@ on a per-operation basis using the `routing` parameter. For example:
 
 [source,js]
 --------------------------------------------------
-POST twitter/tweet?routing=kimchy
+POST twitter/_doc?routing=kimchy
 {
     "user" : "kimchy",
     "post_date" : "2009-11-15T14:12:12",

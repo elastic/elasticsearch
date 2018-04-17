@@ -27,6 +27,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
+import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -64,6 +67,7 @@ import org.elasticsearch.test.VersionUtils;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -466,5 +470,78 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         }
         flushAndRefresh();
         assertSortedSegments("target", expectedIndexSort);
+    }
+
+
+    public void testShrinkCommitsMergeOnIdle() throws Exception {
+        prepareCreate("source").setSettings(Settings.builder().put(indexSettings())
+            .put("index.number_of_replicas", 0)
+            .put("number_of_shards", 5)).get();
+        for (int i = 0; i < 30; i++) {
+            client().prepareIndex("source", "type")
+                .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
+        }
+        client().admin().indices().prepareFlush("source").get();
+        ImmutableOpenMap<String, DiscoveryNode> dataNodes =
+            client().admin().cluster().prepareState().get().getState().nodes().getDataNodes();
+        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
+        // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
+        // if we change the setting too quickly we will end up with one replica unassigned which can't be assigned anymore due
+        // to the require._name below.
+        ensureGreen();
+        // relocate all shards to one node such that we can merge it.
+        client().admin().indices().prepareUpdateSettings("source")
+            .setSettings(Settings.builder()
+                .put("index.routing.allocation.require._name", discoveryNodes[0].getName())
+                .put("index.blocks.write", true)).get();
+        ensureGreen();
+        IndicesSegmentResponse sourceStats = client().admin().indices().prepareSegments("source").get();
+
+        // disable rebalancing to be able to capture the right stats. balancing can move the target primary
+        // making it hard to pin point the source shards.
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(
+            EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none"
+        )).get();
+
+        // now merge source into a single shard index
+        assertAcked(client().admin().indices().prepareResizeIndex("source", "target")
+            .setSettings(Settings.builder().put("index.number_of_replicas", 0).build()).get());
+        ensureGreen();
+        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
+        IndexMetaData target = clusterStateResponse.getState().getMetaData().index("target");
+        client().admin().indices().prepareForceMerge("target").setMaxNumSegments(1).setFlush(false).get();
+        IndicesSegmentResponse targetSegStats = client().admin().indices().prepareSegments("target").get();
+        ShardSegments segmentsStats = targetSegStats.getIndices().get("target").getShards().get(0).getShards()[0];
+        assertTrue(segmentsStats.getNumberOfCommitted() > 0);
+        assertNotEquals(segmentsStats.getSegments(), segmentsStats.getNumberOfCommitted());
+
+        Iterable<IndicesService> dataNodeInstances = internalCluster().getDataNodeInstances(IndicesService.class);
+        for (IndicesService service : dataNodeInstances) {
+            if (service.hasIndex(target.getIndex())) {
+                IndexService indexShards = service.indexService(target.getIndex());
+                IndexShard shard = indexShards.getShard(0);
+                assertTrue(shard.isActive());
+                shard.checkIdle(0);
+                assertFalse(shard.isActive());
+            }
+        }
+        assertBusy(() -> {
+            IndicesSegmentResponse targetStats = client().admin().indices().prepareSegments("target").get();
+            ShardSegments targetShardSegments = targetStats.getIndices().get("target").getShards().get(0).getShards()[0];
+            Map<Integer, IndexShardSegments> source = sourceStats.getIndices().get("source").getShards();
+            int numSourceSegments = 0;
+            for (IndexShardSegments s : source.values()) {
+                numSourceSegments += s.getAt(0).getNumberOfCommitted();
+            }
+            assertTrue(targetShardSegments.getSegments().size() < numSourceSegments);
+            assertEquals(targetShardSegments.getNumberOfCommitted(), targetShardSegments.getNumberOfSearch());
+            assertEquals(targetShardSegments.getNumberOfCommitted(), targetShardSegments.getSegments().size());
+            assertEquals(1, targetShardSegments.getSegments().size());
+        });
+
+        // clean up
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(
+            EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), (String)null
+        )).get();
     }
 }

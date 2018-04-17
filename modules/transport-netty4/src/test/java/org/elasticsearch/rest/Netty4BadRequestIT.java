@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest;
 
+import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Setting;
@@ -74,4 +75,29 @@ public class Netty4BadRequestIT extends ESRestTestCase {
         assertThat(e, hasToString(containsString("too_long_frame_exception")));
         assertThat(e, hasToString(matches("An HTTP line is larger than \\d+ bytes")));
     }
+
+    public void testInvalidParameterValue() throws IOException {
+        final ResponseException e = expectThrows(
+                ResponseException.class,
+                () -> client().performRequest("GET", "/_cluster/settings", Collections.singletonMap("pretty", "neither-true-nor-false")));
+        final Response response = e.getResponse();
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(400));
+        final ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        final Map<String, Object> map = objectPath.evaluate("error");
+        assertThat(map.get("type"), equalTo("illegal_argument_exception"));
+        assertThat(map.get("reason"), equalTo("Failed to parse value [neither-true-nor-false] as only [true] or [false] are allowed."));
+    }
+
+    public void testInvalidHeaderValue() throws IOException {
+        final BasicHeader header = new BasicHeader("Content-Type", "\t");
+        final ResponseException e =
+                expectThrows(ResponseException.class, () -> client().performRequest("GET", "/_cluster/settings", header));
+        final Response response = e.getResponse();
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(400));
+        final ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        final Map<String, Object> map = objectPath.evaluate("error");
+        assertThat(map.get("type"), equalTo("content_type_header_exception"));
+        assertThat(map.get("reason"), equalTo("java.lang.IllegalArgumentException: invalid Content-Type header []"));
+    }
+
 }

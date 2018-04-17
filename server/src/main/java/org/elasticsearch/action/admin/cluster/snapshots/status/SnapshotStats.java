@@ -22,6 +22,8 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -140,10 +142,10 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
         builder.startObject(Fields.STATS);
         builder.field(Fields.NUMBER_OF_FILES, getNumberOfFiles());
         builder.field(Fields.PROCESSED_FILES, getProcessedFiles());
-        builder.byteSizeField(Fields.TOTAL_SIZE_IN_BYTES, Fields.TOTAL_SIZE, getTotalSize());
-        builder.byteSizeField(Fields.PROCESSED_SIZE_IN_BYTES, Fields.PROCESSED_SIZE, getProcessedSize());
+        builder.humanReadableField(Fields.TOTAL_SIZE_IN_BYTES, Fields.TOTAL_SIZE, new ByteSizeValue(getTotalSize()));
+        builder.humanReadableField(Fields.PROCESSED_SIZE_IN_BYTES, Fields.PROCESSED_SIZE, new ByteSizeValue(getProcessedSize()));
         builder.field(Fields.START_TIME_IN_MILLIS, getStartTime());
-        builder.timeValueField(Fields.TIME_IN_MILLIS, Fields.TIME, getTime());
+        builder.humanReadableField(Fields.TIME_IN_MILLIS, Fields.TIME, new TimeValue(getTime()));
         builder.endObject();
         return builder;
     }

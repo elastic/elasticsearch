@@ -21,6 +21,7 @@ package org.elasticsearch.update;
 
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -240,14 +241,14 @@ public class UpdateNoopIT extends ESIntegTestCase {
 
     private void updateAndCheckSource(long expectedVersion, Boolean detectNoop, XContentBuilder xContentBuilder) {
         UpdateResponse updateResponse = update(detectNoop, expectedVersion, xContentBuilder);
-        assertEquals(updateResponse.getGetResult().sourceRef().utf8ToString(), xContentBuilder.bytes().utf8ToString());
+        assertEquals(updateResponse.getGetResult().sourceRef().utf8ToString(), BytesReference.bytes(xContentBuilder).utf8ToString());
     }
 
     private UpdateResponse update(Boolean detectNoop, long expectedVersion, XContentBuilder xContentBuilder) {
         UpdateRequestBuilder updateRequest = client().prepareUpdate("test", "type1", "1")
                 .setDoc(xContentBuilder)
                 .setDocAsUpsert(true)
-                .setFields("_source");
+                .setFetchSource(true);
         if (detectNoop != null) {
             updateRequest.setDetectNoop(detectNoop);
         }

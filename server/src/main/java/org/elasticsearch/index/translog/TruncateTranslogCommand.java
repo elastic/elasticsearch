@@ -33,7 +33,6 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.OutputStreamDataOutput;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
@@ -213,13 +212,11 @@ public class TruncateTranslogCommand extends EnvironmentAwareCommand {
      * Write a translog containing the given translog UUID to the given location. Returns the number of bytes written.
      */
     public static int writeEmptyTranslog(Path filename, String translogUUID) throws IOException {
-        final BytesRef translogRef = new BytesRef(translogUUID);
-        try (FileChannel fc = FileChannel.open(filename, StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE_NEW);
-                OutputStreamDataOutput out = new OutputStreamDataOutput(Channels.newOutputStream(fc))) {
-            TranslogWriter.writeHeader(out, translogRef);
-            fc.force(true);
+        try (FileChannel fc = FileChannel.open(filename, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW)) {
+            TranslogHeader header = new TranslogHeader(translogUUID, TranslogHeader.UNKNOWN_PRIMARY_TERM);
+            header.write(fc);
+            return header.sizeInBytes();
         }
-        return TranslogWriter.getHeaderLength(translogRef.length);
     }
 
     /** Show a warning about deleting files, asking for a confirmation if {@code batchMode} is false */

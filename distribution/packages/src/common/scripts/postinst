@@ -19,18 +19,22 @@ case "$1" in
         if [ -n $2 ]; then
             IS_UPGRADE=true
         fi
+        PACKAGE=deb
     ;;
     abort-upgrade|abort-remove|abort-deconfigure)
+        PACKAGE=deb
     ;;
 
     # RedHat ####################################################
     1)
         # If $1=1 this is an install
         IS_UPGRADE=false
+        PACKAGE=rpm
     ;;
     2)
         # If $1=1 this is an upgrade
         IS_UPGRADE=true
+        PACKAGE=rpm
     ;;
 
     *)
@@ -99,7 +103,8 @@ if [ -f ${path.env} ]; then
     chown root:elasticsearch ${path.env}
 fi
 
-if [ ! -f /etc/elasticsearch/elasticsearch.keystore ]; then
+# the equivalent code for rpm is in posttrans
+if [ "$PACKAGE" = "deb" -a ! -f /etc/elasticsearch/elasticsearch.keystore ]; then
     /usr/share/elasticsearch/bin/elasticsearch-keystore create
     chown root:elasticsearch /etc/elasticsearch/elasticsearch.keystore
     chmod 660 /etc/elasticsearch/elasticsearch.keystore

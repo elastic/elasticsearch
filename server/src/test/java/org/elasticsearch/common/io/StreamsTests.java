@@ -24,7 +24,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.StringReader;
@@ -32,7 +31,6 @@ import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
-import static org.elasticsearch.common.io.Streams.copy;
 import static org.elasticsearch.common.io.Streams.copyToString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -40,20 +38,11 @@ import static org.hamcrest.Matchers.equalTo;
  * Unit tests for {@link org.elasticsearch.common.io.Streams}.
  */
 public class StreamsTests extends ESTestCase {
-    public void testCopyFromInputStream() throws IOException {
-        byte[] content = "content".getBytes(StandardCharsets.UTF_8);
-        ByteArrayInputStream in = new ByteArrayInputStream(content);
-        ByteArrayOutputStream out = new ByteArrayOutputStream(content.length);
-        long count = copy(in, out);
-
-        assertThat(count, equalTo((long) content.length));
-        assertThat(Arrays.equals(content, out.toByteArray()), equalTo(true));
-    }
 
     public void testCopyFromByteArray() throws IOException {
         byte[] content = "content".getBytes(StandardCharsets.UTF_8);
         ByteArrayOutputStream out = new ByteArrayOutputStream(content.length);
-        copy(content, out);
+        Streams.copy(content, out);
         assertThat(Arrays.equals(content, out.toByteArray()), equalTo(true));
     }
 
@@ -61,7 +50,7 @@ public class StreamsTests extends ESTestCase {
         String content = "content";
         StringReader in = new StringReader(content);
         StringWriter out = new StringWriter();
-        int count = copy(in, out);
+        int count = Streams.copy(in, out);
         assertThat(content.length(), equalTo(count));
         assertThat(out.toString(), equalTo(content));
     }
@@ -69,7 +58,7 @@ public class StreamsTests extends ESTestCase {
     public void testCopyFromString() throws IOException {
         String content = "content";
         StringWriter out = new StringWriter();
-        copy(content, out);
+        Streams.copy(content, out);
         assertThat(out.toString(), equalTo(content));
     }
 

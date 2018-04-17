@@ -46,6 +46,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
@@ -389,8 +390,13 @@ final class StoreRecovery {
             recoveryState.getIndex().updateVersion(version);
             if (recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
                 assert indexShouldExists;
-                indexShard.openIndexAndCreateTranslog(true, store.loadSeqNoInfo(null).localCheckpoint);
-            } else {
+                store.bootstrapNewHistory();
+                final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
+                final long maxSeqNo = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.MAX_SEQ_NO));
+                final String translogUUID = Translog.createEmptyTranslog(
+                    indexShard.shardPath().resolveTranslog(), maxSeqNo, shardId, indexShard.getPrimaryTerm());
+                store.associateIndexWithNewTranslog(translogUUID);
+            } else if (indexShouldExists) {
                 // since we recover from local, just fill the files and size
                 try {
                     final RecoveryState.Index index = recoveryState.getIndex();
@@ -400,13 +406,14 @@ final class StoreRecovery {
                 } catch (IOException e) {
                     logger.debug("failed to list file details", e);
                 }
-                if (indexShouldExists) {
-                    indexShard.openIndexAndRecoveryFromTranslog();
-                    indexShard.getEngine().fillSeqNoGaps(indexShard.getPrimaryTerm());
-                } else {
-                    indexShard.createIndexAndTranslog();
-                }
+            } else {
+                store.createEmpty();
+                final String translogUUID = Translog.createEmptyTranslog(
+                    indexShard.shardPath().resolveTranslog(), SequenceNumbers.NO_OPS_PERFORMED, shardId, indexShard.getPrimaryTerm());
+                store.associateIndexWithNewTranslog(translogUUID);
             }
+            indexShard.openEngineAndRecoverFromTranslog();
+            indexShard.getEngine().fillSeqNoGaps(indexShard.getPrimaryTerm());
             indexShard.finalizeRecovery();
             indexShard.postRecovery("post recovery from shard_store");
         } catch (EngineException | IOException e) {
@@ -447,15 +454,14 @@ final class StoreRecovery {
             final IndexId indexId = repository.getRepositoryData().resolveIndexId(indexName);
             repository.restoreShard(indexShard, restoreSource.snapshot().getSnapshotId(), restoreSource.version(), indexId, snapshotShardId, indexShard.recoveryState());
             final Store store = indexShard.store();
-            final long localCheckpoint;
-            store.incRef();
-            try {
-                localCheckpoint = store.loadSeqNoInfo(null).localCheckpoint;
-            } finally {
-                store.decRef();
-            }
-            indexShard.openIndexAndCreateTranslog(true, localCheckpoint);
+            store.bootstrapNewHistory();
+            final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
+            final long maxSeqNo = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.MAX_SEQ_NO));
+            final String translogUUID = Translog.createEmptyTranslog(
+                indexShard.shardPath().resolveTranslog(), maxSeqNo, shardId, indexShard.getPrimaryTerm());
+            store.associateIndexWithNewTranslog(translogUUID);
             assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
+            indexShard.openEngineAndRecoverFromTranslog();
             indexShard.getEngine().fillSeqNoGaps(indexShard.getPrimaryTerm());
             indexShard.finalizeRecovery();
             indexShard.postRecovery("restore done");

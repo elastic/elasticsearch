@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -286,6 +287,6 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
-        assertThat(builder.string(), equalTo(expectedStatsJsonResponse));
+        assertThat(Strings.toString(builder), equalTo(expectedStatsJsonResponse));
     }
 }

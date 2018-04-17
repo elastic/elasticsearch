@@ -53,7 +53,13 @@ GET hockey/_search
       "script_score": {
         "script": {
           "lang": "painless",
-          "source": "int total = 0; for (int i = 0; i < doc['goals'].length; ++i) { total += doc['goals'][i]; } return total;"
+          "source": """
+            int total = 0;
+            for (int i = 0; i < doc['goals'].length; ++i) {
+              total += doc['goals'][i];
+            }
+            return total;
+          """
         }
       }
     }
@@ -75,7 +81,13 @@ GET hockey/_search
     "total_goals": {
       "script": {
         "lang": "painless",
-        "source": "int total = 0; for (int i = 0; i < doc['goals'].length; ++i) { total += doc['goals'][i]; } return total;"
+        "source": """
+          int total = 0;
+          for (int i = 0; i < doc['goals'].length; ++i) {
+            total += doc['goals'][i];
+          }
+          return total;
+        """
       }
     }
   }
@@ -157,7 +169,10 @@ POST hockey/player/1/_update
 {
   "script": {
     "lang": "painless",
-    "source": "ctx._source.last = params.last; ctx._source.nick = params.nick",
+    "source": """
+      ctx._source.last = params.last;
+      ctx._source.nick = params.nick
+    """,
     "params": {
       "last": "gaudreau",
       "nick": "hockey"
@@ -224,11 +239,17 @@ their last name:
 
 [source,js]
 ----------------------------------------------------------------
-POST hockey/player/_update_by_query
+POST hockey/_update_by_query
 {
   "script": {
     "lang": "painless",
-    "source": "if (ctx._source.last =~ /b/) {ctx._source.last += \"matched\"} else {ctx.op = 'noop'}"
+    "source": """
+      if (ctx._source.last =~ /b/) {
+        ctx._source.last += "matched";
+      } else {
+        ctx.op = "noop";
+      }
+    """
   }
 }
 ----------------------------------------------------------------
@@ -239,11 +260,17 @@ names start with a consonant and end with a vowel:
 
 [source,js]
 ----------------------------------------------------------------
-POST hockey/player/_update_by_query
+POST hockey/_update_by_query
 {
   "script": {
     "lang": "painless",
-    "source": "if (ctx._source.last ==~ /[^aeiou].*[aeiou]/) {ctx._source.last += \"matched\"} else {ctx.op = 'noop'}"
+    "source": """
+      if (ctx._source.last ==~ /[^aeiou].*[aeiou]/) {
+        ctx._source.last += "matched";
+      } else {
+        ctx.op = "noop";
+      }
+    """
   }
 }
 ----------------------------------------------------------------
@@ -254,7 +281,7 @@ remove all of the vowels in all of their last names:
 
 [source,js]
 ----------------------------------------------------------------
-POST hockey/player/_update_by_query
+POST hockey/_update_by_query
 {
   "script": {
     "lang": "painless",
@@ -270,7 +297,7 @@ method so it supports `$1` and `\1` for replacements:
 
 [source,js]
 ----------------------------------------------------------------
-POST hockey/player/_update_by_query
+POST hockey/_update_by_query
 {
   "script": {
     "lang": "painless",
@@ -292,11 +319,14 @@ This will make all of the vowels in the hockey player's last names upper case:
 
 [source,js]
 ----------------------------------------------------------------
-POST hockey/player/_update_by_query
+POST hockey/_update_by_query
 {
   "script": {
     "lang": "painless",
-    "source": "ctx._source.last = ctx._source.last.replaceAll(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))"
+    "source": """
+      ctx._source.last = ctx._source.last.replaceAll(/[aeiou]/, m ->
+        m.group().toUpperCase(Locale.ROOT))
+    """
   }
 }
 ----------------------------------------------------------------
@@ -307,11 +337,14 @@ last names upper case:
 
 [source,js]
 ----------------------------------------------------------------
-POST hockey/player/_update_by_query
+POST hockey/_update_by_query
 {
   "script": {
     "lang": "painless",
-    "source": "ctx._source.last = ctx._source.last.replaceFirst(/[aeiou]/, m -> m.group().toUpperCase(Locale.ROOT))"
+    "source": """
+      ctx._source.last = ctx._source.last.replaceFirst(/[aeiou]/, m ->
+        m.group().toUpperCase(Locale.ROOT))
+    """
   }
 }
 ----------------------------------------------------------------

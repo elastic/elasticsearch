@@ -150,7 +150,7 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
         if (rejectedAfterAllRetries) {
             assertThat((int) results.getHits().getTotalHits(), lessThan(numberOfAsyncOps));
         } else {
-            assertThat(results.getHits().getTotalHits(), equalTo(numberOfAsyncOps));
+            assertThat((int) results.getHits().getTotalHits(), equalTo(numberOfAsyncOps));
         }
     }
 

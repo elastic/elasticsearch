@@ -27,7 +27,7 @@ case "$1" in
             adduser --quiet \
                     --system \
                     --no-create-home \
-                    --home /usr/share/elasticsearch \
+                    --home /nonexistent \
                     --ingroup elasticsearch \
                     --disabled-password \
                     --shell /bin/false \
@@ -53,7 +53,7 @@ case "$1" in
             echo -n "Creating elasticsearch user..."
             useradd --system \
                     --no-create-home \
-                    --home-dir /usr/share/elasticsearch \
+                    --home-dir /nonexistent \
                     --gid elasticsearch \
                     --shell /sbin/nologin \
                     --comment "elasticsearch user" \

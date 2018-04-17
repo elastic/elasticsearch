@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.monitoring.action;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -70,11 +71,12 @@ public class TransportMonitoringBulkAction extends HandledTransportAction<Monito
                                                                discoveryNode.getHostAddress(),
                                                                discoveryNode.getName(), timestamp);
 
-        new AsyncAction(request, listener, exportService, cluster, timestamp, node).start();
+        new AsyncAction(threadPool, request, listener, exportService, cluster, timestamp, node).start();
     }
 
     static class AsyncAction {
 
+        private final ThreadPool threadPool;
         private final MonitoringBulkRequest request;
         private final ActionListener<MonitoringBulkResponse> listener;
         private final Exporters exportService;
@@ -82,8 +84,10 @@ public class TransportMonitoringBulkAction extends HandledTransportAction<Monito
         private final long defaultTimestamp;
         private final MonitoringDoc.Node defaultNode;
 
-        AsyncAction(MonitoringBulkRequest request, ActionListener<MonitoringBulkResponse> listener, Exporters exportService,
+        AsyncAction(ThreadPool threadPool,
+                    MonitoringBulkRequest request, ActionListener<MonitoringBulkResponse> listener, Exporters exportService,
                     String defaultClusterUUID, long defaultTimestamp, MonitoringDoc.Node defaultNode) {
+            this.threadPool = threadPool;
             this.request = request;
             this.listener = listener;
             this.exportService = exportService;
@@ -136,14 +140,24 @@ public class TransportMonitoringBulkAction extends HandledTransportAction<Monito
          * Exports the documents
          */
         void executeExport(final Collection<MonitoringDoc> docs, final long startTimeNanos,
-                           final ActionListener<MonitoringBulkResponse> listener) {
-            try {
-                exportService.export(docs, ActionListener.wrap(
-                        r -> listener.onResponse(response(startTimeNanos)),
-                        e -> listener.onResponse(response(startTimeNanos, e))));
-            } catch (Exception e) {
-                listener.onResponse(response(startTimeNanos, e));
-            }
+                           final ActionListener<MonitoringBulkResponse> delegate) {
+            threadPool.executor(ThreadPool.Names.GENERIC).execute(new ActionRunnable<MonitoringBulkResponse>(delegate) {
+                @Override
+                protected void doRun() {
+                    exportService.export(
+                        docs,
+                        ActionListener.wrap(
+                            r -> listener.onResponse(response(startTimeNanos)),
+                            this::onFailure
+                        )
+                    );
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onResponse(response(startTimeNanos, e));
+                }
+            });
         }
     }
 

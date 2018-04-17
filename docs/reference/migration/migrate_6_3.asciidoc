@@ -29,3 +29,18 @@ additional security permissions has been removed. Now, a user must deliberately
 accept these permissions either by keeping standard input open and attaching a
 TTY (i.e., using interactive mode to accept the permissions), or by passing the
 `--batch` flag.
+
+==== Concurrency level of analyze requests
+
+Previously, analyze requests would run on the same thread pool as indexing
+requests. The indexing thread pool has been deprecated as it is no longer needed
+since indexing requests are internally converted to bulk requests and run on the
+bulk thread pool. This leaves analyze requests without a home so we added a
+small thread pool called the `analyze` thread pool. This thread pool defaults to
+having one thread and a queue depth of sixteen requests. This means that
+previously analyze requests had a level of concurrency equal to the size of the
+index thread pool and now they have a level of concurrency of one. For most
+users we think this is fine as analyze requests are useful for debugging and so
+probably do not see high concurrency. If you are impacted by this you can
+increase the size of the thread pool by using the `thread_pool.analyze.size`
+setting.

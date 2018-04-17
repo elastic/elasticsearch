@@ -72,15 +72,19 @@ public class GeoHashUtils {
     /**
      * Encode from geohash string to the geohash based long format (lon/lat interleaved, 4 least significant bits = level)
      */
-    public static final long longEncode(final String hash) {
-        int level = hash.length()-1;
+    private static long longEncode(final String hash, int length) {
+        int level = length - 1;
         long b;
         long l = 0L;
         for(char c : hash.toCharArray()) {
             b = (long)(BASE_32_STRING.indexOf(c));
             l |= (b<<(level--*5));
+            if (level < 0) {
+                // We cannot handle more than 12 levels
+                break;
+            }
         }
-        return (l<<4)|hash.length();
+        return (l << 4) | length;
     }
 
     /**
@@ -173,6 +177,10 @@ public class GeoHashUtils {
         for(char c : hash.toCharArray()) {
             b = (long)(BASE_32_STRING.indexOf(c));
             l |= (b<<((level--*5) + MORTON_OFFSET));
+            if (level < 0) {
+                // We cannot handle more than 12 levels
+                break;
+            }
         }
         return BitUtil.flipFlop(l);
     }
@@ -200,13 +208,14 @@ public class GeoHashUtils {
     public static Rectangle bbox(final String geohash) {
         // bottom left is the coordinate
         GeoPoint bottomLeft = GeoPoint.fromGeohash(geohash);
-        long ghLong = longEncode(geohash);
+        int len = Math.min(12, geohash.length());
+        long ghLong = longEncode(geohash, len);
         // shift away the level
         ghLong >>>= 4;
         // deinterleave and add 1 to lat and lon to get topRight
         long lat = BitUtil.deinterleave(ghLong >>> 1) + 1;
         long lon = BitUtil.deinterleave(ghLong) + 1;
-        GeoPoint topRight = GeoPoint.fromGeohash(BitUtil.interleave((int)lon, (int)lat) << 4 | geohash.length());
+        GeoPoint topRight = GeoPoint.fromGeohash(BitUtil.interleave((int)lon, (int)lat) << 4 | len);
 
         return new Rectangle(bottomLeft.lat(), topRight.lat(), bottomLeft.lon(), topRight.lon());
     }

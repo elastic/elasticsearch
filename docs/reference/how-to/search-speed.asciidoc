@@ -411,12 +411,14 @@ of the node containing each copy of the shard. This can improve query throughput
 and reduce latency for search-heavy applications.
 
 === Tune your queries with the Profile API
-:ref:  https://www.elastic.co/guide/en/elasticsearch/reference/current/search-profile.html
-:ref-searchprofiler:  https://www.elastic.co/guide/en/kibana/current/xpack-profiler.html
 
-You can also analyse how expensive each component of your queries and aggregations are using the {ref}[Profile API].
-This might allow you to tune your queries to be less expensive, resulting in a positive performance result and reduced load.
-Also note that Profile API payloads can be easily visualised for better readability in the {ref-searchprofiler}[Search Profiler], which is a Kibana dev tools UI available in all X-Pack licenses, including the free X-Pack Basic license.
+You can also analyse how expensive each component of your queries and 
+aggregations are using the {ref}/search-profile.html[Profile API]. This might 
+allow you to tune your queries to be less expensive, resulting in a positive 
+performance result and reduced load. Also note that Profile API payloads can be 
+easily visualised for better readability in the 
+{kibana-ref}/xpack-profiler.html[Search Profiler], which is a Kibana dev tools 
+UI available in all X-Pack licenses, including the free X-Pack Basic license.
 
 Some caveats to the Profile API are that:
 

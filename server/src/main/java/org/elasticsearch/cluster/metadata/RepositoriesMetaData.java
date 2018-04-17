@@ -50,8 +50,8 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
      *
      * @param repositories list of repositories
      */
-    public RepositoriesMetaData(RepositoryMetaData... repositories) {
-        this.repositories = Arrays.asList(repositories);
+    public RepositoriesMetaData(List<RepositoryMetaData> repositories) {
+        this.repositories = repositories;
     }
 
     /**
@@ -164,7 +164,7 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
                 throw new ElasticsearchParseException("failed to parse repositories");
             }
         }
-        return new RepositoriesMetaData(repository.toArray(new RepositoryMetaData[repository.size()]));
+        return new RepositoriesMetaData(repository);
     }
 
     /**

@@ -45,7 +45,7 @@ public class RepositoriesMetaDataSerializationTests extends AbstractDiffableSeri
             entries.add(new RepositoryMetaData(randomAlphaOfLength(10), randomAlphaOfLength(10), randomSettings()));
         }
         entries.sort(Comparator.comparing(RepositoryMetaData::name));
-        return new RepositoriesMetaData(entries.toArray(new RepositoryMetaData[entries.size()]));
+        return new RepositoriesMetaData(entries);
     }
 
     @Override
@@ -62,7 +62,7 @@ public class RepositoriesMetaDataSerializationTests extends AbstractDiffableSeri
         } else {
             entries.remove(randomIntBetween(0, entries.size() - 1));
         }
-        return new RepositoriesMetaData(entries.toArray(new RepositoryMetaData[entries.size()]));
+        return new RepositoriesMetaData(entries);
     }
 
     public Settings randomSettings() {
@@ -94,7 +94,7 @@ public class RepositoriesMetaDataSerializationTests extends AbstractDiffableSeri
                 repos.add(new RepositoryMetaData(randomAlphaOfLength(10), randomAlphaOfLength(10), randomSettings()));
             }
         }
-        return new RepositoriesMetaData(repos.toArray(new RepositoryMetaData[repos.size()]));
+        return new RepositoriesMetaData(repos);
     }
 
     @Override
@@ -114,7 +114,7 @@ public class RepositoriesMetaDataSerializationTests extends AbstractDiffableSeri
         assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
         List<RepositoryMetaData> repos = repositoriesMetaData.repositories();
         repos.sort(Comparator.comparing(RepositoryMetaData::name));
-        return new RepositoriesMetaData(repos.toArray(new RepositoryMetaData[repos.size()]));
+        return new RepositoriesMetaData(repos);
     }
 
 }

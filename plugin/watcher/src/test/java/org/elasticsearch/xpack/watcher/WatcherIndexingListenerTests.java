@@ -655,20 +655,6 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         assertThat(listener.getConfiguration(), is(INACTIVE));
     }
 
-    public void testThatIndexingListenerIsInactiveWhenWatchExecutionIsNotDistributed() throws Exception {
-        listener.setConfiguration(INACTIVE);
-        Version oldVersion = VersionUtils.randomVersionBetween(random(), Version.V_5_6_0, Version.V_6_0_0_alpha2);
-        DiscoveryNode node = new DiscoveryNode("node_1", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-                new HashSet<>(asList(DiscoveryNode.Role.values())), oldVersion);
-
-        ClusterState state = ClusterState.builder(new ClusterName("my-cluster"))
-                .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(node))
-                .build();
-        listener.clusterChanged(new ClusterChangedEvent("something", state, state));
-
-        assertThat(listener.getConfiguration(), is(INACTIVE));
-    }
-
     public void testThatIndexingListenerBecomesInactiveWithoutMasterNode() {
         ClusterState clusterStateWithMaster = mockClusterState(Watch.INDEX);
         ClusterState clusterStateWithoutMaster = mockClusterState(Watch.INDEX);

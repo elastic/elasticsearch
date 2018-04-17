@@ -468,29 +468,6 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         verify(watcherService, never()).start(any(ClusterState.class));
     }
 
-    public void testWatcherStartsOnlyOnMasterWhenOldNodesAreInCluster() throws Exception {
-        DiscoveryNodes nodes = new DiscoveryNodes.Builder()
-                .masterNodeId("node_1").localNodeId("node_1")
-                .add(newNode("node_1"))
-                .add(newNode("node_2"))
-                .add(newNode("oldNode", VersionUtils.randomVersionBetween(random(), Version.V_5_5_0, Version.V_6_0_0_alpha2)))
-                .build();
-
-        ClusterState state = ClusterState.builder(new ClusterName("my-cluster"))
-                .nodes(nodes)
-                .metaData(MetaData.builder()
-                        .put(IndexTemplateMetaData.builder(HISTORY_TEMPLATE_NAME).patterns(randomIndexPatterns()))
-                        .put(IndexTemplateMetaData.builder(TRIGGERED_TEMPLATE_NAME).patterns(randomIndexPatterns()))
-                        .put(IndexTemplateMetaData.builder(WATCHES_TEMPLATE_NAME).patterns(randomIndexPatterns()))
-                        .build())
-                .build();
-        when(watcherService.validate(eq(state))).thenReturn(true);
-        when(watcherService.state()).thenReturn(WatcherState.STOPPED);
-
-        lifeCycleService.clusterChanged(new ClusterChangedEvent("any", state, state));
-        verify(watcherService).start(any(ClusterState.class));
-    }
-
     public void testWatcherServiceDoesNotStartIfIndexTemplatesAreMissing() throws Exception {
         DiscoveryNodes nodes = new DiscoveryNodes.Builder()
                 .masterNodeId("node_1").localNodeId("node_1")

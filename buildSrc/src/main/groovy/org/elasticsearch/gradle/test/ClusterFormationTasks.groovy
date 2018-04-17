@@ -609,7 +609,7 @@ class ClusterFormationTasks {
 
         Task start = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
         if (node.javaVersion != null) {
-            BuildPlugin.requireJavaHome(project, start, node.javaVersion)
+            BuildPlugin.requireJavaHome(start, node.javaVersion)
         }
         start.doLast(elasticsearchRunner)
         return start

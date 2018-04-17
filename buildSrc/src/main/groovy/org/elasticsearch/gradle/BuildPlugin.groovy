@@ -223,20 +223,33 @@ class BuildPlugin implements Plugin<Project> {
     }
 
     /** Add a check before gradle execution phase which ensures java home for the given java version is set. */
-    static void requireJavaHome(Project project, Task task, int version) {
-        project.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
-            if (taskGraph.hasTask(task)) {
-                if (project.javaVersions.get(version) == null) {
-                    throw new GradleException("JAVA${version}_HOME required to run task ${task.path}")
+    static void requireJavaHome(Task task, int version) {
+        Project rootProject = task.project.rootProject // use root project for global accounting
+        if (rootProject.hasProperty('requiredJavaVersions') == false) {
+            rootProject.rootProject.ext.requiredJavaVersions = [:].withDefault{key -> return []}
+            rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
+                List<String> messages = []
+                for (entry in rootProject.requiredJavaVersions) {
+                    if (rootProject.javaVersions.get(entry.key) != null) {
+                        continue
+                    }
+                    List<String> tasks = entry.value.findAll { taskGraph.hasTask(it) }.collect { "  ${it.path}" }
+                    if (tasks.isEmpty() == false) {
+                        messages.add("JAVA${entry.key}_HOME required to run tasks:\n${tasks.join('\n')}")
+                    }
+                }
+                if (messages.isEmpty() == false) {
+                    throw new GradleException(messages.join('\n'))
                 }
             }
         }
+        rootProject.requiredJavaVersions.get(version).add(task)
     }
 
     /** A convenience method for getting java home for a version of java and requiring that version for the given task to execute */
-    static String getJavaHome(final Project project, final Task task, final int version) {
-        requireJavaHome(project, task, version)
-        return project.javaVersions.get(version)
+    static String getJavaHome(final Task task, final int version) {
+        requireJavaHome(task, version)
+        return task.project.javaVersions.get(version)
     }
 
     private static String findRuntimeJavaHome(final String compilerJavaHome) {

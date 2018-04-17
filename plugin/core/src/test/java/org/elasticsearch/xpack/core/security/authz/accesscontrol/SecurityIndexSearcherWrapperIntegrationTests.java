@@ -46,7 +46,6 @@ import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -59,7 +58,7 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends ESTestCase {
         ShardId shardId = new ShardId("_index", "_na_", 0);
         MapperService mapperService = mock(MapperService.class);
         ScriptService  scriptService = mock(ScriptService.class);
-        when(mapperService.docMappers(anyBoolean())).thenReturn(Collections.emptyList());
+        when(mapperService.documentMapper()).thenReturn(null);
         when(mapperService.simpleMatchToIndexNames(anyString()))
                 .then(invocationOnMock -> Collections.singletonList((String) invocationOnMock.getArguments()[0]));
 

@@ -23,17 +23,15 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.function.BiConsumer;
 
-public class BytesWriteOperation implements WriteOperation {
+public class FlushOperation {
 
-    private final SocketChannelContext channelContext;
     private final BiConsumer<Void, Throwable> listener;
     private final ByteBuffer[] buffers;
     private final int[] offsets;
     private final int length;
     private int internalIndex;
 
-    public BytesWriteOperation(SocketChannelContext channelContext, ByteBuffer[] buffers, BiConsumer<Void, Throwable> listener) {
-        this.channelContext = channelContext;
+    public FlushOperation(ByteBuffer[] buffers, BiConsumer<Void, Throwable> listener) {
         this.listener = listener;
         this.buffers = buffers;
         this.offsets = new int[buffers.length];
@@ -46,14 +44,8 @@ public class BytesWriteOperation implements WriteOperation {
         length = offset;
     }
 
-    @Override
     public BiConsumer<Void, Throwable> getListener() {
         return listener;
-    }
-
-    @Override
-    public SocketChannelContext getChannel() {
-        return channelContext;
     }
 
     public boolean isFullyFlushed() {
@@ -84,5 +76,4 @@ public class BytesWriteOperation implements WriteOperation {
 
         return postIndexBuffers;
     }
-
 }

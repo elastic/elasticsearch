@@ -55,6 +55,21 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
     }
 
     /**
+     * Returns the underlying stats flags.
+     */
+    public CommonStatsFlags flags() {
+        return flags;
+    }
+
+    /**
+     * Sets the underlying stats flags.
+     */
+    public IndicesStatsRequest flags(CommonStatsFlags flags) {
+        this.flags = flags;
+        return this;
+    }
+
+    /**
      * Document types to return stats for. Mainly affects {@link #indexing(boolean)} when
      * enabled, returning specific indexing stats for those types.
      */

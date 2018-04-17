@@ -59,6 +59,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
     public static class Names {
         public static final String IGNORE_MALFORMED = "ignore_malformed";
         public static final ParseField IGNORE_Z_VALUE = new ParseField("ignore_z_value");
+        public static final String NULL_VALUE = "null_value";
     }
 
     public static class Defaults {
@@ -133,7 +134,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
                 throws MapperParsingException {
             Builder builder = new GeoPointFieldMapper.Builder(name);
             parseField(builder, name, node, parserContext);
-
+            Object nullValue = null;
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String propName = entry.getKey();
@@ -146,9 +147,31 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
                     builder.ignoreZValue(TypeParsers.nodeBooleanValue(propName, Names.IGNORE_Z_VALUE.getPreferredName(),
                         propNode, parserContext));
                     iterator.remove();
+                } else if (propName.equals(Names.NULL_VALUE)) {
+                    if (propNode == null) {
+                        throw new MapperParsingException("Property [null_value] cannot be null.");
+                    }
+                    nullValue = propNode;
+                    iterator.remove();
                 }
             }
 
+            if (nullValue != null) {
+                boolean ignoreZValue = builder.ignoreZValue == null ? Defaults.IGNORE_Z_VALUE.value() : builder.ignoreZValue;
+                boolean ignoreMalformed = builder.ignoreMalformed == null ? Defaults.IGNORE_MALFORMED.value() : builder.ignoreZValue;
+                GeoPoint point = GeoUtils.parseGeoPoint(nullValue, ignoreZValue);
+                if (ignoreMalformed == false) {
+                    if (point.lat() > 90.0 || point.lat() < -90.0) {
+                        throw new IllegalArgumentException("illegal latitude value [" + point.lat() + "]");
+                    }
+                    if (point.lon() > 180.0 || point.lon() < -180) {
+                        throw new IllegalArgumentException("illegal longitude value [" + point.lon() + "]");
+                    }
+                } else {
+                    GeoUtils.normalizePoint(point);
+                }
+                builder.nullValue(point);
+            }
             return builder;
         }
     }
@@ -319,7 +342,11 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 parse(context, sparse.resetFromString(context.parser().text(), ignoreZValue.value()));
-            } else if (token != XContentParser.Token.VALUE_NULL) {
+            } else if (token == XContentParser.Token.VALUE_NULL) {
+                if (fieldType.nullValue() != null) {
+                    parse(context, (GeoPoint) fieldType.nullValue());
+                }
+            } else {
                 try {
                     parse(context, GeoUtils.parseGeoPoint(context.parser(), sparse));
                 } catch (ElasticsearchParseException e) {
@@ -338,10 +365,14 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
         if (includeDefaults || ignoreMalformed.explicit()) {
-            builder.field(GeoPointFieldMapper.Names.IGNORE_MALFORMED, ignoreMalformed.value());
+            builder.field(Names.IGNORE_MALFORMED, ignoreMalformed.value());
         }
         if (includeDefaults || ignoreZValue.explicit()) {
             builder.field(Names.IGNORE_Z_VALUE.getPreferredName(), ignoreZValue.value());
+        }
+
+        if (includeDefaults || fieldType().nullValue() != null) {
+            builder.field(Names.NULL_VALUE, fieldType().nullValue());
         }
     }
 

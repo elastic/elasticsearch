@@ -85,6 +85,10 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
             initial,
             hasToString(containsString(
                 "Failed to parse value [" + tooBig + "] for setting [thread_pool." + name + ".size] must be ")));
+
+        if (name.equals(Names.INDEX)) {
+            assertSettingDeprecationsAndWarnings(new String[] { "thread_pool.index.size" });
+        }
     }
 
     private static int getExpectedThreadPoolSize(Settings settings, String name, int size) {
@@ -116,6 +120,10 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
             assertThat(info(threadPool, threadPoolName).getMax(), equalTo(expectedSize));
             // keep alive does not apply to fixed thread pools
             assertThat(((EsThreadPoolExecutor) threadPool.executor(threadPoolName)).getKeepAliveTime(TimeUnit.MINUTES), equalTo(0L));
+
+            if (threadPoolName.equals(Names.INDEX)) {
+                assertSettingDeprecationsAndWarnings(new String[] { "thread_pool.index.size" });
+            }
         } finally {
             terminateThreadPoolIfNeeded(threadPool);
         }
@@ -171,6 +179,10 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
             latch.await(3, TimeUnit.SECONDS); // if this throws then ThreadPool#shutdownNow did not interrupt
             assertThat(oldExecutor.isShutdown(), equalTo(true));
             assertThat(oldExecutor.isTerminating() || oldExecutor.isTerminated(), equalTo(true));
+
+            if (threadPoolName.equals(Names.INDEX)) {
+                assertSettingDeprecationsAndWarnings(new String[] { "thread_pool.index.queue_size" });
+            }
         } finally {
             terminateThreadPoolIfNeeded(threadPool);
         }

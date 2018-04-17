@@ -42,7 +42,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.ESTestCase;
 
@@ -341,12 +340,12 @@ public class SliceBuilderTests extends ESTestCase {
                     return null;
                 }
             };
-            fieldType.setName(UidFieldMapper.NAME);
+            fieldType.setName("_uid");
             fieldType.setHasDocValues(false);
-            when(context.fieldMapper(UidFieldMapper.NAME)).thenReturn(fieldType);
+            when(context.fieldMapper("_uid")).thenReturn(fieldType);
             when(context.getIndexReader()).thenReturn(reader);
             Settings settings = Settings.builder()
-                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_3_0)
                     .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
                     .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                     .build();

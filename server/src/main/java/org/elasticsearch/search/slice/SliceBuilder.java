@@ -38,7 +38,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -98,7 +97,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
 
     public SliceBuilder(StreamInput in) throws IOException {
         String field = in.readString();
-        if (UidFieldMapper.NAME.equals(field) && in.getVersion().before(Version.V_6_3_0)) {
+        if ("_uid".equals(field) && in.getVersion().before(Version.V_6_3_0)) {
             // This is safe because _id and _uid are handled the same way in #toFilter
             field = IdFieldMapper.NAME;
         }
@@ -110,7 +109,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (IdFieldMapper.NAME.equals(field) && out.getVersion().before(Version.V_6_3_0)) {
-            out.writeString(UidFieldMapper.NAME);
+            out.writeString("_uid");
         } else {
             out.writeString(field);
         }
@@ -212,19 +211,15 @@ public class SliceBuilder implements Writeable, ToXContentObject {
 
         String field = this.field;
         boolean useTermQuery = false;
-        if (UidFieldMapper.NAME.equals(field)) {
-            if (context.getIndexSettings().isSingleType()) {
-                // on new indices, the _id acts as a _uid
-                field = IdFieldMapper.NAME;
-                DEPRECATION_LOG.deprecated("Computing slices on the [_uid] field is deprecated for 6.x indices, use [_id] instead");
+        if ("_uid".equals(field)) {
+            // on new indices, the _id acts as a _uid
+            field = IdFieldMapper.NAME;
+            if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
+                throw new IllegalArgumentException("Computing slices on the [_uid] field is illegal for 7.x indices, use [_id] instead");
             }
+            DEPRECATION_LOG.deprecated("Computing slices on the [_uid] field is deprecated for 6.x indices, use [_id] instead");
             useTermQuery = true;
         } else if (IdFieldMapper.NAME.equals(field)) {
-            if (context.getIndexSettings().isSingleType() == false) {
-                // on old indices, we need _uid. We maintain this so that users
-                // can use _id to slice even if they still have 5.x indices.
-                field = UidFieldMapper.NAME;
-            }
             useTermQuery = true;
         } else if (type.hasDocValues() == false) {
             throw new IllegalArgumentException("cannot load numeric doc values on " + field);

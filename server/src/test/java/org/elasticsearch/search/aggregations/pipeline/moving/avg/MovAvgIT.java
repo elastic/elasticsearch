@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline.moving.avg;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -67,6 +68,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29456")
 @ESIntegTestCase.SuiteScopeTestCase
 public class MovAvgIT extends ESIntegTestCase {
     private static final String INTERVAL_FIELD = "l_value";
@@ -599,6 +601,7 @@ public class MovAvgIT extends ESIntegTestCase {
             assertBucketContents(actual, expectedCount, expectedValue);
         }
     }
+
 
     public void testHoltWintersValuedField() {
         SearchResponse response = client()

@@ -37,10 +37,6 @@
           "type" : "string",
           "description" : "Default document type for items which don't provide one"
         },
-        "fields": {
-          "type": "list",
-          "description" : "Default comma-separated list of fields to return in the response for updates, can be overridden on each sub-request"
-        },
         "_source": {
           "type" : "list",
           "description" : "True or false to return the _source field or not, or default list of fields to return, can be overridden on each sub-request"

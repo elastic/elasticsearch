@@ -29,7 +29,6 @@ setup:
   - do:
       search:
         index: _all
-        type:  test
         body:
           query:
             match:
@@ -40,7 +39,6 @@ setup:
   - do:
       search:
         index: test_1
-        type:  test
         body:
           query:
             match:
@@ -54,7 +52,6 @@ setup:
   - do:
       search:
         index: test_2
-        type:  test
         body:
           query:
             match:

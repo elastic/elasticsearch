@@ -5,6 +5,12 @@
 
 The `_all` field deprecated in 6 have now been removed.
 
+==== The `_uid` meta field is removed
+
+This field used to index a composite key formed of the `_type` and the `_id`.
+Now that indices cannot have multiple types, this has been removed in favour
+of `_id`.
+
 ==== The `_default_` mapping is no longer allowed
 
 The `_default_` mapping has been deprecated in 6.0 and is now no longer allowed

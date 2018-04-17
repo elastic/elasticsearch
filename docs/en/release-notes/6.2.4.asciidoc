@@ -10,13 +10,17 @@ coming[6.2.4]
 [[xes-bug-6.2.4]]
 [float]
 === Bug fixes
-////
+
 Machine Learning::
-* [ML] Don't open failed jobs after node loss
+* Prevents failed jobs from mistakenly re-opening after node loss recovery. 
 // https://github.com/elastic/x-pack-elasticsearch/pull/4320[#4320] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/3997[#3997])
-* [ML] Return error when process has been killed
+* Returns an error when an operation cannot be submitted because the process was 
+killed. 
 // https://github.com/elastic/x-pack-elasticsearch/pull/4211[#4211] (issue: https://github.com/elastic/x-pack-elasticsearch/issues/4210[#4210])
-////
+* Respects the datafeed frequency when it is less or equal to the 
+`query_delay` setting.  
+// https://github.com/elastic/x-pack-elasticsearch/pull/4168
+
 Security/Authentication::
 * Adds missing `idp.use_single_logout` and `populate_user_metadata` SAML realm 
 settings. See <<ref-saml-settings>>. 

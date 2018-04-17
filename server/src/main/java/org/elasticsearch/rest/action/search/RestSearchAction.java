@@ -27,6 +27,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -150,8 +151,13 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.scroll(new Scroll(parseTimeValue(scroll, null, "scroll")));
         }
 
+        final boolean includeTypeName = request.paramAsBoolean("include_type_name", true);
         String types = request.param("type");
         if (types != null) {
+            if (includeTypeName == false) {
+                throw new IllegalArgumentException("You may only use the [include_type_name=false] option with the search API with the " +
+                        "[{index}/_search] endpoint.");
+            }
             DEPRECATION_LOGGER.deprecated("The {index}/{type}/_search endpoint is deprecated, use {index}/_search instead");
         }
         searchRequest.types(Strings.splitStringByCommaToArray(types));

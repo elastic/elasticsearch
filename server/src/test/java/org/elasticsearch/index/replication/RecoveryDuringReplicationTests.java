@@ -128,7 +128,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 shards.flush();
                 translogTrimmed = randomBoolean();
                 if (translogTrimmed) {
-                    final Translog translog = shards.getPrimary().getTranslog();
+                    final Translog translog = getTranslog(shards.getPrimary());
                     translog.getDeletionPolicy().setRetentionAgeInMillis(0);
                     translog.trimUnreferencedReaders();
                 }
@@ -271,7 +271,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 // otherwise the deletion policy won't trim translog
                 assertBusy(() -> {
                     shards.syncGlobalCheckpoint();
-                    assertThat(newPrimary.getTranslog().getLastSyncedGlobalCheckpoint(), equalTo(newPrimary.seqNoStats().getMaxSeqNo()));
+                    assertThat(newPrimary.getLastSyncedGlobalCheckpoint(), equalTo(newPrimary.seqNoStats().getMaxSeqNo()));
                 });
                 newPrimary.flush(new FlushRequest());
                 uncommittedOpsOnPrimary = shards.indexDocs(randomIntBetween(0, 10));
@@ -340,7 +340,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             // Index more docs - move the global checkpoint >= seqno of the stale operations.
             goodDocs += shards.indexDocs(scaledRandomIntBetween(staleDocs, staleDocs * 5));
             shards.syncGlobalCheckpoint();
-            assertThat(replica.getTranslog().getLastSyncedGlobalCheckpoint(), equalTo(replica.seqNoStats().getMaxSeqNo()));
+            assertThat(replica.getLastSyncedGlobalCheckpoint(), equalTo(replica.seqNoStats().getMaxSeqNo()));
             // Recover a replica again should also rollback the stale documents.
             shards.removeReplica(replica);
             replica.close("recover replica - second time", false);

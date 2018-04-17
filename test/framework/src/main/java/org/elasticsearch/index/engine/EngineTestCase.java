@@ -493,4 +493,11 @@ public abstract class EngineTestCase extends ESTestCase {
         return new Engine.Delete("test", id, newUid(id), seqNo, 1, version, VersionType.EXTERNAL,
             Engine.Operation.Origin.REPLICA, startTime);
     }
+
+    /**
+     * Exposes a translog associated with the given engine for testing purpose.
+     */
+    public static Translog getTranslog(Engine engine) {
+        return engine.getTranslog();
+    }
 }

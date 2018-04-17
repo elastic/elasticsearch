@@ -19,19 +19,13 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
-import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.search.SortField;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -291,46 +285,19 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
      *
      * @param context   The search context for this source.
      * @param config    The {@link ValuesSourceConfig} for this source.
-     * @param pos       The position of this source in the composite key.
-     * @param numPos    The total number of positions in the composite key.
-     * @param sortField The {@link SortField} of the index sort at this position or null if not present.
      */
-    protected abstract CompositeValuesSourceConfig innerBuild(SearchContext context,
-                                                              ValuesSourceConfig<?> config,
-                                                              int pos,
-                                                              int numPos,
-                                                              SortField sortField) throws IOException;
+    protected abstract CompositeValuesSourceConfig innerBuild(SearchContext context, ValuesSourceConfig<?> config) throws IOException;
 
-    public final CompositeValuesSourceConfig build(SearchContext context, int pos, int numPos, SortField sortField) throws IOException {
+    public final CompositeValuesSourceConfig build(SearchContext context) throws IOException {
         ValuesSourceConfig<?> config = ValuesSourceConfig.resolve(context.getQueryShardContext(),
             valueType, field, script, missing, null, format);
-        return innerBuild(context, config, pos, numPos, sortField);
-    }
 
-    protected boolean checkCanEarlyTerminate(IndexReader reader,
-                                             String fieldName,
-                                             boolean reverse,
-                                             SortField sortField) throws IOException {
-        return sortField.getField().equals(fieldName) &&
-            sortField.getReverse() == reverse &&
-            isSingleValued(reader, sortField);
-    }
-
-    private static boolean isSingleValued(IndexReader reader, SortField field) throws IOException {
-        SortField.Type type = IndexSortConfig.getSortFieldType(field);
-        for (LeafReaderContext context : reader.leaves()) {
-            if (type == SortField.Type.STRING) {
-                final SortedSetDocValues values = DocValues.getSortedSet(context.reader(), field.getField());
-                if (values.cost() > 0 && DocValues.unwrapSingleton(values) == null) {
-                    return false;
-                }
-            } else {
-                final SortedNumericDocValues values = DocValues.getSortedNumeric(context.reader(), field.getField());
-                if (values.cost() > 0 && DocValues.unwrapSingleton(values) == null) {
-                    return false;
-                }
-            }
+        if (config.unmapped() && field != null && config.missing() == null) {
+            // this source cannot produce any values so we refuse to build
+            // since composite buckets are not created on null values
+            throw new QueryShardException(context.getQueryShardContext(),
+                "failed to find field [" + field + "] and [missing] is not provided");
         }
-        return true;
+        return innerBuild(context, config);
     }
 }

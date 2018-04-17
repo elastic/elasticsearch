@@ -20,7 +20,6 @@
 package org.elasticsearch.threadpool;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
@@ -69,6 +68,7 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
         public static final String GENERIC = "generic";
         public static final String LISTENER = "listener";
         public static final String GET = "get";
+        public static final String ANALYZE = "analyze";
         public static final String INDEX = "index";
         public static final String BULK = "bulk";
         public static final String SEARCH = "search";
@@ -125,6 +125,7 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
         map.put(Names.GENERIC, ThreadPoolType.SCALING);
         map.put(Names.LISTENER, ThreadPoolType.FIXED);
         map.put(Names.GET, ThreadPoolType.FIXED);
+        map.put(Names.ANALYZE, ThreadPoolType.FIXED);
         map.put(Names.INDEX, ThreadPoolType.FIXED);
         map.put(Names.BULK, ThreadPoolType.FIXED);
         map.put(Names.SEARCH, ThreadPoolType.FIXED_AUTO_QUEUE_SIZE);
@@ -171,9 +172,10 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
         final int halfProcMaxAt10 = halfNumberOfProcessorsMaxTen(availableProcessors);
         final int genericThreadPoolMax = boundedBy(4 * availableProcessors, 128, 512);
         builders.put(Names.GENERIC, new ScalingExecutorBuilder(Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30)));
-        builders.put(Names.INDEX, new FixedExecutorBuilder(settings, Names.INDEX, availableProcessors, 200));
+        builders.put(Names.INDEX, new FixedExecutorBuilder(settings, Names.INDEX, availableProcessors, 200, true));
         builders.put(Names.BULK, new FixedExecutorBuilder(settings, Names.BULK, availableProcessors, 200)); // now that we reuse bulk for index/delete ops
         builders.put(Names.GET, new FixedExecutorBuilder(settings, Names.GET, availableProcessors, 1000));
+        builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16));
         builders.put(Names.SEARCH, new AutoQueueAdjustingExecutorBuilder(settings,
                         Names.SEARCH, searchThreadPoolSize(availableProcessors), 1000, 1000, 1000, 2000));
         builders.put(Names.MANAGEMENT, new ScalingExecutorBuilder(Names.MANAGEMENT, 1, 5, TimeValue.timeValueMinutes(5)));
@@ -351,11 +353,11 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
         return new ReschedulingRunnable(command, interval, executor, this,
                 (e) -> {
                     if (logger.isDebugEnabled()) {
-                        logger.debug((Supplier<?>) () -> new ParameterizedMessage("scheduled task [{}] was rejected on thread pool [{}]",
+                        logger.debug(() -> new ParameterizedMessage("scheduled task [{}] was rejected on thread pool [{}]",
                                 command, executor), e);
                     }
                 },
-                (e) -> logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to run scheduled task [{}] on thread pool [{}]",
+                (e) -> logger.warn(() -> new ParameterizedMessage("failed to run scheduled task [{}] on thread pool [{}]",
                         command, executor), e));
     }
 
@@ -443,7 +445,7 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
             try {
                 runnable.run();
             } catch (Exception e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to run {}", runnable.toString()), e);
+                logger.warn(() -> new ParameterizedMessage("failed to run {}", runnable.toString()), e);
                 throw e;
             }
         }
@@ -609,7 +611,7 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
             type = ThreadPoolType.fromType(in.readString());
             min = in.readInt();
             max = in.readInt();
-            keepAlive = in.readOptionalWriteable(TimeValue::new);
+            keepAlive = in.readOptionalTimeValue();
             queueSize = in.readOptionalWriteable(SizeValue::new);
         }
 
@@ -625,7 +627,7 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
             }
             out.writeInt(min);
             out.writeInt(max);
-            out.writeOptionalWriteable(keepAlive);
+            out.writeOptionalTimeValue(keepAlive);
             out.writeOptionalWriteable(queueSize);
         }
 

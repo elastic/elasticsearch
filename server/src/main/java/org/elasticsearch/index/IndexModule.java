@@ -19,9 +19,13 @@
 
 package org.elasticsearch.index;
 
+import org.apache.lucene.search.similarities.Similarity;
+import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -39,9 +43,6 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.SearchOperationListener;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.similarity.BM25SimilarityProvider;
-import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.IndicesQueryCache;
@@ -68,10 +69,10 @@ import java.util.function.Function;
 /**
  * IndexModule represents the central extension point for index level custom implementations like:
  * <ul>
- *     <li>{@link SimilarityProvider} - New {@link SimilarityProvider} implementations can be registered through
- *     {@link #addSimilarity(String, SimilarityProvider.Factory)} while existing Providers can be referenced through Settings under the
+ *     <li>{@link Similarity} - New {@link Similarity} implementations can be registered through
+ *     {@link #addSimilarity(String, TriFunction)} while existing Providers can be referenced through Settings under the
  *     {@link IndexModule#SIMILARITY_SETTINGS_PREFIX} prefix along with the "type" value.  For example, to reference the
- *     {@link BM25SimilarityProvider}, the configuration <tt>"index.similarity.my_similarity.type : "BM25"</tt> can be used.</li>
+ *     {@link BM25Similarity}, the configuration <tt>"index.similarity.my_similarity.type : "BM25"</tt> can be used.</li>
  *      <li>{@link IndexStore} - Custom {@link IndexStore} instances can be registered via {@link #addIndexStore(String, Function)}</li>
  *      <li>{@link IndexEventListener} - Custom {@link IndexEventListener} instances can be registered via
  *      {@link #addIndexEventListener(IndexEventListener)}</li>
@@ -107,7 +108,7 @@ public final class IndexModule {
     final SetOnce<EngineFactory> engineFactory = new SetOnce<>();
     private SetOnce<IndexSearcherWrapperFactory> indexSearcherWrapper = new SetOnce<>();
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
-    private final Map<String, SimilarityProvider.Factory> similarities = new HashMap<>();
+    private final Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarities = new HashMap<>();
     private final Map<String, Function<IndexSettings, IndexStore>> storeTypes = new HashMap<>();
     private final SetOnce<BiFunction<IndexSettings, IndicesQueryCache, QueryCache>> forceQueryCacheProvider = new SetOnce<>();
     private final List<SearchOperationListener> searchOperationListeners = new ArrayList<>();
@@ -246,12 +247,17 @@ public final class IndexModule {
 
 
     /**
-     * Registers the given {@link SimilarityProvider} with the given name
+     * Registers the given {@link Similarity} with the given name.
+     * The function takes as parameters:<ul>
+     *   <li>settings for this similarity
+     *   <li>version of Elasticsearch when the index was created
+     *   <li>ScriptService, for script-based similarities
+     * </ul>
      *
      * @param name Name of the SimilarityProvider
      * @param similarity SimilarityProvider to register
      */
-    public void addSimilarity(String name, SimilarityProvider.Factory similarity) {
+    public void addSimilarity(String name, TriFunction<Settings, Version, ScriptService, Similarity> similarity) {
         ensureNotFrozen();
         if (similarities.containsKey(name) || SimilarityService.BUILT_IN.containsKey(name)) {
             throw new IllegalArgumentException("similarity for name: [" + name + " is already registered");

@@ -27,11 +27,12 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
-import org.elasticsearch.index.mapper.UidFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
@@ -95,16 +96,16 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                     int numNestedDocs = randomIntBetween(0, 20);
                     for (int nested = 0; nested < numNestedDocs; nested++) {
                         Document document = new Document();
-                        document.add(new Field(UidFieldMapper.NAME, "type#" + i,
-                                UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                        document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)),
+                                IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
                         document.add(new Field(TypeFieldMapper.NAME, "__" + NESTED_OBJECT,
                                 TypeFieldMapper.Defaults.FIELD_TYPE));
                         documents.add(document);
                         expectedNestedDocs++;
                     }
                     Document document = new Document();
-                    document.add(new Field(UidFieldMapper.NAME, "type#" + i,
-                            UidFieldMapper.Defaults.FIELD_TYPE));
+                    document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)),
+                            IdFieldMapper.Defaults.FIELD_TYPE));
                     document.add(new Field(TypeFieldMapper.NAME, "test",
                             TypeFieldMapper.Defaults.FIELD_TYPE));
                     long value = randomNonNegativeLong() % 10000;

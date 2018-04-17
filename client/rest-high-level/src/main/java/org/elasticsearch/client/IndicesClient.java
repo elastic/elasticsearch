@@ -34,15 +34,19 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
-import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
-import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 
@@ -262,6 +266,28 @@ public final class IndicesClient {
     }
 
     /**
+     * Force merge one or more indices using the Force Merge API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-forcemerge.html">
+     * Force Merge API on elastic.co</a>
+     */
+    public ForceMergeResponse forceMerge(ForceMergeRequest forceMergeRequest, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(forceMergeRequest, Request::forceMerge, ForceMergeResponse::fromXContent,
+            emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously force merge one or more indices using the Force Merge API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-forcemerge.html">
+     * Force Merge API on elastic.co</a>
+     */
+    public void forceMergeAsync(ForceMergeRequest forceMergeRequest, ActionListener<ForceMergeResponse> listener, Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(forceMergeRequest, Request::forceMerge, ForceMergeResponse::fromXContent,
+                listener, emptySet(), headers);
+    }
+
+    /**
      * Clears the cache of one or more indices using the Clear Cache API
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-clearcache.html">
@@ -382,4 +408,28 @@ public final class IndicesClient {
         restHighLevelClient.performRequestAsyncAndParseEntity(rolloverRequest, Request::rollover, RolloverResponse::fromXContent,
                 listener, emptySet(), headers);
     }
+
+    /**
+     * Updates specific index level settings using the Update Indices Settings API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-update-settings.html"> Update Indices Settings
+     * API on elastic.co</a>
+     */
+    public UpdateSettingsResponse putSettings(UpdateSettingsRequest updateSettingsRequest, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(updateSettingsRequest, Request::indexPutSettings,
+                UpdateSettingsResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously updates specific index level settings using the Update Indices Settings API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-update-settings.html"> Update Indices Settings
+     * API on elastic.co</a>
+     */
+    public void putSettingsAsync(UpdateSettingsRequest updateSettingsRequest, ActionListener<UpdateSettingsResponse> listener,
+            Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(updateSettingsRequest, Request::indexPutSettings,
+                UpdateSettingsResponse::fromXContent, listener, emptySet(), headers);
+    }
+
 }

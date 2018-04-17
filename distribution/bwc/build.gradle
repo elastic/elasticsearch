@@ -17,11 +17,12 @@
  * under the License.
  */
 
+
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
 
-import java.util.regex.Matcher
+import static org.elasticsearch.gradle.BuildPlugin.getJavaHome
 
 /**
  * This is a dummy project which does a local checkout of the previous
@@ -54,6 +55,16 @@ subprojects {
 
   final String remote = System.getProperty("tests.bwc.remote", "elastic")
 
+  final boolean gitFetchLatest
+  final String gitFetchLatestProperty = System.getProperty("tests.bwc.git_fetch_latest", "true")
+  if ("true".equals(gitFetchLatestProperty)) {
+    gitFetchLatest = true
+  } else if ("false".equals(gitFetchLatestProperty)) {
+    gitFetchLatest = false
+  } else {
+    throw new GradleException("tests.bwc.git_fetch_latest must be [true] or [false] but was [" + gitFetchLatestProperty + "]")
+  }
+
   task createClone(type: LoggedExec) {
     onlyIf { checkoutDir.exists() == false }
     commandLine = ['git', 'clone', rootDir, checkoutDir]
@@ -83,7 +94,7 @@ subprojects {
   }
 
   task fetchLatest(type: LoggedExec) {
-    onlyIf { project.gradle.startParameter.isOffline() == false }
+    onlyIf { project.gradle.startParameter.isOffline() == false && gitFetchLatest }
     dependsOn addRemote
     workingDir = checkoutDir
     commandLine = ['git', 'fetch', '--all']
@@ -91,7 +102,7 @@ subprojects {
 
   String buildMetadataKey = "bwc_refspec_${project.path.substring(1)}"
   task checkoutBwcBranch(type: LoggedExec) {
-    String refspec = System.getProperty("tests.bwc.refspec", buildMetadata.get(buildMetadataKey, "${remote}/${bwcBranch}"))
+    String refspec = System.getProperty("tests.bwc.refspec.${bwcBranch}", buildMetadata.get(buildMetadataKey, "${remote}/${bwcBranch}"))
     dependsOn fetchLatest
     workingDir = checkoutDir
     commandLine = ['git', 'checkout', refspec]
@@ -134,12 +145,13 @@ subprojects {
   task buildBwcVersion(type: Exec) {
     dependsOn checkoutBwcBranch, writeBuildMetadata
     workingDir = checkoutDir
-    if (project.rootProject.ext.runtimeJavaVersion == JavaVersion.VERSION_1_8 && ["5.6", "6.0", "6.1"].contains(bwcBranch)) {
-      /*
-       * If runtime Java home is set to JDK 8 and we are building branches that are officially built with JDK 8, push this to JAVA_HOME for
-       * these builds.
-       */
-      environment('JAVA_HOME', System.getenv('RUNTIME_JAVA_HOME'))
+    if (["5.6", "6.0", "6.1"].contains(bwcBranch)) {
+      // we are building branches that are officially built with JDK 8, push JAVA8_HOME to JAVA_HOME for these builds
+      environment('JAVA_HOME', "${-> getJavaHome(project, 8, "JAVA8_HOME is required to build BWC versions for BWC branch [" + bwcBranch + "]")}")
+    } else if ("6.2".equals(bwcBranch)) {
+      environment('JAVA_HOME', "${-> getJavaHome(project, 9, "JAVA9_HOME is required to build BWC versions for BWC branch [" + bwcBranch + "]")}")
+    } else {
+      environment('JAVA_HOME', project.compilerJavaHome)
     }
     if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       executable 'cmd'

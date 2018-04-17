@@ -37,6 +37,8 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
@@ -46,6 +48,8 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
@@ -109,8 +113,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.local(false); // <1>
             request.humanReadable(true); // <2>
             request.includeDefaults(false); // <3>
-            request.flatSettings(false); // <4>
-            request.indicesOptions(indicesOptions); // <5>
+            request.indicesOptions(indicesOptions); // <4>
             // end::indices-exists-request-optionals
 
             // tag::indices-exists-response
@@ -392,6 +395,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::create-index-execute-listener
             ActionListener<CreateIndexResponse> listener =
                     new ActionListener<CreateIndexResponse>() {
+
                 @Override
                 public void onResponse(CreateIndexResponse createIndexResponse) {
                     // <1>
@@ -771,6 +775,79 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
     }
 
+    public void testForceMergeIndex() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            createIndex("index", Settings.EMPTY);
+        }
+
+        {
+            // tag::force-merge-request
+            ForceMergeRequest request = new ForceMergeRequest("index1"); // <1>
+            ForceMergeRequest requestMultiple = new ForceMergeRequest("index1", "index2"); // <2>
+            ForceMergeRequest requestAll = new ForceMergeRequest(); // <3>
+            // end::force-merge-request
+
+            // tag::force-merge-request-indicesOptions
+            request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+            // end::force-merge-request-indicesOptions
+
+            // tag::force-merge-request-segments-num
+            request.maxNumSegments(1); // <1>
+            // end::force-merge-request-segments-num
+
+            // tag::force-merge-request-only-expunge-deletes
+            request.onlyExpungeDeletes(true); // <1>
+            // end::force-merge-request-only-expunge-deletes
+
+            // tag::force-merge-request-flush
+            request.flush(true); // <1>
+            // end::force-merge-request-flush
+
+            // tag::force-merge-execute
+            ForceMergeResponse forceMergeResponse = client.indices().forceMerge(request);
+            // end::force-merge-execute
+
+            // tag::force-merge-response
+            int totalShards = forceMergeResponse.getTotalShards(); // <1>
+            int successfulShards = forceMergeResponse.getSuccessfulShards(); // <2>
+            int failedShards = forceMergeResponse.getFailedShards(); // <3>
+            DefaultShardOperationFailedException[] failures = forceMergeResponse.getShardFailures(); // <4>
+            // end::force-merge-response
+
+            // tag::force-merge-execute-listener
+            ActionListener<ForceMergeResponse> listener = new ActionListener<ForceMergeResponse>() {
+                @Override
+                public void onResponse(ForceMergeResponse forceMergeResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::force-merge-execute-listener
+
+            // tag::force-merge-execute-async
+            client.indices().forceMergeAsync(request, listener); // <1>
+            // end::force-merge-execute-async
+        }
+        {
+            // tag::force-merge-notfound
+            try {
+                ForceMergeRequest request = new ForceMergeRequest("does_not_exist");
+                client.indices().forceMerge(request);
+            } catch (ElasticsearchException exception) {
+                if (exception.status() == RestStatus.NOT_FOUND) {
+                    // <1>
+                }
+            }
+            // end::force-merge-notfound
+        }
+    }
+
     public void testClearCache() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -854,7 +931,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::clear-cache-notfound
         }
     }
-
 
     public void testCloseIndex() throws Exception {
         RestHighLevelClient client = highLevelClient();
@@ -1304,4 +1380,107 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
+
+    public void testIndexPutSettings() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index"));
+            assertTrue(createIndexResponse.isAcknowledged());
+        }
+
+        // tag::put-settings-request
+        UpdateSettingsRequest request = new UpdateSettingsRequest("index1"); // <1>
+        UpdateSettingsRequest requestMultiple =
+                new UpdateSettingsRequest("index1", "index2"); // <2>
+        UpdateSettingsRequest requestAll = new UpdateSettingsRequest(); // <3>
+        // end::put-settings-request
+
+        // tag::put-settings-create-settings
+        String settingKey = "index.number_of_replicas";
+        int settingValue = 0;
+        Settings settings =
+                Settings.builder()
+                .put(settingKey, settingValue)
+                .build(); // <1>
+        // end::put-settings-create-settings
+        // tag::put-settings-request-index-settings
+        request.settings(settings);
+        // end::put-settings-request-index-settings
+
+        {
+            // tag::put-settings-settings-builder
+            Settings.Builder settingsBuilder =
+                    Settings.builder()
+                    .put(settingKey, settingValue);
+            request.settings(settingsBuilder); // <1>
+            // end::put-settings-settings-builder
+        }
+        {
+            // tag::put-settings-settings-map
+            Map<String, Object> map = new HashMap<>();
+            map.put(settingKey, settingValue);
+            request.settings(map); // <1>
+            // end::put-settings-settings-map
+        }
+        {
+            // tag::put-settings-settings-source
+            request.settings(
+                    "{\"index.number_of_replicas\": \"2\"}"
+                    , XContentType.JSON); // <1>
+            // end::put-settings-settings-source
+        }
+
+        // tag::put-settings-request-preserveExisting
+        request.setPreserveExisting(false); // <1>
+        // end::put-settings-request-preserveExisting
+        // tag::put-settings-request-timeout
+        request.timeout(TimeValue.timeValueMinutes(2)); // <1>
+        request.timeout("2m"); // <2>
+        // end::put-settings-request-timeout
+        // tag::put-settings-request-masterTimeout
+        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.masterNodeTimeout("1m"); // <2>
+        // end::put-settings-request-masterTimeout
+        // tag::put-settings-request-indicesOptions
+        request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+        // end::put-settings-request-indicesOptions
+
+        // tag::put-settings-execute
+        UpdateSettingsResponse updateSettingsResponse =
+                client.indices().putSettings(request);
+        // end::put-settings-execute
+
+        // tag::put-settings-response
+        boolean acknowledged = updateSettingsResponse.isAcknowledged(); // <1>
+        // end::put-settings-response
+        assertTrue(acknowledged);
+
+        // tag::put-settings-execute-listener
+        ActionListener<UpdateSettingsResponse> listener =
+                new ActionListener<UpdateSettingsResponse>() {
+
+            @Override
+            public void onResponse(UpdateSettingsResponse updateSettingsResponse) {
+                // <1>
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::put-settings-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::put-settings-execute-async
+        client.indices().putSettingsAsync(request,listener); // <1>
+        // end::put-settings-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
 }

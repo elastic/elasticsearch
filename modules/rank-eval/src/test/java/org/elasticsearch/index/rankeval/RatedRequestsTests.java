@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -51,6 +53,7 @@ import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 
 public class RatedRequestsTests extends ESTestCase {
@@ -134,11 +137,13 @@ public class RatedRequestsTests extends ESTestCase {
         BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, null, random());
         try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
             Exception exception = expectThrows(Exception.class, () -> RatedRequest.fromXContent(parser));
-            if (exception instanceof IllegalArgumentException) {
-                assertThat(exception.getMessage(), startsWith("[request] unknown field"));
+            if (exception instanceof XContentParseException) {
+                XContentParseException xcpe = (XContentParseException) exception;
+                assertThat(ExceptionsHelper.detailedMessage(xcpe), containsString("unknown field"));
+                assertThat(ExceptionsHelper.detailedMessage(xcpe), containsString("parser not found"));
             }
-            if (exception instanceof ParsingException) {
-                assertThat(exception.getMessage(), startsWith("[request] failed to parse field"));
+            if (exception instanceof XContentParseException) {
+                assertThat(exception.getMessage(), containsString("[request] failed to parse field"));
             }
         }
     }

@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.cluster.health;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -104,7 +103,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
 
                     @Override
                     public void onFailure(String source, Exception e) {
-                        logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+                        logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
                         listener.onFailure(e);
                     }
                 });
@@ -132,7 +131,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
 
                     @Override
                     public void onFailure(String source, Exception e) {
-                        logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+                        logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
                         listener.onFailure(e);
                     }
                 });

@@ -36,7 +36,7 @@ import java.security.MessageDigest
 // common maven publishing configuration
 subprojects {
   group = 'org.elasticsearch'
-  version = VersionProperties.elasticsearch
+  version = VersionProperties.elasticsearch.toString()
   description = "Elasticsearch subproject ${project.path}"
 }
 
@@ -80,7 +80,7 @@ configure(subprojects.findAll { it.projectDir.toPath().startsWith(rootPath) }) {
  * in a branch if there are only betas and rcs in the branch so we have
  * *something* to test against. */
 VersionCollection versions = new VersionCollection(file('server/src/main/java/org/elasticsearch/Version.java').readLines('UTF-8'))
-if (versions.currentVersion.toString() != VersionProperties.elasticsearch) {
+if (versions.currentVersion != VersionProperties.elasticsearch) {
   throw new GradleException("The last version in Versions.java [${versions.currentVersion}] does not match " +
           "VersionProperties.elasticsearch [${VersionProperties.elasticsearch}]")
 }
@@ -196,6 +196,7 @@ subprojects {
     "org.elasticsearch:elasticsearch-cli:${version}": ':server:cli',
     "org.elasticsearch:elasticsearch-core:${version}": ':libs:elasticsearch-core',
     "org.elasticsearch:elasticsearch-nio:${version}": ':libs:elasticsearch-nio',
+    "org.elasticsearch:elasticsearch-x-content:${version}": ':libs:x-content',
     "org.elasticsearch:elasticsearch-secure-sm:${version}": ':libs:secure-sm',
     "org.elasticsearch.client:elasticsearch-rest-client:${version}": ':client:rest',
     "org.elasticsearch.client:elasticsearch-rest-client-sniffer:${version}": ':client:sniffer',
@@ -230,6 +231,23 @@ subprojects {
     }
   }
 
+  /*
+   * Gradle only resolve project substitutions during dependency resolution but
+   * we sometimes want to do the resolution at other times. This creates a
+   * convenient method we can call to do it.
+   */
+  ext.dependencyToProject = { Dependency dep ->
+    if (dep instanceof ProjectDependency) {
+      return dep.dependencyProject
+    } else {
+      String substitution = projectSubstitutions.get("${dep.group}:${dep.name}:${dep.version}")
+      if (substitution != null) {
+        return findProject(substitution)
+      }
+      return null
+    }
+  }
+
   project.afterEvaluate {
     configurations.all {
       resolutionStrategy.dependencySubstitution { DependencySubstitutions subs ->
@@ -244,15 +262,15 @@ subprojects {
     // other packages (e.g org.elasticsearch.client) will point to server rather than
     // their own artifacts.
     if (project.plugins.hasPlugin(BuildPlugin)) {
-      String artifactsHost = VersionProperties.elasticsearch.endsWith("-SNAPSHOT") ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
+      String artifactsHost = VersionProperties.elasticsearch.isSnapshot() ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
       Closure sortClosure = { a, b -> b.group <=> a.group }
       Closure depJavadocClosure = { dep ->
         if (dep.group != null && dep.group.startsWith('org.elasticsearch')) {
-          String substitution = project.ext.projectSubstitutions.get("${dep.group}:${dep.name}:${dep.version}")
-          if (substitution != null) {
-            project.javadoc.dependsOn substitution + ':javadoc'
+          Project upstreamProject = dependencyToProject(dep)
+          if (upstreamProject != null) {
+            project.javadoc.dependsOn "${upstreamProject.path}:javadoc"
             String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + dep.name.replaceAll('\\.', '/') + '/' + dep.version
-            project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${project.project(substitution).buildDir}/docs/javadoc/"
+            project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${upstreamProject.buildDir}/docs/javadoc/"
           }
         }
       }
@@ -274,17 +292,7 @@ gradle.projectsEvaluated {
     }
     configurations.all {
       dependencies.all { Dependency dep ->
-        Project upstreamProject = null
-        if (dep instanceof ProjectDependency) {
-          upstreamProject = dep.dependencyProject
-        } else {
-          // gradle doesn't apply substitutions until resolve time, so they won't
-          // show up as a ProjectDependency above
-          String substitution = projectSubstitutions.get("${dep.group}:${dep.name}:${dep.version}")
-          if (substitution != null) {
-            upstreamProject = findProject(substitution)
-          }
-        }
+        Project upstreamProject = dependencyToProject(dep)
         if (upstreamProject != null) {
           if (project.path == upstreamProject.path) {
             // TODO: distribution integ tests depend on themselves (!), fix that

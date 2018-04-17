@@ -20,7 +20,6 @@
 package org.elasticsearch.search.geo;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.query.SpatialArgs;
@@ -43,12 +42,12 @@ import org.elasticsearch.common.geo.builders.LineStringBuilder;
 import org.elasticsearch.common.geo.builders.MultiPolygonBuilder;
 import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
@@ -478,7 +477,7 @@ public class GeoFilterIT extends ESIntegTestCase {
             final SpatialOperation finalRelation = relation;
             ESLoggerFactory
                 .getLogger(GeoFilterIT.class.getName())
-                .info((Supplier<?>) () -> new ParameterizedMessage("Unsupported spatial operation {}", finalRelation), e);
+                .info(() -> new ParameterizedMessage("Unsupported spatial operation {}", finalRelation), e);
             return false;
         }
     }

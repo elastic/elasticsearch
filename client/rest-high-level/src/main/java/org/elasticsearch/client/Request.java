@@ -602,6 +602,7 @@ public final class Request {
         params.withIncludeDefaults(getSettingsRequest.includeDefaults());
         params.withMasterTimeout(getSettingsRequest.masterNodeTimeout());
 
+
         String endpoint = endpoint(indices, "_settings", getSettingsRequest.names());
         return new Request(HttpGet.METHOD_NAME, endpoint, params.getParams(), null);
     }

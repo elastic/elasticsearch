@@ -37,6 +37,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.CharBuffer;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -64,10 +65,9 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
     }
 
     /**
-     *
      * Returns the string value for the specified index and setting.  If the includeDefaults
      * flag was not set or set to false on the GetSettingsRequest, this method will only
-     * return a value where the setting was explicitly set on the index.   If the includeDefaults
+     * return a value where the setting was explicitly set on the index.  If the includeDefaults
      * flag was set to true on the GetSettingsRequest, this method will fall back to return the default
      * value if the setting was not explicitly set.
      */
@@ -129,23 +129,32 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
 
     private static void parseSettingsField(XContentParser parser, String currentIndexName, Map<String, Settings> indexToSettings,
                                            Map<String, Settings> indexToDefaultSettings) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
-        String settingsFieldName = parser.currentName(); //this should be either "settings" or "defaults"
-        parser.nextToken(); //go to settings object itself
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
 
-        switch (settingsFieldName) {
-            case "settings":
-                indexToSettings.put(currentIndexName, Settings.fromXContent(parser));
-                break;
-            case "defaults":
-                indexToDefaultSettings.put(currentIndexName, Settings.fromXContent(parser));
-                break;
-            default:
-                //We don't know this field, ignore it
-        }
+            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                switch (parser.currentName()) {
+                    case "settings":
+                        indexToSettings.put(currentIndexName, Settings.fromXContent(parser));
+                        break;
+                    case "defaults":
+                        indexToDefaultSettings.put(currentIndexName, Settings.fromXContent(parser));
+                        break;
+                    default:
+                        parser.skipChildren();
+                }
+            } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+                parser.skipChildren();
+            }
+            parser.nextToken();
     }
 
+    private static void parseIndexEntry(XContentParser parser, Map<String, Settings> indexToSettings,
+    Map<String, Settings> indexToDefaultSettings) throws IOException {
+        String indexName = parser.currentName();
+        parser.nextToken();
+        while (!parser.isClosed() && parser.currentToken() != XContentParser.Token.END_OBJECT) {
+            parseSettingsField(parser, indexName, indexToSettings, indexToDefaultSettings);
+        }
+    }
     public static GetSettingsResponse fromXContent(XContentParser parser) throws IOException {
         HashMap<String, Settings> indexToSettings = new HashMap<>();
         HashMap<String, Settings> indexToDefaultSettings = new HashMap<>();
@@ -156,23 +165,15 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
         parser.nextToken();
 
-        while (!parser.isClosed() && parser.currentToken() == XContentParser.Token.FIELD_NAME) {
-            String indexName = parser.currentName();
-            parser.nextToken(); //go to per-index settings object
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
-            parser.nextToken();
-
-            parseSettingsField(parser, indexName, indexToSettings, indexToDefaultSettings);  //this will get one of settings or defaults
-            parser.nextToken();
-
-            if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
-                //we have both settings and default settings, let's grab the second one
-                parseSettingsField(parser, indexName, indexToSettings, indexToDefaultSettings);
+        while (!parser.isClosed()) {
+            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                //we must assume this is an index entry
+                parseIndexEntry(parser, indexToSettings, indexToDefaultSettings);
+            } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+                parser.skipChildren();
+            } else {
                 parser.nextToken();
             }
-
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser::getTokenLocation);
-            parser.nextToken(); //we should now be positioned at the beginning of the next index's settings, or at the end
         }
 
         ImmutableOpenMap<String, Settings> settingsMap = ImmutableOpenMap.<String, Settings>builder().putAll(indexToSettings).build();
@@ -185,6 +186,7 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
 
     @Override
     public String toString() {
+
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             XContentBuilder builder = new XContentBuilder(JsonXContent.jsonXContent, baos);
@@ -211,7 +213,7 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
             builder.startObject("settings");
             cursor.value.toXContent(builder, params);
             builder.endObject();
-            if (!indexToDefaultSettings.isEmpty()) {
+            if (indexToDefaultSettings.isEmpty() == false) {
                 builder.startObject("defaults");
                 indexToDefaultSettings.get(cursor.key).toXContent(builder, params);
                 builder.endObject();

@@ -76,6 +76,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -440,12 +441,32 @@ public class RequestTests extends ESTestCase {
 
         setRandomLocal(getSettingsRequest, expectedParams);
 
+        if (randomBoolean()) {
+            //the request object will not have include_defaults present unless it is set to true
+            getSettingsRequest.includeDefaults(true);
+            expectedParams.put("include_defaults", Boolean.toString(true));
+        }
+
         Request request = Request.getSettings(getSettingsRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         if (indicesUnderTest != null && indicesUnderTest.length > 0) {
             endpoint.add(String.join(",", indicesUnderTest));
         }
         endpoint.add("_settings");
+
+        if (randomBoolean()) {
+            String[] names = randomBoolean() ? null : new String[randomIntBetween(0, 3)];
+            if (names != null) {
+                for (int x = 0; x < names.length; x++) {
+                    names[x] = randomAlphaOfLengthBetween(3, 10);
+                }
+            }
+            getSettingsRequest.names(names);
+            if (names != null && names.length > 0) {
+                endpoint.add(String.join(",", names));
+            }
+        }
+
         assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
         assertThat(request.getParameters(), equalTo(expectedParams));
         assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
@@ -580,7 +601,7 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testRefresh() {
-        String[] indices = randomIndicesNames(1, 5);
+        String[] indices = randomBoolean() ? null : randomIndicesNames(0, 5);
         RefreshRequest refreshRequest;
         if (randomBoolean()) {
             refreshRequest = new RefreshRequest(indices);

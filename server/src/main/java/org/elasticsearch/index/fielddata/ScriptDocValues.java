@@ -576,7 +576,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
     abstract static class BinaryScriptDocValues<T> extends ScriptDocValues<T> {
 
         private final SortedBinaryDocValues in;
-        protected BytesRefBuilder[] values = new BytesRefBuilder[0];
+        protected BytesRef[] values = new BytesRef[0];
         protected int count;
 
         BinaryScriptDocValues(SortedBinaryDocValues in) {
@@ -588,10 +588,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             if (in.advanceExact(docId)) {
                 resize(in.docValueCount());
                 for (int i = 0; i < count; i++) {
-                    // We need to make a copy here, because BytesBinaryDVAtomicFieldData's SortedBinaryDocValues
-                    // implementation reuses the returned BytesRef. Otherwise we would end up with the same BytesRef
-                    // instance for all slots in the values array.
-                    values[i].copyBytes(in.nextValue());
+                    /**
+                     * We need to make a copy here because <code>in</code> might reuse the
+                     * returned value and the same instance of {@link ScriptDocValues} might be used to
+                     * return values from multiple documents.
+                     **/
+                    values[i] = BytesRef.deepCopyOf(in.nextValue());
                 }
             } else {
                 resize(0);
@@ -605,12 +607,9 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         protected void resize(int newSize) {
             count = newSize;
             if (newSize > values.length) {
-                final int oldLength = values.length;
                 values = ArrayUtil.grow(values, count);
-                for (int i = oldLength; i < values.length; ++i) {
-                    values[i] = new BytesRefBuilder();
-                }
             }
+            Arrays.fill(values, 0, count, null);
         }
 
         @Override
@@ -628,12 +627,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public String get(int index) {
-            return values[index].get().utf8ToString();
+            return values[index].utf8ToString();
         }
 
         public BytesRef getBytesValue() {
             if (size() > 0) {
-                return values[0].get();
+                return values[0];
             } else {
                 return null;
             }
@@ -658,14 +657,14 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public BytesRef get(int index) {
-            return values[index].get();
+            return values[index];
         }
 
         public BytesRef getValue() {
             if (count == 0) {
                 return new BytesRef();
             }
-            return values[0].get();
+            return values[0];
         }
 
     }

@@ -158,7 +158,7 @@ public class Retry {
             for (BulkItemResponse bulkItemResponse : bulkItemResponses) {
                 if (bulkItemResponse.isFailed()) {
                     final RestStatus status = bulkItemResponse.status();
-                    if (status == RETRY_STATUS) {
+                    if (status != RETRY_STATUS) {
                         return false;
                     }
                 }

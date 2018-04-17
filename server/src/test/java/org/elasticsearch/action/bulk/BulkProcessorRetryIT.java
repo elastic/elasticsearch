@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -115,13 +114,13 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
                     if (bulkItemResponse.isFailed()) {
                         BulkItemResponse.Failure failure = bulkItemResponse.getFailure();
                         if (failure.getStatus() == RestStatus.TOO_MANY_REQUESTS) {
-                            if (!rejectedExecutionExpected) {
-                                Throwable rootCause = ExceptionsHelper.unwrapCause(failure.getCause());
+                            if (rejectedExecutionExpected == false) {
                                 Iterator<TimeValue> backoffState = internalPolicy.backoffStateFor(bulkResponse);
                                 assertNotNull("backoffState is null (indicates a bulk request got rejected without retry)", backoffState);
                                 if (backoffState.hasNext()) {
                                     // we're not expecting that we overwhelmed it even once when we maxed out the number of retries
-                                    throw new AssertionError("Got rejected although backoff policy would allow more retries", rootCause);
+                                    throw new AssertionError("Got rejected although backoff policy would allow more retries",
+                                        failure.getCause());
                                 } else {
                                     rejectedAfterAllRetries = true;
                                     logger.debug("We maxed out the number of bulk retries and got rejected (this is ok).");

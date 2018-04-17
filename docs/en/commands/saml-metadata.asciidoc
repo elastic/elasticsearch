@@ -16,6 +16,8 @@ bin/x-pack/saml-metadata
 [--attribute <name>] [--service-name <name>]
 [--locale <name>] [--contacts]
 ([--organisation-name <name>] [--organisation-display-name <name>] [--organisation-url <url>])
+([--signing-bundle <file_path>] | [--signing-cert <file_path>][--signing-key <file_path>])
+[--signing-key-password <password>]
 [-E <KeyValuePair>]
 [-h, --help] ([-s, --silent] | [-v, --verbose])
 --------------------------------------------------
@@ -31,6 +33,11 @@ a SAML realm in {es}.
 
 Some SAML Identity Providers will allow you to automatically import a metadata
 file when you configure the Elastic Stack as a Service Provider.
+
+You can optionally select to digitally sign the metadata file in order to
+ensure its integrity and authenticity before sharing it with the Identity Provider.
+The key used for signing the metadata file need not necessarily be the same as
+the keys already used in the saml realm configuration for SAML message signing.
 
 [float]
 === Parameters
@@ -69,6 +76,23 @@ Defaults to `saml-elasticsearch-metadata.xml`
 
 `--service-name <name>`:: Specifies the value for the `<ServiceName>` element in
 the metadata. Defaults to `elasticsearch`.
+
+`--signing-bundle <file_path>`:: Specifies the path to an existing key pair
+(in PKCS#12 format). The private key of that key pair will be used to sign
+the metadata file.
+
+`--signing-cert <file_path>`:: Specifies the path to an existing certificate (in
+PEM format) to be used for signing of the metadata file. You must also specify
+the `--signing-key` parameter. This parameter cannot be used with the
+`--signing-bundle` parameter.
+
+`--signing-key <file_path>`:: Specifies the path to an existing key (in PEM format)
+to be used for signing of the metadata file. You must also specify the
+`--signing-cert` parameter. This parameter cannot be used with the
+`--signing-bundle` parameter.
+
+`--signing-key-password <password>`:: Specifies the password for the signing key.
+It can be used with either the `--signing-key` or the `--signing-bundle` parameters.
 
 `--realm <name>`:: Specifies the name of the realm for which the metadata
 should be generated. This parameter is required if there is more than 1 `saml`

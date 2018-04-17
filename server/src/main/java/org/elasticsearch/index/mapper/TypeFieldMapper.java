@@ -144,33 +144,23 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query termsQuery(List<?> values, QueryShardContext context) {
-            if (context.getIndexSettings().isSingleType()) {
-                Collection<String> indexTypes = context.getMapperService().types();
-                if (indexTypes.isEmpty()) {
-                    return new MatchNoDocsQuery("No types");
-                }
-                assert indexTypes.size() == 1;
-                BytesRef indexType = indexedValueForSearch(indexTypes.iterator().next());
-                if (values.stream()
-                        .map(this::indexedValueForSearch)
-                        .anyMatch(indexType::equals)) {
-                    if (context.getMapperService().hasNested()) {
-                        // type filters are expected not to match nested docs
-                        return Queries.newNonNestedFilter(context.indexVersionCreated());
-                    } else {
-                        return new MatchAllDocsQuery();
-                    }
+            Collection<String> indexTypes = context.getMapperService().types();
+            if (indexTypes.isEmpty()) {
+                return new MatchNoDocsQuery("No types");
+            }
+            assert indexTypes.size() == 1;
+            BytesRef indexType = indexedValueForSearch(indexTypes.iterator().next());
+            if (values.stream()
+                    .map(this::indexedValueForSearch)
+                    .anyMatch(indexType::equals)) {
+                if (context.getMapperService().hasNested()) {
+                    // type filters are expected not to match nested docs
+                    return Queries.newNonNestedFilter(context.indexVersionCreated());
                 } else {
-                    return new MatchNoDocsQuery("Type list does not contain the index type");
+                    return new MatchAllDocsQuery();
                 }
             } else {
-                if (indexOptions() == IndexOptions.NONE) {
-                    throw new AssertionError();
-                }
-                final BytesRef[] types = values.stream()
-                        .map(this::indexedValueForSearch)
-                        .toArray(size -> new BytesRef[size]);
-                return new TypesQuery(types);
+                return new MatchNoDocsQuery("Type list does not contain the index type");
             }
         }
 
@@ -269,23 +259,14 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
     private static MappedFieldType defaultFieldType(IndexSettings indexSettings) {
         MappedFieldType defaultFieldType = Defaults.FIELD_TYPE.clone();
-        if (indexSettings.isSingleType()) {
-            defaultFieldType.setIndexOptions(IndexOptions.NONE);
-            defaultFieldType.setHasDocValues(false);
-        } else {
-            defaultFieldType.setIndexOptions(IndexOptions.DOCS);
-            defaultFieldType.setHasDocValues(true);
-        }
+        defaultFieldType.setIndexOptions(IndexOptions.NONE);
+        defaultFieldType.setHasDocValues(false);
         return defaultFieldType;
     }
 
     @Override
     public void preParse(ParseContext context) throws IOException {
         super.parse(context);
-    }
-
-    @Override
-    public void postParse(ParseContext context) throws IOException {
     }
 
     @Override

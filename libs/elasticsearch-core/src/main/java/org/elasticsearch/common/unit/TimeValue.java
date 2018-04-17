@@ -19,62 +19,15 @@
 
 package org.elasticsearch.common.unit;
 
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.joda.time.Period;
-import org.joda.time.PeriodType;
-import org.joda.time.format.PeriodFormat;
-import org.joda.time.format.PeriodFormatter;
-
 import java.io.IOException;
-import java.util.Collections;
-import java.util.EnumMap;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-public class TimeValue implements Writeable, Comparable<TimeValue>, ToXContentFragment {
+public class TimeValue implements Comparable<TimeValue> {
 
     /** How many nano-seconds in one milli-second */
     public static final long NSEC_PER_MSEC = TimeUnit.NANOSECONDS.convert(1, TimeUnit.MILLISECONDS);
-
-    private static Map<TimeUnit, Byte> TIME_UNIT_BYTE_MAP;
-    private static Map<Byte, TimeUnit> BYTE_TIME_UNIT_MAP;
-
-    static {
-        final Map<TimeUnit, Byte> timeUnitByteMap = new EnumMap<>(TimeUnit.class);
-        timeUnitByteMap.put(TimeUnit.NANOSECONDS, (byte)0);
-        timeUnitByteMap.put(TimeUnit.MICROSECONDS, (byte)1);
-        timeUnitByteMap.put(TimeUnit.MILLISECONDS, (byte)2);
-        timeUnitByteMap.put(TimeUnit.SECONDS, (byte)3);
-        timeUnitByteMap.put(TimeUnit.MINUTES, (byte)4);
-        timeUnitByteMap.put(TimeUnit.HOURS, (byte)5);
-        timeUnitByteMap.put(TimeUnit.DAYS, (byte)6);
-
-        final Set<Byte> bytes = new HashSet<>();
-        for (TimeUnit value : TimeUnit.values()) {
-            assert timeUnitByteMap.containsKey(value) : value;
-            assert bytes.add(timeUnitByteMap.get(value));
-        }
-
-        final Map<Byte, TimeUnit> byteTimeUnitMap = new HashMap<>();
-        for (Map.Entry<TimeUnit, Byte> entry : timeUnitByteMap.entrySet()) {
-            byteTimeUnitMap.put(entry.getValue(), entry.getKey());
-        }
-
-        TIME_UNIT_BYTE_MAP = Collections.unmodifiableMap(timeUnitByteMap);
-        BYTE_TIME_UNIT_MAP = Collections.unmodifiableMap(byteTimeUnitMap);
-    }
 
     public static final TimeValue MINUS_ONE = timeValueMillis(-1);
     public static final TimeValue ZERO = timeValueMillis(0);
@@ -101,15 +54,19 @@ public class TimeValue implements Writeable, Comparable<TimeValue>, ToXContentFr
 
     private final long duration;
 
-    // visible for testing
-    long duration() {
+    /**
+     * @return the number of {@link #timeUnit()} units this value contains
+     */
+    public long duration() {
         return duration;
     }
 
     private final TimeUnit timeUnit;
 
-    // visible for testing
-    TimeUnit timeUnit() {
+    /**
+     * @return the unit used for the this time value, see {@link #duration()}
+     */
+    public TimeUnit timeUnit() {
         return timeUnit;
     }
 
@@ -120,20 +77,6 @@ public class TimeValue implements Writeable, Comparable<TimeValue>, ToXContentFr
     public TimeValue(long duration, TimeUnit timeUnit) {
         this.duration = duration;
         this.timeUnit = timeUnit;
-    }
-
-    /**
-     * Read from a stream.
-     */
-    public TimeValue(StreamInput in) throws IOException {
-        duration = in.readZLong();
-        timeUnit = BYTE_TIME_UNIT_MAP.get(in.readByte());
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeZLong(duration);
-        out.writeByte(TIME_UNIT_BYTE_MAP.get(timeUnit));
     }
 
     public long nanos() {
@@ -240,19 +183,6 @@ public class TimeValue implements Writeable, Comparable<TimeValue>, ToXContentFr
         return daysFrac();
     }
 
-    private final PeriodFormatter defaultFormatter = PeriodFormat.getDefault()
-            .withParseType(PeriodType.standard());
-
-    public String format() {
-        Period period = new Period(millis());
-        return defaultFormatter.print(period);
-    }
-
-    public String format(PeriodType type) {
-        Period period = new Period(millis());
-        return PeriodFormat.getDefault().withParseType(type).print(period);
-    }
-
     /**
      * Returns a {@link String} representation of the current {@link TimeValue}.
      *
@@ -289,7 +219,27 @@ public class TimeValue implements Writeable, Comparable<TimeValue>, ToXContentFr
             value = microsFrac();
             suffix = "micros";
         }
-        return Strings.format1Decimals(value, suffix);
+        return formatDecimal(value) + suffix;
+    }
+
+    private static String formatDecimal(double value) {
+        String p = String.valueOf(value);
+        int ix = p.indexOf('.') + 1;
+        int ex = p.indexOf('E');
+        char fraction = p.charAt(ix);
+        if (fraction == '0') {
+            if (ex != -1) {
+                return p.substring(0, ix - 1) + p.substring(ex);
+            } else {
+                return p.substring(0, ix - 1);
+            }
+        } else {
+            if (ex != -1) {
+                return p.substring(0, ix) + fraction + p.substring(ex);
+            } else {
+                return p.substring(0, ix) + fraction;
+            }
+        }
     }
 
     public String getStringRep() {
@@ -349,10 +299,8 @@ public class TimeValue implements Writeable, Comparable<TimeValue>, ToXContentFr
             return TimeValue.ZERO;
         } else {
             // Missing units:
-            throw new ElasticsearchParseException(
-                "failed to parse setting [{}] with value [{}] as a time value: unit is missing or unrecognized",
-                settingName,
-                sValue);
+            throw new IllegalArgumentException("failed to parse setting [" + settingName + "] with value [" + sValue +
+                    "] as a time value: unit is missing or unrecognized");
         }
     }
 
@@ -363,9 +311,9 @@ public class TimeValue implements Writeable, Comparable<TimeValue>, ToXContentFr
         } catch (final NumberFormatException e) {
             try {
                 @SuppressWarnings("unused") final double ignored = Double.parseDouble(s);
-                throw new ElasticsearchParseException("failed to parse [{}], fractional time values are not supported", e, initialInput);
+                throw new IllegalArgumentException("failed to parse [" + initialInput + "], fractional time values are not supported", e);
             } catch (final NumberFormatException ignored) {
-                throw new ElasticsearchParseException("failed to parse [{}]", e, initialInput);
+                throw new IllegalArgumentException("failed to parse [" + initialInput + "]", e);
             }
         }
     }
@@ -400,10 +348,5 @@ public class TimeValue implements Writeable, Comparable<TimeValue>, ToXContentFr
         double thisValue = ((double) duration) * timeUnit.toNanos(1);
         double otherValue = ((double) timeValue.duration) * timeValue.timeUnit.toNanos(1);
         return Double.compare(thisValue, otherValue);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.value(toString());
     }
 }

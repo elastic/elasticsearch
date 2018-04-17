@@ -87,113 +87,12 @@ xpack:
 [[managing-native-users]]
 ==== Managing Native Users
 
-You manage users in the `native` realm through the
-{ref}/security-api-users.html[user API].
+{security} enables you to easily manage users in {kib} on the 
+*Management / Security / Users* page. 
+
+Alternatively, you can manage users through the `user` API. For more 
+information and examples, see {ref}/security-api-users.html[User Management APIs].
 
 [[migrating-from-file]]
 NOTE: To migrate file-based users to the `native` realm, use the
 {ref}/migrate-tool.html[migrate tool].
-
-[float]
-[[native-add]]
-===== Adding Users
-
-To add a user, submit a PUT or POST request to the `/_xpack/security/user/<username>`
-endpoint.
-
-Usernames must be at least 1 and no more than 1024 characters. They can
-contain alphanumeric characters (`a-z`, `A-Z`, `0-9`), spaces, punctuation, and
-printable symbols in the https://en.wikipedia.org/wiki/Basic_Latin_(Unicode_block)[Basic Latin (ASCII) block].
-Leading or trailing whitespace is not allowed.
-
-[source,js]
---------------------------------------------------
-POST /_xpack/security/user/jacknich
-{
-  "password" : "j@rV1s", <1>
-  "roles" : [ "admin", "other_role1" ], <2>
-  "full_name" : "Jack Nicholson", <3>
-  "email" : "jacknich@example.com", <4>
-  "metadata" : { <5>
-    "intelligence" : 7
-  },
-  "enabled": true <6>
-}
---------------------------------------------------
-// CONSOLE
-<1> You must specify a password when adding a user. Passwords must be at least 6
-    characters long.
-<2> You must assign at least one role to the user. The roles determine the user's
-    access permissions.
-<3> The user's full name. Optional.
-<4> The user's email address. Optional.
-<5> Arbitrary metadata you want to associate with the user. Optional.
-<6> Specifies whether the user should be enabled. Optional with a default of true.
-
-
-[float]
-[[native-list]]
-===== Retrieving Users
-
-To retrieve all users, submit a GET request to the `/_xpack/security/user` endpoint:
-
-[source,js]
---------------------------------------------------
-GET /_xpack/security/user
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-To retrieve particular users, specify the users as a comma-separated list:
-
-[source,js]
---------------------------------------------------
-GET /_xpack/security/user/jacknich,rdeniro
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-An object is returned holding the found users, each keyed by the relevant
-username. Note that user passwords are not included.
-
-[source,js]
---------------------------------------------------
-{
-  "jacknich" : {
-    "username": "jacknich",
-    "roles" : [ "admin", "other_role1" ],
-    "full_name" : "Jack Nicholson",
-    "email" : "jacknich@example.com",
-    "enabled" : true,
-    "metadata" : {
-      "intelligence" : 7
-    }
-  }
-}
---------------------------------------------------
-// TESTRESPONSE
-
-[float]
-[[native-delete]]
-===== Deleting Users
-
-To delete a user, submit a DELETE request to the `/_xpack/security/user/<username>`
-endpoint:
-
-[source,js]
---------------------------------------------------
-DELETE /_xpack/security/user/jacknich
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-If the user is successfully deleted, the request returns `{"found": true}`.
-Otherwise, `found` is set to false.
-
-[source,js]
---------------------------------------------------
-{
-  "found" : true
-}
---------------------------------------------------
-// TESTRESPONSE

@@ -49,6 +49,9 @@ Leading or trailing whitespace is not allowed.
 The following parameters can be specified in the body of a POST or PUT request
 and pertain to creating a user:
 
+`enabled`::
+(boolean) Specifies whether the user is enabled. The default value is `true`.
+
 `email`::
 (string) The email of the user.
 
@@ -59,11 +62,11 @@ and pertain to creating a user:
 (object) Arbitrary metadata that you want to associate with the user.
 
 `password` (required)::
-(string) The user's password. Passwords must be at least 6 characters long.
+(string) The user's password. Passwords must be at least 6 characters long. 
 
 `roles` (required)::
-(list) A set of roles the user has. The roles determine the user's access
-permissions.
+(list) A set of roles the user has. The roles determine the user's access 
+permissions. To create a user without any roles, specify an empty list: `[]`.
 
 ==== Authorization
 
@@ -106,11 +109,11 @@ created or updated.
 <1> When an existing user is updated, `created` is set to false.
 
 After you add a user through the Users API, requests from that user can be
-authenticated.
+authenticated. For example:
 
 [source,shell]
 --------------------------------------------------
-curl -u eustace:secret-password http://localhost:9200/_cluster/health
+curl -u jacknich:j@rV1s http://localhost:9200/_cluster/health
 --------------------------------------------------
 
 [[security-api-get-user]]
@@ -154,7 +157,7 @@ GET /_xpack/security/user/jacknich,rdinero
 // CONSOLE
 // TEST[continued]
 
-or omit the username all together to retrieve all users:
+Omit the username to retrieve all users:
 
 [source,js]
 --------------------------------------------------

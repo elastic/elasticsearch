@@ -46,6 +46,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -210,9 +211,6 @@ public class RequestTests extends ESTestCase {
                 item.routing(randomAlphaOfLength(4));
             }
             if (randomBoolean()) {
-                item.parent(randomAlphaOfLength(4));
-            }
-            if (randomBoolean()) {
                 item.storedFields(generateRandomStringArray(16, 8, false));
             }
             if (randomBoolean()) {
@@ -253,11 +251,6 @@ public class RequestTests extends ESTestCase {
                 deleteRequest.routing(routing);
                 expectedParams.put("routing", routing);
             }
-            if (randomBoolean()) {
-                String parent = randomAlphaOfLengthBetween(3, 10);
-                deleteRequest.parent(parent);
-                expectedParams.put("parent", parent);
-            }
         }
 
         Request request = Request.delete(deleteRequest);
@@ -279,7 +272,6 @@ public class RequestTests extends ESTestCase {
         Map<String, String> expectedParams = new HashMap<>();
         setRandomIndicesOptions(getIndexRequest::indicesOptions, getIndexRequest::indicesOptions, expectedParams);
         setRandomLocal(getIndexRequest, expectedParams);
-        setRandomFlatSettings(getIndexRequest::flatSettings, expectedParams);
         setRandomHumanReadable(getIndexRequest, expectedParams);
         setRandomIncludeDefaults(getIndexRequest, expectedParams);
 
@@ -526,11 +518,6 @@ public class RequestTests extends ESTestCase {
                 expectedParams.put("routing", routing);
             }
             if (randomBoolean()) {
-                String parent = randomAlphaOfLengthBetween(3, 10);
-                indexRequest.parent(parent);
-                expectedParams.put("parent", parent);
-            }
-            if (randomBoolean()) {
                 String pipeline = randomAlphaOfLengthBetween(3, 10);
                 indexRequest.setPipeline(pipeline);
                 expectedParams.put("pipeline", pipeline);
@@ -733,11 +720,6 @@ public class RequestTests extends ESTestCase {
             expectedParams.put("routing", routing);
         }
         if (randomBoolean()) {
-            String parent = randomAlphaOfLengthBetween(3, 10);
-            updateRequest.parent(parent);
-            expectedParams.put("parent", parent);
-        }
-        if (randomBoolean()) {
             String timeout = randomTimeValue();
             updateRequest.timeout(timeout);
             expectedParams.put("timeout", timeout);
@@ -840,15 +822,9 @@ public class RequestTests extends ESTestCase {
                 if (randomBoolean()) {
                     indexRequest.setPipeline(randomAlphaOfLength(5));
                 }
-                if (randomBoolean()) {
-                    indexRequest.parent(randomAlphaOfLength(5));
-                }
             } else if (opType == DocWriteRequest.OpType.CREATE) {
                 IndexRequest createRequest = new IndexRequest(index, type, id).source(source, xContentType).create(true);
                 docWriteRequest = createRequest;
-                if (randomBoolean()) {
-                    createRequest.parent(randomAlphaOfLength(5));
-                }
             } else if (opType == DocWriteRequest.OpType.UPDATE) {
                 final UpdateRequest updateRequest = new UpdateRequest(index, type, id).doc(new IndexRequest().source(source, xContentType));
                 docWriteRequest = updateRequest;
@@ -857,9 +833,6 @@ public class RequestTests extends ESTestCase {
                 }
                 if (randomBoolean()) {
                     randomizeFetchSourceContextParams(updateRequest::fetchSource, new HashMap<>());
-                }
-                if (randomBoolean()) {
-                    updateRequest.parent(randomAlphaOfLength(5));
                 }
             } else if (opType == DocWriteRequest.OpType.DELETE) {
                 docWriteRequest = new DeleteRequest(index, type, id);
@@ -902,7 +875,6 @@ public class RequestTests extends ESTestCase {
             assertEquals(originalRequest.type(), parsedRequest.type());
             assertEquals(originalRequest.id(), parsedRequest.id());
             assertEquals(originalRequest.routing(), parsedRequest.routing());
-            assertEquals(originalRequest.parent(), parsedRequest.parent());
             assertEquals(originalRequest.version(), parsedRequest.version());
             assertEquals(originalRequest.versionType(), parsedRequest.versionType());
 
@@ -1155,7 +1127,7 @@ public class RequestTests extends ESTestCase {
 
         List<SearchRequest> requests = new ArrayList<>();
         CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer = (searchRequest, p) -> {
-            SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(p);
+            SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(p, false);
             if (searchSourceBuilder.equals(new SearchSourceBuilder()) == false) {
                 searchRequest.source(searchSourceBuilder);
             }
@@ -1247,6 +1219,8 @@ public class RequestTests extends ESTestCase {
                 new PrecisionAtK());
         String[] indices = randomIndicesNames(0, 5);
         RankEvalRequest rankEvalRequest = new RankEvalRequest(spec, indices);
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomIndicesOptions(rankEvalRequest::indicesOptions, rankEvalRequest::indicesOptions, expectedParams);
 
         Request request = Request.rankEval(rankEvalRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
@@ -1256,8 +1230,10 @@ public class RequestTests extends ESTestCase {
         }
         endpoint.add(RestRankEvalAction.ENDPOINT);
         assertEquals(endpoint.toString(), request.getEndpoint());
-        assertEquals(Collections.emptyMap(), request.getParameters());
+        assertEquals(3, request.getParameters().size());
+        assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(spec, request.getEntity());
+
     }
 
     public void testSplit() throws IOException {
@@ -1315,7 +1291,6 @@ public class RequestTests extends ESTestCase {
     public void testClusterPutSettings() throws IOException {
         ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
         Map<String, String> expectedParams = new HashMap<>();
-        setRandomFlatSettings(request::flatSettings, expectedParams);
         setRandomMasterTimeout(request, expectedParams);
         setRandomTimeout(request::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
 
@@ -1360,6 +1335,32 @@ public class RequestTests extends ESTestCase {
         }
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertToXContentBody(rolloverRequest, request.getEntity());
+        assertEquals(expectedParams, request.getParameters());
+    }
+
+    public void testIndexPutSettings() throws IOException {
+        String[] indices = randomBoolean() ? null : randomIndicesNames(0, 2);
+        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indices);
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(updateSettingsRequest, expectedParams);
+        setRandomTimeout(updateSettingsRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        setRandomIndicesOptions(updateSettingsRequest::indicesOptions, updateSettingsRequest::indicesOptions, expectedParams);
+        if (randomBoolean()) {
+            updateSettingsRequest.setPreserveExisting(randomBoolean());
+            if (updateSettingsRequest.isPreserveExisting()) {
+                expectedParams.put("preserve_existing", "true");
+            }
+        }
+
+        Request request = Request.indexPutSettings(updateSettingsRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        if (indices != null && indices.length > 0) {
+            endpoint.add(String.join(",", indices));
+        }
+        endpoint.add("_settings");
+        assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertToXContentBody(updateSettingsRequest, request.getEntity());
         assertEquals(expectedParams, request.getParameters());
     }
 
@@ -1620,16 +1621,6 @@ public class RequestTests extends ESTestCase {
             expectedParams.put("timeout", timeout);
         } else {
             expectedParams.put("timeout", defaultTimeout.getStringRep());
-        }
-    }
-
-    private static void setRandomFlatSettings(Consumer<Boolean> setter, Map<String, String> expectedParams) {
-        if (randomBoolean()) {
-            boolean flatSettings = randomBoolean();
-            setter.accept(flatSettings);
-            if (flatSettings) {
-                expectedParams.put("flat_settings", String.valueOf(flatSettings));
-            }
         }
     }
 

@@ -264,25 +264,6 @@ public class CreateIndexIT extends ESIntegTestCase {
         logger.info("total: {}", expected.getHits().getTotalHits());
     }
 
-    /**
-     * Asserts that the root cause of mapping conflicts is readable.
-     */
-    public void testMappingConflictRootCause() throws Exception {
-        CreateIndexRequestBuilder b = prepareCreate("test");
-        b.addMapping("type1", jsonBuilder().startObject().startObject("properties")
-                .startObject("text")
-                    .field("type", "text")
-                    .field("analyzer", "standard")
-                    .field("search_analyzer", "whitespace")
-                .endObject().endObject().endObject());
-        b.addMapping("type2", jsonBuilder().humanReadable(true).startObject().startObject("properties")
-                .startObject("text")
-                    .field("type", "text")
-                .endObject().endObject().endObject());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> b.get());
-        assertThat(e.getMessage(), containsString("Mapper for [text] conflicts with existing mapping:"));
-    }
-
     public void testRestartIndexCreationAfterFullClusterRestart() throws Exception {
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable",
             "none")).get();

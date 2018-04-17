@@ -330,7 +330,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
 
             final Translog.Operation op1;
             final List<Translog.Operation> initOperations = new ArrayList<>(initDocs);
-            try (Translog.Snapshot snapshot = replica2.getTranslog().newSnapshot()) {
+            try (Translog.Snapshot snapshot = getTranslog(replica2).newSnapshot()) {
                 assertThat(snapshot.totalOperations(), equalTo(initDocs + 1));
                 for (int i = 0; i < initDocs; i++) {
                     Translog.Operation op = snapshot.next();
@@ -347,7 +347,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             shards.promoteReplicaToPrimary(replica1).get(); // wait until resync completed.
             shards.index(new IndexRequest(index.getName(), "type", "d2").source("{}", XContentType.JSON));
             final Translog.Operation op2;
-            try (Translog.Snapshot snapshot = replica2.getTranslog().newSnapshot()) {
+            try (Translog.Snapshot snapshot = getTranslog(replica2).newSnapshot()) {
                 assertThat(snapshot.totalOperations(), equalTo(initDocs + 2));
                 op2 = snapshot.next();
                 assertThat(op2.seqNo(), equalTo(op1.seqNo()));
@@ -362,7 +362,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             shards.promoteReplicaToPrimary(replica2);
             logger.info("--> Recover replica3 from replica2");
             recoverReplica(replica3, replica2);
-            try (Translog.Snapshot snapshot = replica3.getTranslog().newSnapshot()) {
+            try (Translog.Snapshot snapshot = getTranslog(replica3).newSnapshot()) {
                 assertThat(snapshot.totalOperations(), equalTo(initDocs + 1));
                 assertThat(snapshot.next(), equalTo(op2));
                 assertThat("Remaining of snapshot should contain init operations", snapshot, containsOperationsInAnyOrder(initOperations));
@@ -468,7 +468,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             long expectedPrimaryTerm,
             String failureMessage) throws IOException {
         for (IndexShard indexShard : replicationGroup) {
-            try(Translog.Snapshot snapshot = indexShard.getTranslog().newSnapshot()) {
+            try(Translog.Snapshot snapshot = getTranslog(indexShard).newSnapshot()) {
                 assertThat(snapshot.totalOperations(), equalTo(expectedOperation));
                 long expectedSeqNo = 0L;
                 Translog.Operation op = snapshot.next();

@@ -22,7 +22,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.repositories.gcs.GoogleCloudStorageTestServer.Response;
 
@@ -52,17 +52,16 @@ import static java.util.Collections.singletonList;
  */
 public class GoogleCloudStorageFixture {
 
-    @SuppressForbidden(reason = "PathUtils#get is fine - we don't have environment here")
     public static void main(String[] args) throws Exception {
         if (args == null || args.length != 2) {
             throw new IllegalArgumentException("GoogleCloudStorageFixture <working directory> <bucket>");
         }
 
-        final InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), 43635);
+        final InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
         final HttpServer httpServer = MockHttpServer.createHttp(socketAddress, 0);
 
         try {
-            final Path workingDirectory = Paths.get(args[0]);
+            final Path workingDirectory = workingDir(args[0]);
             /// Writes the PID of the current Java process in a `pid` file located in the working directory
             writeFile(workingDirectory, "pid", ManagementFactory.getRuntimeMXBean().getName().split("@")[0]);
 
@@ -86,6 +85,11 @@ public class GoogleCloudStorageFixture {
         }
     }
 
+    @SuppressForbidden(reason = "Paths#get is fine - we don't have environment here")
+    private static Path workingDir(final String dir) {
+        return Paths.get(dir);
+    }
+
     private static void writeFile(final Path dir, final String fileName, final String content) throws IOException {
         final Path tempPidFile = Files.createTempFile(dir, null, null);
         Files.write(tempPidFile, singleton(content));
@@ -101,7 +105,6 @@ public class GoogleCloudStorageFixture {
         }
     }
 
-    @SuppressForbidden(reason = "Use a http server")
     static class ResponseHandler implements HttpHandler {
 
         private final GoogleCloudStorageTestServer storageServer;

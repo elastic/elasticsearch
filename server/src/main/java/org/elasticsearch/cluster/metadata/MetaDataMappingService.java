@@ -19,9 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
@@ -49,6 +47,7 @@ import org.elasticsearch.indices.InvalidTypeNameException;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -175,10 +174,13 @@ public class MetaDataMappingService extends AbstractComponent {
         String index = indexService.index().getName();
         try {
             List<String> updatedTypes = new ArrayList<>();
-            for (DocumentMapper mapper : indexService.mapperService().docMappers(true)) {
-                final String type = mapper.type();
-                if (!mapper.mappingSource().equals(builder.mapping(type).source())) {
-                    updatedTypes.add(type);
+            MapperService mapperService = indexService.mapperService();
+            for (DocumentMapper mapper : Arrays.asList(mapperService.documentMapper(), mapperService.documentMapper(MapperService.DEFAULT_MAPPING))) {
+                if (mapper != null) {
+                    final String type = mapper.type();
+                    if (!mapper.mappingSource().equals(builder.mapping(type).source())) {
+                        updatedTypes.add(type);
+                    }
                 }
             }
 
@@ -186,8 +188,10 @@ public class MetaDataMappingService extends AbstractComponent {
             if (updatedTypes.isEmpty() == false) {
                 logger.warn("[{}] re-syncing mappings with cluster state because of types [{}]", index, updatedTypes);
                 dirty = true;
-                for (DocumentMapper mapper : indexService.mapperService().docMappers(true)) {
-                    builder.putMapping(new MappingMetaData(mapper));
+                for (DocumentMapper mapper : Arrays.asList(mapperService.documentMapper(), mapperService.documentMapper(MapperService.DEFAULT_MAPPING))) {
+                    if (mapper != null) {
+                        builder.putMapping(new MappingMetaData(mapper));
+                    }
                 }
             }
         } catch (Exception e) {
@@ -320,8 +324,10 @@ public class MetaDataMappingService extends AbstractComponent {
                 IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(indexMetaData);
                 // Mapping updates on a single type may have side-effects on other types so we need to
                 // update mapping metadata on all types
-                for (DocumentMapper mapper : mapperService.docMappers(true)) {
-                    indexMetaDataBuilder.putMapping(new MappingMetaData(mapper.mappingSource()));
+                for (DocumentMapper mapper : Arrays.asList(mapperService.documentMapper(), mapperService.documentMapper(MapperService.DEFAULT_MAPPING))) {
+                    if (mapper != null) {
+                        indexMetaDataBuilder.putMapping(new MappingMetaData(mapper.mappingSource()));
+                    }
                 }
                 builder.put(indexMetaDataBuilder);
             }

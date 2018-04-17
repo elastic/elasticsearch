@@ -700,19 +700,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
             indexRandomDocuments(count, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
 
             // make sure all recoveries are done
-            if (oldClusterVersion.onOrAfter(Version.V_6_2_0)) {
-                ensureNoInitializingShards();
-            } else {
-                assertBusy(() -> {
-                    final Response response =
-                            client().performRequest("GET", "/_cat/shards/" + index, Collections.singletonMap("h", "state"));
-                    assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-                    final String[] shards = toStr(response).split("\n");
-                    for (final String shard : shards) {
-                        assertThat(shard, equalTo("STARTED"));
-                    }
-                });
-            }
+            ensureGreen(index);
             // Explicitly flush so we're sure to have a bunch of documents in the Lucene index
             client().performRequest("POST", "/_flush");
             if (shouldHaveTranslog) {

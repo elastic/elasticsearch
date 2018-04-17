@@ -82,8 +82,9 @@ generating a CA, see the <<certutil-ca,CA mode of this command>>.
 By default, the `cert` mode produces a single PKCS#12 output file which holds
 the instance certificate, the instance private key, and the CA certificate. If
 you specify the `--pem` parameter, the command generates PEM formatted
-certificates and keys and packages them into a zip file. Likewise if you chose
-to generate output for multiple instances, the command produces a zip file.
+certificates and keys and packages them into a zip file.
+If you specify the `--keep-ca-key`, `--multiple` or `--in` parameters,
+the command produces a zip file containing the generated certificates and keys.
 
 [float]
 [[certutil-csr]]

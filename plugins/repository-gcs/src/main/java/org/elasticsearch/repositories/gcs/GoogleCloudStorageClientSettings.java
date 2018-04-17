@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.repositories.gcs;
 
-import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
-import com.google.api.services.storage.StorageScopes;
+import com.google.auth.oauth2.ServiceAccountCredentials;
+
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -30,8 +30,8 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.settings.Setting.timeSetting;
 
@@ -44,11 +44,24 @@ public class GoogleCloudStorageClientSettings {
 
     /** A json Service Account file loaded from secure settings. */
     static final Setting.AffixSetting<InputStream> CREDENTIALS_FILE_SETTING = Setting.affixKeySetting(PREFIX, "credentials_file",
-        key -> SecureSetting.secureFile(key, null));
+            key -> SecureSetting.secureFile(key, null));
 
-    /** An override for the Storage endpoint to connect to. */
+    /**
+     * An override for the Storage endpoint to connect to. Deprecated, use host
+     * setting.
+     */
     static final Setting.AffixSetting<String> ENDPOINT_SETTING = Setting.affixKeySetting(PREFIX, "endpoint",
-        key -> new Setting<>(key, "", s -> s, Setting.Property.NodeScope));
+            key -> Setting.simpleString(key, Setting.Property.NodeScope, Setting.Property.Deprecated));
+
+    /** An override for the Storage host name to connect to. */
+    static final Setting.AffixSetting<String> HOST_SETTING = Setting.affixKeySetting(PREFIX, "host",
+            key -> Setting.simpleString(key,
+                    ENDPOINT_SETTING.getConcreteSetting(key.substring(0, key.length() - "host".length()) + "endpoint"),
+                    Setting.Property.NodeScope));
+
+    /** An override for the Google Project ID. */
+    static final Setting.AffixSetting<String> PROJECT_ID_SETTING = Setting.affixKeySetting(PREFIX, "project_id",
+            key -> Setting.simpleString(key, Setting.Property.NodeScope));
 
     /**
      * The timeout to establish a connection. A value of {@code -1} corresponds to an infinite timeout. A value of {@code 0}
@@ -66,13 +79,23 @@ public class GoogleCloudStorageClientSettings {
 
     /** Name used by the client when it uses the Google Cloud JSON API. **/
     static final Setting.AffixSetting<String> APPLICATION_NAME_SETTING = Setting.affixKeySetting(PREFIX, "application_name",
-        key -> new Setting<>(key, "repository-gcs", s -> s, Setting.Property.NodeScope));
+            key -> new Setting<>(key, "elasticsearch-repository-gcs", Function.identity(), Setting.Property.NodeScope,
+                    Setting.Property.Deprecated));
 
     /** The credentials used by the client to connect to the Storage endpoint **/
-    private final GoogleCredential credential;
+    private final ServiceAccountCredentials credential;
 
-    /** The Storage root URL the client should talk to, or empty string to use the default. **/
-    private final String endpoint;
+    /**
+     * The Storage root URL (hostname) the client should talk to, or null string to
+     * use the default.
+     **/
+    private final String host;
+
+    /**
+     * The Google project ID overriding the default way to infer it. Null value sets
+     * the default.
+     **/
+    private final String projectId;
 
     /** The timeout to establish a connection **/
     private final TimeValue connectTimeout;
@@ -83,24 +106,29 @@ public class GoogleCloudStorageClientSettings {
     /** The Storage client application name **/
     private final String applicationName;
 
-    GoogleCloudStorageClientSettings(final GoogleCredential credential,
-                                     final String endpoint,
+    GoogleCloudStorageClientSettings(final ServiceAccountCredentials credential,
+            final String host, final String projectId,
                                      final TimeValue connectTimeout,
                                      final TimeValue readTimeout,
                                      final String applicationName) {
         this.credential = credential;
-        this.endpoint = endpoint;
+        this.host = host;
+        this.projectId = projectId;
         this.connectTimeout = connectTimeout;
         this.readTimeout = readTimeout;
         this.applicationName = applicationName;
     }
 
-    public GoogleCredential getCredential() {
+    public ServiceAccountCredentials getCredential() {
         return credential;
     }
 
-    public String getEndpoint() {
-        return endpoint;
+    public String getHost() {
+        return host;
+    }
+
+    public String getProjectId() {
+        return projectId;
     }
 
     public TimeValue getConnectTimeout() {
@@ -117,7 +145,7 @@ public class GoogleCloudStorageClientSettings {
 
     public static Map<String, GoogleCloudStorageClientSettings> load(final Settings settings) {
         final Map<String, GoogleCloudStorageClientSettings> clients = new HashMap<>();
-        for (String clientName: settings.getGroups(PREFIX).keySet()) {
+        for (final String clientName: settings.getGroups(PREFIX).keySet()) {
             clients.put(clientName, getClientSettings(settings, clientName));
         }
         if (clients.containsKey("default") == false) {
@@ -131,7 +159,7 @@ public class GoogleCloudStorageClientSettings {
     static GoogleCloudStorageClientSettings getClientSettings(final Settings settings, final String clientName) {
         return new GoogleCloudStorageClientSettings(
             loadCredential(settings, clientName),
-            getConfigValue(settings, clientName, ENDPOINT_SETTING),
+                getConfigValue(settings, clientName, HOST_SETTING), getConfigValue(settings, clientName, PROJECT_ID_SETTING),
             getConfigValue(settings, clientName, CONNECT_TIMEOUT_SETTING),
             getConfigValue(settings, clientName, READ_TIMEOUT_SETTING),
             getConfigValue(settings, clientName, APPLICATION_NAME_SETTING)
@@ -147,7 +175,7 @@ public class GoogleCloudStorageClientSettings {
      *
      * @return the {@link GoogleCredential} to use for the given client, {@code null} if no service account is defined.
      */
-    static GoogleCredential loadCredential(final Settings settings, final String clientName) {
+    static ServiceAccountCredentials loadCredential(final Settings settings, final String clientName) {
         try {
             if (CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName).exists(settings) == false) {
                 // explicitly returning null here so that the default credential
@@ -155,19 +183,15 @@ public class GoogleCloudStorageClientSettings {
                 return null;
             }
             try (InputStream credStream = CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName).get(settings)) {
-                GoogleCredential credential = GoogleCredential.fromStream(credStream);
-                if (credential.createScopedRequired()) {
-                    credential = credential.createScoped(Collections.singleton(StorageScopes.DEVSTORAGE_FULL_CONTROL));
-                }
-                return credential;
+                return ServiceAccountCredentials.fromStream(credStream);
             }
-        } catch (IOException e) {
+        } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
     private static <T> T getConfigValue(final Settings settings, final String clientName, final Setting.AffixSetting<T> clientSetting) {
-        Setting<T> concreteSetting = clientSetting.getConcreteSettingForNamespace(clientName);
+        final Setting<T> concreteSetting = clientSetting.getConcreteSettingForNamespace(clientName);
         return concreteSetting.get(settings);
     }
 }

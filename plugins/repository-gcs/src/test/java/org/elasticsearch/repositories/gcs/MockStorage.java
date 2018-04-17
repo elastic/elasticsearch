@@ -19,26 +19,12 @@
 
 package org.elasticsearch.repositories.gcs;
 
-import com.google.api.client.googleapis.json.GoogleJsonError;
-import com.google.api.client.googleapis.json.GoogleJsonResponseException;
-import com.google.api.client.http.AbstractInputStreamContent;
-import com.google.api.client.http.HttpHeaders;
-import com.google.api.client.http.HttpMethods;
-import com.google.api.client.http.HttpRequest;
-import com.google.api.client.http.HttpRequestInitializer;
-import com.google.api.client.http.HttpResponseException;
-import com.google.api.client.http.LowLevelHttpRequest;
-import com.google.api.client.http.LowLevelHttpResponse;
-import com.google.api.client.http.MultipartContent;
-import com.google.api.client.json.JsonFactory;
-import com.google.api.client.testing.http.MockHttpTransport;
-import com.google.api.client.testing.http.MockLowLevelHttpRequest;
-import com.google.api.client.testing.http.MockLowLevelHttpResponse;
-import com.google.api.services.storage.Storage;
-import com.google.api.services.storage.model.Bucket;
-import com.google.api.services.storage.model.StorageObject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.rest.RestStatus;
+
+import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.Storage.BlobListOption;
+import com.google.cloud.storage.Storage.CopyRequest;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -86,7 +72,7 @@ class MockStorage extends Storage {
                 @Override
                 public Bucket execute() {
                     if (bucketName.equals(getBucket())) {
-                        Bucket bucket = new Bucket();
+                        final Bucket bucket = new Bucket();
                         bucket.setId(bucketName);
                         return bucket;
                     } else {
@@ -111,7 +97,7 @@ class MockStorage extends Storage {
                         throw newObjectNotFoundException(getObject());
                     }
 
-                    StorageObject storageObject = new StorageObject();
+                    final StorageObject storageObject = new StorageObject();
                     storageObject.setId(getObject());
                     return storageObject;
                 }
@@ -138,7 +124,7 @@ class MockStorage extends Storage {
                         throw newBucketNotFoundException(getBucket());
                     }
 
-                    ByteArrayOutputStream out = new ByteArrayOutputStream();
+                    final ByteArrayOutputStream out = new ByteArrayOutputStream();
                     Streams.copy(insertStream.getInputStream(), out);
                     blobs.put(getName(), out.toByteArray());
                     return null;
@@ -158,9 +144,9 @@ class MockStorage extends Storage {
                     final com.google.api.services.storage.model.Objects objects = new com.google.api.services.storage.model.Objects();
 
                     final java.util.List<StorageObject> storageObjects = new ArrayList<>();
-                    for (Entry<String, byte[]> blob : blobs.entrySet()) {
-                        if (getPrefix() == null || blob.getKey().startsWith(getPrefix())) {
-                            StorageObject storageObject = new StorageObject();
+                    for (final Entry<String, byte[]> blob : blobs.entrySet()) {
+                        if ((getPrefix() == null) || blob.getKey().startsWith(getPrefix())) {
+                            final StorageObject storageObject = new StorageObject();
                             storageObject.setId(blob.getKey());
                             storageObject.setName(blob.getKey());
                             storageObject.setSize(BigInteger.valueOf((long) blob.getValue().length));
@@ -193,7 +179,7 @@ class MockStorage extends Storage {
 
                 @Override
                 public HttpRequest buildHttpRequest() throws IOException {
-                    HttpRequest httpRequest = super.buildHttpRequest();
+                    final HttpRequest httpRequest = super.buildHttpRequest();
                     httpRequest.getHeaders().put(DELETION_HEADER, getObject());
                     return httpRequest;
                 }
@@ -218,7 +204,7 @@ class MockStorage extends Storage {
                     }
                     blobs.put(getDestinationObject(), bytes);
 
-                    StorageObject storageObject = new StorageObject();
+                    final StorageObject storageObject = new StorageObject();
                     storageObject.setId(getDestinationObject());
                     return storageObject;
                 }
@@ -227,12 +213,12 @@ class MockStorage extends Storage {
     }
 
     private static GoogleJsonResponseException newBucketNotFoundException(final String bucket) {
-        HttpResponseException.Builder builder = new HttpResponseException.Builder(404, "Bucket not found: " + bucket, new HttpHeaders());
+        final HttpResponseException.Builder builder = new HttpResponseException.Builder(404, "Bucket not found: " + bucket, new HttpHeaders());
         return new GoogleJsonResponseException(builder, new GoogleJsonError());
     }
 
     private static GoogleJsonResponseException newObjectNotFoundException(final String object) {
-        HttpResponseException.Builder builder = new HttpResponseException.Builder(404, "Object not found: " + object, new HttpHeaders());
+        final HttpResponseException.Builder builder = new HttpResponseException.Builder(404, "Object not found: " + object, new HttpHeaders());
         return new GoogleJsonResponseException(builder, new GoogleJsonError());
     }
 
@@ -269,7 +255,7 @@ class MockStorage extends Storage {
                             getStreamingContent().writeTo(out);
 
                             Streams.readAllLines(new ByteArrayInputStream(out.toByteArray()), line -> {
-                                if (line != null && line.startsWith(DELETION_HEADER)) {
+                                if ((line != null) && line.startsWith(DELETION_HEADER)) {
                                     builder.append("--__END_OF_PART__\r\n");
                                     builder.append("Content-Type: application/http").append("\r\n");
                                     builder.append("\r\n");
@@ -292,7 +278,7 @@ class MockStorage extends Storage {
                             builder.append("--__END_OF_PART__--");
                         }
 
-                        MockLowLevelHttpResponse response = new MockLowLevelHttpResponse();
+                        final MockLowLevelHttpResponse response = new MockLowLevelHttpResponse();
                         response.setStatusCode(200);
                         response.setContent(builder.toString());
                         response.setContentType(contentType);

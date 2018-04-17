@@ -42,6 +42,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -80,7 +81,8 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
             super.doExecute(task, request, listener);
         },
             ex -> {
-            if (ex instanceof IndexNotFoundException) {
+            if (ex instanceof IndexNotFoundException ||
+                ex instanceof IndexClosedException) {
                 listener.onFailure(ex);
             }
             List<QueryExplanation> explanations = new ArrayList<>();

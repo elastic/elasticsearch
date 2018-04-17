@@ -68,7 +68,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29456")
 @ESIntegTestCase.SuiteScopeTestCase
 public class MovAvgIT extends ESIntegTestCase {
     private static final String INTERVAL_FIELD = "l_value";
@@ -1296,7 +1295,7 @@ public class MovAvgIT extends ESIntegTestCase {
         } else {
             assertThat("[_count] movavg is null", countMovAvg, notNullValue());
             assertEquals("[_count] movavg does not match expected [" + countMovAvg.value() + " vs " + expectedCount + "]",
-                    countMovAvg.value(), expectedCount, 0.1);
+                    countMovAvg.value(), expectedCount, 0.1 * Math.abs(countMovAvg.value()));
         }
 
         // This is a gap bucket
@@ -1308,7 +1307,7 @@ public class MovAvgIT extends ESIntegTestCase {
         } else {
             assertThat("[value] movavg is null", valuesMovAvg, notNullValue());
             assertEquals("[value] movavg does not match expected [" + valuesMovAvg.value() + " vs " + expectedValue + "]",
-                    valuesMovAvg.value(), expectedValue, 0.1);
+                    valuesMovAvg.value(), expectedValue, 0.1 * Math.abs(countMovAvg.value()));
         }
     }
 

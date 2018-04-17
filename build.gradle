@@ -231,6 +231,23 @@ subprojects {
     }
   }
 
+  /*
+   * Gradle only resolve project substitutions during dependency resolution but
+   * we sometimes want to do the resolution at other times. This creates a
+   * convenient method we can call to do it.
+   */
+  ext.dependencyToProject = { Dependency dep ->
+    if (dep instanceof ProjectDependency) {
+      return dep.dependencyProject
+    } else {
+      String substitution = projectSubstitutions.get("${dep.group}:${dep.name}:${dep.version}")
+      if (substitution != null) {
+        return findProject(substitution)
+      }
+      return null
+    }
+  }
+
   project.afterEvaluate {
     configurations.all {
       resolutionStrategy.dependencySubstitution { DependencySubstitutions subs ->
@@ -249,11 +266,11 @@ subprojects {
       Closure sortClosure = { a, b -> b.group <=> a.group }
       Closure depJavadocClosure = { dep ->
         if (dep.group != null && dep.group.startsWith('org.elasticsearch')) {
-          String substitution = project.ext.projectSubstitutions.get("${dep.group}:${dep.name}:${dep.version}")
-          if (substitution != null) {
-            project.javadoc.dependsOn substitution + ':javadoc'
+          Project upstreamProject = dependencyToProject(dep)
+          if (upstreamProject != null) {
+            project.javadoc.dependsOn "${upstreamProject.path}:javadoc"
             String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + dep.name.replaceAll('\\.', '/') + '/' + dep.version
-            project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${project.project(substitution).buildDir}/docs/javadoc/"
+            project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${upstreamProject.buildDir}/docs/javadoc/"
           }
         }
       }
@@ -275,17 +292,7 @@ gradle.projectsEvaluated {
     }
     configurations.all {
       dependencies.all { Dependency dep ->
-        Project upstreamProject = null
-        if (dep instanceof ProjectDependency) {
-          upstreamProject = dep.dependencyProject
-        } else {
-          // gradle doesn't apply substitutions until resolve time, so they won't
-          // show up as a ProjectDependency above
-          String substitution = projectSubstitutions.get("${dep.group}:${dep.name}:${dep.version}")
-          if (substitution != null) {
-            upstreamProject = findProject(substitution)
-          }
-        }
+        Project upstreamProject = dependencyToProject(dep)
         if (upstreamProject != null) {
           if (project.path == upstreamProject.path) {
             // TODO: distribution integ tests depend on themselves (!), fix that

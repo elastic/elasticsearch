@@ -57,13 +57,6 @@ The following arguments can optionally be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-settings-request-flat-settings]
---------------------------------------------------
-<1> Whether the updated settings returned in the `UpdateSettings` should
-be in a flat format
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
 include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-settings-request-preserveExisting]
 --------------------------------------------------
 <1> Whether to update existing settings. If set to `true` existing settings

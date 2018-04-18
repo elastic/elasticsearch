@@ -697,8 +697,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         if (indexSettings.getTranslogDurability() == Translog.Durability.ASYNC) {
             for (IndexShard shard : this.shards.values()) {
                 try {
-                    Translog translog = shard.getTranslog();
-                    if (translog.syncNeeded()) {
+                    if (shard.isSyncNeeded()) {
                         shard.sync();
                     }
                 } catch (AlreadyClosedException ex) {

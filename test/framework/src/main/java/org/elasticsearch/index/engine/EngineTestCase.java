@@ -645,4 +645,10 @@ public abstract class EngineTestCase extends ESTestCase {
         }
     }
 
+    /**
+     * Exposes a translog associated with the given engine for testing purpose.
+     */
+    public static Translog getTranslog(Engine engine) {
+        return engine.getTranslog();
+    }
 }

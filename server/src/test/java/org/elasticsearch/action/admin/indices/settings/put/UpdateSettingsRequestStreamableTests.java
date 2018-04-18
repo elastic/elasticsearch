@@ -67,7 +67,6 @@ public class UpdateSettingsRequestStreamableTests extends AbstractStreamableTest
         request.timeout(randomTimeValue());
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
         request.setPreserveExisting(randomBoolean());
-        request.flatSettings(randomBoolean());
         return request;
     }
 
@@ -77,7 +76,6 @@ public class UpdateSettingsRequestStreamableTests extends AbstractStreamableTest
         result.timeout(request.timeout());
         result.indicesOptions(request.indicesOptions());
         result.setPreserveExisting(request.isPreserveExisting());
-        result.flatSettings(request.flatSettings());
         return result;
     }
 

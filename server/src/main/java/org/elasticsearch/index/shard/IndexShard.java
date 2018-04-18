@@ -933,7 +933,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public TranslogStats translogStats() {
-        return getEngine().getTranslog().stats();
+        return getEngine().getTranslogStats();
     }
 
     public CompletionStats completionStats(String... fields) {
@@ -1330,7 +1330,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     protected void onNewEngine(Engine newEngine) {
-        refreshListeners.setTranslog(newEngine.getTranslog());
+        refreshListeners.setCurrentRefreshLocationSupplier(newEngine::getTranslogLastWriteLocation);
     }
 
     /**
@@ -1562,8 +1562,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Engine engine = getEngineOrNull();
         if (engine != null) {
             try {
-                final Translog translog = engine.getTranslog();
-                return translog.shouldRollGeneration();
+                return engine.shouldRollTranslogGeneration();
             } catch (final AlreadyClosedException e) {
                 // we are already closed, no need to flush or roll
             }
@@ -1578,9 +1577,30 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    /**
+     * Acquires a lock on the translog files, preventing them from being trimmed.
+     */
     public Closeable acquireTranslogRetentionLock() {
-        Engine engine = getEngine();
-        return engine.getTranslog().acquireRetentionLock();
+        return getEngine().acquireTranslogRetentionLock();
+    }
+
+    /**
+     * Creates a new translog snapshot for reading translog operations whose seq# at least the provided seq#.
+     * The caller has to close the returned snapshot after finishing the reading.
+     */
+    public Translog.Snapshot newTranslogSnapshotFromMinSeqNo(long minSeqNo) throws IOException {
+        return newTranslogSnapshotBetween(minSeqNo, Long.MAX_VALUE);
+    }
+
+    public Translog.Snapshot newTranslogSnapshotBetween(long minSeqNo, long maxSeqNo) throws IOException {
+        return getEngine().newTranslogSnapshotBetween(minSeqNo, maxSeqNo);
+    }
+
+    /**
+     * Returns the estimated number of operations in translog whose seq# at least the provided seq#.
+     */
+    public int estimateTranslogOperationsFromMinSeq(long minSeqNo) {
+        return getEngine().estimateTranslogOperationsFromMinSeq(minSeqNo);
     }
 
     public List<Segment> segments(boolean verbose) {
@@ -1589,10 +1609,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public void flushAndCloseEngine() throws IOException {
         getEngine().flushAndClose();
-    }
-
-    public Translog getTranslog() {
-        return getEngine().getTranslog();
     }
 
     public String getHistoryUUID() {
@@ -1730,6 +1746,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public long getGlobalCheckpoint() {
         return replicationTracker.getGlobalCheckpoint();
+    }
+
+    /**
+     * Returns the latest global checkpoint value that has been persisted in the underlying storage (i.e. translog's checkpoint)
+     */
+    public long getLastSyncedGlobalCheckpoint() {
+        return getEngine().getLastSyncedGlobalCheckpoint();
     }
 
     /**
@@ -2308,6 +2331,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Checks if the underlying storage sync is required.
+     */
+    public boolean isSyncNeeded() {
+        return getEngine().isTranslogSyncNeeded();
+    }
+
+    /**
      * Returns the current translog durability mode
      */
     public Translog.Durability getTranslogDurability() {
@@ -2466,7 +2496,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private void setRefreshPending(Engine engine) {
-        Translog.Location lastWriteLocation = engine.getTranslog().getLastWriteLocation();
+        Translog.Location lastWriteLocation = engine.getTranslogLastWriteLocation();
         Translog.Location location;
         do {
             location = this.pendingRefreshLocation.get();

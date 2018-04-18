@@ -573,13 +573,57 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     }
 
-    abstract static class BinaryScriptDocValues<T> extends ScriptDocValues<T> {
-
+    public static final class Strings extends ScriptDocValues<String> {
         private final SortedBinaryDocValues in;
-        protected BytesRefBuilder[] values = new BytesRefBuilder[0];
-        protected int count;
+        private String[] values = new String[0];
+        private int count;
 
-        BinaryScriptDocValues(SortedBinaryDocValues in) {
+        public Strings(SortedBinaryDocValues in) {
+            this.in = in;
+        }
+
+        @Override
+        public String get(int index) {
+            return values[index];
+        }
+
+        public String getValue() {
+            return count == 0 ? null : values[0];
+        }
+
+        /**
+         * Set the {@link #size()} and ensure that the {@link #values} array can
+         * store at least that many entries.
+        */
+        private void resize(int newSize) {
+            values = ArrayUtil.grow(values, newSize);
+            count = newSize;
+        }
+
+        @Override
+        public void setNextDocId(int docId) throws IOException {
+            if (in.advanceExact(docId)) {
+                resize(in.docValueCount());
+                for (int i = 0; i < count; i++) {
+                    values[i] = in.nextValue().utf8ToString();
+                }
+            } else {
+                resize(0);
+            }
+        }
+
+        @Override
+        public int size() {
+            return count;
+        }
+    }
+
+    public static final class BytesRefs extends ScriptDocValues<BytesRef> {
+        private final SortedBinaryDocValues in;
+        private BytesRef[] values = new BytesRef[0];
+        private int count;
+
+        public BytesRefs(SortedBinaryDocValues in) {
             this.in = in;
         }
 
@@ -588,14 +632,25 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             if (in.advanceExact(docId)) {
                 resize(in.docValueCount());
                 for (int i = 0; i < count; i++) {
-                    // We need to make a copy here, because BytesBinaryDVAtomicFieldData's SortedBinaryDocValues
-                    // implementation reuses the returned BytesRef. Otherwise we would end up with the same BytesRef
-                    // instance for all slots in the values array.
-                    values[i].copyBytes(in.nextValue());
+                    /**
+                     * We need to make a copy here because {@link SortedBinaryDocValues} might reuse the returned value
+                     * and the same instance might be used to return values from multiple documents.
+                     **/
+                    values[i] = BytesRef.deepCopyOf(in.nextValue());
                 }
             } else {
                 resize(0);
             }
+        }
+
+
+        @Override
+        public BytesRef get(int index) {
+            return values[index];
+        }
+
+        public BytesRef getValue() {
+            return count == 0 ? new BytesRef() : values[0];
         }
 
         /**
@@ -603,79 +658,13 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          * store at least that many entries.
          */
         protected void resize(int newSize) {
+            values = ArrayUtil.grow(values, newSize);
             count = newSize;
-            if (newSize > values.length) {
-                final int oldLength = values.length;
-                values = ArrayUtil.grow(values, count);
-                for (int i = oldLength; i < values.length; ++i) {
-                    values[i] = new BytesRefBuilder();
-                }
-            }
         }
 
         @Override
         public int size() {
             return count;
-        }
-
-    }
-
-    public static final class Strings extends BinaryScriptDocValues<String> {
-
-        public Strings(SortedBinaryDocValues in) {
-            super(in);
-        }
-
-        @Override
-        public String get(int index) {
-            return values[index].get().utf8ToString();
-        }
-
-        public BytesRef getBytesValue() {
-            if (size() > 0) {
-                /**
-                 * We need to make a copy here because {@link BinaryScriptDocValues} might reuse the
-                 * returned value and the same instance might be used to
-                 * return values from multiple documents.
-                 **/
-                return values[0].toBytesRef();
-            } else {
-                return null;
-            }
-        }
-
-        public String getValue() {
-            BytesRef value = getBytesValue();
-            if (value == null) {
-                return null;
-            } else {
-                return value.utf8ToString();
-            }
-        }
-
-    }
-
-    public static final class BytesRefs extends BinaryScriptDocValues<BytesRef> {
-
-        public BytesRefs(SortedBinaryDocValues in) {
-            super(in);
-        }
-
-        @Override
-        public BytesRef get(int index) {
-            /**
-             * We need to make a copy here because {@link BinaryScriptDocValues} might reuse the
-             * returned value and the same instance might be used to
-             * return values from multiple documents.
-             **/
-            return values[index].toBytesRef();
-        }
-
-        public BytesRef getValue() {
-            if (count == 0) {
-                return new BytesRef();
-            }
-            return values[0].toBytesRef();
         }
 
     }

@@ -2296,7 +2296,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(sourceShard, targetShard);
     }
 
-    @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/LUCENE-8256")
+//    @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/LUCENE-8256")
     public void testDocStats() throws IOException {
         IndexShard indexShard = null;
         try {
@@ -2350,12 +2350,12 @@ public class IndexShardTests extends IndexShardTestCase {
                 assertThat(docStats.getCount(), equalTo(numDocs));
                 // Lucene will delete a segment if all docs are deleted from it;
                 // this means that we lose the deletes when deleting all docs.
+                // If soft-delete is enabled, each delete op will add a deletion marker.
+                final long deleteTombstones = indexShard.indexSettings.isSoftDeleteEnabled() ? numDocsToDelete : 0L;
                 if (numDocsToDelete == numDocs) {
-                    assertThat(docStats.getDeleted(), equalTo(0));
+                    assertThat(docStats.getDeleted(), equalTo(deleteTombstones));
                 } else {
-                    // If soft-delete is enabled, each delete op will add a deletion marker.
-                    final boolean softDeleteEnabled = indexShard.indexSettings.isSoftDeleteEnabled();
-                    assertThat(docStats.getDeleted(), equalTo(softDeleteEnabled ? numDocsToDelete * 2 : numDocsToDelete));
+                    assertThat(docStats.getDeleted(), equalTo(numDocsToDelete + deleteTombstones));
                 }
             }
 

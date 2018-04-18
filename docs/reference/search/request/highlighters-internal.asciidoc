@@ -65,7 +65,8 @@ to score fragments.
 Relevant settings:  `pre-tags`, `post-tags`.
 
 The goal is to highlight only those terms that participated in generating the 'hit' on the document.
-For some complex boolean queries, this is still work in progress.
+For some complex boolean queries, this is still work in progress, as highlighters don't reflect
+the boolean logic of a query and only extract leaf (terms, phrases, prefix etc) queries.
 
 Plain highlighter given the token stream and the original text, recomposes the original text to
 highlight only terms from the token stream that are contained in the low-level match information

@@ -32,6 +32,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.mockito.Mockito.mock;
@@ -78,7 +79,8 @@ public class NettyAdaptorTests extends ESTestCase {
     public void testWriteInsidePipelineIsCaptured() {
         TenIntsToStringsHandler tenIntsToStringsHandler = new TenIntsToStringsHandler();
         PromiseCheckerHandler promiseCheckerHandler = new PromiseCheckerHandler();
-        NettyAdaptor nettyAdaptor = new NettyAdaptor(mock(SocketSelector.class), new CapitalizeWriteHandler(),
+        NettyAdaptor nettyAdaptor = new NettyAdaptor(mock(SocketSelector.class),
+            new CapitalizeWriteHandler(),
             promiseCheckerHandler,
             new WriteInMiddleHandler(),
             tenIntsToStringsHandler);
@@ -148,7 +150,7 @@ public class NettyAdaptorTests extends ESTestCase {
         public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
             String string = (String) msg;
             assert string.equals("Failed") : "Should be the same was what we wrote.";
-            super.write(ctx, Unpooled.wrappedBuffer(string.toUpperCase().getBytes(StandardCharsets.UTF_8)), promise);
+            super.write(ctx, Unpooled.wrappedBuffer(string.toUpperCase(Locale.ROOT).getBytes(StandardCharsets.UTF_8)), promise);
         }
     }
 

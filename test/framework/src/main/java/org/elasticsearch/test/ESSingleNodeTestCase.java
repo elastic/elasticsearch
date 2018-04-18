@@ -163,7 +163,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     /** True if a dummy http transport should be used, or false if the real http transport should be used. */
     protected boolean addMockHttpTransport() {
-        return false;
+        return true;
     }
 
     private Node newNode() {

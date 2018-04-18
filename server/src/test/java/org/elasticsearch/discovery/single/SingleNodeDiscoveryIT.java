@@ -32,6 +32,7 @@ import org.elasticsearch.discovery.zen.UnicastZenPing;
 import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -40,6 +41,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Stack;
 import java.util.concurrent.CompletableFuture;
@@ -123,7 +125,6 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                 return Settings
                         .builder()
                         .put("discovery.type", "single-node")
-                        .put("http.enabled", false)
                         .put("transport.type", getTestTransportType())
                         /*
                          * We align the port ranges of the two as then with zen discovery these two
@@ -151,7 +152,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                         0,
                         false,
                         "other",
-                        Collections.singletonList(getTestTransportPlugin()),
+                        Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
                         Function.identity())) {
             other.beforeTest(random(), 0);
             final ClusterState first = internalCluster().getInstance(ClusterService.class).state();

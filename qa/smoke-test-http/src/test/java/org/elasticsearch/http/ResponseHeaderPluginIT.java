@@ -37,12 +37,10 @@ import static org.hamcrest.Matchers.equalTo;
  */
 @ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1)
 public class ResponseHeaderPluginIT extends HttpSmokeTestCase {
+
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("force.http.enabled", true)
-                .build();
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
     }
 
     @Override

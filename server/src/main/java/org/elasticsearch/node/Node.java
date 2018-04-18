@@ -528,10 +528,8 @@ public class Node implements Closeable {
             client.initialize(injector.getInstance(new Key<Map<GenericAction, TransportAction>>() {}),
                     () -> clusterService.localNode().getId(), transportService.getRemoteClusterService());
 
-            if (NetworkModule.HTTP_ENABLED.get(settings)) {
-                logger.debug("initializing HTTP handlers ...");
-                actionModule.initRestHandlers(() -> clusterService.state().nodes());
-            }
+            logger.debug("initializing HTTP handlers ...");
+            actionModule.initRestHandlers(() -> clusterService.state().nodes());
             logger.info("initialized");
 
             success = true;
@@ -691,18 +689,13 @@ public class Node implements Closeable {
             }
         }
 
-
-        if (NetworkModule.HTTP_ENABLED.get(settings)) {
-            injector.getInstance(HttpServerTransport.class).start();
-        }
+        injector.getInstance(HttpServerTransport.class).start();
 
         if (WRITE_PORTS_FILE_SETTING.get(settings)) {
-            if (NetworkModule.HTTP_ENABLED.get(settings)) {
-                HttpServerTransport http = injector.getInstance(HttpServerTransport.class);
-                writePortsFile("http", http.boundAddress());
-            }
             TransportService transport = injector.getInstance(TransportService.class);
             writePortsFile("transport", transport.boundAddress());
+            HttpServerTransport http = injector.getInstance(HttpServerTransport.class);
+            writePortsFile("http", http.boundAddress());
         }
 
         logger.info("started");
@@ -720,9 +713,7 @@ public class Node implements Closeable {
         logger.info("stopping ...");
 
         injector.getInstance(ResourceWatcherService.class).stop();
-        if (NetworkModule.HTTP_ENABLED.get(settings)) {
-            injector.getInstance(HttpServerTransport.class).stop();
-        }
+        injector.getInstance(HttpServerTransport.class).stop();
 
         injector.getInstance(SnapshotsService.class).stop();
         injector.getInstance(SnapshotShardsService.class).stop();
@@ -769,9 +760,7 @@ public class Node implements Closeable {
         toClose.add(() -> stopWatch.stop().start("node_service"));
         toClose.add(nodeService);
         toClose.add(() -> stopWatch.stop().start("http"));
-        if (NetworkModule.HTTP_ENABLED.get(settings)) {
-            toClose.add(injector.getInstance(HttpServerTransport.class));
-        }
+        toClose.add(injector.getInstance(HttpServerTransport.class));
         toClose.add(() -> stopWatch.stop().start("snapshot_service"));
         toClose.add(injector.getInstance(SnapshotsService.class));
         toClose.add(injector.getInstance(SnapshotShardsService.class));

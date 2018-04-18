@@ -219,7 +219,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING,
                     GatewayService.RECOVER_AFTER_NODES_SETTING,
                     GatewayService.RECOVER_AFTER_TIME_SETTING,
-                    NetworkModule.HTTP_ENABLED,
                     NetworkModule.HTTP_DEFAULT_TYPE_SETTING,
                     NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING,
                     NetworkModule.HTTP_TYPE_SETTING,

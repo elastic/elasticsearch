@@ -265,7 +265,7 @@ Elasticsearch 7.x::
 
 * The index creation, `GET|PUT _mapping` and document APIs support a query
   string parameter (`include_type_name`) which indicates whether requests and
-  responses should include a layer for the type name. It defaults to `true`.
+  responses should include a type name. It defaults to `true`.
   7.x indices which don't have an explicit type will use the dummy type name
   `_doc`. Not setting `include_type_name=false` will result in a deprecation
   warning.

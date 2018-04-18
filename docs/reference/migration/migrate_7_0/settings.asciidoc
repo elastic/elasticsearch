@@ -6,3 +6,11 @@
 
 * The deprecated `index.percolator.map_unmapped_fields_as_string` setting has been removed in favour of
   the `index.percolator.map_unmapped_fields_as_text` setting.
+
+==== Index thread pool
+
+* Internally, single-document index/delete/update requests are executed as bulk
+  requests with a single-document payload. This means that these requests are
+  executed on the bulk thread pool. As such, the indexing thread pool is no
+  longer needed and has been removed. As such, the  settings
+  `thread_pool.index.size` and `thread_pool.index.queue_size` have been removed.

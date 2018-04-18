@@ -275,7 +275,6 @@ public class RequestTests extends ESTestCase {
         Map<String, String> expectedParams = new HashMap<>();
         setRandomIndicesOptions(getIndexRequest::indicesOptions, getIndexRequest::indicesOptions, expectedParams);
         setRandomLocal(getIndexRequest, expectedParams);
-        setRandomFlatSettings(getIndexRequest::flatSettings, expectedParams);
         setRandomHumanReadable(getIndexRequest, expectedParams);
         setRandomIncludeDefaults(getIndexRequest, expectedParams);
 
@@ -1295,7 +1294,6 @@ public class RequestTests extends ESTestCase {
     public void testClusterPutSettings() throws IOException {
         ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
         Map<String, String> expectedParams = new HashMap<>();
-        setRandomFlatSettings(request::flatSettings, expectedParams);
         setRandomMasterTimeout(request, expectedParams);
         setRandomTimeout(request::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
 
@@ -1347,7 +1345,6 @@ public class RequestTests extends ESTestCase {
         String[] indices = randomBoolean() ? null : randomIndicesNames(0, 2);
         UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indices);
         Map<String, String> expectedParams = new HashMap<>();
-        setRandomFlatSettings(updateSettingsRequest::flatSettings, expectedParams);
         setRandomMasterTimeout(updateSettingsRequest, expectedParams);
         setRandomTimeout(updateSettingsRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
         setRandomIndicesOptions(updateSettingsRequest::indicesOptions, updateSettingsRequest::indicesOptions, expectedParams);
@@ -1687,16 +1684,6 @@ public class RequestTests extends ESTestCase {
             expectedParams.put("timeout", timeout);
         } else {
             expectedParams.put("timeout", defaultTimeout.getStringRep());
-        }
-    }
-
-    private static void setRandomFlatSettings(Consumer<Boolean> setter, Map<String, String> expectedParams) {
-        if (randomBoolean()) {
-            boolean flatSettings = randomBoolean();
-            setter.accept(flatSettings);
-            if (flatSettings) {
-                expectedParams.put("flat_settings", String.valueOf(flatSettings));
-            }
         }
     }
 

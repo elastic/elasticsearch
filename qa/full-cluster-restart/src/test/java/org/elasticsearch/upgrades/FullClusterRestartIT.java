@@ -687,7 +687,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
      * Tests recovery of an index with or without a translog and the
      * statistics we gather about that.
      */
-    public void testRecovery() throws IOException {
+    public void testRecovery() throws Exception {
         int count;
         boolean shouldHaveTranslog;
         if (runningAgainstOldCluster) {
@@ -700,7 +700,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
             indexRandomDocuments(count, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
 
             // make sure all recoveries are done
-            ensureNoInitializingShards();
+            ensureGreen(index);
             // Explicitly flush so we're sure to have a bunch of documents in the Lucene index
             client().performRequest("POST", "/_flush");
             if (shouldHaveTranslog) {

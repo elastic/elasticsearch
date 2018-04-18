@@ -574,7 +574,6 @@ public final class Request {
 
     static Request clusterPutSettings(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest) throws IOException {
         Params parameters = Params.builder();
-        parameters.withFlatSettings(clusterUpdateSettingsRequest.flatSettings());
         parameters.withTimeout(clusterUpdateSettingsRequest.timeout());
         parameters.withMasterTimeout(clusterUpdateSettingsRequest.masterNodeTimeout());
         HttpEntity entity = createEntity(clusterUpdateSettingsRequest, REQUEST_BODY_CONTENT_TYPE);
@@ -620,7 +619,6 @@ public final class Request {
         params.withLocal(request.local());
         params.withHuman(request.humanReadable());
         params.withIndicesOptions(request.indicesOptions());
-        params.withFlatSettings(request.flatSettings());
         params.withIncludeDefaults(request.includeDefaults());
         return new Request(HttpHead.METHOD_NAME, endpoint, params.getParams(), null);
     }
@@ -630,7 +628,6 @@ public final class Request {
         parameters.withTimeout(updateSettingsRequest.timeout());
         parameters.withMasterTimeout(updateSettingsRequest.masterNodeTimeout());
         parameters.withIndicesOptions(updateSettingsRequest.indicesOptions());
-        parameters.withFlatSettings(updateSettingsRequest.flatSettings());
         parameters.withPreserveExisting(updateSettingsRequest.isPreserveExisting());
 
         String[] indices = updateSettingsRequest.indices() == null ? Strings.EMPTY_ARRAY : updateSettingsRequest.indices();

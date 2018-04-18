@@ -335,11 +335,14 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @param warnings other expected general deprecation warnings
      */
     protected final void assertSettingDeprecationsAndWarnings(final Setting<?>[] settings, final String... warnings) {
+        assertSettingDeprecationsAndWarnings(Arrays.stream(settings).map(Setting::getKey).toArray(String[]::new), warnings);
+    }
+
+    protected final void assertSettingDeprecationsAndWarnings(final String[] settings, final String... warnings) {
         assertWarnings(
                 Stream.concat(
                         Arrays
                                 .stream(settings)
-                                .map(Setting::getKey)
                                 .map(k -> "[" + k + "] setting was deprecated in Elasticsearch and will be removed in a future release! " +
                                         "See the breaking changes documentation for the next major version."),
                         Arrays.stream(warnings))

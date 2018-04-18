@@ -14,6 +14,7 @@ Which looks like:
 
 [source,txt]
 --------------------------------------------------
+node-0 analyze             0 0 0
 node-0 bulk                0 0 0
 node-0 fetch_shard_started 0 0 0
 node-0 fetch_shard_store   0 0 0
@@ -21,7 +22,6 @@ node-0 flush               0 0 0
 node-0 force_merge         0 0 0
 node-0 generic             0 0 0
 node-0 get                 0 0 0
-node-0 index               0 0 0
 node-0 listener            0 0 0
 node-0 management          1 0 0
 node-0 refresh             0 0 0
@@ -43,6 +43,7 @@ The second column is the thread pool name
 [source,txt]
 --------------------------------------------------
 name
+analyze
 bulk
 fetch_shard_started
 fetch_shard_store
@@ -50,7 +51,6 @@ flush
 force_merge
 generic
 get
-index
 listener
 management
 refresh

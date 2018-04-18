@@ -55,7 +55,7 @@ final class DocumentParser {
         this.docMapper = docMapper;
     }
 
-    ParsedDocument parseDocument(SourceToParse source, MetadataFieldMapper[] metadataMappers) throws MapperParsingException {
+    ParsedDocument parseDocument(SourceToParse source, MetadataFieldMapper[] metadataFieldsMappers) throws MapperParsingException {
         validateType(source);
 
         final Mapping mapping = docMapper.mapping();
@@ -66,7 +66,7 @@ final class DocumentParser {
             LoggingDeprecationHandler.INSTANCE, source.source(), xContentType)) {
             context = new ParseContext.InternalParseContext(indexSettings.getSettings(), docMapperParser, docMapper, source, parser);
             validateStart(parser);
-            internalParseDocument(mapping, metadataMappers, context, parser);
+            internalParseDocument(mapping, metadataFieldsMappers, context, parser);
             validateEnd(parser);
         } catch (Exception e) {
             throw wrapInMapperParsingException(source, e);
@@ -81,11 +81,11 @@ final class DocumentParser {
         return parsedDocument(source, context, createDynamicUpdate(mapping, docMapper, context.getDynamicMappers()));
     }
 
-    private static void internalParseDocument(Mapping mapping, MetadataFieldMapper[] metadataMappers,
+    private static void internalParseDocument(Mapping mapping, MetadataFieldMapper[] metadataFieldsMappers,
                                               ParseContext.InternalParseContext context, XContentParser parser) throws IOException {
         final boolean emptyDoc = isEmptyDoc(mapping, parser);
 
-        for (MetadataFieldMapper metadataMapper : metadataMappers) {
+        for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
             metadataMapper.preParse(context);
         }
 
@@ -96,7 +96,7 @@ final class DocumentParser {
             parseObjectOrNested(context, mapping.root);
         }
 
-        for (MetadataFieldMapper metadataMapper : metadataMappers) {
+        for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
             metadataMapper.postParse(context);
         }
     }

@@ -81,7 +81,7 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_SEND
 public class NioHttpServerTransport extends AbstractHttpServerTransport {
 
     public static final Setting<Integer> NIO_HTTP_ACCEPTOR_COUNT =
-        intSetting("transport.nio.acceptor_count", 1, 1, Setting.Property.NodeScope);
+        intSetting("http.nio.acceptor_count", 1, 1, Setting.Property.NodeScope);
     public static final Setting<Integer> NIO_HTTP_WORKER_COUNT =
         new Setting<>("http.nio.worker_count",
             (s) -> Integer.toString(EsExecutors.numberOfProcessors(s) * 2),

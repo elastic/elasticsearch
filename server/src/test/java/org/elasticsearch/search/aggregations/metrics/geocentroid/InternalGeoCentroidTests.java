@@ -68,8 +68,10 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
             }
             totalCount += input.count();
         }
-        assertEquals(latSum/totalCount, reduced.centroid().getLat(), 1E-5D);
-        assertEquals(lonSum/totalCount, reduced.centroid().getLon(), 1E-5D);
+        if (totalCount > 0) {
+            assertEquals(latSum/totalCount, reduced.centroid().getLat(), 1E-5D);
+            assertEquals(lonSum/totalCount, reduced.centroid().getLon(), 1E-5D);
+        }
         assertEquals(totalCount, reduced.count());
     }
 

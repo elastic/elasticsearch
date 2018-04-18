@@ -97,6 +97,12 @@ class BuildPlugin implements Plugin<Project> {
             String compilerJavaHome = findCompilerJavaHome()
             String runtimeJavaHome = findRuntimeJavaHome(compilerJavaHome)
             File gradleJavaHome = Jvm.current().javaHome
+
+            final Map<Integer, String> javaVersions = [:]
+            for (int version = 7; version <= Integer.parseInt(minimumCompilerVersion.majorVersion); version++) {
+                javaVersions.put(version, findJavaHome(version));
+            }
+
             String javaVendor = System.getProperty('java.vendor')
             String javaVersion = System.getProperty('java.version')
             String gradleJavaVersionDetails = "${javaVendor} ${javaVersion}" +
@@ -158,10 +164,32 @@ class BuildPlugin implements Plugin<Project> {
                 throw new GradleException(message)
             }
 
+            for (final Map.Entry<Integer, String> javaVersionEntry : javaVersions.entrySet()) {
+                final String javaHome = javaVersionEntry.getValue()
+                if (javaHome == null) {
+                    continue
+                }
+                JavaVersion javaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, javaHome))
+                final JavaVersion expectedJavaVersionEnum
+                final int version = javaVersionEntry.getKey()
+                if (version < 9) {
+                    expectedJavaVersionEnum = JavaVersion.toVersion("1." + version)
+                } else {
+                    expectedJavaVersionEnum = JavaVersion.toVersion(Integer.toString(version))
+                }
+                if (javaVersionEnum != expectedJavaVersionEnum) {
+                    final String message =
+                            "the environment variable JAVA" + version + "_HOME must be set to a JDK installation directory for Java" +
+                                    " ${expectedJavaVersionEnum} but is [${javaHome}] corresponding to [${javaVersionEnum}]"
+                    throw new GradleException(message)
+                }
+            }
+
             project.rootProject.ext.compilerJavaHome = compilerJavaHome
             project.rootProject.ext.runtimeJavaHome = runtimeJavaHome
             project.rootProject.ext.compilerJavaVersion = compilerJavaVersionEnum
             project.rootProject.ext.runtimeJavaVersion = runtimeJavaVersionEnum
+            project.rootProject.ext.javaVersions = javaVersions
             project.rootProject.ext.buildChecksDone = true
         }
 
@@ -173,6 +201,7 @@ class BuildPlugin implements Plugin<Project> {
         project.ext.runtimeJavaHome = project.rootProject.ext.runtimeJavaHome
         project.ext.compilerJavaVersion = project.rootProject.ext.compilerJavaVersion
         project.ext.runtimeJavaVersion = project.rootProject.ext.runtimeJavaVersion
+        project.ext.javaVersions = project.rootProject.ext.javaVersions
     }
 
     private static String findCompilerJavaHome() {
@@ -186,6 +215,27 @@ class BuildPlugin implements Plugin<Project> {
             }
         }
         return javaHome
+    }
+
+    private static String findJavaHome(int version) {
+        return System.getenv('JAVA' + version + '_HOME')
+    }
+
+    /**
+     * Get Java home for the project for the specified version. If the specified version is not configured, an exception with the specified
+     * message is thrown.
+     *
+     * @param project the project
+     * @param version the version of Java home to obtain
+     * @param message the exception message if Java home for the specified version is not configured
+     * @return Java home for the specified version
+     * @throws GradleException if Java home for the specified version is not configured
+     */
+    static String getJavaHome(final Project project, final int version, final String message) {
+        if (project.javaVersions.get(version) == null) {
+            throw new GradleException(message)
+        }
+        return project.javaVersions.get(version)
     }
 
     private static String findRuntimeJavaHome(final String compilerJavaHome) {
@@ -517,17 +567,18 @@ class BuildPlugin implements Plugin<Project> {
             jarTask.destinationDir = new File(project.buildDir, 'distributions')
             // fixup the jar manifest
             jarTask.doFirst {
-                boolean isSnapshot = VersionProperties.elasticsearch.endsWith("-SNAPSHOT");
-                String version = VersionProperties.elasticsearch;
-                if (isSnapshot) {
-                    version = version.substring(0, version.length() - 9)
-                }
+                final Version versionWithoutSnapshot = new Version(
+                        VersionProperties.elasticsearch.major,
+                        VersionProperties.elasticsearch.minor,
+                        VersionProperties.elasticsearch.revision,
+                        VersionProperties.elasticsearch.suffix,
+                        false)
                 // this doFirst is added before the info plugin, therefore it will run
                 // after the doFirst added by the info plugin, and we can override attributes
                 jarTask.manifest.attributes(
-                        'X-Compile-Elasticsearch-Version': version,
+                        'X-Compile-Elasticsearch-Version': versionWithoutSnapshot,
                         'X-Compile-Lucene-Version': VersionProperties.lucene,
-                        'X-Compile-Elasticsearch-Snapshot': isSnapshot,
+                        'X-Compile-Elasticsearch-Snapshot': VersionProperties.elasticsearch.isSnapshot(),
                         'Build-Date': ZonedDateTime.now(ZoneOffset.UTC),
                         'Build-Java-Version': project.compilerJavaVersion)
                 if (jarTask.manifest.attributes.containsKey('Change') == false) {

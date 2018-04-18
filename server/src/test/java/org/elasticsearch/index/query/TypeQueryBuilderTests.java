@@ -71,4 +71,16 @@ public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilde
 
         assertEquals(json, "my_type", parsed.type());
     }
+
+    @Override
+    public void testToQuery() throws IOException {
+        super.testToQuery();
+        assertWarnings("The [type] query is deprecated, filter on a field instead.");
+    }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        super.testMustRewrite();
+        assertWarnings("The [type] query is deprecated, filter on a field instead.");
+    }
 }

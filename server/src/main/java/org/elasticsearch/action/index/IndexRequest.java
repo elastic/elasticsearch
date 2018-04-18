@@ -84,8 +84,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private String id;
     @Nullable
     private String routing;
-    @Nullable
-    private String parent;
 
     private BytesReference source;
 
@@ -252,19 +250,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Override
     public String routing() {
         return this.routing;
-    }
-
-    /**
-     * Sets the parent id of this document.
-     */
-    public IndexRequest parent(String parent) {
-        this.parent = parent;
-        return this;
-    }
-
-    @Override
-    public String parent() {
-        return this.parent;
     }
 
     /**
@@ -490,14 +475,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             if (mappingMd.routing().required() && routing == null) {
                 throw new RoutingMissingException(concreteIndex, type, id);
             }
-
-            if (parent != null && !mappingMd.hasParentField()) {
-                throw new IllegalArgumentException("can't specify parent if no parent field has been configured");
-            }
-        } else {
-            if (parent != null) {
-                throw new IllegalArgumentException("can't specify parent if no parent field has been configured");
-            }
         }
 
         if ("".equals(id)) {
@@ -520,7 +497,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     /* resolve the routing if needed */
     public void resolveRouting(MetaData metaData) {
-        routing(metaData.resolveIndexRouting(parent, routing, index));
+        routing(metaData.resolveIndexRouting(routing, index));
     }
 
     @Override
@@ -529,10 +506,12 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         type = in.readOptionalString();
         id = in.readOptionalString();
         routing = in.readOptionalString();
-        parent = in.readOptionalString();
+        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+            in.readOptionalString(); // _parent
+        }
         if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
             in.readOptionalString(); // timestamp
-            in.readOptionalWriteable(TimeValue::new); // ttl
+            in.readOptionalTimeValue(); // ttl
         }
         source = in.readBytesReference();
         opType = OpType.fromId(in.readByte());
@@ -554,7 +533,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeOptionalString(type);
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
-        out.writeOptionalString(parent);
+        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+            out.writeOptionalString(null); // _parent
+        }
         if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
             // Serialize a fake timestamp. 5.x expect this value to be set by the #process method so we can't use null.
             // On the other hand, indices created on 5.x do not index the timestamp field.  Therefore passing a 0 (or any value) for

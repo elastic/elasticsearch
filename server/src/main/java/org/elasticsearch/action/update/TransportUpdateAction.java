@@ -105,7 +105,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     }
 
     public static void resolveAndValidateRouting(MetaData metaData, String concreteIndex, UpdateRequest request) {
-        request.routing((metaData.resolveIndexRouting(request.parent(), request.routing(), request.index())));
+        request.routing((metaData.resolveIndexRouting(request.routing(), request.index())));
         // Fail fast on the node that received the request, rather than failing when translating on the index or delete request.
         if (request.routing() == null && metaData.routingRequired(concreteIndex, request.type())) {
             throw new RoutingMissingException(concreteIndex, request.type(), request.id());
@@ -180,8 +180,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 bulkAction.execute(toSingleItemBulkRequest(upsertRequest), wrapBulkResponse(
                         ActionListener.<IndexResponse>wrap(response -> {
                             UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(), response.getId(), response.getSeqNo(), response.getPrimaryTerm(), response.getVersion(), response.getResult());
-                            if ((request.fetchSource() != null && request.fetchSource().fetchSource()) ||
-                                    (request.fields() != null && request.fields().length > 0)) {
+                            if (request.fetchSource() != null && request.fetchSource().fetchSource()) {
                                 Tuple<XContentType, Map<String, Object>> sourceAndContent =
                                         XContentHelper.convertToMap(upsertSourceBytes, true, upsertRequest.getContentType());
                                 update.setGetResult(UpdateHelper.extractGetResult(request, request.concreteIndex(), response.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), upsertSourceBytes));

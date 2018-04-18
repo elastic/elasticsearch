@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.pipeline.movfn;
 
 import org.elasticsearch.script.ScriptContext;
 
+import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -33,7 +34,7 @@ public abstract class MovFnScript {
      * @param values The values in the window that we are moving a function across
      * @return A double representing the value from this particular window
      */
-    public abstract double execute(Map<String, Object> params, Double[] values);
+    public abstract double execute(Map<String, Object> params, Collection<Double> values);
 
     public interface Factory {
         MovFnScript newInstance();

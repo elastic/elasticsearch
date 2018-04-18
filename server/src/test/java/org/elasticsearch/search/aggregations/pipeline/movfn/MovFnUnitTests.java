@@ -45,6 +45,7 @@ import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -129,7 +130,7 @@ public class MovFnUnitTests extends AggregatorTestCase {
 
             MovFnScript scriptInstance = new MovFnScript() {
                 @Override
-                public double execute(Map<String, Object> params, Double[] values) {
+                public double execute(Map<String, Object> params, Collection<Double> values) {
                     assertNotNull(values);
                     return MovingFunctions.windowMax(values);
                 }

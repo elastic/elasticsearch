@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.pipeline.movfn;
 
 import java.util.Arrays;
+import java.util.Collection;
 
 /**
  * Provides a collection of static utility methods that can be referenced from MovingFunction script contexts
@@ -29,40 +30,40 @@ public class MovingFunctions {
     /**
      * Find the maximum value in a window of values
      */
-    public static double windowMax(Double[] values) {
-        return Arrays.stream(values).max(Double::compareTo).orElse(Double.NaN);
+    public static double windowMax(Collection<Double> values) {
+        return values.stream().max(Double::compareTo).orElse(Double.NaN);
     }
 
     /**
      * Find the minimum value in a window of values
      */
-    public static double windowMin(Double[] values) {
-        return Arrays.stream(values).min(Double::compareTo).orElse(Double.NaN);
+    public static double windowMin(Collection<Double> values) {
+        return values.stream().min(Double::compareTo).orElse(Double.NaN);
     }
 
     /**
      * Find the sum of a window of values
      */
-    public static double windowSum(Double[] values) {
-        return Arrays.stream(values).mapToDouble(Double::doubleValue).sum();
+    public static double windowSum(Collection<Double> values) {
+        return values.stream().mapToDouble(Double::doubleValue).sum();
     }
 
     /**
      * Calculate a simple unweighted (arithmetic) moving average
      */
-    public static double simpleMovAvg(Double[] values) {
+    public static double simpleMovAvg(Collection<Double> values) {
         double avg = 0;
         for (Double v : values) {
             avg += v;
         }
-        return avg / values.length;
+        return avg / values.size();
     }
 
     /**
      * Calculate a linearly weighted moving average, such that older values are
      * linearly less important.  "Time" is determined by position in collection
      */
-    public static double linearMovAvg(Double[] values) {
+    public static double linearMovAvg(Collection<Double> values) {
         double avg = 0;
         long totalWeight = 1;
         long current = 1;
@@ -85,7 +86,7 @@ public class MovingFunctions {
      *
      * @param alpha A double between 0-1 inclusive, controls data smoothing
      */
-    public static double ewmaMovAvg(Double[] values, double alpha) {
+    public static double ewmaMovAvg(Collection<Double> values, double alpha) {
         double avg = 0;
         boolean first = true;
 
@@ -112,10 +113,19 @@ public class MovingFunctions {
      * @param alpha A double between 0-1 inclusive, controls data smoothing
      * @param beta a double between 0-1 inclusive, controls trend smoothing
      */
-    public static double holtMovAvg(Double[] values, double alpha, double beta) {
-        if (values.length == 0) {
+    public static double holtMovAvg(Collection<Double> values, double alpha, double beta) {
+        if (values.size() == 0) {
             return Double.NaN;
         }
+
+        return holtMovAvgForecast(values, alpha, beta, 1)[0];
+    }
+
+    /**
+     * Version of holt that can "forecast", not exposed as a whitelisted function for moving_fn scripts, but
+     * here as compatibility/code sharing for existing moving_avg agg.  Can be removed when moving_avg is gone.
+     */
+    public static double[] holtMovAvgForecast(Collection<Double> values, double alpha, double beta, int numForecasts) {
 
         // Smoothed value
         double s = 0;
@@ -142,7 +152,13 @@ public class MovingFunctions {
             last_s = s;
             last_b = b;
         }
-        return s;
+
+        double[] forecastValues = new double[numForecasts];
+        for (int i = 0; i < numForecasts; i++) {
+            forecastValues[i] = s + (i * b);
+        }
+
+        return forecastValues;
     }
 
     /**
@@ -161,22 +177,28 @@ public class MovingFunctions {
      * @param period the expected periodicity of the data
      * @param multiplicative true if multiplicative HW should be used. False for additive
      */
-    public static double holtWintersMovAvg(Double[] values, double alpha, double beta, double gamma, int period, boolean multiplicative) {
+    public static double holtWintersMovAvg(Collection<Double> values, double alpha, double beta, double gamma,
+                                           int period, boolean multiplicative) {
 
-        if (values.length < period * 2) {
-            // We need at least two full "seasons" to use HW
-            // This should have been caught earlier, we can't do anything now...bail
-            throw new IllegalArgumentException("Holt-Winters requires at least (2 * period == 2 * "
-                + period + " == " + (2 * period) + ") data-points to function.  Only [" + values.length + "] were provided.");
+        if (values.size() == 0) {
+            return Double.NaN;
         }
 
-        double[] vs = new double[values.length];
         double padding = multiplicative ? 0.0000000001 : 0.0;
+        return holtWintersMovAvgForecast(values, alpha, beta, gamma, period, padding, multiplicative, 1)[0];
+    }
 
-        int counter = 0;
-        for (Double v : values) {
-            vs[counter] = v + padding;
-            counter += 1;
+    /**
+     * Version of holt-winters that can "forecast", not exposed as a whitelisted function for moving_fn scripts, but
+     * here as compatibility/code sharing for existing moving_avg agg.  Can be removed when moving_avg is gone.
+     */
+    public static double[] holtWintersMovAvgForecast(Collection<Double> values, double alpha, double beta, double gamma,
+                                             int period, double padding, boolean multiplicative, int numForecasts) {
+        if (values.size() < period * 2) {
+            // We need at least two full "seasons" to use HW
+            // This should have been caught earlier, we can't do anything now...bail
+            throw new IllegalArgumentException("Holt-Winters aggregation requires at least (2 * period == 2 * "
+                + period + " == "+(2 * period)+") data-points to function.  Only [" + values.size() + "] were provided.");
         }
 
         // Smoothed value
@@ -188,7 +210,14 @@ public class MovingFunctions {
         double last_b = 0;
 
         // Seasonal value
-        double[] seasonal = new double[values.length];
+        double[] seasonal = new double[values.size()];
+
+        int counter = 0;
+        double[] vs = new double[values.size()];
+        for (Double v : values) {
+            vs[counter] = v + padding;
+            counter += 1;
+        }
 
         // Initial level value is average of first season
         // Calculate the slopes between first and second season for each period
@@ -210,6 +239,7 @@ public class MovingFunctions {
         }
 
         for (int i = period; i < vs.length; i++) {
+            // TODO if perf is a problem, we can specialize a subclass to avoid conditionals on each iteration
             if (multiplicative) {
                 s = alpha * (vs[i] / seasonal[i - period]) + (1.0d - alpha) * (last_s + last_b);
             } else {
@@ -228,16 +258,18 @@ public class MovingFunctions {
             last_b = b;
         }
 
-        int idx = values.length - period + ((0) % period);
+        double[] forecastValues = new double[numForecasts];
+        for (int i = 1; i <= numForecasts; i++) {
+            int idx = values.size() - period + ((i - 1) % period);
 
-        // TODO perhaps pad out seasonal to a power of 2 and use a mask instead of modulo?
-        if (multiplicative) {
-            return (s + (1 * b)) * seasonal[idx];
-        } else {
-            return s + (1 * b) + seasonal[idx];
+            // TODO perhaps pad out seasonal to a power of 2 and use a mask instead of modulo?
+            if (multiplicative) {
+                forecastValues[i-1] = (s + (i * b)) * seasonal[idx];
+            } else {
+                forecastValues[i-1] = s + (i * b) + seasonal[idx];
+            }
         }
+
+        return forecastValues;
     }
-
-
-
 }

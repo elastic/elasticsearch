@@ -45,7 +45,7 @@ public class MovFnWhitelistedFunctionTests extends ESTestCase {
                 expected = Math.max(expected, value);
             }
 
-            double actual = MovingFunctions.windowMax(window.toArray(new Double[]{}));
+            double actual = MovingFunctions.windowMax(window);
             assertEquals(expected, actual, 0.01 * Math.abs(expected));
             window.offer(randValue);
         }
@@ -70,7 +70,7 @@ public class MovFnWhitelistedFunctionTests extends ESTestCase {
                 expected = Math.min(expected, value);
             }
 
-            double actual = MovingFunctions.windowMin(window.toArray(new Double[]{}));
+            double actual = MovingFunctions.windowMin(window);
             assertEquals(expected, actual, 0.01 * Math.abs(expected));
             window.offer(randValue);
         }
@@ -95,7 +95,7 @@ public class MovFnWhitelistedFunctionTests extends ESTestCase {
                 expected += value;
             }
 
-            double actual = MovingFunctions.windowSum(window.toArray(new Double[]{}));
+            double actual = MovingFunctions.windowSum(window);
             assertEquals(expected, actual, 0.01 * Math.abs(expected));
             window.offer(randValue);
         }
@@ -121,7 +121,7 @@ public class MovFnWhitelistedFunctionTests extends ESTestCase {
             }
             expected /= window.size();
 
-            double actual = MovingFunctions.simpleMovAvg(window.toArray(new Double[]{}));
+            double actual = MovingFunctions.simpleMovAvg(window);
             assertEquals(expected, actual, 0.01 * Math.abs(expected));
             window.offer(randValue);
         }
@@ -151,7 +151,7 @@ public class MovFnWhitelistedFunctionTests extends ESTestCase {
                 current += 1;
             }
             double expected = avg / totalWeight;
-            double actual = MovingFunctions.linearMovAvg(window.toArray(new Double[]{}));
+            double actual = MovingFunctions.linearMovAvg(window);
             assertEquals(expected, actual, 0.01 * Math.abs(expected));
             window.offer(randValue);
         }
@@ -184,7 +184,7 @@ public class MovFnWhitelistedFunctionTests extends ESTestCase {
                 }
             }
             double expected = avg;
-            double actual = MovingFunctions.ewmaMovAvg(window.toArray(new Double[]{}), alpha);
+            double actual = MovingFunctions.ewmaMovAvg(window, alpha);
             assertEquals(expected, actual, 0.01 * Math.abs(expected));
             window.offer(randValue);
         }
@@ -231,7 +231,7 @@ public class MovFnWhitelistedFunctionTests extends ESTestCase {
             }
 
             double expected = s + (0 * b) ;
-            double actual = MovingFunctions.holtMovAvg(window.toArray(new Double[]{}), alpha, beta);
+            double actual = MovingFunctions.holtMovAvg(window, alpha, beta);
             assertEquals(expected, actual, 0.01 * Math.abs(expected));
             window.offer(randValue);
         }
@@ -297,7 +297,7 @@ public class MovFnWhitelistedFunctionTests extends ESTestCase {
 
         int idx = window.size() - period + (0 % period);
         double expected = (s + (1 * b)) * seasonal[idx];
-        double actual = MovingFunctions.holtWintersMovAvg(window.toArray(new Double[]{}), alpha, beta, gamma, period, true);
+        double actual = MovingFunctions.holtWintersMovAvg(window, alpha, beta, gamma, period, true);
         assertEquals(expected, actual, 0.01 * Math.abs(expected));
     }
 
@@ -362,7 +362,7 @@ public class MovFnWhitelistedFunctionTests extends ESTestCase {
 
         int idx = window.size() - period + (0 % period);
         double expected = s + (1 * b) + seasonal[idx];
-        double actual = MovingFunctions.holtWintersMovAvg(window.toArray(new Double[]{}), alpha, beta, gamma, period, false);
+        double actual = MovingFunctions.holtWintersMovAvg(window, alpha, beta, gamma, period, false);
         assertEquals(expected, actual, 0.01 * Math.abs(expected));
     }
 

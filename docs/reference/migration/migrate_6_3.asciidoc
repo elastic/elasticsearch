@@ -55,7 +55,7 @@ are still supported as fallback settings although you should transition to
 `thread_pool.write.size` and `thread_pool.write.queue_size`, respectively. The
 fallback settings will be removed in 7.0.0. Additionally, this means that some
 APIs (e.g., the node stats API) will now display the name of this thread pool as
-`write`. If this is change impacts you (e.g., for monitoring that you have in
+`write`. If this change impacts you (e.g., for monitoring that you have in
 place) you can start Elasticsearch with the JVM option
 `-Des.thread_pool.write.use_bulk_as_display_name=true` to have Elasticsearch
 continue to display the name of this thread pool as `bulk`. Elasticsearch will

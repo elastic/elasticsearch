@@ -439,19 +439,7 @@ public class Node implements Closeable {
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(this.settings, clusterService);
             final SearchTransportService searchTransportService =  new SearchTransportService(settings, transportService,
                 SearchExecutionStatsCollector.makeWrapper(responseCollectorService));
-            final Consumer<Binder> httpBind;
-            final HttpServerTransport httpServerTransport;
-            if (networkModule.isHttpEnabled()) {
-                httpServerTransport = networkModule.getHttpServerTransportSupplier().get();
-                httpBind = b -> {
-                    b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
-                };
-            } else {
-                httpBind = b -> {
-                    b.bind(HttpServerTransport.class).toProvider(Providers.of(null));
-                };
-                httpServerTransport = null;
-            }
+            final HttpServerTransport httpServerTransport = newHttpTransport(networkModule);
 
             final DiscoveryModule discoveryModule = new DiscoveryModule(this.settings, threadPool, transportService, namedWriteableRegistry,
                 networkService, clusterService.getMasterService(), clusterService.getClusterApplierService(),
@@ -518,7 +506,7 @@ public class Node implements Closeable {
                         b.bind(PeerRecoveryTargetService.class).toInstance(new PeerRecoveryTargetService(settings, threadPool,
                                 transportService, recoverySettings, clusterService));
                     }
-                    httpBind.accept(b);
+                    b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
                     pluginComponents.stream().forEach(p -> b.bind((Class) p.getClass()).toInstance(p));
                     b.bind(PersistentTasksService.class).toInstance(persistentTasksService);
                     b.bind(PersistentTasksClusterService.class).toInstance(persistentTasksClusterService);
@@ -961,6 +949,11 @@ public class Node implements Closeable {
     protected ClusterInfoService newClusterInfoService(Settings settings, ClusterService clusterService,
                                                        ThreadPool threadPool, NodeClient client, Consumer<ClusterInfo> listeners) {
         return new InternalClusterInfoService(settings, clusterService, threadPool, client, listeners);
+    }
+
+    /** Constructs a {@link org.elasticsearch.http.HttpServerTransport} which may be mocked for tests. */
+    protected HttpServerTransport newHttpTransport(NetworkModule networkModule) {
+        return networkModule.getHttpServerTransportSupplier().get();
     }
 
     private static class LocalNodeFactory implements Function<BoundTransportAddress, DiscoveryNode> {

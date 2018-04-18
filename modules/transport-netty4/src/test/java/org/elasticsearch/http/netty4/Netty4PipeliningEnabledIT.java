@@ -38,10 +38,14 @@ import static org.hamcrest.Matchers.is;
 public class Netty4PipeliningEnabledIT extends ESNetty4IntegTestCase {
 
     @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
+    }
+
+    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put(NetworkModule.HTTP_ENABLED.getKey(), true)
             .put("http.pipelining", true)
             .build();
     }

@@ -196,10 +196,6 @@ public final class NetworkModule {
         return factory;
     }
 
-    public boolean isHttpEnabled() {
-        return transportClient == false && HTTP_ENABLED.get(settings);
-    }
-
     public Supplier<Transport> getTransportSupplier() {
         final String name;
         if (TRANSPORT_TYPE_SETTING.exists(settings)) {

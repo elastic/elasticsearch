@@ -93,7 +93,7 @@ public class GoogleCloudStorageService extends AbstractComponent {
      * Converts timeout values from the settings to a timeout value for the Google
      * Cloud SDK
      **/
-    private static Integer toTimeout(TimeValue timeout) {
+    static Integer toTimeout(TimeValue timeout) {
         // Null or zero in settings means the default timeout
         if ((timeout == null) || TimeValue.ZERO.equals(timeout)) {
             // negative value means using the default value

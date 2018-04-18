@@ -19,15 +19,6 @@
 
 package org.elasticsearch.repositories.gcs;
 
-import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
-import com.google.api.client.http.GenericUrl;
-import com.google.api.client.http.HttpIOExceptionHandler;
-import com.google.api.client.http.HttpRequest;
-import com.google.api.client.http.HttpRequestFactory;
-import com.google.api.client.http.HttpRequestInitializer;
-import com.google.api.client.http.HttpResponse;
-import com.google.api.client.http.HttpUnsuccessfulResponseHandler;
-import com.google.api.client.testing.http.MockHttpTransport;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -90,8 +81,8 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
     }
 
     public void testToTimeout() {
-        assertNull(GoogleCloudStorageService.toTimeout(null));
-        assertNull(GoogleCloudStorageService.toTimeout(TimeValue.ZERO));
+        assertEquals(-1, GoogleCloudStorageService.toTimeout(null).intValue());
+        assertEquals(-1, GoogleCloudStorageService.toTimeout(TimeValue.ZERO).intValue());
         assertEquals(0, GoogleCloudStorageService.toTimeout(TimeValue.MINUS_ONE).intValue());
     }
 }

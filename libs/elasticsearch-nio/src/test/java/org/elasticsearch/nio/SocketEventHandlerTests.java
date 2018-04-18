@@ -37,7 +37,7 @@ public class SocketEventHandlerTests extends ESTestCase {
 
     private Consumer<Exception> exceptionHandler;
 
-    private SocketChannelContext.BytesFlushProducer flushProducer;
+    private BytesFlushProducer flushProducer;
     private SocketEventHandler handler;
     private NioSocketChannel channel;
     private SocketChannel rawChannel;
@@ -47,7 +47,7 @@ public class SocketEventHandlerTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void setUpHandler() throws IOException {
         exceptionHandler = mock(Consumer.class);
-        flushProducer = mock(SocketChannelContext.BytesFlushProducer.class);
+        flushProducer = mock(BytesFlushProducer.class);
         SocketSelector selector = mock(SocketSelector.class);
         handler = new SocketEventHandler(logger);
         rawChannel = mock(SocketChannel.class);

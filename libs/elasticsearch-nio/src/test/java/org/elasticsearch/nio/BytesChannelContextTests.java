@@ -43,8 +43,8 @@ import static org.mockito.Mockito.when;
 
 public class BytesChannelContextTests extends ESTestCase {
 
-    private SocketChannelContext.ReadConsumer readConsumer;
-    private SocketChannelContext.BytesFlushProducer writeProducer;
+    private ReadConsumer readConsumer;
+    private BytesFlushProducer writeProducer;
     private NioSocketChannel channel;
     private SocketChannel rawChannel;
     private BytesChannelContext context;
@@ -57,8 +57,8 @@ public class BytesChannelContextTests extends ESTestCase {
     @Before
     @SuppressWarnings("unchecked")
     public void init() {
-        readConsumer = mock(SocketChannelContext.ReadConsumer.class);
-        writeProducer = mock(SocketChannelContext.BytesFlushProducer.class);
+        readConsumer = mock(ReadConsumer.class);
+        writeProducer = mock(BytesFlushProducer.class);
 
         messageLength = randomInt(96) + 20;
         selector = mock(SocketSelector.class);

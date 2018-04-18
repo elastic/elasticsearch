@@ -54,7 +54,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     protected final NetworkService networkService;
     protected final ThreadPool threadPool;
-    private final Dispatcher dispatcher;
+    protected final Dispatcher dispatcher;
 
     protected final String[] bindHosts;
     protected final String[] publishHosts;

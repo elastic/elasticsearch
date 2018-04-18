@@ -57,6 +57,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.http.BindHttpException;
+import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfig;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfigBuilder;
@@ -129,13 +130,6 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
     protected final int pipeliningMaxEvents;
 
-    protected final boolean compression;
-
-    protected final int compressionLevel;
-
-    protected final boolean resetCookies;
-
-    protected final boolean detailedErrorsEnabled;
     /**
      * The registry used to construct parsers so they support {@link XContentParser#namedObject(Class, String, Object)}.
      */
@@ -158,6 +152,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
     // package private for testing
     Netty4OpenChannelsHandler serverOpenChannels;
+    final HttpHandlingSettings httpHandlingSettings;
 
 
     private final Netty4CorsConfig corsConfig;
@@ -172,7 +167,15 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         this.maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
         this.maxInitialLineLength = SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.get(settings);
-        this.resetCookies = SETTING_HTTP_RESET_COOKIES.get(settings);
+        this.httpHandlingSettings = new HttpHandlingSettings(Math.toIntExact(maxContentLength.getBytes()),
+            Math.toIntExact(maxChunkSize.getBytes()),
+            Math.toIntExact(maxHeaderSize.getBytes()),
+            Math.toIntExact(maxInitialLineLength.getBytes()),
+            SETTING_HTTP_RESET_COOKIES.get(settings),
+            SETTING_HTTP_COMPRESSION.get(settings),
+            SETTING_HTTP_COMPRESSION_LEVEL.get(settings),
+            SETTING_HTTP_DETAILED_ERRORS_ENABLED.get(settings));
+
         this.maxCompositeBufferComponents = SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS.get(settings);
         this.workerCount = SETTING_HTTP_WORKER_COUNT.get(settings);
 
@@ -181,14 +184,11 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         this.reuseAddress = SETTING_HTTP_TCP_REUSE_ADDRESS.get(settings);
         this.tcpSendBufferSize = SETTING_HTTP_TCP_SEND_BUFFER_SIZE.get(settings);
         this.tcpReceiveBufferSize = SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE.get(settings);
-        this.detailedErrorsEnabled = SETTING_HTTP_DETAILED_ERRORS_ENABLED.get(settings);
         this.readTimeoutMillis = Math.toIntExact(SETTING_HTTP_READ_TIMEOUT.get(settings).getMillis());
 
         ByteSizeValue receivePredictor = SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE.get(settings);
         recvByteBufAllocator = new FixedRecvByteBufAllocator(receivePredictor.bytesAsInt());
 
-        this.compression = SETTING_HTTP_COMPRESSION.get(settings);
-        this.compressionLevel = SETTING_HTTP_COMPRESSION_LEVEL.get(settings);
         this.pipelining = SETTING_PIPELINING.get(settings);
         this.pipeliningMaxEvents = SETTING_PIPELINING_MAX_EVENTS.get(settings);
         this.corsConfig = buildCorsConfig(settings);
@@ -375,20 +375,22 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     }
 
     public ChannelHandler configureServerChannelHandler() {
-        return new HttpChannelHandler(this, detailedErrorsEnabled, threadPool.getThreadContext());
+        return new HttpChannelHandler(this, httpHandlingSettings, threadPool.getThreadContext());
     }
 
     protected static class HttpChannelHandler extends ChannelInitializer<Channel> {
 
         private final Netty4HttpServerTransport transport;
         private final Netty4HttpRequestHandler requestHandler;
+        private final HttpHandlingSettings handlingSettings;
 
         protected HttpChannelHandler(
                 final Netty4HttpServerTransport transport,
-                final boolean detailedErrorsEnabled,
+                final HttpHandlingSettings handlingSettings,
                 final ThreadContext threadContext) {
             this.transport = transport;
-            this.requestHandler = new Netty4HttpRequestHandler(transport, detailedErrorsEnabled, threadContext);
+            this.handlingSettings = handlingSettings;
+            this.requestHandler = new Netty4HttpRequestHandler(transport, handlingSettings, threadContext);
         }
 
         @Override
@@ -396,9 +398,9 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             ch.pipeline().addLast("openChannels", transport.serverOpenChannels);
             ch.pipeline().addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS));
             final HttpRequestDecoder decoder = new HttpRequestDecoder(
-                Math.toIntExact(transport.maxInitialLineLength.getBytes()),
-                Math.toIntExact(transport.maxHeaderSize.getBytes()),
-                Math.toIntExact(transport.maxChunkSize.getBytes()));
+                handlingSettings.getMaxInitialLineLength(),
+                handlingSettings.getMaxHeaderSize(),
+                handlingSettings.getMaxChunkSize());
             decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
             ch.pipeline().addLast("decoder", decoder);
             ch.pipeline().addLast("decoder_compress", new HttpContentDecompressor());
@@ -408,8 +410,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             }
             ch.pipeline().addLast("aggregator", aggregator);
-            if (transport.compression) {
-                ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(transport.compressionLevel));
+            if (handlingSettings.isCompression()) {
+                ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.getCompressionLevel()));
             }
             if (SETTING_CORS_ENABLED.get(transport.settings())) {
                 ch.pipeline().addLast("cors", new Netty4CorsHandler(transport.getCorsConfig()));

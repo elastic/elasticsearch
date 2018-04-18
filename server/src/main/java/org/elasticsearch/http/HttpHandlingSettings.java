@@ -17,9 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.http.nio;
+package org.elasticsearch.http;
 
-public class HttpHandlerSettings {
+public class HttpHandlingSettings {
 
     private final int maxContentLength;
     private final int maxChunkSize;
@@ -30,8 +30,8 @@ public class HttpHandlerSettings {
     private final int compressionLevel;
     private final boolean detailedErrorsEnabled;
 
-    public HttpHandlerSettings(int maxContentLength, int maxChunkSize, int maxHeaderSize, int maxInitialLineLength,
-                               boolean resetCookies, boolean compression, int compressionLevel, boolean detailedErrorsEnabled) {
+    public HttpHandlingSettings(int maxContentLength, int maxChunkSize, int maxHeaderSize, int maxInitialLineLength,
+                                boolean resetCookies, boolean compression, int compressionLevel, boolean detailedErrorsEnabled) {
         this.maxContentLength = maxContentLength;
         this.maxChunkSize = maxChunkSize;
         this.maxHeaderSize = maxHeaderSize;

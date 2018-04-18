@@ -19,14 +19,15 @@
 
 package org.elasticsearch.transport.nio;
 
-import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.http.nio.NioHttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -42,10 +43,13 @@ import java.util.function.Supplier;
 public class NioTransportPlugin extends Plugin implements NetworkPlugin {
 
     public static final String NIO_TRANSPORT_NAME = "nio-transport";
+    public static final String NIO_HTTP_TRANSPORT_NAME = "nio-http-transport";
 
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
+            NioHttpServerTransport.NIO_HTTP_ACCEPTOR_COUNT,
+            NioHttpServerTransport.NIO_HTTP_WORKER_COUNT,
             NioTransport.NIO_WORKER_COUNT,
             NioTransport.NIO_ACCEPTOR_COUNT
         );
@@ -60,5 +64,16 @@ public class NioTransportPlugin extends Plugin implements NetworkPlugin {
         return Collections.singletonMap(NIO_TRANSPORT_NAME,
             () -> new NioTransport(settings, threadPool, networkService, bigArrays, pageCacheRecycler, namedWriteableRegistry,
                 circuitBreakerService));
+    }
+
+    @Override
+    public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+                                                                        CircuitBreakerService circuitBreakerService,
+                                                                        NamedWriteableRegistry namedWriteableRegistry,
+                                                                        NamedXContentRegistry xContentRegistry,
+                                                                        NetworkService networkService,
+                                                                        HttpServerTransport.Dispatcher dispatcher) {
+        return Collections.singletonMap(NIO_HTTP_TRANSPORT_NAME,
+            () -> new NioHttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher));
     }
 }

@@ -56,6 +56,7 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
@@ -212,10 +213,11 @@ public class Netty4HttpChannelTests extends ESTestCase {
             httpRequest.headers().add(HttpHeaderNames.ORIGIN, "remote");
             final WriteCapturingChannel writeCapturingChannel = new WriteCapturingChannel();
             Netty4HttpRequest request = new Netty4HttpRequest(xContentRegistry(), httpRequest, writeCapturingChannel);
+            HttpHandlingSettings handlingSettings = httpServerTransport.httpHandlingSettings;
 
             // send a response
             Netty4HttpChannel channel =
-                    new Netty4HttpChannel(httpServerTransport, request, null, randomBoolean(), threadPool.getThreadContext());
+                    new Netty4HttpChannel(httpServerTransport, request, null, handlingSettings, threadPool.getThreadContext());
             TestResponse resp = new TestResponse();
             final String customHeader = "custom-header";
             final String customHeaderValue = "xyz";
@@ -242,8 +244,9 @@ public class Netty4HttpChannelTests extends ESTestCase {
             final EmbeddedChannel embeddedChannel = new EmbeddedChannel();
             final Netty4HttpRequest request = new Netty4HttpRequest(registry, httpRequest, embeddedChannel);
             final HttpPipelinedRequest pipelinedRequest = randomBoolean() ? new HttpPipelinedRequest(request.request(), 1) : null;
+            HttpHandlingSettings handlingSettings = httpServerTransport.httpHandlingSettings;
             final Netty4HttpChannel channel =
-                    new Netty4HttpChannel(httpServerTransport, request, pipelinedRequest, randomBoolean(), threadPool.getThreadContext());
+                    new Netty4HttpChannel(httpServerTransport, request, pipelinedRequest, handlingSettings, threadPool.getThreadContext());
             final TestResponse response = new TestResponse(bigArrays);
             assertThat(response.content(), instanceOf(Releasable.class));
             embeddedChannel.close();
@@ -261,8 +264,9 @@ public class Netty4HttpChannelTests extends ESTestCase {
             final EmbeddedChannel embeddedChannel = new EmbeddedChannel();
             final Netty4HttpRequest request = new Netty4HttpRequest(registry, httpRequest, embeddedChannel);
             final HttpPipelinedRequest pipelinedRequest = randomBoolean() ? new HttpPipelinedRequest(request.request(), 1) : null;
+            HttpHandlingSettings handlingSettings = httpServerTransport.httpHandlingSettings;
             final Netty4HttpChannel channel =
-                new Netty4HttpChannel(httpServerTransport, request, pipelinedRequest, randomBoolean(), threadPool.getThreadContext());
+                new Netty4HttpChannel(httpServerTransport, request, pipelinedRequest, handlingSettings, threadPool.getThreadContext());
             final BytesRestResponse response = new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR,
                 JsonXContent.contentBuilder().startObject().endObject());
             assertThat(response.content(), not(instanceOf(Releasable.class)));
@@ -306,8 +310,9 @@ public class Netty4HttpChannelTests extends ESTestCase {
 
             // send a response, the channel close status should match
             assertTrue(embeddedChannel.isOpen());
+            HttpHandlingSettings handlingSettings = httpServerTransport.httpHandlingSettings;
             final Netty4HttpChannel channel =
-                new Netty4HttpChannel(httpServerTransport, request, null, randomBoolean(), threadPool.getThreadContext());
+                new Netty4HttpChannel(httpServerTransport, request, null, handlingSettings, threadPool.getThreadContext());
             final TestResponse resp = new TestResponse();
             channel.sendResponse(resp);
             assertThat(embeddedChannel.isOpen(), equalTo(!close));
@@ -332,9 +337,10 @@ public class Netty4HttpChannelTests extends ESTestCase {
             final WriteCapturingChannel writeCapturingChannel = new WriteCapturingChannel();
             final Netty4HttpRequest request =
                     new Netty4HttpRequest(xContentRegistry(), httpRequest, writeCapturingChannel);
+            HttpHandlingSettings handlingSettings = httpServerTransport.httpHandlingSettings;
 
             Netty4HttpChannel channel =
-                    new Netty4HttpChannel(httpServerTransport, request, null, randomBoolean(), threadPool.getThreadContext());
+                    new Netty4HttpChannel(httpServerTransport, request, null, handlingSettings, threadPool.getThreadContext());
             channel.sendResponse(new TestResponse());
 
             // get the response

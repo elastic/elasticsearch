@@ -34,10 +34,12 @@ import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.FlushProducer;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioSocketChannel;
+import org.elasticsearch.nio.ReadConsumer;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.nio.SocketSelector;
 import org.elasticsearch.nio.WriteOperation;
@@ -49,17 +51,17 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
 
-public class HttpReadWritePipeline implements SocketChannelContext.ReadConsumer, FlushProducer {
+public class HttpReadWritePipeline implements ReadConsumer, FlushProducer {
 
     private final NettyAdaptor adaptor;
     private final NioSocketChannel nioChannel;
     private final NioHttpServerTransport transport;
-    private final HttpHandlerSettings settings;
+    private final HttpHandlingSettings settings;
     private final NamedXContentRegistry xContentRegistry;
     private final ThreadContext threadContext;
 
     HttpReadWritePipeline(NioSocketChannel nioChannel, SocketSelector selector, NioHttpServerTransport transport,
-                          HttpHandlerSettings settings, NamedXContentRegistry xContentRegistry, ThreadContext threadContext) {
+                          HttpHandlingSettings settings, NamedXContentRegistry xContentRegistry, ThreadContext threadContext) {
         this.nioChannel = nioChannel;
         this.transport = transport;
         this.settings = settings;
@@ -105,7 +107,11 @@ public class HttpReadWritePipeline implements SocketChannelContext.ReadConsumer,
 
     @Override
     public WriteOperation createWriteOperation(SocketChannelContext channelContext, Object message, BiConsumer<Void, Throwable> listener) {
-        return new HttpWriteOperation(channelContext, (FullHttpResponse) message, listener);
+        if (message instanceof FullHttpResponse) {
+            return new HttpWriteOperation(channelContext, (FullHttpResponse) message, listener);
+        } else {
+            throw new IllegalArgumentException("This channel only supports messages that are of type: FullHttpResponse");
+        }
     }
 
     @Override
@@ -117,7 +123,7 @@ public class HttpReadWritePipeline implements SocketChannelContext.ReadConsumer,
         }
     }
 
-    protected void handleRequest(Object msg) {
+    private void handleRequest(Object msg) {
         final FullHttpRequest request = (FullHttpRequest) msg;
 
         final FullHttpRequest copiedRequest =
@@ -163,7 +169,7 @@ public class HttpReadWritePipeline implements SocketChannelContext.ReadConsumer,
         {
             NioHttpChannel innerChannel;
             try {
-                innerChannel = new NioHttpChannel(nioChannel, transport, httpRequest, settings, threadContext);
+                innerChannel = new NioHttpChannel(nioChannel, transport.getBigArrays(), httpRequest, settings, threadContext);
             } catch (final IllegalArgumentException e) {
                 if (badRequestCause == null) {
                     badRequestCause = e;
@@ -176,7 +182,7 @@ public class HttpReadWritePipeline implements SocketChannelContext.ReadConsumer,
                         Collections.emptyMap(), // we are going to dispatch the request as a bad request, drop all parameters
                         copiedRequest.uri(),
                         copiedRequest);
-                innerChannel = new NioHttpChannel(nioChannel, transport, innerRequest, settings, threadContext);
+                innerChannel = new NioHttpChannel(nioChannel, transport.getBigArrays(), innerRequest, settings, threadContext);
             }
             channel = innerChannel;
         }

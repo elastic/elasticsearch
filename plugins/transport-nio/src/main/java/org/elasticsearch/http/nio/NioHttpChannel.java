@@ -18,7 +18,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestResponse;
@@ -33,17 +35,17 @@ import java.util.Set;
 
 public class NioHttpChannel extends AbstractRestChannel {
 
-    private final NioHttpServerTransport transport;
+    private final BigArrays bigArrays;
     private final ThreadContext threadContext;
     private final FullHttpRequest nettyRequest;
     private final NioSocketChannel nioChannel;
     private final boolean resetCookies;
 
-    public NioHttpChannel(NioSocketChannel nioChannel, NioHttpServerTransport transport, NioHttpRequest request,
-                          HttpHandlerSettings settings, ThreadContext threadContext) {
+    NioHttpChannel(NioSocketChannel nioChannel, BigArrays bigArrays, NioHttpRequest request,
+                   HttpHandlingSettings settings, ThreadContext threadContext) {
         super(request, settings.getDetailedErrorsEnabled());
         this.nioChannel = nioChannel;
-        this.transport = transport;
+        this.bigArrays = bigArrays;
         this.threadContext = threadContext;
         this.nettyRequest = request.getRequest();
         this.resetCookies = settings.isResetCookies();
@@ -127,7 +129,7 @@ public class NioHttpChannel extends AbstractRestChannel {
 
     @Override
     protected BytesStreamOutput newBytesOutput() {
-        return new ReleasableBytesStreamOutput(transport.getBigArrays());
+        return new ReleasableBytesStreamOutput(bigArrays);
     }
 
     private void setHeaderField(HttpResponse resp, String headerField, String value) {

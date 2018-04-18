@@ -26,7 +26,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -143,10 +142,6 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     public void queueWriteOperation(WriteOperation writeOperation) {
         getSelector().assertOnSelectorThread();
         flushProducer.produceWrites(writeOperation);
-        checkForReadyFlush();
-    }
-
-    protected void checkForReadyFlush() {
         if (pendingFlush == null) {
             pendingFlush = flushProducer.pollFlushOperation();
         }
@@ -168,6 +163,15 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
 
     protected FlushOperation getPendingFlush() {
         return pendingFlush;
+    }
+
+    protected boolean hasPendingFlush() {
+        if (pendingFlush != null) {
+            return true;
+        } else {
+            pendingFlush = flushProducer.pollFlushOperation();
+            return pendingFlush != null;
+        }
     }
 
     @Override
@@ -267,46 +271,4 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         }
     }
 
-    public interface ReadConsumer extends AutoCloseable {
-        int consumeReads(InboundChannelBuffer channelBuffer) throws IOException;
-
-        @Override
-        default void close() throws IOException {}
-    }
-
-    // Public for tests
-    public static class BytesFlushProducer implements FlushProducer {
-
-        private final LinkedList<FlushOperation> flushOperations = new LinkedList<>();
-        private final SocketSelector selector;
-
-        public BytesFlushProducer(SocketSelector selector) {
-            this.selector = selector;
-        }
-
-        @Override
-        public void produceWrites(WriteOperation writeOperation) {
-            assert writeOperation instanceof FlushReadyWrite : "Write operation must be flush ready";
-            flushOperations.addLast((FlushReadyWrite) writeOperation);
-        }
-
-        @Override
-        public FlushOperation pollFlushOperation() {
-            return flushOperations.pollFirst();
-        }
-
-        @Override
-        public void close() throws IOException {
-            for (FlushOperation flushOperation : flushOperations) {
-                selector.executeFailedListener(flushOperation.getListener(), new ClosedChannelException());
-            }
-            flushOperations.clear();
-        }
-
-        @Override
-        public WriteOperation createWriteOperation(SocketChannelContext channelContext, Object message,
-                                                   BiConsumer<Void, Throwable> listener) {
-            return new FlushReadyWrite(channelContext, (ByteBuffer[]) message, listener);
-        }
-    }
 }

@@ -16,21 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.nio;
 
-import java.util.function.BiConsumer;
+import java.io.IOException;
 
-/**
- * This is a basic write operation that can be queued with a channel. The only requirements of a write
- * operation is that is has a listener and a reference to its channel. The actual conversion of the write
- * operation implementation to bytes will be performed by the {@link BytesFlushProducer}.
- */
-public interface WriteOperation {
+public interface ReadConsumer extends AutoCloseable {
 
-    BiConsumer<Void, Throwable> getListener();
+    int consumeReads(InboundChannelBuffer channelBuffer) throws IOException;
 
-    SocketChannelContext getChannel();
-
-    Object getObject();
-
+    @Override
+    default void close() throws IOException {}
 }

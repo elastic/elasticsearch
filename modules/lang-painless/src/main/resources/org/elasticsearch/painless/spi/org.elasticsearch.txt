@@ -73,6 +73,10 @@ class org.elasticsearch.index.fielddata.ScriptDocValues$Strings {
 class org.elasticsearch.index.fielddata.ScriptDocValues$Longs {
   Long get(int)
   long getValue()
+  long getMin()
+  long getMax()
+  long getSum()
+  double getAvg()
   List getValues()
   org.joda.time.ReadableDateTime getDate()
   List getDates()
@@ -89,6 +93,10 @@ class org.elasticsearch.index.fielddata.ScriptDocValues$Dates {
 class org.elasticsearch.index.fielddata.ScriptDocValues$Doubles {
   Double get(int)
   double getValue()
+  double getMin()
+  double getMax()
+  double getSum()
+  double getAvg()
   List getValues()
 }
 

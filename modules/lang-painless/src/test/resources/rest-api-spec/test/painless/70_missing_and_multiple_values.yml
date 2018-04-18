@@ -1,0 +1,117 @@
+setup:
+    - do:
+        indices.create:
+            index: test
+            body:
+                settings:
+                    number_of_shards: 1
+                mappings:
+                    _doc:
+                        properties:
+                            dval:
+                                type: double
+                            lval:
+                                type: long
+
+    - do:
+        index:
+            index:  test
+            type:   _doc
+            id:     1
+            body:   { "dval": 5.5, "lval": 5 }
+
+    - do:
+        index:
+            index:  test
+            type:   _doc
+            id:     2
+            body:   { "dval": [5.5, 3.5, 4.5] }
+
+
+    - do:
+        index:
+            index:  test
+            type:   _doc
+            id:     3
+            body:   { "lval": [5, 3, 4] }
+
+    - do:
+        indices.refresh: {}
+
+---
+"check double and long values: missing values and operations on multiple values":
+    - skip:
+        version: " - 6.99.99"
+        reason: Handling missing values and operations on multiple values were added after these versions
+
+    - do:
+        search:
+            body:
+                script_fields:
+                    val_dval:
+                        script:
+                            source: "doc['dval']?.value ?: -1.0"
+                    min_dval:
+                        script:
+                            source: "doc['dval']?.min ?: -1.0"
+                    max_dval:
+                        script:
+                            source: "doc['dval']?.max ?: -1.0"
+                    sum_dval:
+                        script:
+                            source: "doc['dval']?.sum ?: -1.0"
+                    avg_dval:
+                        script:
+                            source: "doc['dval']?.avg ?: -1.0"
+                    val_lval:
+                        script:
+                            source: "doc['lval']?.value ?: -1"
+                    min_lval:
+                        script:
+                            source: "doc['lval']?.min ?: -1"
+                    max_lval:
+                        script:
+                            source: "doc['lval']?.max ?: -1"
+                    sum_lval:
+                        script:
+                            source: "doc['lval']?.sum ?: -1"
+                    avg_lval:
+                        script:
+                            source: "doc['lval']?.avg ?: -1"
+
+    - match: { hits.hits.0.fields.val_dval.0: 5.5}
+    - match: { hits.hits.0.fields.min_dval.0: 5.5}
+    - match: { hits.hits.0.fields.max_dval.0: 5.5}
+    - match: { hits.hits.0.fields.sum_dval.0: 5.5}
+    - match: { hits.hits.0.fields.avg_dval.0: 5.5}
+
+    - match: { hits.hits.0.fields.val_lval.0: 5}
+    - match: { hits.hits.0.fields.min_lval.0: 5}
+    - match: { hits.hits.0.fields.max_lval.0: 5}
+    - match: { hits.hits.0.fields.sum_lval.0: 5}
+    - match: { hits.hits.0.fields.avg_lval.0: 5}
+
+    - match: { hits.hits.1.fields.val_dval.0: 3.5}
+    - match: { hits.hits.1.fields.min_dval.0: 3.5}
+    - match: { hits.hits.1.fields.max_dval.0: 5.5}
+    - match: { hits.hits.1.fields.sum_dval.0: 13.5}
+    - match: { hits.hits.1.fields.avg_dval.0: 4.5}
+
+    - match: { hits.hits.1.fields.val_lval.0: -1}
+    - match: { hits.hits.1.fields.min_lval.0: -1}
+    - match: { hits.hits.1.fields.max_lval.0: -1}
+    - match: { hits.hits.1.fields.sum_lval.0: -1}
+    - match: { hits.hits.1.fields.avg_lval.0: -1}
+
+    - match: { hits.hits.2.fields.val_dval.0: -1.0}
+    - match: { hits.hits.2.fields.min_dval.0: -1.0}
+    - match: { hits.hits.2.fields.max_dval.0: -1.0}
+    - match: { hits.hits.2.fields.sum_dval.0: -1.0}
+    - match: { hits.hits.2.fields.avg_dval.0: -1.0}
+
+    - match: { hits.hits.2.fields.val_lval.0: 3}
+    - match: { hits.hits.2.fields.min_lval.0: 3}
+    - match: { hits.hits.2.fields.max_lval.0: 5}
+    - match: { hits.hits.2.fields.sum_lval.0: 12}
+    - match: { hits.hits.2.fields.avg_lval.0: 4}
+

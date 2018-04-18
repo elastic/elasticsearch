@@ -91,7 +91,8 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
             localCacheFieldData.put(fieldName, scriptValues);
         }
         try {
-            scriptValues.setNextDocId(docId);
+            boolean docHasValues = scriptValues.setNextDocId(docId);
+            if (!docHasValues) return null;
         } catch (IOException e) {
             throw ExceptionsHelper.convertToElastic(e);
         }

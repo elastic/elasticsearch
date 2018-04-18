@@ -68,6 +68,7 @@ GET hockey/_search
 ----------------------------------------------------------------
 // CONSOLE
 
+
 Alternatively, you could do the same thing using a script field instead of a function score:
 
 [source,js]
@@ -118,6 +119,21 @@ GET hockey/_search
 }
 ----------------------------------------------------------------
 // CONSOLE
+
+[float]
+===== Missing and multiple values
+
+If a document is missing a field `field`, `doc['field']` for this document
+will return null.
+
+There is also a number of operations designed for numeric fields,
+if a document has multiple values in such a field:
+
+- `doc['field'].min` - gets the minimum value among values
+- `doc['field'].max` - gets the maximum value among values
+- `doc['field'].sum` - gets the sum of all values
+- `doc['field'].avg` - gets the average of all values
+
 
 [float]
 ==== Updating Fields with Painless

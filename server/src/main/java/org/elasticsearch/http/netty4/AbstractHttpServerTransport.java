@@ -123,7 +123,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         return new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[0]), new TransportAddress(publishAddress));
     }
 
-    protected abstract TransportAddress bindAddress(final InetAddress hostAddress);
+    protected abstract TransportAddress bindAddress(InetAddress hostAddress);
 
     // package private for tests
     static int resolvePublishPort(Settings settings, List<TransportAddress> boundAddresses, InetAddress publishInetAddress) {

@@ -150,9 +150,10 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
     protected final List<Channel> serverChannels = new ArrayList<>();
 
+    protected final HttpHandlingSettings httpHandlingSettings;
+
     // package private for testing
     Netty4OpenChannelsHandler serverOpenChannels;
-    final HttpHandlingSettings httpHandlingSettings;
 
 
     private final Netty4CorsConfig corsConfig;
@@ -405,7 +406,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             ch.pipeline().addLast("decoder", decoder);
             ch.pipeline().addLast("decoder_compress", new HttpContentDecompressor());
             ch.pipeline().addLast("encoder", new HttpResponseEncoder());
-            final HttpObjectAggregator aggregator = new HttpObjectAggregator(Math.toIntExact(transport.maxContentLength.getBytes()));
+            final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.getMaxContentLength());
             if (transport.maxCompositeBufferComponents != -1) {
                 aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             }

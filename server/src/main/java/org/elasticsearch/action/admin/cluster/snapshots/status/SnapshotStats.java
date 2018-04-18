@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -34,19 +35,25 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
 
     private long startTime;
     private long time;
-    private int numberOfFiles;
+    private int differenceOfNumberOfFiles;
+    private int totalNumberOfFiles;
     private int processedFiles;
+    private long differenceOfSize;
     private long totalSize;
     private long processedSize;
 
     SnapshotStats() {
     }
 
-    SnapshotStats(long startTime, long time, int numberOfFiles, int processedFiles, long totalSize, long processedSize) {
+    SnapshotStats(long startTime, long time,
+                  int differenceOfNumberOfFiles, int totalNumberOfFiles, int processedFiles,
+                  long differenceOfSize, long totalSize, long processedSize) {
         this.startTime = startTime;
         this.time = time;
-        this.numberOfFiles = numberOfFiles;
+        this.differenceOfNumberOfFiles = differenceOfNumberOfFiles;
+        this.totalNumberOfFiles = totalNumberOfFiles;
         this.processedFiles = processedFiles;
+        this.differenceOfSize = differenceOfSize;
         this.totalSize = totalSize;
         this.processedSize = processedSize;
     }
@@ -66,10 +73,17 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
     }
 
     /**
-     * Returns number of files in the snapshot
+     * Returns difference of number of files between previous and this snapshot
      */
-    public int getNumberOfFiles() {
-        return numberOfFiles;
+    public int getDifferenceOfNumberOfFiles() {
+        return differenceOfNumberOfFiles;
+    }
+
+    /**
+     * Returns total number of files in the snapshot
+     */
+    public int getTotalNumberOfFiles() {
+        return totalNumberOfFiles;
     }
 
     /**
@@ -77,6 +91,13 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
      */
     public int getProcessedFiles() {
         return processedFiles;
+    }
+
+    /**
+     * Return difference size of files between previous and this snapshot
+     */
+    public long getDifferenceOfSize() {
+        return differenceOfSize;
     }
 
     /**
@@ -105,11 +126,16 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
         out.writeVLong(startTime);
         out.writeVLong(time);
 
-        out.writeVInt(numberOfFiles);
+        out.writeVInt(totalNumberOfFiles);
         out.writeVInt(processedFiles);
 
         out.writeVLong(totalSize);
         out.writeVLong(processedSize);
+
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeVInt(differenceOfNumberOfFiles);
+            out.writeVLong(differenceOfSize);
+        }
     }
 
     @Override
@@ -117,17 +143,28 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
         startTime = in.readVLong();
         time = in.readVLong();
 
-        numberOfFiles = in.readVInt();
+        totalNumberOfFiles = in.readVInt();
         processedFiles = in.readVInt();
 
         totalSize = in.readVLong();
         processedSize = in.readVLong();
+
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            differenceOfNumberOfFiles = in.readVInt();
+            differenceOfSize = in.readVLong();
+        } else {
+            differenceOfNumberOfFiles = totalNumberOfFiles;
+            differenceOfSize = totalSize;
+        }
     }
 
     static final class Fields {
         static final String STATS = "stats";
-        static final String NUMBER_OF_FILES = "number_of_files";
+        static final String DIFFERENCE_OF_NUMBER_OF_FILES = "difference_of_number_of_files";
+        static final String TOTAL_NUMBER_OF_FILES = "total_number_of_files";
         static final String PROCESSED_FILES = "processed_files";
+        static final String DIFFERENCE_OF_SIZE_IN_BYTES = "difference_of_size_in_bytes";
+        static final String DIFFERENCE_OF_SIZE = "difference_of_size";
         static final String TOTAL_SIZE_IN_BYTES = "total_size_in_bytes";
         static final String TOTAL_SIZE = "total_size";
         static final String PROCESSED_SIZE_IN_BYTES = "processed_size_in_bytes";
@@ -140,8 +177,10 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(Fields.STATS);
-        builder.field(Fields.NUMBER_OF_FILES, getNumberOfFiles());
+        builder.field(Fields.DIFFERENCE_OF_NUMBER_OF_FILES, getDifferenceOfNumberOfFiles());
+        builder.field(Fields.TOTAL_NUMBER_OF_FILES, getTotalNumberOfFiles());
         builder.field(Fields.PROCESSED_FILES, getProcessedFiles());
+        builder.humanReadableField(Fields.DIFFERENCE_OF_SIZE_IN_BYTES, Fields.DIFFERENCE_OF_SIZE, new ByteSizeValue(getDifferenceOfSize()));
         builder.humanReadableField(Fields.TOTAL_SIZE_IN_BYTES, Fields.TOTAL_SIZE, new ByteSizeValue(getTotalSize()));
         builder.humanReadableField(Fields.PROCESSED_SIZE_IN_BYTES, Fields.PROCESSED_SIZE, new ByteSizeValue(getProcessedSize()));
         builder.field(Fields.START_TIME_IN_MILLIS, getStartTime());
@@ -151,9 +190,11 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
     }
 
     void add(SnapshotStats stats) {
-        numberOfFiles += stats.numberOfFiles;
+        differenceOfNumberOfFiles += stats.differenceOfNumberOfFiles;
+        totalNumberOfFiles += stats.totalNumberOfFiles;
         processedFiles += stats.processedFiles;
 
+        differenceOfSize += stats.differenceOfSize;
         totalSize += stats.totalSize;
         processedSize += stats.processedSize;
 

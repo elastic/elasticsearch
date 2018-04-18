@@ -356,7 +356,11 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
 
     private final long time;
 
-    private final int numberOfFiles;
+    private final int differenceOfNumberOfFiles;
+
+    private final int totalNumberOfFiles;
+
+    private final long differenceOfSize;
 
     private final long totalSize;
 
@@ -365,16 +369,20 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
     /**
      * Constructs new shard snapshot metadata from snapshot metadata
      *
-     * @param snapshot      snapshot id
-     * @param indexVersion  index version
-     * @param indexFiles    list of files in the shard
-     * @param startTime     snapshot start time
-     * @param time          snapshot running time
-     * @param numberOfFiles number of files that where snapshotted
-     * @param totalSize     total size of all files snapshotted
+     * @param snapshot                    snapshot id
+     * @param indexVersion                index version
+     * @param indexFiles                  list of files in the shard
+     * @param startTime                   snapshot start time
+     * @param time                        snapshot running time
+     * @param differenceOfNumberOfFiles   difference of number of files between previous and current snapshot
+     * @param totalNumberOfFiles          total number of files that were snapshotted
+     * @param differenceOfSize            difference between sizes of files of previous snapshot and current
+     * @param totalSize                   total size of all files snapshotted
      */
-    public BlobStoreIndexShardSnapshot(String snapshot, long indexVersion, List<FileInfo> indexFiles, long startTime, long time,
-                                       int numberOfFiles, long totalSize) {
+    public BlobStoreIndexShardSnapshot(String snapshot, long indexVersion, List<FileInfo> indexFiles,
+                                       long startTime, long time,
+                                       int differenceOfNumberOfFiles, int totalNumberOfFiles,
+                                       long differenceOfSize, long totalSize) {
         assert snapshot != null;
         assert indexVersion >= 0;
         this.snapshot = snapshot;
@@ -382,7 +390,9 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         this.indexFiles = Collections.unmodifiableList(new ArrayList<>(indexFiles));
         this.startTime = startTime;
         this.time = time;
-        this.numberOfFiles = numberOfFiles;
+        this.differenceOfNumberOfFiles = differenceOfNumberOfFiles;
+        this.totalNumberOfFiles = totalNumberOfFiles;
+        this.differenceOfSize = differenceOfSize;
         this.totalSize = totalSize;
     }
 
@@ -395,7 +405,9 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         this.indexFiles = Collections.emptyList();
         this.startTime = 0;
         this.time = 0;
-        this.numberOfFiles = 0;
+        this.differenceOfNumberOfFiles = 0;
+        this.totalNumberOfFiles = 0;
+        this.differenceOfSize = 0;
         this.totalSize = 0;
     }
 
@@ -441,10 +453,24 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
     }
 
     /**
+     * Returns difference of number of files between previously snapshotted and current one
+     */
+    public int differenceOfNumberOfFiles() {
+        return differenceOfNumberOfFiles;
+    }
+
+    /**
      * Returns number of files that where snapshotted
      */
     public int numberOfFiles() {
-        return numberOfFiles;
+        return totalNumberOfFiles;
+    }
+
+    /**
+     * Returns difference of size of files between previous and actual snapshot
+     */
+    public long differenceOfSize() {
+        return differenceOfSize;
     }
 
     /**
@@ -458,7 +484,9 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
     private static final String INDEX_VERSION = "index_version";
     private static final String START_TIME = "start_time";
     private static final String TIME = "time";
-    private static final String NUMBER_OF_FILES = "number_of_files";
+    private static final String DIFFERENCE_OF_NUMBER_OF_FILES = "difference_of_number_of_files";
+    private static final String TOTAL_NUMBER_OF_FILES = "total_number_of_files";
+    private static final String DIFFERENCE_OF_SIZE = "difference_of_size";
     private static final String TOTAL_SIZE = "total_size";
     private static final String FILES = "files";
 
@@ -466,9 +494,11 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
     private static final ParseField PARSE_INDEX_VERSION = new ParseField("index_version", "index-version");
     private static final ParseField PARSE_START_TIME = new ParseField("start_time");
     private static final ParseField PARSE_TIME = new ParseField("time");
-    private static final ParseField PARSE_NUMBER_OF_FILES = new ParseField("number_of_files");
-    private static final ParseField PARSE_TOTAL_SIZE = new ParseField("total_size");
-    private static final ParseField PARSE_FILES = new ParseField("files");
+    private static final ParseField PARSE_DIFFERENCE_OF_NUMBER_OF_FILES = new ParseField(DIFFERENCE_OF_NUMBER_OF_FILES, "number_of_files");
+    private static final ParseField PARSE_TOTAL_NUMBER_OF_FILES = new ParseField(TOTAL_NUMBER_OF_FILES);
+    private static final ParseField PARSE_DIFFERENCE_OF_SIZE = new ParseField(DIFFERENCE_OF_SIZE);
+    private static final ParseField PARSE_TOTAL_SIZE = new ParseField(TOTAL_SIZE);
+    private static final ParseField PARSE_FILES = new ParseField(FILES);
 
     /**
      * Serializes shard snapshot metadata info into JSON
@@ -482,7 +512,9 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         builder.field(INDEX_VERSION, indexVersion);
         builder.field(START_TIME, startTime);
         builder.field(TIME, time);
-        builder.field(NUMBER_OF_FILES, numberOfFiles);
+        builder.field(DIFFERENCE_OF_NUMBER_OF_FILES, differenceOfNumberOfFiles);
+        builder.field(TOTAL_NUMBER_OF_FILES, totalNumberOfFiles);
+        builder.field(DIFFERENCE_OF_SIZE, differenceOfSize);
         builder.field(TOTAL_SIZE, totalSize);
         builder.startArray(FILES);
         for (FileInfo fileInfo : indexFiles) {
@@ -503,7 +535,9 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         long indexVersion = -1;
         long startTime = 0;
         long time = 0;
-        int numberOfFiles = 0;
+        int differenceOfNumberOfFiles = 0;
+        int totalNumberOfFiles = -1;
+        long differenceOfSize = -1;
         long totalSize = 0;
 
         List<FileInfo> indexFiles = new ArrayList<>();
@@ -526,8 +560,12 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
                             startTime = parser.longValue();
                         } else if (PARSE_TIME.match(currentFieldName, parser.getDeprecationHandler())) {
                             time = parser.longValue();
-                        } else if (PARSE_NUMBER_OF_FILES.match(currentFieldName, parser.getDeprecationHandler())) {
-                            numberOfFiles = parser.intValue();
+                        } else if (PARSE_DIFFERENCE_OF_NUMBER_OF_FILES.match(currentFieldName, parser.getDeprecationHandler())) {
+                            differenceOfNumberOfFiles = parser.intValue();
+                        } else if (PARSE_TOTAL_NUMBER_OF_FILES.match(currentFieldName, parser.getDeprecationHandler())) {
+                            totalNumberOfFiles = parser.intValue();
+                        } else if (PARSE_DIFFERENCE_OF_SIZE.match(currentFieldName, parser.getDeprecationHandler())) {
+                            differenceOfSize = parser.longValue();
                         } else if (PARSE_TOTAL_SIZE.match(currentFieldName, parser.getDeprecationHandler())) {
                             totalSize = parser.longValue();
                         } else {
@@ -549,7 +587,14 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
                 }
             }
         }
+        // for the sake of backward compatibility
+        if (totalNumberOfFiles < 0){
+            totalNumberOfFiles = differenceOfNumberOfFiles;
+        }
+        if (differenceOfSize < 0){
+            differenceOfSize = totalSize;
+        }
         return new BlobStoreIndexShardSnapshot(snapshot, indexVersion, Collections.unmodifiableList(indexFiles),
-                                               startTime, time, numberOfFiles, totalSize);
+                                               startTime, time, differenceOfNumberOfFiles, totalNumberOfFiles, differenceOfSize, totalSize);
     }
 }

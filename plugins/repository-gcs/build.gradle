@@ -32,13 +32,21 @@ esplugin {
 //]
 
 dependencies {
-  compile 'com.google.cloud:google-cloud-storage:1.25.0'
-  compile 'com.google.cloud:google-cloud-core:1.25.0'
-  compile 'com.google.cloud:google-cloud-core-http:1.25.0'
-  compile 'com.google.api:gax:1.24.0'
+  compile 'com.google.cloud:google-cloud-storage:1.26.0'
+  compile 'com.google.cloud:google-cloud-core:1.26.0'
+  compile 'com.google.cloud:google-cloud-core-http:1.26.0'
+  compile 'com.google.api:api-common:1.5.0'
   compile 'org.threeten:threetenbp:1.3.6'
-  compile 'com.google.auth:google-auth-library-oauth2-http:0.9.1'
-  compile 'com.google.auth:google-auth-library-credentials:0.9.1'
+  compile 'com.google.api:gax:1.23.0'
+  compile 'com.google.auth:google-auth-library-oauth2-http:0.9.0'
+  compile 'com.google.auth:google-auth-library-credentials:0.9.0'
+
+  //compile 'com.google.api:gax-grpc:1.24.0'
+  //compile 'org.threeten:threetenbp:1.3.6'
+  //compile 'com.google.auth:google-auth-library-oauth2-http:0.9.1'
+  //compile 'com.google.auth:google-auth-library-credentials:0.9.1'
+
+
 //  compile "com.google.apis:google-api-services-storage:v1-rev115-${versions.google}"
 //  compile "com.google.api-client:google-api-client:${versions.google}"
 //  compile "com.google.oauth-client:google-oauth-client:${versions.google}"
@@ -56,13 +64,13 @@ dependencyLicenses {
 
 thirdPartyAudit.excludes = [
         // classes are missing
-        'com.google.common.base.Splitter',
-        'com.google.common.collect.Lists',
+        //'com.google.common.base.Splitter',
+        //'com.google.common.collect.Lists',
         'javax.servlet.ServletContextEvent',
         'javax.servlet.ServletContextListener',
-        'org.apache.avalon.framework.logger.Logger',
-        'org.apache.log.Hierarchy',
-        'org.apache.log.Logger',
+        //'org.apache.avalon.framework.logger.Logger',
+        //'org.apache.log.Hierarchy',
+        //'org.apache.log.Logger',
 ]
 
 forbiddenApisTest {

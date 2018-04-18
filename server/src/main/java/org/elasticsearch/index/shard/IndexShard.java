@@ -52,7 +52,6 @@ import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
@@ -66,7 +65,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -2591,7 +2589,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private ParsedDocument createTombstoneDoc(String type, String id) {
-        final SourceToParse source = SourceToParse.source(shardId.getIndexName(), type, id, new BytesArray("{}"), XContentType.JSON);
-        return docMapper(type).getDocumentMapper().createTombstoneDoc(source);
+        return docMapper(type).getDocumentMapper().createTombstoneDoc(shardId.getIndexName(), type, id);
     }
 }

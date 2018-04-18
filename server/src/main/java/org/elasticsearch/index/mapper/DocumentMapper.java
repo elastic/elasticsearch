@@ -24,6 +24,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
@@ -48,8 +49,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
-
-import static java.util.Collections.emptyMap;
 
 public class DocumentMapper implements ToXContentFragment {
 
@@ -252,8 +251,9 @@ public class DocumentMapper implements ToXContentFragment {
         return documentParser.parseDocument(source, mapping.metadataMappers);
     }
 
-    public ParsedDocument createTombstoneDoc(SourceToParse source) throws MapperParsingException {
-        return documentParser.parseDocument(source, tombstoneMetadataFieldMappers);
+    public ParsedDocument createTombstoneDoc(String index, String type, String id) throws MapperParsingException {
+        final SourceToParse emptySource = SourceToParse.source(index, type, id, new BytesArray("{}"), XContentType.JSON);
+        return documentParser.parseDocument(emptySource, tombstoneMetadataFieldMappers);
     }
 
     /**

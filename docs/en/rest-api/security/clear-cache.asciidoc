@@ -19,6 +19,9 @@ remote authentication service or hitting the disk for every incoming request.
 There are realm settings that you can use to configure the user cache. For more
 information, see {xpack-ref}/controlling-user-cache.html[Controlling the User Cache].
 
+To evict roles from the role cache, see the 
+<<security-api-clear-role-cache,Clear Roles Cache API>>.
+
 ==== Path Parameters
 
 `realms` (required)::

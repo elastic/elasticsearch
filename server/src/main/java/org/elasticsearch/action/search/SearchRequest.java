@@ -224,7 +224,9 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     /**
      * The document types to execute the search against. Defaults to be executed against
      * all types.
+     * @deprecated Types are going away, prefer filtering on a type.
      */
+    @Deprecated
     public SearchRequest types(String... types) {
         Objects.requireNonNull(types, "types must not be null");
         for (String type : types) {

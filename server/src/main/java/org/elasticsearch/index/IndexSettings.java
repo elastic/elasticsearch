@@ -70,8 +70,6 @@ public final class IndexSettings {
             (value) -> Translog.Durability.valueOf(value.toUpperCase(Locale.ROOT)), Property.Dynamic, Property.IndexScope);
     public static final Setting<Boolean> INDEX_WARMER_ENABLED_SETTING =
         Setting.boolSetting("index.warmer.enabled", true, Property.Dynamic, Property.IndexScope);
-    public static final Setting<Boolean> INDEX_TTL_DISABLE_PURGE_SETTING =
-        Setting.boolSetting("index.ttl.disable_purge", false, Property.Dynamic, Property.IndexScope);
     public static final Setting<String> INDEX_CHECK_ON_STARTUP = new Setting<>("index.shard.check_on_startup", "false", (s) -> {
         switch(s) {
             case "false":
@@ -185,7 +183,7 @@ public final class IndexSettings {
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING =
         Setting.byteSizeSetting("index.translog.flush_threshold_size", new ByteSizeValue(512, ByteSizeUnit.MB),
             /*
-             * An empty translog occupies 43 bytes on disk. If the flush threshold is below this, the flush thread
+             * An empty translog occupies 55 bytes on disk. If the flush threshold is below this, the flush thread
              * can get stuck in an infinite loop as the shouldPeriodicallyFlush can still be true after flushing.
              * However, small thresholds are useful for testing so we do not add a large lower bound here.
              */
@@ -220,7 +218,7 @@ public final class IndexSettings {
                     "index.translog.generation_threshold_size",
                     new ByteSizeValue(64, ByteSizeUnit.MB),
                     /*
-                     * An empty translog occupies 43 bytes on disk. If the generation threshold is
+                     * An empty translog occupies 55 bytes on disk. If the generation threshold is
                      * below this, the flush thread can get stuck in an infinite loop repeatedly
                      * rolling the generation as every new generation will already exceed the
                      * generation threshold. However, small thresholds are useful for testing so we
@@ -292,7 +290,6 @@ public final class IndexSettings {
     private volatile int maxTokenCount;
     private volatile int maxNgramDiff;
     private volatile int maxShingleDiff;
-    private volatile boolean TTLPurgeDisabled;
     private volatile TimeValue searchIdleAfter;
     private volatile int maxAnalyzedOffset;
     private volatile int maxTermsCount;
@@ -403,7 +400,6 @@ public final class IndexSettings {
         maxTokenCount = scopedSettings.get(MAX_TOKEN_COUNT_SETTING);
         maxNgramDiff = scopedSettings.get(MAX_NGRAM_DIFF_SETTING);
         maxShingleDiff = scopedSettings.get(MAX_SHINGLE_DIFF_SETTING);
-        TTLPurgeDisabled = scopedSettings.get(INDEX_TTL_DISABLE_PURGE_SETTING);
         maxRefreshListeners = scopedSettings.get(MAX_REFRESH_LISTENERS_PER_SHARD);
         maxSlicesPerScroll = scopedSettings.get(MAX_SLICES_PER_SCROLL);
         maxAnalyzedOffset = scopedSettings.get(MAX_ANALYZED_OFFSET_SETTING);
@@ -426,7 +422,6 @@ public final class IndexSettings {
             mergeSchedulerConfig::setMaxThreadAndMergeCount);
         scopedSettings.addSettingsUpdateConsumer(MergeSchedulerConfig.AUTO_THROTTLE_SETTING, mergeSchedulerConfig::setAutoThrottle);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_DURABILITY_SETTING, this::setTranslogDurability);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_TTL_DISABLE_PURGE_SETTING, this::setTTLPurgeDisabled);
         scopedSettings.addSettingsUpdateConsumer(MAX_RESULT_WINDOW_SETTING, this::setMaxResultWindow);
         scopedSettings.addSettingsUpdateConsumer(MAX_INNER_RESULT_WINDOW_SETTING, this::setMaxInnerResultWindow);
         scopedSettings.addSettingsUpdateConsumer(MAX_ADJACENCY_MATRIX_FILTERS_SETTING, this::setMaxAdjacencyMatrixFilters);
@@ -769,18 +764,6 @@ public final class IndexSettings {
     public MergePolicy getMergePolicy() {
         return mergePolicyConfig.getMergePolicy();
     }
-
-    /**
-     * Returns <code>true</code> if the TTL purge is disabled for this index. Default is <code>false</code>
-     */
-    public boolean isTTLPurgeDisabled() {
-        return TTLPurgeDisabled;
-    }
-
-    private  void setTTLPurgeDisabled(boolean ttlPurgeDisabled) {
-        this.TTLPurgeDisabled = ttlPurgeDisabled;
-    }
-
 
     public <T> T getValue(Setting<T> setting) {
         return scopedSettings.get(setting);

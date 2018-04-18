@@ -19,275 +19,558 @@
 
 package org.elasticsearch.repositories.gcs;
 
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.rest.RestStatus;
+import org.mockito.Matchers;
 
+import com.google.api.gax.paging.Page;
+import com.google.cloud.Policy;
+import com.google.cloud.ReadChannel;
+import com.google.cloud.RestorableState;
+import com.google.cloud.WriteChannel;
+import com.google.cloud.storage.Acl;
+import com.google.cloud.storage.Acl.Entity;
+import com.google.cloud.storage.Blob;
+import com.google.cloud.storage.BlobId;
+import com.google.cloud.storage.BlobInfo;
+import com.google.cloud.storage.Bucket;
+import com.google.cloud.storage.BucketInfo;
+import com.google.cloud.storage.CopyWriter;
+import com.google.cloud.storage.ServiceAccount;
 import com.google.cloud.storage.Storage;
-import com.google.cloud.storage.Storage.BlobListOption;
-import com.google.cloud.storage.Storage.CopyRequest;
+import com.google.cloud.storage.spi.v1.StorageRpc;
+import com.google.cloud.storage.StorageBatch;
+import com.google.cloud.storage.StorageOptions;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.math.BigInteger;
+import java.lang.reflect.Method;
+import java.net.URL;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * {@link MockStorage} mocks a {@link Storage} client by storing all the blobs
  * in a given concurrent map.
  */
-class MockStorage extends Storage {
+class MockStorage implements Storage {
 
-    /* A custom HTTP header name used to propagate the name of the blobs to delete in batch requests */
-    private static final String DELETION_HEADER = "x-blob-to-delete";
+    private final Bucket theBucket;
+    private final ConcurrentMap<String, Blob> blobsMap;
 
-    private final String bucketName;
-    private final ConcurrentMap<String, byte[]> blobs;
-
-    MockStorage(final String bucket, final ConcurrentMap<String, byte[]> blobs) {
-        super(new MockedHttpTransport(blobs), mock(JsonFactory.class), mock(HttpRequestInitializer.class));
-        this.bucketName = bucket;
-        this.blobs = blobs;
-    }
-
-    @Override
-    public Buckets buckets() {
-        return new MockBuckets();
-    }
-
-    @Override
-    public Objects objects() {
-        return new MockObjects();
-    }
-
-    class MockBuckets extends Buckets {
-
-        @Override
-        public Get get(String getBucket) {
-            return new Get(getBucket) {
+    MockStorage(final String bucketName, final ConcurrentMap<String, Blob> blobs) {
+        this.blobsMap = blobs;
+        // mock bucket
+        this.theBucket = mock(Bucket.class);
+        when(this.theBucket.getName()).thenReturn(bucketName);
+        doAnswer(invocation -> {
+            assert invocation.getArguments().length == 1 : "Only a single filter is mocked";
+            final BlobListOption prefixFilter = (BlobListOption) invocation.getArguments()[0];
+            final Method optionMethod = BlobListOption.class.getDeclaredMethod("getRpcOption");
+            optionMethod.setAccessible(true);
+            assert StorageRpc.Option.PREFIX.equals(optionMethod.invoke(prefixFilter)) : "Only the prefix filter is mocked";
+            final Method valueMethod = BlobListOption.class.getDeclaredMethod("getValue");
+            valueMethod.setAccessible(true);
+            final String prefixValue = (String) valueMethod.invoke(prefixFilter);
+            return new Page<Blob>() {
                 @Override
-                public Bucket execute() {
-                    if (bucketName.equals(getBucket())) {
-                        final Bucket bucket = new Bucket();
-                        bucket.setId(bucketName);
-                        return bucket;
-                    } else {
-                        return null;
-                    }
-                }
-            };
-        }
-    }
-
-    class MockObjects extends Objects {
-
-        @Override
-        public Get get(String getBucket, String getObject) {
-            return new Get(getBucket, getObject) {
-                @Override
-                public StorageObject execute() throws IOException {
-                    if (bucketName.equals(getBucket()) == false) {
-                        throw newBucketNotFoundException(getBucket());
-                    }
-                    if (blobs.containsKey(getObject()) == false) {
-                        throw newObjectNotFoundException(getObject());
-                    }
-
-                    final StorageObject storageObject = new StorageObject();
-                    storageObject.setId(getObject());
-                    return storageObject;
+                public boolean hasNextPage() {
+                    return false;
                 }
 
                 @Override
-                public InputStream executeMediaAsInputStream() throws IOException {
-                    if (bucketName.equals(getBucket()) == false) {
-                        throw newBucketNotFoundException(getBucket());
-                    }
-                    if (blobs.containsKey(getObject()) == false) {
-                        throw newObjectNotFoundException(getObject());
-                    }
-                    return new ByteArrayInputStream(blobs.get(getObject()));
-                }
-            };
-        }
-
-        @Override
-        public Insert insert(String insertBucket, StorageObject insertObject, AbstractInputStreamContent insertStream) {
-            return new Insert(insertBucket, insertObject) {
-                @Override
-                public StorageObject execute() throws IOException {
-                    if (bucketName.equals(getBucket()) == false) {
-                        throw newBucketNotFoundException(getBucket());
-                    }
-
-                    final ByteArrayOutputStream out = new ByteArrayOutputStream();
-                    Streams.copy(insertStream.getInputStream(), out);
-                    blobs.put(getName(), out.toByteArray());
-                    return null;
-                }
-            };
-        }
-
-        @Override
-        public List list(String listBucket) {
-            return new List(listBucket) {
-                @Override
-                public com.google.api.services.storage.model.Objects execute() throws IOException {
-                    if (bucketName.equals(getBucket()) == false) {
-                        throw newBucketNotFoundException(getBucket());
-                    }
-
-                    final com.google.api.services.storage.model.Objects objects = new com.google.api.services.storage.model.Objects();
-
-                    final java.util.List<StorageObject> storageObjects = new ArrayList<>();
-                    for (final Entry<String, byte[]> blob : blobs.entrySet()) {
-                        if ((getPrefix() == null) || blob.getKey().startsWith(getPrefix())) {
-                            final StorageObject storageObject = new StorageObject();
-                            storageObject.setId(blob.getKey());
-                            storageObject.setName(blob.getKey());
-                            storageObject.setSize(BigInteger.valueOf((long) blob.getValue().length));
-                            storageObjects.add(storageObject);
-                        }
-                    }
-
-                    objects.setItems(storageObjects);
-                    return objects;
-                }
-            };
-        }
-
-        @Override
-        public Delete delete(String deleteBucket, String deleteObject) {
-            return new Delete(deleteBucket, deleteObject) {
-                @Override
-                public Void execute() throws IOException {
-                    if (bucketName.equals(getBucket()) == false) {
-                        throw newBucketNotFoundException(getBucket());
-                    }
-
-                    if (blobs.containsKey(getObject()) == false) {
-                        throw newObjectNotFoundException(getObject());
-                    }
-
-                    blobs.remove(getObject());
+                public String getNextPageToken() {
                     return null;
                 }
 
                 @Override
-                public HttpRequest buildHttpRequest() throws IOException {
-                    final HttpRequest httpRequest = super.buildHttpRequest();
-                    httpRequest.getHeaders().put(DELETION_HEADER, getObject());
-                    return httpRequest;
+                public Page<Blob> getNextPage() {
+                    return null;
                 }
-            };
-        }
 
-        @Override
-        public Copy copy(String srcBucket, String srcObject, String destBucket, String destObject, StorageObject content) {
-            return new Copy(srcBucket, srcObject, destBucket, destObject, content) {
                 @Override
-                public StorageObject execute() throws IOException {
-                    if (bucketName.equals(getSourceBucket()) == false) {
-                        throw newBucketNotFoundException(getSourceBucket());
-                    }
-                    if (bucketName.equals(getDestinationBucket()) == false) {
-                        throw newBucketNotFoundException(getDestinationBucket());
-                    }
+                public Iterable<Blob> iterateAll() {
+                    return getValues();
+                }
 
-                    final byte[] bytes = blobs.get(getSourceObject());
-                    if (bytes == null) {
-                        throw newObjectNotFoundException(getSourceObject());
-                    }
-                    blobs.put(getDestinationObject(), bytes);
-
-                    final StorageObject storageObject = new StorageObject();
-                    storageObject.setId(getDestinationObject());
-                    return storageObject;
+                @Override
+                public Iterable<Blob> getValues() {
+                    return () -> blobs.entrySet()
+                            .stream()
+                            .filter(entry1 -> entry1.getKey().startsWith(prefixValue))
+                            .map(entry2 -> entry2.getValue())
+                            .iterator();
                 }
             };
-        }
+        }).when(this.theBucket).list(Matchers.anyVararg());
     }
 
-    private static GoogleJsonResponseException newBucketNotFoundException(final String bucket) {
-        final HttpResponseException.Builder builder = new HttpResponseException.Builder(404, "Bucket not found: " + bucket, new HttpHeaders());
-        return new GoogleJsonResponseException(builder, new GoogleJsonError());
+    @Override
+    public StorageOptions getOptions() {
+        return StorageOptions.getDefaultInstance();
     }
 
-    private static GoogleJsonResponseException newObjectNotFoundException(final String object) {
-        final HttpResponseException.Builder builder = new HttpResponseException.Builder(404, "Object not found: " + object, new HttpHeaders());
-        return new GoogleJsonResponseException(builder, new GoogleJsonError());
+    @Override
+    public Bucket create(BucketInfo bucketInfo, BucketTargetOption... options) {
+        throw new RuntimeException("Mock not implemented");
     }
 
-    /**
-     * {@link MockedHttpTransport} extends the existing testing transport to analyze the content
-     * of {@link com.google.api.client.googleapis.batch.BatchRequest} and delete the appropriates
-     * blobs. We use this because {@link Storage#batch()} is final and there is no other way to
-     * extend batch requests for testing purposes.
-     */
-    static class MockedHttpTransport extends MockHttpTransport {
+    @Override
+    public Blob create(BlobInfo blobInfo, BlobTargetOption... options) {
+        throw new RuntimeException("Mock not implemented");
+    }
 
-        private final ConcurrentMap<String, byte[]> blobs;
+    @Override
+    public Blob create(BlobInfo blobInfo, byte[] content, BlobTargetOption... options) {
+        throw new RuntimeException("Mock not implemented");
+    }
 
-        MockedHttpTransport(final ConcurrentMap<String, byte[]> blobs) {
-            this.blobs = blobs;
-        }
+    @Override
+    public Blob create(BlobInfo blobInfo, InputStream content, BlobWriteOption... options) {
+        throw new RuntimeException("Mock not implemented");
+    }
 
-        @Override
-        public LowLevelHttpRequest buildRequest(final String method, final String url) throws IOException {
-            // We analyze the content of the Batch request to detect our custom HTTP header,
-            // and extract from it the name of the blob to delete. Then we reply a simple
-            // batch response so that the client parser is happy.
-            //
-            // See https://cloud.google.com/storage/docs/json_api/v1/how-tos/batch for the
-            // format of the batch request body.
-            if (HttpMethods.POST.equals(method) && url.endsWith("/batch")) {
-                return new MockLowLevelHttpRequest() {
-                    @Override
-                    public LowLevelHttpResponse execute() throws IOException {
-                        final String contentType = new MultipartContent().getType();
+    @Override
+    public Bucket get(String bucketName, BucketGetOption... options) {
+        assert bucketName.equals(this.theBucket.getName()) : "Only a single bucket is mocked";
+        return theBucket;
+    }
 
-                        final StringBuilder builder = new StringBuilder();
-                        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-                            getStreamingContent().writeTo(out);
+    @Override
+    public Blob get(String bucketName, String blobName, BlobGetOption... options) {
+        assert bucketName.equals(this.theBucket.getName()) : "Only a single bucket is mocked";
+        return blobsMap.get(blobName);
+    }
 
-                            Streams.readAllLines(new ByteArrayInputStream(out.toByteArray()), line -> {
-                                if ((line != null) && line.startsWith(DELETION_HEADER)) {
-                                    builder.append("--__END_OF_PART__\r\n");
-                                    builder.append("Content-Type: application/http").append("\r\n");
-                                    builder.append("\r\n");
-                                    builder.append("HTTP/1.1 ");
+    @Override
+    public Blob get(BlobId blob, BlobGetOption... options) {
+        return get(blob.getBucket(), blob.getName());
+    }
 
-                                    final String blobName = line.substring(line.indexOf(':') + 1).trim();
-                                    if (blobs.containsKey(blobName)) {
-                                        builder.append(RestStatus.OK.getStatus());
-                                        blobs.remove(blobName);
-                                    } else {
-                                        builder.append(RestStatus.NOT_FOUND.getStatus());
-                                    }
-                                    builder.append("\r\n");
-                                    builder.append("Content-Type: application/json; charset=UTF-8").append("\r\n");
-                                    builder.append("Content-Length: 0").append("\r\n");
-                                    builder.append("\r\n");
-                                }
-                            });
-                            builder.append("\r\n");
-                            builder.append("--__END_OF_PART__--");
-                        }
+    @Override
+    public Blob get(BlobId blob) {
+        return get(blob.getBucket(), blob.getName());
+    }
 
-                        final MockLowLevelHttpResponse response = new MockLowLevelHttpResponse();
-                        response.setStatusCode(200);
-                        response.setContent(builder.toString());
-                        response.setContentType(contentType);
-                        return response;
-                    }
-                };
-            } else {
-                return super.buildRequest(method, url);
+    @Override
+    public Page<Bucket> list(BucketListOption... options) {
+        return new Page<Bucket>() {
+            @Override
+            public boolean hasNextPage() {
+                return false;
             }
+            @Override
+            public String getNextPageToken() {
+                return null;
+            }
+            @Override
+            public Page<Bucket> getNextPage() {
+                return null;
+            }
+            @Override
+            public Iterable<Bucket> iterateAll() {
+                return getValues();
+            }
+            @Override
+            public Iterable<Bucket> getValues() {
+                return Arrays.asList(theBucket);
+            }
+        };
+    }
+
+    @Override
+    public Page<Blob> list(String bucketName, BlobListOption... options) {
+        assert bucketName.equals(this.theBucket.getName()) : "Only a single bucket is mocked";
+        return new Page<Blob>() {
+            @Override
+            public boolean hasNextPage() {
+                return false;
+            }
+
+            @Override
+            public String getNextPageToken() {
+                return null;
+            }
+
+            @Override
+            public Page<Blob> getNextPage() {
+                return null;
+            }
+
+            @Override
+            public Iterable<Blob> iterateAll() {
+                return getValues();
+            }
+
+            @Override
+            public Iterable<Blob> getValues() {
+                return blobsMap.values();
+            }
+        };
+    }
+
+    @Override
+    public Bucket update(BucketInfo bucketInfo, BucketTargetOption... options) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public Blob update(BlobInfo blobInfo, BlobTargetOption... options) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public Blob update(BlobInfo blobInfo) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public boolean delete(String bucket, BucketSourceOption... options) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public boolean delete(String bucketName, String blobName, BlobSourceOption... options) {
+        assert bucketName.equals(this.theBucket.getName()) : "Only a single bucket is mocked";
+        return blobsMap.remove(blobName) != null;
+    }
+
+    @Override
+    public boolean delete(BlobId blob, BlobSourceOption... options) {
+        return delete(blob.getBucket(), blob.getName());
+    }
+
+    @Override
+    public boolean delete(BlobId blob) {
+        return delete(blob.getBucket(), blob.getName());
+    }
+
+    @Override
+    public Blob compose(ComposeRequest composeRequest) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public CopyWriter copy(CopyRequest copyRequest) {
+        assert copyRequest.getSource().getBucket().equals(this.theBucket.getName()) : "Only a single bucket is mocked";
+        assert copyRequest.getTarget().getBucket().equals(this.theBucket.getName()) : "Only a single bucket is mocked";
+        final Blob sourceBlob = blobsMap.get(copyRequest.getSource().getName());
+        return sourceBlob.copyTo(copyRequest.getTarget().getBucket(), copyRequest.getTarget().getName());
+    }
+
+    @Override
+    public byte[] readAllBytes(String bucketName, String blobName, BlobSourceOption... options) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public byte[] readAllBytes(BlobId blob, BlobSourceOption... options) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public StorageBatch batch() {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public ReadChannel reader(String bucket, String blob, BlobSourceOption... options) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public ReadChannel reader(BlobId blob, BlobSourceOption... options) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public WriteChannel writer(BlobInfo blobInfo, BlobWriteOption... options) {
+        assert blobInfo.getBucket().equals(this.theBucket.getName()) : "Only a single bucket is mocked";
+        final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        return new WriteChannel() {
+            private boolean isOpenFlag = true;
+
+            @Override
+            public boolean isOpen() {
+                return isOpenFlag;
+            }
+
+            @Override
+            public void close() throws IOException {
+                constructMockBlob(blobInfo.getName(), baos.toByteArray(), blobsMap);
+                isOpenFlag = false;
+            }
+
+            @Override
+            public int write(ByteBuffer src) throws IOException {
+                final int size1 = baos.size();
+                while (src.hasRemaining()) {
+                    baos.write(src.get());
+                }
+                final int size2 = baos.size();
+                return size2 - size1;
+            }
+
+            @Override
+            public void setChunkSize(int chunkSize) {
+            }
+
+            @Override
+            public RestorableState<WriteChannel> capture() {
+                return null;
+            }
+        };
+    }
+
+    @Override
+    public URL signUrl(BlobInfo blobInfo, long duration, TimeUnit unit, SignUrlOption... options) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public List<Blob> get(BlobId... blobIds) {
+        final List<Blob> ans = new ArrayList<>();
+        for (final BlobId blobId : blobIds) {
+            ans.add(get(blobId));
+        }
+        return ans;
+    }
+
+    @Override
+    public List<Blob> get(Iterable<BlobId> blobIds) {
+        final List<Blob> ans = new ArrayList<>();
+        for (final BlobId blobId : blobIds) {
+            ans.add(get(blobId));
+        }
+        return ans;
+    }
+
+    @Override
+    public List<Blob> update(BlobInfo... blobInfos) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public List<Blob> update(Iterable<BlobInfo> blobInfos) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public List<Boolean> delete(BlobId... blobIds) {
+        final List<Boolean> ans = new ArrayList<>();
+        for (final BlobId blobId : blobIds) {
+            ans.add(delete(blobId));
+        }
+        return ans;
+    }
+
+    @Override
+    public List<Boolean> delete(Iterable<BlobId> blobIds) {
+        final List<Boolean> ans = new ArrayList<>();
+        for (final BlobId blobId : blobIds) {
+            ans.add(delete(blobId));
+        }
+        return ans;
+    }
+
+    @Override
+    public Acl getAcl(String bucket, Entity entity, BucketSourceOption... options) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public Acl getAcl(String bucket, Entity entity) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public boolean deleteAcl(String bucket, Entity entity, BucketSourceOption... options) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public boolean deleteAcl(String bucket, Entity entity) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public Acl createAcl(String bucket, Acl acl, BucketSourceOption... options) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public Acl createAcl(String bucket, Acl acl) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public Acl updateAcl(String bucket, Acl acl, BucketSourceOption... options) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public Acl updateAcl(String bucket, Acl acl) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public List<Acl> listAcls(String bucket, BucketSourceOption... options) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public List<Acl> listAcls(String bucket) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public Acl getDefaultAcl(String bucket, Entity entity) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public boolean deleteDefaultAcl(String bucket, Entity entity) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public Acl createDefaultAcl(String bucket, Acl acl) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public Acl updateDefaultAcl(String bucket, Acl acl) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public List<Acl> listDefaultAcls(String bucket) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public Acl getAcl(BlobId blob, Entity entity) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public boolean deleteAcl(BlobId blob, Entity entity) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public Acl createAcl(BlobId blob, Acl acl) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public Acl updateAcl(BlobId blob, Acl acl) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public List<Acl> listAcls(BlobId blob) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public Policy getIamPolicy(String bucket, BucketSourceOption... options) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public Policy setIamPolicy(String bucket, Policy policy, BucketSourceOption... options) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public List<Boolean> testIamPermissions(String bucket, List<String> permissions, BucketSourceOption... options) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    @Override
+    public ServiceAccount getServiceAccount(String projectId) {
+        throw new RuntimeException("Mock not implemented");
+    }
+
+    private static class ReadChannelFromByteArray implements ReadChannel {
+        private boolean isOpenFlag;
+        private final ByteBuffer byteBuffer;
+
+        ReadChannelFromByteArray(byte[] srcArray) {
+            final byte[] clonedArray = Arrays.copyOf(srcArray, srcArray.length);
+            byteBuffer = ByteBuffer.wrap(clonedArray);
+            isOpenFlag = byteBuffer.hasRemaining();
+        }
+
+        @Override
+        public boolean isOpen() {
+            return isOpenFlag;
+        }
+
+        @Override
+        public int read(ByteBuffer dst) throws IOException {
+            final int size1 = dst.remaining();
+            while (dst.hasRemaining() && byteBuffer.hasRemaining()) {
+                dst.put(byteBuffer.get());
+            }
+            final int size2 = dst.remaining();
+            return size1 - size2;
+        }
+
+        @Override
+        public void setChunkSize(int chunkSize) {
+        }
+
+        @Override
+        public void seek(long position) throws IOException {
+            byteBuffer.position(Math.toIntExact(position));
+        }
+
+        @Override
+        public void close() {
+            isOpenFlag = false;
+        }
+
+        @Override
+        public RestorableState<ReadChannel> capture() {
+            return null;
         }
     }
+
+    private static Blob constructMockBlob(String blobName, byte[] data, ConcurrentMap<String, Blob> blobsMap) {
+        final Blob blobMock = mock(Blob.class);
+        when(blobMock.getName()).thenReturn(blobName);
+        when(blobMock.getSize()).thenReturn((long) data.length);
+        when(blobMock.reload(Matchers.anyVararg())).thenReturn(blobMock);
+        when(blobMock.reader(Matchers.anyVararg())).thenReturn(new ReadChannelFromByteArray(data));
+        when(blobMock.copyTo(Matchers.anyString(), Matchers.anyVararg()))
+                .thenThrow(new RuntimeException("Mock not implemented. Only a single bucket is mocked."));
+        doAnswer(invocation -> {
+            final String copiedBlobName = (String) invocation.getArguments()[1];
+            final Blob copiedMockBlob = constructMockBlob(copiedBlobName, data, blobsMap);
+            final CopyWriter ans = mock(CopyWriter.class);
+            when(ans.getResult()).thenReturn(copiedMockBlob);
+            when(ans.isDone()).thenReturn(true);
+            return ans;
+        }).when(blobMock.copyTo(Matchers.anyString(), Matchers.anyString(), Matchers.anyVararg()));
+        doAnswer(invocation -> {
+            final BlobId blobId = (BlobId) invocation.getArguments()[0];
+            final Blob copiedMockBlob = constructMockBlob(blobId.getName(), data, blobsMap);
+            final CopyWriter ans = mock(CopyWriter.class);
+            when(ans.getResult()).thenReturn(copiedMockBlob);
+            when(ans.isDone()).thenReturn(true);
+            return ans;
+        }).when(blobMock.copyTo(Matchers.any(BlobId.class), Matchers.anyVararg()));
+        blobsMap.put(blobName, blobMock);
+        return blobMock;
+    }
+
 }

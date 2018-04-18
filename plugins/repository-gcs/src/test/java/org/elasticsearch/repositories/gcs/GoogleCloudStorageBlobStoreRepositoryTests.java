@@ -19,7 +19,9 @@
 
 package org.elasticsearch.repositories.gcs;
 
-import com.google.api.services.storage.Storage;
+import com.google.cloud.storage.Blob;
+import com.google.cloud.storage.Storage;
+
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -43,7 +45,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
 
     // Static list of blobs shared among all nodes in order to act like a remote repository service:
     // all nodes must see the same content
-    private static final ConcurrentMap<String, byte[]> blobs = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<String, Blob> blobs = new ConcurrentHashMap<>();
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

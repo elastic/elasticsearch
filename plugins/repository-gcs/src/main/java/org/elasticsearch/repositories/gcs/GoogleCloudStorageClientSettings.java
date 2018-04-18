@@ -107,7 +107,8 @@ public class GoogleCloudStorageClientSettings {
     private final String applicationName;
 
     GoogleCloudStorageClientSettings(final ServiceAccountCredentials credential,
-            final String host, final String projectId,
+                                     final String host,
+                                     final String projectId,
                                      final TimeValue connectTimeout,
                                      final TimeValue readTimeout,
                                      final String applicationName) {

@@ -280,9 +280,6 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
         SocketAccess.doPrivilegedVoidIOException(() -> {
             // There's no atomic "move" in GCS so we need to copy and delete
             final CopyWriter copyWriter = storage.copy(request);
-            while (!copyWriter.isDone()) {
-                copyWriter.copyChunk();
-            }
             final Blob destBlob = copyWriter.getResult();
             final boolean deleted = storage.delete(sourceBlobId);
             if ((deleted == false) || (destBlob.reload() == null)) {

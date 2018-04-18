@@ -5,9 +5,11 @@ Elasticsearch is provided as a `.zip` and as a `.tar.gz` package.  These
 packages can be used to install Elasticsearch on any system and are the
 easiest package format to use when trying out Elasticsearch.
 
-These packages contain both open source and commercial features. All free 
-features are included and enabled by default and do not expire. You can try 
-additional commercial features with a trial license. For more information, see {xpack-ref}/license-management.html[License Management]. 
+These packages contain both open source and commercial features. 
+{xpack-ref}/license-management.html[Start a 30-day trial license] to enable all 
+of the available commercial features. See the 
+https://www.elastic.co/subscriptions[Subscriptions] page for information about 
+Elastic license levels.
 
 The latest stable version of Elasticsearch can be found on the
 link:/downloads/elasticsearch[Download Elasticsearch] page.
@@ -44,8 +46,7 @@ cd elasticsearch-{version}/ <2>
     `elasticsearch-{version}.zip: OK`.
 <2> This directory is known as `$ES_HOME`.
 
-To obtain only open source {es} features, use the following link:
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}.zip
+You can download the open source distribution of Elasticsearch from: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}.zip
 
 endif::[]
 
@@ -75,8 +76,7 @@ cd elasticsearch-{version}/ <2>
     `elasticsearch-{version}.tar.gz: OK`.
 <2> This directory is known as `$ES_HOME`.
 
-To obtain only open source {es} features, use the following link:
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}.tar.gz
+You can download the open source distribution of Elasticsearch from: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}.zip
 
 endif::[]
 

@@ -81,7 +81,7 @@ public final class EngineConfig {
     private final CircuitBreakerService circuitBreakerService;
     private final LongSupplier globalCheckpointSupplier;
     private final LongSupplier primaryTermSupplier;
-    private final MetaDocSupplier metaDocSupplier;
+    private final TombstoneDocSupplier tombstoneDocSupplier;
 
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
@@ -129,7 +129,7 @@ public final class EngineConfig {
                         List<ReferenceManager.RefreshListener> internalRefreshListener, Sort indexSort,
                         TranslogRecoveryRunner translogRecoveryRunner, CircuitBreakerService circuitBreakerService,
                         LongSupplier globalCheckpointSupplier, LongSupplier primaryTermSupplier,
-                        MetaDocSupplier metaDocSupplier) {
+                        TombstoneDocSupplier tombstoneDocSupplier) {
         this.shardId = shardId;
         this.allocationId = allocationId;
         this.indexSettings = indexSettings;
@@ -157,7 +157,7 @@ public final class EngineConfig {
         this.circuitBreakerService = circuitBreakerService;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.primaryTermSupplier = primaryTermSupplier;
-        this.metaDocSupplier = metaDocSupplier;
+        this.tombstoneDocSupplier = tombstoneDocSupplier;
     }
 
     /**
@@ -369,15 +369,15 @@ public final class EngineConfig {
     }
 
     @FunctionalInterface
-    public interface MetaDocSupplier {
+    public interface TombstoneDocSupplier {
         /**
-         * Creates a meta document that only includes uid, seq#, term and version fields.
+         * Creates a tombstone document that only includes uid, seq#, term and version fields.
          * The returned document should exclude source, routing and other metadata fields.
          */
-        ParseContext.Document newMetaDoc(String type, String id, long seqno, long primaryTerm, long version);
+        ParseContext.Document newTombstoneDoc(String type, String id, long seqno, long primaryTerm, long version);
     }
 
-    public MetaDocSupplier getMetaDocSupplier() {
-        return metaDocSupplier;
+    public TombstoneDocSupplier getTombstoneDocSupplier() {
+        return tombstoneDocSupplier;
     }
 }

@@ -119,7 +119,6 @@ import org.elasticsearch.index.translog.SnapshotMatchers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 
@@ -1274,7 +1273,6 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(indexResult.getVersion(), equalTo(1L));
     }
 
-    @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/LUCENE-8256")
     public void testForceMerge() throws IOException {
         try (Store store = createStore();
              Engine engine = createEngine(config(defaultSettings, store, createTempDir(),
@@ -2585,7 +2583,7 @@ public class InternalEngineTests extends EngineTestCase {
                 new CodecService(null, logger), config.getEventListener(), IndexSearcher.getDefaultQueryCache(),
                 IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5),
                 config.getExternalRefreshListener(), config.getInternalRefreshListener(), null, config.getTranslogRecoveryRunner(),
-                new NoneCircuitBreakerService(), () -> SequenceNumbers.UNASSIGNED_SEQ_NO, primaryTerm::get, EngineTestCase::newMetaDoc);
+                new NoneCircuitBreakerService(), () -> SequenceNumbers.UNASSIGNED_SEQ_NO, primaryTerm::get, EngineTestCase::newTombstoneDoc);
         try {
             InternalEngine internalEngine = new InternalEngine(brokenConfig);
             fail("translog belongs to a different engine");

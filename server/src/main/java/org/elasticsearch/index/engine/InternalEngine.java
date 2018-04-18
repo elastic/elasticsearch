@@ -1221,7 +1221,7 @@ public class InternalEngine extends Engine {
                 // any exception that comes from this is a either an ACE or a fatal exception there
                 // can't be any document failures  coming from this
                 if (softDeleteEnabled) {
-                    final ParseContext.Document tombstone = engineConfig.getMetaDocSupplier().newMetaDoc(
+                    final ParseContext.Document tombstone = engineConfig.getTombstoneDocSupplier().newTombstoneDoc(
                         delete.type(), delete.id(), plan.seqNoOfDeletion, delete.primaryTerm(), plan.versionOfDeletion);
                     tombstone.add(softDeleteField);
                     indexWriter.softUpdateDocument(delete.uid(), tombstone, softDeleteField);

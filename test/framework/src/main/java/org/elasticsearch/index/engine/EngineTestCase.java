@@ -188,7 +188,7 @@ public abstract class EngineTestCase extends ESTestCase {
             new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
             config.getTranslogConfig(), config.getFlushMergesAfter(),
             config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(), config.getTranslogRecoveryRunner(),
-            config.getCircuitBreakerService(), globalCheckpointSupplier, config.getPrimaryTermSupplier(), EngineTestCase::newMetaDoc);
+            config.getCircuitBreakerService(), globalCheckpointSupplier, config.getPrimaryTermSupplier(), EngineTestCase::newTombstoneDoc);
     }
 
     public EngineConfig copy(EngineConfig config, Analyzer analyzer) {
@@ -198,7 +198,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 config.getTranslogConfig(), config.getFlushMergesAfter(),
                 config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(), config.getTranslogRecoveryRunner(),
                 config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.getPrimaryTermSupplier(),
-                config.getMetaDocSupplier());
+                config.getTombstoneDocSupplier());
     }
 
     @Override
@@ -254,9 +254,9 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     /**
-     * Creates an empty document that only includes uid, seq#, term and version fields.
+     * Creates a tombstone document that only includes uid, seq#, term and version fields.
      */
-    public static ParseContext.Document newMetaDoc(String type, String id, long seqno, long primaryTerm, long version) {
+    public static ParseContext.Document newTombstoneDoc(String type, String id, long seqno, long primaryTerm, long version) {
         final ParseContext.Document document = new ParseContext.Document();
         SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         seqID.seqNo.setLongValue(seqno);
@@ -478,7 +478,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 new NoneCircuitBreakerService(),
                 globalCheckpointSupplier == null ?
                     new ReplicationTracker(shardId, allocationId.getId(), indexSettings, SequenceNumbers.NO_OPS_PERFORMED) :
-                    globalCheckpointSupplier, primaryTerm::get, EngineTestCase::newMetaDoc);
+                    globalCheckpointSupplier, primaryTerm::get, EngineTestCase::newTombstoneDoc);
         return config;
     }
 

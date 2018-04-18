@@ -93,7 +93,7 @@ the highlighted documents. This is important if you have large fields because
 it doesn't require reanalyzing the text to be highlighted. It also requires less
 disk space than using `term_vectors`.
 
-* Term vectors. If `term_vector` information is provided by setting 
+* Term vectors. If `term_vector` information is provided by setting
 `term_vector` to `with_positions_offsets` in the mapping, the `unified`
 highlighter automatically uses the `term_vector` to highlight the field.
 It's fast especially for large fields (> `1MB`) and for highlighting multi-term queries like
@@ -132,7 +132,7 @@ the `fvh` highlighter.
 boundaries.  The `boundary_max_scan` setting controls how far to scan for
 boundary characters. Only valid for the `fvh` highlighter.
 `sentence`::: Break highlighted fragments at the next sentence boundary, as
-determined by Java's 
+determined by Java's
 https://docs.oracle.com/javase/8/docs/api/java/text/BreakIterator.html[BreakIterator].
 You can specify the locale to use with `boundary_scanner_locale`.
 +
@@ -943,8 +943,4 @@ If the `number_of_fragments` option is set to `0`,
 This is useful for highlighting the entire contents of a document or field.
 
 
-[[highlighter-internal]]
-==== How highlighters work internally
-
-To learn how highlighters work internally check the document
-<<highlighter-internal-work, How highlighters work internally>>.
+include::highlighters-internal.asciidoc[]

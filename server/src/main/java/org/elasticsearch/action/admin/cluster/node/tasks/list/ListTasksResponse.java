@@ -77,8 +77,10 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
             constructingObjects -> {
                 int i = 0;
                 @SuppressWarnings("unchecked") List<TaskInfo> tasks = (List<TaskInfo>) constructingObjects[i++];
-                @SuppressWarnings("unchecked") List<TaskOperationFailure> tasksFailures = (List<TaskOperationFailure>) constructingObjects[i++];
-                @SuppressWarnings("unchecked") List<ElasticsearchException> nodeFailures = (List<ElasticsearchException>) constructingObjects[i];
+                @SuppressWarnings("unchecked") List<TaskOperationFailure> tasksFailures =
+                        (List<TaskOperationFailure>) constructingObjects[i++];
+                @SuppressWarnings("unchecked") List<ElasticsearchException> nodeFailures =
+                        (List<ElasticsearchException>) constructingObjects[i];
                 return new ListTasksResponse(tasks, tasksFailures, nodeFailures);
             });
 

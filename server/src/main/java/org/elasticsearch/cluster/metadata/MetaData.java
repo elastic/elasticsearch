@@ -833,7 +833,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             this.indices = ImmutableOpenMap.builder(metaData.indices);
             this.templates = ImmutableOpenMap.builder(metaData.templates);
             this.customs = ImmutableOpenMap.builder(metaData.customs);
-            this.aliasAndIndexLookup = metaData.aliasAndIndexLookup;
+            this.aliasAndIndexLookup = new TreeMap<>(metaData.aliasAndIndexLookup);
         }
 
         public Builder put(IndexMetaData.Builder indexMetaDataBuilder) {

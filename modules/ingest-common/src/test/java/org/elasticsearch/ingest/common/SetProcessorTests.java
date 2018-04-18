@@ -102,7 +102,7 @@ public class SetProcessorTests extends ESTestCase {
     }
 
     public void testSetMetadataExceptVersion() throws Exception {
-        MetaData randomMetaData = randomFrom(MetaData.INDEX, MetaData.TYPE, MetaData.ID, MetaData.ROUTING, MetaData.PARENT);
+        MetaData randomMetaData = randomFrom(MetaData.INDEX, MetaData.TYPE, MetaData.ID, MetaData.ROUTING);
         Processor processor = createSetProcessor(randomMetaData.getFieldName(), "_value", true);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);

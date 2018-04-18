@@ -19,11 +19,9 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
@@ -57,7 +55,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -78,12 +75,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
-import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -475,9 +471,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                 // now, update the mappings with the actual source
                 Map<String, MappingMetaData> mappingsMetaData = new HashMap<>();
-                for (DocumentMapper mapper : mapperService.docMappers(true)) {
-                    MappingMetaData mappingMd = new MappingMetaData(mapper);
-                    mappingsMetaData.put(mapper.type(), mappingMd);
+                for (DocumentMapper mapper : Arrays.asList(mapperService.documentMapper(), mapperService.documentMapper(MapperService.DEFAULT_MAPPING))) {
+                    if (mapper != null) {
+                        MappingMetaData mappingMd = new MappingMetaData(mapper);
+                        mappingsMetaData.put(mapper.type(), mappingMd);
+                    }
                 }
 
                 final IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(request.index())

@@ -136,8 +136,8 @@ public class IndexingOperationListenerTests extends ESTestCase{
         IndexingOperationListener.CompositeListener compositeListener =
             new IndexingOperationListener.CompositeListener(indexingOperationListeners, logger);
         ParsedDocument doc = InternalEngineTests.createParsedDoc("1", null);
-        Engine.Delete delete = new Engine.Delete("test", "1", new Term("_uid", Uid.createUidAsBytes(doc.type(), doc.id())));
-        Engine.Index index = new Engine.Index(new Term("_uid", Uid.createUidAsBytes(doc.type(), doc.id())), doc);
+        Engine.Delete delete = new Engine.Delete("test", "1", new Term("_id", Uid.encodeId(doc.id())), randomNonNegativeLong());
+        Engine.Index index = new Engine.Index(new Term("_id", Uid.encodeId(doc.id())), randomNonNegativeLong(), doc);
         compositeListener.postDelete(randomShardId, delete, new Engine.DeleteResult(1, SequenceNumbers.UNASSIGNED_SEQ_NO, true));
         assertEquals(0, preIndex.get());
         assertEquals(0, postIndex.get());

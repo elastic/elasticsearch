@@ -21,13 +21,9 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.collect.Tuple;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 

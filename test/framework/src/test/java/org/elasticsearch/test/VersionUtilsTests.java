@@ -315,14 +315,12 @@ public class VersionUtilsTests extends ESTestCase {
 
     public void testIncorrectCurrentVersion() {
         Version previousVersion = TestIncorrectCurrentVersion.V_5_4_0;
-        try {
-            VersionUtils.resolveReleasedVersions(previousVersion, TestIncorrectCurrentVersion.class);
-            fail(); // Fail if there's no error, as we expect an assertion failure.
-        } catch (AssertionError e) {
-            String message = e.getMessage();
-            assertThat(message, containsString(previousVersion.toString()));
-            assertThat(message, containsString(TestIncorrectCurrentVersion.CURRENT.toString()));
-        }
+        AssertionError error = expectThrows(AssertionError.class, () ->
+            VersionUtils.resolveReleasedVersions(previousVersion, TestIncorrectCurrentVersion.class));
+
+        String message = error.getMessage();
+        assertThat(message, containsString(TestIncorrectCurrentVersion.CURRENT.toString()));
+        assertThat(message, containsString(previousVersion.toString()));
     }
 
     /**

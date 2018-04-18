@@ -33,7 +33,7 @@
 
   - do:
       cat.thread_pool:
-          thread_pool_patterns: bulk,management,flush,index,generic,force_merge
+          thread_pool_patterns: bulk,management,flush,generic,force_merge
           h: id,name,active
           v: true
 
@@ -44,7 +44,6 @@
                    \S+\s+ flush       \s+ \d+    \n
                    \S+\s+ force_merge \s+ \d+    \n
                    \S+\s+ generic     \s+ \d+    \n
-                   \S+\s+ index       \s+ \d+    \n
                    \S+\s+ management  \s+ \d+    \n)+  $/
 
   - do:
@@ -72,12 +71,11 @@
 
   - do:
       cat.thread_pool:
-          thread_pool_patterns: bulk,index,search
+          thread_pool_patterns: bulk,search
           size: ""
 
   - match:
       $body: |
                /  #node_name     name       active     queue     rejected
                ^  (\S+       \s+ bulk   \s+ \d+    \s+ \d+   \s+ \d+      \n
-                   \S+       \s+ index  \s+ \d+    \s+ \d+   \s+ \d+      \n
                    \S+       \s+ search \s+ \d+    \s+ \d+   \s+ \d+      \n)+  $/

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline.moving.avg;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;

@@ -64,6 +64,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -188,7 +189,7 @@ public abstract class EngineTestCase extends ESTestCase {
             new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
             config.getTranslogConfig(), config.getFlushMergesAfter(),
             config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(), config.getTranslogRecoveryRunner(),
-            config.getCircuitBreakerService(), globalCheckpointSupplier, config.getPrimaryTermSupplier(), EngineTestCase::newTombstoneDoc);
+            config.getCircuitBreakerService(), globalCheckpointSupplier, config.getPrimaryTermSupplier(), EngineTestCase::createTombstoneDoc);
     }
 
     public EngineConfig copy(EngineConfig config, Analyzer analyzer) {
@@ -256,18 +257,18 @@ public abstract class EngineTestCase extends ESTestCase {
     /**
      * Creates a tombstone document that only includes uid, seq#, term and version fields.
      */
-    public static ParseContext.Document newTombstoneDoc(String type, String id, long seqno, long primaryTerm, long version) {
+    public static ParsedDocument createTombstoneDoc(String type, String id) {
         final ParseContext.Document document = new ParseContext.Document();
+        Field uidField = new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE);
+        document.add(uidField);
+        Field versionField = new NumericDocValuesField(VersionFieldMapper.NAME, 0);
+        document.add(versionField);
         SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
-        seqID.seqNo.setLongValue(seqno);
-        seqID.seqNoDocValue.setLongValue(seqno);
-        seqID.primaryTerm.setLongValue(primaryTerm);
         document.add(seqID.seqNo);
         document.add(seqID.seqNoDocValue);
         document.add(seqID.primaryTerm);
-        document.add(new Field("_id", Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE));
-        document.add(new NumericDocValuesField("_version", version));
-        return document;
+        return new ParsedDocument(versionField, seqID, id, type, null, Collections.singletonList(document),
+            new BytesArray("{}"), XContentType.JSON, null);
     }
 
     protected Store createStore() throws IOException {
@@ -478,7 +479,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 new NoneCircuitBreakerService(),
                 globalCheckpointSupplier == null ?
                     new ReplicationTracker(shardId, allocationId.getId(), indexSettings, SequenceNumbers.NO_OPS_PERFORMED) :
-                    globalCheckpointSupplier, primaryTerm::get, EngineTestCase::newTombstoneDoc);
+                    globalCheckpointSupplier, primaryTerm::get, EngineTestCase::createTombstoneDoc);
         return config;
     }
 

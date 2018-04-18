@@ -19,12 +19,9 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
@@ -78,8 +75,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
-import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
@@ -89,11 +86,8 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
@@ -154,14 +148,12 @@ import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
@@ -2296,7 +2288,6 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(sourceShard, targetShard);
     }
 
-//    @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/LUCENE-8256")
     public void testDocStats() throws IOException {
         IndexShard indexShard = null;
         try {
@@ -2977,12 +2968,13 @@ public class IndexShardTests extends IndexShardTestCase {
         for (Thread t : threads) {
             t.join();
         }
-        // Close remaining searchers
-        IOUtils.close(searchers);
 
         // We need to wait for all ongoing merges to complete. The reason is that during a merge the
         // IndexWriter holds the core cache key open and causes the memory to be registered in the breaker
         primary.forceMerge(new ForceMergeRequest().maxNumSegments(1).flush(true));
+
+        // Close remaining searchers
+        IOUtils.close(searchers);
         primary.refresh("test");
 
         SegmentsStats ss = primary.segmentStats(randomBoolean());
@@ -3067,29 +3059,5 @@ public class IndexShardTests extends IndexShardTestCase {
             assertTrue(segment.search);
         }
         closeShards(primary);
-    }
-
-    public void testCreateMetaDoc() throws Exception {
-        IndexShard shard = newStartedShard();
-        long seqNo = randomNonNegativeLong();
-        long primaryTerm = randomNonNegativeLong();
-        long version = randomNonNegativeLong();
-        String id = randomRealisticUnicodeOfLengthBetween(1, 100);
-        ParseContext.Document doc = shard.getEngine().config().getTombstoneDocSupplier().newTombstoneDoc("_doc", id, seqNo, primaryTerm, version);
-        assertThat(doc.getFields(), hasSize(5));
-        assertThat(doc.getField(SeqNoFieldMapper.PRIMARY_TERM_NAME).numericValue().longValue(), equalTo(primaryTerm));
-        assertThat(doc.getField(VersionFieldMapper.NAME).numericValue().longValue(), equalTo(version));
-        assertThat(doc.getField(IdFieldMapper.NAME).binaryValue(), equalTo(Uid.encodeId(id)));
-        IndexableField[] seqNoFields = doc.getFields(SeqNoFieldMapper.NAME);
-        assertThat(seqNoFields, arrayWithSize(2));
-        if (seqNoFields[0] instanceof LongPoint) {
-            assertThat(seqNoFields[1], instanceOf(NumericDocValuesField.class));
-        } else {
-            assertThat(seqNoFields[0], instanceOf(NumericDocValuesField.class));
-            assertThat(seqNoFields[1], instanceOf(LongPoint.class));
-        }
-        assertThat(seqNoFields[0].numericValue().longValue(), equalTo(seqNo));
-        assertThat(seqNoFields[1].numericValue().longValue(), equalTo(seqNo));
-        closeShards(shard);
     }
 }

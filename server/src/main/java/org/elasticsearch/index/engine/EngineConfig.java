@@ -34,7 +34,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -370,11 +370,7 @@ public final class EngineConfig {
 
     @FunctionalInterface
     public interface TombstoneDocSupplier {
-        /**
-         * Creates a tombstone document that only includes uid, seq#, term and version fields.
-         * The returned document should exclude source, routing and other metadata fields.
-         */
-        ParseContext.Document newTombstoneDoc(String type, String id, long seqno, long primaryTerm, long version);
+        ParsedDocument newTombstoneDoc(String type, String id);
     }
 
     public TombstoneDocSupplier getTombstoneDocSupplier() {

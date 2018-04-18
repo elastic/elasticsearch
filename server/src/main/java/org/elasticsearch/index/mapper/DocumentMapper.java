@@ -39,12 +39,15 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 
@@ -122,6 +125,7 @@ public class DocumentMapper implements ToXContentFragment {
     private final Map<String, ObjectMapper> objectMappers;
 
     private final boolean hasNestedObjects;
+    private final MetadataFieldMapper[] tombstoneMetadataFieldMappers;
 
     public DocumentMapper(MapperService mapperService, Mapping mapping) {
         this.mapperService = mapperService;
@@ -130,6 +134,10 @@ public class DocumentMapper implements ToXContentFragment {
         final IndexSettings indexSettings = mapperService.getIndexSettings();
         this.mapping = mapping;
         this.documentParser = new DocumentParser(indexSettings, mapperService.documentMapperParser(), this);
+        final Collection<String> tombstoneFields =
+            Arrays.asList(SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME, VersionFieldMapper.NAME, IdFieldMapper.NAME);
+        this.tombstoneMetadataFieldMappers = Stream.of(mapping.metadataMappers)
+            .filter(field -> tombstoneFields.contains(field.name())).toArray(MetadataFieldMapper[]::new);
 
         // collect all the mappers for this type
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
@@ -241,7 +249,11 @@ public class DocumentMapper implements ToXContentFragment {
     }
 
     public ParsedDocument parse(SourceToParse source) throws MapperParsingException {
-        return documentParser.parseDocument(source);
+        return documentParser.parseDocument(source, mapping.metadataMappers);
+    }
+
+    public ParsedDocument createTombstoneDoc(SourceToParse source) throws MapperParsingException {
+        return documentParser.parseDocument(source, tombstoneMetadataFieldMappers);
     }
 
     /**

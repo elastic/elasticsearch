@@ -63,6 +63,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -1221,10 +1222,13 @@ public class InternalEngine extends Engine {
                 // any exception that comes from this is a either an ACE or a fatal exception there
                 // can't be any document failures  coming from this
                 if (softDeleteEnabled) {
-                    final ParseContext.Document tombstone = engineConfig.getTombstoneDocSupplier().newTombstoneDoc(
-                        delete.type(), delete.id(), plan.seqNoOfDeletion, delete.primaryTerm(), plan.versionOfDeletion);
-                    tombstone.add(softDeleteField);
-                    indexWriter.softUpdateDocument(delete.uid(), tombstone, softDeleteField);
+                    final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newTombstoneDoc(delete.type(), delete.id());
+                    assert tombstone.docs().size() == 1 : "Tombstone doc should have single doc [" + tombstone + "]";
+                    tombstone.updateSeqID(plan.seqNoOfDeletion, delete.primaryTerm());
+                    tombstone.version().setLongValue(plan.versionOfDeletion);
+                    final ParseContext.Document doc = tombstone.docs().get(0);
+                    doc.add(softDeleteField);
+                    indexWriter.softUpdateDocument(delete.uid(), doc, softDeleteField);
                 } else {
                     indexWriter.deleteDocuments(delete.uid());
                 }

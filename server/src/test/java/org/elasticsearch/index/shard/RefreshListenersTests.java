@@ -132,7 +132,7 @@ public class RefreshListenersTests extends ESTestCase {
             eventListener, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
             TimeValue.timeValueMinutes(5), Collections.singletonList(listeners), Collections.emptyList(), null,
             (e, s) -> 0, new NoneCircuitBreakerService(), () -> SequenceNumbers.NO_OPS_PERFORMED, () -> primaryTerm,
-            EngineTestCase::newTombstoneDoc);
+            EngineTestCase::createTombstoneDoc);
         engine = new InternalEngine(config);
         engine.recoverFromTranslog();
         listeners.setTranslog(engine.getTranslog());

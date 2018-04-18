@@ -9,6 +9,12 @@ TIP: Elasticsearch has historically been installed on Windows using the `.zip` a
 An <<windows, MSI installer package>> is available that provides the easiest getting started
 experience for Windows. You can continue using the `.zip` approach if you prefer.
 
+This package contains both open source and commercial features. 
+{xpack-ref}/license-management.html[Start a 30-day trial license] to enable all 
+of the available commercial features. See the 
+https://www.elastic.co/subscriptions[Subscriptions] page for information about 
+Elastic license levels.
+
 The latest stable version of Elasticsearch can be found on the
 link:/downloads/elasticsearch[Download Elasticsearch] page.
 Other versions can be found on the

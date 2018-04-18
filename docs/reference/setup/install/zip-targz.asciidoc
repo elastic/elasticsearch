@@ -76,7 +76,7 @@ cd elasticsearch-{version}/ <2>
     `elasticsearch-{version}.tar.gz: OK`.
 <2> This directory is known as `$ES_HOME`.
 
-You can download the open source distribution of Elasticsearch from: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}.zip
+You can download the open source distribution of Elasticsearch from: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}.tar.gz
 
 endif::[]
 

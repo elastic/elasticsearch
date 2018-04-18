@@ -1,0 +1,27 @@
+[[release-notes-5.6.9]]
+== 5.6.9 Release Notes
+
+Also see <<breaking-changes-5.6>>.
+
+[[bug-5.6.9]]
+[float]
+=== Bug fixes
+
+Allocation::
+* Don't break allocation if resize source index is missing {pull}29311[#29311] (issue: {issue}26931[#26931])
+
+Engine::
+* Avoid class cast exception from index writer {pull}28989[#28989]
+* Maybe die before failing engine {pull}28973[#28973] (issues: {issue}27265[#27265], {issue}28967[#28967])
+
+Java High Level REST Client::
+* REST high-level client: encode path parts {pull}28663[#28663] (issue: {issue}28625[#28625])
+
+Network::
+* Call addBytesSent with correct number of bytes {pull}29194[#29194] (issue: {issue}27258[#27258])
+
+Plugins::
+* Fix upgrading indices which use a custom similarity plugin. {pull}26985[#26985] (issue: {issue}25350[#25350])
+
+
+

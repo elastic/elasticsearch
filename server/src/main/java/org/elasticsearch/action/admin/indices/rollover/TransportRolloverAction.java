@@ -109,7 +109,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         final MetaData metaData = state.metaData();
         validate(metaData, rolloverRequest);
         final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(rolloverRequest.getAlias());
-        final IndexMetaData indexMetaData = aliasOrIndex.getIndices().get(0);
+        final IndexMetaData indexMetaData = aliasOrIndex.getIndices().iterator().next();
         final String sourceProvidedName = indexMetaData.getSettings().get(IndexMetaData.SETTING_INDEX_PROVIDED_NAME,
             indexMetaData.getIndex().getName());
         final String sourceIndexName = indexMetaData.getIndex().getName();

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
@@ -71,7 +70,7 @@ public class AliasAndIndexLookupTests extends ESTestCase {
         for (ObjectCursor<AliasMetaData> cursor : indexMetaData.getAliases().values()) {
             AliasOrIndex.Alias alias = (AliasOrIndex.Alias) lookup.get(cursor.value.getAlias());
             assertThat(alias.getIndices().size(), equalTo(1));
-            assertSame(alias.getIndices().get(0), indexMetaData);
+            assertSame(alias.getIndices().iterator().next(), indexMetaData);
         }
     }
 
@@ -138,7 +137,7 @@ public class AliasAndIndexLookupTests extends ESTestCase {
         builder.removeAlias(indexName, removedAlias);
 
         SortedMap<String, AliasOrIndex> lookup = builder.build();
-        assertSame(lookup.get(indexName).getIndices().get(0), indexMetaData);
+        assertSame(lookup.get(indexName).getIndices().iterator().next(), indexMetaData);
         for (String alias : aliases) {
             if (alias.equals(removedAlias)) {
                 assertFalse(lookup.containsKey(alias));

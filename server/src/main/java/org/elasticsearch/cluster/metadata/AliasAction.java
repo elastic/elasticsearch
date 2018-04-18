@@ -158,7 +158,6 @@ public abstract class AliasAction {
             if (false == index.getAliases().containsKey(alias)) {
                 return false;
             }
-
             metadata.put(IndexMetaData.builder(index).removeAlias(alias), alias);
             return true;
         }

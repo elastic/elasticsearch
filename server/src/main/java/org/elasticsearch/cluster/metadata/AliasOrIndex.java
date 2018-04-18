@@ -22,9 +22,14 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 /**
  * Encapsulates the  {@link IndexMetaData} instances of a concrete index or indices an alias is pointing to.
@@ -39,7 +44,7 @@ public interface AliasOrIndex {
     /**
      * @return All {@link IndexMetaData} of all concrete indices this alias is referring to or if this is a concrete index its {@link IndexMetaData}
      */
-    List<IndexMetaData> getIndices();
+    Collection<IndexMetaData> getIndices();
 
     /**
      * Represents an concrete index and encapsulates its {@link IndexMetaData}
@@ -58,7 +63,7 @@ public interface AliasOrIndex {
         }
 
         @Override
-        public List<IndexMetaData> getIndices() {
+        public Collection<IndexMetaData> getIndices() {
             return Collections.singletonList(concreteIndex);
         }
 
@@ -77,12 +82,12 @@ public interface AliasOrIndex {
     class Alias implements AliasOrIndex {
 
         private final String aliasName;
-        private final List<IndexMetaData> referenceIndexMetaDatas;
+        private final SortedMap<String, IndexMetaData> referenceIndexMetaDatas;
 
         public Alias(AliasMetaData aliasMetaData, IndexMetaData indexMetaData) {
             this.aliasName = aliasMetaData.getAlias();
-            this.referenceIndexMetaDatas = new ArrayList<>();
-            this.referenceIndexMetaDatas.add(indexMetaData);
+            this.referenceIndexMetaDatas = new TreeMap<>();
+            this.referenceIndexMetaDatas.put(indexMetaData.getIndex().getName(), indexMetaData);
         }
 
         @Override
@@ -91,8 +96,8 @@ public interface AliasOrIndex {
         }
 
         @Override
-        public List<IndexMetaData> getIndices() {
-            return referenceIndexMetaDatas;
+        public Collection<IndexMetaData> getIndices() {
+            return referenceIndexMetaDatas.values();
         }
 
         /**
@@ -102,21 +107,19 @@ public interface AliasOrIndex {
          * and filters)
          */
         public Iterable<Tuple<String, AliasMetaData>> getConcreteIndexAndAliasMetaDatas() {
+            Iterator<IndexMetaData> indexMetaDataIterator = referenceIndexMetaDatas.values().iterator();
             return new Iterable<Tuple<String, AliasMetaData>>() {
                 @Override
                 public Iterator<Tuple<String, AliasMetaData>> iterator() {
                     return new Iterator<Tuple<String,AliasMetaData>>() {
-
-                        int index = 0;
-
                         @Override
                         public boolean hasNext() {
-                            return index < referenceIndexMetaDatas.size();
+                            return indexMetaDataIterator.hasNext();
                         }
 
                         @Override
                         public Tuple<String, AliasMetaData> next() {
-                            IndexMetaData indexMetaData = referenceIndexMetaDatas.get(index++);
+                            IndexMetaData indexMetaData = indexMetaDataIterator.next();
                             return new Tuple<>(indexMetaData.getIndex().getName(), indexMetaData.getAliases().get(aliasName));
                         }
 
@@ -124,27 +127,22 @@ public interface AliasOrIndex {
                         public void remove() {
                             throw new UnsupportedOperationException();
                         }
-
                     };
                 }
             };
         }
 
         public AliasMetaData getFirstAliasMetaData() {
-            return referenceIndexMetaDatas.get(0).getAliases().get(aliasName);
+            return getIndices().iterator().next().getAliases().get(aliasName);
         }
 
         void addIndex(IndexMetaData indexMetaData) {
-            this.referenceIndexMetaDatas.add(indexMetaData);
+            this.referenceIndexMetaDatas.put(indexMetaData.getIndex().getName(), indexMetaData);
         }
 
         void removeIndex(IndexMetaData indexMetaData) {
-            if (this.referenceIndexMetaDatas.contains(indexMetaData)) {
-                this.referenceIndexMetaDatas.remove(indexMetaData);
-            } else {
-                throw new IllegalStateException("Index [" + indexMetaData.getIndex().getName()
-                    + " is not referenced by aliasAlias [" + aliasName + "]. Cannot be removed");
-            }
+            String indexName = indexMetaData.getIndex().getName();
+            this.referenceIndexMetaDatas.remove(indexName);
         }
     }
 }

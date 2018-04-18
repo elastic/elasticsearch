@@ -33,8 +33,8 @@ There are several thread pools, but the important ones include:
 `analyze`::
     For analyze requests. Thread pool type is `fixed` with a size of 1, queue size of 16.
 
-`bulk`::
-    For bulk operations. Thread pool type is `fixed`
+`write`::
+    For write operations. Thread pool type is `fixed`
     with a size of `# of available processors`,
     queue_size of `200`.  The maximum size for this pool
     is `1 + # of available processors`.

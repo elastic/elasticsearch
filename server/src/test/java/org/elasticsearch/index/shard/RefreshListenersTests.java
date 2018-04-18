@@ -135,7 +135,7 @@ public class RefreshListenersTests extends ESTestCase {
             EngineTestCase::createTombstoneDoc);
         engine = new InternalEngine(config);
         engine.recoverFromTranslog();
-        listeners.setTranslog(engine.getTranslog());
+        listeners.setCurrentRefreshLocationSupplier(engine::getTranslogLastWriteLocation);
     }
 
     @After

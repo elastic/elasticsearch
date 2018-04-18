@@ -427,7 +427,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public Translog getTranslog() {
+    Translog getTranslog() {
         ensureOpen();
         return translog;
     }

@@ -643,7 +643,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             }
         }
 
-
         @Override
         public BytesRef get(int index) {
             return values[index];

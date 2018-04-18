@@ -229,7 +229,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         client().prepareIndex("test", "test", "1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
         IndexShard shard = indexService.getShard(0);
         assertBusy(() -> {
-            assertFalse(shard.getTranslog().syncNeeded());
+            assertFalse(shard.isSyncNeeded());
         });
     }
 
@@ -254,7 +254,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         client().prepareIndex("test", "test", "1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
         assertNotNull(indexService.getFsyncTask());
         final IndexShard shard = indexService.getShard(0);
-        assertBusy(() -> assertFalse(shard.getTranslog().syncNeeded()));
+        assertBusy(() -> assertFalse(shard.isSyncNeeded()));
 
         client()
                 .admin()
@@ -290,7 +290,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         indexService.updateMetaData(metaData);
 
         IndexShard shard = indexService.getShard(0);
-        assertBusy(() -> assertThat(shard.getTranslog().totalOperations(), equalTo(0)));
+        assertBusy(() -> assertThat(shard.estimateTranslogOperationsFromMinSeq(0L), equalTo(0)));
     }
 
     public void testIllegalFsyncInterval() {

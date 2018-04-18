@@ -55,7 +55,6 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
     private Settings settings = EMPTY_SETTINGS;
     private boolean preserveExisting = false;
-    private boolean flatSettings = false;
 
     public UpdateSettingsRequest() {
     }
@@ -73,29 +72,6 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
     public UpdateSettingsRequest(Settings settings, String... indices) {
         this.indices = indices;
         this.settings = settings;
-    }
-
-    /**
-     * Sets the value of "flat_settings".
-     * Used only by the high-level REST client.
-     * 
-     * @param flatSettings
-     *            value of "flat_settings" flag to be set
-     * @return this request
-     */
-    public UpdateSettingsRequest flatSettings(boolean flatSettings) {
-        this.flatSettings = flatSettings;
-        return this;
-    }
-
-    /**
-     * Return settings in flat format.
-     * Used only by the high-level REST client.
-     * 
-     * @return <code>true</code> if settings need to be returned in flat format; <code>false</code> otherwise.
-     */
-    public boolean flatSettings() {
-        return flatSettings;
     }
 
     @Override

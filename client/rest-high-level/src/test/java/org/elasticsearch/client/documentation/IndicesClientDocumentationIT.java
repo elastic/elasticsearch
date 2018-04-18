@@ -58,7 +58,6 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -114,8 +113,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.local(false); // <1>
             request.humanReadable(true); // <2>
             request.includeDefaults(false); // <3>
-            request.flatSettings(false); // <4>
-            request.indicesOptions(indicesOptions); // <5>
+            request.indicesOptions(indicesOptions); // <4>
             // end::indices-exists-request-optionals
 
             // tag::indices-exists-response
@@ -1433,9 +1431,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::put-settings-settings-source
         }
 
-        // tag::put-settings-request-flat-settings
-        request.flatSettings(true); // <1>
-        // end::put-settings-request-flat-settings
         // tag::put-settings-request-preserveExisting
         request.setPreserveExisting(false); // <1>
         // end::put-settings-request-preserveExisting

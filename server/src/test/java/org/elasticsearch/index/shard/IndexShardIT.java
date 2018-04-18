@@ -101,6 +101,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.elasticsearch.index.shard.IndexShardTestCase.getTranslog;
 
 public class IndexShardIT extends ESSingleNodeTestCase {
 
@@ -161,7 +162,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
-        Translog translog = ShardUtilsTests.getShardEngine(shard).getTranslog();
+        Translog translog = getTranslog(shard);
         Predicate<Translog> needsSync = (tlog) -> {
             // we can't use tlog.needsSync() here since it also takes the global checkpoint into account
             // we explicitly want to check here if our durability checks are taken into account so we only
@@ -337,7 +338,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             SourceToParse.source("test", "test", "1", new BytesArray("{}"), XContentType.JSON),
             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, update -> {});
         assertTrue(shard.shouldPeriodicallyFlush());
-        final Translog translog = shard.getEngine().getTranslog();
+        final Translog translog = getTranslog(shard);
         assertEquals(2, translog.stats().getUncommittedOperations());
         client().prepareIndex("test", "test", "2").setSource("{}", XContentType.JSON)
             .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
@@ -378,7 +379,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final IndexService test = indicesService.indexService(resolveIndex("test"));
         final IndexShard shard = test.getShardOrNull(0);
         int rolls = 0;
-        final Translog translog = shard.getEngine().getTranslog();
+        final Translog translog = getTranslog(shard);
         final long generation = translog.currentFileGeneration();
         final int numberOfDocuments = randomIntBetween(32, 128);
         for (int i = 0; i < numberOfDocuments; i++) {
@@ -448,11 +449,11 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 assertThat(shard.flushStats().getPeriodic(), equalTo(periodic + 1));
             };
         } else {
-            final long generation = shard.getEngine().getTranslog().currentFileGeneration();
+            final long generation = getTranslog(shard).currentFileGeneration();
             client().prepareIndex("test", "test", "1").setSource("{}", XContentType.JSON).get();
             check = () -> assertEquals(
                     generation + 1,
-                    shard.getEngine().getTranslog().currentFileGeneration());
+                    getTranslog(shard).currentFileGeneration());
         }
         assertBusy(check);
         running.set(false);

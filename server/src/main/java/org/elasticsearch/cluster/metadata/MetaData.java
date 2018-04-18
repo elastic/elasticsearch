@@ -814,12 +814,14 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         private final ImmutableOpenMap.Builder<String, IndexMetaData> indices;
         private final ImmutableOpenMap.Builder<String, IndexTemplateMetaData> templates;
         private final ImmutableOpenMap.Builder<String, Custom> customs;
+        private final SortedMap<String, AliasOrIndex> aliasAndIndexLookup;
 
         public Builder() {
             clusterUUID = "_na_";
             indices = ImmutableOpenMap.builder();
             templates = ImmutableOpenMap.builder();
             customs = ImmutableOpenMap.builder();
+            aliasAndIndexLookup = new TreeMap<>();
             indexGraveyard(IndexGraveyard.builder().build()); // create new empty index graveyard to initialize
         }
 
@@ -831,6 +833,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             this.indices = ImmutableOpenMap.builder(metaData.indices);
             this.templates = ImmutableOpenMap.builder(metaData.templates);
             this.customs = ImmutableOpenMap.builder(metaData.customs);
+            this.aliasAndIndexLookup = metaData.aliasAndIndexLookup;
         }
 
         public Builder put(IndexMetaData.Builder indexMetaDataBuilder) {
@@ -838,6 +841,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             indexMetaDataBuilder.version(indexMetaDataBuilder.version() + 1);
             IndexMetaData indexMetaData = indexMetaDataBuilder.build();
             indices.put(indexMetaData.getIndex().getName(), indexMetaData);
+            updateAliasAndIndexLookup(indexMetaData);
             return this;
         }
 
@@ -850,6 +854,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 indexMetaData = IndexMetaData.builder(indexMetaData).version(indexMetaData.getVersion() + 1).build();
             }
             indices.put(indexMetaData.getIndex().getName(), indexMetaData);
+            updateAliasAndIndexLookup(indexMetaData);
             return this;
         }
 
@@ -882,6 +887,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
         public Builder indices(ImmutableOpenMap<String, IndexMetaData> indices) {
             this.indices.putAll(indices);
+            indices.forEach(cursor -> updateAliasAndIndexLookup(cursor.value));
             return this;
         }
 
@@ -997,11 +1003,33 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             return this;
         }
 
+        public SortedMap<String, AliasOrIndex> getAliasAndIndexLookup() {
+            return aliasAndIndexLookup;
+        }
+
+        private void updateAliasAndIndexLookup(IndexMetaData indexMetaData) {
+            aliasAndIndexLookup.put(indexMetaData.getIndex().getName(), new AliasOrIndex.Index(indexMetaData));
+            for (ObjectObjectCursor<String, AliasMetaData> aliasCursor : indexMetaData.getAliases()) {
+                AliasMetaData aliasMetaData = aliasCursor.value;
+                aliasAndIndexLookup.compute(aliasMetaData.getAlias(), (aliasName, alias) -> {
+                    if (alias == null) {
+                        return new AliasOrIndex.Alias(aliasMetaData, indexMetaData);
+                    } else if (alias instanceof AliasOrIndex.Alias){
+                        ((AliasOrIndex.Alias) alias).addIndex(indexMetaData);
+                        return alias;
+                    } else {
+                        String indexName = ((AliasOrIndex.Index) alias).getIndex().getIndex().getName();
+                        throw new IllegalStateException("index and alias names need to be unique, but the following duplicate was found ["
+                            + aliasName + " (alias of [" + indexName + "])]");
+                    }
+                });
+            }
+        }
+
         public MetaData build() {
             // TODO: We should move these datastructures to IndexNameExpressionResolver, this will give the following benefits:
-            // 1) The datastructures will only be rebuilded when needed. Now during serializing we rebuild these datastructures
+            //    The datastructures will only be rebuilded when needed. Now during serializing we rebuild these datastructures
             //    while these datastructures aren't even used.
-            // 2) The aliasAndIndexLookup can be updated instead of rebuilding it all the time.
 
             final Set<String> allIndices = new HashSet<>(indices.size());
             final List<String> allOpenIndices = new ArrayList<>();
@@ -1036,27 +1064,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
             }
 
-            // build all indices map
-            SortedMap<String, AliasOrIndex> aliasAndIndexLookup = new TreeMap<>();
-            for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
-                IndexMetaData indexMetaData = cursor.value;
-                AliasOrIndex existing = aliasAndIndexLookup.put(indexMetaData.getIndex().getName(), new AliasOrIndex.Index(indexMetaData));
-                assert existing == null : "duplicate for " + indexMetaData.getIndex();
-
-                for (ObjectObjectCursor<String, AliasMetaData> aliasCursor : indexMetaData.getAliases()) {
-                    AliasMetaData aliasMetaData = aliasCursor.value;
-                    aliasAndIndexLookup.compute(aliasMetaData.getAlias(), (aliasName, alias) -> {
-                        if (alias == null) {
-                            return new AliasOrIndex.Alias(aliasMetaData, indexMetaData);
-                        } else {
-                            assert alias instanceof AliasOrIndex.Alias : alias.getClass().getName();
-                            ((AliasOrIndex.Alias) alias).addIndex(indexMetaData);
-                            return alias;
-                        }
-                    });
-                }
-            }
-            aliasAndIndexLookup = Collections.unmodifiableSortedMap(aliasAndIndexLookup);
             // build all concrete indices arrays:
             // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
             // When doing an operation across all indices, most of the time is spent on actually going to all shards and
@@ -1066,7 +1073,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             String[] allClosedIndicesArray = allClosedIndices.toArray(new String[allClosedIndices.size()]);
 
             return new MetaData(clusterUUID, version, transientSettings, persistentSettings, indices.build(), templates.build(),
-                                customs.build(), allIndicesArray, allOpenIndicesArray, allClosedIndicesArray, aliasAndIndexLookup);
+                                customs.build(), allIndicesArray, allOpenIndicesArray, allClosedIndicesArray,
+                                Collections.unmodifiableSortedMap(aliasAndIndexLookup));
         }
 
         public static String toXContent(MetaData metaData) throws IOException {

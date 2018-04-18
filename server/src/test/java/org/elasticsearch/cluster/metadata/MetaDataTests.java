@@ -60,7 +60,8 @@ public class MetaDataTests extends ESTestCase {
             MetaData.builder().put(builder).build();
             fail("exception should have been thrown");
         } catch (IllegalStateException e) {
-            assertThat(e.getMessage(), equalTo("index and alias names need to be unique, but the following duplicates were found [index (alias of [index])]"));
+            assertThat(e.getMessage(),
+                equalTo("index and alias names need to be unique, but the following duplicate was found [index (alias of [index])]"));
         }
     }
 
@@ -79,24 +80,36 @@ public class MetaDataTests extends ESTestCase {
             aliasToIndices.put(randomAlphaOfLength(5), new HashSet<>(randomSubsetOf(randomIntBetween(1, 3), indices)));
         }
         MetaData.Builder metaDataBuilder = MetaData.builder();
-        for (String index : indices) {
-            IndexMetaData.Builder indexBuilder = IndexMetaData.builder(index)
-                .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(0);
-            aliasToIndices.forEach((key, value) -> {
-                if (value.contains(index)) {
-                    indexBuilder.putAlias(AliasMetaData.builder(key).build());
-                }
-            });
-            metaDataBuilder.put(indexBuilder);
-        }
-        try {
-            metaDataBuilder.build();
-            fail("exception should have been thrown");
-        } catch (IllegalStateException e) {
-            assertThat(e.getMessage(), startsWith("index and alias names need to be unique"));
-        }
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () ->  {
+            for (String index : indices) {
+                IndexMetaData.Builder indexBuilder = IndexMetaData.builder(index)
+                    .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0);
+                aliasToIndices.forEach((key, value) -> {
+                    if (value.contains(index)) {
+                        indexBuilder.putAlias(AliasMetaData.builder(key).build());
+                    }
+                });
+                metaDataBuilder.put(indexBuilder);
+            }
+        });
+        assertThat(exception.getMessage(), startsWith("index and alias names need to be unique"));
+    }
+
+    public void testIndexCollidingWithExistingAlias() {
+        IndexMetaData.Builder fooIndexBuilder = IndexMetaData.builder("foo")
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(AliasMetaData.builder("bar").build());
+        IndexMetaData.Builder barIndexBuilder = IndexMetaData.builder("bar")
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1).numberOfReplicas(0);
+        MetaData.Builder metaDataBuilder = MetaData.builder().put(fooIndexBuilder).put(barIndexBuilder);
+        Exception exception = expectThrows(Exception.class, metaDataBuilder::build);
+        assertThat(exception.getMessage(),
+            equalTo("index and alias names need to be unique, but the following duplicates were found [bar (alias of [foo])]"));
     }
 
     public void testResolveIndexRouting() {

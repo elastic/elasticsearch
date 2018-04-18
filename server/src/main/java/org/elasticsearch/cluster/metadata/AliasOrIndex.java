@@ -138,5 +138,13 @@ public interface AliasOrIndex {
             this.referenceIndexMetaDatas.add(indexMetaData);
         }
 
+        void removeIndex(IndexMetaData indexMetaData) {
+            if (this.referenceIndexMetaDatas.contains(indexMetaData)) {
+                this.referenceIndexMetaDatas.remove(indexMetaData);
+            } else {
+                throw new IllegalStateException("Index [" + indexMetaData.getIndex().getName()
+                    + " is not referenced by aliasAlias [" + aliasName + "]. Cannot be removed");
+            }
+        }
     }
 }

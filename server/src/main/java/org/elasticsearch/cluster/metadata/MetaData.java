@@ -814,14 +814,14 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         private final ImmutableOpenMap.Builder<String, IndexMetaData> indices;
         private final ImmutableOpenMap.Builder<String, IndexTemplateMetaData> templates;
         private final ImmutableOpenMap.Builder<String, Custom> customs;
-        private final SortedMap<String, AliasOrIndex> aliasAndIndexLookup;
+        private final AliasAndIndexLookupBuilder aliasAndIndexLookupBuilder;
 
         public Builder() {
             clusterUUID = "_na_";
             indices = ImmutableOpenMap.builder();
             templates = ImmutableOpenMap.builder();
             customs = ImmutableOpenMap.builder();
-            aliasAndIndexLookup = new TreeMap<>();
+            aliasAndIndexLookupBuilder = new AliasAndIndexLookupBuilder();
             indexGraveyard(IndexGraveyard.builder().build()); // create new empty index graveyard to initialize
         }
 
@@ -833,7 +833,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             this.indices = ImmutableOpenMap.builder(metaData.indices);
             this.templates = ImmutableOpenMap.builder(metaData.templates);
             this.customs = ImmutableOpenMap.builder(metaData.customs);
-            this.aliasAndIndexLookup = new TreeMap<>(metaData.aliasAndIndexLookup);
+            this.aliasAndIndexLookupBuilder = new AliasAndIndexLookupBuilder(metaData.aliasAndIndexLookup);
         }
 
         public Builder put(IndexMetaData.Builder indexMetaDataBuilder) {
@@ -841,7 +841,13 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             indexMetaDataBuilder.version(indexMetaDataBuilder.version() + 1);
             IndexMetaData indexMetaData = indexMetaDataBuilder.build();
             indices.put(indexMetaData.getIndex().getName(), indexMetaData);
-            updateAliasAndIndexLookup(indexMetaData);
+            aliasAndIndexLookupBuilder.addIndex(indexMetaData);
+            return this;
+        }
+
+        public Builder put(IndexMetaData.Builder indexMetaDataBuilder, String removedAlias) {
+            put(indexMetaDataBuilder);
+            aliasAndIndexLookupBuilder.removeAlias(indexMetaDataBuilder.index(), removedAlias);
             return this;
         }
 
@@ -854,7 +860,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 indexMetaData = IndexMetaData.builder(indexMetaData).version(indexMetaData.getVersion() + 1).build();
             }
             indices.put(indexMetaData.getIndex().getName(), indexMetaData);
-            updateAliasAndIndexLookup(indexMetaData);
+            aliasAndIndexLookupBuilder.addIndex(indexMetaData);
             return this;
         }
 
@@ -876,7 +882,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         }
 
         public Builder remove(String index) {
-            indices.remove(index);
+            IndexMetaData indexMetaData = indices.remove(index);
+            aliasAndIndexLookupBuilder.removeIndex(indexMetaData);
             return this;
         }
 
@@ -887,7 +894,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
         public Builder indices(ImmutableOpenMap<String, IndexMetaData> indices) {
             this.indices.putAll(indices);
-            indices.forEach(cursor -> updateAliasAndIndexLookup(cursor.value));
+            indices.forEach(cursor -> aliasAndIndexLookupBuilder.addIndex(cursor.value));
             return this;
         }
 
@@ -1004,26 +1011,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         }
 
         public SortedMap<String, AliasOrIndex> getAliasAndIndexLookup() {
-            return aliasAndIndexLookup;
-        }
-
-        private void updateAliasAndIndexLookup(IndexMetaData indexMetaData) {
-            aliasAndIndexLookup.put(indexMetaData.getIndex().getName(), new AliasOrIndex.Index(indexMetaData));
-            for (ObjectObjectCursor<String, AliasMetaData> aliasCursor : indexMetaData.getAliases()) {
-                AliasMetaData aliasMetaData = aliasCursor.value;
-                aliasAndIndexLookup.compute(aliasMetaData.getAlias(), (aliasName, alias) -> {
-                    if (alias == null) {
-                        return new AliasOrIndex.Alias(aliasMetaData, indexMetaData);
-                    } else if (alias instanceof AliasOrIndex.Alias){
-                        ((AliasOrIndex.Alias) alias).addIndex(indexMetaData);
-                        return alias;
-                    } else {
-                        String indexName = ((AliasOrIndex.Index) alias).getIndex().getIndex().getName();
-                        throw new IllegalStateException("index and alias names need to be unique, but the following duplicate was found ["
-                            + aliasName + " (alias of [" + indexName + "])]");
-                    }
-                });
-            }
+            return aliasAndIndexLookupBuilder.build();
         }
 
         public MetaData build() {
@@ -1074,7 +1062,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
             return new MetaData(clusterUUID, version, transientSettings, persistentSettings, indices.build(), templates.build(),
                                 customs.build(), allIndicesArray, allOpenIndicesArray, allClosedIndicesArray,
-                                Collections.unmodifiableSortedMap(aliasAndIndexLookup));
+                                aliasAndIndexLookupBuilder.build());
         }
 
         public static String toXContent(MetaData metaData) throws IOException {

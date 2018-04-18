@@ -51,7 +51,7 @@ public abstract class AliasAction {
 
     /**
      * Apply the action.
-     * 
+     *
      * @param aliasValidator call to validate a new alias before adding it to the builder
      * @param metadata metadata builder for the changes made by all actions as part of this request
      * @param index metadata for the index being changed
@@ -158,7 +158,8 @@ public abstract class AliasAction {
             if (false == index.getAliases().containsKey(alias)) {
                 return false;
             }
-            metadata.put(IndexMetaData.builder(index).removeAlias(alias));
+
+            metadata.put(IndexMetaData.builder(index).removeAlias(alias), alias);
             return true;
         }
     }

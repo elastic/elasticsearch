@@ -633,7 +633,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         public BytesRef getBytesValue() {
             if (size() > 0) {
-                return values[0].get();
+                /**
+                 * We need to make a copy here because {@link BinaryScriptDocValues} might reuse the
+                 * returned value and the same instance might be used to
+                 * return values from multiple documents.
+                 **/
+                return values[0].toBytesRef();
             } else {
                 return null;
             }
@@ -658,14 +663,19 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public BytesRef get(int index) {
-            return values[index].get();
+            /**
+             * We need to make a copy here because {@link BinaryScriptDocValues} might reuse the
+             * returned value and the same instance might be used to
+             * return values from multiple documents.
+             **/
+            return values[index].toBytesRef();
         }
 
         public BytesRef getValue() {
             if (count == 0) {
                 return new BytesRef();
             }
-            return values[0].get();
+            return values[0].toBytesRef();
         }
 
     }

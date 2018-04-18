@@ -189,7 +189,8 @@ public abstract class EngineTestCase extends ESTestCase {
             new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
             config.getTranslogConfig(), config.getFlushMergesAfter(),
             config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(), config.getTranslogRecoveryRunner(),
-            config.getCircuitBreakerService(), globalCheckpointSupplier, config.getPrimaryTermSupplier(), EngineTestCase::createTombstoneDoc);
+            config.getCircuitBreakerService(), globalCheckpointSupplier, config.getPrimaryTermSupplier(),
+            EngineTestCase::createTombstoneDoc);
     }
 
     public EngineConfig copy(EngineConfig config, Analyzer analyzer) {

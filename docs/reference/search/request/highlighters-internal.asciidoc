@@ -23,8 +23,9 @@ fragmenter to avoid breaking up text between highlighted terms. But overall, sin
 done only by `fragment_size`, some fragments can be quite odd, e.g. beginning
 with a punctuation mark.
 
-Unified or FVH highlighters do a better job breaking up fragments by utilizing
-Java's `BreakIterator`, that can make fragments to be valid sentences.
+Unified or FVH highlighters do a better job of breaking up a text into
+fragments by utilizing Java's `BreakIterator`. This ensures that a fragment
+is a valid sentence as long as `fragment_size` allows for this.
 
 
 ===== How to find the best fragments?
@@ -160,8 +161,9 @@ In our example, we have got a single match, but there could be several matches.
 Given the matches, the unified highlighter breaks the text of the field into
 so called "passages". Each passage must contain at least one match.
 The unified highlighter with the use of Java's `BreakIterator` ensures that each
-passage represents a full sentence. For our example, we have got a single passage
-with the following properties (showing only a subset of the properties here):
+passage represents a full sentence as long as it doesn't exceed `fragment_size`.
+For our example, we have got a single passage with the following properties
+(showing only a subset of the properties here):
 
     Passage:
         startOffset: 147

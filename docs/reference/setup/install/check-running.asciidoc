@@ -7,6 +7,9 @@ request to port `9200` on `localhost`:
 --------------------------------------------
 GET /
 --------------------------------------------
+
+curl -X GET "http://localhost:9200"
+
 // CONSOLE
 
 which should give you a response something like this:

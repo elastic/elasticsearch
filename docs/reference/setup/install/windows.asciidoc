@@ -38,7 +38,7 @@ ifeval::["{release-state}"!="unreleased"]
 
 Download the `.msi` package for Elasticsearch v{version} from https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.msi
 
-You can download the open source distribution of Elasticsearch from: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}.msi
+You can alternatively download the open source distribution of Elasticsearch from: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}.msi
 
 endif::[]
 

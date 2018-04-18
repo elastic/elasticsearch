@@ -199,18 +199,25 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 Collection<PersistentTasksCustomMetaData.PersistentTask<?>> assignedTasks =
                         persistentTasks.findTasks(OpenJobAction.TASK_NAME,
                         task -> node.getId().equals(task.getExecutorNode()));
-                numberOfAssignedJobs = assignedTasks.size();
                 for (PersistentTasksCustomMetaData.PersistentTask<?> assignedTask : assignedTasks) {
                     JobTaskStatus jobTaskState = (JobTaskStatus) assignedTask.getStatus();
+                    JobState jobState;
                     if (jobTaskState == null || // executor node didn't have the chance to set job status to OPENING
                             // previous executor node failed and current executor node didn't have the chance to set job status to OPENING
                             jobTaskState.isStatusStale(assignedTask)) {
                         ++numberOfAllocatingJobs;
+                        jobState = JobState.OPENING;
+                    } else {
+                        jobState = jobTaskState.getState();
                     }
-                    String assignedJobId = ((OpenJobAction.JobParams) assignedTask.getParams()).getJobId();
-                    Job assignedJob = mlMetadata.getJobs().get(assignedJobId);
-                    assert assignedJob != null;
-                    assignedJobMemory += assignedJob.estimateMemoryFootprint();
+                    // Don't count FAILED jobs, as they don't consume native memory
+                    if (jobState != JobState.FAILED) {
+                        ++numberOfAssignedJobs;
+                        String assignedJobId = ((OpenJobAction.JobParams) assignedTask.getParams()).getJobId();
+                        Job assignedJob = mlMetadata.getJobs().get(assignedJobId);
+                        assert assignedJob != null;
+                        assignedJobMemory += assignedJob.estimateMemoryFootprint();
+                    }
                 }
             }
             if (numberOfAllocatingJobs >= maxConcurrentJobAllocations) {

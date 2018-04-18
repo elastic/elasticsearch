@@ -76,7 +76,7 @@ public class CardinalityIT extends ESIntegTestCase {
             scripts.put("doc['str_values'].values", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Strings strValue = (ScriptDocValues.Strings) doc.get("str_values");
-                return strValue.getValues();
+                if (strValue != null) { return strValue.getValues(); } else return null;
             });
 
             scripts.put("doc[' + singleNumericField() + '].value", vars -> {
@@ -86,7 +86,8 @@ public class CardinalityIT extends ESIntegTestCase {
 
             scripts.put("doc[' + multiNumericField(false) + '].values", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
-                return ((ScriptDocValues<?>) doc.get(multiNumericField(false))).getValues();
+                ScriptDocValues numValue = (ScriptDocValues<?>) doc.get(multiNumericField(false));
+                if (numValue != null) { return numValue.getValues(); } else return null;
             });
 
             return scripts;
@@ -129,7 +130,7 @@ public class CardinalityIT extends ESIntegTestCase {
                     .endObject()
                     .endObject().endObject().endObject()).execute().actionGet();
 
-        numDocs = randomIntBetween(2, 100);
+        numDocs = randomIntBetween(2, 3);
         precisionThreshold = randomIntBetween(0, 1 << randomInt(20));
         IndexRequestBuilder[] builders = new IndexRequestBuilder[(int) numDocs];
         for (int i = 0; i < numDocs; ++i) {

@@ -85,19 +85,19 @@ public class MinDocCountIT extends AbstractTermsTestCase {
             scripts.put("doc['d'].values", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Doubles value = (ScriptDocValues.Doubles) doc.get("d");
-                return value.getValues();
+                if (value != null) { return value.getValues(); } else return null;
             });
 
             scripts.put("doc['l'].values", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Longs value = (ScriptDocValues.Longs) doc.get("l");
-                return value.getValues();
+                if (value != null) { return value.getValues(); } else return null;
             });
 
             scripts.put("doc['s'].values", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Strings value = (ScriptDocValues.Strings) doc.get("s");
-                return value.getValues();
+                if (value != null) { return value.getValues(); } else return null;
             });
 
             return scripts;

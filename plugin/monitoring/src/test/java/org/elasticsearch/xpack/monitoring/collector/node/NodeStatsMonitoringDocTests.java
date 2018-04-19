@@ -240,25 +240,20 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
                            + "\"queue\":66,"
                            + "\"rejected\":67"
                          + "},"
-                         + "\"index\":{"
+                         + "\"management\":{"
                            + "\"threads\":68,"
                            + "\"queue\":69,"
                            + "\"rejected\":70"
                          + "},"
-                         + "\"management\":{"
+                         + "\"search\":{"
                            + "\"threads\":71,"
                            + "\"queue\":72,"
                            + "\"rejected\":73"
                          + "},"
-                         + "\"search\":{"
+                         + "\"watcher\":{"
                            + "\"threads\":74,"
                            + "\"queue\":75,"
                            + "\"rejected\":76"
-                         + "},"
-                         + "\"watcher\":{"
-                           + "\"threads\":77,"
-                           + "\"queue\":78,"
-                           + "\"rejected\":79"
                           + "}"
                        + "},"
                        + "\"fs\":{"
@@ -356,7 +351,6 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         threadpools.add(new ThreadPoolStats.Stats("bulk", (int) ++iota, (int) ++iota, (int) no, ++iota, (int) no, no));
         threadpools.add(new ThreadPoolStats.Stats("generic", (int) ++iota, (int) ++iota, (int) no, ++iota, (int) no, no));
         threadpools.add(new ThreadPoolStats.Stats("get", (int) ++iota, (int) ++iota, (int) no, ++iota, (int) no, no));
-        threadpools.add(new ThreadPoolStats.Stats("index", (int) ++iota, (int) ++iota, (int) no, ++iota, (int) no, no));
         threadpools.add(new ThreadPoolStats.Stats("management", (int) ++iota, (int) ++iota, (int) no, ++iota, (int) no, no));
         threadpools.add(new ThreadPoolStats.Stats("search", (int) ++iota, (int) ++iota, (int) no, ++iota, (int) no, no));
         threadpools.add(new ThreadPoolStats.Stats("watcher", (int) ++iota, (int) ++iota, (int) no, ++iota, (int) no, no));

@@ -68,6 +68,23 @@ for its modifiers:
   but rather than the setup defined in `docs/build.gradle` the setup is defined
   right in the documentation file.
 
+In addition to the standard CONSOLE syntax these snippets can contain blocks
+of yaml surrounded by markers like this:
+
+```
+startyaml
+  - compare_analyzers: {index: thai_example, first: thai, second: rebuilt_thai}
+endyaml
+```
+
+This allows slightly more expressive testing of the snippets. Since that syntax
+is not supported by CONSOLE the usual way to incorporate it is with a
+`// TEST[s//]` marker like this:
+
+```
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: thai_example, first: thai, second: rebuilt_thai}\nendyaml\n/]
+```
+
 Any place you can use json you can use elements like `$body.path.to.thing`
 which is replaced on the fly with the contents of the thing at `path.to.thing`
 in the last response.

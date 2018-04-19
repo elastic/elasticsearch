@@ -14,3 +14,9 @@
   executed on the bulk thread pool. As such, the indexing thread pool is no
   longer needed and has been removed. As such, the  settings
   `thread_pool.index.size` and `thread_pool.index.queue_size` have been removed.
+
+==== Http enabled setting removed
+
+The setting `http.enabled` previously allowed disabling binding to http, only allowing
+use of the transport client. This setting has been removed, as the transport client
+will be removed in the future, thus requiring http to always be enabled.

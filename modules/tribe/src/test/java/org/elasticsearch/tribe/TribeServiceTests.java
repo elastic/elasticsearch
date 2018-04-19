@@ -216,9 +216,13 @@ public class TribeServiceTests extends ESTestCase {
         }
         try (Node node = new MockNode(settings.build(), MockTribePlugin.classpathPlugins)) {
             if (tribeServiceEnable) {
-                assertWarnings("tribe nodes are deprecated in favor of cross-cluster search and will be removed in Elasticsearch 7.0.0");
+                assertSettingDeprecationsAndWarnings(
+                    new Setting<?>[]{NetworkModule.HTTP_ENABLED},
+                    "tribe nodes are deprecated in favor of cross-cluster search and will be removed in Elasticsearch 7.0.0"
+                );
             }
         }
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{NetworkModule.HTTP_ENABLED});
     }
 
     static class MergableCustomMetaData1 extends TestCustomMetaData

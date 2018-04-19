@@ -70,7 +70,7 @@ When the forecast is created, you receive the following results:
 ----
 {
   "acknowledged": true,
-  "forecast_id": 1507824469268
+  "forecast_id": "wkCWa2IB2lF8nSE_TzZo"
 }
 ----
 

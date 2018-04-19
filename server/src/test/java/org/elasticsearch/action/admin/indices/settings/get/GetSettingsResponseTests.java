@@ -157,18 +157,4 @@ public class GetSettingsResponseTests extends AbstractStreamableXContentTestCase
 
         Assert.assertEquals(TEST_6_2_2_RESPONSE_BYTES, base64OfResponse);
     }
-
-    public void testTransportSerdeRoundTripCurrentVersion() throws IOException {
-        GetSettingsResponse responseWithExtraFields = getResponseWithNewFields();
-        BytesStreamOutput bso = new BytesStreamOutput();
-        responseWithExtraFields.writeTo(bso);
-
-        byte[] responseBytes = BytesReference.toBytes(bso.bytes());
-        StreamInput si = StreamInput.wrap(responseBytes);
-
-        GetSettingsResponse newResponse = new GetSettingsResponse();
-        newResponse.readFrom(si);
-
-        Assert.assertEquals(responseWithExtraFields, newResponse);
-    }
 }

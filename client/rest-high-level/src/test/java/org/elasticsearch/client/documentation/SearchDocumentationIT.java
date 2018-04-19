@@ -44,6 +44,16 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.rankeval.EvalQueryQuality;
+import org.elasticsearch.index.rankeval.EvaluationMetric;
+import org.elasticsearch.index.rankeval.MetricDetail;
+import org.elasticsearch.index.rankeval.PrecisionAtK;
+import org.elasticsearch.index.rankeval.RankEvalRequest;
+import org.elasticsearch.index.rankeval.RankEvalResponse;
+import org.elasticsearch.index.rankeval.RankEvalSpec;
+import org.elasticsearch.index.rankeval.RatedDocument;
+import org.elasticsearch.index.rankeval.RatedRequest;
+import org.elasticsearch.index.rankeval.RatedSearchHit;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHit;
@@ -74,6 +84,7 @@ import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -685,6 +696,77 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             boolean succeeded = clearScrollResponse.isSucceeded();
             // end::search-scroll-example
             assertTrue(succeeded);
+        }
+    }
+
+    public void testRankEval() throws Exception {
+        indexSearchTestData();
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::rank-eval-request-basic
+            EvaluationMetric metric = new PrecisionAtK();                 // <1>
+            List<RatedDocument> ratedDocs = new ArrayList<>();
+            ratedDocs.add(new RatedDocument("posts", "1", 1));            // <2>
+            SearchSourceBuilder searchQuery = new SearchSourceBuilder();
+            searchQuery.query(QueryBuilders.matchQuery("user", "kimchy"));// <3>
+            RatedRequest ratedRequest =                                   // <4>
+                    new RatedRequest("kimchy_query", ratedDocs, searchQuery);
+            List<RatedRequest> ratedRequests = Arrays.asList(ratedRequest);
+            RankEvalSpec specification =
+                    new RankEvalSpec(ratedRequests, metric);              // <5>
+            RankEvalRequest request =                                     // <6>
+                    new RankEvalRequest(specification, new String[] { "posts" });
+            // end::rank-eval-request-basic
+
+            // tag::rank-eval-execute
+            RankEvalResponse response = client.rankEval(request);
+            // end::rank-eval-execute
+
+            // tag::rank-eval-response
+            double evaluationResult = response.getEvaluationResult();   // <1>
+            assertEquals(1.0 / 3.0, evaluationResult, 0.0);
+            Map<String, EvalQueryQuality> partialResults =
+                    response.getPartialResults();
+            EvalQueryQuality evalQuality =
+                    partialResults.get("kimchy_query");                 // <2>
+            assertEquals("kimchy_query", evalQuality.getId());
+            double qualityLevel = evalQuality.getQualityLevel();        // <3>
+            assertEquals(1.0 / 3.0, qualityLevel, 0.0);
+            List<RatedSearchHit> hitsAndRatings = evalQuality.getHitsAndRatings();
+            RatedSearchHit ratedSearchHit = hitsAndRatings.get(0);
+            assertEquals("3", ratedSearchHit.getSearchHit().getId());   // <4>
+            assertFalse(ratedSearchHit.getRating().isPresent());        // <5>
+            MetricDetail metricDetails = evalQuality.getMetricDetails();
+            String metricName = metricDetails.getMetricName();
+            assertEquals(PrecisionAtK.NAME, metricName);                // <6>
+            PrecisionAtK.Detail detail = (PrecisionAtK.Detail) metricDetails;
+            assertEquals(1, detail.getRelevantRetrieved());             // <7>
+            assertEquals(3, detail.getRetrieved());
+            // end::rank-eval-response
+
+            // tag::rank-eval-execute-listener
+            ActionListener<RankEvalResponse> listener = new ActionListener<RankEvalResponse>() {
+                @Override
+                public void onResponse(RankEvalResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::rank-eval-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::rank-eval-execute-async
+            client.rankEvalAsync(request, listener); // <1>
+            // end::rank-eval-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
 

@@ -3,8 +3,9 @@
 
 <<declaration, Declare>> variables to <<assignment, assign>> values for
 <<painless-operators, use>> in expressions.  Specify variables as a
-<<primitive-types, primitive>>, <<reference-types, reference>>, or
-<<dynamic-types, dynamic>> type.
+<<primitive-types, primitive type>>, <<reference-types, reference type>>, or
+<<dynamic-types, dynamic type>>.  Variable operations follow the structure of a
+standard JVM in relation to instruction execution and memory usage.
 
 [[declaration]]
 ==== Declaration
@@ -12,10 +13,11 @@
 Declare variables before use with the format of <<painless-types, type>>
 <<painless-identifiers, identifier>>. Specify a comma-separated list of
 <<painless-identifiers, identifiers>> following the <<painless-types, type>>
-to declare multiple variables in a single statement.  Use
-<<assignment, assignment>> combined with a declaration statement to immediately
-assign a value to a variable. Variables not immediately assigned a value will
-have a default value assigned implicitly based on the <<painless-types, type>>.
+to declare multiple variables in a single statement.  Use an
+<<assignment, assignment>> statement combined with a declaration statement to
+immediately assign a value to a variable. Variables not immediately assigned a
+value will have a default value assigned implicitly based on the
+<<painless-types, type>>.
 
 *Grammar*
 [source,ANTLR4]
@@ -53,14 +55,7 @@ that produces a value can be assigned to any variable as long as the
 <<painless-types, types>> are the same or the resultant
 <<painless-types, type>> can be implicitly <<painless-casting, cast>> to
 the variable <<painless-types, type>>.  Otherwise, an error will occur.
-
-Assignment of <<primitive-types, primitive types>> will cause the value to be
-copied.  Assignment of <<reference-types, reference types>> will cause the
-value to be referred to with the exception of the <<string-type, String type>>
-which is copied.  Assignment of <<dynamic-types, dynamic types>> will
-cause the value to be copied or referred to based on what the
-<<dynamic-types, dynamic type>> represents.  All types of assignment follow
-the standard Java memory model.
+<<reference-types, Reference type>> values are shallow-copied when assigned.
 
 *Grammar*
 [source,ANTLR4]
@@ -79,7 +74,7 @@ Variable assignment with an <<integers, integer literal>>.
 ----
 
 <1> declare `int i`
-<2> assign a copy of `10` to `i`
+<2> assign `10` to `i`
 
 <<declaration, Declaration>> combined with immediate variable assignment.
 
@@ -89,8 +84,8 @@ Variable assignment with an <<integers, integer literal>>.
 <2> double j = 2.0;
 ----
 
-<1> declare `int i`; assign a copy of `10` to `i`
-<2> declare `double j`; assign a copy of `2.0` to `j`
+<1> declare `int i`; assign `10` to `i`
+<2> declare `double j`; assign `2.0` to `j`
 
 Assignment of one variable to another using
 <<primitive-types, primitive types>>.
@@ -101,8 +96,8 @@ Assignment of one variable to another using
 <2> int j = i;
 ----
 
-<1> declare `int i`; assign a copy of `10` to `i`
-<2> declare `int j`; assign a copy of `j` to `i`
+<1> declare `int i`; assign `10` to `i`
+<2> declare `int j`; assign `j` to `i`
 
 Assignment with reference types using the <<constructor-call, new operator>>.
 
@@ -114,7 +109,7 @@ Assignment with reference types using the <<constructor-call, new operator>>.
 
 <1> declare `ArrayList l`; assign a newly-allocated `Arraylist` to `l`
 <2> declare `Map m`; assign a newly-allocated `HashMap` to `m`
-    with an implicit downcast
+    with an implicit cast to `Map`
 
 Assignment of one variable to another using
 <<reference-types, reference types>>.
@@ -128,7 +123,7 @@ Assignment of one variable to another using
 ----
 
 <1> declare `List l`; assign a newly-allocated `Arraylist` to `l`
-    with an implicit downcast
-<2> declare `List k`; assign a reference of `l` to `k`
+    with an implicit cast to `List`
+<2> declare `List k`; assign a shallow-copy of `l` to `k`
 <3> declare `List m`;
-<4> assign a reference of `k` to `m`
+<4> assign a shallow-copy of `k` to `m`

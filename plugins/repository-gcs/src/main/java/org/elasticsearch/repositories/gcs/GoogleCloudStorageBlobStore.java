@@ -38,6 +38,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.settings.Settings;
@@ -155,40 +156,46 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
      */
     InputStream readBlob(String blobName) throws IOException {
         final BlobId blobId = BlobId.of(bucket, blobName);
-        final ReadChannel reader = SocketAccess.doPrivilegedIOException(() ->
+        final Tuple<ReadChannel, Long> readerAndSize = SocketAccess.doPrivilegedIOException(() ->
             {
             final Blob blob = storage.get(blobId);
                 if (blob == null) {
                     return null;
                 }
-                return blob.reader();
+            return new Tuple<>(blob.reader(), blob.getSize());
             });
-        if (reader == null) {
+        if (readerAndSize == null) {
             throw new IOException("Blob [" + blobName + "] does not exit.");
         }
         final ByteBuffer buffer = ByteBuffer.allocate(64 * 1024);
         // first read pull data
         buffer.flip();
         return new InputStream() {
-            @SuppressForbidden(reason = "this reader is backed by a socket not a file")
+            long bytesRemaining = readerAndSize.v2();
+            @SuppressForbidden(reason = "this reader is backed by a socket instead of a file")
             @Override
             public int read() throws IOException {
-                try {
-                    return buffer.get();
-                } catch (final BufferUnderflowException e) {
-                    // pull another chunck
-                    buffer.clear();
-                    if (SocketAccess.doPrivilegedIOException(() -> reader.read(buffer)) < 0) {
-                        return -1;
+                while (true) {
+                    try {
+                        return (0xFF & buffer.get());
+                    } catch (final BufferUnderflowException e) {
+                        // pull another chunck
+                        buffer.clear();
+                        final long bytesRead = SocketAccess.doPrivilegedIOException(() -> readerAndSize.v1().read(buffer));
+                        if (bytesRead < 0) {
+                            return -1;
+                        } else if ((bytesRead == 0) && (bytesRemaining == 0)) {
+                            return -1;
+                        }
+                        bytesRemaining -= bytesRead;
+                        buffer.flip();
                     }
-                    buffer.flip();
-                    return read();
                 }
             }
 
             @Override
             public void close() throws IOException {
-                reader.close();
+                readerAndSize.v1().close();
             }
         };
     }

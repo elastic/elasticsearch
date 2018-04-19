@@ -75,10 +75,10 @@ class MockStorage implements Storage {
         doAnswer(invocation -> {
             assert invocation.getArguments().length == 1 : "Only a single filter is mocked";
             final BlobListOption prefixFilter = (BlobListOption) invocation.getArguments()[0];
-            final Method optionMethod = BlobListOption.class.getDeclaredMethod("getRpcOption");
+            final Method optionMethod = BlobListOption.class.getSuperclass().getDeclaredMethod("getRpcOption");
             optionMethod.setAccessible(true);
             assert StorageRpc.Option.PREFIX.equals(optionMethod.invoke(prefixFilter)) : "Only the prefix filter is mocked";
-            final Method valueMethod = BlobListOption.class.getDeclaredMethod("getValue");
+            final Method valueMethod = BlobListOption.class.getSuperclass().getDeclaredMethod("getValue");
             valueMethod.setAccessible(true);
             final String prefixValue = (String) valueMethod.invoke(prefixFilter);
             return new Page<Blob>() {
@@ -519,6 +519,9 @@ class MockStorage implements Storage {
 
         @Override
         public int read(ByteBuffer dst) throws IOException {
+            if (byteBuffer.hasRemaining() == false) {
+                return -1;
+            }
             final int size1 = dst.remaining();
             while (dst.hasRemaining() && byteBuffer.hasRemaining()) {
                 dst.put(byteBuffer.get());
@@ -562,7 +565,7 @@ class MockStorage implements Storage {
             when(ans.getResult()).thenReturn(copiedMockBlob);
             when(ans.isDone()).thenReturn(true);
             return ans;
-        }).when(blobMock.copyTo(Matchers.anyString(), Matchers.anyString(), Matchers.anyVararg()));
+        }).when(blobMock).copyTo(Matchers.anyString(), Matchers.anyString(), Matchers.anyVararg());
         doAnswer(invocation -> {
             final BlobId blobId = (BlobId) invocation.getArguments()[0];
             final Blob copiedMockBlob = constructMockBlob(blobId.getName(), data, blobsMap);
@@ -570,7 +573,7 @@ class MockStorage implements Storage {
             when(ans.getResult()).thenReturn(copiedMockBlob);
             when(ans.isDone()).thenReturn(true);
             return ans;
-        }).when(blobMock.copyTo(Matchers.any(BlobId.class), Matchers.anyVararg()));
+        }).when(blobMock).copyTo(Matchers.any(BlobId.class), Matchers.anyVararg());
         blobsMap.put(blobName, blobMock);
         return blobMock;
     }

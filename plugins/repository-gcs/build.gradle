@@ -47,6 +47,8 @@ dependencies {
   compile 'com.google.http-client:google-http-client-appengine:1.23.0'
   compile 'com.google.guava:guava:20.0'
   compile 'com.google.apis:google-api-services-storage:v1-rev115-1.23.0'
+  //compile 'com.fasterxml.jackson.core:jackson-core:2.1.3'
+  compile 'com.google.protobuf:protobuf-java:3.5.1'
 
   compile 'io.opencensus:opencensus-api:0.11.1'
   compile 'com.google.api.grpc:proto-google-common-protos:1.8.0'

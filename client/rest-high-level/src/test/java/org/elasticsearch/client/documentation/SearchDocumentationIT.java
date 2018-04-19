@@ -37,7 +37,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.unit.TimeValue;
@@ -723,7 +722,6 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             RankEvalResponse response = client.rankEval(request);
             // end::rank-eval-execute
 
-            logger.warn(Strings.toString(response));
             // tag::rank-eval-response
             double evaluationResult = response.getEvaluationResult();   // <1>
             assertEquals(1.0 / 3.0, evaluationResult, 0.0);
@@ -736,7 +734,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             assertEquals(1.0 / 3.0, qualityLevel, 0.0);
             List<RatedSearchHit> hitsAndRatings = evalQuality.getHitsAndRatings();
             RatedSearchHit ratedSearchHit = hitsAndRatings.get(0);
-            assertEquals("3", ratedSearchHit.getSearchHit().getId());   // <4>
+            assertEquals("2", ratedSearchHit.getSearchHit().getId());   // <4>
             assertFalse(ratedSearchHit.getRating().isPresent());        // <5>
             MetricDetail metricDetails = evalQuality.getMetricDetails();
             String metricName = metricDetails.getMetricName();

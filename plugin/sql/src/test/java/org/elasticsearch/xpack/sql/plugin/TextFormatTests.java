@@ -25,27 +25,23 @@ import static org.hamcrest.CoreMatchers.is;
 public class TextFormatTests extends ESTestCase {
 
     public void testPlainTextDetection() {
-        TextFormat text = TextFormat.fromMediaTypeOrFormat(withHeader("Accept", "text/plain"));
+        TextFormat text = TextFormat.fromMediaTypeOrFormat("text/plain");
         assertThat(text, is(TextFormat.PLAIN_TEXT));
-    }
-
-    public void testTextFallbackDetection() {
-        TextFormat text = TextFormat.fromMediaTypeOrFormat(withHeader("Accept", "text/*"));
-        assertThat(text, is(TextFormat.PLAIN_TEXT));
-    }
-
-    public void testTextFallbackNoHeader() {
-        assertThat(TextFormat.fromMediaTypeOrFormat(req()), is(TextFormat.PLAIN_TEXT));
     }
 
     public void testCsvDetection() {
-        TextFormat text = TextFormat.fromMediaTypeOrFormat(withHeader("Accept", "text/csv"));
+        TextFormat text = TextFormat.fromMediaTypeOrFormat("text/csv");
         assertThat(text, is(CSV));
     }
 
     public void testTsvDetection() {
-        TextFormat text = TextFormat.fromMediaTypeOrFormat(withHeader("Accept", "text/tab-separated-values"));
+        TextFormat text = TextFormat.fromMediaTypeOrFormat("text/tab-separated-values");
         assertThat(text, is(TSV));
+    }
+
+    public void testInvalidFormat() {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> TextFormat.fromMediaTypeOrFormat("text/garbage"));
+        assertEquals("invalid format [text/garbage]", e.getMessage());
     }
 
     public void testCsvContentType() {
@@ -127,7 +123,7 @@ public class TextFormatTests extends ESTestCase {
         List<ColumnInfo> headers = new ArrayList<>();
         headers.add(new ColumnInfo("index", "string", "keyword"));
         headers.add(new ColumnInfo("index", "number", "integer"));
-        
+
         // values
         List<List<Object>> values = new ArrayList<>();
         values.add(asList("Along The River Bank", 11 * 60 + 48));
@@ -156,10 +152,5 @@ public class TextFormatTests extends ESTestCase {
 
     private static RestRequest reqNoHeader() {
         return new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(singletonMap("header", "absent")).build();
-    }
-
-
-    private static RestRequest withHeader(String key, String value) {
-        return new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withHeaders(singletonMap(key, singletonList(value))).build();
     }
 }

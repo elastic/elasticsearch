@@ -23,7 +23,7 @@ So sorting by a field looks like:
 
 [source,js]
 --------------------------------------------------
-POST /_xpack/sql
+POST /_xpack/sql?format=txt
 {
     "query": "SELECT * FROM library ORDER BY page_count DESC LIMIT 5"
 }
@@ -55,7 +55,7 @@ combined using the same rules as Elasticsearch's
 
 [source,js]
 --------------------------------------------------
-POST /_xpack/sql
+POST /_xpack/sql?format=txt
 {
     "query": "SELECT SCORE(), * FROM library WHERE match(name, 'dune') ORDER BY SCORE() DESC"
 }
@@ -82,7 +82,7 @@ is possible even if you are not sorting by `SCORE()`:
 
 [source,js]
 --------------------------------------------------
-POST /_xpack/sql
+POST /_xpack/sql?format=txt
 {
     "query": "SELECT SCORE(), * FROM library WHERE match(name, 'dune') ORDER BY page_count DESC"
 }

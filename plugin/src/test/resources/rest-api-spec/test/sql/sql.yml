@@ -80,7 +80,7 @@ setup:
 "Getting textual representation":
   - do:
       xpack.sql.query:
-        format: text
+        format: txt
         body:
           query: "SELECT * FROM test ORDER BY int asc"
   - match:
@@ -117,4 +117,3 @@ setup:
       indices.stats: { index: 'test' }
 
   - match: { indices.test.total.search.open_contexts: 0 }
-

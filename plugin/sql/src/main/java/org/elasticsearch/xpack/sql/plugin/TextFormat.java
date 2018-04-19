@@ -26,7 +26,7 @@ enum TextFormat {
 
     /**
      * Default text writer.
-     * 
+     *
      * The implementation is a bit weird since state needs to be passed around, namely the formatter
      * since it is initialized based on the first page of data.
      * To avoid leaking the formatter, it gets discovered again in the wrapping method to attach it
@@ -75,15 +75,15 @@ enum TextFormat {
 
     /**
      * Comma Separated Values implementation.
-     * 
+     *
      * Based on:
      * https://tools.ietf.org/html/rfc4180
      * https://www.iana.org/assignments/media-types/text/csv
      * https://www.w3.org/TR/sparql11-results-csv-tsv/
-     * 
+     *
      */
     CSV() {
-        
+
         @Override
         protected String delimiter() {
             return ",";
@@ -236,23 +236,17 @@ enum TextFormat {
         return Cursors.decodeFromString(response.cursor());
     }
 
-    static TextFormat fromMediaTypeOrFormat(RestRequest request) {
-        String format = request.param("format", request.header("Accept"));
-
-        if (format == null) {
-            return PLAIN_TEXT;
-        }
-
+    static TextFormat fromMediaTypeOrFormat(String accept) {
         for (TextFormat text : values()) {
             String contentType = text.contentType();
-            if (contentType.equalsIgnoreCase(format)
-                    || format.toLowerCase(Locale.ROOT).startsWith(contentType + ";")
-                    || text.shortName().equalsIgnoreCase(format)) {
+            if (contentType.equalsIgnoreCase(accept)
+                    || accept.toLowerCase(Locale.ROOT).startsWith(contentType + ";")
+                    || text.shortName().equalsIgnoreCase(accept)) {
                 return text;
             }
         }
 
-        return PLAIN_TEXT;
+        throw new IllegalArgumentException("invalid format [" + accept + "]");
     }
 
     /**

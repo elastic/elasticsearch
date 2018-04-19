@@ -18,7 +18,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestResponseListener;
-import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursors;
 
@@ -43,34 +42,63 @@ public class RestSqlQueryAction extends BaseRestHandler {
             sqlRequest = SqlQueryRequest.fromXContent(parser, AbstractSqlRequest.Mode.fromString(request.param("mode")));
         }
 
-        XContentType xContentType = XContentType.fromMediaTypeOrFormat(request.param("format", request.header("Accept")));
+        /*
+         * Since we support {@link TextFormat} <strong>and</strong>
+         * {@link XContent} outputs we can't use {@link RestToXContentListener}
+         * like everything else. We want to stick as closely as possible to
+         * Elasticsearch's defaults though, while still layering in ways to
+         * control the output more easilly.
+         *
+         * First we find the string that the user used to specify the response
+         * format. If there is a {@code format} paramter we use that. If there
+         * isn't but there is a {@code Accept} header then we use that. If there
+         * isn't then we use the {@code Content-Type} header which is required.
+         */
+        String accept = request.param("format");
+        if (accept == null) {
+            accept = request.header("Accept");
+            if ("*/*".equals(accept)) {
+                // */* means "I don't care" which we should treat like not specifying the header
+                accept = null;
+            }
+        }
+        if (accept == null) {
+            accept = request.header("Content-Type");
+        }
+        assert accept != null : "The Content-Type header is required";
+
+        /*
+         * Second, we pick the actual content type to use by first parsing the
+         * string from the previous step as an {@linkplain XContent} value. If
+         * that doesn't parse we parse it as a {@linkplain TextFormat} value. If
+         * that doesn't parse it'll throw an {@link IllegalArgumentException}
+         * which we turn into a 400 error.
+         */
+        XContentType xContentType = accept == null ? XContentType.JSON : XContentType.fromMediaTypeOrFormat(accept);
         if (xContentType != null) {
-            // The client expects us to send back results in a XContent format
-            return channel -> client.executeLocally(SqlQueryAction.INSTANCE, sqlRequest,
-                    new RestToXContentListener<SqlQueryResponse>(channel) {
-                        @Override
-                        public RestResponse buildResponse(SqlQueryResponse response, XContentBuilder builder) throws Exception {
-                            // Make sure we only display JDBC-related data if JDBC is enabled
-                            response.toXContent(builder, request);
-                            return new BytesRestResponse(getStatus(response), builder);
-                        }
-                    });
+            return channel -> client.execute(SqlQueryAction.INSTANCE, sqlRequest, new RestResponseListener<SqlQueryResponse>(channel) {
+                @Override
+                public RestResponse buildResponse(SqlQueryResponse response) throws Exception {
+                    XContentBuilder builder = XContentBuilder.builder(xContentType.xContent());
+                    response.toXContent(builder, request);
+                    return new BytesRestResponse(RestStatus.OK, builder);
+                }
+            });
         }
 
-        // The client accepts a text format
-        TextFormat text = TextFormat.fromMediaTypeOrFormat(request);
-        long startNanos = System.nanoTime();
+        TextFormat textFormat = TextFormat.fromMediaTypeOrFormat(accept);
 
+        long startNanos = System.nanoTime();
         return channel -> client.execute(SqlQueryAction.INSTANCE, sqlRequest, new RestResponseListener<SqlQueryResponse>(channel) {
             @Override
             public RestResponse buildResponse(SqlQueryResponse response) throws Exception {
                 Cursor cursor = Cursors.decodeFromString(sqlRequest.cursor());
-                final String data = text.format(cursor, request, response);
+                final String data = textFormat.format(cursor, request, response);
 
-                RestResponse restResponse = new BytesRestResponse(RestStatus.OK, text.contentType(request),
+                RestResponse restResponse = new BytesRestResponse(RestStatus.OK, textFormat.contentType(request),
                         data.getBytes(StandardCharsets.UTF_8));
 
-                Cursor responseCursor = text.wrapCursor(cursor, response);
+                Cursor responseCursor = textFormat.wrapCursor(cursor, response);
 
                 if (responseCursor != Cursor.EMPTY) {
                     restResponse.addHeader("Cursor", Cursors.encodeToString(Version.CURRENT, responseCursor));

@@ -7,7 +7,7 @@ and returns the results. For example:
 
 [source,js]
 --------------------------------------------------
-POST /_xpack/sql
+POST /_xpack/sql?format=txt
 {
     "query": "SELECT * FROM library ORDER BY page_count DESC LIMIT 5"
 }
@@ -30,16 +30,19 @@ James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00.000Z
 // TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
 // TESTRESPONSE[_cat]
 
-You can also choose to get results in a structured format by adding the `format` parameter. Currently supported formats:
-- text (default)
-- json
-- smile
-- yaml
-- cbor
+While the `text/plain` format is nice for humans, computers prefer something
+more structured. You can replace the value of `format` with:
+- `json` aka `application/json`
+- `yaml` aka `application/yaml`
+- `smile` aka `application/smile`
+- `cbor` aka `application/cbor`
+- `txt` aka `text/plain`
+- `csv` aka `text/csv`
+- `tsv` aka `text/tab-separated-values`
 
-Alternatively you can set the Accept HTTP header to the appropriate media format.
-All formats above are supported, the GET parameter takes precedence over the header.
-
+Alternatively you can set the `Accept` HTTP header to the appropriate media
+format. The GET parameter takes precedence over the header. If neither is
+specified then the response is returned in the same format as the request.
 
 [source,js]
 --------------------------------------------------
@@ -147,7 +150,7 @@ parameter.
 
 [source,js]
 --------------------------------------------------
-POST /_xpack/sql
+POST /_xpack/sql?format=txt
 {
     "query": "SELECT * FROM library ORDER BY page_count DESC",
     "filter": {

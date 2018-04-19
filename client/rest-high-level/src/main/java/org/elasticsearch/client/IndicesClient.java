@@ -416,7 +416,7 @@ public final class IndicesClient {
      * API on elastic.co</a>
      */
     public UpdateSettingsResponse putSettings(UpdateSettingsRequest updateSettingsRequest, Header... headers) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(updateSettingsRequest, Request::indexPutSettings,
+        return restHighLevelClient.performRequestAndParseEntity(updateSettingsRequest, HighLevelRequests::indexPutSettings,
                 UpdateSettingsResponse::fromXContent, emptySet(), headers);
     }
 
@@ -428,7 +428,7 @@ public final class IndicesClient {
      */
     public void putSettingsAsync(UpdateSettingsRequest updateSettingsRequest, ActionListener<UpdateSettingsResponse> listener,
             Header... headers) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(updateSettingsRequest, Request::indexPutSettings,
+        restHighLevelClient.performRequestAsyncAndParseEntity(updateSettingsRequest, HighLevelRequests::indexPutSettings,
                 UpdateSettingsResponse::fromXContent, listener, emptySet(), headers);
     }
 

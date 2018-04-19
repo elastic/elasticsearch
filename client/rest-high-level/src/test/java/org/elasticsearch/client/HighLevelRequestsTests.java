@@ -1325,7 +1325,7 @@ public class HighLevelRequestsTests extends ESTestCase {
             }
         }
 
-        Request request = Request.indexPutSettings(updateSettingsRequest);
+        Request request = HighLevelRequests.indexPutSettings(updateSettingsRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         if (indices != null && indices.length > 0) {
             endpoint.add(String.join(",", indices));

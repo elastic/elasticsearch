@@ -70,6 +70,7 @@ import org.joda.time.DateTimeZone;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.TimeZone;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
@@ -275,14 +276,15 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testConstantFoldingDatetime() {
+        final TimeZone UTC = TimeZone.getTimeZone("UTC");
         Expression cast = new Cast(EMPTY, Literal.of(EMPTY, "2018-01-19T10:23:27Z"), DataType.DATE);
-        assertEquals(2018, foldFunction(new Year(EMPTY, cast, DateTimeZone.UTC)));
-        assertEquals(1, foldFunction(new MonthOfYear(EMPTY, cast, DateTimeZone.UTC)));
-        assertEquals(19, foldFunction(new DayOfMonth(EMPTY, cast, DateTimeZone.UTC)));
-        assertEquals(19, foldFunction(new DayOfYear(EMPTY, cast, DateTimeZone.UTC)));
-        assertEquals(3, foldFunction(new WeekOfYear(EMPTY, cast, DateTimeZone.UTC)));
+        assertEquals(2018, foldFunction(new Year(EMPTY, cast, UTC)));
+        assertEquals(1, foldFunction(new MonthOfYear(EMPTY, cast, UTC)));
+        assertEquals(19, foldFunction(new DayOfMonth(EMPTY, cast, UTC)));
+        assertEquals(19, foldFunction(new DayOfYear(EMPTY, cast, UTC)));
+        assertEquals(3, foldFunction(new WeekOfYear(EMPTY, cast, UTC)));
         assertNull(foldFunction(
-                new WeekOfYear(EMPTY, new Literal(EMPTY, null, DataType.NULL), DateTimeZone.UTC)));
+                new WeekOfYear(EMPTY, new Literal(EMPTY, null, DataType.NULL), UTC)));
     }
 
     public void testArithmeticFolding() {

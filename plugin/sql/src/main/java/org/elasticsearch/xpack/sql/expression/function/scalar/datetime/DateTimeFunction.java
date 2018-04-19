@@ -27,16 +27,17 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
 import java.util.Objects;
+import java.util.TimeZone;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate.formatTemplate;
 
 public abstract class DateTimeFunction extends UnaryScalarFunction {
 
-    private final DateTimeZone timeZone;
+    private final TimeZone timeZone;
     private final String name;
 
-    DateTimeFunction(Location location, Expression field, DateTimeZone timeZone) {
+    DateTimeFunction(Location location, Expression field, TimeZone timeZone) {
         super(location, field);
         this.timeZone = timeZone;
 
@@ -51,9 +52,9 @@ public abstract class DateTimeFunction extends UnaryScalarFunction {
     protected final NodeInfo<DateTimeFunction> info() {
         return NodeInfo.create(this, ctorForInfo(), field(), timeZone());
     }
-    protected abstract NodeInfo.NodeCtor2<Expression, DateTimeZone, DateTimeFunction> ctorForInfo();
+    protected abstract NodeInfo.NodeCtor2<Expression, TimeZone, DateTimeFunction> ctorForInfo();
 
-    public DateTimeZone timeZone() {
+    public TimeZone timeZone() {
         return timeZone;
     }
 
@@ -88,7 +89,7 @@ public abstract class DateTimeFunction extends UnaryScalarFunction {
         ParamsBuilder params = paramsBuilder();
 
         String template = null;
-        if (DateTimeZone.UTC.equals(timeZone)) {
+        if (TimeZone.getTimeZone("UTC").equals(timeZone)) {
             // TODO: it would be nice to be able to externalize the extract function and reuse the script across all extractors
             template = formatTemplate("doc[{}].value.get" + extractFunction() + "()");
             params.variable(field.name());

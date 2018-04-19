@@ -50,7 +50,7 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRe
     @Override
     protected SqlQueryRequest createTestInstance() {
         return new SqlQueryRequest(testMode, randomAlphaOfLength(10), randomParameters(),
-                SqlTestUtils.randomFilterOrNull(random()), randomDateTimeZone(),
+                SqlTestUtils.randomFilterOrNull(random()), randomTimeZone(),
                 between(1, Integer.MAX_VALUE), randomTV(), randomTV(), randomAlphaOfLength(10)
         );
     }
@@ -96,7 +96,7 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRe
                 request -> request.mode(randomValueOtherThan(request.mode(), () -> randomFrom(AbstractSqlRequest.Mode.values()))),
                 request -> request.query(randomValueOtherThan(request.query(), () -> randomAlphaOfLength(5))),
                 request -> request.params(randomValueOtherThan(request.params(), this::randomParameters)),
-                request -> request.timeZone(randomValueOtherThan(request.timeZone(), ESTestCase::randomDateTimeZone)),
+                request -> request.timeZone(randomValueOtherThan(request.timeZone(), ESTestCase::randomTimeZone)),
                 request -> request.fetchSize(randomValueOtherThan(request.fetchSize(), () -> between(1, Integer.MAX_VALUE))),
                 request -> request.requestTimeout(randomValueOtherThan(request.requestTimeout(), this::randomTV)),
                 request -> request.filter(randomValueOtherThan(request.filter(),

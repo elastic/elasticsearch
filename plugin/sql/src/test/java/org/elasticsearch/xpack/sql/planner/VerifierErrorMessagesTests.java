@@ -17,11 +17,11 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.KeywordEsField;
 import org.elasticsearch.xpack.sql.type.TextEsField;
-import org.joda.time.DateTimeZone;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.TimeZone;
 
 public class VerifierErrorMessagesTests extends ESTestCase {
 
@@ -37,7 +37,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         mapping.put("keyword", new KeywordEsField("keyword", Collections.emptyMap(), true, DataType.KEYWORD.defaultPrecision, true));
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
-        Analyzer analyzer = new Analyzer(new FunctionRegistry(), getIndexResult, DateTimeZone.UTC);
+        Analyzer analyzer = new Analyzer(new FunctionRegistry(), getIndexResult, TimeZone.getTimeZone("UTC"));
         LogicalPlan plan = optimizer.optimize(analyzer.analyze(parser.createStatement(sql), true));
         PlanningException e = expectThrows(PlanningException.class, () -> planner.mapPlan(plan, true));
         assertTrue(e.getMessage().startsWith("Found "));

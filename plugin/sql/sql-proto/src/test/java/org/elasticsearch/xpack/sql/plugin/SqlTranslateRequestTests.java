@@ -35,7 +35,7 @@ public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTra
     @Override
     protected SqlTranslateRequest createTestInstance() {
         return new SqlTranslateRequest(testMode,  randomAlphaOfLength(10), Collections.emptyList(), randomFilterOrNull(random()),
-                randomDateTimeZone(), between(1, Integer.MAX_VALUE), randomTV(), randomTV());
+                randomTimeZone(), between(1, Integer.MAX_VALUE), randomTV(), randomTV());
     }
 
     @Override
@@ -69,7 +69,7 @@ public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTra
         @SuppressWarnings("unchecked")
         Consumer<SqlTranslateRequest> mutator = randomFrom(
                 request -> request.query(randomValueOtherThan(request.query(), () -> randomAlphaOfLength(5))),
-                request -> request.timeZone(randomValueOtherThan(request.timeZone(), ESTestCase::randomDateTimeZone)),
+                request -> request.timeZone(randomValueOtherThan(request.timeZone(), ESTestCase::randomTimeZone)),
                 request -> request.fetchSize(randomValueOtherThan(request.fetchSize(), () -> between(1, Integer.MAX_VALUE))),
                 request -> request.requestTimeout(randomValueOtherThan(request.requestTimeout(), () -> randomTV())),
                 request -> request.filter(randomValueOtherThan(request.filter(),

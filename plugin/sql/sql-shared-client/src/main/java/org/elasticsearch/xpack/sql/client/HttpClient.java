@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.sql.plugin.SqlClearCursorResponse;
 import org.elasticsearch.xpack.sql.plugin.SqlQueryAction;
 import org.elasticsearch.xpack.sql.plugin.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -37,6 +36,7 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.sql.SQLException;
 import java.util.Collections;
+import java.util.TimeZone;
 import java.util.function.Function;
 
 /**
@@ -67,7 +67,8 @@ public class HttpClient {
     public SqlQueryResponse queryInit(String query, int fetchSize) throws SQLException {
         // TODO allow customizing the time zone - this is what session set/reset/get should be about
         SqlQueryRequest sqlRequest = new SqlQueryRequest(AbstractSqlRequest.Mode.PLAIN, query, Collections.emptyList(), null,
-                DateTimeZone.UTC, fetchSize, TimeValue.timeValueMillis(cfg.queryTimeout()), TimeValue.timeValueMillis(cfg.pageTimeout()), ""
+                TimeZone.getTimeZone("UTC"), fetchSize, TimeValue.timeValueMillis(cfg.queryTimeout()),
+                TimeValue.timeValueMillis(cfg.pageTimeout()), ""
         );
         return query(sqlRequest);
     }

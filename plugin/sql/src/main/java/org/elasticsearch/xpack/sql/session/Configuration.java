@@ -9,17 +9,18 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.sql.plugin.AbstractSqlQueryRequest;
-import org.joda.time.DateTimeZone;
+
+import java.util.TimeZone;
 
 // Typed object holding properties for a given action 
 public class Configuration {
-    public static final Configuration DEFAULT = new Configuration(DateTimeZone.UTC,
+    public static final Configuration DEFAULT = new Configuration(TimeZone.getTimeZone("UTC"),
             AbstractSqlQueryRequest.DEFAULT_FETCH_SIZE,
             AbstractSqlQueryRequest.DEFAULT_REQUEST_TIMEOUT,
             AbstractSqlQueryRequest.DEFAULT_PAGE_TIMEOUT,
             null);
 
-    private DateTimeZone timeZone;
+    private TimeZone timeZone;
     private int pageSize;
     private TimeValue requestTimeout;
     private TimeValue pageTimeout;
@@ -27,7 +28,7 @@ public class Configuration {
     @Nullable
     private QueryBuilder filter;
 
-    public Configuration(DateTimeZone tz, int pageSize, TimeValue requestTimeout, TimeValue pageTimeout, QueryBuilder filter) {
+    public Configuration(TimeZone tz, int pageSize, TimeValue requestTimeout, TimeValue pageTimeout, QueryBuilder filter) {
         this.timeZone = tz;
         this.pageSize = pageSize;
         this.requestTimeout = requestTimeout;
@@ -35,7 +36,7 @@ public class Configuration {
         this.filter = filter;
     }
 
-    public DateTimeZone timeZone() {
+    public TimeZone timeZone() {
         return timeZone;
     }
 

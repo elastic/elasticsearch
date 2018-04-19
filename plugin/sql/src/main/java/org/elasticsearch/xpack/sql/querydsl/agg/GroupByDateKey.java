@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
 import org.joda.time.DateTimeZone;
 
 import java.util.Objects;
+import java.util.TimeZone;
 
 /**
  * GROUP BY key specific for date fields.
@@ -18,13 +19,13 @@ import java.util.Objects;
 public class GroupByDateKey extends GroupByKey {
 
     private final String interval;
-    private final DateTimeZone timeZone;
+    private final TimeZone timeZone;
 
-    public GroupByDateKey(String id, String fieldName, String interval, DateTimeZone timeZone) {
+    public GroupByDateKey(String id, String fieldName, String interval, TimeZone timeZone) {
         this(id, fieldName, null, interval, timeZone);
     }
 
-    public GroupByDateKey(String id, String fieldName, Direction direction, String interval, DateTimeZone timeZone) {
+    public GroupByDateKey(String id, String fieldName, Direction direction, String interval, TimeZone timeZone) {
         super(id, fieldName, direction);
         this.interval = interval;
         this.timeZone = timeZone;
@@ -34,7 +35,7 @@ public class GroupByDateKey extends GroupByKey {
         return interval;
     }
 
-    public DateTimeZone timeZone() {
+    public TimeZone timeZone() {
         return timeZone;
     }
 
@@ -43,7 +44,7 @@ public class GroupByDateKey extends GroupByKey {
         return new DateHistogramValuesSourceBuilder(id())
                 .field(fieldName())
                 .dateHistogramInterval(new DateHistogramInterval(interval))
-                .timeZone(timeZone);
+                .timeZone(DateTimeZone.forTimeZone(timeZone));
     }
 
     @Override

@@ -61,6 +61,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TimeZone;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -89,9 +90,9 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
      * Time zone in which we're executing this SQL. It is attached to functions
      * that deal with date and time.
      */
-    private final DateTimeZone timeZone;
+    private final TimeZone timeZone;
 
-    public Analyzer(FunctionRegistry functionRegistry, IndexResolution results, DateTimeZone timeZone) {
+    public Analyzer(FunctionRegistry functionRegistry, IndexResolution results, TimeZone timeZone) {
         this.functionRegistry = functionRegistry;
         this.indexResolution = results;
         this.timeZone = timeZone;

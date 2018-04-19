@@ -9,10 +9,10 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.joda.time.DateTimeZone;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.TimeZone;
 
 import static org.elasticsearch.xpack.sql.plugin.AbstractSqlQueryRequest.DEFAULT_FETCH_SIZE;
 import static org.elasticsearch.xpack.sql.plugin.AbstractSqlQueryRequest.DEFAULT_PAGE_TIMEOUT;
@@ -30,7 +30,7 @@ public class SqlTranslateRequestBuilder extends ActionRequestBuilder<SqlTranslat
     }
 
     public SqlTranslateRequestBuilder(ElasticsearchClient client, SqlTranslateAction action, AbstractSqlRequest.Mode mode, String query,
-                                      QueryBuilder filter, List<SqlTypedParamValue> params, DateTimeZone timeZone, int fetchSize,
+                                      QueryBuilder filter, List<SqlTypedParamValue> params, TimeZone timeZone, int fetchSize,
                                       TimeValue requestTimeout, TimeValue pageTimeout) {
         super(client, action, new SqlTranslateRequest(mode, query, params, filter, timeZone, fetchSize, requestTimeout, pageTimeout));
     }
@@ -40,7 +40,7 @@ public class SqlTranslateRequestBuilder extends ActionRequestBuilder<SqlTranslat
         return this;
     }
 
-    public SqlTranslateRequestBuilder timeZone(DateTimeZone timeZone) {
+    public SqlTranslateRequestBuilder timeZone(TimeZone timeZone) {
         request.timeZone(timeZone);
         return this;
     }

@@ -12,17 +12,18 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 import org.joda.time.DateTimeZone;
 
 import java.time.temporal.ChronoField;
+import java.util.TimeZone;
 
 /**
  * Extract the hour of the day from a datetime.
  */
 public class HourOfDay extends DateTimeFunction {
-    public HourOfDay(Location location, Expression field, DateTimeZone timeZone) {
+    public HourOfDay(Location location, Expression field, TimeZone timeZone) {
         super(location, field, timeZone);
     }
 
     @Override
-    protected NodeCtor2<Expression, DateTimeZone, DateTimeFunction> ctorForInfo() {
+    protected NodeCtor2<Expression, TimeZone, DateTimeFunction> ctorForInfo() {
         return HourOfDay::new;
     }
 

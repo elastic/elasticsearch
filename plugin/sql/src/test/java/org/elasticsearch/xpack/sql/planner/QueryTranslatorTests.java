@@ -21,9 +21,9 @@ import org.elasticsearch.xpack.sql.querydsl.query.Query;
 import org.elasticsearch.xpack.sql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
-import org.joda.time.DateTimeZone;
 
 import java.util.Map;
+import java.util.TimeZone;
 
 public class QueryTranslatorTests extends ESTestCase {
 
@@ -40,7 +40,7 @@ public class QueryTranslatorTests extends ESTestCase {
 
         EsIndex test = new EsIndex("test", mapping);
         getIndexResult = IndexResolution.valid(test);
-        analyzer = new Analyzer(functionRegistry, getIndexResult, DateTimeZone.UTC);
+        analyzer = new Analyzer(functionRegistry, getIndexResult, TimeZone.getTimeZone("UTC"));
     }
 
     private LogicalPlan plan(String sql) {

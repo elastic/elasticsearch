@@ -162,15 +162,16 @@ public class LiveVersionMapTests extends ESTestCase {
                                 deletes.remove(bytesRef);
                             }
                             if (isDelete == false && rarely()) {
-                                versionValue = new DeleteVersionValue(versionValue.version + 1, maxSeqNo.incrementAndGet(),
-                                    versionValue.term, clock.getAndIncrement());
+                                versionValue = new DeleteVersionValue(versionValue.version + 1,
+                                    maxSeqNo.incrementAndGet(), versionValue.term, clock.getAndIncrement());
                                 deletes.put(bytesRef, (DeleteVersionValue) versionValue);
+                                map.putDeleteUnderLock(bytesRef, (DeleteVersionValue) versionValue);
                             } else {
-                                versionValue = new IndexVersionValue(randomTranslogLocation(), versionValue.version + 1,
-                                    maxSeqNo.incrementAndGet(), versionValue.term);
+                                versionValue = new IndexVersionValue(randomTranslogLocation(),
+                                    versionValue.version + 1, maxSeqNo.incrementAndGet(), versionValue.term);
+                                map.putIndexUnderLock(bytesRef, (IndexVersionValue) versionValue);
                             }
                             values.put(bytesRef, versionValue);
-                            putUnderLock(map, bytesRef, versionValue);
                         }
                         if (rarely()) {
                             final long pruneSeqNo = randomLongBetween(0, maxSeqNo.get());
@@ -322,9 +323,10 @@ public class LiveVersionMapTests extends ESTestCase {
         AtomicLong version = new AtomicLong();
         CountDownLatch start = new CountDownLatch(2);
         BytesRef uid = uid("1");
-        VersionValue initialVersion = new IndexVersionValue(randomTranslogLocation(), version.incrementAndGet(), 1, 1);
+        VersionValue initialVersion;
         try (Releasable ignore = map.acquireLock(uid)) {
-            putUnderLock(map, uid, initialVersion);
+            initialVersion = new IndexVersionValue(randomTranslogLocation(), version.incrementAndGet(), 1, 1);
+            map.putIndexUnderLock(uid, (IndexVersionValue) initialVersion);
         }
         Thread t = new Thread(() -> {
             start.countDown();
@@ -339,14 +341,13 @@ public class LiveVersionMapTests extends ESTestCase {
                         } else {
                             underLock = nextVersionValue;
                         }
-                        if (underLock.isDelete()) {
+                        if (underLock.isDelete() || randomBoolean()) {
                             nextVersionValue = new IndexVersionValue(randomTranslogLocation(), version.incrementAndGet(), 1, 1);
-                        } else if (randomBoolean()) {
-                            nextVersionValue = new IndexVersionValue(randomTranslogLocation(), version.incrementAndGet(), 1, 1);
+                            map.putIndexUnderLock(uid, (IndexVersionValue) nextVersionValue);
                         } else {
                             nextVersionValue = new DeleteVersionValue(version.incrementAndGet(), 1, 1, 0);
+                            map.putDeleteUnderLock(uid, (DeleteVersionValue) nextVersionValue);
                         }
-                        putUnderLock(map, uid, nextVersionValue);
                     }
                 }
             } catch (Exception e) {
@@ -393,14 +394,6 @@ public class LiveVersionMapTests extends ESTestCase {
         thread.start();
         thread.join();
         assertEquals(0, map.getAllTombstones().size());
-    }
-
-    void putUnderLock(LiveVersionMap maps, BytesRef uid, VersionValue version) {
-        if (version instanceof IndexVersionValue) {
-            maps.putIndexUnderLock(uid, (IndexVersionValue) version);
-        } else {
-            maps.putDeleteUnderLock(uid, (DeleteVersionValue) version);
-        }
     }
 
     IndexVersionValue randomIndexVersionValue() {

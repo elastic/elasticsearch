@@ -61,6 +61,7 @@ import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_M
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.not;
 
@@ -229,13 +230,15 @@ public class InternalTestClusterTests extends ESTestCase {
                 cluster1.beforeTest(random, random.nextDouble());
             }
             assertArrayEquals(cluster0.getNodeNames(), cluster1.getNodeNames());
+            if (cluster0.getNodeNames().length > 0) {
+                assertSettingDeprecationsAndWarnings(new Setting<?>[]{NetworkModule.HTTP_ENABLED});
+            }
             Iterator<Client> iterator1 = cluster1.getClients().iterator();
             for (Client client : cluster0.getClients()) {
                 assertTrue(iterator1.hasNext());
                 Client other = iterator1.next();
                 assertSettings(client.settings(), other.settings(), false);
             }
-            assertArrayEquals(cluster0.getNodeNames(), cluster1.getNodeNames());
             assertMMNinNodeSetting(cluster0, cluster0.numMasterNodes());
             assertMMNinNodeSetting(cluster1, cluster0.numMasterNodes());
             cluster0.afterTest();
@@ -243,7 +246,6 @@ public class InternalTestClusterTests extends ESTestCase {
         } finally {
             IOUtils.close(cluster0, cluster1);
         }
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
     }
 
     public void testDataFolderAssignmentAndCleaning() throws IOException, InterruptedException {

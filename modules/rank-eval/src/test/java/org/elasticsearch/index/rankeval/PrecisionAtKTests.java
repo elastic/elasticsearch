@@ -46,9 +46,12 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class PrecisionAtKTests extends ESTestCase {
 
+    private static final int IRRELEVANT_RATING_0 = 0;
+    private static final int RELEVANT_RATING_1 = 1;
+
     public void testPrecisionAtFiveCalculation() {
         List<RatedDocument> rated = new ArrayList<>();
-        rated.add(createRatedDoc("test", "0", TestRatingEnum.RELEVANT.ordinal()));
+        rated.add(createRatedDoc("test", "0", RELEVANT_RATING_1));
         EvalQueryQuality evaluated = (new PrecisionAtK()).evaluate("id", toSearchHits(rated, "test"), rated);
         assertEquals(1, evaluated.getQualityLevel(), 0.00001);
         assertEquals(1, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
@@ -57,11 +60,11 @@ public class PrecisionAtKTests extends ESTestCase {
 
     public void testPrecisionAtFiveIgnoreOneResult() {
         List<RatedDocument> rated = new ArrayList<>();
-        rated.add(createRatedDoc("test", "0", TestRatingEnum.RELEVANT.ordinal()));
-        rated.add(createRatedDoc("test", "1", TestRatingEnum.RELEVANT.ordinal()));
-        rated.add(createRatedDoc("test", "2", TestRatingEnum.RELEVANT.ordinal()));
-        rated.add(createRatedDoc("test", "3", TestRatingEnum.RELEVANT.ordinal()));
-        rated.add(createRatedDoc("test", "4", TestRatingEnum.IRRELEVANT.ordinal()));
+        rated.add(createRatedDoc("test", "0", RELEVANT_RATING_1));
+        rated.add(createRatedDoc("test", "1", RELEVANT_RATING_1));
+        rated.add(createRatedDoc("test", "2", RELEVANT_RATING_1));
+        rated.add(createRatedDoc("test", "3", RELEVANT_RATING_1));
+        rated.add(createRatedDoc("test", "4", IRRELEVANT_RATING_0));
         EvalQueryQuality evaluated = (new PrecisionAtK()).evaluate("id", toSearchHits(rated, "test"), rated);
         assertEquals((double) 4 / 5, evaluated.getQualityLevel(), 0.00001);
         assertEquals(4, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
@@ -89,11 +92,11 @@ public class PrecisionAtKTests extends ESTestCase {
 
     public void testPrecisionAtFiveCorrectIndex() {
         List<RatedDocument> rated = new ArrayList<>();
-        rated.add(createRatedDoc("test_other", "0", TestRatingEnum.RELEVANT.ordinal()));
-        rated.add(createRatedDoc("test_other", "1", TestRatingEnum.RELEVANT.ordinal()));
-        rated.add(createRatedDoc("test", "0", TestRatingEnum.RELEVANT.ordinal()));
-        rated.add(createRatedDoc("test", "1", TestRatingEnum.RELEVANT.ordinal()));
-        rated.add(createRatedDoc("test", "2", TestRatingEnum.IRRELEVANT.ordinal()));
+        rated.add(createRatedDoc("test_other", "0", RELEVANT_RATING_1));
+        rated.add(createRatedDoc("test_other", "1", RELEVANT_RATING_1));
+        rated.add(createRatedDoc("test", "0", RELEVANT_RATING_1));
+        rated.add(createRatedDoc("test", "1", RELEVANT_RATING_1));
+        rated.add(createRatedDoc("test", "2", IRRELEVANT_RATING_0));
         // the following search hits contain only the last three documents
         EvalQueryQuality evaluated = (new PrecisionAtK()).evaluate("id", toSearchHits(rated.subList(2, 5), "test"), rated);
         assertEquals((double) 2 / 3, evaluated.getQualityLevel(), 0.00001);
@@ -103,8 +106,8 @@ public class PrecisionAtKTests extends ESTestCase {
 
     public void testIgnoreUnlabeled() {
         List<RatedDocument> rated = new ArrayList<>();
-        rated.add(createRatedDoc("test", "0", TestRatingEnum.RELEVANT.ordinal()));
-        rated.add(createRatedDoc("test", "1", TestRatingEnum.RELEVANT.ordinal()));
+        rated.add(createRatedDoc("test", "0", RELEVANT_RATING_1));
+        rated.add(createRatedDoc("test", "1", RELEVANT_RATING_1));
         // add an unlabeled search hit
         SearchHit[] searchHits = Arrays.copyOf(toSearchHits(rated, "test"), 3);
         searchHits[2] = new SearchHit(2, "2", new Text("testtype"), Collections.emptyMap());

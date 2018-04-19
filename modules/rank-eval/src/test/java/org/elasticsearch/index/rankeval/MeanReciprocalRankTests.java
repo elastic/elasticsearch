@@ -46,6 +46,9 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class MeanReciprocalRankTests extends ESTestCase {
 
+    private static final int IRRELEVANT_RATING_0 = 0;
+    private static final int RELEVANT_RATING_1 = 1;
+
     public void testParseFromXContent() throws IOException {
         String xContent = "{ }";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
@@ -84,9 +87,9 @@ public class MeanReciprocalRankTests extends ESTestCase {
         int relevantAt = randomIntBetween(0, searchHits);
         for (int i = 0; i <= searchHits; i++) {
             if (i == relevantAt) {
-                ratedDocs.add(new RatedDocument("test", Integer.toString(i), TestRatingEnum.RELEVANT.ordinal()));
+                ratedDocs.add(new RatedDocument("test", Integer.toString(i), RELEVANT_RATING_1));
             } else {
-                ratedDocs.add(new RatedDocument("test", Integer.toString(i), TestRatingEnum.IRRELEVANT.ordinal()));
+                ratedDocs.add(new RatedDocument("test", Integer.toString(i), IRRELEVANT_RATING_0));
             }
         }
 
@@ -110,9 +113,9 @@ public class MeanReciprocalRankTests extends ESTestCase {
         int relevantAt = randomIntBetween(0, 9);
         for (int i = 0; i <= 20; i++) {
             if (i == relevantAt) {
-                ratedDocs.add(new RatedDocument("test", Integer.toString(i), TestRatingEnum.RELEVANT.ordinal()));
+                ratedDocs.add(new RatedDocument("test", Integer.toString(i), RELEVANT_RATING_1));
             } else {
-                ratedDocs.add(new RatedDocument("test", Integer.toString(i), TestRatingEnum.IRRELEVANT.ordinal()));
+                ratedDocs.add(new RatedDocument("test", Integer.toString(i), IRRELEVANT_RATING_0));
             }
         }
 

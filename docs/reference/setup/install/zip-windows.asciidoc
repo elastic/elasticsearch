@@ -9,9 +9,10 @@ TIP: Elasticsearch has historically been installed on Windows using the `.zip` a
 An <<windows, MSI installer package>> is available that provides the easiest getting started
 experience for Windows. You can continue using the `.zip` approach if you prefer.
 
-This package contains both open source and commercial features. 
-{xpack-ref}/license-management.html[Start a 30-day trial license] to enable all 
-of the available commercial features. See the 
+This package is free to use under the Elastic license. It contains open source, 
+free commercial, and paid commercial features. 
+{xpack-ref}/license-management.html[Start a 30-day trial] to try out all of the 
+paid commercial features. See the 
 https://www.elastic.co/subscriptions[Subscriptions] page for information about 
 Elastic license levels.
 
@@ -37,7 +38,9 @@ ifeval::["{release-state}"!="unreleased"]
 
 Download the `.zip` archive for Elasticsearch v{version} from: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.zip
 
-You can alternatively download the open source distribution of Elasticsearch from: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}.zip
+Alternatively, you can download the following package, which includes only 
+Apache 2.0 licensed code: 
+https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}.zip
 
 Unzip it with your favourite unzip tool.  This will create a folder called
 +elasticsearch-{version}+, which we will refer to as `%ES_HOME%`. In a terminal

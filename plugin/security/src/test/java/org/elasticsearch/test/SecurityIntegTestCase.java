@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.test;
 
+import io.netty.util.ThreadDeathWatcher;
+import io.netty.util.concurrent.GlobalEventExecutor;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -160,6 +162,24 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     public static void destroyDefaultSettings() {
         SECURITY_DEFAULT_SETTINGS = null;
         customSecuritySettingsSource = null;
+        // Wait for the network threads to finish otherwise there is the possibility that one of
+        // the threads lingers and trips the thread leak detector
+        try {
+            GlobalEventExecutor.INSTANCE.awaitInactivity(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (IllegalStateException e) {
+            if (e.getMessage().equals("thread was not started") == false) {
+                throw e;
+            }
+            // ignore since the thread was never started
+        }
+
+        try {
+            ThreadDeathWatcher.awaitInactivity(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     @Rule

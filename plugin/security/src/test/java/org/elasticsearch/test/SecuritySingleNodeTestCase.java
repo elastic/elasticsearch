@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.test;
 
+import io.netty.util.ThreadDeathWatcher;
+import io.netty.util.concurrent.GlobalEventExecutor;
 import org.apache.http.HttpHost;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -31,6 +33,7 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
@@ -92,6 +95,25 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
         if (restClient != null) {
             IOUtils.closeWhileHandlingException(restClient);
             restClient = null;
+        }
+
+        // Wait for the network threads to finish otherwise there is the possibility that one of
+        // the threads lingers and trips the thread leak detector
+        try {
+            GlobalEventExecutor.INSTANCE.awaitInactivity(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (IllegalStateException e) {
+            if (e.getMessage().equals("thread was not started") == false) {
+                throw e;
+            }
+            // ignore since the thread was never started
+        }
+
+        try {
+            ThreadDeathWatcher.awaitInactivity(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 

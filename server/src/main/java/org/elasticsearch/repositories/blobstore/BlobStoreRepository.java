@@ -818,8 +818,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Context context = new Context(snapshotId, version, indexId, shardId);
         BlobStoreIndexShardSnapshot snapshot = context.loadSnapshot();
         return IndexShardSnapshotStatus.newDone(snapshot.startTime(), snapshot.time(),
-            snapshot.differenceOfNumberOfFiles(), snapshot.numberOfFiles(),
-            snapshot.differenceOfSize(), snapshot.totalSize());
+            snapshot.incrementalFileCount(), snapshot.totalFileCount(),
+            snapshot.incrementalSize(), snapshot.totalSize());
     }
 
     @Override
@@ -1118,10 +1118,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final List<BlobStoreIndexShardSnapshot.FileInfo> indexCommitPointFiles = new ArrayList<>();
 
             store.incRef();
-            int indexDifferenceOfNumberOfFiles = 0;
+            int indexIncrementalFileCount = 0;
             int indexTotalNumberOfFiles = 0;
-            long indexDiffFilesSize = 0;
-            long indexTotalFilesSize = 0;
+            long indexIncrementalSize = 0;
+            long indexTotalFileCount = 0;
             try {
                 ArrayList<BlobStoreIndexShardSnapshot.FileInfo> filesToSnapshot = new ArrayList<>();
                 final Store.MetadataSnapshot metadata;
@@ -1163,12 +1163,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         }
                     }
 
-                    indexTotalFilesSize += md.length();
+                    indexTotalFileCount += md.length();
                     indexTotalNumberOfFiles++;
 
                     if (existingFileInfo == null) {
-                        indexDifferenceOfNumberOfFiles++;
-                        indexDiffFilesSize += md.length();
+                        indexIncrementalFileCount++;
+                        indexIncrementalSize += md.length();
                         // create a new FileInfo
                         BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo = new BlobStoreIndexShardSnapshot.FileInfo(fileNameFromGeneration(++generation), md, chunkSize());
                         indexCommitPointFiles.add(snapshotFileInfo);
@@ -1178,8 +1178,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                 }
 
-                snapshotStatus.moveToStarted(startTime, indexDifferenceOfNumberOfFiles,
-                    indexTotalNumberOfFiles, indexDiffFilesSize, indexTotalFilesSize);
+                snapshotStatus.moveToStarted(startTime, indexIncrementalFileCount,
+                    indexTotalNumberOfFiles, indexIncrementalSize, indexTotalFileCount);
 
                 for (BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo : filesToSnapshot) {
                     try {
@@ -1202,10 +1202,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                                                         // snapshotStatus.startTime() is assigned on the same machine,
                                                                         // so it's safe to use with VLong
                                                                         System.currentTimeMillis() - lastSnapshotStatus.getStartTime(),
-                                                                        lastSnapshotStatus.getDifferenceOfNumberOfFiles(),
-                                                                        lastSnapshotStatus.getTotalNumberOfFiles(),
-                                                                        lastSnapshotStatus.getDifferenceOfSize(),
-                                                                        lastSnapshotStatus.getTotalSize());
+                                                                        lastSnapshotStatus.getIncrementalFileCount(),
+                                                                        lastSnapshotStatus.getIncrementalSize()
+            );
 
             //TODO: The time stored in snapshot doesn't include cleanup time.
             logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);

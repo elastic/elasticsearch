@@ -35,10 +35,10 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
 
     private long startTime;
     private long time;
-    private int differenceOfNumberOfFiles;
-    private int totalNumberOfFiles;
-    private int processedFiles;
-    private long differenceOfSize;
+    private int incrementalFileCount;
+    private int totalFileCount;
+    private int processedFileCount;
+    private long incrementalSize;
     private long totalSize;
     private long processedSize;
 
@@ -46,14 +46,14 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
     }
 
     SnapshotStats(long startTime, long time,
-                  int differenceOfNumberOfFiles, int totalNumberOfFiles, int processedFiles,
-                  long differenceOfSize, long totalSize, long processedSize) {
+                  int incrementalFileCount, int totalFileCount, int processedFileCount,
+                  long incrementalSize, long totalSize, long processedSize) {
         this.startTime = startTime;
         this.time = time;
-        this.differenceOfNumberOfFiles = differenceOfNumberOfFiles;
-        this.totalNumberOfFiles = totalNumberOfFiles;
-        this.processedFiles = processedFiles;
-        this.differenceOfSize = differenceOfSize;
+        this.incrementalFileCount = incrementalFileCount;
+        this.totalFileCount = totalFileCount;
+        this.processedFileCount = processedFileCount;
+        this.incrementalSize = incrementalSize;
         this.totalSize = totalSize;
         this.processedSize = processedSize;
     }
@@ -73,31 +73,31 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
     }
 
     /**
-     * Returns difference of number of files between previous and this snapshot
+     * Returns incremental file count of the snapshot
      */
-    public int getDifferenceOfNumberOfFiles() {
-        return differenceOfNumberOfFiles;
+    public int getIncrementalFileCount() {
+        return incrementalFileCount;
     }
 
     /**
      * Returns total number of files in the snapshot
      */
-    public int getTotalNumberOfFiles() {
-        return totalNumberOfFiles;
+    public int getTotalFileCount() {
+        return totalFileCount;
     }
 
     /**
      * Returns number of files in the snapshot that were processed so far
      */
-    public int getProcessedFiles() {
-        return processedFiles;
+    public int getProcessedFileCount() {
+        return processedFileCount;
     }
 
     /**
-     * Return difference size of files between previous and this snapshot
+     * Return incremental files size of the snapshot
      */
-    public long getDifferenceOfSize() {
-        return differenceOfSize;
+    public long getIncrementalSize() {
+        return incrementalSize;
     }
 
     /**
@@ -126,15 +126,15 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
         out.writeVLong(startTime);
         out.writeVLong(time);
 
-        out.writeVInt(totalNumberOfFiles);
-        out.writeVInt(processedFiles);
+        out.writeVInt(totalFileCount);
+        out.writeVInt(processedFileCount);
 
         out.writeVLong(totalSize);
         out.writeVLong(processedSize);
 
         if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            out.writeVInt(differenceOfNumberOfFiles);
-            out.writeVLong(differenceOfSize);
+            out.writeVInt(incrementalFileCount);
+            out.writeVLong(incrementalSize);
         }
     }
 
@@ -143,28 +143,28 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
         startTime = in.readVLong();
         time = in.readVLong();
 
-        totalNumberOfFiles = in.readVInt();
-        processedFiles = in.readVInt();
+        totalFileCount = in.readVInt();
+        processedFileCount = in.readVInt();
 
         totalSize = in.readVLong();
         processedSize = in.readVLong();
 
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            differenceOfNumberOfFiles = in.readVInt();
-            differenceOfSize = in.readVLong();
+            incrementalFileCount = in.readVInt();
+            incrementalSize = in.readVLong();
         } else {
-            differenceOfNumberOfFiles = totalNumberOfFiles;
-            differenceOfSize = totalSize;
+            incrementalFileCount = totalFileCount;
+            incrementalSize = totalSize;
         }
     }
 
     static final class Fields {
         static final String STATS = "stats";
-        static final String DIFFERENCE_OF_NUMBER_OF_FILES = "difference_of_number_of_files";
-        static final String TOTAL_NUMBER_OF_FILES = "total_number_of_files";
-        static final String PROCESSED_FILES = "processed_files";
-        static final String DIFFERENCE_OF_SIZE_IN_BYTES = "difference_of_size_in_bytes";
-        static final String DIFFERENCE_OF_SIZE = "difference_of_size";
+        static final String INCREMENTAL_FILE_COUNT = "incremental_file_count";
+        static final String TOTAL_FILE_COUNT = "total_file_count";
+        static final String PROCESSED_FILE_COUNT = "processed_file_count";
+        static final String INCREMENTAL_SIZE_IN_BYTES = "incremental_size_in_bytes";
+        static final String INCREMENTAL_SIZE = "incremental_size";
         static final String TOTAL_SIZE_IN_BYTES = "total_size_in_bytes";
         static final String TOTAL_SIZE = "total_size";
         static final String PROCESSED_SIZE_IN_BYTES = "processed_size_in_bytes";
@@ -177,10 +177,10 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(Fields.STATS);
-        builder.field(Fields.DIFFERENCE_OF_NUMBER_OF_FILES, getDifferenceOfNumberOfFiles());
-        builder.field(Fields.TOTAL_NUMBER_OF_FILES, getTotalNumberOfFiles());
-        builder.field(Fields.PROCESSED_FILES, getProcessedFiles());
-        builder.humanReadableField(Fields.DIFFERENCE_OF_SIZE_IN_BYTES, Fields.DIFFERENCE_OF_SIZE, new ByteSizeValue(getDifferenceOfSize()));
+        builder.field(Fields.INCREMENTAL_FILE_COUNT, getIncrementalFileCount());
+        builder.field(Fields.TOTAL_FILE_COUNT, getTotalFileCount());
+        builder.field(Fields.PROCESSED_FILE_COUNT, getProcessedFileCount());
+        builder.humanReadableField(Fields.INCREMENTAL_SIZE_IN_BYTES, Fields.INCREMENTAL_SIZE, new ByteSizeValue(getIncrementalSize()));
         builder.humanReadableField(Fields.TOTAL_SIZE_IN_BYTES, Fields.TOTAL_SIZE, new ByteSizeValue(getTotalSize()));
         builder.humanReadableField(Fields.PROCESSED_SIZE_IN_BYTES, Fields.PROCESSED_SIZE, new ByteSizeValue(getProcessedSize()));
         builder.field(Fields.START_TIME_IN_MILLIS, getStartTime());
@@ -190,14 +190,13 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
     }
 
     void add(SnapshotStats stats) {
-        differenceOfNumberOfFiles += stats.differenceOfNumberOfFiles;
-        totalNumberOfFiles += stats.totalNumberOfFiles;
-        processedFiles += stats.processedFiles;
+        incrementalFileCount += stats.incrementalFileCount;
+        totalFileCount += stats.totalFileCount;
+        processedFileCount += stats.processedFileCount;
 
-        differenceOfSize += stats.differenceOfSize;
+        incrementalSize += stats.incrementalSize;
         totalSize += stats.totalSize;
         processedSize += stats.processedSize;
-
 
         if (startTime == 0) {
             // First time here

@@ -22,8 +22,6 @@ import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyReposito
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -33,23 +31,12 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.Before;
 
-import java.io.IOException;
-import java.nio.file.FileVisitResult;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
-import java.util.ArrayList;
-import java.util.List;
-
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
 
 /**
  * This class tests that snapshot operations (Create, Delete, Restore) are blocked when the cluster is read-only.
@@ -64,8 +51,6 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
     protected static final String COMMON_INDEX_NAME_MASK = "test-blocks-*";
     protected static final String REPOSITORY_NAME = "repo-" + INDEX_NAME;
     protected static final String SNAPSHOT_NAME = "snapshot-0";
-
-    private Path repoPath;
 
     @Before
     protected void setUpRepository() throws Exception {
@@ -82,10 +67,9 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
 
         logger.info("--> register a repository");
 
-        repoPath = randomRepoPath();
         assertAcked(client().admin().cluster().preparePutRepository(REPOSITORY_NAME)
                 .setType("fs")
-                .setSettings(Settings.builder().put("location", repoPath)));
+                .setSettings(Settings.builder().put("location", randomRepoPath())));
 
         logger.info("--> verify the repository");
         VerifyRepositoryResponse verifyResponse = client().admin().cluster().prepareVerifyRepository(REPOSITORY_NAME).get();
@@ -98,90 +82,6 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
                                                                             .execute().actionGet();
         assertThat(snapshotResponse.status(), equalTo(RestStatus.OK));
         ensureSearchable();
-    }
-
-    public void testSnapshotTotalAndDifferenceSizes() throws IOException {
-        SnapshotsStatusResponse response = client().admin().cluster().prepareSnapshotStatus(REPOSITORY_NAME)
-            .setSnapshots(SNAPSHOT_NAME)
-            .execute()
-            .actionGet();
-
-        List<SnapshotStatus> snapshots = response.getSnapshots();
-
-        List<Path> files = scanSnapshotFolder();
-        assertThat(snapshots, hasSize(1));
-        SnapshotStats stats = snapshots.get(0).getStats();
-
-
-        assertThat(stats.getTotalNumberOfFiles(), is(files.size()));
-        assertThat(stats.getTotalSize(), is(files.stream().mapToLong(f -> {
-            try {
-                return Files.size(f);
-            } catch (IOException e) {
-                throw new RuntimeException(e.getMessage(), e);
-            }
-        }).sum()));
-
-        assertThat(stats.getDifferenceOfNumberOfFiles(), equalTo(stats.getProcessedFiles()));
-        assertThat(stats.getDifferenceOfSize(), equalTo(stats.getProcessedSize()));
-
-        // add few docs - less than initially
-        int docs = between(1, 5);
-        for (int i = 0; i < docs; i++) {
-            client().prepareIndex(INDEX_NAME, "type").setSource("test", "test" + i).execute().actionGet();
-        }
-
-        // create another snapshot and drop 1st one
-        // total size has to grow, and has to be equal to files on fs
-        assertThat(client().admin().cluster()
-            .prepareCreateSnapshot(REPOSITORY_NAME, "snapshot-1")
-            .setWaitForCompletion(true).get().status(),
-            equalTo(RestStatus.OK));
-
-        assertTrue(client().admin().cluster()
-                .prepareDeleteSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME)
-                .get().isAcknowledged());
-
-        response = client().admin().cluster().prepareSnapshotStatus(REPOSITORY_NAME)
-            .setSnapshots("snapshot-1")
-            .execute()
-            .actionGet();
-
-        final List<Path> files1 = scanSnapshotFolder();
-
-        snapshots = response.getSnapshots();
-
-        SnapshotStats anotherStats = snapshots.get(0).getStats();
-
-        assertThat(anotherStats.getDifferenceOfNumberOfFiles(), equalTo(anotherStats.getProcessedFiles()));
-        assertThat(anotherStats.getDifferenceOfSize(), equalTo(anotherStats.getProcessedSize()));
-
-        assertThat(stats.getTotalSize(), lessThan(anotherStats.getTotalSize()));
-        assertThat(stats.getTotalNumberOfFiles(), lessThan(anotherStats.getTotalNumberOfFiles()));
-
-        assertThat(anotherStats.getTotalNumberOfFiles(), is(files1.size()));
-        assertThat(anotherStats.getTotalSize(), is(files1.stream().mapToLong(f -> {
-            try {
-                return Files.size(f);
-            } catch (IOException e) {
-                throw new RuntimeException(e.getMessage(), e);
-            }
-        }).sum()));
-    }
-
-    private List<Path> scanSnapshotFolder() throws IOException {
-        List<Path> files = new ArrayList<>();
-        Files.walkFileTree(repoPath, new SimpleFileVisitor<Path>(){
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    if (file.getFileName().toString().startsWith("__")){
-                        files.add(file);
-                    }
-                    return super.visitFile(file, attrs);
-                }
-            }
-        );
-        return files;
     }
 
     public void testCreateSnapshotWithBlocks() {

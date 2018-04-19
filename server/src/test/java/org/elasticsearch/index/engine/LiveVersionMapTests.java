@@ -40,6 +40,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 
 public class LiveVersionMapTests extends ESTestCase {
 
@@ -394,6 +395,50 @@ public class LiveVersionMapTests extends ESTestCase {
         thread.start();
         thread.join();
         assertEquals(0, map.getAllTombstones().size());
+    }
+
+    public void testNeverLeaveStaleDeleteTombstone() throws Exception {
+        LiveVersionMap versionMap = new LiveVersionMap();
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean running = new AtomicBoolean(true);
+        Thread refreshThread = new Thread(() -> {
+            latch.countDown();
+            while (running.get()) {
+                try {
+                    if (randomBoolean()) {
+                        versionMap.beforeRefresh();
+                        versionMap.afterRefresh(randomBoolean());
+                    }
+                    if (rarely()) {
+                        versionMap.enforceSafeAccess();
+                    }
+                } catch (Exception ex) {
+                    throw new RuntimeException(ex);
+                }
+            }
+        });
+        refreshThread.start();
+        BytesRef uid = uid("1");
+        latch.await();
+        long versions = between(10, 1000);
+        for (long version = 1; version <= versions; version++) {
+            try (Releasable ignore = versionMap.acquireLock(uid)) {
+                if (randomBoolean()) {
+                    versionMap.putDeleteUnderLock(uid, new DeleteVersionValue(version, 1, 1, 1));
+                } else {
+                    versionMap.maybePutIndexUnderLock(uid, new IndexVersionValue(randomTranslogLocation(), version, 1, 1));
+                }
+            }
+        }
+        VersionValue storedValue = versionMap.getAllCurrent().get(uid);
+        if (storedValue == null) {
+            storedValue = versionMap.getAllTombstones().get(uid);
+        }
+        running.set(false);
+        refreshThread.join();
+        if (storedValue != null) {
+            assertThat("Keeping a stale version value", storedValue.version, equalTo(versions));
+        }
     }
 
     IndexVersionValue randomIndexVersionValue() {

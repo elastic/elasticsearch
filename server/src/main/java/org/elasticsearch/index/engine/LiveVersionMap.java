@@ -312,6 +312,10 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         if (maps.isSafeAccessMode()) {
             putIndexUnderLock(uid, version);
         } else {
+            // The existing delete tombstone is no longer the latest version (.i.e stale)
+            // when a newer version is processed regardless of the safe mode of the version map.
+            // Therefore, it's better to always prune that tombstone to avoid accidental accesses.
+            removeTombstoneUnderLock(uid);
             maps.current.markAsUnsafe();
             assert putAssertionMap(uid, version);
         }

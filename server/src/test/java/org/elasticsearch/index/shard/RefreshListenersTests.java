@@ -122,17 +122,18 @@ public class RefreshListenersTests extends ESTestCase {
             }
         };
         store.createEmpty();
+        final long primaryTerm = randomNonNegativeLong();
         final String translogUUID =
-            Translog.createEmptyTranslog(translogConfig.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId);
+            Translog.createEmptyTranslog(translogConfig.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm);
         store.associateIndexWithNewTranslog(translogUUID);
         EngineConfig config = new EngineConfig(shardId, allocationId, threadPool,
             indexSettings, null, store, newMergePolicy(), iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger),
             eventListener, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
             TimeValue.timeValueMinutes(5), Collections.singletonList(listeners), Collections.emptyList(), null,
-            (e, s) -> 0, new NoneCircuitBreakerService(), () -> SequenceNumbers.NO_OPS_PERFORMED);
+            (e, s) -> 0, new NoneCircuitBreakerService(), () -> SequenceNumbers.NO_OPS_PERFORMED, () -> primaryTerm);
         engine = new InternalEngine(config);
         engine.recoverFromTranslog();
-        listeners.setTranslog(engine.getTranslog());
+        listeners.setCurrentRefreshLocationSupplier(engine::getTranslogLastWriteLocation);
     }
 
     @After
@@ -363,7 +364,7 @@ public class RefreshListenersTests extends ESTestCase {
         BytesReference source = new BytesArray(new byte[] { 1 });
         ParsedDocument doc = new ParsedDocument(versionField, seqID, id, "test", null, Arrays.asList(document), source, XContentType.JSON,
             null);
-        Engine.Index index = new Engine.Index(new Term("_id", doc.id()), doc);
+        Engine.Index index = new Engine.Index(new Term("_id", doc.id()), engine.config().getPrimaryTermSupplier().getAsLong(), doc);
         return engine.index(index);
     }
 

@@ -22,11 +22,14 @@ package org.elasticsearch.search.slice;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,7 +38,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -53,6 +55,9 @@ import java.util.Objects;
  *  {@link org.elasticsearch.search.slice.DocValuesSliceQuery} is used to filter the results.
  */
 public class SliceBuilder implements Writeable, ToXContentObject {
+
+    private static final DeprecationLogger DEPRECATION_LOG = new DeprecationLogger(Loggers.getLogger(SliceBuilder.class));
+
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField ID_FIELD = new ParseField("id");
     public static final ParseField MAX_FIELD = new ParseField("max");
@@ -66,7 +71,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
     }
 
     /** Name of field to slice against (_uid by default) */
-    private String field = UidFieldMapper.NAME;
+    private String field = IdFieldMapper.NAME;
     /** The id of the slice */
     private int id = -1;
     /** Max number of slices */
@@ -75,7 +80,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
     private SliceBuilder() {}
 
     public SliceBuilder(int id, int max) {
-        this(UidFieldMapper.NAME, id, max);
+        this(IdFieldMapper.NAME, id, max);
     }
 
     /**
@@ -91,14 +96,23 @@ public class SliceBuilder implements Writeable, ToXContentObject {
     }
 
     public SliceBuilder(StreamInput in) throws IOException {
-        this.field = in.readString();
+        String field = in.readString();
+        if ("_uid".equals(field) && in.getVersion().before(Version.V_6_3_0)) {
+            // This is safe because _id and _uid are handled the same way in #toFilter
+            field = IdFieldMapper.NAME;
+        }
+        this.field = field;
         this.id = in.readVInt();
         this.max = in.readVInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(field);
+        if (IdFieldMapper.NAME.equals(field) && out.getVersion().before(Version.V_6_3_0)) {
+            out.writeString("_uid");
+        } else {
+            out.writeString(field);
+        }
         out.writeVInt(id);
         out.writeVInt(max);
     }
@@ -197,11 +211,15 @@ public class SliceBuilder implements Writeable, ToXContentObject {
 
         String field = this.field;
         boolean useTermQuery = false;
-        if (UidFieldMapper.NAME.equals(field)) {
-            if (context.getIndexSettings().isSingleType()) {
-                // on new indices, the _id acts as a _uid
-                field = IdFieldMapper.NAME;
+        if ("_uid".equals(field)) {
+            // on new indices, the _id acts as a _uid
+            field = IdFieldMapper.NAME;
+            if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
+                throw new IllegalArgumentException("Computing slices on the [_uid] field is illegal for 7.x indices, use [_id] instead");
             }
+            DEPRECATION_LOG.deprecated("Computing slices on the [_uid] field is deprecated for 6.x indices, use [_id] instead");
+            useTermQuery = true;
+        } else if (IdFieldMapper.NAME.equals(field)) {
             useTermQuery = true;
         } else if (type.hasDocValues() == false) {
             throw new IllegalArgumentException("cannot load numeric doc values on " + field);

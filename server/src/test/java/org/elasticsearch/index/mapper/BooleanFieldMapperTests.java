@@ -64,10 +64,6 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
     public void setup() {
         indexService = createIndex("test");
         parser = indexService.mapperService().documentMapperParser();
-
-        IndexService preEs6IndexService = createIndex("legacy",
-            Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_0_0).build());
-        preEs6Parser = preEs6IndexService.mapperService().documentMapperParser();
     }
 
     @Override
@@ -134,50 +130,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals("{\"field\":{\"type\":\"boolean\",\"doc_values\":false,\"null_value\":true}}", Strings.toString(builder));
     }
 
-    public void testParsesPreEs6BooleansLenient() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject()
-                .startObject("type")
-                    .startObject("properties")
-                        .startObject("field1")
-                            .field("type", "boolean")
-                        .endObject()
-                        .startObject("field2")
-                            .field("type", "boolean")
-                        .endObject()
-                    .endObject()
-                .endObject()
-            .endObject());
-        DocumentMapper defaultMapper = preEs6Parser.parse("type", new CompressedXContent(mapping));
-
-        String falsy = randomFrom("false", "off", "no", "0");
-        String truthy = randomFrom("true", "on", "yes", "1");
-
-        ParsedDocument parsedDoc = defaultMapper.parse(SourceToParse.source("legacy", "type", "1", BytesReference
-            .bytes(XContentFactory.jsonBuilder()
-                .startObject()
-                    .field("field1", falsy)
-                    .field("field2", truthy)
-                .endObject()),
-            XContentType.JSON));
-        Document doc = parsedDoc.rootDoc();
-        assertEquals("F", doc.getField("field1").stringValue());
-        assertEquals("T", doc.getField("field2").stringValue());
-
-        List<String> expectedDeprecationWarnings = new ArrayList<>();
-        if (Booleans.isBoolean(falsy) == false) {
-            expectedDeprecationWarnings.add("Expected a boolean for property [field1] but got ["+ falsy + "]");
-        }
-        if (Booleans.isBoolean(truthy) == false) {
-            expectedDeprecationWarnings.add("Expected a boolean for property [field2] but got [" + truthy + "]");
-        }
-
-        if (expectedDeprecationWarnings.isEmpty() == false) {
-            assertWarnings(expectedDeprecationWarnings.toArray(new String[1]));
-        }
-    }
-
-    public void testParsesEs6BooleansStrict() throws IOException {
+    public void testParsesBooleansStrict() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
             .startObject()
                 .startObject("type")

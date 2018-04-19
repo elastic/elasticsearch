@@ -148,7 +148,7 @@ public class ClusterStateChanges extends AbstractComponent {
                     when(indexService.index()).thenReturn(indexMetaData.getIndex());
                     MapperService mapperService = mock(MapperService.class);
                     when(indexService.mapperService()).thenReturn(mapperService);
-                    when(mapperService.docMappers(anyBoolean())).thenReturn(Collections.emptyList());
+                    when(mapperService.documentMapper()).thenReturn(null);
                     when(indexService.getIndexEventListener()).thenReturn(new IndexEventListener() {});
                     when(indexService.getIndexSortSupplier()).thenReturn(() -> null);
                     return indexService;

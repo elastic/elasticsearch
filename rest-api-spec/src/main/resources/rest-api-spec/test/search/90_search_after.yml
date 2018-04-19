@@ -36,7 +36,6 @@ setup:
   - do:
       search:
         index: test
-        type:  test
         body:
           size: 1
           query:
@@ -54,7 +53,6 @@ setup:
   - do:
       search:
         index: test
-        type:  test
         body:
           size: 1
           query:
@@ -73,7 +71,6 @@ setup:
   - do:
       search:
         index: test
-        type:  test
         body:
           size: 1
           query:
@@ -92,7 +89,6 @@ setup:
   - do:
       search:
         index: test
-        type:  test
         body:
           size: 1
           query:

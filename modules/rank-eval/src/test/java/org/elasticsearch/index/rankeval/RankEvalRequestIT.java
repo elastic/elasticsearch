@@ -25,7 +25,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.rankeval.PrecisionAtK.Breakdown;
+import org.elasticsearch.index.rankeval.PrecisionAtK.Detail;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -271,7 +271,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         request.setRankEvalSpec(task);
 
         RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, request).actionGet();
-        Breakdown details = (PrecisionAtK.Breakdown) response.getPartialResults().get("amsterdam_query").getMetricDetails();
+        Detail details = (PrecisionAtK.Detail) response.getPartialResults().get("amsterdam_query").getMetricDetails();
         assertEquals(7, details.getRetrieved());
         assertEquals(6, details.getRelevantRetrieved());
 
@@ -280,7 +280,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
 
         request.indicesOptions(IndicesOptions.fromParameters(null, "true", null, SearchRequest.DEFAULT_INDICES_OPTIONS));
         response = client().execute(RankEvalAction.INSTANCE, request).actionGet();
-        details = (PrecisionAtK.Breakdown) response.getPartialResults().get("amsterdam_query").getMetricDetails();
+        details = (PrecisionAtK.Detail) response.getPartialResults().get("amsterdam_query").getMetricDetails();
         assertEquals(6, details.getRetrieved());
         assertEquals(5, details.getRelevantRetrieved());
 
@@ -295,12 +295,12 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         request = new RankEvalRequest(task, new String[] { "tes*" });
         request.indicesOptions(IndicesOptions.fromParameters("none", null, null, SearchRequest.DEFAULT_INDICES_OPTIONS));
         response = client().execute(RankEvalAction.INSTANCE, request).actionGet();
-        details = (PrecisionAtK.Breakdown) response.getPartialResults().get("amsterdam_query").getMetricDetails();
+        details = (PrecisionAtK.Detail) response.getPartialResults().get("amsterdam_query").getMetricDetails();
         assertEquals(0, details.getRetrieved());
 
         request.indicesOptions(IndicesOptions.fromParameters("open", null, null, SearchRequest.DEFAULT_INDICES_OPTIONS));
         response = client().execute(RankEvalAction.INSTANCE, request).actionGet();
-        details = (PrecisionAtK.Breakdown) response.getPartialResults().get("amsterdam_query").getMetricDetails();
+        details = (PrecisionAtK.Detail) response.getPartialResults().get("amsterdam_query").getMetricDetails();
         assertEquals(6, details.getRetrieved());
         assertEquals(5, details.getRelevantRetrieved());
 
@@ -313,7 +313,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         request = new RankEvalRequest(task, new String[] { "bad*" });
         request.indicesOptions(IndicesOptions.fromParameters(null, null, "true", SearchRequest.DEFAULT_INDICES_OPTIONS));
         response = client().execute(RankEvalAction.INSTANCE, request).actionGet();
-        details = (PrecisionAtK.Breakdown) response.getPartialResults().get("amsterdam_query").getMetricDetails();
+        details = (PrecisionAtK.Detail) response.getPartialResults().get("amsterdam_query").getMetricDetails();
         assertEquals(0, details.getRetrieved());
 
         request.indicesOptions(IndicesOptions.fromParameters(null, null, "false", SearchRequest.DEFAULT_INDICES_OPTIONS));

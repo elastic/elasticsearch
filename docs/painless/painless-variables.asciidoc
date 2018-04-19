@@ -1,15 +1,15 @@
-[[variables]]
+[[painless-variables]]
 === Variables
 
-Variables in Painless must be declared and can be statically or <<dynamic-types,
-dynamically typed>>.
+Variables in Painless must be declared and can be
+statically or <<dynamic-types, dynamically typed>>.
 
-[[variable-identifiers]]
-==== Variable Identifiers
+[[identifiers]]
+==== Identifiers
 
 Specify variable identifiers using the following grammar. Variable identifiers
-must start with a letter or underscore. You cannot use <<keywords, keywords>> or
-<<types, types>> as identifiers.
+must start with a letter or underscore. You cannot use
+<<painless-keywords, keywords>> or <<painless-types, types>> as identifiers.
 
 *Grammar:*
 [source,ANTLR4]
@@ -20,7 +20,6 @@ ID: [_a-zA-Z] [_a-zA-Z-0-9]*;
 *Examples:*
 [source,Java]
 ----
-_
 a
 Z
 id
@@ -30,8 +29,8 @@ MAP25
 _map25
 ----
 
-[[variable-declaration]]
-==== Variable Declaration
+[[declaration]]
+==== Declaration
 
 Variables must be declared before you use them. The format is `type-name
 identifier-name`. To declare multiple variables of the same type, specify a
@@ -56,7 +55,7 @@ int i = 10;   // Declare the int variable i and set it to the int literal 10
 ----
 
 [[variable-assignment]]
-==== Variable Assignment
+==== Assignment
 
 Use the equals operator (`=`) to assign a value to a variable. The format is
 `identifier-name = value`. Any value expression can be assigned to any variable
@@ -80,7 +79,7 @@ int i;   // Declare an int i
 i = 10;  // Set the int i to the int literal 10
 ----
 
-Immediately assigning a value when declaring a variable. 
+Immediately assigning a value when declaring a variable.
 
 [source,Java]
 ----

@@ -25,7 +25,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.rankeval.PrecisionAtK.Breakdown;
+import org.elasticsearch.index.rankeval.PrecisionAtK.Detail;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -43,6 +43,9 @@ import static org.elasticsearch.index.rankeval.EvaluationMetric.filterUnknownDoc
 import static org.hamcrest.Matchers.instanceOf;
 
 public class RankEvalRequestIT extends ESIntegTestCase {
+
+    private static final int RELEVANT_RATING_1 = 1;
+
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
         return Arrays.asList(RankEvalPlugin.class);
@@ -117,7 +120,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
                     if (id.equals("1") || id.equals("6")) {
                         assertFalse(hit.getRating().isPresent());
                     } else {
-                        assertEquals(TestRatingEnum.RELEVANT.ordinal(), hit.getRating().get().intValue());
+                        assertEquals(RELEVANT_RATING_1, hit.getRating().get().intValue());
                     }
                 }
             }
@@ -128,7 +131,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
                 for (RatedSearchHit hit : hitsAndRatings) {
                     String id = hit.getSearchHit().getId();
                     if (id.equals("1")) {
-                        assertEquals(TestRatingEnum.RELEVANT.ordinal(), hit.getRating().get().intValue());
+                        assertEquals(RELEVANT_RATING_1, hit.getRating().get().intValue());
                     } else {
                         assertFalse(hit.getRating().isPresent());
                     }
@@ -259,7 +262,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
     public void testIndicesOptions() {
         SearchSourceBuilder amsterdamQuery = new SearchSourceBuilder().query(new MatchAllQueryBuilder());
         List<RatedDocument> relevantDocs = createRelevant("2", "3", "4", "5", "6");
-        relevantDocs.add(new RatedDocument("test2", "7", TestRatingEnum.RELEVANT.ordinal()));
+        relevantDocs.add(new RatedDocument("test2", "7", RELEVANT_RATING_1));
         List<RatedRequest> specifications = new ArrayList<>();
         specifications.add(new RatedRequest("amsterdam_query", relevantDocs, amsterdamQuery));
         RankEvalSpec task = new RankEvalSpec(specifications, new PrecisionAtK());
@@ -268,7 +271,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         request.setRankEvalSpec(task);
 
         RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, request).actionGet();
-        Breakdown details = (PrecisionAtK.Breakdown) response.getPartialResults().get("amsterdam_query").getMetricDetails();
+        Detail details = (PrecisionAtK.Detail) response.getPartialResults().get("amsterdam_query").getMetricDetails();
         assertEquals(7, details.getRetrieved());
         assertEquals(6, details.getRelevantRetrieved());
 
@@ -277,7 +280,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
 
         request.indicesOptions(IndicesOptions.fromParameters(null, "true", null, SearchRequest.DEFAULT_INDICES_OPTIONS));
         response = client().execute(RankEvalAction.INSTANCE, request).actionGet();
-        details = (PrecisionAtK.Breakdown) response.getPartialResults().get("amsterdam_query").getMetricDetails();
+        details = (PrecisionAtK.Detail) response.getPartialResults().get("amsterdam_query").getMetricDetails();
         assertEquals(6, details.getRetrieved());
         assertEquals(5, details.getRelevantRetrieved());
 
@@ -292,12 +295,12 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         request = new RankEvalRequest(task, new String[] { "tes*" });
         request.indicesOptions(IndicesOptions.fromParameters("none", null, null, SearchRequest.DEFAULT_INDICES_OPTIONS));
         response = client().execute(RankEvalAction.INSTANCE, request).actionGet();
-        details = (PrecisionAtK.Breakdown) response.getPartialResults().get("amsterdam_query").getMetricDetails();
+        details = (PrecisionAtK.Detail) response.getPartialResults().get("amsterdam_query").getMetricDetails();
         assertEquals(0, details.getRetrieved());
 
         request.indicesOptions(IndicesOptions.fromParameters("open", null, null, SearchRequest.DEFAULT_INDICES_OPTIONS));
         response = client().execute(RankEvalAction.INSTANCE, request).actionGet();
-        details = (PrecisionAtK.Breakdown) response.getPartialResults().get("amsterdam_query").getMetricDetails();
+        details = (PrecisionAtK.Detail) response.getPartialResults().get("amsterdam_query").getMetricDetails();
         assertEquals(6, details.getRetrieved());
         assertEquals(5, details.getRelevantRetrieved());
 
@@ -310,7 +313,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         request = new RankEvalRequest(task, new String[] { "bad*" });
         request.indicesOptions(IndicesOptions.fromParameters(null, null, "true", SearchRequest.DEFAULT_INDICES_OPTIONS));
         response = client().execute(RankEvalAction.INSTANCE, request).actionGet();
-        details = (PrecisionAtK.Breakdown) response.getPartialResults().get("amsterdam_query").getMetricDetails();
+        details = (PrecisionAtK.Detail) response.getPartialResults().get("amsterdam_query").getMetricDetails();
         assertEquals(0, details.getRetrieved());
 
         request.indicesOptions(IndicesOptions.fromParameters(null, null, "false", SearchRequest.DEFAULT_INDICES_OPTIONS));
@@ -322,7 +325,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
     private static List<RatedDocument> createRelevant(String... docs) {
         List<RatedDocument> relevant = new ArrayList<>();
         for (String doc : docs) {
-            relevant.add(new RatedDocument("test", doc, TestRatingEnum.RELEVANT.ordinal()));
+            relevant.add(new RatedDocument("test", doc, RELEVANT_RATING_1));
         }
         return relevant;
     }

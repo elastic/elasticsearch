@@ -48,6 +48,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
 
     private static final String TEST_INDEX = "test";
     private static final String INDEX_ALIAS = "alias0";
+    private static final int RELEVANT_RATING_1 = 1;
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
@@ -127,7 +128,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
                     if (id.equals("1") || id.equals("6")) {
                         assertFalse(hit.getRating().isPresent());
                     } else {
-                        assertEquals(TestRatingEnum.RELEVANT.ordinal(), hit.getRating().get().intValue());
+                        assertEquals(RELEVANT_RATING_1, hit.getRating().get().intValue());
                     }
                 }
             }
@@ -138,7 +139,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
                 for (RatedSearchHit hit : hitsAndRatings) {
                     String id = hit.getSearchHit().getId();
                     if (id.equals("1")) {
-                        assertEquals(TestRatingEnum.RELEVANT.ordinal(), hit.getRating().get().intValue());
+                        assertEquals(RELEVANT_RATING_1, hit.getRating().get().intValue());
                     } else {
                         assertFalse(hit.getRating().isPresent());
                     }
@@ -269,7 +270,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
     public void testIndicesOptions() {
         SearchSourceBuilder amsterdamQuery = new SearchSourceBuilder().query(new MatchAllQueryBuilder());
         List<RatedDocument> relevantDocs = createRelevant("2", "3", "4", "5", "6");
-        relevantDocs.add(new RatedDocument("test2", "7", TestRatingEnum.RELEVANT.ordinal()));
+        relevantDocs.add(new RatedDocument("test2", "7", RELEVANT_RATING_1));
         List<RatedRequest> specifications = new ArrayList<>();
         specifications.add(new RatedRequest("amsterdam_query", relevantDocs, amsterdamQuery));
         RankEvalSpec task = new RankEvalSpec(specifications, new PrecisionAtK());
@@ -332,7 +333,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
     private static List<RatedDocument> createRelevant(String... docs) {
         List<RatedDocument> relevant = new ArrayList<>();
         for (String doc : docs) {
-            relevant.add(new RatedDocument(TEST_INDEX, doc, TestRatingEnum.RELEVANT.ordinal()));
+            relevant.add(new RatedDocument("test", doc, RELEVANT_RATING_1));
         }
         return relevant;
     }

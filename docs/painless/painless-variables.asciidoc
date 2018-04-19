@@ -29,8 +29,8 @@ assignment: '=' expression;
 
 *Examples*
 
-Different variations of variable declaration.
-
+* Different variations of variable declaration.
++
 [source,Painless]
 ----
 <1> int x;
@@ -39,7 +39,7 @@ Different variations of variable declaration.
 <4> def[] d;
 <5> int i = 10;
 ----
-
++
 <1> declare a variable of type `int` and identifier `x`
 <2> declare a variable of type `List` and identifier `y`
 <3> declare three variables of type `int` and identifiers `x`, `y`, `z`
@@ -65,55 +65,56 @@ assignment: ID '=' expression
 
 *Examples*
 
-Variable assignment with an <<integers, integer literal>>.
-
+* Variable assignment with an <<integers, integer literal>>.
++
 [source,Painless]
 ----
 <1> int i;
 <2> i = 10;
 ----
-
++
 <1> declare `int i`
 <2> assign `10` to `i`
-
-<<declaration, Declaration>> combined with immediate variable assignment.
-
++
+* <<declaration, Declaration>> combined with immediate variable assignment.
++
 [source,Painless]
 ----
 <1> int i = 10;
 <2> double j = 2.0;
 ----
-
++
 <1> declare `int i`; assign `10` to `i`
 <2> declare `double j`; assign `2.0` to `j`
-
-Assignment of one variable to another using
++
+* Assignment of one variable to another using
 <<primitive-types, primitive types>>.
-
++
 [source,Painless]
 ----
 <1> int i = 10;
 <2> int j = i;
 ----
-
++
 <1> declare `int i`; assign `10` to `i`
 <2> declare `int j`; assign `j` to `i`
-
-Assignment with reference types using the <<constructor-call, new operator>>.
-
++
+* Assignment with <<reference-types, reference types>> using the
+<<constructor-call, new operator>>.
++
 [source,Painless]
 ----
 <1> ArrayList l = new ArrayList();
 <2> Map m = new HashMap();
 ----
-
++
 <1> declare `ArrayList l`; assign a newly-allocated `Arraylist` to `l`
 <2> declare `Map m`; assign a newly-allocated `HashMap` to `m`
     with an implicit cast to `Map`
-
-Assignment of one variable to another using
++
+* Assignment of one variable to another using
 <<reference-types, reference types>>.
-
++
 [source,Painless]
 ----
 <1> List l = new ArrayList();
@@ -121,7 +122,7 @@ Assignment of one variable to another using
 <3> List m;
 <4> m = k;
 ----
-
++
 <1> declare `List l`; assign a newly-allocated `Arraylist` to `l`
     with an implicit cast to `List`
 <2> declare `List k`; assign a shallow-copy of `l` to `k`

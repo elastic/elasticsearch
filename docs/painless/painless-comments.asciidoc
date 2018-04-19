@@ -17,17 +17,17 @@ MULTI_LINE_COMMENT: '/*' .*? '*/';
 
 *Examples*
 
-Single-line comments.
-
+* Single-line comments.
++
 [source,Painless]
 ----
 // single-line comment
 
 int value; // single-line comment
 ----
-
-Multi-line comments.
-
++
+* Multi-line comments.
++
 [source,Painless]
 ----
 /* multi-

@@ -14,8 +14,8 @@ ID: [_a-zA-Z] [_a-zA-Z-0-9]*;
 
 *Examples*
 
-Variations of identifiers.
-
+* Variations of identifiers.
++
 [source,Painless]
 ----
 a

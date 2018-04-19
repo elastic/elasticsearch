@@ -590,6 +590,9 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     /** Load information about the plugin, and verify it can be installed with no errors. */
     private PluginInfo loadPluginInfo(Terminal terminal, Path pluginRoot, boolean isBatch, Environment env) throws Exception {
         final PluginInfo info = PluginInfo.readFromProperties(pluginRoot);
+        if (info.hasNativeController()) {
+            throw new IllegalStateException("plugins can not have native controllers");
+        }
         PluginsService.verifyCompatibility(info);
 
         // checking for existing version of the plugin
@@ -678,19 +681,16 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
         Set<String> permissions = new HashSet<>();
         final List<PluginInfo> pluginInfos = new ArrayList<>();
-        boolean hasNativeController = false;
         for (Path plugin : pluginPaths) {
             final PluginInfo info = loadPluginInfo(terminal, plugin, isBatch, env);
             pluginInfos.add(info);
-
-            hasNativeController |= info.hasNativeController();
 
             Path policy = plugin.resolve(PluginInfo.ES_PLUGIN_POLICY);
             if (Files.exists(policy)) {
                 permissions.addAll(PluginSecurity.parsePermissions(policy, env.tmpFile()));
             }
         }
-        PluginSecurity.confirmPolicyExceptions(terminal, permissions, hasNativeController, isBatch);
+        PluginSecurity.confirmPolicyExceptions(terminal, permissions, isBatch);
 
         // move support files and rename as needed to prepare the exploded plugin for its final location
         for (int i = 0; i < pluginPaths.size(); ++i) {
@@ -723,7 +723,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         } else {
             permissions = Collections.emptySet();
         }
-        PluginSecurity.confirmPolicyExceptions(terminal, permissions, info.hasNativeController(), isBatch);
+        PluginSecurity.confirmPolicyExceptions(terminal, permissions, isBatch);
 
         final Path destination = env.pluginsFile().resolve(info.getName());
         deleteOnFailure.add(destination);

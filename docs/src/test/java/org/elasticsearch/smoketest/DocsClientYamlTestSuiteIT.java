@@ -47,6 +47,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -92,7 +93,12 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     }
 
     /**
-     * Compares the the results of running two analyzers against many random strings.
+     * Compares the the results of running two analyzers against many random
+     * strings. The goal is to figure out if two anlayzers are "the same" by
+     * comparing their results. This is far from perfect but should be fairly
+     * accurate, especially for gross things like missing {@code decimal_digit}
+     * token filters, and should be fairly fast because it compares a fairly
+     * small number of tokens.
      */
     private static class CompareAnalyzers implements ExecutableSection {
         private static ConstructingObjectParser<CompareAnalyzers, XContentLocation> PARSER =
@@ -135,9 +141,24 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         @Override
         public void execute(ClientYamlTestExecutionContext executionContext) throws IOException {
             int size = 100;
+            int maxLength = 15;
             List<String> testText = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                testText.add(randomRealisticUnicodeOfCodepointLength(between(1, 15))
+                /**
+                 * Build a string with a few unicode sequences separated by
+                 * spaces. The unicode sequences aren't going to be of the same
+                 * code page which is a shame because it makes the entire
+                 * string less realistic. But this still provides a fairly
+                 * nice string to compare.
+                 */
+                int spaces = between(0, 5);
+                StringBuilder b = new StringBuilder((spaces + 1) * maxLength);
+                b.append(randomRealisticUnicodeOfCodepointLengthBetween(1, maxLength));
+                for (int t = 0; t < spaces; t++) {
+                    b.append(' ');
+                    b.append(randomRealisticUnicodeOfCodepointLengthBetween(1, maxLength));
+                }
+                testText.add(b.toString()
                     // Don't look up stashed values
                     .replace("$", "\\$"));
             }
@@ -177,7 +198,8 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 fail(second + " has more tokens than " + first + ". "
                     + second + " has [" + secondTokens.next() + "] but " + first + " is out of tokens. "
                     + first + "'s last token was [" + previousFirst + "] and "
-                    + second + "'s last token was' [" + previousSecond + "]");            }
+                    + second + "'s last token was' [" + previousSecond + "]");
+            }
         }
     }
 }

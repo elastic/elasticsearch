@@ -138,9 +138,16 @@ public class NodeStatsMonitoringDoc extends FilteredMonitoringDoc {
                         "node_stats.jvm.gc.collectors.old",
                         "node_stats.jvm.gc.collectors.old.collection_count",
                         "node_stats.jvm.gc.collectors.old.collection_time_in_millis",
+                        /*
+                         * We whitelist both bulk and write in case the user is running in a mixed-version cluster or has the display name
+                         * on the write thread pool set to "bulk".
+                         */
                         "node_stats.thread_pool.bulk.threads",
                         "node_stats.thread_pool.bulk.queue",
                         "node_stats.thread_pool.bulk.rejected",
+                        "node_stats.thread_pool.write.threads",
+                        "node_stats.thread_pool.write.queue",
+                        "node_stats.thread_pool.write.rejected",
                         "node_stats.thread_pool.generic.threads",
                         "node_stats.thread_pool.generic.queue",
                         "node_stats.thread_pool.generic.rejected",

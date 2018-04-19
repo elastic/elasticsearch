@@ -180,7 +180,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
                     final Map<String, String> params = new HashMap<>();
                     params.put("node_id", "_local");
                     params.put("metric", "thread_pool");
-                    params.put("filter_path", "nodes.*.thread_pool.bulk.active");
+                    params.put("filter_path", "nodes.*.thread_pool.write.active");
                     response = callApi("nodes.stats", params, emptyList(), getApiCallHeaders());
 
                     @SuppressWarnings("unchecked")
@@ -189,8 +189,8 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
                     final Map<String, Object> node = (Map<String, Object>) nodes.values().iterator().next();
 
                     @SuppressWarnings("unchecked")
-                    final Number activeBulks = (Number) extractValue("thread_pool.bulk.active", node);
-                    return activeBulks != null && activeBulks.longValue() == 0L;
+                    final Number activeWrites = (Number) extractValue("thread_pool.write.active", node);
+                    return activeWrites != null && activeWrites.longValue() == 0L;
                 } catch (Exception e) {
                     throw new ElasticsearchException("Failed to wait for monitoring exporters to stop:", e);
                 }

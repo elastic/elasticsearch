@@ -9,13 +9,16 @@
 
 === Breaking Changes
 
+<<write-thread-pool-fallback, Removed `thread_pool.bulk.*` settings and
+`es.thread_pool.write.use_bulk_as_display_name` system property>> ({pull}29609[#29609])
+
 === Breaking Java Changes
 
 * <<remove-http-enabled, Removed `http.enabled` setting>> ({pull}29601[#29601])
 
 === Deprecations
 
-=== New Features 
+=== New Features
 
 === Enhancements
 
@@ -27,7 +30,7 @@
 
 == Elasticsearch version 6.3.0
 
-=== New Features 
+=== New Features
 
 === Enhancements
 

@@ -36,6 +36,9 @@ import static org.elasticsearch.gradle.BuildPlugin.getJavaHome
  * A container for the files and configuration associated with a single node in a test cluster.
  */
 class NodeInfo {
+    /** Gradle project this node is part of */
+    Project project
+
     /** common configuration for all nodes, including this one */
     ClusterConfiguration config
 
@@ -84,6 +87,9 @@ class NodeInfo {
     /** directory to install plugins from */
     File pluginsTmpDir
 
+    /** Major version of java this node runs with, or {@code null} if using the runtime java version */
+    Integer javaVersion
+
     /** environment variables to start the node with */
     Map<String, String> env
 
@@ -109,6 +115,7 @@ class NodeInfo {
     NodeInfo(ClusterConfiguration config, int nodeNum, Project project, String prefix, Version nodeVersion, File sharedDir) {
         this.config = config
         this.nodeNum = nodeNum
+        this.project = project
         this.sharedDir = sharedDir
         if (config.clusterName != null) {
             clusterName = config.clusterName
@@ -165,12 +172,11 @@ class NodeInfo {
             args.add("${esScript}")
         }
 
+
         if (nodeVersion.before("6.2.0")) {
-            env = ['JAVA_HOME': "${-> getJavaHome(project, 8, "JAVA8_HOME must be set to run BWC tests against [" + nodeVersion + "]")}"]
+            javaVersion = 8
         } else if (nodeVersion.onOrAfter("6.2.0") && nodeVersion.before("6.3.0")) {
-            env = ['JAVA_HOME': "${-> getJavaHome(project, 9, "JAVA9_HOME must be set to run BWC tests against [" + nodeVersion + "]")}"]
-        } else {
-            env = ['JAVA_HOME': (String) project.runtimeJavaHome]
+            javaVersion = 9
         }
 
         args.addAll("-E", "node.portsfile=true")
@@ -182,7 +188,7 @@ class NodeInfo {
             // in the cluster-specific options
             esJavaOpts = String.join(" ", "-ea", "-esa", esJavaOpts)
         }
-        env.put('ES_JAVA_OPTS', esJavaOpts)
+        env = ['ES_JAVA_OPTS': esJavaOpts]
         for (Map.Entry<String, String> property : System.properties.entrySet()) {
             if (property.key.startsWith('tests.es.')) {
                 args.add("-E")
@@ -242,6 +248,11 @@ class NodeInfo {
         return Native.toString(shortPath).substring(4)
     }
 
+    /** Return the java home used by this node. */
+    String getJavaHome() {
+        return javaVersion == null ? project.runtimeJavaHome : project.javaVersions.get(javaVersion)
+    }
+
     /** Returns debug string for the command that started this node. */
     String getCommandString() {
         String esCommandString = "\nNode ${nodeNum} configuration:\n"
@@ -249,6 +260,7 @@ class NodeInfo {
         esCommandString += "|  cwd: ${cwd}\n"
         esCommandString += "|  command: ${executable} ${args.join(' ')}\n"
         esCommandString += '|  environment:\n'
+        esCommandString += "|    JAVA_HOME: ${javaHome}\n"
         env.each { k, v -> esCommandString += "|    ${k}: ${v}\n" }
         if (config.daemonize) {
             esCommandString += "|\n|  [${wrapperScript.name}]\n"

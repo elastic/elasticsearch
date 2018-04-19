@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.OBJE
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.search;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.searchForEntry;
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.IGNORE_REFERRAL_ERRORS_SETTING;
-
+import static org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySIDUtil.convertToString;
 
 class ActiveDirectoryGroupsResolver implements GroupsResolver {
 
@@ -84,54 +84,12 @@ class ActiveDirectoryGroupsResolver implements GroupsResolver {
                     } else {
                         final byte[][] tokenGroupSIDBytes = entry.getAttributeValueByteArrays(TOKEN_GROUPS);
                         List<Filter> orFilters = Arrays.stream(tokenGroupSIDBytes)
-                                .map((sidBytes) -> Filter.createEqualityFilter("objectSid", binarySidToStringSid(sidBytes)))
+                                .map((sidBytes) -> Filter.createEqualityFilter("objectSid", convertToString(sidBytes)))
                                 .collect(Collectors.toList());
                         listener.onResponse(Filter.createORFilter(orFilters));
                     }
                 }, listener::onFailure),
                 TOKEN_GROUPS);
-    }
-
-    /**
-     * To better understand what the sid is and how its string representation looks like, see
-     * http://blogs.msdn.com/b/alextch/archive/2007/06/18/sample-java-application-that-retrieves-group-membership-of-an-active-directory
-     * -user-account.aspx
-     *
-     * @param SID byte encoded security ID
-     */
-    private static String binarySidToStringSid(byte[] SID) {
-        String strSID;
-
-        //convert the SID into string format
-
-        long version;
-        long authority;
-        long count;
-        long rid;
-
-        strSID = "S";
-        version = SID[0];
-        strSID = strSID + "-" + Long.toString(version);
-        authority = SID[4];
-
-        for (int i = 0; i < 4; i++) {
-            authority <<= 8;
-            authority += SID[4 + i] & 0xFF;
-        }
-
-        strSID = strSID + "-" + Long.toString(authority);
-        count = SID[2];
-        count <<= 8;
-        count += SID[1] & 0xFF;
-        for (int j = 0; j < count; j++) {
-            rid = SID[11 + (j * 4)] & 0xFF;
-            for (int k = 1; k < 4; k++) {
-                rid <<= 8;
-                rid += SID[11 - k + (j * 4)] & 0xFF;
-            }
-            strSID = strSID + "-" + Long.toString(rid);
-        }
-        return strSID;
     }
 
 }

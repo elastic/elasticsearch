@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -71,7 +72,9 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         fieldName = in.readString();
         value = in.readGenericValue();
         slop = in.readVInt();
-        zeroTermsQuery = ZeroTermsQuery.readFromStream(in);
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            zeroTermsQuery = ZeroTermsQuery.readFromStream(in);
+        }
         analyzer = in.readOptionalString();
     }
 
@@ -80,7 +83,9 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         out.writeString(fieldName);
         out.writeGenericValue(value);
         out.writeVInt(slop);
-        zeroTermsQuery.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            zeroTermsQuery.writeTo(out);
+        }
         out.writeOptionalString(analyzer);
     }
 

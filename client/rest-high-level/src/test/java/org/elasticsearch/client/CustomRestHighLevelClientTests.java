@@ -20,7 +20,6 @@
 package org.elasticsearch.client;
 
 import org.apache.http.Header;
-import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.ProtocolVersion;
 import org.apache.http.RequestLine;
@@ -52,14 +51,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyMapOf;
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.anyVararg;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -79,14 +73,15 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
             final RestClient restClient = mock(RestClient.class);
             restHighLevelClient = new CustomRestClient(restClient);
 
-            doAnswer(mock -> mockPerformRequest((Header) mock.getArguments()[4]))
+            doAnswer(inv -> mockPerformRequest(((Request) inv.getArguments()[0]).getHeaders()[0]))
                     .when(restClient)
-                    .performRequest(eq(HttpGet.METHOD_NAME), eq(ENDPOINT), anyMapOf(String.class, String.class), anyObject(), anyVararg());
+                    .performRequest(any(Request.class));
 
-            doAnswer(mock -> mockPerformRequestAsync((Header) mock.getArguments()[5], (ResponseListener) mock.getArguments()[4]))
+            doAnswer(inv -> mockPerformRequestAsync(
+                        ((Request) inv.getArguments()[0]).getHeaders()[0],
+                        (ResponseListener) inv.getArguments()[1]))
                     .when(restClient)
-                    .performRequestAsync(eq(HttpGet.METHOD_NAME), eq(ENDPOINT), anyMapOf(String.class, String.class),
-                            any(HttpEntity.class), any(ResponseListener.class), anyVararg());
+                    .performRequestAsync(any(Request.class), any(ResponseListener.class));
         }
     }
 
@@ -193,7 +188,7 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
         }
 
         Request toRequest(MainRequest mainRequest) throws IOException {
-            return new Request(HttpGet.METHOD_NAME, ENDPOINT, emptyMap(), null);
+            return new Request(HttpGet.METHOD_NAME, ENDPOINT);
         }
 
         MainResponse toResponse(Response response) throws IOException {

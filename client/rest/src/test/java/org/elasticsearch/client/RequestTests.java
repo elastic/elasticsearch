@@ -110,4 +110,7 @@ public class RequestTests extends RestClientTestCase {
         request.setHeaders(headers);
         assertArrayEquals(headers, request.getHeaders());
     }
+
+    // TODO equals and hashcode
+
 }

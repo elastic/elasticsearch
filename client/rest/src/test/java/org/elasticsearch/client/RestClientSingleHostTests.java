@@ -344,13 +344,13 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             restClient.performRequest(method, "/" + statusCode, (Map<String, String>)null);
             fail("request should have failed");
         } catch(NullPointerException e) {
-            assertEquals("params must not be null", e.getMessage());
+            assertEquals("parameters cannot be null", e.getMessage());
         }
         try {
             restClient.performRequest(method, "/" + statusCode, null, (HttpEntity)null);
             fail("request should have failed");
         } catch(NullPointerException e) {
-            assertEquals("params must not be null", e.getMessage());
+            assertEquals("parameters cannot be null", e.getMessage());
         }
     }
 

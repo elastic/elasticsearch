@@ -22,6 +22,7 @@ package org.elasticsearch.client;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
@@ -30,12 +31,13 @@ import java.util.Objects;
  * Request to Elasticsearch.
  */
 public final class Request {
+    private static final Header[] NO_HEADERS = new Header[0];
     private final String method;
     private final String endpoint;
 
     private Map<String, String> parameters = Collections.<String, String>emptyMap();
     private HttpEntity entity;
-    private Header[] headers;
+    private Header[] headers = NO_HEADERS;
     private HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory =
             HttpAsyncResponseConsumerFactory.DEFAULT;
 
@@ -119,7 +121,8 @@ public final class Request {
      * client side.
      */
     public void setHttpAsyncResponseConsumerFactory(HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory) {
-        this.httpAsyncResponseConsumerFactory = httpAsyncResponseConsumerFactory;
+        this.httpAsyncResponseConsumerFactory =
+                Objects.requireNonNull(httpAsyncResponseConsumerFactory, "httpAsyncResponseConsumerFactory cannot be null");
     }
 
     /**
@@ -134,11 +137,51 @@ public final class Request {
 
     @Override
     public String toString() {
-        return "Request{" +
-                "method='" + method + '\'' +
-                ", endpoint='" + endpoint + '\'' +
-                ", params=" + parameters +
-                ", hasBody=" + (entity != null) +
-                '}';
+        StringBuilder b = new StringBuilder();
+        b.append("Request{");
+        b.append("method='").append(method).append('\'');
+        b.append(", endpoint='").append(endpoint).append('\'');
+        if (false == parameters.isEmpty()) {
+            b.append(", params=").append(parameters);
+        }
+        if (entity != null) {
+            b.append(", entity=").append(entity);
+        }
+        if (headers.length > 0) {
+            b.append(", headers=");
+            for (int h = 0; h < headers.length; h++) {
+                if (h != 0) {
+                    b.append(',');
+                }
+                b.append(headers[h].toString());
+            }
+        }
+        if (httpAsyncResponseConsumerFactory != HttpAsyncResponseConsumerFactory.DEFAULT) {
+            b.append(", consumerFactory=").append(httpAsyncResponseConsumerFactory);
+        }
+        return b.append('}').toString();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || (obj.getClass() != getClass())) {
+            return false;
+        }
+        if (obj == this) {
+            return true;
+        }
+
+        Request other = (Request) obj;
+        return method.equals(other.method)
+                && endpoint.equals(other.endpoint)
+                && parameters.equals(other.parameters)
+                && Objects.equals(entity, other.entity)
+                && Arrays.equals(headers, other.headers)
+                && httpAsyncResponseConsumerFactory.equals(other.httpAsyncResponseConsumerFactory);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(method, endpoint, parameters, entity, Arrays.hashCode(headers), httpAsyncResponseConsumerFactory);
     }
 }

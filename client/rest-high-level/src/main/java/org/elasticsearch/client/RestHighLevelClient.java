@@ -525,9 +525,10 @@ public class RestHighLevelClient implements Closeable {
             throw validationException;
         }
         Request req = requestConverter.apply(request);
+        req.setHeaders(headers);
         Response response;
         try {
-            response = client.performRequest(req.getMethod(), req.getEndpoint(), req.getParameters(), req.getEntity(), headers);
+            response = client.performRequest(req);
         } catch (ResponseException e) {
             if (ignores.contains(e.getResponse().getStatusLine().getStatusCode())) {
                 try {
@@ -574,9 +575,10 @@ public class RestHighLevelClient implements Closeable {
             listener.onFailure(e);
             return;
         }
+        req.setHeaders(headers);
 
         ResponseListener responseListener = wrapResponseListener(responseConverter, listener, ignores);
-        client.performRequestAsync(req.getMethod(), req.getEndpoint(), req.getParameters(), req.getEntity(), responseListener, headers);
+        client.performRequestAsync(req, responseListener);
     }
 
     final <Resp> ResponseListener wrapResponseListener(CheckedFunction<Response, Resp, IOException> responseConverter,

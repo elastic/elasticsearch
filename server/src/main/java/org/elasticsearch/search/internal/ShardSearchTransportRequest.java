@@ -28,9 +28,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.Scroll;
@@ -56,10 +53,10 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     public ShardSearchTransportRequest(){
     }
 
-    public ShardSearchTransportRequest(OriginalIndices originalIndices, SearchRequest searchRequest, ShardId shardId, int remapShardId,
+    public ShardSearchTransportRequest(OriginalIndices originalIndices, SearchRequest searchRequest, ShardId shardId, int shardRequestOrdinal,
                                        int numberOfIndexShards, int numberOfShards, AliasFilter aliasFilter, float indexBoost,
                                        long nowInMillis, String clusterAlias) {
-        this.shardSearchLocalRequest = new ShardSearchLocalRequest(searchRequest, shardId, remapShardId,
+        this.shardSearchLocalRequest = new ShardSearchLocalRequest(searchRequest, shardId, shardRequestOrdinal,
             numberOfIndexShards, numberOfShards, aliasFilter, indexBoost,
             nowInMillis, clusterAlias);
         this.originalIndices = originalIndices;
@@ -105,8 +102,8 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     @Override
-    public int remapShardId() {
-        return shardSearchLocalRequest.remapShardId();
+    public int shardRequestOrdinal() {
+        return shardSearchLocalRequest.shardRequestOrdinal();
     }
 
     @Override

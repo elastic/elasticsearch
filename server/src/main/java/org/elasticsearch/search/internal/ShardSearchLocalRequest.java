@@ -28,13 +28,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.Scroll;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
@@ -64,7 +61,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
 
     private String clusterAlias;
     private ShardId shardId;
-    private int remapShardId;
+    private int shardRequestOrdinal;
     private int numberOfIndexShards;
     private int numberOfShards;
     private SearchType searchType;
@@ -82,9 +79,9 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     ShardSearchLocalRequest() {
     }
 
-    ShardSearchLocalRequest(SearchRequest searchRequest, ShardId shardId, int remapShardId, int numberOfIndexShards, int numberOfShards,
+    ShardSearchLocalRequest(SearchRequest searchRequest, ShardId shardId, int shardRequestOrdinal, int numberOfIndexShards, int numberOfShards,
                             AliasFilter aliasFilter, float indexBoost, long nowInMillis, String clusterAlias) {
-        this(shardId, remapShardId, numberOfIndexShards, numberOfShards, searchRequest.searchType(),
+        this(shardId, shardRequestOrdinal, numberOfIndexShards, numberOfShards, searchRequest.searchType(),
                 searchRequest.source(), searchRequest.types(), searchRequest.requestCache(), aliasFilter, indexBoost,
                 searchRequest.allowPartialSearchResults());
         // If allowPartialSearchResults is unset (ie null), the cluster-level default should have been substituted
@@ -103,11 +100,11 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         indexBoost = 1.0f;
     }
 
-    public ShardSearchLocalRequest(ShardId shardId, int remapShardId, int numberOfIndexShards, int numberOfShards,
+    public ShardSearchLocalRequest(ShardId shardId, int shardRequestOrdinal, int numberOfIndexShards, int numberOfShards,
                                    SearchType searchType, SearchSourceBuilder source, String[] types,
                                    Boolean requestCache, AliasFilter aliasFilter, float indexBoost, boolean allowPartialSearchResults) {
         this.shardId = shardId;
-        this.remapShardId = remapShardId;
+        this.shardRequestOrdinal = shardRequestOrdinal;
         this.numberOfIndexShards = numberOfIndexShards;
         this.numberOfShards = numberOfShards;
         this.searchType = searchType;
@@ -160,8 +157,8 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     }
 
     @Override
-    public int remapShardId() {
-        return remapShardId;
+    public int shardRequestOrdinal() {
+        return shardRequestOrdinal;
     }
 
     @Override
@@ -214,11 +211,11 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         searchType = SearchType.fromId(in.readByte());
         numberOfShards = in.readVInt();
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            remapShardId = in.readVInt();
+            shardRequestOrdinal = in.readVInt();
             numberOfIndexShards = in.readVInt();
-            assert remapShardId != -1 && numberOfIndexShards != -1;
+            assert shardRequestOrdinal != -1 && numberOfIndexShards != -1;
         } else {
-            remapShardId = -1;
+            shardRequestOrdinal = -1;
             numberOfIndexShards = -1;
         }
         scroll = in.readOptionalWriteable(Scroll::new);
@@ -255,7 +252,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         if (!asKey) {
             out.writeVInt(numberOfShards);
             if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-                out.writeVInt(remapShardId);
+                out.writeVInt(shardRequestOrdinal);
                 out.writeVInt(numberOfIndexShards);
             }
         }

@@ -139,7 +139,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertArrayEquals(new String[] {"name", "name1"}, shardSearchTransportRequest.indices());
         assertEquals(new MatchAllQueryBuilder(), shardSearchTransportRequest.getAliasFilter().getQueryBuilder());
         assertEquals(2.0f, shardSearchTransportRequest.indexBoost(), 0.0f);
-        assertEquals(0, shardSearchTransportRequest.remapShardId());
+        assertEquals(0, shardSearchTransportRequest.shardRequestOrdinal());
         assertEquals(1, shardSearchTransportRequest.numberOfIndexShards());
         assertEquals(1, shardSearchTransportRequest.numberOfShards());
     }
@@ -149,7 +149,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         int numIndex = randomIntBetween(1, 5);
         List<SearchShardIterator> shards = new ArrayList<>();
         int[] numIndexShards = new int[numIndex];
-        Map<Integer, Map<Integer, Integer>> remapShards = new HashMap<>();
+        Map<Integer, Map<Integer, Integer>> shardOrdinals = new HashMap<>();
         int totalShards = 0;
         for (int i = 0; i < numIndex; i++) {
             int numShards = randomIntBetween(1, 10);
@@ -165,7 +165,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                     totalShards++;
                 }
             }
-            remapShards.put(i, shardMap);
+            shardOrdinals.put(i, shardMap);
         }
         Collections.shuffle(shards, random());
         GroupShardsIterator<SearchShardIterator> shardsIt = new GroupShardsIterator<>(shards);
@@ -174,7 +174,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         for (int i = 0; i < numIndex; i++) {
             int numShards = numIndexShards[i];
             String indexName = Integer.toString(i);
-            Map<Integer, Integer> shardMap = remapShards.get(i);
+            Map<Integer, Integer> shardMap = shardOrdinals.get(i);
             if (shardMap.size() == 0) {
                 continue;
             }
@@ -186,7 +186,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                     Collections.emptyList(), new OriginalIndices(new String[]{"name", "name1"}, IndicesOptions.strictExpand()));
                 ShardSearchTransportRequest shardSearchTransportRequest = action.buildShardSearchRequest(iterator);
                 assertThat(shardSearchTransportRequest.numberOfIndexShards(), equalTo(shardMap.size()));
-                assertThat(shardSearchTransportRequest.remapShardId(), equalTo(shardMap.get(j)));
+                assertThat(shardSearchTransportRequest.shardRequestOrdinal(), equalTo(shardMap.get(j)));
                 assertThat(shardSearchTransportRequest.numberOfShards(), equalTo(totalShards));
             }
         }

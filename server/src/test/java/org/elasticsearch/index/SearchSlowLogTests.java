@@ -63,7 +63,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 }
 
                 @Override
-                public int remapShardId() {
+                public int shardRequestOrdinal() {
                     return 0;
                 }
 

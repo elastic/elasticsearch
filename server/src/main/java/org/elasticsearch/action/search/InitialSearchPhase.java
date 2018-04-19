@@ -23,19 +23,20 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
@@ -52,6 +53,8 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     private final SearchRequest request;
     private final GroupShardsIterator<SearchShardIterator> toSkipShardsIts;
     private final GroupShardsIterator<SearchShardIterator> shardsIts;
+    private final Map<ShardId, Integer> shardRequestOrdinals;
+    private final Map<String, Integer> numberOfRequestShardsPerIndex;
     private final Logger logger;
     private final int expectedTotalOps;
     private final AtomicInteger totalOps = new AtomicInteger();
@@ -65,10 +68,18 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         this.request = request;
         final List<SearchShardIterator> toSkipIterators = new ArrayList<>();
         final List<SearchShardIterator> iterators = new ArrayList<>();
+        this.shardRequestOrdinals = new HashMap<>(iterators.size());
+        this.numberOfRequestShardsPerIndex = new HashMap<>();
+        Map<String, AtomicInteger> shardOrdMap = new HashMap<>();
         for (final SearchShardIterator iterator : shardsIts) {
             if (iterator.skip()) {
                 toSkipIterators.add(iterator);
             } else {
+                ShardId shardId = iterator.shardId();
+                Index index = shardId.getIndex();
+                AtomicInteger shardOrd = shardOrdMap.computeIfAbsent(index.getUUID(), (a) -> new AtomicInteger(0));
+                shardRequestOrdinals.put(iterator.shardId(), shardOrd.getAndIncrement());
+                numberOfRequestShardsPerIndex.put(index.getUUID(), shardOrd.intValue());
                 iterators.add(iterator);
             }
         }
@@ -381,17 +392,18 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     }
 
     /**
-     * Returns the list of shard ids in the request that match the provided {@link Index}.
+     * Returns the shard request ordinal for the provided <code>shardId</code>.
      */
-    protected int[] getIndexShards(Index index) {
-        List<Integer> shards = new ArrayList<>();
-        for (ShardIterator it : shardsIts) {
-            if (index.equals(it.shardId().getIndex())) {
-                shards.add(it.shardId().getId());
-            }
-        }
-        Collections.sort(shards);
-        return shards.stream().mapToInt((i) -> i).toArray();
+    protected int getShardRequestOrdinal(ShardId shardId) {
+        return shardRequestOrdinals.get(shardId);
+    }
+
+    /**
+     * Return the number of requested shards for the provided <code>index</code>.
+     */
+    protected int getNumberOfRequestShards(Index index) {
+        return numberOfRequestShardsPerIndex.get(index.getUUID());
+
     }
 
 }

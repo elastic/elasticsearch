@@ -37,7 +37,6 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.transport.Transport;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -319,11 +318,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         AliasFilter filter = aliasFilter.get(shardIt.shardId().getIndex().getUUID());
         assert filter != null;
         float indexBoost = concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST);
-        int[] indexShards = getIndexShards(shardIt.shardId().getIndex());
-        int remapShardId = Arrays.binarySearch(indexShards, shardIt.shardId().getId());
-        assert remapShardId >= 0;
-        return new ShardSearchTransportRequest(shardIt.getOriginalIndices(), request, shardIt.shardId(), remapShardId,
-            indexShards.length, getNumShards(), filter, indexBoost, timeProvider.getAbsoluteStartMillis(), clusterAlias);
+        return new ShardSearchTransportRequest(shardIt.getOriginalIndices(), request, shardIt.shardId(),
+            getShardRequestOrdinal(shardIt.shardId()), getNumberOfRequestShards(shardIt.shardId().getIndex()),
+            getNumShards(), filter, indexBoost, timeProvider.getAbsoluteStartMillis(), clusterAlias);
     }
 
     /**

@@ -207,23 +207,22 @@ public class SliceBuilder implements Writeable, ToXContentObject {
      * Converts this QueryBuilder to a lucene {@link Query}.
      *
      * @param context Additional information needed to build the query
-     * @param remapShardId The shardId of this shard for this request
-     *                     or -1 if this information is not available.
+     * @param shardRequestOrdinal The shard ordinal of for this request or -1 if this information is not available.
      * @param numIndexShards The number of shards of this index that participates in the request
      *                       or -1 if this information is not available.
      * @param minNodeVersion The version of the node with the youngest version in the cluster.
      */
-    public Query toFilter(QueryShardContext context, int remapShardId, int numIndexShards, Version minNodeVersion) {
+    public Query toFilter(QueryShardContext context, int shardRequestOrdinal, int numIndexShards, Version minNodeVersion) {
         final int numShards;
         final int shardId;
-        if (remapShardId != -1 && minNodeVersion.onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (shardRequestOrdinal != -1 && minNodeVersion.onOrAfter(Version.V_7_0_0_alpha1)) {
             /**
-             * We use the remapped shard id (added in {@link Version#V_7_0_0_alpha1} only if all nodes
+             * We use the request shard ordinal (added in {@link Version#V_7_0_0_alpha1} only if all nodes
              * are able to pass this information otherwise another slice might use the original shard
              * id and that would lead to duplicated results.
              */
             assert numIndexShards != -1;
-            shardId = remapShardId;
+            shardId = shardRequestOrdinal;
             numShards = numIndexShards;
         } else {
             shardId = context.getShardId();

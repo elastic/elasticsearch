@@ -281,7 +281,7 @@ final class DefaultSearchContext extends SearchContext {
         }
 
         if (sliceBuilder != null) {
-            filters.add(sliceBuilder.toFilter(queryShardContext, remapShardId(), numberOfIndexShards(), minNodeVersion));
+            filters.add(sliceBuilder.toFilter(queryShardContext, shardRequestOrdinal(), numberOfIndexShards(), minNodeVersion));
         }
 
         if (filters.isEmpty()) {
@@ -341,8 +341,8 @@ final class DefaultSearchContext extends SearchContext {
         return request.numberOfIndexShards();
     }
 
-    public int remapShardId() {
-        return request.remapShardId();
+    public int shardRequestOrdinal() {
+        return request.shardRequestOrdinal();
     }
 
     @Override

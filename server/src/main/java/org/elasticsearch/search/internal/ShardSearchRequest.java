@@ -50,13 +50,13 @@ public interface ShardSearchRequest {
     ShardId shardId();
 
     /**
-     * Returns the remapped shard id of the requested shard for this request
+     * Returns the shard request ordinal of the shard for this request
      * or -1 if this information is not available.
-     * The remapped shard id is the id of the requested shard among all shards
-     * of this index that are part of the request. Note that the remapped shard id
-     * is equal to the original shard id if all shards of this index are part of the request.
+     * The request shard ordinal is the id of the requested shard among all shards
+     * of this index that are part of the request. Note that the request shard ordinal
+     * is equal to the shard id if all shards of the index are part of the request.
      */
-    int remapShardId();
+    int shardRequestOrdinal();
 
     String[] types();
 

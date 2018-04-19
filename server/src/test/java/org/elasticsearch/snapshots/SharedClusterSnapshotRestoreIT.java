@@ -1584,7 +1584,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         try {
             client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setIndices("test-idx-1").setRenamePattern("test-idx").setRenameReplacement("alias").setWaitForCompletion(true).execute().actionGet();
             fail("Shouldn't be here");
-        } catch (SnapshotRestoreException ex) {
+        } catch (IllegalStateException ex) {
             // Expected
         }
 

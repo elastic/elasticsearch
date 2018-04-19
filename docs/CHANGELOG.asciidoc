@@ -13,7 +13,7 @@
 
 === Deprecations
 
-=== New Features 
+=== New Features
 
 === Enhancements
 
@@ -25,7 +25,7 @@
 
 == Elasticsearch version 6.3.0
 
-=== New Features 
+=== New Features
 
 === Enhancements
 

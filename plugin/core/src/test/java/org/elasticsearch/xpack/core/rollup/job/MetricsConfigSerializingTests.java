@@ -119,6 +119,77 @@ public class MetricsConfigSerializingTests extends AbstractSerializingTestCase<M
                 .build();
         config.validateMappings(responseMap, e);
         assertThat(e.validationErrors().size(), equalTo(0));
+
+
+        fieldCaps = mock(FieldCapabilities.class);
+        when(fieldCaps.isAggregatable()).thenReturn(true);
+        responseMap.put("my_field", Collections.singletonMap("double", fieldCaps));
+        config = new MetricConfig.Builder()
+                .setField("my_field")
+                .setMetrics(Collections.singletonList("max"))
+                .build();
+        config.validateMappings(responseMap, e);
+        assertThat(e.validationErrors().size(), equalTo(0));
+
+        fieldCaps = mock(FieldCapabilities.class);
+        when(fieldCaps.isAggregatable()).thenReturn(true);
+        responseMap.put("my_field", Collections.singletonMap("float", fieldCaps));
+        config = new MetricConfig.Builder()
+                .setField("my_field")
+                .setMetrics(Collections.singletonList("max"))
+                .build();
+        config.validateMappings(responseMap, e);
+        assertThat(e.validationErrors().size(), equalTo(0));
+
+        fieldCaps = mock(FieldCapabilities.class);
+        when(fieldCaps.isAggregatable()).thenReturn(true);
+        responseMap.put("my_field", Collections.singletonMap("short", fieldCaps));
+        config = new MetricConfig.Builder()
+                .setField("my_field")
+                .setMetrics(Collections.singletonList("max"))
+                .build();
+        config.validateMappings(responseMap, e);
+        assertThat(e.validationErrors().size(), equalTo(0));
+
+        fieldCaps = mock(FieldCapabilities.class);
+        when(fieldCaps.isAggregatable()).thenReturn(true);
+        responseMap.put("my_field", Collections.singletonMap("byte", fieldCaps));
+        config = new MetricConfig.Builder()
+                .setField("my_field")
+                .setMetrics(Collections.singletonList("max"))
+                .build();
+        config.validateMappings(responseMap, e);
+        assertThat(e.validationErrors().size(), equalTo(0));
+
+        fieldCaps = mock(FieldCapabilities.class);
+        when(fieldCaps.isAggregatable()).thenReturn(true);
+        responseMap.put("my_field", Collections.singletonMap("half_float", fieldCaps));
+        config = new MetricConfig.Builder()
+                .setField("my_field")
+                .setMetrics(Collections.singletonList("max"))
+                .build();
+        config.validateMappings(responseMap, e);
+        assertThat(e.validationErrors().size(), equalTo(0));
+
+        fieldCaps = mock(FieldCapabilities.class);
+        when(fieldCaps.isAggregatable()).thenReturn(true);
+        responseMap.put("my_field", Collections.singletonMap("scaled_float", fieldCaps));
+        config = new MetricConfig.Builder()
+                .setField("my_field")
+                .setMetrics(Collections.singletonList("max"))
+                .build();
+        config.validateMappings(responseMap, e);
+        assertThat(e.validationErrors().size(), equalTo(0));
+
+        fieldCaps = mock(FieldCapabilities.class);
+        when(fieldCaps.isAggregatable()).thenReturn(true);
+        responseMap.put("my_field", Collections.singletonMap("integer", fieldCaps));
+        config = new MetricConfig.Builder()
+                .setField("my_field")
+                .setMetrics(Collections.singletonList("max"))
+                .build();
+        config.validateMappings(responseMap, e);
+        assertThat(e.validationErrors().size(), equalTo(0));
     }
 
 }

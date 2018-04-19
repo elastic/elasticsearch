@@ -67,9 +67,14 @@ public class MetricConfig implements Writeable, ToXContentFragment {
     private static final ParseField AVG = new ParseField("avg");
     private static final ParseField VALUE_COUNT = new ParseField("value_count");
 
-    private static final List<String> MAPPER_TYPES = Stream.of(NumberFieldMapper.NumberType.values())
-            .map(NumberFieldMapper.NumberType::typeName)
-            .collect(Collectors.toList());
+    private static final List<String> MAPPER_TYPES;
+    static {
+        List<String> types = Stream.of(NumberFieldMapper.NumberType.values())
+                .map(NumberFieldMapper.NumberType::typeName)
+                .collect(Collectors.toList());
+        types.add("scaled_float"); // have to add manually since scaled_float is in a module
+        MAPPER_TYPES = types;
+    }
 
     public static final ConstructingObjectParser<MetricConfig, Void> PARSER = new ConstructingObjectParser<>(
             NAME, a -> new MetricConfig((String)a[0], (List<String>) a[1]));

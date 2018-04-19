@@ -64,7 +64,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.threadpool.ThreadPool.Names.BULK;
+import static org.elasticsearch.threadpool.ThreadPool.Names.WRITE;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -560,7 +560,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
                     boolean foundBulkThreads = false;
 
                     for(final ThreadPoolStats.Stats threadPoolStats : nodeStats.getThreadPool()) {
-                        if (BULK.equals(threadPoolStats.getName())) {
+                        if (WRITE.equals(threadPoolStats.getName())) {
                             foundBulkThreads = true;
                             assertThat("Still some active _bulk threads!", threadPoolStats.getActive(), equalTo(0));
                             break;

@@ -237,7 +237,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
             return restName;
         }
 
-        public int getIndex() {
+        private int getIndex() {
             return index;
         }
 

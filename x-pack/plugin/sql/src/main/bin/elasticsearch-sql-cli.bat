@@ -11,7 +11,7 @@ call "%~dp0elasticsearch-env.bat" || exit /b 1
 
 call "%~dp0x-pack-env.bat" || exit /b 1
 
-set CLI_JAR=%ES_HOME%/plugins/bin/*
+set CLI_JAR=%ES_HOME%/bin/*
 
 %JAVA% ^
   -cp "%CLI_JAR%" ^

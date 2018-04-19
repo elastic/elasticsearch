@@ -100,6 +100,13 @@ mapping action.
 `create`::
 Privilege to index documents. Also grants access to the update mapping
 action.
++
+--
+NOTE: This privilege does not restrict the index operation to the creation
+of documents but instead restricts API use to the index API. The index API allows a user
+to overwrite a previously indexed document.
+
+--
 
 `delete`::
 Privilege to delete documents.

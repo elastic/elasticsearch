@@ -107,8 +107,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
                 RankEvalAction.INSTANCE, new RankEvalRequest());
         builder.setRankEvalSpec(task);
 
-        // String indexToUse = randomBoolean() ? TEST_INDEX : INDEX_ALIAS;
-        String indexToUse = INDEX_ALIAS;
+        String indexToUse = randomBoolean() ? TEST_INDEX : INDEX_ALIAS;
         RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request().indices(indexToUse))
                 .actionGet();
         // the expected Prec@ for the first query is 4/6 and the expected Prec@ for the

@@ -785,8 +785,9 @@ public class InternalEngine extends Engine {
                     indexResult.setTranslogLocation(location);
                 }
                 if (plan.indexIntoLucene && indexResult.hasFailure() == false) {
+                    final Translog.Location translogLocation = trackTranslogLocation.get() ? indexResult.getTranslogLocation() : null;
                     versionMap.maybePutIndexUnderLock(index.uid().bytes(),
-                        getVersionValue(plan.versionForIndexing, plan.seqNoForIndexing, index.primaryTerm(), indexResult.getTranslogLocation()));
+                        new IndexVersionValue(translogLocation, plan.versionForIndexing, plan.seqNoForIndexing, index.primaryTerm()));
                 }
                 if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                     localCheckpointTracker.markSeqNoAsCompleted(indexResult.getSeqNo());
@@ -935,10 +936,6 @@ public class InternalEngine extends Engine {
                 throw ex;
             }
         }
-    }
-
-    private IndexVersionValue getVersionValue(long version, long seqNo, long term, Translog.Location location) {
-        return new IndexVersionValue(trackTranslogLocation.get() ? location : null, version, seqNo, term);
     }
 
     /**

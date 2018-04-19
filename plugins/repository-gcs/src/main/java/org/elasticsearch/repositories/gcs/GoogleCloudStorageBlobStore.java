@@ -30,6 +30,7 @@ import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.Storage.BlobListOption;
 import com.google.cloud.storage.Storage.CopyRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -38,6 +39,7 @@ import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.settings.Settings;
 import java.io.IOException;
 import java.io.InputStream;
@@ -168,7 +170,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
         // first read pull data
         buffer.flip();
         return new InputStream() {
-
+            @SuppressForbidden(reason = "this reader is backed by a socket not a file")
             @Override
             public int read() throws IOException {
                 try {
@@ -206,8 +208,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
                 int limit;
                 while ((limit = inputStream.read(buffer)) >= 0) {
                     try {
-                        final int bs = writer.write(ByteBuffer.wrap(buffer, 0, limit));
-                        assert bs == limit : "Write should return only when all bytes have been written";
+                        Channels.writeToChannel(buffer, 0, limit, writer);
                         bytesWritten += limit;
                     } catch (final Exception e) {
                         throw new IOException("Failed to write blob [" + blobName + "] into bucket [" + bucket + "].", e);

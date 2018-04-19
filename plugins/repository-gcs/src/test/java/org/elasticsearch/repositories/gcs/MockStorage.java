@@ -19,6 +19,7 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import org.elasticsearch.common.SuppressForbidden;
 import org.mockito.Matchers;
 
 import com.google.api.gax.paging.Page;
@@ -65,6 +66,7 @@ class MockStorage implements Storage {
     private final Bucket theBucket;
     private final ConcurrentMap<String, Blob> blobsMap;
 
+    @SuppressForbidden(reason = "mocking here requires reflection that trespasses the access system")
     MockStorage(final String bucketName, final ConcurrentMap<String, Blob> blobs) {
         this.blobsMap = blobs;
         // mock bucket

@@ -15,7 +15,8 @@
   longer needed and has been removed. As such, the  settings
   `thread_pool.index.size` and `thread_pool.index.queue_size` have been removed.
 
-==== Bulk thread pool fallback
+[[write-thread-pool-fallback]]
+==== Write thread pool fallback
 
 * The bulk thread pool was replaced by the write thread pool in 6.3.0. However,
   for backwards compatibility reasons the name `bulk` was still usable as fallback

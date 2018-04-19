@@ -69,9 +69,9 @@ public class EvalQueryQualityTests extends ESTestCase {
                 randomDoubleBetween(0.0, 1.0, true));
         if (randomBoolean()) {
             if (randomBoolean()) {
-                evalQueryQuality.setMetricDetails(new PrecisionAtK.Breakdown(randomIntBetween(0, 1000), randomIntBetween(0, 1000)));
+                evalQueryQuality.setMetricDetails(new PrecisionAtK.Detail(randomIntBetween(0, 1000), randomIntBetween(0, 1000)));
             } else {
-                evalQueryQuality.setMetricDetails(new MeanReciprocalRank.Breakdown(randomIntBetween(0, 1000)));
+                evalQueryQuality.setMetricDetails(new MeanReciprocalRank.Detail(randomIntBetween(0, 1000)));
             }
         }
         evalQueryQuality.addHitsAndRatings(ratedHits);
@@ -137,7 +137,7 @@ public class EvalQueryQualityTests extends ESTestCase {
             break;
         case 2:
             if (metricDetails == null) {
-                metricDetails = new PrecisionAtK.Breakdown(1, 5);
+                metricDetails = new PrecisionAtK.Detail(1, 5);
             } else {
                 metricDetails = null;
             }

@@ -435,7 +435,7 @@ setups['sensor_rollup_job'] = '''
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
-            metric:
+            _doc:
               properties:
                 timestamp:
                   type: date
@@ -485,7 +485,7 @@ setups['sensor_started_rollup_job'] = '''
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
-            data:
+            _doc:
               properties:
                 timestamp:
                   type: date
@@ -499,7 +499,7 @@ setups['sensor_started_rollup_job'] = '''
   - do:
       bulk:
         index: sensor-1
-        type: data
+        type: _doc
         refresh: true
         body: |
           {"index":{}}
@@ -559,7 +559,7 @@ setups['sensor_index'] = '''
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
-            data:
+            _doc:
               properties:
                 timestamp:
                   type: date
@@ -590,7 +590,7 @@ setups['sensor_prefab_data'] = '''
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
-            data:
+            _doc:
               properties:
                 timestamp:
                   type: date
@@ -608,7 +608,7 @@ setups['sensor_prefab_data'] = '''
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
-            rollup:
+            _doc:
               properties:
                 node.terms.value:
                   type: keyword
@@ -665,7 +665,7 @@ setups['sensor_prefab_data'] = '''
   - do:
       bulk:
         index: sensor_rollup
-        type: rollup
+        type: _doc
         refresh: true
         body: |
           {"index":{}}

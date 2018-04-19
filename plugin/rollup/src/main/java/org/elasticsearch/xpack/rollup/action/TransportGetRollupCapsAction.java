@@ -91,7 +91,7 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
             return Optional.empty();
         }
 
-        MappingMetaData rollupMapping = indexMetaData.getMappings().get(RollupField.NAME);
+        MappingMetaData rollupMapping = indexMetaData.getMappings().get(RollupField.TYPE_NAME);
         if (rollupMapping == null) {
             return Optional.empty();
         }

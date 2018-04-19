@@ -28,6 +28,7 @@ public class RollupField {
     public static final String TIMESTAMP = "timestamp";
     public static final String FILTER = "filter";
     public static final String NAME = "rollup";
+    public static final String TYPE_NAME = "_doc";
     public static final String AGG = "agg";
     public static final String ROLLUP_MISSING = "ROLLUP_MISSING_40710B25931745D4B0B8B310F6912A69";
     public static final List<String> SUPPORTED_METRICS = Arrays.asList(MaxAggregationBuilder.NAME, MinAggregationBuilder.NAME,

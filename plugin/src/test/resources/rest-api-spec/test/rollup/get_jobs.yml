@@ -4,7 +4,7 @@ setup:
         index: foo
         body:
           mappings:
-            doc:
+            _doc:
               properties:
                 the_field:
                   type: date

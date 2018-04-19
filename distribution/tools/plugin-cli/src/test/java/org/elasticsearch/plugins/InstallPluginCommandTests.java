@@ -1242,42 +1242,16 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertMetaPlugin("meta-plugin", "fake2", metaDir, env.v2());
     }
 
-    public void testNativeControllerConfirmation() throws Exception {
+    public void testPluginWithNativeController() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
         String pluginZip = createPluginUrl("fake", pluginDir, "has.native.controller", "true");
 
-        assertPolicyConfirmation(env, pluginZip, "plugin forks a native controller");
-        assertPlugin("fake", pluginDir, env.v2());
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> installPlugin(pluginZip, env.v1()));
+        assertThat(e, hasToString(containsString("plugins can not have native controllers")));
     }
 
-    public void testMetaPluginNativeControllerConfirmation() throws Exception {
-        Tuple<Path, Environment> env = createEnv(fs, temp);
-        Path metaDir = createPluginDir(temp);
-        Path fake1Dir = metaDir.resolve("fake1");
-        Files.createDirectory(fake1Dir);
-        writePlugin("fake1", fake1Dir, "has.native.controller", "true");
-        Path fake2Dir = metaDir.resolve("fake2");
-        Files.createDirectory(fake2Dir);
-        writePlugin("fake2", fake2Dir);
-        String pluginZip = createMetaPluginUrl("meta-plugin", metaDir);
-
-        assertPolicyConfirmation(env, pluginZip, "plugin forks a native controller");
-        assertMetaPlugin("meta-plugin", "fake1", metaDir, env.v2());
-        assertMetaPlugin("meta-plugin", "fake2", metaDir, env.v2());
-    }
-
-    public void testNativeControllerAndPolicyConfirmation() throws Exception {
-        Tuple<Path, Environment> env = createEnv(fs, temp);
-        Path pluginDir = createPluginDir(temp);
-        writePluginSecurityPolicy(pluginDir, "setAccessible", "setFactory");
-        String pluginZip = createPluginUrl("fake", pluginDir, "has.native.controller", "true");
-
-        assertPolicyConfirmation(env, pluginZip, "plugin requires additional permissions", "plugin forks a native controller");
-        assertPlugin("fake", pluginDir, env.v2());
-    }
-
-    public void testMetaPluginNativeControllerAndPolicyConfirmation() throws Exception {
+    public void testMetaPluginWithNativeController() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path metaDir = createPluginDir(temp);
         Path fake1Dir = metaDir.resolve("fake1");
@@ -1289,8 +1263,8 @@ public class InstallPluginCommandTests extends ESTestCase {
         writePlugin("fake2", fake2Dir, "has.native.controller", "true");
         String pluginZip = createMetaPluginUrl("meta-plugin", metaDir);
 
-        assertPolicyConfirmation(env, pluginZip, "plugin requires additional permissions", "plugin forks a native controller");
-        assertMetaPlugin("meta-plugin", "fake1", metaDir, env.v2());
-        assertMetaPlugin("meta-plugin", "fake2", metaDir, env.v2());
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> installPlugin(pluginZip, env.v1()));
+        assertThat(e, hasToString(containsString("plugins can not have native controllers")));
     }
+
 }

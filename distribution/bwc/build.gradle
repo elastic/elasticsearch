@@ -147,9 +147,9 @@ subprojects {
     workingDir = checkoutDir
     if (["5.6", "6.0", "6.1"].contains(bwcBranch)) {
       // we are building branches that are officially built with JDK 8, push JAVA8_HOME to JAVA_HOME for these builds
-      environment('JAVA_HOME', "${-> getJavaHome(project, 8, "JAVA8_HOME is required to build BWC versions for BWC branch [" + bwcBranch + "]")}")
+      environment('JAVA_HOME', getJavaHome(it, 8))
     } else if ("6.2".equals(bwcBranch)) {
-      environment('JAVA_HOME', "${-> getJavaHome(project, 9, "JAVA9_HOME is required to build BWC versions for BWC branch [" + bwcBranch + "]")}")
+      environment('JAVA_HOME', getJavaHome(it, 9))
     } else {
       environment('JAVA_HOME', project.compilerJavaHome)
     }

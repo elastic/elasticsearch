@@ -403,7 +403,7 @@ public class LiveVersionMapTests extends ESTestCase {
         final BytesRef uid = uid("1");
         final long versions = between(10, 1000);
         VersionValue latestVersion = null;
-        for (long i = 0; i <= versions; i++) {
+        for (long i = 0; i < versions; i++) {
             if (randomBoolean()) {
                 versionMap.beforeRefresh();
                 versionMap.afterRefresh(randomBoolean());

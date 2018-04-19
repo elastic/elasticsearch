@@ -344,8 +344,8 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
             putUnderLock(uid, version, maps);
         } else {
             maps.current.markAsUnsafe();
-            assert putAssertionMap(uid, version);
         }
+        assert putAssertionMap(uid, version);
     }
 
     private boolean putAssertionMap(BytesRef uid, VersionValue version) {

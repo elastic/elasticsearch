@@ -35,6 +35,7 @@ import org.joda.time.MutableDateTime;
 import org.joda.time.ReadableDateTime;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.AbstractList;
@@ -570,13 +571,13 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             } else
                 return array;
         }
-
     }
 
     public static final class Strings extends ScriptDocValues<String> {
         private final SortedBinaryDocValues in;
         private String[] values = new String[0];
         private int count;
+        private boolean valuesSet = false;
 
         public Strings(SortedBinaryDocValues in) {
             this.in = in;
@@ -584,6 +585,13 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public String get(int index) {
+            if (valuesSet == false) {
+                try {
+                    fillValues();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
             return values[index];
         }
 
@@ -600,15 +608,23 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             count = newSize;
         }
 
+        private void fillValues() throws IOException {
+            assert valuesSet == false;
+            resize(count);
+            for (int i = 0; i < count; i++) {
+                values[i] = in.nextValue().utf8ToString();
+            }
+            valuesSet = true;
+        }
+
         @Override
         public void setNextDocId(int docId) throws IOException {
             if (in.advanceExact(docId)) {
-                resize(in.docValueCount());
-                for (int i = 0; i < count; i++) {
-                    values[i] = in.nextValue().utf8ToString();
-                }
+                count = in.docValueCount();
+                valuesSet = false;
             } else {
                 resize(0);
+                valuesSet = true;
             }
         }
 

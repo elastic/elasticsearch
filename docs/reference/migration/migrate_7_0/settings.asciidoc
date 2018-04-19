@@ -15,6 +15,7 @@
   longer needed and has been removed. As such, the  settings
   `thread_pool.index.size` and `thread_pool.index.queue_size` have been removed.
 
+[[remove-http-enabled]]
 ==== Http enabled setting removed
 
 The setting `http.enabled` previously allowed disabling binding to http, only allowing

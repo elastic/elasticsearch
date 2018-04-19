@@ -11,6 +11,8 @@
 
 === Breaking Java Changes
 
+* <<remove-http-enabled, Removed `http.enabled` setting>> ({pull}29601[#29601])
+
 === Deprecations
 
 === New Features 

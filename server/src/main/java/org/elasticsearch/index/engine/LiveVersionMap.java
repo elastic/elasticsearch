@@ -317,14 +317,17 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         }
     }
 
-    // For testing
     void putIndexUnderLock(BytesRef uid, IndexVersionValue version) {
         assert assertKeyedLockHeldByCurrentThread(uid);
-        putIndexUnderLock(uid, version, maps);
+        assert uid.bytes.length == uid.length : "Oversized _uid! UID length: " + uid.length + ", bytes length: " + uid.bytes.length;
+        maps.put(uid, version);
+        removeTombstoneUnderLock(uid);
     }
 
     private boolean putAssertionMap(BytesRef uid, IndexVersionValue version) {
-        putIndexUnderLock(uid, version, unsafeKeysMap);
+        assert assertKeyedLockHeldByCurrentThread(uid);
+        assert uid.bytes.length == uid.length : "Oversized _uid! UID length: " + uid.length + ", bytes length: " + uid.bytes.length;
+        unsafeKeysMap.put(uid, version);
         return true;
     }
 
@@ -333,13 +336,6 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
         assert uid.bytes.length == uid.length : "Oversized _uid! UID length: " + uid.length + ", bytes length: " + uid.bytes.length;
         putTombstone(uid, version);
         maps.remove(uid, version);
-    }
-
-    private void putIndexUnderLock(BytesRef uid, IndexVersionValue version, Maps maps) {
-        assert assertKeyedLockHeldByCurrentThread(uid);
-        assert uid.bytes.length == uid.length : "Oversized _uid! UID length: " + uid.length + ", bytes length: " + uid.bytes.length;
-        maps.put(uid, version);
-        removeTombstoneUnderLock(uid);
     }
 
     private void putTombstone(BytesRef uid, DeleteVersionValue version) {

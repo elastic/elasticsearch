@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
@@ -16,6 +17,7 @@ import org.joda.time.DateTimeZone;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TimeZone;
 
 public class CompositeKeyExtractor implements BucketExtractor {
 
@@ -26,13 +28,13 @@ public class CompositeKeyExtractor implements BucketExtractor {
 
     private final String key;
     private final Property property;
-    private final DateTimeZone timeZone;
+    private final TimeZone timeZone;
 
     /**
      * Constructs a new <code>CompositeKeyExtractor</code> instance.
      * The time-zone parameter is used to indicate a date key.
      */
-    public CompositeKeyExtractor(String key, Property property, DateTimeZone timeZone) {
+    public CompositeKeyExtractor(String key, Property property, TimeZone timeZone) {
         this.key = key;
         this.property = property;
         this.timeZone = timeZone;
@@ -41,14 +43,36 @@ public class CompositeKeyExtractor implements BucketExtractor {
     CompositeKeyExtractor(StreamInput in) throws IOException {
         key = in.readString();
         property = in.readEnum(Property.class);
-        timeZone = in.readOptionalTimeZone();
+        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+            if (in.readBoolean()) {
+                timeZone = TimeZone.getTimeZone(in.readString());
+            } else {
+                timeZone = null;
+            }
+        } else {
+            DateTimeZone dtz = in.readOptionalTimeZone();
+            if (dtz == null) {
+                timeZone = null;
+            } else {
+                timeZone = dtz.toTimeZone();
+            }
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(key);
         out.writeEnum(property);
-        out.writeOptionalTimeZone(timeZone);
+        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+            if (timeZone == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                out.writeString(timeZone.getID());
+            }
+        } else {
+            out.writeOptionalTimeZone(timeZone == null ? null : DateTimeZone.forTimeZone(timeZone));
+        }
     }
 
     String key() {
@@ -59,7 +83,7 @@ public class CompositeKeyExtractor implements BucketExtractor {
         return property;
     }
 
-    DateTimeZone timeZone() {
+    TimeZone timeZone() {
         return timeZone;
     }
 
@@ -84,7 +108,7 @@ public class CompositeKeyExtractor implements BucketExtractor {
 
         if (timeZone != null) {
             if (object instanceof Long) {
-                object = new DateTime(((Long) object).longValue(), timeZone);
+                object = new DateTime(((Long) object).longValue(), DateTimeZone.forTimeZone(timeZone));
             } else {
                 throw new SqlIllegalArgumentException("Invalid date key returned: {}", object);
             }

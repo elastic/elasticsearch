@@ -13,17 +13,16 @@ import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.util.CollectionUtils;
 import org.elasticsearch.xpack.sql.util.StringUtils;
-import org.joda.time.DateTimeZone;
+
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TimeZone;
 
 import static java.util.Collections.singletonList;
-
-import java.util.LinkedHashSet;
 
 public class UnresolvedFunction extends Function implements Unresolvable {
     private final String name;
@@ -80,7 +79,7 @@ public class UnresolvedFunction extends Function implements Unresolvable {
     /**
      * Build a function to replace this one after resolving the function.
      */
-    public Function buildResolved(DateTimeZone timeZone, FunctionDefinition def) {
+    public Function buildResolved(TimeZone timeZone, FunctionDefinition def) {
         return resolutionType.buildResolved(this, timeZone, def);
     }
 
@@ -192,7 +191,7 @@ public class UnresolvedFunction extends Function implements Unresolvable {
                 return uf;
             }
             @Override
-            public Function buildResolved(UnresolvedFunction uf, DateTimeZone tz, FunctionDefinition def) {
+            public Function buildResolved(UnresolvedFunction uf, TimeZone tz, FunctionDefinition def) {
                 return def.builder().build(uf, false, tz);
             }
             @Override
@@ -213,7 +212,7 @@ public class UnresolvedFunction extends Function implements Unresolvable {
                 return uf.withMessage("* is not valid with DISTINCT");
             }
             @Override
-            public Function buildResolved(UnresolvedFunction uf, DateTimeZone tz, FunctionDefinition def) {
+            public Function buildResolved(UnresolvedFunction uf, TimeZone tz, FunctionDefinition def) {
                 return def.builder().build(uf, true, tz);
             }
             @Override
@@ -234,7 +233,7 @@ public class UnresolvedFunction extends Function implements Unresolvable {
                 return uf.withMessage("Can't extract from *");
             }
             @Override
-            public Function buildResolved(UnresolvedFunction uf, DateTimeZone tz, FunctionDefinition def) {
+            public Function buildResolved(UnresolvedFunction uf, TimeZone tz, FunctionDefinition def) {
                 if (def.datetime()) {
                     return def.builder().build(uf, false, tz);
                 }
@@ -261,7 +260,7 @@ public class UnresolvedFunction extends Function implements Unresolvable {
         /**
          * Build the real function from this one and resolution metadata.
          */
-        protected abstract Function buildResolved(UnresolvedFunction uf, DateTimeZone tz, FunctionDefinition def);
+        protected abstract Function buildResolved(UnresolvedFunction uf, TimeZone tz, FunctionDefinition def);
         /**
          * Is {@code def} a valid alternative for function invocations
          * of this kind. Used to filter the list of "did you mean"

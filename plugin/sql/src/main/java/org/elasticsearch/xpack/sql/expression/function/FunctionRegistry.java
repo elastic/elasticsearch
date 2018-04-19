@@ -63,6 +63,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TimeZone;
 import java.util.function.BiFunction;
 import java.util.regex.Pattern;
 
@@ -261,7 +262,7 @@ public class FunctionRegistry {
         return def(function, builder, true, aliases);
     }
     interface DatetimeUnaryFunctionBuilder<T> {
-        T build(Location location, Expression target, DateTimeZone tz);
+        T build(Location location, Expression target, TimeZone tz);
     }
 
     /**
@@ -300,7 +301,7 @@ public class FunctionRegistry {
         return new FunctionDefinition(primaryName, unmodifiableList(Arrays.asList(aliases)), function, datetime, realBuilder);
     }
     private interface FunctionBuilder {
-        Function build(Location location, List<Expression> children, boolean distinct, DateTimeZone tz);
+        Function build(Location location, List<Expression> children, boolean distinct, TimeZone tz);
     }
 
     private static String normalize(String name) {

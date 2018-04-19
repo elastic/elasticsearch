@@ -6,7 +6,8 @@
 package org.elasticsearch.xpack.sql.querydsl.container;
 
 import org.elasticsearch.xpack.sql.execution.search.AggRef;
-import org.joda.time.DateTimeZone;
+
+import java.util.TimeZone;
 
 /**
  * Reference to a GROUP BY agg (typically this gets translated to a composite key).
@@ -19,13 +20,13 @@ public class GroupByRef extends AggRef {
     
     private final String key;
     private final Property property;
-    private final DateTimeZone timeZone;
+    private final TimeZone timeZone;
 
     public GroupByRef(String key) {
         this(key, null, null);
     }
 
-    public GroupByRef(String key, Property property, DateTimeZone timeZone) {
+    public GroupByRef(String key, Property property, TimeZone timeZone) {
         this.key = key;
         this.property = property == null ? Property.VALUE : property;
         this.timeZone = timeZone;
@@ -39,7 +40,7 @@ public class GroupByRef extends AggRef {
         return property;
     }
 
-    public DateTimeZone timeZone() {
+    public TimeZone timeZone() {
         return timeZone;
     }
 

@@ -15,6 +15,7 @@ import org.joda.time.ReadableDateTime;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.TimeZone;
 
 public class DateTimeProcessor implements Processor {
     
@@ -44,16 +45,16 @@ public class DateTimeProcessor implements Processor {
     public static final String NAME = "dt";
 
     private final DateTimeExtractor extractor;
-    private final DateTimeZone timeZone;
+    private final TimeZone timeZone;
 
-    public DateTimeProcessor(DateTimeExtractor extractor, DateTimeZone timeZone) {
+    public DateTimeProcessor(DateTimeExtractor extractor, TimeZone timeZone) {
         this.extractor = extractor;
         this.timeZone = timeZone;
     }
 
     public DateTimeProcessor(StreamInput in) throws IOException {
         extractor = in.readEnum(DateTimeExtractor.class);
-        timeZone = DateTimeZone.forID(in.readString());
+        timeZone = TimeZone.getTimeZone(in.readString());
     }
 
     @Override
@@ -83,8 +84,8 @@ public class DateTimeProcessor implements Processor {
 
         ReadableDateTime dt = (ReadableDateTime) l;
 
-        if (!DateTimeZone.UTC.equals(timeZone)) {
-            dt = dt.toDateTime().withZone(timeZone);
+        if (!TimeZone.getTimeZone("UTC").equals(timeZone)) {
+            dt = dt.toDateTime().withZone(DateTimeZone.forTimeZone(timeZone));
         }
         return extractor.extract(dt);
     }

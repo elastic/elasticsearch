@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function;
 
 import java.util.List;
 import java.util.Locale;
-import org.joda.time.DateTimeZone;
+import java.util.TimeZone;
 
 import static java.lang.String.format;
 
@@ -17,7 +17,7 @@ public class FunctionDefinition {
      */
     @FunctionalInterface
     public interface Builder {
-        Function build(UnresolvedFunction uf, boolean distinct, DateTimeZone tz);
+        Function build(UnresolvedFunction uf, boolean distinct, TimeZone tz);
     }
     private final String name;
     private final List<String> aliases;

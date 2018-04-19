@@ -12,6 +12,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.querydsl.container.GroupByRef.Property;
 import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 
@@ -23,7 +24,7 @@ import static java.util.Collections.singletonMap;
 public class CompositeKeyExtractorTests extends AbstractWireSerializingTestCase<CompositeKeyExtractor> {
 
     public static CompositeKeyExtractor randomCompositeKeyExtractor() {
-        return new CompositeKeyExtractor(randomAlphaOfLength(16), randomFrom(asList(Property.values())), randomDateTimeZone());
+        return new CompositeKeyExtractor(randomAlphaOfLength(16), randomFrom(asList(Property.values())), randomTimeZone());
     }
 
     @Override
@@ -44,7 +45,7 @@ public class CompositeKeyExtractorTests extends AbstractWireSerializingTestCase<
     public void testExtractBucketCount() {
         Bucket bucket = new TestBucket(emptyMap(), randomLong(), new Aggregations(emptyList()));
         CompositeKeyExtractor extractor = new CompositeKeyExtractor(randomAlphaOfLength(16), Property.COUNT,
-                randomDateTimeZone());
+                randomTimeZone());
         assertEquals(bucket.getDocCount(), extractor.extract(bucket));
     }
 
@@ -57,15 +58,15 @@ public class CompositeKeyExtractorTests extends AbstractWireSerializingTestCase<
     }
 
     public void testExtractDate() {
-        CompositeKeyExtractor extractor = new CompositeKeyExtractor(randomAlphaOfLength(16), Property.VALUE, randomDateTimeZone());
+        CompositeKeyExtractor extractor = new CompositeKeyExtractor(randomAlphaOfLength(16), Property.VALUE, randomTimeZone());
 
         long millis = System.currentTimeMillis();
         Bucket bucket = new TestBucket(singletonMap(extractor.key(), millis), randomLong(), new Aggregations(emptyList()));
-        assertEquals(new DateTime(millis, extractor.timeZone()), extractor.extract(bucket));
+        assertEquals(new DateTime(millis, DateTimeZone.forTimeZone(extractor.timeZone())), extractor.extract(bucket));
     }
 
     public void testExtractIncorrectDateKey() {
-        CompositeKeyExtractor extractor = new CompositeKeyExtractor(randomAlphaOfLength(16), Property.VALUE, randomDateTimeZone());
+        CompositeKeyExtractor extractor = new CompositeKeyExtractor(randomAlphaOfLength(16), Property.VALUE, randomTimeZone());
 
         Object value = new Object();
         Bucket bucket = new TestBucket(singletonMap(extractor.key(), value), randomLong(), new Aggregations(emptyList()));

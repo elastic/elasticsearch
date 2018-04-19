@@ -10,20 +10,20 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunctio
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
-import org.joda.time.DateTimeZone;
 
 import java.time.temporal.ChronoField;
+import java.util.TimeZone;
 
 /**
  * Extract the day of the year from a datetime.
  */
 public class DayOfYear extends DateTimeFunction {
-    public DayOfYear(Location location, Expression field, DateTimeZone timeZone) {
+    public DayOfYear(Location location, Expression field, TimeZone timeZone) {
         super(location, field, timeZone);
     }
 
     @Override
-    protected NodeCtor2<Expression, DateTimeZone, DateTimeFunction> ctorForInfo() {
+    protected NodeCtor2<Expression, TimeZone, DateTimeFunction> ctorForInfo() {
         return DayOfYear::new;
     }
 

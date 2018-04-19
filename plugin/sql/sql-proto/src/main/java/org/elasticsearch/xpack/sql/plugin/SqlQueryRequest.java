@@ -17,11 +17,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.TimeZone;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -45,7 +45,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest implements ToXConte
     public SqlQueryRequest() {
     }
 
-    public SqlQueryRequest(Mode mode, String query, List<SqlTypedParamValue> params, QueryBuilder filter, DateTimeZone timeZone,
+    public SqlQueryRequest(Mode mode, String query, List<SqlTypedParamValue> params, QueryBuilder filter, TimeZone timeZone,
                            int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, String cursor) {
         super(mode, query, params, filter, timeZone, fetchSize, requestTimeout, pageTimeout);
         this.cursor = cursor;

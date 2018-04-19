@@ -11,24 +11,26 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
+import java.util.TimeZone;
+
 public class DayOfYearTests extends ESTestCase {
-    private static final DateTimeZone UTC = DateTimeZone.UTC;
+    private static final TimeZone UTC = TimeZone.getTimeZone("UTC");
 
     public void testAsColumnProcessor() {
         assertEquals(1, extract(dateTime(0), UTC));
-        assertEquals(1, extract(dateTime(0), DateTimeZone.forID("+01:00")));
-        assertEquals(365, extract(dateTime(0), DateTimeZone.forID("-01:00")));
+        assertEquals(1, extract(dateTime(0), TimeZone.getTimeZone("GMT+01:00")));
+        assertEquals(365, extract(dateTime(0), TimeZone.getTimeZone("GMT-01:00")));
     }
 
     private DateTime dateTime(long millisSinceEpoch) {
-        return new DateTime(millisSinceEpoch, UTC);
+        return new DateTime(millisSinceEpoch, DateTimeZone.forTimeZone(UTC));
     }
 
-    private Object extract(Object value, DateTimeZone timeZone) {
+    private Object extract(Object value, TimeZone timeZone) {
         return build(value, timeZone).asProcessorDefinition().asProcessor().process(value);
     }
 
-    private DayOfYear build(Object value, DateTimeZone timeZone) {
+    private DayOfYear build(Object value, TimeZone timeZone) {
         return new DayOfYear(null, new Literal(null, value, DataType.DATE), timeZone);
     }
 }

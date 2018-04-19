@@ -65,6 +65,7 @@ import org.joda.time.DateTimeZone;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.TimeZone;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.and;
@@ -75,6 +76,8 @@ import static org.elasticsearch.xpack.sql.planner.QueryTranslator.toQuery;
  * Folds the PhysicalPlan into a {@link Query}.
  */
 class QueryFolder extends RuleExecutor<PhysicalPlan> {
+    private static final TimeZone UTC = TimeZone.getTimeZone("UTC");
+
     PhysicalPlan fold(PhysicalPlan plan) {
         return execute(plan);
     }
@@ -279,7 +282,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 if (matchingGroup != null) {
                                     if (exp instanceof Attribute || exp instanceof ScalarFunction) {
                                         Processor action = null;
-                                        DateTimeZone tz = null;
+                                        TimeZone tz = null;
                                         /*
                                          * special handling of dates since aggs return the typed Date object which needs
                                          * extraction instead of handling this in the scroller, the folder handles this
@@ -330,7 +333,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 // check if the field is a date - if so mark it as such to interpret the long as a date
                                 // UTC is used since that's what the server uses and there's no conversion applied
                                 // (like for date histograms)
-                                DateTimeZone dt = DataType.DATE == child.dataType() ? DateTimeZone.UTC : null;
+                                TimeZone dt = DataType.DATE == child.dataType() ? UTC : null;
                                 queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, dt));
                             }
                             else {
@@ -349,7 +352,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             matchingGroup = groupingContext.groupFor(ne);
                             Check.notNull(matchingGroup, "Cannot find group [{}]", Expressions.name(ne));
 
-                            DateTimeZone dt = DataType.DATE == ne.dataType() ? DateTimeZone.UTC : null;
+                            TimeZone dt = DataType.DATE == ne.dataType() ? UTC : null;
                             queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, dt));
                         }
                     }

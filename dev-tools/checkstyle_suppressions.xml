@@ -13,6 +13,7 @@
   <suppress files="plugin[/\\]core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]CompletionPersistentTaskAction.java" checks="LineLength" />
   <suppress files="plugin[/\\]security[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]security[/\\]Security.java" checks="LineLength" />
   <suppress files="plugin[/\\]security[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]security[/\\]authc[/\\]Realms.java" checks="LineLength" />
+  <suppress files="plugin[/\\]security[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]security[/\\]authc[/\\]ldap[/\\]ActiveDirectorySIDUtil.java" checks="LineLength" />
   <suppress files="plugin[/\\]ml[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]ml[/\\]integration[/\\]TooManyJobsIT.java" checks="LineLength" />
   <suppress files="plugin[/\\]core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]persistent[/\\]TestPersistentTasksPlugin.java" checks="LineLength" />
   <suppress files="plugin[/\\]security[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]security[/\\]action[/\\]user[/\\]TransportGetUsersActionTests.java" checks="LineLength" />

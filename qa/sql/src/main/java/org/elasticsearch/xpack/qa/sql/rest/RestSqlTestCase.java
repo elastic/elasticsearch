@@ -343,10 +343,17 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         Map<String, String> params = new TreeMap<>();
         params.put("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
         params.put("pretty", "true");        // Improves error reporting readability
-        params.put("format", "json");        // JSON is easier to parse then a table
-        if (Strings.hasText(mode)) {
-            params.put("mode", mode);            // JDBC or PLAIN mode
+        if (randomBoolean()) {
+            // We default to JSON but we force it randomly for extra coverage
+            params.put("format", "json");
         }
+        if (Strings.hasText(mode)) {
+            params.put("mode", mode);        // JDBC or PLAIN mode
+        }
+        Header[] headers = randomFrom(
+            new Header[] {},
+            new Header[] {new BasicHeader("Accept", "*/*")},
+            new Header[] {new BasicHeader("Accpet", "application/json")});
         Response response = client().performRequest("POST", "/_xpack/sql" + suffix, params, sql);
         try (InputStream content = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
@@ -447,7 +454,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
                 "---------------\n" +
                 "test           \n" +
                 "test           \n";
-        Tuple<String, String> response = runSqlAsText("SELECT * FROM test");
+        Tuple<String, String> response = runSqlAsText("SELECT * FROM test", "text/plain");
         assertEquals(expected, response.v1());
     }
 
@@ -466,9 +473,10 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         for (int i = 0; i < 20; i += 2) {
             Tuple<String, String> response;
             if (i == 0) {
-                response = runSqlAsText("", new StringEntity(request, ContentType.APPLICATION_JSON));
+                response = runSqlAsText("", new StringEntity(request, ContentType.APPLICATION_JSON), "text/plain");
             } else {
-                response = runSqlAsText("", new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON));
+                response = runSqlAsText("", new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON),
+                        "text/plain");
             }
 
             StringBuilder expected = new StringBuilder();
@@ -494,7 +502,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     // CSV/TSV tests
-    
+
     private static String toJson(String value) {
         return "\"" + new String(JsonStringEncoder.getInstance().quoteAsString(value)) + "\"";
     }
@@ -509,11 +517,11 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
                 "first,1\r\n" +
                 "second\t,2\r\n" +
                 "\"\"\"third,\"\"\",3\r\n";
-        
+
         String query = "SELECT * FROM test ORDER BY number";
         Tuple<String, String> response = runSqlAsText(query, "text/csv");
         assertEquals(expected, response.v1());
-        
+
         response = runSqlAsTextFormat(query, "csv");
         assertEquals(expected, response.v1());
     }
@@ -527,7 +535,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
                 "first,1\r\n" +
                 "second\t,2\r\n" +
                 "\"\"\"third,\"\"\",3\r\n";
-        
+
         String query = "SELECT * FROM test ORDER BY number";
         Tuple<String, String> response = runSqlAsText(query, "text/csv; header=absent");
         assertEquals(expected, response.v1());
@@ -543,7 +551,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
                 "first\t1\n" +
                 "second\\t\t2\n" +
                 "\"third,\"\t3\n";
-        
+
         String query = "SELECT * FROM test ORDER BY number";
         Tuple<String, String> response = runSqlAsText(query, "text/tab-separated-values");
         assertEquals(expected, response.v1());
@@ -551,17 +559,13 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         assertEquals(expected, response.v1());
     }
 
-    private Tuple<String, String> runSqlAsText(String sql) throws IOException {
-        return runSqlAsText("", new StringEntity("{\"query\":\"" + sql + "\"}", ContentType.APPLICATION_JSON));
+    private Tuple<String, String> runSqlAsText(String sql, String accept) throws IOException {
+        return runSqlAsText("", new StringEntity("{\"query\":\"" + sql + "\"}", ContentType.APPLICATION_JSON), accept);
     }
 
-    private Tuple<String, String> runSqlAsText(String sql, String acceptHeader) throws IOException {
-        return runSqlAsText("", new StringEntity("{\"query\":\"" + sql + "\"}", ContentType.APPLICATION_JSON),
-                new BasicHeader("Accept", acceptHeader));
-    }
-
-    private Tuple<String, String> runSqlAsText(String suffix, HttpEntity sql, Header... headers) throws IOException {
-        Response response = client().performRequest("POST", "/_xpack/sql" + suffix, singletonMap("error_trace", "true"), sql, headers);
+    private Tuple<String, String> runSqlAsText(String suffix, HttpEntity entity, String accept) throws IOException {
+        Response response = client().performRequest("POST", "/_xpack/sql" + suffix, singletonMap("error_trace", "true"),
+                entity, new BasicHeader("Accept", accept));
         return new Tuple<>(
                 Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8)),
                 response.getHeader("Cursor")
@@ -570,19 +574,17 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
 
     private Tuple<String, String> runSqlAsTextFormat(String sql, String format) throws IOException {
         StringEntity entity = new StringEntity("{\"query\":\"" + sql + "\"}", ContentType.APPLICATION_JSON);
-        
+
         Map<String, String> params = new HashMap<>();
         params.put("error_trace", "true");
         params.put("format", format);
-                
+
         Response response = client().performRequest("POST", "/_xpack/sql", params, entity);
         return new Tuple<>(
                 Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8)),
                 response.getHeader("Cursor")
         );
-
     }
-
 
     private void assertResponse(Map<String, Object> expected, Map<String, Object> actual) {
         if (false == expected.equals(actual)) {

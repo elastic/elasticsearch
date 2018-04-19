@@ -26,6 +26,9 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Request to Elasticsearch.
+ */
 public final class Request {
     private final String method;
     private final String endpoint;
@@ -35,13 +38,6 @@ public final class Request {
     private Header[] headers;
     private HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory =
             HttpAsyncResponseConsumerFactory.DEFAULT;
-
-    public Request(String method, String endpoint, Map<String, String> parameters, HttpEntity entity) {
-        this(method, endpoint);
-        this.parameters = Objects.requireNonNull(parameters, "parameters cannot be null");
-        this.entity = entity;
-        // TODO drop this ctor
-    }
 
     /**
      * Create the {@linkplain Request}.
@@ -72,7 +68,7 @@ public final class Request {
      * Map after setting it.
      */
     public void setParameters(Map<String, String> parameters) {
-        this.parameters = parameters;
+        this.parameters = Objects.requireNonNull(parameters, "parameters cannot be null");;
     }
 
     /**
@@ -102,6 +98,10 @@ public final class Request {
      * Set the headers to attach to the request.
      */
     public void setHeaders(Header... headers) {
+        Objects.requireNonNull(headers, "headers cannot be null");
+        for (Header header : headers) {
+            Objects.requireNonNull(header, "header cannot be null");
+        }
         this.headers = headers;
     }
 

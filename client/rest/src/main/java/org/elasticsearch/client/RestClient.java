@@ -322,8 +322,14 @@ public class RestClient implements Closeable {
      */
     @Deprecated
     public void performRequestAsync(String method, String endpoint, ResponseListener responseListener, Header... headers) {
-        Request request = new Request(method, endpoint);
-        request.setHeaders(headers);
+        Request request;
+        try {
+            request = new Request(method, endpoint);
+            request.setHeaders(headers);
+        } catch (Exception e) {
+            responseListener.onFailure(e);
+            return;
+        }
         performRequestAsync(request, responseListener);
     }
 
@@ -342,9 +348,15 @@ public class RestClient implements Closeable {
     @Deprecated
     public void performRequestAsync(String method, String endpoint, Map<String, String> params,
                                     ResponseListener responseListener, Header... headers) {
-        Request request = new Request(method, endpoint);
-        request.setParameters(params);
-        request.setHeaders(headers);
+        Request request;
+        try {
+            request = new Request(method, endpoint);
+            request.setParameters(params);
+            request.setHeaders(headers);
+        } catch (Exception e) {
+            responseListener.onFailure(e);
+            return;
+        }
         performRequestAsync(request, responseListener);
     }
 
@@ -366,10 +378,16 @@ public class RestClient implements Closeable {
     @Deprecated
     public void performRequestAsync(String method, String endpoint, Map<String, String> params,
                                     HttpEntity entity, ResponseListener responseListener, Header... headers) {
-        Request request = new Request(method, endpoint);
-        request.setParameters(params);
-        request.setEntity(entity);
-        request.setHeaders(headers);
+        Request request;
+        try {
+            request = new Request(method, endpoint);
+            request.setParameters(params);
+            request.setEntity(entity);
+            request.setHeaders(headers);
+        } catch (Exception e) {
+            responseListener.onFailure(e);
+            return;
+        }
         performRequestAsync(request, responseListener);
     }
 
@@ -396,11 +414,17 @@ public class RestClient implements Closeable {
     public void performRequestAsync(String method, String endpoint, Map<String, String> params,
                                     HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
                                     ResponseListener responseListener, Header... headers) {
-        Request request = new Request(method, endpoint);
-        request.setParameters(params);
-        request.setEntity(entity);
-        request.setHttpAsyncResponseConsumerFactory(httpAsyncResponseConsumerFactory);
-        request.setHeaders(headers);
+        Request request;
+        try {
+            request = new Request(method, endpoint);
+            request.setParameters(params);
+            request.setEntity(entity);
+            request.setHttpAsyncResponseConsumerFactory(httpAsyncResponseConsumerFactory);
+            request.setHeaders(headers);
+        } catch (Exception e) {
+            responseListener.onFailure(e);
+            return;
+        }
         performRequestAsync(request, responseListener);
     }
 
@@ -517,11 +541,9 @@ public class RestClient implements Closeable {
     }
 
     private void setHeaders(HttpRequest httpRequest, Header[] requestHeaders) {
-        Objects.requireNonNull(requestHeaders, "request headers must not be null");
         // request headers override default headers, so we don't add default headers if they exist as request headers
         final Set<String> requestNames = new HashSet<>(requestHeaders.length);
         for (Header requestHeader : requestHeaders) {
-            Objects.requireNonNull(requestHeader, "request header must not be null");
             httpRequest.addHeader(requestHeader);
             requestNames.add(requestHeader.getName());
         }

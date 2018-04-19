@@ -19,51 +19,95 @@
 
 package org.elasticsearch.client;
 
-import static java.util.Collections.singletonMap;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
-
 import java.util.Map;
 
+import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.message.BasicHeader;
+
+import static java.util.Collections.singletonMap;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 public class RequestTests extends RestClientTestCase {
-
     public void testConstructor() {
         final String method = randomFrom(new String[] {"GET", "PUT", "POST", "HEAD", "DELETE"});
         final String endpoint = randomAsciiLettersOfLengthBetween(1, 10);
-        final Map<String, String> parameters = singletonMap(randomAsciiLettersOfLength(5), randomAsciiLettersOfLength(5));
-        final HttpEntity entity =
-                randomBoolean() ? new StringEntity(randomAsciiLettersOfLengthBetween(1, 100), ContentType.TEXT_PLAIN) : null;
 
         try {
-            new Request(null, endpoint, parameters, entity);
+            new Request(null, endpoint);
             fail("expected failure");
         } catch (NullPointerException e) {
             assertEquals("method cannot be null", e.getMessage());
         }
 
         try {
-            new Request(method, null, parameters, entity);
+            new Request(method, null);
             fail("expected failure");
         } catch (NullPointerException e) {
             assertEquals("endpoint cannot be null", e.getMessage());
         }
 
+        final Request request = new Request(method, endpoint);
+        assertEquals(method, request.getMethod());
+        assertEquals(endpoint, request.getEndpoint());
+    }
+
+    public void testSetParameters() {
+        final String method = randomFrom(new String[] {"GET", "PUT", "POST", "HEAD", "DELETE"});
+        final String endpoint = randomAsciiLettersOfLengthBetween(1, 10);
+        final Map<String, String> parameters = singletonMap(randomAsciiLettersOfLength(5), randomAsciiLettersOfLength(5));
+
+        Request request = new Request(method, endpoint);
         try {
-            new Request(method, endpoint, null, entity);
+            request.setParameters(null);
             fail("expected failure");
         } catch (NullPointerException e) {
             assertEquals("parameters cannot be null", e.getMessage());
         }
 
-        final Request request = new Request(method, endpoint, parameters, entity);
-        assertEquals(method, request.getMethod());
-        assertEquals(endpoint, request.getEndpoint());
+        request.setParameters(parameters);
         assertEquals(parameters, request.getParameters());
+    }
+
+    public void testSetEntity() {
+        final String method = randomFrom(new String[] {"GET", "PUT", "POST", "HEAD", "DELETE"});
+        final String endpoint = randomAsciiLettersOfLengthBetween(1, 10);
+        final HttpEntity entity =
+                randomBoolean() ? new StringEntity(randomAsciiLettersOfLengthBetween(1, 100), ContentType.TEXT_PLAIN) : null;
+        Request request = new Request(method, endpoint);
+
+        request.setEntity(entity);
         assertEquals(entity, request.getEntity());
     }
 
+    public void testSetHeaders() {
+        final String method = randomFrom(new String[] {"GET", "PUT", "POST", "HEAD", "DELETE"});
+        final String endpoint = randomAsciiLettersOfLengthBetween(1, 10);
+        Request request = new Request(method, endpoint);
+
+        try {
+            request.setHeaders((Header[]) null);
+            fail("expected failure");
+        } catch (NullPointerException e) {
+            assertEquals("headers cannot be null", e.getMessage());
+        }
+
+        try {
+            request.setHeaders(new Header [] {null});
+            fail("expected failure");
+        } catch (NullPointerException e) {
+            assertEquals("header cannot be null", e.getMessage());
+        }
+
+        Header[] headers = new Header[between(0, 5)];
+        for (int i = 0; i < headers.length; i++) {
+            headers[i] = new BasicHeader(randomAsciiAlphanumOfLength(3), randomAsciiAlphanumOfLength(3));
+        }
+        request.setHeaders(headers);
+        assertArrayEquals(headers, request.getHeaders());
+    }
 }

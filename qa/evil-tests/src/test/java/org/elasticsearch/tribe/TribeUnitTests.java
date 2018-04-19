@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -124,7 +125,8 @@ public class TribeUnitTests extends ESTestCase {
 
     public void testThatTribeClientsIgnoreGlobalConfig() throws Exception {
         assertTribeNodeSuccessfullyCreated(getDataPath("elasticsearch.yml").getParent());
-        assertWarnings("tribe nodes are deprecated in favor of cross-cluster search and will be removed in Elasticsearch 7.0.0");
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{NetworkModule.HTTP_ENABLED},
+            "tribe nodes are deprecated in favor of cross-cluster search and will be removed in Elasticsearch 7.0.0");
     }
 
     private static void assertTribeNodeSuccessfullyCreated(Path configPath) throws Exception {

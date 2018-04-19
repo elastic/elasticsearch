@@ -20,12 +20,13 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.rankeval.PrecisionAtK.Breakdown;
+import org.elasticsearch.index.rankeval.PrecisionAtK.Detail;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -40,9 +41,15 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 import static org.elasticsearch.index.rankeval.EvaluationMetric.filterUnknownDocuments;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class RankEvalRequestIT extends ESIntegTestCase {
+
+    private static final String TEST_INDEX = "test";
+    private static final String INDEX_ALIAS = "alias0";
+    private static final int RELEVANT_RATING_1 = 1;
+
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
         return Arrays.asList(RankEvalPlugin.class);
@@ -55,20 +62,23 @@ public class RankEvalRequestIT extends ESIntegTestCase {
 
     @Before
     public void setup() {
-        createIndex("test");
+        createIndex(TEST_INDEX);
         ensureGreen();
 
-        client().prepareIndex("test", "testtype").setId("1")
+        client().prepareIndex(TEST_INDEX, "testtype").setId("1")
                 .setSource("text", "berlin", "title", "Berlin, Germany", "population", 3670622).get();
-        client().prepareIndex("test", "testtype").setId("2").setSource("text", "amsterdam", "population", 851573).get();
-        client().prepareIndex("test", "testtype").setId("3").setSource("text", "amsterdam", "population", 851573).get();
-        client().prepareIndex("test", "testtype").setId("4").setSource("text", "amsterdam", "population", 851573).get();
-        client().prepareIndex("test", "testtype").setId("5").setSource("text", "amsterdam", "population", 851573).get();
-        client().prepareIndex("test", "testtype").setId("6").setSource("text", "amsterdam", "population", 851573).get();
+        client().prepareIndex(TEST_INDEX, "testtype").setId("2").setSource("text", "amsterdam", "population", 851573).get();
+        client().prepareIndex(TEST_INDEX, "testtype").setId("3").setSource("text", "amsterdam", "population", 851573).get();
+        client().prepareIndex(TEST_INDEX, "testtype").setId("4").setSource("text", "amsterdam", "population", 851573).get();
+        client().prepareIndex(TEST_INDEX, "testtype").setId("5").setSource("text", "amsterdam", "population", 851573).get();
+        client().prepareIndex(TEST_INDEX, "testtype").setId("6").setSource("text", "amsterdam", "population", 851573).get();
 
         // add another index for testing closed indices etc...
         client().prepareIndex("test2", "testtype").setId("7").setSource("text", "amsterdam", "population", 851573).get();
         refresh();
+
+        // set up an alias that can also be used in tests
+        assertAcked(client().admin().indices().prepareAliases().addAliasAction(AliasActions.add().index(TEST_INDEX).alias(INDEX_ALIAS)));
     }
 
     /**
@@ -98,7 +108,8 @@ public class RankEvalRequestIT extends ESIntegTestCase {
                 RankEvalAction.INSTANCE, new RankEvalRequest());
         builder.setRankEvalSpec(task);
 
-        RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request().indices("test"))
+        String indexToUse = randomBoolean() ? TEST_INDEX : INDEX_ALIAS;
+        RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request().indices(indexToUse))
                 .actionGet();
         // the expected Prec@ for the first query is 4/6 and the expected Prec@ for the
         // second is 1/6, divided by 2 to get the average
@@ -117,7 +128,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
                     if (id.equals("1") || id.equals("6")) {
                         assertFalse(hit.getRating().isPresent());
                     } else {
-                        assertEquals(TestRatingEnum.RELEVANT.ordinal(), hit.getRating().get().intValue());
+                        assertEquals(RELEVANT_RATING_1, hit.getRating().get().intValue());
                     }
                 }
             }
@@ -128,7 +139,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
                 for (RatedSearchHit hit : hitsAndRatings) {
                     String id = hit.getSearchHit().getId();
                     if (id.equals("1")) {
-                        assertEquals(TestRatingEnum.RELEVANT.ordinal(), hit.getRating().get().intValue());
+                        assertEquals(RELEVANT_RATING_1, hit.getRating().get().intValue());
                     } else {
                         assertFalse(hit.getRating().isPresent());
                     }
@@ -140,7 +151,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         metric = new PrecisionAtK(1, false, 3);
         task = new RankEvalSpec(specifications, metric);
 
-        builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest(task, new String[] { "test" }));
+        builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest(task, new String[] { TEST_INDEX }));
 
         response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
         // if we look only at top 3 documente, the expected P@3 for the first query is
@@ -160,19 +171,19 @@ public class RankEvalRequestIT extends ESIntegTestCase {
 
         List<RatedRequest> specifications = new ArrayList<>();
         List<RatedDocument> ratedDocs = Arrays.asList(
-                new RatedDocument("test", "1", 3),
-                new RatedDocument("test", "2", 2),
-                new RatedDocument("test", "3", 3),
-                new RatedDocument("test", "4", 0),
-                new RatedDocument("test", "5", 1),
-                new RatedDocument("test", "6", 2));
+                new RatedDocument(TEST_INDEX, "1", 3),
+                new RatedDocument(TEST_INDEX, "2", 2),
+                new RatedDocument(TEST_INDEX, "3", 3),
+                new RatedDocument(TEST_INDEX, "4", 0),
+                new RatedDocument(TEST_INDEX, "5", 1),
+                new RatedDocument(TEST_INDEX, "6", 2));
         specifications.add(new RatedRequest("amsterdam_query", ratedDocs, testQuery));
 
         DiscountedCumulativeGain metric = new DiscountedCumulativeGain(false, null, 10);
         RankEvalSpec task = new RankEvalSpec(specifications, metric);
 
         RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE,
-                new RankEvalRequest(task, new String[] { "test" }));
+                new RankEvalRequest(task, new String[] { TEST_INDEX }));
 
         RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
         assertEquals(DiscountedCumulativeGainTests.EXPECTED_DCG, response.getEvaluationResult(), 10E-14);
@@ -181,7 +192,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         metric = new DiscountedCumulativeGain(false, null, 3);
         task = new RankEvalSpec(specifications, metric);
 
-        builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest(task, new String[] { "test" }));
+        builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest(task, new String[] { TEST_INDEX }));
 
         response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
         assertEquals(12.39278926071437, response.getEvaluationResult(), 10E-14);
@@ -200,7 +211,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         RankEvalSpec task = new RankEvalSpec(specifications, metric);
 
         RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE,
-                new RankEvalRequest(task, new String[] { "test" }));
+                new RankEvalRequest(task, new String[] { TEST_INDEX }));
 
         RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
         // the expected reciprocal rank for the amsterdam_query is 1/5
@@ -213,7 +224,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         metric = new MeanReciprocalRank(1, 3);
         task = new RankEvalSpec(specifications, metric);
 
-        builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest(task, new String[] { "test" }));
+        builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest(task, new String[] { TEST_INDEX }));
 
         response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
         // limiting to top 3 results, the amsterdam_query has no relevant document in it
@@ -244,7 +255,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         RankEvalSpec task = new RankEvalSpec(specifications, new PrecisionAtK());
 
         RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE,
-                new RankEvalRequest(task, new String[] { "test" }));
+                new RankEvalRequest(task, new String[] { TEST_INDEX }));
         builder.setRankEvalSpec(task);
 
         RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
@@ -259,16 +270,16 @@ public class RankEvalRequestIT extends ESIntegTestCase {
     public void testIndicesOptions() {
         SearchSourceBuilder amsterdamQuery = new SearchSourceBuilder().query(new MatchAllQueryBuilder());
         List<RatedDocument> relevantDocs = createRelevant("2", "3", "4", "5", "6");
-        relevantDocs.add(new RatedDocument("test2", "7", TestRatingEnum.RELEVANT.ordinal()));
+        relevantDocs.add(new RatedDocument("test2", "7", RELEVANT_RATING_1));
         List<RatedRequest> specifications = new ArrayList<>();
         specifications.add(new RatedRequest("amsterdam_query", relevantDocs, amsterdamQuery));
         RankEvalSpec task = new RankEvalSpec(specifications, new PrecisionAtK());
 
-        RankEvalRequest request = new RankEvalRequest(task, new String[] { "test", "test2" });
+        RankEvalRequest request = new RankEvalRequest(task, new String[] { TEST_INDEX, "test2" });
         request.setRankEvalSpec(task);
 
         RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, request).actionGet();
-        Breakdown details = (PrecisionAtK.Breakdown) response.getPartialResults().get("amsterdam_query").getMetricDetails();
+        Detail details = (PrecisionAtK.Detail) response.getPartialResults().get("amsterdam_query").getMetricDetails();
         assertEquals(7, details.getRetrieved());
         assertEquals(6, details.getRelevantRetrieved());
 
@@ -277,7 +288,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
 
         request.indicesOptions(IndicesOptions.fromParameters(null, "true", null, SearchRequest.DEFAULT_INDICES_OPTIONS));
         response = client().execute(RankEvalAction.INSTANCE, request).actionGet();
-        details = (PrecisionAtK.Breakdown) response.getPartialResults().get("amsterdam_query").getMetricDetails();
+        details = (PrecisionAtK.Detail) response.getPartialResults().get("amsterdam_query").getMetricDetails();
         assertEquals(6, details.getRetrieved());
         assertEquals(5, details.getRelevantRetrieved());
 
@@ -292,12 +303,12 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         request = new RankEvalRequest(task, new String[] { "tes*" });
         request.indicesOptions(IndicesOptions.fromParameters("none", null, null, SearchRequest.DEFAULT_INDICES_OPTIONS));
         response = client().execute(RankEvalAction.INSTANCE, request).actionGet();
-        details = (PrecisionAtK.Breakdown) response.getPartialResults().get("amsterdam_query").getMetricDetails();
+        details = (PrecisionAtK.Detail) response.getPartialResults().get("amsterdam_query").getMetricDetails();
         assertEquals(0, details.getRetrieved());
 
         request.indicesOptions(IndicesOptions.fromParameters("open", null, null, SearchRequest.DEFAULT_INDICES_OPTIONS));
         response = client().execute(RankEvalAction.INSTANCE, request).actionGet();
-        details = (PrecisionAtK.Breakdown) response.getPartialResults().get("amsterdam_query").getMetricDetails();
+        details = (PrecisionAtK.Detail) response.getPartialResults().get("amsterdam_query").getMetricDetails();
         assertEquals(6, details.getRetrieved());
         assertEquals(5, details.getRelevantRetrieved());
 
@@ -310,7 +321,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
         request = new RankEvalRequest(task, new String[] { "bad*" });
         request.indicesOptions(IndicesOptions.fromParameters(null, null, "true", SearchRequest.DEFAULT_INDICES_OPTIONS));
         response = client().execute(RankEvalAction.INSTANCE, request).actionGet();
-        details = (PrecisionAtK.Breakdown) response.getPartialResults().get("amsterdam_query").getMetricDetails();
+        details = (PrecisionAtK.Detail) response.getPartialResults().get("amsterdam_query").getMetricDetails();
         assertEquals(0, details.getRetrieved());
 
         request.indicesOptions(IndicesOptions.fromParameters(null, null, "false", SearchRequest.DEFAULT_INDICES_OPTIONS));
@@ -322,7 +333,7 @@ public class RankEvalRequestIT extends ESIntegTestCase {
     private static List<RatedDocument> createRelevant(String... docs) {
         List<RatedDocument> relevant = new ArrayList<>();
         for (String doc : docs) {
-            relevant.add(new RatedDocument("test", doc, TestRatingEnum.RELEVANT.ordinal()));
+            relevant.add(new RatedDocument("test", doc, RELEVANT_RATING_1));
         }
         return relevant;
     }

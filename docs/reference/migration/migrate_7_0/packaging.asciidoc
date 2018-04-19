@@ -1,6 +1,7 @@
 [[breaking_70_packaging_changes]]
 === Packaging changes
 
+[[systemd-service-file-config]]
 ==== systemd service file is no longer configuration
 
 The systemd service file `/usr/lib/systemd/system/elasticsearch.service`

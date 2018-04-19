@@ -12,6 +12,8 @@
 <<write-thread-pool-fallback, Removed `thread_pool.bulk.*` settings and
 `es.thread_pool.write.use_bulk_as_display_name` system property>> ({pull}29609[#29609])
 
+<<systemd-service-file-config, Systemd service file is no longer marked as configuration>> ({pull}29004[#29004])
+
 === Breaking Java Changes
 
 === Deprecations

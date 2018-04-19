@@ -172,7 +172,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
                 fieldType = context.getMapperService().fullName(IdFieldMapper.NAME);
             }
             if (fieldType == null) {
-                if (context.getMapperService().types().isEmpty()) {
+                if (context.getMapperService().documentMapper() == null) {
                     // no mappings: the index is empty anyway
                     return new RandomScoreFunction(hash(context.nowInMillis()), salt, null);
                 }

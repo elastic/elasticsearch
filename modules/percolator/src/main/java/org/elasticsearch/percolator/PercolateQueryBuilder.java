@@ -581,11 +581,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         final List<ParsedDocument> docs = new ArrayList<>();
         final DocumentMapper docMapper;
         final MapperService mapperService = context.getMapperService();
-        Collection<String> types = mapperService.types();
-        if (types.size() != 1) {
-            throw new IllegalStateException("Only a single type should exist, but [" + types.size() + " types exists");
-        }
-        String type = types.iterator().next();
+        String type = mapperService.documentMapper().type();
         if (documentType != null) {
             DEPRECATION_LOGGER.deprecated("[document_type] parameter has been deprecated because types have been deprecated");
             if (documentType.equals(type) == false) {

@@ -47,13 +47,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
 
@@ -96,15 +94,16 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
         Predicate<String> metadataFieldPredicate = indicesService::isMetaDataField;
         Predicate<String> fieldPredicate = metadataFieldPredicate.or(indicesService.getFieldFilter().apply(shardId.getIndexName()));
 
+        DocumentMapper mapper = indexService.mapperService().documentMapper();
         Collection<String> typeIntersection;
         if (request.types().length == 0) {
-            typeIntersection = indexService.mapperService().types();
-
+            typeIntersection = mapper == null
+                    ? Collections.emptySet()
+                    : Collections.singleton(mapper.type());
         } else {
-            typeIntersection = indexService.mapperService().types()
-                    .stream()
-                    .filter(type -> Regex.simpleMatch(request.types(), type))
-                    .collect(Collectors.toCollection(ArrayList::new));
+            typeIntersection = mapper != null && Regex.simpleMatch(request.types(), mapper.type())
+                    ? Collections.singleton(mapper.type())
+                    : Collections.emptySet();
             if (typeIntersection.isEmpty()) {
                 throw new TypeMissingException(shardId.getIndex(), request.types());
             }

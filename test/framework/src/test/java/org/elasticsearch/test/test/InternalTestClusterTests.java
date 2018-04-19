@@ -220,6 +220,7 @@ public class InternalTestClusterTests extends ESTestCase {
 
         assertClusters(cluster0, cluster1, false);
         long seed = randomLong();
+        boolean shouldAssertSettingsDeprecationsAndWarnings = false;
         try {
             {
                 Random random = new Random(seed);
@@ -231,6 +232,7 @@ public class InternalTestClusterTests extends ESTestCase {
             }
             assertArrayEquals(cluster0.getNodeNames(), cluster1.getNodeNames());
             if (cluster0.getNodeNames().length > 0) {
+                shouldAssertSettingsDeprecationsAndWarnings = true;
                 assertSettingDeprecationsAndWarnings(new Setting<?>[]{NetworkModule.HTTP_ENABLED});
             }
             Iterator<Client> iterator1 = cluster1.getClients().iterator();
@@ -245,6 +247,9 @@ public class InternalTestClusterTests extends ESTestCase {
             cluster1.afterTest();
         } finally {
             IOUtils.close(cluster0, cluster1);
+            if (shouldAssertSettingsDeprecationsAndWarnings) {
+                assertSettingDeprecationsAndWarnings(new Setting<?>[]{NetworkModule.HTTP_ENABLED});
+            }
         }
     }
 

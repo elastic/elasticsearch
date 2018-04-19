@@ -633,7 +633,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                     }
 
                     if (httpAddresses.size() < maxNumRemoteConnections) {
-                        // nocommit: is this needed anymore?
+                        // TODO: remove this when master is 8.0, since 7.0+ nodes always have http enabled
                         // just in case non of the connected nodes have http enabled we get other http enabled nodes instead.
                         for (NodeInfo info : response.getNodes()) {
                             if (nodePredicate.test(info.getNode()) && info.getHttp() != null) {

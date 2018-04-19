@@ -12,8 +12,8 @@ All cluster administration operations, like snapshotting, node shutdown/restart,
 settings update, rerouting, or managing users and roles.
 
 `monitor`::
-All cluster read-only operations, like cluster health & state, hot threads, node
-info, node & cluster stats, snapshot/restore status, pending cluster tasks.
+All cluster read-only operations, like cluster health and state, hot threads, 
+node info, node and cluster stats, and pending cluster tasks.
 
 `monitor_ml`::
 All read only {ml} operations, such as getting information about {dfeeds}, jobs,
@@ -24,8 +24,9 @@ All read only watcher operations, such as getting a watch and watcher stats.
 
 `manage`::
 Builds on `monitor` and adds cluster operations that change values in the cluster.
-This includes snapshotting, updating settings, and rerouting. This privilege does
-not include the ability to manage security.
+This includes snapshotting, updating settings, and rerouting. It also includes 
+obtaining snapshot and restore status. This privilege does not include the 
+ability to manage security.
 
 `manage_index_templates`::
 All operations on index templates.
@@ -72,8 +73,8 @@ cluster to enable <<cross-cluster-configuring,Cross Cluster Search>>.
 Any action on an index
 
 `monitor`::
-All actions that are required for monitoring (recovery, segments info, index stats
-& status).
+All actions that are required for monitoring (recovery, segments info, index 
+stats and status).
 
 `manage`::
 All `monitor` privileges plus index administration (aliases, analyze, cache clear,

@@ -41,6 +41,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class LiveVersionMapTests extends ESTestCase {
 
@@ -397,11 +398,12 @@ public class LiveVersionMapTests extends ESTestCase {
         assertEquals(0, map.getAllTombstones().size());
     }
 
-    public void testNeverLeaveStaleDeleteTombstone() throws Exception {
-        LiveVersionMap versionMap = new LiveVersionMap();
-        BytesRef uid = uid("1");
-        long versions = between(10, 1000);
-        for (long version = 1; version <= versions; version++) {
+    public void testRandomlyIndexDeleteAndRefresh() throws Exception {
+        final LiveVersionMap versionMap = new LiveVersionMap();
+        final BytesRef uid = uid("1");
+        final long versions = between(10, 1000);
+        VersionValue latestVersion = null;
+        for (long i = 0; i <= versions; i++) {
             if (randomBoolean()) {
                 versionMap.beforeRefresh();
                 versionMap.afterRefresh(randomBoolean());
@@ -411,13 +413,20 @@ public class LiveVersionMapTests extends ESTestCase {
             }
             try (Releasable ignore = versionMap.acquireLock(uid)) {
                 if (randomBoolean()) {
-                    versionMap.putDeleteUnderLock(uid, new DeleteVersionValue(version, 1, 1, 1));
-                } else {
-                    versionMap.maybePutIndexUnderLock(uid, new IndexVersionValue(randomTranslogLocation(), version, 1, 1));
+                    latestVersion = new DeleteVersionValue(randomNonNegativeLong(), randomLong(), randomLong(), randomLong());
+                    versionMap.putDeleteUnderLock(uid, (DeleteVersionValue) latestVersion);
+                    assertThat(versionMap.getUnderLock(uid), equalTo(latestVersion));
+                } else if (randomBoolean()) {
+                    latestVersion = new IndexVersionValue(randomTranslogLocation(), randomNonNegativeLong(), randomLong(), randomLong());
+                    versionMap.maybePutIndexUnderLock(uid, (IndexVersionValue) latestVersion);
+                    if (versionMap.isSafeAccessRequired()) {
+                        assertThat(versionMap.getUnderLock(uid), equalTo(latestVersion));
+                    } else {
+                        assertThat(versionMap.getUnderLock(uid), nullValue());
+                    }
                 }
-                VersionValue storedValue = versionMap.getUnderLock(uid);
-                if (storedValue != null) {
-                    assertThat("Keeping a stale version value", storedValue.version, equalTo(version));
+                if (versionMap.getUnderLock(uid) != null) {
+                    assertThat(versionMap.getUnderLock(uid), equalTo(latestVersion));
                 }
             }
         }

@@ -128,7 +128,7 @@ setup() {
     if is_systemd; then
         # Debian systemd distros usually returns exit code 3
         run systemctl status elasticsearch.service
-        [ "$status" -eq 3 ]
+        [ "$status" -eq 4 ]
 
         run systemctl is-enabled elasticsearch.service
         [ "$status" -eq 1 ]

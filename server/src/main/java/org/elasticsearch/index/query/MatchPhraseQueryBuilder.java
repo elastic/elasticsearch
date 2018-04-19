@@ -227,14 +227,14 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
                         } else if (ZERO_TERMS_QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            String zeroTermsDocs = parser.text();
-                            if ("none".equalsIgnoreCase(zeroTermsDocs)) {
+                            String zeroTermsValue = parser.text();
+                            if ("none".equalsIgnoreCase(zeroTermsValue)) {
                                 zeroTermsQuery = ZeroTermsQuery.NONE;
-                            } else if ("all".equalsIgnoreCase(zeroTermsDocs)) {
+                            } else if ("all".equalsIgnoreCase(zeroTermsValue)) {
                                 zeroTermsQuery = ZeroTermsQuery.ALL;
                             } else {
                                 throw new ParsingException(parser.getTokenLocation(),
-                                    "Unsupported zero_terms_docs value [" + zeroTermsDocs + "]");
+                                    "Unsupported zero_terms_query value [" + zeroTermsValue + "]");
                             }
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),

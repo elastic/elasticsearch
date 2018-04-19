@@ -56,7 +56,6 @@ import org.elasticsearch.painless.antlr.PainlessParser.DeclContext;
 import org.elasticsearch.painless.antlr.PainlessParser.DeclarationContext;
 import org.elasticsearch.painless.antlr.PainlessParser.DecltypeContext;
 import org.elasticsearch.painless.antlr.PainlessParser.DeclvarContext;
-import org.elasticsearch.painless.antlr.PainlessParser.DelimiterContext;
 import org.elasticsearch.painless.antlr.PainlessParser.DoContext;
 import org.elasticsearch.painless.antlr.PainlessParser.DynamicContext;
 import org.elasticsearch.painless.antlr.PainlessParser.EachContext;
@@ -264,6 +263,10 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             statements.add((AStatement)visit(statement));
         }
 
+        if (ctx.dstatement() != null) {
+            statements.add((AStatement)visit(ctx.dstatement()));
+        }
+
         return new SSource(scriptClassInfo, settings, sourceName, sourceText, debugStream, (MainMethodReserved)reserved.pop(),
                            location(ctx), functions, globals, statements);
     }
@@ -290,6 +293,10 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             statements.add((AStatement)visit(statement));
         }
 
+        if (ctx.block().dstatement() != null) {
+            statements.add((AStatement)visit(ctx.block().dstatement()));
+        }
+
         return new SFunction((FunctionReserved)reserved.pop(), location(ctx), rtnType, name,
                              paramTypes, paramNames, statements, false);
     }
@@ -297,6 +304,17 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     @Override
     public ANode visitParameters(ParametersContext ctx) {
         throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+    }
+
+    @Override
+    public ANode visitStatement(StatementContext ctx) {
+        if (ctx.rstatement() != null) {
+            return visit(ctx.rstatement());
+        } else if (ctx.dstatement() != null) {
+            return visit(ctx.dstatement());
+        } else {
+            throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+        }
     }
 
     @Override
@@ -446,13 +464,17 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitBlock(BlockContext ctx) {
-        if (ctx.statement().isEmpty()) {
+        if (ctx.statement().isEmpty() && ctx.dstatement() == null) {
             return null;
         } else {
             List<AStatement> statements = new ArrayList<>();
 
             for (StatementContext statement : ctx.statement()) {
                 statements.add((AStatement)visit(statement));
+            }
+
+            if (ctx.dstatement() != null) {
+                statements.add((AStatement)visit(ctx.dstatement()));
             }
 
             return new SBlock(location(ctx), statements);
@@ -512,11 +534,6 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         SBlock block = (SBlock)visit(ctx.block());
 
         return new SCatch(location(ctx), type, name, block);
-    }
-
-    @Override
-    public ANode visitDelimiter(DelimiterContext ctx) {
-        throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
     }
 
     @Override
@@ -1073,6 +1090,10 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         } else {
             for (StatementContext statement : ctx.block().statement()) {
                 statements.add((AStatement)visit(statement));
+            }
+
+            if (ctx.block().dstatement() != null) {
+                statements.add((AStatement)visit(ctx.block().dstatement()));
             }
         }
 

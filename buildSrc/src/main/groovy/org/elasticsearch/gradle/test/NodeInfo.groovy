@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.gradle.test
 
 import com.sun.jna.Native
@@ -28,6 +29,8 @@ import org.gradle.api.Project
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+
+import static org.elasticsearch.gradle.BuildPlugin.getJavaHome
 
 /**
  * A container for the files and configuration associated with a single node in a test cluster.
@@ -100,10 +103,10 @@ class NodeInfo {
     ByteArrayOutputStream buffer = new ByteArrayOutputStream()
 
     /** the version of elasticsearch that this node runs */
-    String nodeVersion
+    Version nodeVersion
 
     /** Holds node configuration for part of a test cluster. */
-    NodeInfo(ClusterConfiguration config, int nodeNum, Project project, String prefix, String nodeVersion, File sharedDir) {
+    NodeInfo(ClusterConfiguration config, int nodeNum, Project project, String prefix, Version nodeVersion, File sharedDir) {
         this.config = config
         this.nodeNum = nodeNum
         this.sharedDir = sharedDir
@@ -162,12 +165,22 @@ class NodeInfo {
             args.add("${esScript}")
         }
 
-        env = ['JAVA_HOME': project.runtimeJavaHome]
+        if (nodeVersion.before("6.2.0")) {
+            env = ['JAVA_HOME': "${-> getJavaHome(project, 8, "JAVA8_HOME must be set to run BWC tests against [" + nodeVersion + "]")}"]
+        } else if (nodeVersion.onOrAfter("6.2.0") && nodeVersion.before("6.3.0")) {
+            env = ['JAVA_HOME': "${-> getJavaHome(project, 9, "JAVA9_HOME must be set to run BWC tests against [" + nodeVersion + "]")}"]
+        } else {
+            env = ['JAVA_HOME': (String) project.runtimeJavaHome]
+        }
+
         args.addAll("-E", "node.portsfile=true")
         String collectedSystemProperties = config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" ")
         String esJavaOpts = config.jvmArgs.isEmpty() ? collectedSystemProperties : collectedSystemProperties + " " + config.jvmArgs
         if (Boolean.parseBoolean(System.getProperty('tests.asserts', 'true'))) {
-            esJavaOpts += " -ea -esa"
+            // put the enable assertions options before other options to allow
+            // flexibility to disable assertions for specific packages or classes
+            // in the cluster-specific options
+            esJavaOpts = String.join(" ", "-ea", "-esa", esJavaOpts)
         }
         env.put('ES_JAVA_OPTS', esJavaOpts)
         for (Map.Entry<String, String> property : System.properties.entrySet()) {
@@ -281,7 +294,7 @@ class NodeInfo {
     }
 
     /** Returns the directory elasticsearch home is contained in for the given distribution */
-    static File homeDir(File baseDir, String distro, String nodeVersion) {
+    static File homeDir(File baseDir, String distro, Version nodeVersion) {
         String path
         switch (distro) {
             case 'integ-test-zip':
@@ -299,7 +312,7 @@ class NodeInfo {
         return new File(baseDir, path)
     }
 
-    static File pathConf(File baseDir, String distro, String nodeVersion) {
+    static File pathConf(File baseDir, String distro, Version nodeVersion) {
         switch (distro) {
             case 'integ-test-zip':
             case 'zip':

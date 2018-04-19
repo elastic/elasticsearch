@@ -57,7 +57,11 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
 
     @Override
     public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
-        List<PercolateQuery> percolateQueries = locatePercolatorQuery(context.query());
+        innerHitsExecute(context.query(), context.searcher(), hits);
+    }
+
+    static void innerHitsExecute(Query mainQuery, IndexSearcher indexSearcher, SearchHit[] hits) throws IOException {
+        List<PercolateQuery> percolateQueries = locatePercolatorQuery(mainQuery);
         if (percolateQueries.isEmpty()) {
             return;
         }
@@ -81,11 +85,15 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
             }
 
             PercolateQuery.QueryStore queryStore = percolateQuery.getQueryStore();
-            List<LeafReaderContext> ctxs = context.searcher().getIndexReader().leaves();
+            List<LeafReaderContext> ctxs = indexSearcher.getIndexReader().leaves();
             for (SearchHit hit : hits) {
                 LeafReaderContext ctx = ctxs.get(ReaderUtil.subIndex(hit.docId(), ctxs));
                 int segmentDocId = hit.docId() - ctx.docBase;
                 Query query = queryStore.getQueries(ctx).apply(segmentDocId);
+                if (query == null) {
+                    // This is not a document with a percolator field.
+                    continue;
+                }
 
                 TopDocs topDocs = percolatorIndexSearcher.search(query, memoryIndexMaxDoc, new Sort(SortField.FIELD_DOC));
                 if (topDocs.totalHits == 0) {

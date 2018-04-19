@@ -19,7 +19,6 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.lucene.store.LockObtainFailedException;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -42,6 +41,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -50,6 +50,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
@@ -102,9 +103,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.elasticsearch.index.shard.IndexShardTestCase.getTranslog;
 
 public class IndexShardIT extends ESSingleNodeTestCase {
 
@@ -165,7 +168,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("test"));
         IndexShard shard = test.getShardOrNull(0);
-        Translog translog = ShardUtilsTests.getShardEngine(shard).getTranslog();
+        Translog translog = getTranslog(shard);
         Predicate<Translog> needsSync = (tlog) -> {
             // we can't use tlog.needsSync() here since it also takes the global checkpoint into account
             // we explicitly want to check here if our durability checks are taken into account so we only
@@ -333,7 +336,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertFalse(shard.shouldPeriodicallyFlush());
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
-                new ByteSizeValue(160 /* size of the operation + two generations header&footer*/, ByteSizeUnit.BYTES)).build()).get();
+                new ByteSizeValue(190 /* size of the operation + two generations header&footer*/, ByteSizeUnit.BYTES)).build()).get();
         client().prepareIndex("test", "test", "0")
             .setSource("{}", XContentType.JSON).setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         assertFalse(shard.shouldPeriodicallyFlush());
@@ -341,12 +344,13 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             SourceToParse.source("test", "test", "1", new BytesArray("{}"), XContentType.JSON),
             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, update -> {});
         assertTrue(shard.shouldPeriodicallyFlush());
-        final Translog translog = shard.getEngine().getTranslog();
+        final Translog translog = getTranslog(shard);
         assertEquals(2, translog.stats().getUncommittedOperations());
         client().prepareIndex("test", "test", "2").setSource("{}", XContentType.JSON)
             .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         assertBusy(() -> { // this is async
             assertFalse(shard.shouldPeriodicallyFlush());
+            assertThat(shard.flushStats().getPeriodic(), greaterThan(0L));
         });
         assertEquals(0, translog.stats().getUncommittedOperations());
         translog.sync();
@@ -381,7 +385,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final IndexService test = indicesService.indexService(resolveIndex("test"));
         final IndexShard shard = test.getShardOrNull(0);
         int rolls = 0;
-        final Translog translog = shard.getEngine().getTranslog();
+        final Translog translog = getTranslog(shard);
         final long generation = translog.currentFileGeneration();
         final int numberOfDocuments = randomIntBetween(32, 128);
         for (int i = 0; i < numberOfDocuments; i++) {
@@ -444,14 +448,18 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         if (flush) {
             final FlushStats flushStats = shard.flushStats();
             final long total = flushStats.getTotal();
+            final long periodic = flushStats.getPeriodic();
             client().prepareIndex("test", "test", "1").setSource("{}", XContentType.JSON).get();
-            check = () -> assertEquals(total + 1, shard.flushStats().getTotal());
+            check = () -> {
+                assertThat(shard.flushStats().getTotal(), equalTo(total + 1));
+                assertThat(shard.flushStats().getPeriodic(), equalTo(periodic + 1));
+            };
         } else {
-            final long generation = shard.getEngine().getTranslog().currentFileGeneration();
+            final long generation = getTranslog(shard).currentFileGeneration();
             client().prepareIndex("test", "test", "1").setSource("{}", XContentType.JSON).get();
             check = () -> assertEquals(
                     generation + 1,
-                    shard.getEngine().getTranslog().currentFileGeneration());
+                    getTranslog(shard).currentFileGeneration());
         }
         assertBusy(check);
         running.set(false);
@@ -459,6 +467,30 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             threads[i].join();
         }
         check.run();
+    }
+
+    public void testFlushStats() throws Exception {
+        final IndexService indexService = createIndex("test");
+        ensureGreen();
+        Settings settings = Settings.builder().put("index.translog.flush_threshold_size", "" + between(200, 300) + "b").build();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(settings).get();
+        final int numDocs = between(10, 100);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test", "doc", Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+        }
+        // A flush stats may include the new total count but the old period count - assert eventually.
+        assertBusy(() -> {
+            final FlushStats flushStats = client().admin().indices().prepareStats("test").clear().setFlush(true).get().getTotal().flush;
+            assertThat(flushStats.getPeriodic(), allOf(equalTo(flushStats.getTotal()), greaterThan(0L)));
+        });
+        assertBusy(() -> assertThat(indexService.getShard(0).shouldPeriodicallyFlush(), equalTo(false)));
+        settings = Settings.builder().put("index.translog.flush_threshold_size", (String) null).build();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(settings).get();
+
+        client().prepareIndex("test", "doc", UUIDs.randomBase64UUID()).setSource("{}", XContentType.JSON).get();
+        client().admin().indices().prepareFlush("test").setForce(randomBoolean()).setWaitIfOngoing(true).get();
+        final FlushStats flushStats = client().admin().indices().prepareStats("test").clear().setFlush(true).get().getTotal().flush;
+        assertThat(flushStats.getTotal(), greaterThan(flushStats.getPeriodic()));
     }
 
     public void testShardHasMemoryBufferOnTranslogRecover() throws Throwable {

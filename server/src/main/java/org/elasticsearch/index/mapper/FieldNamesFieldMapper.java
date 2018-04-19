@@ -30,6 +30,7 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -112,7 +113,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
-                    builder.enabled(TypeParsers.nodeBooleanValue(name, "enabled", fieldNode, parserContext));
+                    builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, name + ".enabled"));
                     iterator.remove();
                 }
             }
@@ -262,7 +263,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         if (fieldType().isEnabled() == false) {
             return;
         }
-        for (ParseContext.Document document : context.docs()) {
+        for (ParseContext.Document document : context) {
             final List<String> paths = new ArrayList<>(document.getFields().size());
             String previousPath = ""; // used as a sentinel - field names can't be empty
             for (IndexableField field : document.getFields()) {

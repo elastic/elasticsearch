@@ -43,6 +43,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -100,7 +101,6 @@ final class HighLevelRequests {
 
         Params parameters = Params.builder();
         parameters.withRouting(deleteRequest.routing());
-        parameters.withParent(deleteRequest.parent());
         parameters.withTimeout(deleteRequest.timeout());
         parameters.withVersion(deleteRequest.version());
         parameters.withVersionType(deleteRequest.versionType());
@@ -279,9 +279,6 @@ final class HighLevelRequests {
                     if (Strings.hasLength(request.routing())) {
                         metadata.field("routing", request.routing());
                     }
-                    if (Strings.hasLength(request.parent())) {
-                        metadata.field("parent", request.parent());
-                    }
                     if (request.version() != Versions.MATCH_ANY) {
                         metadata.field("version", request.version());
                     }
@@ -358,7 +355,6 @@ final class HighLevelRequests {
         Params parameters = Params.builder();
         parameters.withPreference(getRequest.preference());
         parameters.withRouting(getRequest.routing());
-        parameters.withParent(getRequest.parent());
         parameters.withRefresh(getRequest.refresh());
         parameters.withRealtime(getRequest.realtime());
         parameters.withStoredFields(getRequest.storedFields());
@@ -386,7 +382,6 @@ final class HighLevelRequests {
 
         Params parameters = Params.builder();
         parameters.withRouting(indexRequest.routing());
-        parameters.withParent(indexRequest.parent());
         parameters.withTimeout(indexRequest.timeout());
         parameters.withVersion(indexRequest.version());
         parameters.withVersionType(indexRequest.versionType());
@@ -410,7 +405,6 @@ final class HighLevelRequests {
 
         Params parameters = Params.builder();
         parameters.withRouting(updateRequest.routing());
-        parameters.withParent(updateRequest.parent());
         parameters.withTimeout(updateRequest.timeout());
         parameters.withRefreshPolicy(updateRequest.getRefreshPolicy());
         parameters.withWaitForActiveShards(updateRequest.waitForActiveShards());
@@ -508,8 +502,10 @@ final class HighLevelRequests {
 
     static Request rankEval(RankEvalRequest rankEvalRequest) throws IOException {
         String endpoint = endpoint(rankEvalRequest.indices(), Strings.EMPTY_ARRAY, "_rank_eval");
+        Params params = Params.builder();
+        params.withIndicesOptions(rankEvalRequest.indicesOptions());
         HttpEntity entity = createEntity(rankEvalRequest.getRankEvalSpec(), REQUEST_BODY_CONTENT_TYPE);
-        return new Request(HttpGet.METHOD_NAME, endpoint, Collections.emptyMap(), entity);
+        return new Request(HttpGet.METHOD_NAME, endpoint, params.getParams(), entity);
     }
 
     static Request split(ResizeRequest resizeRequest) throws IOException {
@@ -540,7 +536,6 @@ final class HighLevelRequests {
 
     static Request clusterPutSettings(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest) throws IOException {
         Params parameters = Params.builder();
-        parameters.withFlatSettings(clusterUpdateSettingsRequest.flatSettings());
         parameters.withTimeout(clusterUpdateSettingsRequest.timeout());
         parameters.withMasterTimeout(clusterUpdateSettingsRequest.masterNodeTimeout());
         HttpEntity entity = createEntity(clusterUpdateSettingsRequest, REQUEST_BODY_CONTENT_TYPE);
@@ -562,7 +557,7 @@ final class HighLevelRequests {
     }
 
     static Request indicesExist(GetIndexRequest request) {
-        //this can be called with no indices as argument by transport client, not via REST though
+        // this can be called with no indices as argument by transport client, not via REST though
         if (request.indices() == null || request.indices().length == 0) {
             throw new IllegalArgumentException("indices are mandatory");
         }
@@ -571,9 +566,21 @@ final class HighLevelRequests {
         params.withLocal(request.local());
         params.withHuman(request.humanReadable());
         params.withIndicesOptions(request.indicesOptions());
-        params.withFlatSettings(request.flatSettings());
         params.withIncludeDefaults(request.includeDefaults());
         return new Request(HttpHead.METHOD_NAME, endpoint, params.getParams(), null);
+    }
+
+    static Request indexPutSettings(UpdateSettingsRequest updateSettingsRequest) throws IOException {
+        Params parameters = Params.builder();
+        parameters.withTimeout(updateSettingsRequest.timeout());
+        parameters.withMasterTimeout(updateSettingsRequest.masterNodeTimeout());
+        parameters.withIndicesOptions(updateSettingsRequest.indicesOptions());
+        parameters.withPreserveExisting(updateSettingsRequest.isPreserveExisting());
+
+        String[] indices = updateSettingsRequest.indices() == null ? Strings.EMPTY_ARRAY : updateSettingsRequest.indices();
+        String endpoint = endpoint(indices, "_settings");
+        HttpEntity entity = createEntity(updateSettingsRequest, REQUEST_BODY_CONTENT_TYPE);
+        return new Request(HttpPut.METHOD_NAME, endpoint, parameters.getParams(), entity);
     }
 
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
@@ -671,10 +678,6 @@ final class HighLevelRequests {
 
         Params withMasterTimeout(TimeValue masterTimeout) {
             return putParam("master_timeout", masterTimeout);
-        }
-
-        Params withParent(String parent) {
-            return putParam("parent", parent);
         }
 
         Params withPipeline(String pipeline) {
@@ -793,6 +796,13 @@ final class HighLevelRequests {
         Params withIncludeDefaults(boolean includeDefaults) {
             if (includeDefaults) {
                 return putParam("include_defaults", Boolean.TRUE.toString());
+            }
+            return this;
+        }
+
+        Params withPreserveExisting(boolean preserveExisting) {
+            if (preserveExisting) {
+                return putParam("preserve_existing", Boolean.TRUE.toString());
             }
             return this;
         }

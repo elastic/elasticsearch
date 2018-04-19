@@ -115,8 +115,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.local(false); // <1>
             request.humanReadable(true); // <2>
             request.includeDefaults(false); // <3>
-            request.flatSettings(false); // <4>
-            request.indicesOptions(indicesOptions); // <5>
+            request.indicesOptions(indicesOptions); // <4>
             // end::indices-exists-request-optionals
 
             // tag::indices-exists-response
@@ -1547,9 +1546,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::put-settings-settings-source
         }
 
-        // tag::put-settings-request-flat-settings
-        request.flatSettings(true); // <1>
-        // end::put-settings-request-flat-settings
         // tag::put-settings-request-preserveExisting
         request.setPreserveExisting(false); // <1>
         // end::put-settings-request-preserveExisting

@@ -542,7 +542,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                                 listener.onFailure(e);
                             }
                         },
-                        ThreadPool.Names.INDEX, request);
+                        ThreadPool.Names.WRITE, request);
             }
 
             @Override
@@ -681,7 +681,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         @Override
         protected PrimaryResult performOnPrimary(
                 final IndexShard primary, final GlobalCheckpointSyncAction.Request request) throws Exception {
-            primary.getTranslog().sync();
+            primary.sync();
             return new PrimaryResult(request, new ReplicationResponse());
         }
 

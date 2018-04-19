@@ -25,6 +25,7 @@ import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.RamUsageTester;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -47,9 +48,8 @@ public class LiveVersionMapTests extends ESTestCase {
         for (int i = 0; i < 100000; ++i) {
             BytesRefBuilder uid = new BytesRefBuilder();
             uid.copyChars(TestUtil.randomSimpleString(random(), 10, 20));
-            VersionValue version = new VersionValue(randomLong(), randomLong(), randomLong());
             try (Releasable r = map.acquireLock(uid.toBytesRef())) {
-                map.putUnderLock(uid.toBytesRef(), version);
+                map.putIndexUnderLock(uid.toBytesRef(), randomIndexVersionValue());
             }
         }
         long actualRamBytesUsed = RamUsageTester.sizeOf(map);
@@ -64,9 +64,8 @@ public class LiveVersionMapTests extends ESTestCase {
         for (int i = 0; i < 100000; ++i) {
             BytesRefBuilder uid = new BytesRefBuilder();
             uid.copyChars(TestUtil.randomSimpleString(random(), 10, 20));
-            VersionValue version = new VersionValue(randomLong(), randomLong(), randomLong());
             try (Releasable r = map.acquireLock(uid.toBytesRef())) {
-                map.putUnderLock(uid.toBytesRef(), version);
+                map.putIndexUnderLock(uid.toBytesRef(), randomIndexVersionValue());
             }
         }
         actualRamBytesUsed = RamUsageTester.sizeOf(map);
@@ -100,14 +99,15 @@ public class LiveVersionMapTests extends ESTestCase {
     public void testBasics() throws IOException {
         LiveVersionMap map = new LiveVersionMap();
         try (Releasable r = map.acquireLock(uid("test"))) {
-            map.putUnderLock(uid("test"), new VersionValue(1,1,1));
-            assertEquals(new VersionValue(1,1,1), map.getUnderLock(uid("test")));
+            Translog.Location tlogLoc = randomTranslogLocation();
+            map.putIndexUnderLock(uid("test"), new IndexVersionValue(tlogLoc, 1, 1, 1));
+            assertEquals(new IndexVersionValue(tlogLoc, 1, 1, 1), map.getUnderLock(uid("test")));
             map.beforeRefresh();
-            assertEquals(new VersionValue(1,1,1), map.getUnderLock(uid("test")));
+            assertEquals(new IndexVersionValue(tlogLoc, 1, 1, 1), map.getUnderLock(uid("test")));
             map.afterRefresh(randomBoolean());
             assertNull(map.getUnderLock(uid("test")));
 
-            map.putUnderLock(uid("test"), new DeleteVersionValue(1,1,1,1));
+            map.putDeleteUnderLock(uid("test"), new DeleteVersionValue(1,1,1,1));
             assertEquals(new DeleteVersionValue(1,1,1,1), map.getUnderLock(uid("test")));
             map.beforeRefresh();
             assertEquals(new DeleteVersionValue(1,1,1,1), map.getUnderLock(uid("test")));
@@ -154,21 +154,24 @@ public class LiveVersionMapTests extends ESTestCase {
                         BytesRef bytesRef = randomFrom(random(), keyList);
                         try (Releasable r = map.acquireLock(bytesRef)) {
                             VersionValue versionValue = values.computeIfAbsent(bytesRef,
-                                v -> new VersionValue(randomLong(), maxSeqNo.incrementAndGet(), randomLong()));
+                                v -> new IndexVersionValue(
+                                    randomTranslogLocation(), randomLong(), maxSeqNo.incrementAndGet(), randomLong()));
                             boolean isDelete = versionValue instanceof DeleteVersionValue;
                             if (isDelete) {
                                 map.removeTombstoneUnderLock(bytesRef);
                                 deletes.remove(bytesRef);
                             }
                             if (isDelete == false && rarely()) {
-                                versionValue = new DeleteVersionValue(versionValue.version + 1, maxSeqNo.incrementAndGet(),
-                                    versionValue.term, clock.getAndIncrement());
+                                versionValue = new DeleteVersionValue(versionValue.version + 1,
+                                    maxSeqNo.incrementAndGet(), versionValue.term, clock.getAndIncrement());
                                 deletes.put(bytesRef, (DeleteVersionValue) versionValue);
+                                map.putDeleteUnderLock(bytesRef, (DeleteVersionValue) versionValue);
                             } else {
-                                versionValue = new VersionValue(versionValue.version + 1, maxSeqNo.incrementAndGet(), versionValue.term);
+                                versionValue = new IndexVersionValue(randomTranslogLocation(),
+                                    versionValue.version + 1, maxSeqNo.incrementAndGet(), versionValue.term);
+                                map.putIndexUnderLock(bytesRef, (IndexVersionValue) versionValue);
                             }
                             values.put(bytesRef, versionValue);
-                            map.putUnderLock(bytesRef, versionValue);
                         }
                         if (rarely()) {
                             final long pruneSeqNo = randomLongBetween(0, maxSeqNo.get());
@@ -268,7 +271,7 @@ public class LiveVersionMapTests extends ESTestCase {
         }
 
         try (Releasable r = map.acquireLock(uid(""))) {
-            map.maybePutUnderLock(new BytesRef(""), new VersionValue(randomLong(), randomLong(), randomLong()));
+            map.maybePutIndexUnderLock(new BytesRef(""), randomIndexVersionValue());
         }
         assertFalse(map.isUnsafe());
         assertEquals(1, map.getAllCurrent().size());
@@ -278,7 +281,7 @@ public class LiveVersionMapTests extends ESTestCase {
         assertFalse(map.isUnsafe());
         assertFalse(map.isSafeAccessRequired());
         try (Releasable r = map.acquireLock(uid(""))) {
-            map.maybePutUnderLock(new BytesRef(""), new VersionValue(randomLong(), randomLong(), randomLong()));
+            map.maybePutIndexUnderLock(new BytesRef(""), randomIndexVersionValue());
         }
         assertTrue(map.isUnsafe());
         assertFalse(map.isSafeAccessRequired());
@@ -288,7 +291,7 @@ public class LiveVersionMapTests extends ESTestCase {
     public void testRefreshTransition() throws IOException {
         LiveVersionMap map = new LiveVersionMap();
         try (Releasable r = map.acquireLock(uid("1"))) {
-            map.maybePutUnderLock(uid("1"), new VersionValue(randomLong(), randomLong(), randomLong()));
+            map.maybePutIndexUnderLock(uid("1"), randomIndexVersionValue());
             assertTrue(map.isUnsafe());
             assertNull(map.getUnderLock(uid("1")));
             map.beforeRefresh();
@@ -299,7 +302,7 @@ public class LiveVersionMapTests extends ESTestCase {
             assertFalse(map.isUnsafe());
 
             map.enforceSafeAccess();
-            map.maybePutUnderLock(uid("1"), new VersionValue(randomLong(), randomLong(), randomLong()));
+            map.maybePutIndexUnderLock(uid("1"), randomIndexVersionValue());
             assertFalse(map.isUnsafe());
             assertNotNull(map.getUnderLock(uid("1")));
             map.beforeRefresh();
@@ -320,9 +323,10 @@ public class LiveVersionMapTests extends ESTestCase {
         AtomicLong version = new AtomicLong();
         CountDownLatch start = new CountDownLatch(2);
         BytesRef uid = uid("1");
-        VersionValue initialVersion = new VersionValue(version.incrementAndGet(), 1, 1);
+        VersionValue initialVersion;
         try (Releasable ignore = map.acquireLock(uid)) {
-            map.putUnderLock(uid, initialVersion);
+            initialVersion = new IndexVersionValue(randomTranslogLocation(), version.incrementAndGet(), 1, 1);
+            map.putIndexUnderLock(uid, (IndexVersionValue) initialVersion);
         }
         Thread t = new Thread(() -> {
             start.countDown();
@@ -337,14 +341,13 @@ public class LiveVersionMapTests extends ESTestCase {
                         } else {
                             underLock = nextVersionValue;
                         }
-                        if (underLock.isDelete()) {
-                            nextVersionValue = new VersionValue(version.incrementAndGet(), 1, 1);
-                        } else if (randomBoolean()) {
-                            nextVersionValue = new VersionValue(version.incrementAndGet(), 1, 1);
+                        if (underLock.isDelete() || randomBoolean()) {
+                            nextVersionValue = new IndexVersionValue(randomTranslogLocation(), version.incrementAndGet(), 1, 1);
+                            map.putIndexUnderLock(uid, (IndexVersionValue) nextVersionValue);
                         } else {
                             nextVersionValue = new DeleteVersionValue(version.incrementAndGet(), 1, 1, 0);
+                            map.putDeleteUnderLock(uid, (DeleteVersionValue) nextVersionValue);
                         }
-                        map.putUnderLock(uid, nextVersionValue);
                     }
                 }
             } catch (Exception e) {
@@ -375,7 +378,7 @@ public class LiveVersionMapTests extends ESTestCase {
         BytesRef uid = uid("1");
         ;
         try (Releasable ignore = map.acquireLock(uid)) {
-            map.putUnderLock(uid, new DeleteVersionValue(0, 0, 0, 0));
+            map.putDeleteUnderLock(uid, new DeleteVersionValue(0, 0, 0, 0));
             map.beforeRefresh(); // refresh otherwise we won't prune since it's tracked by the current map
             map.afterRefresh(false);
             Thread thread = new Thread(() -> {
@@ -391,5 +394,17 @@ public class LiveVersionMapTests extends ESTestCase {
         thread.start();
         thread.join();
         assertEquals(0, map.getAllTombstones().size());
+    }
+
+    IndexVersionValue randomIndexVersionValue() {
+        return new IndexVersionValue(randomTranslogLocation(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+    }
+
+    Translog.Location randomTranslogLocation() {
+        if (randomBoolean()) {
+            return null;
+        } else {
+            return new Translog.Location(randomNonNegativeLong(), randomNonNegativeLong(), randomInt());
+        }
     }
 }

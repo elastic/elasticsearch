@@ -298,7 +298,6 @@ public class NetworkModuleTests extends ModuleTestCase {
             });
         });
         assertEquals("interceptor must not be null", nullPointerException.getMessage());
-
     }
 
     private NetworkModule newNetworkModule(Settings settings, boolean transportClient, NetworkPlugin... plugins) {

@@ -19,6 +19,7 @@
  */
 package org.elasticsearch.test.test;
 
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Client;

@@ -368,6 +368,10 @@ public final class EngineConfig {
         return primaryTermSupplier;
     }
 
+    /**
+     * A supplier supplies tombstone documents which will be used in soft-update methods.
+     * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.
+     */
     @FunctionalInterface
     public interface TombstoneDocSupplier {
         ParsedDocument newTombstoneDoc(String type, String id);

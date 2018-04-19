@@ -64,7 +64,7 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
         MetaData metaData = mock(MetaData.class);
         when(metaData.custom(LicensesMetaData.TYPE)).thenReturn(new LicensesMetaData(license, null));
         when(state.metaData()).thenReturn(metaData);
-        final DiscoveryNode mockNode = new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        final DiscoveryNode mockNode = getLocalNode();
         when(discoveryNodes.getMasterNode()).thenReturn(mockNode);
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(false);
         when(state.nodes()).thenReturn(discoveryNodes);
@@ -72,6 +72,11 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
         when(clusterService.state()).thenReturn(state);
         when(clusterService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
         when(clusterService.getClusterName()).thenReturn(new ClusterName("a"));
+        when(clusterService.localNode()).thenReturn(mockNode);
+    }
+
+    protected DiscoveryNode getLocalNode() {
+        return new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
     }
 
     @After

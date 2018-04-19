@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
@@ -206,7 +207,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             if (newLicense.isProductionLicense()
                     && XPackSettings.SECURITY_ENABLED.get(settings)
                     && XPackSettings.TRANSPORT_SSL_ENABLED.get(settings) == false
-                    && "single-node".equals(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings)) == false) {
+                    && isProductionMode(settings, clusterService.localNode())) {
                 // security is on but TLS is not configured we gonna fail the entire request and throw an exception
                 throw new IllegalStateException("Cannot install a [" + newLicense.operationMode() +
                         "] license unless TLS is configured or security is disabled");
@@ -511,5 +512,14 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             }
         }
         return null;
+    }
+
+    private static boolean isProductionMode(Settings settings, DiscoveryNode localNode) {
+        final boolean singleNodeDisco = "single-node".equals(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings));
+        return singleNodeDisco == false && isBoundToLoopback(localNode) == false;
+    }
+
+    private static boolean isBoundToLoopback(DiscoveryNode localNode) {
+        return localNode.getAddress().address().getAddress().isLoopbackAddress();
     }
 }

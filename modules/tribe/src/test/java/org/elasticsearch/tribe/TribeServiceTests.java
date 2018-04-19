@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
@@ -57,6 +58,7 @@ public class TribeServiceTests extends ESTestCase {
         assertEquals("nodename/tribe1", clientSettings.get("node.name"));
         assertEquals("tribe1", clientSettings.get("tribe.name"));
         assertFalse(NetworkModule.HTTP_ENABLED.get(clientSettings));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{NetworkModule.HTTP_ENABLED});
         assertEquals("false", clientSettings.get("node.master"));
         assertEquals("false", clientSettings.get("node.data"));
         assertEquals("false", clientSettings.get("node.ingest"));

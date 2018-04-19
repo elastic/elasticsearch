@@ -92,7 +92,6 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
                 QueryExplanation.RANDOM_SHARD,
                 false,
                 null,
-                // TODO[PCS]: duplicate information is never good, what is right for detail here?
                 ex.getMessage()));
             listener.onResponse(
                 new ValidateQueryResponse(

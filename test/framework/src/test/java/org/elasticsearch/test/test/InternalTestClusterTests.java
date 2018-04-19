@@ -19,6 +19,7 @@
  */
 package org.elasticsearch.test.test;
 
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Client;
@@ -242,6 +243,7 @@ public class InternalTestClusterTests extends ESTestCase {
         } finally {
             IOUtils.close(cluster0, cluster1);
         }
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
     }
 
     public void testDataFolderAssignmentAndCleaning() throws IOException, InterruptedException {
@@ -346,6 +348,7 @@ public class InternalTestClusterTests extends ESTestCase {
         } finally {
             cluster.close();
         }
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
     }
 
     private Path[] getNodePaths(InternalTestCluster cluster, String name) {
@@ -446,6 +449,7 @@ public class InternalTestClusterTests extends ESTestCase {
         } finally {
             cluster.close();
         }
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
     }
 
     public void testTwoNodeCluster() throws Exception {
@@ -505,5 +509,6 @@ public class InternalTestClusterTests extends ESTestCase {
         } finally {
             cluster.close();
         }
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
     }
 }

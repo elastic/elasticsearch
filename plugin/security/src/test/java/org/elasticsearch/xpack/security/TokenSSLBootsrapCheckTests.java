@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -40,5 +41,7 @@ public class TokenSSLBootsrapCheckTests extends ESTestCase {
                 .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false).build();
         assertFalse(new TokenSSLBootstrapCheck().check(new BootstrapContext(settings, null)).isFailure());
+
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
     }
 }

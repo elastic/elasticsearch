@@ -129,7 +129,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         MapperService mapperService = mapperServiceMock();
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
         when(mapperService.hasNested()).thenReturn(false);
-        DocumentMapper mapper = Mockito.mock(DocumentMapper.class);
+        DocumentMapper mapper = mock(DocumentMapper.class);
         when(mapper.type()).thenReturn(TYPE_NAME);
         when(mapperService.documentMapper()).thenReturn(mapper);
         when(searchContext.mapperService()).thenReturn(mapperService);

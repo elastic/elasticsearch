@@ -156,14 +156,14 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        final DocumentMapper mapper = context.getMapperService().documentMapper();
-        if (mapper == null) {
+        MappedFieldType idField = context.fieldMapper(IdFieldMapper.NAME);
+        if (idField == null) {
             return new MatchNoDocsQuery("No mappings");
         }
-        MappedFieldType idField = context.fieldMapper(IdFieldMapper.NAME);
         if (this.ids.isEmpty()) {
              return Queries.newMatchNoDocsQuery("Missing ids in \"" + this.getName() + "\" query.");
         } else {
+            final DocumentMapper mapper = context.getMapperService().documentMapper();
             Collection<String> typesForQuery;
             if (types.length == 0) {
                 typesForQuery = context.queryTypes();

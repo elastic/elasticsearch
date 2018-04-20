@@ -61,8 +61,6 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
 
     private String clusterAlias;
     private ShardId shardId;
-    private int shardRequestOrdinal;
-    private int numberOfIndexShards;
     private int numberOfShards;
     private SearchType searchType;
     private Scroll scroll;
@@ -73,17 +71,18 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     private Boolean requestCache;
     private long nowInMillis;
     private boolean allowPartialSearchResults;
-
+    private String routing;
+    private String preference;
     private boolean profile;
 
     ShardSearchLocalRequest() {
     }
 
-    ShardSearchLocalRequest(SearchRequest searchRequest, ShardId shardId, int shardRequestOrdinal, int numberOfIndexShards, int numberOfShards,
+    ShardSearchLocalRequest(SearchRequest searchRequest, ShardId shardId, int numberOfShards,
                             AliasFilter aliasFilter, float indexBoost, long nowInMillis, String clusterAlias) {
-        this(shardId, shardRequestOrdinal, numberOfIndexShards, numberOfShards, searchRequest.searchType(),
+        this(shardId, numberOfShards, searchRequest.searchType(),
                 searchRequest.source(), searchRequest.types(), searchRequest.requestCache(), aliasFilter, indexBoost,
-                searchRequest.allowPartialSearchResults());
+                searchRequest.allowPartialSearchResults(), searchRequest.routing(), searchRequest.preference());
         // If allowPartialSearchResults is unset (ie null), the cluster-level default should have been substituted
         // at this stage. Any NPEs in the above are therefore an error in request preparation logic.
         assert searchRequest.allowPartialSearchResults() != null;
@@ -100,12 +99,10 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         indexBoost = 1.0f;
     }
 
-    public ShardSearchLocalRequest(ShardId shardId, int shardRequestOrdinal, int numberOfIndexShards, int numberOfShards,
-                                   SearchType searchType, SearchSourceBuilder source, String[] types,
-                                   Boolean requestCache, AliasFilter aliasFilter, float indexBoost, boolean allowPartialSearchResults) {
+    public ShardSearchLocalRequest(ShardId shardId, int numberOfShards, SearchType searchType, SearchSourceBuilder source, String[] types,
+                                   Boolean requestCache, AliasFilter aliasFilter, float indexBoost, boolean allowPartialSearchResults,
+                                   String routing, String preference) {
         this.shardId = shardId;
-        this.shardRequestOrdinal = shardRequestOrdinal;
-        this.numberOfIndexShards = numberOfIndexShards;
         this.numberOfShards = numberOfShards;
         this.searchType = searchType;
         this.source = source;
@@ -114,7 +111,10 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         this.aliasFilter = aliasFilter;
         this.indexBoost = indexBoost;
         this.allowPartialSearchResults = allowPartialSearchResults;
+        this.routing = routing;
+        this.preference = preference;
     }
+
 
     @Override
     public ShardId shardId() {
@@ -152,16 +152,6 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     }
 
     @Override
-    public int numberOfIndexShards() {
-        return numberOfIndexShards;
-    }
-
-    @Override
-    public int shardRequestOrdinal() {
-        return shardRequestOrdinal;
-    }
-
-    @Override
     public SearchType searchType() {
         return searchType;
     }
@@ -193,6 +183,16 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     }
 
     @Override
+    public String routing() {
+        return routing;
+    }
+
+    @Override
+    public String preference() {
+        return preference;
+    }
+
+    @Override
     public void setProfile(boolean profile) {
         this.profile = profile;
     }
@@ -210,14 +210,6 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         shardId = ShardId.readShardId(in);
         searchType = SearchType.fromId(in.readByte());
         numberOfShards = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            shardRequestOrdinal = in.readVInt();
-            numberOfIndexShards = in.readVInt();
-            assert shardRequestOrdinal != -1 && numberOfIndexShards != -1;
-        } else {
-            shardRequestOrdinal = -1;
-            numberOfIndexShards = -1;
-        }
         scroll = in.readOptionalWriteable(Scroll::new);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
         types = in.readStringArray();
@@ -244,6 +236,13 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
             allowPartialSearchResults = in.readOptionalBoolean();
         }
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            routing = in.readOptionalString();
+            preference = in.readOptionalString();
+        } else {
+            routing = null;
+            preference = null;
+        }
     }
 
     protected void innerWriteTo(StreamOutput out, boolean asKey) throws IOException {
@@ -251,10 +250,6 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         out.writeByte(searchType.id());
         if (!asKey) {
             out.writeVInt(numberOfShards);
-            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-                out.writeVInt(shardRequestOrdinal);
-                out.writeVInt(numberOfIndexShards);
-            }
         }
         out.writeOptionalWriteable(scroll);
         out.writeOptionalWriteable(source);
@@ -273,7 +268,12 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
             out.writeOptionalBoolean(allowPartialSearchResults);
         }
-
+        if (!asKey) {
+            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                out.writeOptionalString(routing);
+                out.writeOptionalString(preference);
+            }
+        }
     }
 
     @Override

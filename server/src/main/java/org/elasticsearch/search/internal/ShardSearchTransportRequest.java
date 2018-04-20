@@ -53,11 +53,9 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     public ShardSearchTransportRequest(){
     }
 
-    public ShardSearchTransportRequest(OriginalIndices originalIndices, SearchRequest searchRequest, ShardId shardId, int shardRequestOrdinal,
-                                       int numberOfIndexShards, int numberOfShards, AliasFilter aliasFilter, float indexBoost,
-                                       long nowInMillis, String clusterAlias) {
-        this.shardSearchLocalRequest = new ShardSearchLocalRequest(searchRequest, shardId, shardRequestOrdinal,
-            numberOfIndexShards, numberOfShards, aliasFilter, indexBoost,
+    public ShardSearchTransportRequest(OriginalIndices originalIndices, SearchRequest searchRequest, ShardId shardId, int numberOfShards,
+                                       AliasFilter aliasFilter, float indexBoost, long nowInMillis, String clusterAlias) {
+        this.shardSearchLocalRequest = new ShardSearchLocalRequest(searchRequest, shardId, numberOfShards, aliasFilter, indexBoost,
             nowInMillis, clusterAlias);
         this.originalIndices = originalIndices;
     }
@@ -102,11 +100,6 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     @Override
-    public int shardRequestOrdinal() {
-        return shardSearchLocalRequest.shardRequestOrdinal();
-    }
-
-    @Override
     public String[] types() {
         return shardSearchLocalRequest.types();
     }
@@ -137,11 +130,6 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     @Override
-    public int numberOfIndexShards() {
-        return shardSearchLocalRequest.numberOfIndexShards();
-    }
-
-    @Override
     public SearchType searchType() {
         return shardSearchLocalRequest.searchType();
     }
@@ -169,6 +157,16 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     @Override
     public Scroll scroll() {
         return shardSearchLocalRequest.scroll();
+    }
+
+    @Override
+    public String routing() {
+        return shardSearchLocalRequest.routing();
+    }
+
+    @Override
+    public String preference() {
+        return shardSearchLocalRequest.preference();
     }
 
     @Override

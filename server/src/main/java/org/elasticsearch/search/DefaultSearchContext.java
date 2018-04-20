@@ -28,11 +28,17 @@ import org.apache.lucene.util.Counter;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
@@ -51,6 +57,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -81,6 +88,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 final class DefaultSearchContext extends SearchContext {
 
@@ -92,6 +100,7 @@ final class DefaultSearchContext extends SearchContext {
     private final Engine.Searcher engineSearcher;
     private final BigArrays bigArrays;
     private final IndexShard indexShard;
+    private final ClusterService clusterService;
     private final IndexService indexService;
     private final ContextIndexSearcher searcher;
     private final DfsSearchResult dfsResult;
@@ -154,9 +163,10 @@ final class DefaultSearchContext extends SearchContext {
     private final QueryShardContext queryShardContext;
     private FetchPhase fetchPhase;
 
-    DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget, Engine.Searcher engineSearcher,
-                         IndexService indexService, IndexShard indexShard, BigArrays bigArrays, Counter timeEstimateCounter,
-                         TimeValue timeout, FetchPhase fetchPhase, String clusterAlias, Version minNodeVersion) {
+    DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
+                         Engine.Searcher engineSearcher, ClusterService clusterService, IndexService indexService,
+                         IndexShard indexShard, BigArrays bigArrays, Counter timeEstimateCounter, TimeValue timeout,
+                         FetchPhase fetchPhase, String clusterAlias, Version minNodeVersion) {
         this.id = id;
         this.request = request;
         this.fetchPhase = fetchPhase;
@@ -170,6 +180,7 @@ final class DefaultSearchContext extends SearchContext {
         this.fetchResult = new FetchSearchResult(id, shardTarget);
         this.indexShard = indexShard;
         this.indexService = indexService;
+        this.clusterService = clusterService;
         this.searcher = new ContextIndexSearcher(engineSearcher, indexService.cache().query(), indexShard.getQueryCachingPolicy());
         this.timeEstimateCounter = timeEstimateCounter;
         this.timeout = timeout;
@@ -281,7 +292,7 @@ final class DefaultSearchContext extends SearchContext {
         }
 
         if (sliceBuilder != null) {
-            filters.add(sliceBuilder.toFilter(queryShardContext, shardRequestOrdinal(), numberOfIndexShards(), minNodeVersion));
+            filters.add(sliceBuilder.toFilter(clusterService, request, queryShardContext, minNodeVersion));
         }
 
         if (filters.isEmpty()) {
@@ -335,14 +346,6 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public int numberOfShards() {
         return request.numberOfShards();
-    }
-
-    public int numberOfIndexShards() {
-        return request.numberOfIndexShards();
-    }
-
-    public int shardRequestOrdinal() {
-        return request.shardRequestOrdinal();
     }
 
     @Override

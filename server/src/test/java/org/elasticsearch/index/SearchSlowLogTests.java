@@ -63,11 +63,6 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 }
 
                 @Override
-                public int shardRequestOrdinal() {
-                    return 0;
-                }
-
-                @Override
                 public String[] types() {
                     return new String[0];
                 }
@@ -98,11 +93,6 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 }
 
                 @Override
-                public int numberOfIndexShards() {
-                    return 0;
-                }
-
-                @Override
                 public SearchType searchType() {
                     return null;
                 }
@@ -129,6 +119,16 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
 
                 @Override
                 public Scroll scroll() {
+                    return null;
+                }
+
+                @Override
+                public String routing() {
+                    return null;
+                }
+
+                @Override
+                public String preference() {
                     return null;
                 }
 

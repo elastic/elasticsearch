@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -28,8 +29,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AliasFilterParsingException;
@@ -49,15 +48,6 @@ public interface ShardSearchRequest {
 
     ShardId shardId();
 
-    /**
-     * Returns the shard request ordinal of the shard for this request
-     * or -1 if this information is not available.
-     * The request shard ordinal is the id of the requested shard among all shards
-     * of this index that are part of the request. Note that the request shard ordinal
-     * is equal to the shard id if all shards of the index are part of the request.
-     */
-    int shardRequestOrdinal();
-
     String[] types();
 
     SearchSourceBuilder source();
@@ -68,15 +58,6 @@ public interface ShardSearchRequest {
 
     void source(SearchSourceBuilder source);
 
-    /**
-     * Returns the number of shards of this index ({@link ShardId#getIndex()}) that participates in the request
-     * or -1 if this information is not available.
-     */
-    int numberOfIndexShards();
-
-    /**
-     * Returns the number of shards that participates in the request.
-     */
     int numberOfShards();
 
     SearchType searchType();
@@ -90,6 +71,16 @@ public interface ShardSearchRequest {
     Boolean allowPartialSearchResults();
 
     Scroll scroll();
+
+    /**
+     * Returns the routing of the original {@link SearchRequest}.
+     */
+    String routing();
+
+    /**
+     * Returns the preference of the original {@link SearchRequest}.
+     */
+    String preference();
 
     /**
      * Sets if this shard search needs to be profiled or not

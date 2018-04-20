@@ -23,6 +23,12 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,6 +36,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,9 +46,12 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  *  A slice builder allowing to split a scroll in multiple partitions.
@@ -207,30 +217,38 @@ public class SliceBuilder implements Writeable, ToXContentObject {
      * Converts this QueryBuilder to a lucene {@link Query}.
      *
      * @param context Additional information needed to build the query
-     * @param shardRequestOrdinal The shard ordinal of for this request or -1 if this information is not available.
-     * @param numIndexShards The number of shards of this index that participates in the request
-     *                       or -1 if this information is not available.
-     * @param minNodeVersion The version of the node with the youngest version in the cluster.
      */
-    public Query toFilter(QueryShardContext context, int shardRequestOrdinal, int numIndexShards, Version minNodeVersion) {
-        final int numShards;
-        final int shardId;
-        if (shardRequestOrdinal != -1 && minNodeVersion.onOrAfter(Version.V_7_0_0_alpha1)) {
-            /**
-             * We use the request shard ordinal (added in {@link Version#V_7_0_0_alpha1} only if all nodes
-             * are able to pass this information otherwise another slice might use the original shard
-             * id and that would lead to duplicated results.
-             */
-            assert numIndexShards != -1;
-            shardId = shardRequestOrdinal;
-            numShards = numIndexShards;
-        } else {
-            shardId = context.getShardId();
-            numShards = context.getIndexSettings().getNumberOfShards();
-        }
+    public Query toFilter(ClusterService clusterService, ShardSearchRequest request, QueryShardContext context, Version minNodeVersion) {
         final MappedFieldType type = context.fieldMapper(field);
         if (type == null) {
             throw new IllegalArgumentException("field " + field + " not found");
+        }
+
+        int shardId = request.shardId().id();
+        int numShards = context.getIndexSettings().getNumberOfShards();
+        if (minNodeVersion.onOrAfter(Version.V_7_0_0_alpha1) &&
+                (request.preference() != null || request.routing() != null)) {
+            /**
+             * Resolve the routings and preference to compute the request shard id and the number of shards
+             * since they can differ if some shards are filtered by the request.
+             * This filtering has been added in {@link Version#V_7_0_0_alpha1} so if there is another node in the cluster
+             * with a smaller version smaller we use the original shard id and number of shards in order to ensure that all
+             * slices use the same numbers.
+             */
+            GroupShardsIterator<ShardIterator> group = buildShardIterator(clusterService, request);
+            assert group.size() <= numShards;
+            numShards = group.size();
+            int ord = 0;
+            shardId = -1;
+            for (ShardIterator it : group) {
+                assert it.shardId().getIndex().equals(request.shardId().getIndex());
+                if (request.shardId().equals(it.shardId())) {
+                    shardId = ord;
+                    break;
+                }
+                ++ ord;
+            }
+            assert shardId != -1;
         }
 
         String field = this.field;
@@ -295,6 +313,18 @@ public class SliceBuilder implements Writeable, ToXContentObject {
             return new MatchNoDocsQuery("this shard is not part of the slice");
         }
         return new MatchAllDocsQuery();
+    }
+
+    /**
+     * Returns the {@link GroupShardsIterator} for the provided <code>request</code>.
+     */
+    private GroupShardsIterator<ShardIterator> buildShardIterator(ClusterService clusterService, ShardSearchRequest request) {
+        final ClusterState state = clusterService.state();
+        final Settings settings = clusterService.getSettings();
+        final String[] indices = ((IndicesRequest) request).indices();
+        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(settings);
+        Map<String, Set<String>> routings = resolver.resolveSearchRouting(state, request.routing(), indices);
+        return clusterService.operationRouting().searchShards(state, indices, routings, request.preference());
     }
 
     @Override

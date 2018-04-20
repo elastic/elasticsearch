@@ -318,9 +318,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         AliasFilter filter = aliasFilter.get(shardIt.shardId().getIndex().getUUID());
         assert filter != null;
         float indexBoost = concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST);
-        return new ShardSearchTransportRequest(shardIt.getOriginalIndices(), request, shardIt.shardId(),
-            getShardRequestOrdinal(shardIt.shardId()), getNumberOfRequestShards(shardIt.shardId().getIndex()),
-            getNumShards(), filter, indexBoost, timeProvider.getAbsoluteStartMillis(), clusterAlias);
+        return new ShardSearchTransportRequest(shardIt.getOriginalIndices(), request, shardIt.shardId(), getNumShards(),
+            filter, indexBoost, timeProvider.getAbsoluteStartMillis(), clusterAlias);
     }
 
     /**

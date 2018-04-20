@@ -37,7 +37,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.unit.TimeValue;
@@ -723,7 +722,6 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             RankEvalResponse response = client.rankEval(request);
             // end::rank-eval-execute
 
-            logger.warn(Strings.toString(response));
             // tag::rank-eval-response
             double evaluationResult = response.getEvaluationResult();   // <1>
             assertEquals(1.0 / 3.0, evaluationResult, 0.0);

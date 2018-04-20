@@ -26,11 +26,12 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.List;
-import java.util.concurrent.Delayed;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -38,6 +39,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Class responsible for sniffing nodes from some source (default is elasticsearch itself) and setting them to a provided instance of
@@ -60,6 +62,7 @@ public class Sniffer implements Closeable {
     private final Scheduler scheduler;
 
     private final AtomicBoolean running = new AtomicBoolean(false);
+    private final AtomicReference<ScheduledTask> nextTask = new AtomicReference<>();
 
     Sniffer(RestClient restClient, HostsSniffer hostsSniffer, long sniffInterval, long sniffAfterFailureDelay) {
         this(restClient, hostsSniffer, new DefaultScheduler(), sniffInterval, sniffAfterFailureDelay);
@@ -71,44 +74,78 @@ public class Sniffer implements Closeable {
         this.sniffIntervalMillis = sniffInterval;
         this.sniffAfterFailureDelayMillis = sniffAfterFailureDelay;
         this.scheduler = scheduler;
-        scheduler.submit(createRunnable(sniffIntervalMillis));
+        //first sniffing round is immediately executed, next one will be executed depending on the configured sniff interval
+        scheduleNextRound(0L, sniffIntervalMillis, false);
     }
 
     /**
      * Triggers a new immediate sniffing round, which will schedule a new round in sniffAfterFailureDelayMillis ms
      */
     public final void sniffOnFailure() {
-        scheduler.submit(createRunnable(sniffAfterFailureDelayMillis));
+        scheduleNextRound(0L, sniffAfterFailureDelayMillis, true);
     }
 
-    private Runnable createRunnable(final long nextSniffDelayMillis) {
-        assert nextSniffDelayMillis > 0 : "delay must be greater than 0 when scheduling a task";
-        return new Runnable() {
-            @Override
-            public void run() {
-                assert running.compareAndSet(false, true) : "multiple sniff rounds must not be executed in parallel, that should " +
-                        "be guaranteed by using a single threaded executor";
-                try {
-                    List<HttpHost> sniffedHosts = hostsSniffer.sniffHosts();
-                    logger.debug("sniffed hosts: " + sniffedHosts);
-                    if (sniffedHosts.isEmpty()) {
-                        logger.warn("no hosts to set, hosts will be updated at the next sniffing round");
-                    } else {
-                        restClient.setHosts(sniffedHosts.toArray(new HttpHost[sniffedHosts.size()]));
-                    }
-                } catch (Exception e) {
-                    logger.error("error while sniffing nodes", e);
-                } finally {
-                    //schedule ordinary sniff run, will happen unless sniffing on failure kicks in first
-                    scheduler.schedule(createRunnable(sniffIntervalMillis), nextSniffDelayMillis);
-                    assert running.compareAndSet(true, false);
-                }
+    //TODO test concurrency on this method
+    private void scheduleNextRound(long delay, long nextDelay, boolean mustCancelNextRound) {
+        Task task = new Task(nextDelay);
+        ScheduledTask scheduledTask = task.schedule(delay);
+        assert scheduledTask.task == task;
+        ScheduledTask previousTask = nextTask.getAndSet(scheduledTask);
+        if (mustCancelNextRound) {
+            previousTask.cancelIfNotYetStarted();
+        }
+    }
+
+    final class Task implements Runnable {
+        final long nextTaskDelay;
+
+        Task(long nextTaskDelay) {
+            this.nextTaskDelay = nextTaskDelay;
+        }
+
+        ScheduledTask schedule(long delay) {
+            return scheduler.schedule(this, delay);
+        }
+
+        @Override
+        public void run() {
+            try {
+                sniff();
+            } catch (Exception e) {
+                logger.error("error while sniffing nodes", e);
+            } finally {
+                scheduleNextRound(nextTaskDelay, sniffIntervalMillis, false);
             }
-        };
+        }
+    }
+
+    static final class ScheduledTask {
+        final Task task;
+        final Future<?> future;
+
+        ScheduledTask(Task task, Future<?> future) {
+            this.task = task;
+            this.future = future;
+        }
+
+        void cancelIfNotYetStarted() {
+            this.future.cancel(false);
+        }
+    }
+
+    final void sniff() throws IOException {
+        List<HttpHost> sniffedHosts = hostsSniffer.sniffHosts();
+        logger.debug("sniffed hosts: " + sniffedHosts);
+        if (sniffedHosts.isEmpty()) {
+            logger.warn("no hosts to set, hosts will be updated at the next sniffing round");
+        } else {
+            restClient.setHosts(sniffedHosts.toArray(new HttpHost[sniffedHosts.size()]));
+        }
     }
 
     @Override
     public void close() {
+        nextTask.get().cancelIfNotYetStarted();
         this.scheduler.shutdown();
     }
 
@@ -124,18 +161,13 @@ public class Sniffer implements Closeable {
 
     /**
      * The Scheduler interface allows to isolate the sniffing scheduling aspects so that we can test
-     * the sniffer by injecting a custom scheduler that is more suited for testing.
+     * the sniffer by injecting when needed a custom scheduler that is more suited for testing.
      */
     interface Scheduler {
         /**
-         * Schedules the provided {@link Runnable} to be executed straight-away
-         */
-        void submit(Runnable runnable);
-
-        /**
          * Schedules the provided {@link Runnable} to be executed in <code>delayMillis</code> milliseconds
          */
-        void schedule(Runnable runnable, long delayMillis);
+        ScheduledTask schedule(Task task, long delayMillis);
 
         /**
          * Shuts this scheduler down
@@ -148,7 +180,6 @@ public class Sniffer implements Closeable {
      */
     static final class DefaultScheduler implements Scheduler {
         final ScheduledThreadPoolExecutor executor;
-        private ScheduledFuture<?> scheduledFuture = DummyScheduledFuture.INSTANCE;
 
         DefaultScheduler() {
             this(initScheduledExecutorService());
@@ -172,35 +203,14 @@ public class Sniffer implements Closeable {
         //may happen if we end up reviving nodes from the blacklist as all of the sniffed nodes are marked dead.
         //in that case the sniff round won't work either though.
 
-        //TODO this can be called concurrently when sniffing on failure, test concurrent calls
         @Override
-        public synchronized void submit(Runnable runnable) {
-            ScheduledFuture<?> scheduledFuture = this.scheduledFuture;
-            assert scheduledFuture != DummyScheduledFuture.INSTANCE
-                    || executor.getTaskCount() == 0 : "next task may only be null at the very first run";
-            //regardless of when the next sniff is scheduled, cancel it and schedule a new one.
-            //this happens when sniffing on failure is enabled and a failure happens, the following scheduled ordinary
-            //round gets cancelled in favour of the immediate round caused by the failure
-            scheduledFuture.cancel(false);
-            schedule(runnable, 0L);
+        public ScheduledTask schedule(Task task, long delayMillis) {
+            ScheduledFuture<?> future = executor.schedule(task, delayMillis, TimeUnit.MILLISECONDS);
+            return new ScheduledTask(task, future);
         }
 
-        //TODO test concurrent calls to schedule
         @Override
-        public synchronized void schedule(Runnable runnable, long delayMillis) {
-            assert scheduledFuture.isDone() : "the task being replaced must either be running or cancelled";
-            logger.debug("scheduling next sniff round in " + delayMillis + " ms");
-            try {
-                this.scheduledFuture = executor.schedule(runnable, delayMillis, TimeUnit.MILLISECONDS);
-            } catch(Exception e) {
-                logger.error("error while scheduling next sniffer round", e);
-            }
-        }
-
-        //TODO test concurrent calls to shutdown?
-        @Override
-        public synchronized void shutdown() {
-            //TODO cancel here too, no need to try and wait
+        public void shutdown() {
             executor.shutdown();
             try {
                 if (executor.awaitTermination(1000, TimeUnit.MILLISECONDS)) {
@@ -210,45 +220,6 @@ public class Sniffer implements Closeable {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
-        }
-    }
-
-    private static class DummyScheduledFuture implements ScheduledFuture<Object> {
-        private static final DummyScheduledFuture INSTANCE = new DummyScheduledFuture();
-
-        @Override
-        public long getDelay(TimeUnit unit) {
-            return 0;
-        }
-
-        @Override
-        public int compareTo(Delayed o) {
-            return 0;
-        }
-
-        @Override
-        public boolean cancel(boolean mayInterruptIfRunning) {
-            return true;
-        }
-
-        @Override
-        public boolean isCancelled() {
-            return false;
-        }
-
-        @Override
-        public boolean isDone() {
-            return true;
-        }
-
-        @Override
-        public Object get() {
-            return null;
-        }
-
-        @Override
-        public Object get(long timeout, TimeUnit unit) {
-            return null;
         }
     }
 

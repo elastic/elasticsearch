@@ -144,6 +144,13 @@ public class RestClient implements Closeable {
     }
 
     /**
+     * Returns the configured hosts
+     */
+    public List<HttpHost> getHosts() {
+        return new ArrayList<>(hostTuple.hosts);
+    }
+
+    /**
      * Sends a request to the Elasticsearch cluster that the client points to and waits for the corresponding response
      * to be returned. Shortcut to {@link #performRequest(String, String, Map, HttpEntity, Header...)} but without parameters
      * and request body.

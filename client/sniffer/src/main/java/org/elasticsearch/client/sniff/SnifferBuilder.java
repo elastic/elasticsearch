@@ -30,10 +30,12 @@ import java.util.concurrent.TimeUnit;
 public final class SnifferBuilder {
     public static final long DEFAULT_SNIFF_INTERVAL = TimeUnit.MINUTES.toMillis(5);
     public static final long DEFAULT_SNIFF_AFTER_FAILURE_DELAY = TimeUnit.MINUTES.toMillis(1);
+    public static final int DEFAULT_HOST_EXCLUDED_SNIFF_ROUNDS = 1;
 
     private final RestClient restClient;
     private long sniffIntervalMillis = DEFAULT_SNIFF_INTERVAL;
     private long sniffAfterFailureDelayMillis = DEFAULT_SNIFF_AFTER_FAILURE_DELAY;
+    private int maxExcludedRounds = DEFAULT_HOST_EXCLUDED_SNIFF_ROUNDS;
     private HostsSniffer hostsSniffer;
 
     /**
@@ -80,12 +82,23 @@ public final class SnifferBuilder {
     }
 
     /**
+     * Sets the amount of future sniffing calls from which a host that had failed a request would be excluded. Will not
+     * be used if client wasn't built utilizing
+     * {@link org.elasticsearch.client.RestClientBuilder#setFailureListener(RestClient.FailureListener)}
+     * @param maxExcludedRounds the number of sniffing calls to exclude a host from
+     */
+    public SnifferBuilder setMaxExcludedRounds(int maxExcludedRounds) {
+        this.maxExcludedRounds = maxExcludedRounds;
+        return this;
+    }
+
+    /**
      * Creates the {@link Sniffer} based on the provided configuration.
      */
     public Sniffer build() {
         if (hostsSniffer == null) {
             this.hostsSniffer = new ElasticsearchHostsSniffer(restClient);
         }
-        return new Sniffer(restClient, hostsSniffer, sniffIntervalMillis, sniffAfterFailureDelayMillis);
+        return new Sniffer(restClient, hostsSniffer, sniffIntervalMillis, sniffAfterFailureDelayMillis, maxExcludedRounds);
     }
 }

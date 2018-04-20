@@ -100,7 +100,8 @@ normal and we want to detect that as soon as possible. Said interval can be
 customized  at `Sniffer` creation time through the `setSniffAfterFailureDelayMillis`
 method. Note that this last configuration parameter has no effect in case sniffing
 on failure is not enabled like explained above.
-<3> Set the `Sniffer` instance to the failure listener
+<3> Set the amount of sniffing rounds to exclude a failed host for
+<4> Set the `Sniffer` instance to the failure listener
 
 The Elasticsearch Nodes Info api doesn't return the protocol to use when
 connecting to the nodes but only their `host:port` key-pair, hence `http`

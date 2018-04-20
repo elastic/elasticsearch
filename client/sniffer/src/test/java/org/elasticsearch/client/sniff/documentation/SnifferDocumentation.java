@@ -82,8 +82,9 @@ public class SnifferDocumentation {
                     .build();
             Sniffer sniffer = Sniffer.builder(restClient)
                     .setSniffAfterFailureDelayMillis(30000) // <2>
+                    .setMaxExcludedRounds(3) // <3>
                     .build();
-            sniffOnFailureListener.setSniffer(sniffer); // <3>
+            sniffOnFailureListener.setSniffer(sniffer); // <4>
             //end::sniff-on-failure
         }
         {

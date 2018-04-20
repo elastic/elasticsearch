@@ -1028,13 +1028,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertThat(snapshots, hasSize(1));
 
         final int snapshot0FileCount = snapshot0Files.size();
-        final long snapshot0FileSize = snapshot0Files.stream().mapToLong(f -> {
-            try {
-                return Files.size(f);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }).sum();
+        final long snapshot0FileSize = calculateTotalFilesSize(snapshot0Files);
 
         SnapshotStats stats = snapshots.get(0).getStats();
 
@@ -1072,17 +1066,17 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final List<Path> snapshot1Files = scanSnapshotFolder(repoPath);
 
         final int snapshot1FileCount = snapshot1Files.size();
-        final long snapshot1FileSize = snapshot1Files.stream().mapToLong(f -> {
-            try {
-                return Files.size(f);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }).sum();
+        final long snapshot1FileSize = calculateTotalFilesSize(snapshot1Files);
 
         snapshots = response.getSnapshots();
 
         SnapshotStats anotherStats = snapshots.get(0).getStats();
+
+        ArrayList<Path> snapshotFilesDiff = new ArrayList<>(snapshot1Files);
+        snapshotFilesDiff.removeAll(snapshot0Files);
+
+        assertThat(anotherStats.getIncrementalFileCount(), equalTo(snapshotFilesDiff.size()));
+        assertThat(anotherStats.getIncrementalSize(), equalTo(calculateTotalFilesSize(snapshotFilesDiff)));
 
         assertThat(anotherStats.getIncrementalFileCount(), equalTo(anotherStats.getProcessedFileCount()));
         assertThat(anotherStats.getIncrementalSize(), equalTo(anotherStats.getProcessedSize()));
@@ -1092,6 +1086,16 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         assertThat(anotherStats.getTotalFileCount(), is(snapshot1FileCount));
         assertThat(anotherStats.getTotalSize(), is(snapshot1FileSize));
+    }
+
+    private long calculateTotalFilesSize(List<Path> files) {
+        return files.stream().mapToLong(f -> {
+            try {
+                return Files.size(f);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }).sum();
     }
 
 

@@ -321,7 +321,12 @@ public class SliceBuilder implements Writeable, ToXContentObject {
     private GroupShardsIterator<ShardIterator> buildShardIterator(ClusterService clusterService, ShardSearchRequest request) {
         final ClusterState state = clusterService.state();
         final Settings settings = clusterService.getSettings();
-        final String[] indices = ((IndicesRequest) request).indices();
+        final String[] indices;
+        if (request instanceof IndicesRequest) {
+            indices = ((IndicesRequest) request).indices();
+        } else {
+            indices = new String[] { request.shardId().getIndex().getName() };
+        }
         IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(settings);
         Map<String, Set<String>> routings = resolver.resolveSearchRouting(state, request.routing(), indices);
         return clusterService.operationRouting().searchShards(state, indices, routings, request.preference());

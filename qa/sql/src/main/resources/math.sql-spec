@@ -112,3 +112,15 @@ mathConstantPI
 SELECT ABS(emp_no) m, PI() as pi, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
 mathConstant
 SELECT 5 + 2 * 3 / 2 % 2 AS c, PI() as e, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+
+//
+// binary functions
+// 
+mathATan2
+// tag::atan2
+SELECT ATAN2(emp_no, emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+// end::atan2
+mathPower
+// tag::power
+SELECT POWER(emp_no, 2) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+// end::power

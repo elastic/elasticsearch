@@ -40,29 +40,29 @@ public class BinaryArithmeticProcessorTests extends AbstractWireSerializingTestC
     }
 
     public void testAdd() {
-        BinaryArithmeticProcessor ba = new Add(EMPTY, l(7), l(3)).makeProcessorDefinition().asProcessor();
+        Processor ba = new Add(EMPTY, l(7), l(3)).makeProcessorDefinition().asProcessor();
         assertEquals(10, ba.process(null));
     }
 
     public void testSub() {
-        BinaryArithmeticProcessor ba = new Sub(EMPTY, l(7), l(3)).makeProcessorDefinition().asProcessor();
+        Processor ba = new Sub(EMPTY, l(7), l(3)).makeProcessorDefinition().asProcessor();
         assertEquals(4, ba.process(null));
     }
 
     public void testMul() {
-        BinaryArithmeticProcessor ba = new Mul(EMPTY, l(7), l(3)).makeProcessorDefinition().asProcessor();
+        Processor ba = new Mul(EMPTY, l(7), l(3)).makeProcessorDefinition().asProcessor();
         assertEquals(21, ba.process(null));
     }
 
     public void testDiv() {
-        BinaryArithmeticProcessor ba = new Div(EMPTY, l(7), l(3)).makeProcessorDefinition().asProcessor();
+        Processor ba = new Div(EMPTY, l(7), l(3)).makeProcessorDefinition().asProcessor();
         assertEquals(2, ((Number) ba.process(null)).longValue());
         ba = new Div(EMPTY, l((double) 7), l(3)).makeProcessorDefinition().asProcessor();
         assertEquals(2.33, ((Number) ba.process(null)).doubleValue(), 0.01d);
     }
 
     public void testMod() {
-        BinaryArithmeticProcessor ba = new Mod(EMPTY, l(7), l(3)).makeProcessorDefinition().asProcessor();
+        Processor ba = new Mod(EMPTY, l(7), l(3)).makeProcessorDefinition().asProcessor();
         assertEquals(1, ba.process(null));
     }
 

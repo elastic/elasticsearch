@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
  * <a href="https://en.wikipedia.org/wiki/Inverse_trigonometric_functions">Arc tangent</a>
- * fuction.
+ * function.
  */
 public class ATan extends MathFunction {
     public ATan(Location location, Expression field) {

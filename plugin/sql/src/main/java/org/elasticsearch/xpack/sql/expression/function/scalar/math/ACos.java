@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
  * <a href="https://en.wikipedia.org/wiki/Inverse_trigonometric_functions">Arc cosine</a>
- * fuction.
+ * function.
  */
 public class ACos extends MathFunction {
     public ACos(Location location, Expression field) {

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 
 import java.io.IOException;
@@ -34,12 +35,18 @@ public class MathFunctionProcessorTests extends AbstractWireSerializingTestCase<
     public void testApply() {
         MathProcessor proc = new MathProcessor(MathOperation.E);
         assertEquals(Math.E, proc.process(null));
-        assertEquals(Math.E, proc.process("cat"));
         assertEquals(Math.E, proc.process(Math.PI));
 
         proc = new MathProcessor(MathOperation.SQRT);
         assertEquals(2.0, (double) proc.process(4), 0);
         assertEquals(3.0, (double) proc.process(9d), 0);
         assertEquals(1.77, (double) proc.process(3.14), 0.01);
+    }
+
+    public void testNumberCheck() {
+        MathProcessor proc = new MathProcessor(MathOperation.E);
+        SqlIllegalArgumentException siae = expectThrows(SqlIllegalArgumentException.class, () -> proc.process("string"));
+        assertEquals("A number is required; received [string]", siae.getMessage());
+
     }
 }

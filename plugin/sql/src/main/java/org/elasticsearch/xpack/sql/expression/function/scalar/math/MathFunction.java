@@ -52,6 +52,16 @@ public abstract class MathFunction extends UnaryScalarFunction {
     public DataType dataType() {
         return DataType.DOUBLE;
     }
+    
+    @Override
+    protected TypeResolution resolveType() {
+        if (!childrenResolved()) {
+            return new TypeResolution("Unresolved children");
+        }
+
+        return field().dataType().isNumeric() ? TypeResolution.TYPE_RESOLVED
+                : new TypeResolution("'%s' requires a numeric type, received %s", operation(), field().dataType().esType);
+    }
 
     @Override
     protected final ProcessorDefinition makeProcessorDefinition() {

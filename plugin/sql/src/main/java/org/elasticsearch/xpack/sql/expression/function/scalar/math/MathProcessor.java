@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
 
 import java.io.IOException;
@@ -93,6 +94,10 @@ public class MathProcessor implements Processor {
 
     @Override
     public Object process(Object input) {
+        if (input != null && !(input instanceof Number)) {
+            throw new SqlIllegalArgumentException("A number is required; received [{}]", input);
+        }
+
         return processor.apply(input);
     }
 

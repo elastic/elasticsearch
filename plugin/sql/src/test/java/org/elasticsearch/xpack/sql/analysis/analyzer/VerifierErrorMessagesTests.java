@@ -111,8 +111,8 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testGroupByOrderByScalarOverNonGrouped() {
-        assertEquals("1:50: Cannot order by non-grouped column [bool], expected [text]",
-                verify("SELECT MAX(int) FROM test GROUP BY text ORDER BY ABS(bool)"));
+        assertEquals("1:50: Cannot order by non-grouped column [date], expected [text]",
+                verify("SELECT MAX(int) FROM test GROUP BY text ORDER BY YEAR(date)"));
     }
 
     public void testGroupByHavingNonGrouped() {

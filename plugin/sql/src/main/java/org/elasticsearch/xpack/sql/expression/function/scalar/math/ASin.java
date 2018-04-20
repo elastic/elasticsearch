@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
  * <a href="https://en.wikipedia.org/wiki/Inverse_trigonometric_functions">Arc sine</a>
- * fuction.
+ * function.
  */
 public class ASin extends MathFunction {
     public ASin(Location location, Expression field) {

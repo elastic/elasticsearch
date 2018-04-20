@@ -42,6 +42,7 @@ ABS             |SCALAR
 ACOS            |SCALAR
 ASIN            |SCALAR
 ATAN            |SCALAR
+ATAN2           |SCALAR
 CBRT            |SCALAR
 CEIL            |SCALAR
 COS             |SCALAR
@@ -53,7 +54,9 @@ EXPM1           |SCALAR
 FLOOR           |SCALAR
 LOG             |SCALAR
 LOG10           |SCALAR
+MOD             |SCALAR
 PI              |SCALAR
+POWER           |SCALAR
 RADIANS         |SCALAR
 ROUND           |SCALAR
 SIN             |SCALAR
@@ -80,6 +83,7 @@ ABS             |SCALAR
 ACOS            |SCALAR
 ASIN            |SCALAR
 ATAN            |SCALAR
+ATAN2           |SCALAR
 ;
 
 showFunctionsWithPatternChar

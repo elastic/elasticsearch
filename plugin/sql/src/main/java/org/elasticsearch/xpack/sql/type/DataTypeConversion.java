@@ -22,6 +22,7 @@ import static org.elasticsearch.xpack.sql.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.sql.type.DataType.DATE;
 import static org.elasticsearch.xpack.sql.type.DataType.LONG;
 import static org.elasticsearch.xpack.sql.type.DataType.NULL;
+
 /**
  * Conversions from one Elasticsearch data type to another Elasticsearch data types.
  * <p>
@@ -314,6 +315,21 @@ public abstract class DataTypeConversion {
             throw new SqlIllegalArgumentException("[" + x + "] out of [Long] range");
         }
         return Math.round(x);
+    }
+
+    public static Number toInteger(double x, DataType dataType) {
+        long l = safeToLong(x);
+
+        switch (dataType) {
+            case BYTE:
+                return safeToByte(l);
+            case SHORT:
+                return safeToShort(l);
+            case INTEGER:
+                return safeToInt(l);
+            default:
+                return l;
+        }
     }
 
     public static boolean convertToBoolean(String val) {

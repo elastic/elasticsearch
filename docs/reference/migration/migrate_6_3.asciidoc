@@ -60,3 +60,14 @@ place) you can start Elasticsearch with the JVM option
 `-Des.thread_pool.write.use_bulk_as_display_name=true` to have Elasticsearch
 continue to display the name of this thread pool as `bulk`. Elasticsearch will
 stop observing this system property in 7.0.0.
+
+==== Suggest stats metrics deprecated
+
+The suggest stats were previously folded into the search on the indices stats
+API. As such, the `suggest` metric on the indices stats API has been a synonym
+for the `search` metric. In 6.3.0, the `suggest` metric is deprecated in favor
+of using `search`.
+
+Similarly, the `suggest` index metric on the `indices` metric on the nodes stats
+API has provided a response containing only an empty object since 5.0.0. In
+6.3.0 this metric has been deprecated.

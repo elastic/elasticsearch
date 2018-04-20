@@ -628,7 +628,7 @@ public class InternalEngine extends Engine {
             assert incrementIndexVersionLookup(); // used for asserting in tests
             final long currentVersion = loadCurrentVersionFromIndex(op.uid());
             if (currentVersion != Versions.NOT_FOUND) {
-                versionValue = new VersionValue(currentVersion, SequenceNumbers.UNASSIGNED_SEQ_NO, 0L);
+                versionValue = new IndexVersionValue(null, currentVersion, SequenceNumbers.UNASSIGNED_SEQ_NO, 0L);
             }
         } else if (engineConfig.isEnableGcDeletes() && versionValue.isDelete() &&
             (engineConfig.getThreadPool().relativeTimeInMillis() - ((DeleteVersionValue)versionValue).time) > getGcDeletesInMillis()) {
@@ -789,8 +789,9 @@ public class InternalEngine extends Engine {
                     indexResult.setTranslogLocation(location);
                 }
                 if (plan.indexIntoLucene && indexResult.hasFailure() == false) {
-                    versionMap.maybePutUnderLock(index.uid().bytes(),
-                        getVersionValue(plan.versionForIndexing, plan.seqNoForIndexing, index.primaryTerm(), indexResult.getTranslogLocation()));
+                    final Translog.Location translogLocation = trackTranslogLocation.get() ? indexResult.getTranslogLocation() : null;
+                    versionMap.maybePutIndexUnderLock(index.uid().bytes(),
+                        new IndexVersionValue(translogLocation, plan.versionForIndexing, plan.seqNoForIndexing, index.primaryTerm()));
                 }
                 if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                     localCheckpointTracker.markSeqNoAsCompleted(indexResult.getSeqNo());
@@ -949,13 +950,6 @@ public class InternalEngine extends Engine {
                 throw ex;
             }
         }
-    }
-
-    private VersionValue getVersionValue(long version, long seqNo, long term, Translog.Location location) {
-        if (location != null && trackTranslogLocation.get()) {
-            return new TranslogVersionValue(location, version, seqNo, term);
-        }
-        return new VersionValue(version, seqNo, term);
     }
 
     /**
@@ -1234,7 +1228,7 @@ public class InternalEngine extends Engine {
                 }
                 numDocDeletes.inc();
             }
-            versionMap.putUnderLock(delete.uid().bytes(),
+            versionMap.putDeleteUnderLock(delete.uid().bytes(),
                 new DeleteVersionValue(plan.versionOfDeletion, plan.seqNoOfDeletion, delete.primaryTerm(),
                     engineConfig.getThreadPool().relativeTimeInMillis()));
             return new DeleteResult(

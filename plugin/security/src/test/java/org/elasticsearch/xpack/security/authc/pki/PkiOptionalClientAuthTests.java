@@ -13,9 +13,9 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
 import org.junit.BeforeClass;
@@ -31,7 +31,7 @@ import java.security.SecureRandom;
 
 import static org.hamcrest.Matchers.is;
 
-public class PkiOptionalClientAuthTests extends SecurityIntegTestCase {
+public class PkiOptionalClientAuthTests extends SecuritySingleNodeTestCase {
 
     private static int randomClientPort;
 
@@ -41,11 +41,11 @@ public class PkiOptionalClientAuthTests extends SecurityIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings() {
         String randomClientPortRange = randomClientPort + "-" + (randomClientPort+100);
 
         Settings.Builder builder = Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(super.nodeSettings())
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .put("xpack.security.http.ssl.enabled", true)
                 .put("xpack.security.http.ssl.client_authentication", SSLClientAuth.OPTIONAL)
@@ -74,12 +74,8 @@ public class PkiOptionalClientAuthTests extends SecurityIntegTestCase {
     public void testRestClientWithoutClientCertificate() throws Exception {
         SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(getSSLContext());
         try (RestClient restClient = createRestClient(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy), "https")) {
-            try {
-                restClient.performRequest("GET", "_nodes");
-                fail("request should have failed");
-            } catch(ResponseException e) {
-                assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
-            }
+            ResponseException e = expectThrows(ResponseException.class, () -> restClient.performRequest("GET", "_nodes"));
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
 
             Response response = restClient.performRequest("GET", "_nodes",
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,

@@ -48,6 +48,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class PkiRealmTests extends ESTestCase {
@@ -84,18 +86,19 @@ public class PkiRealmTests extends ESTestCase {
     }
 
     public void testAuthenticateBasedOnCertToken() throws Exception {
-        assertSuccessfulAuthentiation(Collections.emptySet());
+        assertSuccessfulAuthentication(Collections.emptySet());
     }
 
     public void testAuthenticateWithRoleMapping() throws Exception {
         final Set<String> roles = new HashSet<>();
         roles.add("admin");
         roles.add("kibana_user");
-        assertSuccessfulAuthentiation(roles);
+        assertSuccessfulAuthentication(roles);
     }
 
-    private void assertSuccessfulAuthentiation(Set<String> roles) throws Exception {
+    private void assertSuccessfulAuthentication(Set<String> roles) throws Exception {
         String dn = "CN=Elasticsearch Test Node,";
+        final String expectedUsername = "Elasticsearch Test Node";
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         X509AuthenticationToken token = new X509AuthenticationToken(new X509Certificate[] { certificate }, "Elasticsearch Test Node", dn);
         UserRoleMapper roleMapper = mock(UserRoleMapper.class);
@@ -118,10 +121,29 @@ public class PkiRealmTests extends ESTestCase {
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
         User user = result.getUser();
         assertThat(user, is(notNullValue()));
-        assertThat(user.principal(), is("Elasticsearch Test Node"));
+        assertThat(user.principal(), is(expectedUsername));
         assertThat(user.roles(), is(notNullValue()));
         assertThat(user.roles().length, is(roles.size()));
         assertThat(user.roles(), arrayContainingInAnyOrder(roles.toArray()));
+
+        final boolean testCaching = randomBoolean();
+        final boolean invalidate = testCaching && randomBoolean();
+        if (testCaching) {
+            if (invalidate) {
+                if (randomBoolean()) {
+                    realm.expireAll();
+                } else {
+                    realm.expire(expectedUsername);
+                }
+            }
+            future = new PlainActionFuture<>();
+            realm.authenticate(token, future);
+            assertEquals(AuthenticationResult.Status.SUCCESS, future.actionGet().getStatus());
+            assertEquals(user, future.actionGet().getUser());
+        }
+
+        final int numTimes = invalidate ? 2 : 1;
+        verify(roleMapper, times(numTimes)).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
     }
 
     public void testCustomUsernamePattern() throws Exception {

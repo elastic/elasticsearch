@@ -59,7 +59,7 @@ public class Sniffer implements Closeable {
     private final long sniffAfterFailureDelayMillis;
     private final Scheduler scheduler;
 
-    private final AtomicReference<Future> nextTask = new AtomicReference<>();
+    private final AtomicReference<Future<?>> nextTask = new AtomicReference<>();
 
     Sniffer(RestClient restClient, HostsSniffer hostsSniffer, long sniffInterval, long sniffAfterFailureDelay) {
         this(restClient, hostsSniffer, new DefaultScheduler(), sniffInterval, sniffAfterFailureDelay);
@@ -84,7 +84,7 @@ public class Sniffer implements Closeable {
 
     private void scheduleNextRound(long delay, long nextDelay, boolean mustCancelNextRound) {
         Task task = new Task(nextDelay);
-        Future<?> nextFuture = task.schedule(delay);
+        Future<?> nextFuture = scheduler.schedule(task, delay);
         Future<?> previousFuture = nextTask.getAndSet(nextFuture);
         if (mustCancelNextRound) {
             previousFuture.cancel(false);
@@ -96,10 +96,6 @@ public class Sniffer implements Closeable {
 
         Task(long nextTaskDelay) {
             this.nextTaskDelay = nextTaskDelay;
-        }
-
-        Future<?> schedule(long delay) {
-            return scheduler.schedule(this, delay);
         }
 
         @Override
@@ -116,7 +112,9 @@ public class Sniffer implements Closeable {
 
     final void sniff() throws IOException {
         List<HttpHost> sniffedHosts = hostsSniffer.sniffHosts();
-        logger.debug("sniffed hosts: " + sniffedHosts);
+        if (logger.isDebugEnabled()) {
+            logger.debug("sniffed hosts: " + sniffedHosts);
+        }
         if (sniffedHosts.isEmpty()) {
             logger.warn("no hosts to set, hosts will be updated at the next sniffing round");
         } else {

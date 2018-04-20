@@ -102,7 +102,7 @@ public class SnifferTests extends RestClientTestCase {
                         sniffer.sniff();
                         if (hostsSniffer.failures.get() > failures) {
                             failures++;
-                            fail("should have failed");
+                            fail("should have failed given that hostsSniffer says it threw an exception");
                         } else if (hostsSniffer.emptyList.get() > emptyList) {
                             emptyList++;
                             assertEquals(lastHosts, restClient.getHosts());

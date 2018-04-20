@@ -26,6 +26,22 @@
 
 === Known Issues
 
+== Elasticsearch version 6.4.0
+
+=== New Features
+
+<<search-request-docvalue-fields,Doc value fields>> support a new `format`
+option, which allows to configure how field values should be formatted. This is
+especially useful for dates and numeric fields. ({pull}placeholder[#placeholder])
+
+=== Enhancements
+
+=== Bug Fixes
+
+=== Regressions
+
+=== Known Issues
+
 == Elasticsearch version 6.3.0
 
 === New Features
@@ -37,5 +53,3 @@
 === Regressions
 
 === Known Issues
-
-

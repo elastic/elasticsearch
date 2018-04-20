@@ -85,20 +85,20 @@ public class DocValueFormatTests extends ESTestCase {
     }
 
     public void testRawFormat() {
-        assertEquals("0", DocValueFormat.RAW.format(0));
-        assertEquals("-1", DocValueFormat.RAW.format(-1));
-        assertEquals("1", DocValueFormat.RAW.format(1));
+        assertEquals(0L, DocValueFormat.RAW.format(0));
+        assertEquals(-1L, DocValueFormat.RAW.format(-1));
+        assertEquals(1L, DocValueFormat.RAW.format(1));
 
-        assertEquals("0.0", DocValueFormat.RAW.format(0d));
-        assertEquals("0.5", DocValueFormat.RAW.format(.5d));
-        assertEquals("-1.0", DocValueFormat.RAW.format(-1d));
+        assertEquals(0d, DocValueFormat.RAW.format(0d));
+        assertEquals(.5d, DocValueFormat.RAW.format(.5d));
+        assertEquals(-1d, DocValueFormat.RAW.format(-1d));
 
         assertEquals("abc", DocValueFormat.RAW.format(new BytesRef("abc")));
     }
 
     public void testBooleanFormat() {
-        assertEquals("false", DocValueFormat.BOOLEAN.format(0));
-        assertEquals("true", DocValueFormat.BOOLEAN.format(1));
+        assertEquals(false, DocValueFormat.BOOLEAN.format(0));
+        assertEquals(true, DocValueFormat.BOOLEAN.format(1));
     }
 
     public void testIpFormat() {

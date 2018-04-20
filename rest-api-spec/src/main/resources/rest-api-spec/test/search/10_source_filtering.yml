@@ -133,7 +133,53 @@ setup:
 
 ---
 "docvalue_fields":
+  - skip:
+      version: " - 6.99.99" # TODO: change version on backport
+      reason: format option was added in 6.4
+      features: warnings
   - do:
+      warnings:
+        - 'Doc-value field [count] is not using a format. The output will change in 7.0 when doc value fields get formatted based on mappings by default. It is recommended to pass [format=use_field_mapping] with the doc value field in order to opt in for the future behaviour and ease the migration to 7.0.'
+      search:
+        body:
+          docvalue_fields: [ "count" ]
+  - match: { hits.hits.0.fields.count: [1] }
+
+---
+"docvalue_fields as url param":
+  - skip:
+      version: " - 6.99.99" # TODO: change version on backport
+      reason: format option was added in 6.4
+      features: warnings
+  - do:
+      warnings:
+        - 'Doc-value field [count] is not using a format. The output will change in 7.0 when doc value fields get formatted based on mappings by default. It is recommended to pass [format=use_field_mapping] with the doc value field in order to opt in for the future behaviour and ease the migration to 7.0.'
       search:
         docvalue_fields: [ "count" ]
   - match: { hits.hits.0.fields.count: [1] }
+
+---
+"docvalue_fields with default format":
+  - skip:
+      version: " - 6.99.99" # TODO: change version on backport
+      reason: format option was added in 6.4
+  - do:
+      search:
+        body:
+          docvalue_fields:
+            - field: "count"
+              format: "use_field_mapping"
+  - match: { hits.hits.0.fields.count: [1] }
+
+---
+"docvalue_fields with explicit format":
+  - skip:
+      version: " - 6.99.99" # TODO: change version on backport
+      reason: format option was added in 6.4
+  - do:
+      search:
+        body:
+          docvalue_fields:
+            - field: "count"
+              format: "#.0"
+  - match: { hits.hits.0.fields.count: ["1.0"] }

@@ -153,7 +153,7 @@ final class ExpandSearchPhase extends SearchPhase {
             }
         }
         if (options.getDocValueFields() != null) {
-            options.getDocValueFields().forEach(groupSource::docValueField);
+            options.getDocValueFields().forEach(ff -> groupSource.docValueField(ff.field, ff.format));
         }
         if (options.getStoredFieldsContext() != null && options.getStoredFieldsContext().fieldNames() != null) {
             options.getStoredFieldsContext().fieldNames().forEach(groupSource::storedField);

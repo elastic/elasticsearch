@@ -33,6 +33,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -45,6 +46,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentParser.Token.END_OBJECT;
 
@@ -65,7 +67,8 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         PARSER.declareBoolean(InnerHitBuilder::setVersion, SearchSourceBuilder.VERSION_FIELD);
         PARSER.declareBoolean(InnerHitBuilder::setTrackScores, SearchSourceBuilder.TRACK_SCORES_FIELD);
         PARSER.declareStringArray(InnerHitBuilder::setStoredFieldNames, SearchSourceBuilder.STORED_FIELDS_FIELD);
-        PARSER.declareStringArray(InnerHitBuilder::setDocValueFields, SearchSourceBuilder.DOCVALUE_FIELDS_FIELD);
+        PARSER.declareObjectArray(InnerHitBuilder::setDocValueFields,
+                (p,c) -> FieldAndFormat.fromXContent(p), SearchSourceBuilder.DOCVALUE_FIELDS_FIELD);
         PARSER.declareField((p, i, c) -> {
             try {
                 Set<ScriptField> scriptFields = new HashSet<>();
@@ -102,7 +105,7 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
     private StoredFieldsContext storedFieldsContext;
     private QueryBuilder query = DEFAULT_INNER_HIT_QUERY;
     private List<SortBuilder<?>> sorts;
-    private List<String> docValueFields;
+    private List<FieldAndFormat> docValueFields;
     private Set<ScriptField> scriptFields;
     private HighlightBuilder highlightBuilder;
     private FetchSourceContext fetchSourceContext;
@@ -134,7 +137,18 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         version = in.readBoolean();
         trackScores = in.readBoolean();
         storedFieldsContext = in.readOptionalWriteable(StoredFieldsContext::new);
-        docValueFields = (List<String>) in.readGenericValue();
+        if (in.getVersion().before(Version.V_7_0_0_alpha1)) { // TODO: change to 6.4.0 after backport
+            List<String> fieldList = (List<String>) in.readGenericValue();
+            if (fieldList == null) {
+                docValueFields = null;
+            } else {
+                docValueFields = fieldList.stream()
+                        .map(field -> new FieldAndFormat(field, null))
+                        .collect(Collectors.toList());
+            }
+        } else {
+            docValueFields = in.readBoolean() ? in.readList(FieldAndFormat::new) : null;
+        }
         if (in.readBoolean()) {
             int size = in.readVInt();
             scriptFields = new HashSet<>(size);
@@ -174,7 +188,16 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         out.writeBoolean(version);
         out.writeBoolean(trackScores);
         out.writeOptionalWriteable(storedFieldsContext);
-        out.writeGenericValue(docValueFields);
+        if (out.getVersion().before(Version.V_7_0_0_alpha1)) { // TODO: change to 6.4.0 after backport
+            out.writeGenericValue(docValueFields == null
+                    ? null
+                    : docValueFields.stream().map(ff -> ff.field).collect(Collectors.toList()));
+        } else {
+            out.writeBoolean(docValueFields != null);
+            if (docValueFields != null) {
+                out.writeList(docValueFields);
+            }
+        }
         boolean hasScriptFields = scriptFields != null;
         out.writeBoolean(hasScriptFields);
         if (hasScriptFields) {
@@ -248,7 +271,9 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         out.writeBoolean(version);
         out.writeBoolean(trackScores);
         out.writeOptionalWriteable(storedFieldsContext);
-        out.writeGenericValue(docValueFields);
+        out.writeGenericValue(docValueFields == null
+                ? null
+                : docValueFields.stream().map(ff -> ff.field).collect(Collectors.toList()));
         boolean hasScriptFields = scriptFields != null;
         out.writeBoolean(hasScriptFields);
         if (hasScriptFields) {
@@ -390,14 +415,14 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
     /**
      * Gets the docvalue fields.
      */
-    public List<String> getDocValueFields() {
+    public List<FieldAndFormat> getDocValueFields() {
         return docValueFields;
     }
 
     /**
      * Sets the stored fields to load from the docvalue and return.
      */
-    public InnerHitBuilder setDocValueFields(List<String> docValueFields) {
+    public InnerHitBuilder setDocValueFields(List<FieldAndFormat> docValueFields) {
         this.docValueFields = docValueFields;
         return this;
     }
@@ -405,12 +430,19 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
     /**
      * Adds a field to load from the docvalue and return.
      */
-    public InnerHitBuilder addDocValueField(String field) {
+    public InnerHitBuilder addDocValueField(String field, String format) {
         if (docValueFields == null) {
             docValueFields = new ArrayList<>();
         }
-        docValueFields.add(field);
+        docValueFields.add(new FieldAndFormat(field, null));
         return this;
+    }
+
+    /**
+     * Adds a field to load from doc values and return.
+     */
+    public InnerHitBuilder addDocValueField(String field) {
+        return addDocValueField(field, null);
     }
 
     public Set<ScriptField> getScriptFields() {
@@ -489,8 +521,15 @@ public final class InnerHitBuilder implements Writeable, ToXContentObject {
         }
         if (docValueFields != null) {
             builder.startArray(SearchSourceBuilder.DOCVALUE_FIELDS_FIELD.getPreferredName());
-            for (String docValueField : docValueFields) {
-                builder.value(docValueField);
+            for (FieldAndFormat docValueField : docValueFields) {
+                if (docValueField.format == null) {
+                    builder.value(docValueField.field);
+                } else {
+                    builder.startObject()
+                        .field("field", docValueField.field)
+                        .field("format", docValueField.format)
+                        .endObject();
+                }
             }
             builder.endArray();
         }

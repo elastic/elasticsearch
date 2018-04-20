@@ -63,7 +63,7 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
 
         @Override
         public String getKeyAsString() {
-            return format.format(term);
+            return format.format(term).toString();
         }
 
         @Override

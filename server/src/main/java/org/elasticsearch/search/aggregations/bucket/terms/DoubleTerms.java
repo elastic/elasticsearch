@@ -63,7 +63,7 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
 
         @Override
         public String getKeyAsString() {
-            return format.format(term);
+            return format.format(term).toString();
         }
 
         @Override

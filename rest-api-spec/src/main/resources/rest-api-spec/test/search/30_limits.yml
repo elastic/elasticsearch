@@ -69,7 +69,13 @@ setup:
         body:
           query:
             match_all: {}
-          docvalue_fields: ["one", "two", "three"]
+          docvalue_fields:
+            - field: "one"
+              format: "use_field_mapping"
+            - field: "two"
+              format: "use_field_mapping"
+            - field: "three"
+              format: "use_field_mapping"
 
 ---
 "Script_fields size limit":

@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
@@ -47,13 +48,13 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
     private final Optional<SortAndFormats> sort;
     private final HighlightBuilder highlightBuilder;
     private final StoredFieldsContext storedFieldsContext;
-    private final List<String> docValueFields;
+    private final List<FieldAndFormat> docValueFields;
     private final List<ScriptFieldsContext.ScriptField> scriptFields;
     private final FetchSourceContext fetchSourceContext;
 
     TopHitsAggregatorFactory(String name, int from, int size, boolean explain, boolean version, boolean trackScores,
             Optional<SortAndFormats> sort, HighlightBuilder highlightBuilder, StoredFieldsContext storedFieldsContext,
-            List<String> docValueFields, List<ScriptFieldsContext.ScriptField> scriptFields, FetchSourceContext fetchSourceContext,
+            List<FieldAndFormat> docValueFields, List<ScriptFieldsContext.ScriptField> scriptFields, FetchSourceContext fetchSourceContext,
             SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactories, Map<String, Object> metaData)
             throws IOException {
         super(name, context, parent, subFactories, metaData);

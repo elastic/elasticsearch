@@ -45,8 +45,10 @@ ATAN            |SCALAR
 ATAN2           |SCALAR
 CBRT            |SCALAR
 CEIL            |SCALAR
+CEILING         |SCALAR
 COS             |SCALAR
 COSH            |SCALAR
+COT             |SCALAR
 DEGREES         |SCALAR
 E               |SCALAR
 EXP             |SCALAR
@@ -58,7 +60,11 @@ MOD             |SCALAR
 PI              |SCALAR
 POWER           |SCALAR
 RADIANS         |SCALAR
+RANDOM          |SCALAR
+RAND            |SCALAR
 ROUND           |SCALAR
+SIGN            |SCALAR
+SIGNUM          |SCALAR
 SIN             |SCALAR
 SINH            |SCALAR
 SQRT            |SCALAR

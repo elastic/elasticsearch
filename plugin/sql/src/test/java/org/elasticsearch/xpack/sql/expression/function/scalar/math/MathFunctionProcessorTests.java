@@ -49,4 +49,10 @@ public class MathFunctionProcessorTests extends AbstractWireSerializingTestCase<
         assertEquals("A number is required; received [string]", siae.getMessage());
 
     }
+
+    public void testRandom() {
+        MathProcessor proc = new MathProcessor(MathOperation.RANDOM);
+        assertNotNull(proc.process(null));
+        assertNotNull(proc.process(randomLong()));
+    }
 }

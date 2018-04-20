@@ -121,9 +121,9 @@ public class ChunksCoordinatorTests extends ESTestCase {
         coordinator.start();
         assertThat(coordinator.getChunks().size(), equalTo(0));
         verify(client, times(expectedNumberOfChunks)).execute(same(ShardChangesAction.INSTANCE),
-                any(ShardChangesAction.Request.class), any(ActionListener.class));
+                any(ShardChangesAction.Request.class), any());
         verify(client, times(expectedNumberOfChunks)).execute(same(BulkShardOperationsAction.INSTANCE),
-                any(BulkShardOperationsRequest.class), any(ActionListener.class));
+                any(BulkShardOperationsRequest.class), any());
     }
 
     public void testCoordinator_failure() throws Exception {
@@ -133,12 +133,12 @@ public class ChunksCoordinatorTests extends ESTestCase {
         if (randomBoolean()) {
             shardChangesActionApiCallFailed = true;
             doThrow(expectedException).when(client).execute(same(ShardChangesAction.INSTANCE),
-                    any(ShardChangesAction.Request.class), any(ActionListener.class));
+                    any(ShardChangesAction.Request.class), any());
         } else {
             shardChangesActionApiCallFailed = false;
             mockShardChangesApiCall(client);
             doThrow(expectedException).when(client).execute(same(BulkShardOperationsAction.INSTANCE),
-                    any(BulkShardOperationsRequest.class), any(ActionListener.class));
+                    any(BulkShardOperationsRequest.class), any());
         }
         Executor ccrExecutor = Runnable::run;
         ShardId leaderShardId = new ShardId("index1", "index1", 0);
@@ -156,9 +156,9 @@ public class ChunksCoordinatorTests extends ESTestCase {
         coordinator.start();
         assertThat(coordinator.getChunks().size(), equalTo(1));
         verify(client, times(1)).execute(same(ShardChangesAction.INSTANCE), any(ShardChangesAction.Request.class),
-                any(ActionListener.class));
+                any());
         verify(client, times(shardChangesActionApiCallFailed ? 0 : 1)).execute(same(BulkShardOperationsAction.INSTANCE),
-                any(BulkShardOperationsRequest.class), any(ActionListener.class));
+                any(BulkShardOperationsRequest.class), any());
     }
 
     public void testCoordinator_concurrent() throws Exception {
@@ -187,10 +187,8 @@ public class ChunksCoordinatorTests extends ESTestCase {
         coordinator.start();
         latch.await();
         assertThat(coordinator.getChunks().size(), equalTo(0));
-        verify(client, times(1000)).execute(same(ShardChangesAction.INSTANCE), any(ShardChangesAction.Request.class),
-                any(ActionListener.class));
-        verify(client, times(1000)).execute(same(BulkShardOperationsAction.INSTANCE), any(BulkShardOperationsRequest.class),
-                any(ActionListener.class));
+        verify(client, times(1000)).execute(same(ShardChangesAction.INSTANCE), any(ShardChangesAction.Request.class), any());
+        verify(client, times(1000)).execute(same(BulkShardOperationsAction.INSTANCE), any(BulkShardOperationsRequest.class), any());
         assertThat(calledOnceChecker.get(), is(false));
     }
 
@@ -295,7 +293,7 @@ public class ChunksCoordinatorTests extends ESTestCase {
             }
             listener.onResponse(new ShardChangesAction.Response(operations.toArray(new Translog.Operation[0])));
             return null;
-        }).when(client).execute(same(ShardChangesAction.INSTANCE), any(ShardChangesAction.Request.class), any(ActionListener.class));
+        }).when(client).execute(same(ShardChangesAction.INSTANCE), any(ShardChangesAction.Request.class), any());
 
         mockBulkShardOperationsApiCall(client);
         Executor ccrExecutor = Runnable::run;
@@ -334,7 +332,7 @@ public class ChunksCoordinatorTests extends ESTestCase {
                 listener.onResponse(response);
             }
             return null;
-        }).when(client).execute(same(ShardChangesAction.INSTANCE), any(ShardChangesAction.Request.class), any(ActionListener.class));
+        }).when(client).execute(same(ShardChangesAction.INSTANCE), any(ShardChangesAction.Request.class), any());
     }
 
     private void mockShardChangesApiCall(Client client) {
@@ -352,7 +350,7 @@ public class ChunksCoordinatorTests extends ESTestCase {
             ShardChangesAction.Response response = new ShardChangesAction.Response(operations.toArray(new Translog.Operation[0]));
             listener.onResponse(response);
             return null;
-        }).when(client).execute(same(ShardChangesAction.INSTANCE), any(ShardChangesAction.Request.class), any(ActionListener.class));
+        }).when(client).execute(same(ShardChangesAction.INSTANCE), any(ShardChangesAction.Request.class), any());
     }
 
     private void mockBulkShardOperationsApiCall(Client client) {
@@ -363,8 +361,7 @@ public class ChunksCoordinatorTests extends ESTestCase {
             ActionListener<BulkShardOperationsResponse> listener = (ActionListener) args[2];
             listener.onResponse(new BulkShardOperationsResponse());
             return null;
-        }).when(client).execute(same(BulkShardOperationsAction.INSTANCE), any(BulkShardOperationsRequest.class),
-                any(ActionListener.class));
+        }).when(client).execute(same(BulkShardOperationsAction.INSTANCE), any(BulkShardOperationsRequest.class), any());
     }
 
 }

@@ -19,6 +19,7 @@
  */
 package org.elasticsearch.test.test;
 
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Client;
@@ -60,6 +61,7 @@ import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_M
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.not;
 
@@ -218,6 +220,7 @@ public class InternalTestClusterTests extends ESTestCase {
 
         assertClusters(cluster0, cluster1, false);
         long seed = randomLong();
+        boolean shouldAssertSettingsDeprecationsAndWarnings = false;
         try {
             {
                 Random random = new Random(seed);
@@ -228,19 +231,25 @@ public class InternalTestClusterTests extends ESTestCase {
                 cluster1.beforeTest(random, random.nextDouble());
             }
             assertArrayEquals(cluster0.getNodeNames(), cluster1.getNodeNames());
+            if (cluster0.getNodeNames().length > 0) {
+                shouldAssertSettingsDeprecationsAndWarnings = true;
+                assertSettingDeprecationsAndWarnings(new Setting<?>[]{NetworkModule.HTTP_ENABLED});
+            }
             Iterator<Client> iterator1 = cluster1.getClients().iterator();
             for (Client client : cluster0.getClients()) {
                 assertTrue(iterator1.hasNext());
                 Client other = iterator1.next();
                 assertSettings(client.settings(), other.settings(), false);
             }
-            assertArrayEquals(cluster0.getNodeNames(), cluster1.getNodeNames());
             assertMMNinNodeSetting(cluster0, cluster0.numMasterNodes());
             assertMMNinNodeSetting(cluster1, cluster0.numMasterNodes());
             cluster0.afterTest();
             cluster1.afterTest();
         } finally {
             IOUtils.close(cluster0, cluster1);
+            if (shouldAssertSettingsDeprecationsAndWarnings) {
+                assertSettingDeprecationsAndWarnings(new Setting<?>[]{NetworkModule.HTTP_ENABLED});
+            }
         }
     }
 
@@ -346,6 +355,7 @@ public class InternalTestClusterTests extends ESTestCase {
         } finally {
             cluster.close();
         }
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
     }
 
     private Path[] getNodePaths(InternalTestCluster cluster, String name) {
@@ -446,6 +456,7 @@ public class InternalTestClusterTests extends ESTestCase {
         } finally {
             cluster.close();
         }
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
     }
 
     public void testTwoNodeCluster() throws Exception {
@@ -505,5 +516,6 @@ public class InternalTestClusterTests extends ESTestCase {
         } finally {
             cluster.close();
         }
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
     }
 }

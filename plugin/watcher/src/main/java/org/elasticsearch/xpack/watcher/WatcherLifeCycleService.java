@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.upgrade.UpgradeField;
@@ -35,12 +36,14 @@ import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
 public class WatcherLifeCycleService extends AbstractComponent implements ClusterStateListener {
 
@@ -51,6 +54,8 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
     public static final Setting<Boolean> SETTING_REQUIRE_MANUAL_START =
             Setting.boolSetting("xpack.watcher.require_manual_start", false, Property.NodeScope);
 
+    private static final String LIFECYCLE_THREADPOOL_NAME = "watcher-lifecycle";
+
     private final WatcherService watcherService;
     private final ExecutorService executor;
     private AtomicReference<List<String>> previousAllocationIds = new AtomicReference<>(Collections.emptyList());
@@ -59,8 +64,20 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
 
     WatcherLifeCycleService(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                             WatcherService watcherService) {
+        // use a single thread executor so that lifecycle changes are handled in the order they
+        // are submitted in
+        this(settings, clusterService, watcherService, EsExecutors.newFixed(
+                LIFECYCLE_THREADPOOL_NAME,
+                1,
+                1000,
+                daemonThreadFactory(settings, LIFECYCLE_THREADPOOL_NAME),
+                threadPool.getThreadContext()));
+    }
+
+    WatcherLifeCycleService(Settings settings, ClusterService clusterService,
+                            WatcherService watcherService, ExecutorService executorService) {
         super(settings);
-        this.executor = threadPool.executor(ThreadPool.Names.GENERIC);
+        this.executor = executorService;
         this.watcherService = watcherService;
         this.requireManualStart = SETTING_REQUIRE_MANUAL_START.get(settings);
         clusterService.addListener(this);
@@ -81,6 +98,11 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
     synchronized void shutDown() {
         shutDown = true;
         stop("shutdown initiated");
+        stopExecutor();
+    }
+
+    void stopExecutor() {
+        ThreadPool.terminate(executor, 10L, TimeUnit.SECONDS);
     }
 
     private synchronized void start(ClusterState state) {

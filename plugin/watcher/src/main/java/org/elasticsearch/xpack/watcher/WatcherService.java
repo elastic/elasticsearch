@@ -139,6 +139,8 @@ public class WatcherService extends AbstractComponent {
                 state.set(WatcherState.STOPPED);
                 throw e;
             }
+        } else {
+            logger.debug("could not transition state from stopped to starting, current state [{}]", state.get());
         }
     }
 
@@ -157,6 +159,8 @@ public class WatcherService extends AbstractComponent {
                     executionService.stop();
                     state.set(WatcherState.STOPPED);
                     logger.debug("watch service has stopped");
+                } else {
+                    logger.debug("could not transition state from started to stopping, current state [{}]", state.get());
                 }
             } catch (Exception e) {
                 state.set(WatcherState.STOPPED);

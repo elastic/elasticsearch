@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -27,12 +26,12 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
@@ -43,7 +42,6 @@ import org.mockito.stubbing.Answer;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -73,8 +71,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
     @Before
     public void prepareServices() {
         ThreadPool threadPool = mock(ThreadPool.class);
-        final ExecutorService executorService = EsExecutors.newDirectExecutorService();
-        when(threadPool.executor(anyString())).thenReturn(executorService);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         ClusterService clusterService = mock(ClusterService.class);
         Answer<Object> answer = invocationOnMock -> {
             AckedClusterStateUpdateTask updateTask = (AckedClusterStateUpdateTask) invocationOnMock.getArguments()[1];
@@ -83,7 +80,13 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         };
         doAnswer(answer).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
         watcherService = mock(WatcherService.class);
-        lifeCycleService = new WatcherLifeCycleService(Settings.EMPTY, threadPool, clusterService, watcherService);
+        lifeCycleService = new WatcherLifeCycleService(Settings.EMPTY, clusterService, watcherService,
+                EsExecutors.newDirectExecutorService()) {
+            @Override
+            void stopExecutor() {
+                // direct executor cannot be terminated
+            }
+        };
     }
 
     public void testStartAndStopCausedByClusterState() throws Exception {

@@ -43,6 +43,7 @@ class VagrantTestPlugin implements Plugin<Project> {
     static List<String> UPGRADE_FROM_ARCHIVES = ['rpm', 'deb']
 
     private static final PACKAGING_CONFIGURATION = 'packaging'
+    private static final PACKAGING_TEST_CONFIGURATION = 'packagingTest'
     private static final BATS = 'bats'
     private static final String BATS_TEST_COMMAND ="cd \$PACKAGING_ARCHIVES && sudo bats --tap \$BATS_TESTS/*.$BATS"
     private static final String PLATFORM_TEST_COMMAND ="rm -rf ~/elasticsearch && rsync -r /elasticsearch/ ~/elasticsearch && cd ~/elasticsearch && ./gradlew test integTest"
@@ -58,6 +59,7 @@ class VagrantTestPlugin implements Plugin<Project> {
 
         // Creates custom configurations for Bats testing files (and associated scripts and archives)
         createPackagingConfiguration(project)
+        project.configurations.create(PACKAGING_TEST_CONFIGURATION)
 
         // Creates all the main Vagrant tasks
         createVagrantTasks(project)
@@ -134,10 +136,12 @@ class VagrantTestPlugin implements Plugin<Project> {
     }
 
     private static void createCleanTask(Project project) {
-        project.tasks.create('clean', Delete.class) {
-            description 'Clean the project build directory'
-            group 'Build'
-            delete project.buildDir
+        if (project.tasks.findByName('clean') == null) {
+            project.tasks.create('clean', Delete.class) {
+                description 'Clean the project build directory'
+                group 'Build'
+                delete project.buildDir
+            }
         }
     }
 
@@ -162,6 +166,19 @@ class VagrantTestPlugin implements Plugin<Project> {
         Copy copyPackagingArchives = project.tasks.create('copyPackagingArchives', Copy) {
             into archivesDir
             from project.configurations[PACKAGING_CONFIGURATION]
+        }
+
+        File testsDir = new File(packagingDir, 'tests')
+        Copy copyPackagingTests = project.tasks.create('copyPackagingTests', Copy) {
+            into testsDir
+            from project.configurations[PACKAGING_TEST_CONFIGURATION]
+        }
+
+        Task createTestRunnerScript = project.tasks.create('createTestRunnerScript', FileContentsTask) {
+            dependsOn copyPackagingTests
+            file "${testsDir}/run-tests.sh"
+            contents "java -cp \"*\" org.junit.runner.JUnitCore ${-> project.extensions.esvagrant.testClass}"
+            executable true
         }
 
         Task createVersionFile = project.tasks.create('createVersionFile', FileContentsTask) {
@@ -214,8 +231,8 @@ class VagrantTestPlugin implements Plugin<Project> {
 
         Task vagrantSetUpTask = project.tasks.create('setupPackagingTest')
         vagrantSetUpTask.dependsOn 'vagrantCheckVersion'
-        vagrantSetUpTask.dependsOn copyPackagingArchives, createVersionFile, createUpgradeFromFile
-        vagrantSetUpTask.dependsOn copyBatsTests, copyBatsUtils
+        vagrantSetUpTask.dependsOn copyPackagingArchives, copyPackagingTests, createTestRunnerScript, createVersionFile,
+                createUpgradeFromFile, copyBatsTests, copyBatsUtils
     }
 
     private static void createPackagingTestTask(Project project) {
@@ -373,20 +390,24 @@ class VagrantTestPlugin implements Plugin<Project> {
                 packagingTest.dependsOn(batsPackagingTest)
             }
 
-            // This task doesn't do anything yet. In the future it will execute a jar containing tests on the vm
-            Task groovyPackagingTest = project.tasks.create("vagrant${boxTask}#groovyPackagingTest")
-            groovyPackagingTest.dependsOn(up)
-            groovyPackagingTest.finalizedBy(halt)
+            Task javaPackagingTest = project.tasks.create("vagrant${boxTask}#javaPackagingTest", VagrantCommandTask) {
+                command 'ssh'
+                boxName box
+                environmentVars vagrantEnvVars
+                dependsOn up, setupPackagingTest
+                finalizedBy halt
+                args '--command', "cd \$PACKAGING_TESTS && ./run-tests.sh"
+            }
 
-            TaskExecutionAdapter groovyPackagingReproListener = createReproListener(project, groovyPackagingTest.path)
-            groovyPackagingTest.doFirst {
+            TaskExecutionAdapter groovyPackagingReproListener = createReproListener(project, javaPackagingTest.path)
+            javaPackagingTest.doFirst {
                 project.gradle.addListener(groovyPackagingReproListener)
             }
-            groovyPackagingTest.doLast {
+            javaPackagingTest.doLast {
                 project.gradle.removeListener(groovyPackagingReproListener)
             }
             if (project.extensions.esvagrant.boxes.contains(box)) {
-                packagingTest.dependsOn(groovyPackagingTest)
+                packagingTest.dependsOn(javaPackagingTest)
             }
 
             Task platform = project.tasks.create("vagrant${boxTask}#platformTest", VagrantCommandTask) {

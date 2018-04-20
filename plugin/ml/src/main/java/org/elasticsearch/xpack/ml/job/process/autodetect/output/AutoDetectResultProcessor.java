@@ -351,11 +351,12 @@ public class AutoDetectResultProcessor {
         });
     }
 
-    protected void updateEstablishedModelMemoryOnJob(Date latestBucketTimestamp, ModelSizeStats modelSizeStats) {
+    private void updateEstablishedModelMemoryOnJob(Date latestBucketTimestamp, ModelSizeStats modelSizeStats) {
         jobProvider.getEstablishedMemoryUsage(jobId, latestBucketTimestamp, modelSizeStats, establishedModelMemory -> {
             JobUpdate update = new JobUpdate.Builder(jobId)
                     .setEstablishedModelMemory(establishedModelMemory).build();
             UpdateJobAction.Request updateRequest = UpdateJobAction.Request.internal(jobId, update);
+            updateRequest.setWaitForAck(false);
 
             executeAsyncWithOrigin(client, ML_ORIGIN, UpdateJobAction.INSTANCE, updateRequest, new ActionListener<PutJobAction.Response>() {
                 @Override

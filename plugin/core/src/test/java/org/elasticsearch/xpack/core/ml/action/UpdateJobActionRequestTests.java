@@ -18,7 +18,9 @@ public class UpdateJobActionRequestTests
         // no need to randomize JobUpdate this is already tested in: JobUpdateTests
         JobUpdate.Builder jobUpdate = new JobUpdate.Builder(jobId);
         jobUpdate.setAnalysisLimits(new AnalysisLimits(100L, 100L));
-        return new UpdateJobAction.Request(jobId, jobUpdate.build());
+        UpdateJobAction.Request request = new UpdateJobAction.Request(jobId, jobUpdate.build());
+        request.setWaitForAck(randomBoolean());
+        return request;
     }
 
     @Override

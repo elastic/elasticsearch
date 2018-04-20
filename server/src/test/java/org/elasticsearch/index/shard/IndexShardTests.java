@@ -22,6 +22,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
@@ -75,8 +76,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
-import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
@@ -86,8 +87,12 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
@@ -154,6 +159,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
@@ -2339,8 +2345,15 @@ public class IndexShardTests extends IndexShardTestCase {
                     assertTrue(searcher.reader().numDocs() <= docStats.getCount());
                 }
                 assertThat(docStats.getCount(), equalTo(numDocs));
-                // Lucene will delete a segment if all docs are deleted from it; this means that we lose the deletes when deleting all docs
-                assertThat(docStats.getDeleted(), equalTo(numDocsToDelete == numDocs ? 0 : numDocsToDelete));
+                // Lucene will delete a segment if all docs are deleted from it;
+                // this means that we lose the deletes when deleting all docs.
+                // If soft-delete is enabled, each delete op will add a deletion marker.
+                final long deleteTombstones = indexShard.indexSettings.isSoftDeleteEnabled() ? numDocsToDelete : 0L;
+                if (numDocsToDelete == numDocs) {
+                    assertThat(docStats.getDeleted(), equalTo(deleteTombstones));
+                } else {
+                    assertThat(docStats.getDeleted(), equalTo(numDocsToDelete + deleteTombstones));
+                }
             }
 
             // merge them away
@@ -2968,6 +2981,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         // Close remaining searchers
         IOUtils.close(searchers);
+        primary.refresh("test");
 
         SegmentsStats ss = primary.segmentStats(randomBoolean());
         CircuitBreaker breaker = primary.circuitBreakerService.getBreaker(CircuitBreaker.ACCOUNTING);
@@ -3053,4 +3067,16 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(primary);
     }
 
+    public void testSupplyTombstoneDoc() throws Exception {
+        IndexShard shard = newStartedShard();
+        String id = randomRealisticUnicodeOfLengthBetween(1, 10);
+        ParsedDocument tombstone = shard.getEngine().config().getTombstoneDocSupplier().newTombstoneDoc("doc", id);
+        assertThat(tombstone.docs(), hasSize(1));
+        ParseContext.Document doc = tombstone.docs().get(0);
+        assertThat(doc.getFields().stream().map(IndexableField::name).collect(Collectors.toList()),
+            containsInAnyOrder(SeqNoFieldMapper.NAME, SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME,
+                IdFieldMapper.NAME, VersionFieldMapper.NAME));
+        assertThat(doc.getField(IdFieldMapper.NAME).binaryValue(), equalTo(Uid.encodeId(id)));
+        closeShards(shard);
+    }
 }

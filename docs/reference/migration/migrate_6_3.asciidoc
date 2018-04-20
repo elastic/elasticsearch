@@ -44,3 +44,19 @@ users we think this is fine as analyze requests are useful for debugging and so
 probably do not see high concurrency. If you are impacted by this you can
 increase the size of the thread pool by using the `thread_pool.analyze.size`
 setting.
+
+==== Renaming the bulk thread pool
+
+The `bulk` thread pool has been renamed to the `write` thread pool. This change
+was made to reflect the fact that this thread pool is used to execute all write
+operations: single-document index/delete/update requests, as well as bulk
+requests. The settings `thread_pool.bulk.size` and `thread_pool.bulk.queue_size`
+are still supported as fallback settings although you should transition to
+`thread_pool.write.size` and `thread_pool.write.queue_size`, respectively. The
+fallback settings will be removed in 7.0.0. Additionally, this means that some
+APIs (e.g., the node stats API) will now display the name of this thread pool as
+`write`. If this change impacts you (e.g., for monitoring that you have in
+place) you can start Elasticsearch with the JVM option
+`-Des.thread_pool.write.use_bulk_as_display_name=true` to have Elasticsearch
+continue to display the name of this thread pool as `bulk`. Elasticsearch will
+stop observing this system property in 7.0.0.

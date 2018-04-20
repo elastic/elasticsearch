@@ -61,7 +61,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
     }
 
     public void testIndexingThreadPoolsMaxSize() throws InterruptedException {
-        final String name = randomFrom(Names.BULK, Names.INDEX);
+        final String name = randomFrom(Names.WRITE, Names.INDEX);
         final int maxSize = 1 + EsExecutors.numberOfProcessors(Settings.EMPTY);
         final int tooBig = randomIntBetween(1 + maxSize, Integer.MAX_VALUE);
 
@@ -92,7 +92,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
     }
 
     private static int getExpectedThreadPoolSize(Settings settings, String name, int size) {
-        if (name.equals(ThreadPool.Names.BULK) || name.equals(ThreadPool.Names.INDEX)) {
+        if (name.equals(ThreadPool.Names.WRITE) || name.equals(ThreadPool.Names.INDEX)) {
             return Math.min(size, EsExecutors.numberOfProcessors(settings));
         } else {
             return size;

@@ -16,9 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.painless;
 
-package org.elasticsearch.index.rankeval;
+import org.elasticsearch.test.AbstractStreamableTestCase;
 
-enum TestRatingEnum {
-    IRRELEVANT, RELEVANT;
+public class PainlessExecuteResponseTests extends AbstractStreamableTestCase<PainlessExecuteAction.Response> {
+
+    @Override
+    protected PainlessExecuteAction.Response createBlankInstance() {
+        return new PainlessExecuteAction.Response();
+    }
+
+    @Override
+    protected PainlessExecuteAction.Response createTestInstance() {
+        return new PainlessExecuteAction.Response(randomAlphaOfLength(10));
+    }
 }

@@ -55,7 +55,6 @@ that produces a value can be assigned to any variable as long as the
 <<painless-types, types>> are the same or the resultant
 <<painless-types, type>> can be implicitly <<painless-casting, cast>> to
 the variable <<painless-types, type>>.  Otherwise, an error will occur.
-<<reference-types, Reference type>> values are shallow-copied when assigned.
 
 *Grammar*
 [source,ANTLR4]

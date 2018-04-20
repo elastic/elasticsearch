@@ -1,123 +1,110 @@
 [[painless-types]]
 === Types
 
-Painless supports both dynamic and static types. Static types are split into
-_primitive types_ and _reference types_.
-
-[[dynamic-types]]
-==== Dynamic Types
-
-Painless supports one dynamic type: `def`.  The `def` type can represent any
-primitive or reference type. When you use the `def` type, it mimics the exact
-behavior of whatever type it represents at runtime. The default value for the
-def type is `null.`
-
-Internally, if the `def` type represents a primitive type, it is converted to the
-corresponding reference type. It still behaves like the primitive type, however,
-including within the casting model. The `def` type can be assigned to different
-types during the course of script execution.
-
-IMPORTANT: Because a `def` type variable can be assigned to different types
-during execution, type conversion errors that occur when using the `def` type
-happen at runtime.
-
-Using the `def` type can have a slight impact on performance. If performance is
-critical, it's better to declare static types.
-
-*Examples:*
-[source,Java]
-----
-def x = 1;               // Declare def variable x and set it to the
-                         //   literal int 1
-def l = new ArrayList(); // Declare def variable l and set it a newly 
-                         //   allocated ArrayList
-----
+Types are a classification of data used to describe the properties of values
+operated on in expressions and statements. These properties describe what data
+the value can represent such as a number, string, or something more complex and
+the rules for when a value is operated on.  Types are split into the following
+categories: <<primitive-types, primitive types>>,
+<<reference-types, reference types>>, and <<dynamic-types, dynamic types>>.
 
 [[primitive-types]]
 ==== Primitive Types
 
-Primitive types are allocated directly onto the stack according to the standard
-Java memory model.
+Primitive types are built directly into the JVM and are allocated to non-heap
+memory.  Primitive type values are deep-copied when <<assignment, assigned>>
+and when passed into <<method-access, method>> or function as arguments.
 
-Primitive types can behave as their corresponding (<<boxing-unboxing, boxed>>)
-reference type. This means any piece of a reference type can be accessed or
-called through the primitive type. Operations performed in this manner convert
-the primitive type to its corresponding reference type at runtime and perform
-the field access  or method call without needing to perform any other
-operations.
+Primitive types have a corresponding <<reference-types, reference type>> (also
+known as a <<boxing-unboxing, boxed type>>). Any member of the corresponding
+<<reference-types, reference type>> can be <<field-access, accessed>> or
+<<method-access, called>> by executing the appropriate operation on the
+primitive type value. Operations performed in this manner convert (box) the
+primitive type value to its corresponding <<reference-types, reference type>>
+value at runtime and execute the specified <<field-access, field access>> or
+<<method-access, method call>>.
 
-Painless supports the following primitive types.
+The following primitive types are available:
 
-byte::
-An 8-bit, signed, two's complement integer.
-Range: [-128, 127].
-Default value: 0.
-Reference type: Byte.
+[horizontal]
+`byte`::
+8-bit, signed, two's complement integer
+* range: [`-128`, `127`]
+* default value: `0`
+* reference type: `Byte`
 
-short:: 
-A 16-bit, signed, two's complement integer.
-Range: [-32768, 32767].
-Default value: 0.
-Reference type: Short.
+`short`::
+16-bit, signed, two's complement integer
+* range: [`-32768`, `32767`]
+* default value: `0`
+* reference type: `Short`
 
-char::
-A 16-bit Unicode character.
-Range: [0, 65535].
-Default value: 0 or `\u0000`.
-Reference type: Character.
+`char`::
+16-bit, unsigned, Unicode character
+* range: [`0`, `65535`]
+* default value: `0` or `\u0000`
+* reference type: `Character`
 
-int::
-A 32-bit, signed, two's complement integer.
-Range: [-2^32, 2^32-1].
-Default value: 0.
-Reference type: Integer.
+`int`::
+32-bit, signed, two's complement integer
+* range: [`-2^32`, `2^32-1`]
+* default value: `0`
+* reference type: `Integer`
 
-long::
-A 64-bit, signed, two's complement integer.
-Range: [-2^64, 2^64-1].
-Default value: 0.
-Reference type: Long.
+`long`::
+64-bit, signed, two's complement integer
+* range: [`-2^64`, `2^64-1`]
+* default value: `0`
+* reference type: `Long`
 
-float::
-A 32-bit, single-precision, IEEE 754 floating point number.
-Range:  Depends on multiple factors.
-Default value: 0.0.
-Reference type: Float.
+`float`::
+32-bit, signed, single-precision, IEEE 754 floating point number
+* default value: `0.0`
+* reference type: `Float`
 
-double::
-A 64-bit, double-precision, IEEE 754 floating point number.
-Range: Depends on multiple factors.
-Default value: 0.0.
-Reference type: Double.
+`double`::
+64-bit, signed, double-precision, IEEE 754 floating point number
+* default value: `0.0`
+* reference type: `Double`
 
-boolean::
-A logical quanity with two possible values: true and false.
-Range: true/false.
-Default value: false.
-Reference type: Boolean.
+`boolean`::
+logical quanity with two possible values of `true` and `false`
+* default value: `false`
+* reference type: `Boolean`
 
+*Examples*
 
-*Examples:*
-[source,Java]
+* Primitive types used in <<declaration, declaration>> and
+<<assignment, assignment>>.
++
+[source,Painless]
 ----
-int i = 1;        // Declare variable i as an int and set it to the
-                  //   literal 1
-double d;         // Declare variable d as a double and set it to the
-                  //   default value of 0.0
-boolean b = true; // Declare variable b as a boolean and set it to true
+<1> int i = 1;
+<2> double d;
+<3> boolean b = true;
 ----
-
-Using methods from the corresponding reference type on a primitive type.
-
-[source,Java]
++
+<1> declare `int i`; assign `1` to `i`
+<2> declare `double d`
+<3> declare `boolean b`; assign `true` to `b`
++
+* Method call on a primitive type from the corresponding
+<<reference-types, reference type>>.
++
+[source,Painless]
 ----
-int i = 1;    // Declare variable i as an int and set it to the
-              //   literal 1
-i.toString(); // Invokes the Integer method toString on variable i
+<1> int i = 1;
+<2> i.toString();
 ----
++
+<1> declare `int i`; assign `1` to `i`
+<2> implicitly convert (box) `i` to the reference type `Integer`;
+invoke the `Integer` method `toString` on the converted (boxed) value
 
 [[reference-types]]
 ==== Reference Types
+
+<<reference-types, Reference type>> values are shallow-copied when assigned.
 
 Reference types are similar to Java classes and can contain multiple pieces
 known as _members_. However, reference types do not support access modifiers.
@@ -182,6 +169,35 @@ Directly accessing static pieces of a reference type.
 ----
 Integer.MAX_VALUE      // a static field access
 Long.parseLong("123L") // a static function call
+----
+
+[[dynamic-types]]
+==== Dynamic Types
+
+Painless supports one dynamic type: `def`.  The `def` type can represent any
+primitive or reference type. When you use the `def` type, it mimics the exact
+behavior of whatever type it represents at runtime. The default value for the
+def type is `null.`
+
+Internally, if the `def` type represents a primitive type, it is converted to the
+corresponding reference type. It still behaves like the primitive type, however,
+including within the casting model. The `def` type can be assigned to different
+types during the course of script execution.
+
+IMPORTANT: Because a `def` type variable can be assigned to different types
+during execution, type conversion errors that occur when using the `def` type
+happen at runtime.
+
+Using the `def` type can have a slight impact on performance. If performance is
+critical, it's better to declare static types.
+
+*Examples:*
+[source,Java]
+----
+def x = 1;               // Declare def variable x and set it to the
+                         //   literal int 1
+def l = new ArrayList(); // Declare def variable l and set it a newly
+                         //   allocated ArrayList
 ----
 
 [[string-type]]

@@ -24,18 +24,22 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientTestCase;
 import org.elasticsearch.client.sniff.Sniffer.DefaultScheduler;
 import org.elasticsearch.client.sniff.Sniffer.Scheduler;
+import org.mockito.Matchers;
+import org.mockito.exceptions.verification.WantedButNotInvoked;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -47,6 +51,8 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -64,11 +70,12 @@ public class SnifferTests extends RestClientTestCase {
      * to retrieve nodes and set them (when not empty) to the provided {@link RestClient} instance.
      */
     public void testSniff() throws IOException {
-        try (RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200)).build()) {
+        HttpHost initialHost = new HttpHost("localhost", 9200);
+        try (RestClient restClient = RestClient.builder(initialHost).build()) {
             Scheduler noOpScheduler = new Scheduler() {
                 @Override
-                public Sniffer.ScheduledTask schedule(Sniffer.Task task, long delayMillis) {
-                    return new Sniffer.ScheduledTask(task, null);
+                public Future<?> schedule(Sniffer.Task task, long delayMillis) {
+                    return mock(Future.class);
                 }
 
                 @Override
@@ -76,59 +83,45 @@ public class SnifferTests extends RestClientTestCase {
 
                 }
             };
-            HostsSniffer emptyHostsSniffer = new HostsSniffer() {
-                @Override
-                public List<HttpHost> sniffHosts() {
-                    return Collections.emptyList();
+            CountingHostsSniffer hostsSniffer = new CountingHostsSniffer();
+            int iters = randomIntBetween(5, 30);
+            try (Sniffer sniffer = new Sniffer(restClient, hostsSniffer, noOpScheduler, 1000L, -1)){
+                {
+                    assertEquals(1, restClient.getHosts().size());
+                    HttpHost httpHost = restClient.getHosts().get(0);
+                    assertEquals("localhost", httpHost.getHostName());
+                    assertEquals(9200, httpHost.getPort());
                 }
-            };
-            Sniffer sniffer = new Sniffer(restClient, emptyHostsSniffer, noOpScheduler, 0, 0);
-            {
-                assertEquals(1, restClient.getHosts().size());
-                HttpHost httpHost = restClient.getHosts().get(0);
-                assertEquals("localhost", httpHost.getHostName());
-                assertEquals(9200, httpHost.getPort());
-            }
-            sniffer.sniff();
-            {
-                assertEquals(1, restClient.getHosts().size());
-                HttpHost httpHost = restClient.getHosts().get(0);
-                assertEquals("localhost", httpHost.getHostName());
-                assertEquals(9200, httpHost.getPort());
-            }
-
-            HostsSniffer hostsSniffer = new HostsSniffer() {
-                @Override
-                public List<HttpHost> sniffHosts() {
-                    return Collections.singletonList(new HttpHost("sniffed", 9210));
+                int emptyList = 0;
+                int failures = 0;
+                int runs = 0;
+                List<HttpHost> lastHosts = Collections.singletonList(initialHost);
+                for (int i = 0; i < iters; i++) {
+                    try {
+                        runs++;
+                        sniffer.sniff();
+                        if (hostsSniffer.failures.get() > failures) {
+                            failures++;
+                            fail("should have failed");
+                        } else if (hostsSniffer.emptyList.get() > emptyList) {
+                            emptyList++;
+                            assertEquals(lastHosts, restClient.getHosts());
+                        } else {
+                            assertNotEquals(lastHosts, restClient.getHosts());
+                            List<HttpHost> expectedHosts = CountingHostsSniffer.buildHosts(runs);
+                            assertEquals(expectedHosts, restClient.getHosts());
+                            lastHosts = restClient.getHosts();
+                        }
+                    } catch(IOException e) {
+                        if (hostsSniffer.failures.get() > failures) {
+                            failures++;
+                            assertEquals("communication breakdown", e.getMessage());
+                        }
+                    }
                 }
-            };
-            new Sniffer(restClient, hostsSniffer, noOpScheduler, 0, 0).sniff();
-            {
-                assertEquals(1, restClient.getHosts().size());
-                HttpHost httpHost = restClient.getHosts().get(0);
-                assertEquals("sniffed", httpHost.getHostName());
-                assertEquals(9210, httpHost.getPort());
-            }
-
-            HostsSniffer throwingHostsSniffer = new HostsSniffer() {
-                @Override
-                public List<HttpHost> sniffHosts() throws IOException {
-                    throw new IOException("communication breakdown");
-                }
-            };
-            Sniffer throwingSniffer = new Sniffer(restClient, throwingHostsSniffer, noOpScheduler, 0, 0);
-            try {
-                throwingSniffer.sniff();
-                fail("should have failed");
-            } catch(IOException e) {
-                assertEquals("communication breakdown", e.getMessage());
-            }
-            {
-                assertEquals(1, restClient.getHosts().size());
-                HttpHost httpHost = restClient.getHosts().get(0);
-                assertEquals("sniffed", httpHost.getHostName());
-                assertEquals(9210, httpHost.getPort());
+                assertEquals(hostsSniffer.emptyList.get(), emptyList);
+                assertEquals(hostsSniffer.failures.get(), failures);
+                assertEquals(hostsSniffer.runs.get(), runs);
             }
         }
     }
@@ -154,12 +147,12 @@ public class SnifferTests extends RestClientTestCase {
         final AtomicReference<Future> lastFuture = new AtomicReference<>();
         Scheduler scheduler = new Scheduler() {
             @Override
-            public Sniffer.ScheduledTask schedule(Sniffer.Task task, long delayMillis) {
+            public Future<?> schedule(Sniffer.Task task, long delayMillis) {
                 assertEquals(sniffInterval, task.nextTaskDelay);
                 int numberOfRuns = runs.getAndDecrement();
                 if (numberOfRuns == 0) {
                     latch.countDown();
-                    return new Sniffer.ScheduledTask(task, null);
+                    return null;
                 }
                 if (numberOfRuns == iters) {
                     //the first call is to schedule the first sniff round from the Sniffer constructor, with delay O
@@ -176,7 +169,7 @@ public class SnifferTests extends RestClientTestCase {
                 if (numberOfRuns == 1) {
                     lastFuture.compareAndSet(null, future);
                 }
-                return new Sniffer.ScheduledTask(task, future);
+                return future;
             }
 
             @Override
@@ -204,7 +197,7 @@ public class SnifferTests extends RestClientTestCase {
         int totalRuns = hostsSniffer.runs.get();
         assertEquals(iters, totalRuns);
         int setHostsRuns = totalRuns - hostsSniffer.failures.get() - hostsSniffer.emptyList.get();
-        verify(restClient, times(setHostsRuns)).setHosts(any(HttpHost.class));
+        verify(restClient, times(setHostsRuns)).setHosts(Matchers.<HttpHost>anyVararg());
         verifyNoMoreInteractions(restClient);
     }
 
@@ -220,8 +213,8 @@ public class SnifferTests extends RestClientTestCase {
         final AtomicInteger shutdown = new AtomicInteger(0);
         Scheduler scheduler = new Scheduler() {
             @Override
-            public Sniffer.ScheduledTask schedule(Sniffer.Task task, long delayMillis) {
-                return new Sniffer.ScheduledTask(task, future);
+            public Future<?> schedule(Sniffer.Task task, long delayMillis) {
+                return future;
             }
 
             @Override
@@ -240,15 +233,12 @@ public class SnifferTests extends RestClientTestCase {
         }
     }
 
-    //TODO test what happens when on failure is called while another round is already running https://github.com/elastic/elasticsearch/issues/27697
-
-    //TODO test more on failure rounds?
-
-    //TODO do we need ScheduledTask or is the future enough?
-
-    //TODO test that sniffOnFailure doesn't do any IO blocking. https://github.com/elastic/elasticsearch/issues/25701
-
-    public void test() throws Exception {
+    /**
+     * Test calling {@link Sniffer#sniffOnFailure()} once. The next scheduled sniffing round is cancelled,
+     * a new round is scheduled with delay 0, a following one is scheduled with sniffAfterFailure delay, after
+     * which the ordinary sniffing rounds get scheduled with sniffInterval delay
+     */
+    public void testOnFailureSingleRound() throws Exception {
         final Future mockedFuture = mock(Future.class);
         RestClient restClient = mock(RestClient.class);
         CountingHostsSniffer hostsSniffer = new CountingHostsSniffer();
@@ -273,12 +263,12 @@ public class SnifferTests extends RestClientTestCase {
         try {
             Scheduler scheduler = new Scheduler() {
                 @Override
-                public Sniffer.ScheduledTask schedule(Sniffer.Task task, long delayMillis) {
+                public Future<?> schedule(Sniffer.Task task, long delayMillis) {
                     if (initializing.compareAndSet(true, false)) {
                         assertEquals(0L, delayMillis);
                         assertEquals(sniffInterval, task.nextTaskDelay);
                         initializingLatch.countDown();
-                        return new Sniffer.ScheduledTask(task, mockedFuture);
+                        return mockedFuture;
                     }
                     if (ongoingOnFailure.compareAndSet(true, false)) {
                         assertEquals(0L, delayMillis);
@@ -286,11 +276,12 @@ public class SnifferTests extends RestClientTestCase {
                         afterFailureExpected.set(true);
                         Future<?> future = executor.submit(task);
                         futures.add(future);
-                        return new Sniffer.ScheduledTask(task, future);
+                        return future;
                     } else if (afterFailureExpected.compareAndSet(true, false)) {
-                        //onFailure is called in another thread (not from the single threaded executor), hence we need to wait for
-                        //it to be completed or the rest of the rounds (after failure etc.) may be executed before the onFailure
-                        //scheduling is completed. This is a problem only when testing as we submit tasks instead of scheduling.
+                        //onFailure is called in another thread (not from the single threaded executor), hence we need to
+                        //wait for it to be completed or the rest of the rounds (after failure etc.) may be executed
+                        //before the onFailure scheduling is completed. This is a problem only when testing as we submit
+                        //tasks instead of scheduling them with some delay.
                         try {
                             cancelLatch.await(500, TimeUnit.MILLISECONDS);
                         } catch (InterruptedException e) {
@@ -301,12 +292,12 @@ public class SnifferTests extends RestClientTestCase {
                         Future<?> future = executor.submit(task);
                         futures.add(future);
                         lastFuture.compareAndSet(null, future);
-                        return new Sniffer.ScheduledTask(task, future);
+                        return future;
                     } else {
                         assertEquals(sniffInterval, delayMillis);
                         assertEquals(sniffInterval, task.nextTaskDelay);
                         doneLatch.countDown();
-                        return new Sniffer.ScheduledTask(task, null);
+                        return null;
                     }
                 }
 
@@ -321,74 +312,46 @@ public class SnifferTests extends RestClientTestCase {
             sniffer.sniffOnFailure();
 
             assertTrue(doneLatch.await(1000, TimeUnit.MILLISECONDS));
-
             assertEquals(2, futures.size());
             lastFuture.get().get();
             for (Future future : futures) {
                 assertTrue(future.isDone());
                 future.get();
             }
-
             int totalRuns = hostsSniffer.runs.get();
             assertEquals(2, totalRuns);
             int setHostsRuns = totalRuns - hostsSniffer.failures.get() - hostsSniffer.emptyList.get();
-            verify(restClient, times(setHostsRuns)).setHosts(any(HttpHost.class));
+            verify(restClient, times(setHostsRuns)).setHosts(Matchers.<HttpHost>anyVararg());
             verifyNoMoreInteractions(restClient);
-
         } finally {
             executor.shutdown();
             assertTrue(executor.awaitTermination(1000, TimeUnit.MILLISECONDS));
         }
     }
 
-    public void testSniffOnFailure() throws Exception {
+    /**
+     * Test that when invoking {@link Sniffer#sniffOnFailure()} concurrently, the next scheduled sniffing round is always cancelled.
+     */
+    public void testSniffOnFailureCancelsNextRound() throws Exception {
         RestClient restClient = mock(RestClient.class);
-
-        CountingHostsSniffer hostsSniffer = new CountingHostsSniffer();
-        int ordinaryRuns = randomIntBetween(20, 50);
-        int onFailureRuns = randomIntBetween(5, 10);
-
-        final AtomicBoolean initializing = new AtomicBoolean(true);
-        final AtomicInteger runs = new AtomicInteger(ordinaryRuns);
+        HostsSniffer hostsSniffer = mock(HostsSniffer.class);
+        int onFailureRounds = randomIntBetween(30, 50);
         final long sniffInterval = randomLongBetween(1, Long.MAX_VALUE);
         final long sniffAfterFailureDelay = randomLongBetween(1, Long.MAX_VALUE);
-        final List<Future<?>> ordinaryFutures = new CopyOnWriteArrayList<>();
-        final List<Future<?>> onFailureFutures = new CopyOnWriteArrayList<>();
-        final List<Future<?>> afterFailureFutures = new CopyOnWriteArrayList<>();
-        final AtomicInteger ongoingOnFailures = new AtomicInteger(0);
-
-        final AtomicBoolean sniffAfterFailure = new AtomicBoolean(false);
-
-        final ExecutorService executor = Executors.newSingleThreadExecutor();
+        final AtomicBoolean initialized = new AtomicBoolean(false);
+        final List<Future> futures = new CopyOnWriteArrayList<>();
         Scheduler scheduler = new Scheduler() {
             @Override
-            public Sniffer.ScheduledTask schedule(Sniffer.Task task, long delayMillis) {
-                int numberOfRuns = runs.getAndDecrement();
-                if (numberOfRuns == 0) {
-                    return new Sniffer.ScheduledTask(task, null);
-                }
-
-                Future<?> future = executor.submit(task);
-                if (ongoingOnFailures.get() > 0) {
-                    onFailureFutures.add(future);
-                    assertEquals(0L, delayMillis);
-                    assertEquals(sniffAfterFailureDelay, task.nextTaskDelay);
-                    sniffAfterFailure.set(true);
-                } else if (sniffAfterFailure.compareAndSet(true, false)) {
-                    afterFailureFutures.add(future);
-                    assertEquals(sniffAfterFailureDelay, delayMillis);
+            public Future<?> schedule(Sniffer.Task task, long delayMillis) {
+                assertEquals(0L, delayMillis);
+                if (initialized.compareAndSet(false, true)) {
                     assertEquals(sniffInterval, task.nextTaskDelay);
                 } else {
-                    ordinaryFutures.add(future);
-                    if (initializing.compareAndSet(true, false)) {
-                        assertEquals(0L, delayMillis);
-                        assertEquals(sniffInterval, task.nextTaskDelay);
-                    } else {
-                        assertEquals(sniffInterval, delayMillis);
-                        assertEquals(sniffInterval, task.nextTaskDelay);
-                    }
+                    assertEquals(sniffAfterFailureDelay, task.nextTaskDelay);
                 }
-                return new Sniffer.ScheduledTask(task, future);
+                Future mockedFuture = mock(Future.class);
+                futures.add(mockedFuture);
+                return mockedFuture;
             }
 
             @Override
@@ -397,49 +360,79 @@ public class SnifferTests extends RestClientTestCase {
             }
         };
 
-
-        ExecutorService onFailureExecutor = Executors.newFixedThreadPool(randomIntBetween(1, onFailureRuns));
-
+        final Sniffer sniffer = new Sniffer(restClient, hostsSniffer, scheduler, sniffInterval, sniffAfterFailureDelay);
+        ExecutorService onFailureExecutor = Executors.newFixedThreadPool(randomIntBetween(2, 10));
         try {
-            final Sniffer sniffer = new Sniffer(restClient, hostsSniffer, scheduler, sniffInterval, sniffAfterFailureDelay);
-            Future[] onFailureExecutorFutures = new Future[onFailureRuns];
-            for (int i = 0; i < onFailureExecutorFutures.length; i++) {
-                onFailureExecutorFutures[i] = onFailureExecutor.submit(new Runnable() {
+            Future[] onFailureFutures = new Future[onFailureRounds];
+            for (int i = 0; i < onFailureFutures.length; i++) {
+                onFailureFutures[i] = onFailureExecutor.submit(new Runnable() {
                     @Override
                     public void run() {
-                        ongoingOnFailures.incrementAndGet();
-                        try {
-                            sniffer.sniffOnFailure();
-                        } finally {
-                            ongoingOnFailures.decrementAndGet();
-                        }
+                        sniffer.sniffOnFailure();
                     }
                 });
             }
-            for (Future onFailureFuture : onFailureExecutorFutures) {
+            for (Future onFailureFuture : onFailureFutures) {
                 onFailureFuture.get();
             }
-            assertEquals(0, ongoingOnFailures.get());
-            assertFalse(sniffAfterFailure.get());
-            assertEquals(ordinaryRuns, ordinaryFutures.size());
-            for (Future<?> future : ordinaryFutures) {
-                assertTrue("Future is cancelled: " + future.isCancelled(), future.isDone());
-                try {
-                    future.get();
-                } catch(CancellationException e) {
-                    //all good
-
-                    //TODO shall we count these?
-                }
-            }
-
-            //TODO check other futures
         } finally {
             onFailureExecutor.shutdown();
-            assertTrue(onFailureExecutor.awaitTermination(1000, TimeUnit.MILLISECONDS));
-            executor.shutdown();
-            assertTrue(executor.awaitTermination(1000, TimeUnit.MILLISECONDS));
+            onFailureExecutor.awaitTermination(1000, TimeUnit.MILLISECONDS);
+        }
 
+        //we have as many futures as the onFailure rounds, plus the initial one obtained at Sniffer construction
+        assertEquals(onFailureRounds + 1, futures.size());
+        boolean notInvokedFound = false;
+        //all of these futures but one must be cancelled, one single time. The one that's not is the last scheduled but not
+        //necessarily the last one in our list
+        for (Future future : futures) {
+            try {
+                verify(future).cancel(false);
+            } catch(WantedButNotInvoked e) {
+                if (notInvokedFound) {
+                    throw new AssertionError("future was cancelled more than once", e);
+                }
+                notInvokedFound = true;
+            }
+        }
+    }
+
+    /**
+     * Test that no matter when an onFailure sniffing round is triggered, it will run and it will always
+     * schedule a subsequent afterFailure round. See https://github.com/elastic/elasticsearch/issues/27697 .
+     * The difference in this test compared to the other ones above is that we keep on scheduling ordinary sniffing
+     * rounds to show that they don't interfere with the onFailure round that is scheduled at some point.
+     */
+    public void testSniffOnFailureIsAlwaysExecuted() throws Exception {
+        RestClient restClient = mock(RestClient.class);
+        CountingHostsSniffer hostsSniffer = new CountingHostsSniffer();
+        long sniffInterval = randomLongBetween(1, Long.MAX_VALUE);
+        final long sniffAfterFailureDelay = randomLongBetween(1, Long.MAX_VALUE);
+        final CountDownLatch latch = new CountDownLatch(1);
+        final ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            Scheduler scheduler = new Scheduler() {
+                @Override
+                public Future<?> schedule(Sniffer.Task task, long delayMillis) {
+                    //if we are scheduling a next round with delay sniffAfterFailureDelay it means that we are executing the onFailure task
+                    if (delayMillis == sniffAfterFailureDelay) {
+                        latch.countDown();
+                        return null;
+                    }
+                    return executor.submit(task);
+                }
+
+                @Override
+                public void shutdown() {
+
+                }
+            };
+            Sniffer sniffer = new Sniffer(restClient, hostsSniffer, scheduler, sniffInterval, sniffAfterFailureDelay);
+            sniffer.sniffOnFailure();
+            assertTrue(latch.await(1000L, TimeUnit.MILLISECONDS));
+        } finally {
+            executor.shutdown();
+            executor.awaitTermination(1000L, TimeUnit.MILLISECONDS);
         }
     }
 
@@ -456,7 +449,7 @@ public class SnifferTests extends RestClientTestCase {
 
         @Override
         public List<HttpHost> sniffHosts() throws IOException {
-            runs.incrementAndGet();
+            int run = runs.incrementAndGet();
             if (rarely()) {
                 failures.incrementAndGet();
                 //check that if communication breaks, sniffer keeps on working
@@ -466,65 +459,63 @@ public class SnifferTests extends RestClientTestCase {
                 emptyList.incrementAndGet();
                 return Collections.emptyList();
             }
-            return Collections.singletonList(new HttpHost("localhost", 9200));
+            return buildHosts(run);
+        }
+
+        private static List<HttpHost> buildHosts(int run) {
+            int size = run % 5 + 1;
+            assert size > 0;
+            List<HttpHost> hosts = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                hosts.add(new HttpHost("sniffed-" + run, 9200 + i));
+            }
+            return hosts;
         }
     }
 
-    //TODO adapt this test
     @SuppressWarnings("unchecked")
-/*
     public void testDefaultSchedulerSchedule() {
-        ScheduledThreadPoolExecutor executor = mock(ScheduledThreadPoolExecutor.class);
-        ScheduledFuture scheduledFuture = mock(ScheduledFuture.class);
-        when(executor.isShutdown()).thenReturn(false);
-        when(executor.schedule(any(Runnable.class), any(Long.class), any(TimeUnit.class))).thenReturn(scheduledFuture);
-
-        DefaultScheduler defaultScheduler = new DefaultScheduler(executor);
-        Runnable runnable = new Runnable() {
+        RestClient restClient = mock(RestClient.class);
+        HostsSniffer hostsSniffer = mock(HostsSniffer.class);
+        Scheduler noOpScheduler = new Scheduler() {
             @Override
-            public void run() {
+            public Future<?> schedule(Sniffer.Task task, long delayMillis) {
+                return mock(Future.class);
+            }
+
+            @Override
+            public void shutdown() {
 
             }
         };
-        int iters = randomIntBetween(3, 10);
-        {
-            for (int i = 1; i <= iters; i++) {
-                long delayMillis = randomLongBetween(0L, Long.MAX_VALUE);
-                defaultScheduler.schedule(runnable, delayMillis);
-                verify(executor, times(i)).schedule(runnable, delayMillis, TimeUnit.MILLISECONDS);
-                verifyNoMoreInteractions(executor);
-                verify(scheduledFuture, times(i)).cancel(false);
-                verifyNoMoreInteractions(scheduledFuture);
-            }
-        }
-        {
-            when(executor.schedule(any(Runnable.class), any(Long.class), any(TimeUnit.class)))
-                    .thenThrow(new IllegalArgumentException());
-            long delayMillis = randomLongBetween(0L, Long.MAX_VALUE);
-            defaultScheduler.schedule(runnable, delayMillis);
-            verify(executor).schedule(runnable, delayMillis, TimeUnit.MILLISECONDS);
-            verifyNoMoreInteractions(executor);
-            verify(scheduledFuture, times(2)).cancel(false);
-            verifyNoMoreInteractions(scheduledFuture);
-        }
-        {
-            when(executor.isShutdown()).thenReturn(true);
-            long delayMillis = randomLongBetween(0L, Long.MAX_VALUE);
-            defaultScheduler.schedule(runnable, delayMillis);
-            verifyNoMoreInteractions(executor);
-            verifyNoMoreInteractions(scheduledFuture);
-        }
+        Sniffer sniffer = new Sniffer(restClient, hostsSniffer, noOpScheduler, 0L, 0L);
+        Sniffer.Task task = sniffer.new Task(randomLongBetween(1, Long.MAX_VALUE));
+
+        ScheduledExecutorService scheduledExecutorService = mock(ScheduledExecutorService.class);
+        ScheduledFuture mockedFuture = mock(ScheduledFuture.class);
+        when(scheduledExecutorService.schedule(any(Runnable.class), any(Long.class), any(TimeUnit.class))).thenReturn(mockedFuture);
+        DefaultScheduler scheduler = new DefaultScheduler(scheduledExecutorService);
+        long delay = randomLongBetween(1, Long.MAX_VALUE);
+        Future<?> future = scheduler.schedule(task, delay);
+        assertSame(mockedFuture, future);
+        verify(scheduledExecutorService).schedule(task, delay, TimeUnit.MILLISECONDS);
+        verifyNoMoreInteractions(scheduledExecutorService, mockedFuture);
     }
-*/
 
     public void testDefaultSchedulerThreadFactory() {
         DefaultScheduler defaultScheduler = new DefaultScheduler();
         try {
-            ScheduledThreadPoolExecutor scheduledThreadPoolExecutor = defaultScheduler.executor;
-            assertThat(scheduledThreadPoolExecutor.getThreadFactory(), instanceOf(Sniffer.SnifferThreadFactory.class));
+            ScheduledExecutorService executorService = defaultScheduler.executor;
+            assertThat(executorService, instanceOf(ScheduledThreadPoolExecutor.class));
+            assertThat(executorService, instanceOf(ScheduledThreadPoolExecutor.class));
+            ScheduledThreadPoolExecutor executor = (ScheduledThreadPoolExecutor) executorService;
+            assertTrue(executor.getRemoveOnCancelPolicy());
+            assertFalse(executor.getContinueExistingPeriodicTasksAfterShutdownPolicy());
+            assertTrue(executor.getExecuteExistingDelayedTasksAfterShutdownPolicy());
+            assertThat(executor.getThreadFactory(), instanceOf(Sniffer.SnifferThreadFactory.class));
             int iters = randomIntBetween(3, 10);
             for (int i = 1; i <= iters; i++) {
-                Thread thread = scheduledThreadPoolExecutor.getThreadFactory().newThread(new Runnable() {
+                Thread thread = executor.getThreadFactory().newThread(new Runnable() {
                     @Override
                     public void run() {
 
@@ -538,40 +529,19 @@ public class SnifferTests extends RestClientTestCase {
         }
     }
 
-    //TODO adapt this, it's not a good test though
-/*    @SuppressWarnings("unchecked")
     public void testDefaultSchedulerShutdown() throws Exception {
         ScheduledThreadPoolExecutor executor = mock(ScheduledThreadPoolExecutor.class);
-        when(executor.isShutdown()).thenReturn(false);
-        ScheduledFuture scheduledFuture = mock(ScheduledFuture.class);
-        when(executor.schedule(any(Runnable.class), any(Long.class), any(TimeUnit.class))).thenReturn(scheduledFuture);
         DefaultScheduler defaultScheduler = new DefaultScheduler(executor);
-
-        defaultScheduler.schedule(new Runnable() {
-            @Override
-            public void run() {
-
-            }
-        }, 0L);
-        verify(executor.schedule(any(Runnable.class), any(Long.class), any(TimeUnit.class)));
-
         defaultScheduler.shutdown();
-        verify(scheduledFuture).cancel(false);
         verify(executor).shutdown();
         verify(executor).awaitTermination(1000, TimeUnit.MILLISECONDS);
         verify(executor).shutdownNow();
-        verifyNoMoreInteractions(executor, scheduledFuture);
+        verifyNoMoreInteractions(executor);
 
         when(executor.awaitTermination(1000, TimeUnit.MILLISECONDS)).thenReturn(true);
         defaultScheduler.shutdown();
-        verify(scheduledFuture, times(2)).cancel(false);
         verify(executor, times(2)).shutdown();
         verify(executor, times(2)).awaitTermination(1000, TimeUnit.MILLISECONDS);
-        verifyNoMoreInteractions(executor, scheduledFuture);
-    }*/
-
-    //TODO test on failure intervals
-
-    //TODO add a sniffer test against proper http server, or maybe just throw exception and trigger on failure
-
+        verifyNoMoreInteractions(executor);
+    }
 }

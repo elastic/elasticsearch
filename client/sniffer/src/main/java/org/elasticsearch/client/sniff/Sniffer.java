@@ -33,11 +33,9 @@ import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -61,8 +59,7 @@ public class Sniffer implements Closeable {
     private final long sniffAfterFailureDelayMillis;
     private final Scheduler scheduler;
 
-    private final AtomicBoolean running = new AtomicBoolean(false);
-    private final AtomicReference<ScheduledTask> nextTask = new AtomicReference<>();
+    private final AtomicReference<Future> nextTask = new AtomicReference<>();
 
     Sniffer(RestClient restClient, HostsSniffer hostsSniffer, long sniffInterval, long sniffAfterFailureDelay) {
         this(restClient, hostsSniffer, new DefaultScheduler(), sniffInterval, sniffAfterFailureDelay);
@@ -85,14 +82,12 @@ public class Sniffer implements Closeable {
         scheduleNextRound(0L, sniffAfterFailureDelayMillis, true);
     }
 
-    //TODO test concurrency on this method
     private void scheduleNextRound(long delay, long nextDelay, boolean mustCancelNextRound) {
         Task task = new Task(nextDelay);
-        ScheduledTask scheduledTask = task.schedule(delay);
-        assert scheduledTask.task == task;
-        ScheduledTask previousTask = nextTask.getAndSet(scheduledTask);
+        Future<?> nextFuture = task.schedule(delay);
+        Future<?> previousFuture = nextTask.getAndSet(nextFuture);
         if (mustCancelNextRound) {
-            previousTask.cancelIfNotYetStarted();
+            previousFuture.cancel(false);
         }
     }
 
@@ -103,7 +98,7 @@ public class Sniffer implements Closeable {
             this.nextTaskDelay = nextTaskDelay;
         }
 
-        ScheduledTask schedule(long delay) {
+        Future<?> schedule(long delay) {
             return scheduler.schedule(this, delay);
         }
 
@@ -119,20 +114,6 @@ public class Sniffer implements Closeable {
         }
     }
 
-    static final class ScheduledTask {
-        final Task task;
-        final Future<?> future;
-
-        ScheduledTask(Task task, Future<?> future) {
-            this.task = task;
-            this.future = future;
-        }
-
-        void cancelIfNotYetStarted() {
-            this.future.cancel(false);
-        }
-    }
-
     final void sniff() throws IOException {
         List<HttpHost> sniffedHosts = hostsSniffer.sniffHosts();
         logger.debug("sniffed hosts: " + sniffedHosts);
@@ -145,7 +126,7 @@ public class Sniffer implements Closeable {
 
     @Override
     public void close() {
-        nextTask.get().cancelIfNotYetStarted();
+        nextTask.get().cancel(false);
         this.scheduler.shutdown();
     }
 
@@ -167,7 +148,7 @@ public class Sniffer implements Closeable {
         /**
          * Schedules the provided {@link Runnable} to be executed in <code>delayMillis</code> milliseconds
          */
-        ScheduledTask schedule(Task task, long delayMillis);
+        Future<?> schedule(Task task, long delayMillis);
 
         /**
          * Shuts this scheduler down
@@ -179,34 +160,25 @@ public class Sniffer implements Closeable {
      * Default implementation of {@link Scheduler}, based on {@link ScheduledExecutorService}
      */
     static final class DefaultScheduler implements Scheduler {
-        final ScheduledThreadPoolExecutor executor;
+        final ScheduledExecutorService executor;
 
         DefaultScheduler() {
             this(initScheduledExecutorService());
         }
 
-        DefaultScheduler(ScheduledThreadPoolExecutor executor) {
+        DefaultScheduler(ScheduledExecutorService executor) {
             this.executor = executor;
         }
 
-        //TODO test this
-        static ScheduledThreadPoolExecutor initScheduledExecutorService() {
+        private static ScheduledExecutorService initScheduledExecutorService() {
             ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1, new SnifferThreadFactory(SNIFFER_THREAD_NAME));
             executor.setRemoveOnCancelPolicy(true);
-            //TODO does this have any effect?
-            executor.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
             return executor;
         }
 
-        //TODO can it happen that we get so many failures that we keep on cancelling without ever getting to execute the next round?
-        // no, because we add each failed node to the blacklist, and it stays there till setHosts is called, at the end of the sniff round
-        //may happen if we end up reviving nodes from the blacklist as all of the sniffed nodes are marked dead.
-        //in that case the sniff round won't work either though.
-
         @Override
-        public ScheduledTask schedule(Task task, long delayMillis) {
-            ScheduledFuture<?> future = executor.schedule(task, delayMillis, TimeUnit.MILLISECONDS);
-            return new ScheduledTask(task, future);
+        public Future<?> schedule(Task task, long delayMillis) {
+            return executor.schedule(task, delayMillis, TimeUnit.MILLISECONDS);
         }
 
         @Override
@@ -217,7 +189,7 @@ public class Sniffer implements Closeable {
                     return;
                 }
                 executor.shutdownNow();
-            } catch (InterruptedException e) {
+            } catch (InterruptedException ignore) {
                 Thread.currentThread().interrupt();
             }
         }

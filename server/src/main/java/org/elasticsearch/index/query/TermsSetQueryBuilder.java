@@ -116,9 +116,10 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
 
     @Override
     protected boolean doEquals(TermsSetQueryBuilder other) {
-        return Objects.equals(fieldName, this.fieldName) && Objects.equals(values, this.values) &&
-                Objects.equals(minimumShouldMatchField, this.minimumShouldMatchField) &&
-                Objects.equals(minimumShouldMatchScript, this.minimumShouldMatchScript);
+        return Objects.equals(fieldName, other.fieldName)
+            && Objects.equals(values, other.values)
+            && Objects.equals(minimumShouldMatchField, other.minimumShouldMatchField)
+            && Objects.equals(minimumShouldMatchScript, other.minimumShouldMatchScript);
     }
 
     @Override

@@ -31,6 +31,7 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -178,12 +179,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 if (value.equalsIgnoreCase("strict")) {
                     builder.dynamic(Dynamic.STRICT);
                 } else {
-                    boolean dynamic = TypeParsers.nodeBooleanValue(fieldName, "dynamic", fieldNode, parserContext);
+                    boolean dynamic = XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".dynamic");
                     builder.dynamic(dynamic ? Dynamic.TRUE : Dynamic.FALSE);
                 }
                 return true;
             } else if (fieldName.equals("enabled")) {
-                builder.enabled(TypeParsers.nodeBooleanValue(fieldName, "enabled", fieldNode, parserContext));
+                builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".enabled"));
                 return true;
             } else if (fieldName.equals("properties")) {
                 if (fieldNode instanceof Collection && ((Collection) fieldNode).isEmpty()) {
@@ -219,12 +220,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
             }
             fieldNode = node.get("include_in_parent");
             if (fieldNode != null) {
-                nestedIncludeInParent = TypeParsers.nodeBooleanValue(name, "include_in_parent", fieldNode, parserContext);
+                nestedIncludeInParent = XContentMapValues.nodeBooleanValue(fieldNode, name + ".include_in_parent");
                 node.remove("include_in_parent");
             }
             fieldNode = node.get("include_in_root");
             if (fieldNode != null) {
-                nestedIncludeInRoot = TypeParsers.nodeBooleanValue(name, "include_in_root", fieldNode, parserContext);
+                nestedIncludeInRoot = XContentMapValues.nodeBooleanValue(fieldNode, name + ".include_in_root");
                 node.remove("include_in_root");
             }
             if (nested) {

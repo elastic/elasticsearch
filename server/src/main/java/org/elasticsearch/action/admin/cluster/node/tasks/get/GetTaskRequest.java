@@ -105,7 +105,7 @@ public class GetTaskRequest extends ActionRequest {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         taskId = TaskId.readFromStream(in);
-        timeout = in.readOptionalWriteable(TimeValue::new);
+        timeout = in.readOptionalTimeValue();
         waitForCompletion = in.readBoolean();
     }
 
@@ -113,7 +113,7 @@ public class GetTaskRequest extends ActionRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         taskId.writeTo(out);
-        out.writeOptionalWriteable(timeout);
+        out.writeOptionalTimeValue(timeout);
         out.writeBoolean(waitForCompletion);
     }
 }

@@ -1,0 +1,13 @@
+[[painless-keywords]]
+=== Keywords
+
+The keywords in the table below are reserved for built-in language
+features. These keywords cannot be used as <<identifiers, identifiers>> or
+<<painless-types, types>>.
+
+[cols="^1,^1,^1,^1,^1"]
+|====
+| if | else | while | do | for
+| in | continue | break | return | new
+| try | catch | throw | this | instanceof
+|====

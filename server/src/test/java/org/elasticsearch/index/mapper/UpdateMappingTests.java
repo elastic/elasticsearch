@@ -138,44 +138,6 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
                 equalTo("long"));
     }
 
-    // same as the testConflictNewType except that the mapping update is on an existing type
-    public void testConflictNewTypeUpdate() throws Exception {
-        XContentBuilder mapping1 = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("foo").field("type", "long").endObject()
-                .endObject().endObject().endObject();
-        XContentBuilder mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type2").endObject().endObject();
-        MapperService mapperService = createIndex("test", Settings.builder().put("index.version.created",
-            Version.V_5_6_0).build()).mapperService();
-
-        mapperService.merge("type1", new CompressedXContent(Strings.toString(mapping1)), MapperService.MergeReason.MAPPING_UPDATE);
-        mapperService.merge("type2", new CompressedXContent(Strings.toString(mapping2)), MapperService.MergeReason.MAPPING_UPDATE);
-
-        XContentBuilder update = XContentFactory.jsonBuilder().startObject().startObject("type2")
-                .startObject("properties").startObject("foo").field("type", "double").endObject()
-                .endObject().endObject().endObject();
-
-        try {
-            mapperService.merge("type2", new CompressedXContent(Strings.toString(update)), MapperService.MergeReason.MAPPING_UPDATE);
-            fail();
-        } catch (IllegalArgumentException e) {
-            // expected
-            assertTrue(e.getMessage(), e.getMessage().contains("mapper [foo] cannot be changed from type [long] to [double]"));
-        }
-
-        try {
-            mapperService.merge("type2", new CompressedXContent(Strings.toString(update)), MapperService.MergeReason.MAPPING_UPDATE);
-            fail();
-        } catch (IllegalArgumentException e) {
-            // expected
-            assertTrue(e.getMessage(), e.getMessage().contains("mapper [foo] cannot be changed from type [long] to [double]"));
-        }
-
-        assertThat(((FieldMapper) mapperService.documentMapper("type1").mapping().root().getMapper("foo")).fieldType().typeName(),
-                equalTo("long"));
-        assertNotNull(mapperService.documentMapper("type2"));
-        assertNull(mapperService.documentMapper("type2").mapping().root().getMapper("foo"));
-    }
-
     public void testReuseMetaField() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("_id").field("type", "text").endObject()

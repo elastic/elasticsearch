@@ -275,7 +275,7 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[search-execute-listener]
 The `SearchResponse` that is returned by executing the search provides details
 about the search execution itself as well as access to the documents returned.
 First, there is useful information about the request execution itself, like the
-HTTP status code, execution time or wether the request terminated early or timed
+HTTP status code, execution time or whether the request terminated early or timed
 out:
 
 ["source","java",subs="attributes,callouts,macros"]

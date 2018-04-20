@@ -264,7 +264,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 RecoverySource.PeerRecoverySource.INSTANCE);
 
             final IndexShard newReplica =
-                    newShard(shardRouting, shardPath, indexMetaData, null, getEngineFactory(shardRouting), () -> {});
+                    newShard(shardRouting, shardPath, indexMetaData, null, getEngineFactory(shardRouting), () -> {}, EMPTY_EVENT_LISTENER);
             replicas.add(newReplica);
             updateAllocationIDsOnPrimary();
             return newReplica;
@@ -542,7 +542,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                                 listener.onFailure(e);
                             }
                         },
-                        ThreadPool.Names.INDEX, request);
+                        ThreadPool.Names.WRITE, request);
             }
 
             @Override
@@ -681,7 +681,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         @Override
         protected PrimaryResult performOnPrimary(
                 final IndexShard primary, final GlobalCheckpointSyncAction.Request request) throws Exception {
-            primary.getTranslog().sync();
+            primary.sync();
             return new PrimaryResult(request, new ReplicationResponse());
         }
 

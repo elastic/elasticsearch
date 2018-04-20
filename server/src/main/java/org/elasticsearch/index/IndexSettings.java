@@ -70,8 +70,6 @@ public final class IndexSettings {
             (value) -> Translog.Durability.valueOf(value.toUpperCase(Locale.ROOT)), Property.Dynamic, Property.IndexScope);
     public static final Setting<Boolean> INDEX_WARMER_ENABLED_SETTING =
         Setting.boolSetting("index.warmer.enabled", true, Property.Dynamic, Property.IndexScope);
-    public static final Setting<Boolean> INDEX_TTL_DISABLE_PURGE_SETTING =
-        Setting.boolSetting("index.ttl.disable_purge", false, Property.Dynamic, Property.IndexScope);
     public static final Setting<String> INDEX_CHECK_ON_STARTUP = new Setting<>("index.shard.check_on_startup", "false", (s) -> {
         switch(s) {
             case "false":
@@ -185,7 +183,7 @@ public final class IndexSettings {
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING =
         Setting.byteSizeSetting("index.translog.flush_threshold_size", new ByteSizeValue(512, ByteSizeUnit.MB),
             /*
-             * An empty translog occupies 43 bytes on disk. If the flush threshold is below this, the flush thread
+             * An empty translog occupies 55 bytes on disk. If the flush threshold is below this, the flush thread
              * can get stuck in an infinite loop as the shouldPeriodicallyFlush can still be true after flushing.
              * However, small thresholds are useful for testing so we do not add a large lower bound here.
              */
@@ -220,7 +218,7 @@ public final class IndexSettings {
                     "index.translog.generation_threshold_size",
                     new ByteSizeValue(64, ByteSizeUnit.MB),
                     /*
-                     * An empty translog occupies 43 bytes on disk. If the generation threshold is
+                     * An empty translog occupies 55 bytes on disk. If the generation threshold is
                      * below this, the flush thread can get stuck in an infinite loop repeatedly
                      * rolling the generation as every new generation will already exceed the
                      * generation threshold. However, small thresholds are useful for testing so we
@@ -255,20 +253,6 @@ public final class IndexSettings {
      */
     public static final Setting<Integer> MAX_REGEX_LENGTH_SETTING = Setting.intSetting("index.max_regex_length",
         1000, 1, Property.Dynamic, Property.IndexScope);
-
-    public static final String INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY = "index.mapping.single_type";
-    private static final Setting<Boolean> INDEX_MAPPING_SINGLE_TYPE_SETTING; // private - should not be registered
-    static {
-        Function<Settings, String> defValue = settings -> {
-            boolean singleType = true;
-            if (settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null) != null) {
-                singleType = Version.indexCreated(settings).onOrAfter(Version.V_6_0_0_alpha1);
-            }
-            return Boolean.valueOf(singleType).toString();
-        };
-        INDEX_MAPPING_SINGLE_TYPE_SETTING = Setting.boolSetting(INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY, defValue, Property.IndexScope,
-            Property.Final);
-    }
 
     private final Index index;
     private final Version version;
@@ -306,7 +290,6 @@ public final class IndexSettings {
     private volatile int maxTokenCount;
     private volatile int maxNgramDiff;
     private volatile int maxShingleDiff;
-    private volatile boolean TTLPurgeDisabled;
     private volatile TimeValue searchIdleAfter;
     private volatile int maxAnalyzedOffset;
     private volatile int maxTermsCount;
@@ -324,11 +307,6 @@ public final class IndexSettings {
      * The maximum length of regex string allowed in a regexp query.
      */
     private volatile int maxRegexLength;
-
-    /**
-     * Whether the index is required to have at most one type.
-     */
-    private final boolean singleType;
 
     /**
      * Returns the default search fields for this index.
@@ -422,7 +400,6 @@ public final class IndexSettings {
         maxTokenCount = scopedSettings.get(MAX_TOKEN_COUNT_SETTING);
         maxNgramDiff = scopedSettings.get(MAX_NGRAM_DIFF_SETTING);
         maxShingleDiff = scopedSettings.get(MAX_SHINGLE_DIFF_SETTING);
-        TTLPurgeDisabled = scopedSettings.get(INDEX_TTL_DISABLE_PURGE_SETTING);
         maxRefreshListeners = scopedSettings.get(MAX_REFRESH_LISTENERS_PER_SHARD);
         maxSlicesPerScroll = scopedSettings.get(MAX_SLICES_PER_SCROLL);
         maxAnalyzedOffset = scopedSettings.get(MAX_ANALYZED_OFFSET_SETTING);
@@ -431,11 +408,6 @@ public final class IndexSettings {
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
         this.indexSortConfig = new IndexSortConfig(this);
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
-        singleType = INDEX_MAPPING_SINGLE_TYPE_SETTING.get(indexMetaData.getSettings()); // get this from metadata - it's not registered
-        if ((singleType || version.before(Version.V_6_0_0_alpha1)) == false) {
-            throw new AssertionError(index.toString()  + "multiple types are only allowed on pre 6.x indices but version is: ["
-                + version + "]");
-        }
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING, mergePolicyConfig::setExpungeDeletesAllowed);
@@ -450,7 +422,6 @@ public final class IndexSettings {
             mergeSchedulerConfig::setMaxThreadAndMergeCount);
         scopedSettings.addSettingsUpdateConsumer(MergeSchedulerConfig.AUTO_THROTTLE_SETTING, mergeSchedulerConfig::setAutoThrottle);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_DURABILITY_SETTING, this::setTranslogDurability);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_TTL_DISABLE_PURGE_SETTING, this::setTTLPurgeDisabled);
         scopedSettings.addSettingsUpdateConsumer(MAX_RESULT_WINDOW_SETTING, this::setMaxResultWindow);
         scopedSettings.addSettingsUpdateConsumer(MAX_INNER_RESULT_WINDOW_SETTING, this::setMaxInnerResultWindow);
         scopedSettings.addSettingsUpdateConsumer(MAX_ADJACENCY_MATRIX_FILTERS_SETTING, this::setMaxAdjacencyMatrixFilters);
@@ -569,11 +540,6 @@ public final class IndexSettings {
      * Returns the number of replicas this index has.
      */
     public int getNumberOfReplicas() { return settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, null); }
-
-    /**
-     * Returns whether the index enforces at most one type.
-     */
-    public boolean isSingleType() { return singleType; }
 
     /**
      * Returns the node settings. The settings returned from {@link #getSettings()} are a merged version of the
@@ -798,18 +764,6 @@ public final class IndexSettings {
     public MergePolicy getMergePolicy() {
         return mergePolicyConfig.getMergePolicy();
     }
-
-    /**
-     * Returns <code>true</code> if the TTL purge is disabled for this index. Default is <code>false</code>
-     */
-    public boolean isTTLPurgeDisabled() {
-        return TTLPurgeDisabled;
-    }
-
-    private  void setTTLPurgeDisabled(boolean ttlPurgeDisabled) {
-        this.TTLPurgeDisabled = ttlPurgeDisabled;
-    }
-
 
     public <T> T getValue(Setting<T> setting) {
         return scopedSettings.get(setting);

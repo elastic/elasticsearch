@@ -16,8 +16,6 @@ esplugin {
 }
 archivesBaseName = 'x-pack-ccr'
 
-licenseHeaders.enabled = false
-
 integTest.enabled = false
 
 // Instead we create a separate task to run the
@@ -48,9 +46,6 @@ dependencies {
 dependencyLicenses {
     ignoreSha 'x-pack-core'
 }
-
-// TODO: Fix unchecked warnings
-compileTestJava.options.compilerArgs << "-Xlint:-unchecked"
 
 run {
     plugin ':x-pack-elasticsearch:plugin:core'

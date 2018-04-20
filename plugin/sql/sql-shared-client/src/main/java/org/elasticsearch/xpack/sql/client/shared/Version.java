@@ -54,12 +54,12 @@ public class Version {
         try {
             res = Version.class.getClassLoader().getResources(target);
         } catch (IOException ex) {
-            throw new IllegalArgumentException("Cannot detect Elasticsearch SQL jar; it typically indicates a deployment issue...");
+            throw new IllegalArgumentException("Cannot detect Elasticsearch JDBC jar; it typically indicates a deployment issue...");
         }
 
         if (res != null) {
             List<URL> urls = Collections.list(res);
-            Set<String> normalized = new LinkedHashSet<String>();
+            Set<String> normalized = new LinkedHashSet<>();
 
             for (URL url : urls) {
                 normalized.add(StringUtils.normalize(url.toString()));
@@ -68,7 +68,7 @@ public class Version {
             int foundJars = 0;
             if (normalized.size() > 1) {
                 StringBuilder sb = new StringBuilder(
-                        "Multiple Elasticsearch SQL versions detected in the classpath; please use only one\n");
+                        "Multiple Elasticsearch JDBC versions detected in the classpath; please use only one\n");
                 for (String s : normalized) {
                     if (s.contains("jar:")) {
                         foundJars++;
@@ -91,7 +91,7 @@ public class Version {
         String ver = "Unknown";
         String hash = ver;
 
-        if (urlStr.startsWith("file:/") && urlStr.endsWith(".jar")) {
+        if (urlStr.endsWith(".jar")) {
             try (JarInputStream jar = new JarInputStream(url.openStream())) {
                 Manifest manifest = jar.getManifest();
                 hash = manifest.getMainAttributes().getValue("Change");
@@ -101,7 +101,7 @@ public class Version {
                 min = vers[1];
                 rev = vers[2];
             } catch (Exception ex) {
-                throw new IllegalArgumentException("Detected Elasticsearch SQL jar but cannot retrieve its version", ex);
+                throw new IllegalArgumentException("Detected Elasticsearch JDBC jar but cannot retrieve its version", ex);
             }
         }
         CURRENT = new Version(ver, hash, maj, min, rev);

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcDriver;
 
@@ -13,11 +14,25 @@ import java.security.PrivilegedExceptionAction;
 import java.sql.Driver;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.function.Consumer;
 
 public class DriverManagerRegistrationTests extends ESTestCase {
 
-
     public void testRegistration() throws Exception {
+        driverManagerTemplate(d -> assertNotNull(d));
+    }
+
+    public void testVersioning() throws Exception {
+        driverManagerTemplate(d -> {
+            /* This test will only work properly in gradle because in gradle we run the tests
+             * using the jar. */
+
+            assertNotEquals(String.valueOf(Version.CURRENT.major), d.getMajorVersion());
+            assertNotEquals(String.valueOf(Version.CURRENT.minor), d.getMinorVersion());
+        });
+    }
+
+    private static void driverManagerTemplate(Consumer<JdbcDriver> c) throws Exception {
         String url = "jdbc:es:localhost:9200/";
         Driver driver = null;
         try {
@@ -27,11 +42,15 @@ public class DriverManagerRegistrationTests extends ESTestCase {
             assertEquals("No suitable driver", ex.getMessage());
         }
         boolean set = driver != null;
+
         try {
-            Driver d = JdbcDriver.register();
+            JdbcDriver d = JdbcDriver.register();
             if (driver != null) {
                 assertEquals(driver, d);
             }
+
+            c.accept(d);
+
             AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
                 // mimic DriverManager and unregister the driver
                 JdbcDriver.deregister();

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.StddevPop;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.SumOfSquares;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.VarPop;
+import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Mod;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfWeek;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfYear;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Year;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ACos;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ASin;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ATan;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.ATan2;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Cbrt;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Ceil;
@@ -46,6 +48,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Log;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Log10;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Pi;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Power;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Radians;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sin;
@@ -104,6 +107,7 @@ public class FunctionRegistry {
             def(ACos.class, ACos::new),
             def(ASin.class, ASin::new),
             def(ATan.class, ATan::new),
+            def(ATan2.class, ATan2::new),
             def(Cbrt.class, Cbrt::new),
             def(Ceil.class, Ceil::new),
             def(Cos.class, Cos::new),
@@ -115,7 +119,10 @@ public class FunctionRegistry {
             def(Floor.class, Floor::new),
             def(Log.class, Log::new),
             def(Log10.class, Log10::new),
+            // SQL and ODBC require MOD as a _function_
+            def(Mod.class, Mod::new),
             def(Pi.class, Pi::new),
+            def(Power.class, Power::new),
             def(Radians.class, Radians::new),
             def(Round.class, Round::new),
             def(Sin.class, Sin::new),

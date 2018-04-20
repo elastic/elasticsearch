@@ -32,6 +32,11 @@ public class Floor extends MathFunction {
     }
 
     @Override
+    public Object fold() {
+        return DataTypeConversion.toInteger((double) super.fold(), dataType());
+    }
+
+    @Override
     protected MathOperation operation() {
         return MathOperation.FLOOR;
     }

@@ -7,8 +7,9 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryNumericFunction;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinitions;
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
@@ -16,20 +17,20 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 
 import java.util.Locale;
-import java.util.Objects;
 
 import static java.lang.String.format;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder.paramsBuilder;
 
-public abstract class ArithmeticFunction extends BinaryScalarFunction {
+public abstract class ArithmeticFunction extends BinaryNumericFunction {
 
-    private BinaryArithmeticOperation operation;
+    private final BinaryArithmeticOperation operation;
 
     ArithmeticFunction(Location location, Expression left, Expression right, BinaryArithmeticOperation operation) {
         super(location, left, right);
         this.operation = operation;
     }
 
+    @Override
     public BinaryArithmeticOperation operation() {
         return operation;
     }
@@ -37,32 +38,6 @@ public abstract class ArithmeticFunction extends BinaryScalarFunction {
     @Override
     public DataType dataType() {
         return DataTypeConversion.commonType(left().dataType(), right().dataType());
-    }
-
-    @Override
-    protected TypeResolution resolveType() {
-        if (!childrenResolved()) {
-            return new TypeResolution("Unresolved children");
-        }
-        DataType l = left().dataType();
-        DataType r = right().dataType();
-
-        TypeResolution resolution = resolveInputType(l);
-
-        if (resolution == TypeResolution.TYPE_RESOLVED) {
-            return resolveInputType(r);
-        }
-        return resolution;
-    }
-
-    protected TypeResolution resolveInputType(DataType inputType) {
-        return inputType.isNumeric() ? TypeResolution.TYPE_RESOLVED
-                : new TypeResolution("'%s' requires a numeric type, not %s", operation, inputType.sqlName());
-    }
-
-    @Override
-    public Object fold() {
-        return operation.apply((Number) left().fold(), (Number) right().fold());
     }
 
     @Override
@@ -79,10 +54,11 @@ public abstract class ArithmeticFunction extends BinaryScalarFunction {
     }
 
     @Override
-    protected final BinaryArithmeticProcessorDefinition makeProcessorDefinition() {
+    protected ProcessorDefinition makeProcessorDefinition() {
         return new BinaryArithmeticProcessorDefinition(location(), this,
                 ProcessorDefinitions.toProcessorDefinition(left()),
-                ProcessorDefinitions.toProcessorDefinition(right()), operation);
+                ProcessorDefinitions.toProcessorDefinition(right()),
+                operation);
     }
 
     @Override
@@ -114,21 +90,5 @@ public abstract class ArithmeticFunction extends BinaryScalarFunction {
 
     protected boolean useParanthesis() {
         return !(left() instanceof Literal) || !(right() instanceof Literal);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        ArithmeticFunction other = (ArithmeticFunction) obj;
-        return Objects.equals(other.left(), left())
-            && Objects.equals(other.right(), right())
-            && Objects.equals(other.operation, operation);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(left(), right(), operation);
     }
 }

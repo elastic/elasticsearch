@@ -32,6 +32,11 @@ public class Ceil extends MathFunction {
     }
 
     @Override
+    public Number fold() {
+        return DataTypeConversion.toInteger((double) super.fold(), dataType());
+    }
+
+    @Override
     protected MathOperation operation() {
         return MathOperation.CEIL;
     }

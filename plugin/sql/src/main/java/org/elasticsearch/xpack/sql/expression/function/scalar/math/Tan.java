@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
  * <a href="https://en.wikipedia.org/wiki/Trigonometric_functions#sine">Tangent</a>
- * fuction.
+ * function.
  */
 public class Tan extends MathFunction {
     public Tan(Location location, Expression field) {

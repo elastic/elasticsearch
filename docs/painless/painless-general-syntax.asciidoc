@@ -1,7 +1,6 @@
-[[painless-syntax]]
-=== Painless Syntax
+[[painless-general-syntax]]
+=== General Syntax
 
-[float]
 [[control-flow]]
 ==== Control flow
 
@@ -17,7 +16,6 @@ for (item : list) {
 }
 ---------------------------------------------------------
 
-[float]
 [[functions]]
 ==== Functions
 
@@ -32,7 +30,6 @@ if (isNegative(someVar)) {
 }
 ---------------------------------------------------------
 
-[float]
 [[lambda-expressions]]
 ==== Lambda expressions
 Lambda expressions and method references work the same as in https://docs.oracle.com/javase/tutorial/java/javaOO/lambdaexpressions.html[Java].
@@ -49,7 +46,6 @@ list.sort(Integer::compare);
 You can make method references to functions within the script with `this`,
 for example `list.sort(this::mycompare)`.
 
-[float]
 [[patterns]]
 ==== Patterns
 
@@ -62,7 +58,6 @@ are always constants and compiled efficiently a single time.
 Pattern p = /[aeiou]/
 ---------------------------------------------------------
 
-[float]
 [[pattern-flags]]
 ===== Pattern flags
 
@@ -84,34 +79,3 @@ Pattern class] using these characters:
 |`u` | UNICODE_CASE              | `'Ɛ' ==~ /ɛ/iu`
 |`x` | COMMENTS (aka extended)   | `'a' ==~ /a #comment/x`
 |=======================================================================
-
-[float]
-[[painless-deref]]
-==== Dereferences
-
-Like lots of languages, Painless uses `.` to reference fields and call methods:
-
-[source,painless]
----------------------------------------------------------
-String foo = 'foo';
-TypeWithGetterOrPublicField bar = new TypeWithGetterOrPublicField()
-return foo.length() + bar.x
----------------------------------------------------------
-
-Like Groovy, Painless uses `?.` to perform null-safe references, with the
-result being `null` if the left hand side is `null`:
-
-[source,painless]
----------------------------------------------------------
-String foo = null;
-return foo?.length()  // Returns null
----------------------------------------------------------
-
-Unlike Groovy, Painless doesn't support writing to `null` values with this
-operator:
-
-[source,painless]
----------------------------------------------------------
-TypeWithSetterOrPublicField foo = null;
-foo?.x = 'bar'  // Compile error
----------------------------------------------------------

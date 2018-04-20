@@ -20,6 +20,7 @@ package org.elasticsearch.gradle.test
 
 import org.apache.tools.ant.DefaultLogger
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
@@ -607,6 +608,9 @@ class ClusterFormationTasks {
         }
 
         Task start = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
+        if (node.javaVersion != null) {
+            BuildPlugin.requireJavaHome(start, node.javaVersion)
+        }
         start.doLast(elasticsearchRunner)
         return start
     }

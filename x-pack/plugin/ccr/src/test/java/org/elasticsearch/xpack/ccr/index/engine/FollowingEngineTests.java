@@ -281,7 +281,8 @@ public class FollowingEngineTests extends ESTestCase {
                         xContentRegistry, IndexSettingsModule.newIndexSettings(shardId.getIndexName(), indexSettings.getSettings())),
                 new NoneCircuitBreakerService(),
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
-                () -> primaryTerm.get()
+                () -> primaryTerm.get(),
+                EngineTestCase::createTombstoneDoc
         );
     }
 

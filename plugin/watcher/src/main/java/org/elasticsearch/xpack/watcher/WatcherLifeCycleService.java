@@ -87,7 +87,7 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
         if (shutDown) {
             return;
         }
-        WatcherState watcherState = watcherService.state();
+        final WatcherState watcherState = watcherService.state();
         if (watcherState != WatcherState.STOPPED) {
             logger.debug("not starting watcher. watcher can only start if its current state is [{}], but its current state now is [{}]",
                     WatcherState.STOPPED, watcherState);
@@ -162,9 +162,10 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
             clearAllocationIds();
             executor.execute(() -> this.stop("watcher manually marked to shutdown by cluster state update"));
         } else {
-            if (watcherService.state() == WatcherState.STARTED && event.state().nodes().getLocalNode().isDataNode()) {
+            final WatcherState watcherState = watcherService.state();
+            if (watcherState == WatcherState.STARTED && event.state().nodes().getLocalNode().isDataNode()) {
                 checkAndSetAllocationIds(event.state(), true);
-            } else if (watcherService.state() != WatcherState.STARTED && watcherService.state() != WatcherState.STARTING) {
+            } else if (watcherState != WatcherState.STARTED && watcherState != WatcherState.STARTING) {
                 IndexMetaData watcherIndexMetaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX, event.state().metaData());
                 IndexMetaData triggeredWatchesIndexMetaData = WatchStoreUtils.getConcreteIndex(TriggeredWatchStoreField.INDEX_NAME,
                         event.state().metaData());

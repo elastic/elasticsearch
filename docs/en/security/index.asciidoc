@@ -108,6 +108,6 @@ include::securing-communications.asciidoc[]
 
 include::using-ip-filtering.asciidoc[]
 
-include::tribe-clients-integrations.asciidoc[]
+include::ccs-clients-integrations.asciidoc[]
 
 include::reference.asciidoc[]

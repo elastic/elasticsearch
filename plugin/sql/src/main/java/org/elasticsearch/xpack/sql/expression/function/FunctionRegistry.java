@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.Cbrt;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Ceil;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Cosh;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Cot;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Degrees;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.E;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Exp;
@@ -50,7 +51,9 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.Log10;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Pi;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Power;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Radians;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Random;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sign;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sin;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sinh;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sqrt;
@@ -109,9 +112,10 @@ public class FunctionRegistry {
             def(ATan.class, ATan::new),
             def(ATan2.class, ATan2::new),
             def(Cbrt.class, Cbrt::new),
-            def(Ceil.class, Ceil::new),
+            def(Ceil.class, Ceil::new, "CEILING"),
             def(Cos.class, Cos::new),
             def(Cosh.class, Cosh::new),
+            def(Cot.class, Cot::new),
             def(Degrees.class, Degrees::new),
             def(E.class, E::new),
             def(Exp.class, Exp::new),
@@ -124,7 +128,9 @@ public class FunctionRegistry {
             def(Pi.class, Pi::new),
             def(Power.class, Power::new),
             def(Radians.class, Radians::new),
+            def(Random.class, Random::new, "RAND"),
             def(Round.class, Round::new),
+            def(Sign.class, Sign::new, "SIGNUM"),
             def(Sin.class, Sin::new),
             def(Sinh.class, Sinh::new),
             def(Sqrt.class, Sqrt::new),

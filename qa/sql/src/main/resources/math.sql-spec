@@ -31,6 +31,10 @@ mathCosh
 // tag::cosh
 SELECT COSH(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
 // end::cosh
+mathCot
+// tag::cot
+SELECT COT(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+// end::cot
 mathDegrees
 // tag::degrees
 SELECT DEGREES(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
@@ -59,6 +63,10 @@ SELECT RADIANS(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER 
 // end::radians
 mathRound
 SELECT CAST(ROUND(emp_no) AS INT) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+mathSign
+// tag::sign
+SELECT SIGN(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+// end::sign
 mathSin
 // tag::sin
 SELECT SIN(emp_no) m, first_name FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;

@@ -1166,44 +1166,6 @@ public final class TokenService extends AbstractComponent {
     }
 
     /**
-     * Simple wrapper around bytes so that it can be used as a cache key. The hashCode is computed
-     * once upon creation and cached.
-     */
-    static class BytesKey {
-
-        final byte[] bytes;
-        private final int hashCode;
-
-        BytesKey(byte[] bytes) {
-            this.bytes = bytes;
-            this.hashCode = StringHelper.murmurhash3_x86_32(bytes, 0, bytes.length, StringHelper.GOOD_FAST_HASH_SEED);
-        }
-
-        @Override
-        public int hashCode() {
-            return hashCode;
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            if (other == null) {
-                return false;
-            }
-            if (other instanceof BytesKey == false) {
-                return false;
-            }
-
-            BytesKey otherBytes = (BytesKey) other;
-            return Arrays.equals(otherBytes.bytes, bytes);
-        }
-
-        @Override
-        public String toString() {
-            return new BytesRef(bytes).toString();
-        }
-    }
-
-    /**
      * Creates a new key unless present that is newer than the current active key and returns the corresponding metadata. Note:
      * this method doesn't modify the metadata used in this token service. See {@link #refreshMetaData(TokenMetaData)}
      */

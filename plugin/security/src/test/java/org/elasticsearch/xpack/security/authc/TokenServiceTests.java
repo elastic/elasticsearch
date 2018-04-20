@@ -51,7 +51,6 @@ import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
-import org.elasticsearch.xpack.security.authc.TokenService.BytesKey;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;

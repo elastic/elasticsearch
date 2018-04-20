@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
@@ -167,6 +168,12 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
         return builder.build();
     }
 
+    protected Settings transportClientSettings() {
+        return Settings.builder()
+                .put(customSecuritySettingsSource.transportClientSettings())
+                .build();
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return customSecuritySettingsSource.nodePlugins();
@@ -271,14 +278,19 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
         return getRestClient(client());
     }
 
+    protected RestClient createRestClient(RestClientBuilder.HttpClientConfigCallback httpClientConfigCallback, String protocol) {
+        return createRestClient(client(), httpClientConfigCallback, protocol);
+    }
+
     private static synchronized RestClient getRestClient(Client client) {
         if (restClient == null) {
-            restClient = createRestClient(client);
+            restClient = createRestClient(client, null, "http");
         }
         return restClient;
     }
 
-    private static RestClient createRestClient(Client client) {
+    private static RestClient createRestClient(Client client, RestClientBuilder.HttpClientConfigCallback httpClientConfigCallback,
+                                               String protocol) {
         NodesInfoResponse nodesInfoResponse = client.admin().cluster().prepareNodesInfo().get();
         assertFalse(nodesInfoResponse.hasFailures());
         assertEquals(nodesInfoResponse.getNodes().size(), 1);
@@ -286,7 +298,11 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
         assertNotNull(node.getHttp());
         TransportAddress publishAddress = node.getHttp().address().publishAddress();
         InetSocketAddress address = publishAddress.address();
-        final HttpHost host = new HttpHost(NetworkAddress.format(address.getAddress()), address.getPort(), "http");
-        return RestClient.builder(host).build();
+        final HttpHost host = new HttpHost(NetworkAddress.format(address.getAddress()), address.getPort(), protocol);
+        RestClientBuilder builder = RestClient.builder(host);
+        if (httpClientConfigCallback != null) {
+            builder.setHttpClientConfigCallback(httpClientConfigCallback);
+        }
+        return builder.build();
     }
 }

@@ -640,6 +640,15 @@ Specifies the {xpack-ref}/security-files.html[location] of the
 {xpack-ref}/mapping-roles.html[YAML role  mapping configuration file].
 Defaults to `CONFIG_DIR/x-pack/role_mapping.yml`.
 
+`cache.ttl`::
+Specifies the time-to-live for cached user entries. Use the
+standard Elasticsearch {ref}/common-options.html#time-units[time units]).
+Defaults to `20m`.
+
+`cache.max_users`::
+Specifies the maximum number of user entries that the cache can contain.
+Defaults to `100000`.
+
 [[ref-saml-settings]]
 [float]
 ===== SAML Realm Settings

@@ -19,9 +19,8 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
+import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.TestXPackTransportClient;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
@@ -50,15 +49,14 @@ import static org.hamcrest.Matchers.is;
 /**
  * Test authentication via PKI on both REST and Transport layers
  */
-@ClusterScope(numClientNodes = 0, supportsDedicatedMasters = false, numDataNodes = 1)
-public class PkiAuthenticationTests extends SecurityIntegTestCase {
+public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings() {
         SSLClientAuth sslClientAuth = randomBoolean() ? SSLClientAuth.REQUIRED : SSLClientAuth.OPTIONAL;
 
         Settings.Builder builder = Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(super.nodeSettings())
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .put("xpack.security.http.ssl.enabled", true)
                 .put("xpack.security.http.ssl.client_authentication", sslClientAuth)
@@ -80,11 +78,18 @@ public class PkiAuthenticationTests extends SecurityIntegTestCase {
         return true;
     }
 
+    @Override
+    protected boolean enableWarningsCheck() {
+        // the transport client uses deprecated SSL settings since we do not know what to do about
+        // secure settings for the transport client
+        return false;
+    }
+
     public void testTransportClientCanAuthenticateViaPki() {
         Settings.Builder builder = Settings.builder();
         addSSLSettingsForStore(builder, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode");
         try (TransportClient client = createTransportClient(builder.build())) {
-            client.addTransportAddress(randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses()));
+            client.addTransportAddress(randomFrom(node().injector().getInstance(Transport.class).boundAddress().boundAddresses()));
             IndexResponse response = client.prepareIndex("foo", "bar").setSource("pki", "auth").get();
             assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
         }
@@ -96,7 +101,7 @@ public class PkiAuthenticationTests extends SecurityIntegTestCase {
      */
     public void testTransportClientAuthenticationFailure() {
         try (TransportClient client = createTransportClient(Settings.EMPTY)) {
-            client.addTransportAddress(randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses()));
+            client.addTransportAddress(randomFrom(node().injector().getInstance(Transport.class).boundAddress().boundAddresses()));
             client.prepareIndex("foo", "bar").setSource("pki", "auth").get();
             fail("transport client should not have been able to authenticate");
         } catch (NoNodeAvailableException e) {
@@ -153,14 +158,14 @@ public class PkiAuthenticationTests extends SecurityIntegTestCase {
 
         Settings.Builder builder = Settings.builder().put(clientSettings, false)
                 .put(additionalSettings)
-                .put("cluster.name", internalCluster().getClusterName());
+                .put("cluster.name", node().settings().get("cluster.name"));
         builder.remove(SecurityField.USER_SETTING.getKey());
         builder.remove("request.headers.Authorization");
         return new TestXPackTransportClient(builder.build(), LocalStateSecurity.class);
     }
 
     private String getNodeUrl() {
-        TransportAddress transportAddress = randomFrom(internalCluster().getInstance(HttpServerTransport.class)
+        TransportAddress transportAddress = randomFrom(node().injector().getInstance(HttpServerTransport.class)
                 .boundAddress().boundAddresses());
         final InetSocketAddress inetSocketAddress = transportAddress.address();
         return String.format(Locale.ROOT, "https://%s/", NetworkAddress.format(inetSocketAddress));

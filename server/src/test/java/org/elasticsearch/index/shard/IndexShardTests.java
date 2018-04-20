@@ -284,14 +284,14 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(indexShard);
         assertThat(indexShard.getActiveOperationsCount(), equalTo(0));
         try {
-            indexShard.acquirePrimaryOperationPermit(null, ThreadPool.Names.BULK, "");
+            indexShard.acquirePrimaryOperationPermit(null, ThreadPool.Names.WRITE, "");
             fail("we should not be able to increment anymore");
         } catch (IndexShardClosedException e) {
             // expected
         }
         try {
             indexShard.acquireReplicaOperationPermit(indexShard.getPrimaryTerm(), SequenceNumbers.UNASSIGNED_SEQ_NO, null,
-                ThreadPool.Names.BULK, "");
+                ThreadPool.Names.WRITE, "");
             fail("we should not be able to increment anymore");
         } catch (IndexShardClosedException e) {
             // expected
@@ -302,7 +302,7 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard indexShard = newShard(false);
         expectThrows(IndexShardNotStartedException.class, () ->
             indexShard.acquireReplicaOperationPermit(indexShard.getPrimaryTerm() + randomIntBetween(1, 100),
-                SequenceNumbers.UNASSIGNED_SEQ_NO, null, ThreadPool.Names.BULK, ""));
+                SequenceNumbers.UNASSIGNED_SEQ_NO, null, ThreadPool.Names.WRITE, ""));
         closeShards(indexShard);
     }
 
@@ -342,7 +342,7 @@ public class IndexShardTests extends IndexShardTestCase {
                                 throw new RuntimeException(e);
                             }
                         },
-                        ThreadPool.Names.BULK, id);
+                        ThreadPool.Names.WRITE, id);
             });
             thread.start();
             threads.add(thread);
@@ -393,7 +393,7 @@ public class IndexShardTests extends IndexShardTestCase {
                                 throw new RuntimeException(e);
                             }
                         },
-                        ThreadPool.Names.BULK, id);
+                        ThreadPool.Names.WRITE, id);
             });
             thread.start();
             delayedThreads.add(thread);
@@ -589,7 +589,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(0, indexShard.getActiveOperationsCount());
         if (indexShard.routingEntry().isRelocationTarget() == false) {
             try {
-                indexShard.acquireReplicaOperationPermit(primaryTerm, indexShard.getGlobalCheckpoint(), null, ThreadPool.Names.BULK, "");
+                indexShard.acquireReplicaOperationPermit(primaryTerm, indexShard.getGlobalCheckpoint(), null, ThreadPool.Names.WRITE, "");
                 fail("shard shouldn't accept operations as replica");
             } catch (IllegalStateException ignored) {
 
@@ -608,14 +608,14 @@ public class IndexShardTests extends IndexShardTestCase {
 
     private Releasable acquirePrimaryOperationPermitBlockingly(IndexShard indexShard) throws ExecutionException, InterruptedException {
         PlainActionFuture<Releasable> fut = new PlainActionFuture<>();
-        indexShard.acquirePrimaryOperationPermit(fut, ThreadPool.Names.BULK, "");
+        indexShard.acquirePrimaryOperationPermit(fut, ThreadPool.Names.WRITE, "");
         return fut.get();
     }
 
     private Releasable acquireReplicaOperationPermitBlockingly(IndexShard indexShard, long opPrimaryTerm)
         throws ExecutionException, InterruptedException {
         PlainActionFuture<Releasable> fut = new PlainActionFuture<>();
-        indexShard.acquireReplicaOperationPermit(opPrimaryTerm, indexShard.getGlobalCheckpoint(), fut, ThreadPool.Names.BULK, "");
+        indexShard.acquireReplicaOperationPermit(opPrimaryTerm, indexShard.getGlobalCheckpoint(), fut, ThreadPool.Names.WRITE, "");
         return fut.get();
     }
 
@@ -663,7 +663,7 @@ public class IndexShardTests extends IndexShardTestCase {
         if (shardRouting.primary() == false) {
             final IllegalStateException e =
                     expectThrows(IllegalStateException.class,
-                        () -> indexShard.acquirePrimaryOperationPermit(null, ThreadPool.Names.BULK, ""));
+                        () -> indexShard.acquirePrimaryOperationPermit(null, ThreadPool.Names.WRITE, ""));
             assertThat(e, hasToString(containsString("shard " + shardRouting + " is not a primary")));
         }
 
@@ -700,7 +700,7 @@ public class IndexShardTests extends IndexShardTestCase {
             };
 
             indexShard.acquireReplicaOperationPermit(primaryTerm - 1, SequenceNumbers.UNASSIGNED_SEQ_NO, onLockAcquired,
-                ThreadPool.Names.BULK, "");
+                ThreadPool.Names.WRITE, "");
 
             assertFalse(onResponse.get());
             assertTrue(onFailure.get());
@@ -1020,7 +1020,7 @@ public class IndexShardTests extends IndexShardTestCase {
                             latch.countDown();
                         }
                     },
-                    ThreadPool.Names.BULK, "");
+                    ThreadPool.Names.WRITE, "");
         };
 
         final long firstIncrement = 1 + (randomBoolean() ? 0 : 1);
@@ -1381,7 +1381,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     super.onResponse(releasable);
                 }
             };
-            shard.acquirePrimaryOperationPermit(onLockAcquired, ThreadPool.Names.BULK, "i_" + i);
+            shard.acquirePrimaryOperationPermit(onLockAcquired, ThreadPool.Names.WRITE, "i_" + i);
             onLockAcquiredActions.add(onLockAcquired);
         }
 

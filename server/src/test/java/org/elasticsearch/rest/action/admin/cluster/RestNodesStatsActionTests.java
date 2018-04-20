@@ -155,7 +155,7 @@ public class RestNodesStatsActionTests extends ESTestCase {
         final RestRequest request =
                 new FakeRestRequest.Builder(xContentRegistry()).withPath("/_nodes/stats").withParams(params).build();
         action.prepareRequest(request, mock(NodeClient.class));
-        assertWarnings("the suggest flag is deprecated on the nodes stats API [/_nodes/stats]" );
+        assertWarnings("the suggest index metric is deprecated on the nodes stats API [/_nodes/stats]" );
     }
 
 }

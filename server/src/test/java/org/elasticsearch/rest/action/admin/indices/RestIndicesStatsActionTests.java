@@ -88,7 +88,7 @@ public class RestIndicesStatsActionTests extends ESTestCase {
         final Map<String, String> params = Collections.singletonMap("metric", "suggest");
         final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_stats/suggest").withParams(params).build();
         action.prepareRequest(request, mock(NodeClient.class));
-        assertWarnings("the suggest flag is deprecated on the indices stats API [/_stats]");
+        assertWarnings("the suggest metric is deprecated on the indices stats API [/_stats]");
     }
 
 }

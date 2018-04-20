@@ -148,7 +148,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
                         if (handler != null) {
                             if ("suggest".equals(indexMetric)) {
                                 deprecationLogger.deprecated(
-                                        "the suggest flag is deprecated on the nodes stats API [" + request.uri() + "]");
+                                        "the suggest index metric is deprecated on the nodes stats API [" + request.uri() + "]");
                             }
                             handler.accept(flags);
                         } else {

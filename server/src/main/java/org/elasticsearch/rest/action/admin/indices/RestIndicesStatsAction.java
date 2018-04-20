@@ -103,7 +103,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
                 final Consumer<IndicesStatsRequest> consumer = METRICS.get(metric);
                 if (consumer != null) {
                     if ("suggest".equals(metric)) {
-                        deprecationLogger.deprecated("the suggest flag is deprecated on the indices stats API [" + request.uri() + "]");
+                        deprecationLogger.deprecated("the suggest metric is deprecated on the indices stats API [" + request.uri() + "]");
                     }
                     consumer.accept(indicesStatsRequest);
                 } else {

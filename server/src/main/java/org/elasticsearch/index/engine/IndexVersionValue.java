@@ -24,20 +24,20 @@ import org.elasticsearch.index.translog.Translog;
 
 import java.util.Objects;
 
-final class TranslogVersionValue extends VersionValue {
+final class IndexVersionValue extends VersionValue {
 
-    private static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(TranslogVersionValue.class);
+    private static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IndexVersionValue.class);
 
     private final Translog.Location translogLocation;
 
-    TranslogVersionValue(Translog.Location translogLocation, long version, long seqNo, long term) {
+    IndexVersionValue(Translog.Location translogLocation, long version, long seqNo, long term) {
         super(version, seqNo, term);
         this.translogLocation = translogLocation;
     }
 
     @Override
     public long ramBytesUsed() {
-        return RAM_BYTES_USED;
+        return RAM_BYTES_USED + RamUsageEstimator.shallowSizeOf(translogLocation);
     }
 
     @Override
@@ -45,7 +45,7 @@ final class TranslogVersionValue extends VersionValue {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         if (!super.equals(o)) return false;
-        TranslogVersionValue that = (TranslogVersionValue) o;
+        IndexVersionValue that = (IndexVersionValue) o;
         return Objects.equals(translogLocation, that.translogLocation);
     }
 
@@ -56,7 +56,7 @@ final class TranslogVersionValue extends VersionValue {
 
     @Override
     public String toString() {
-        return "TranslogVersionValue{" +
+        return "IndexVersionValue{" +
             "version=" + version +
             ", seqNo=" + seqNo +
             ", term=" + term +

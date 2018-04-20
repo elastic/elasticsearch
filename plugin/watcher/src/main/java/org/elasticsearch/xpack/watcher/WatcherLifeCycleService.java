@@ -163,12 +163,13 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
             clearAllocationIds();
             executor.execute(() -> this.stop("watcher manually marked to shutdown by cluster state update"));
         } else {
+            final WatcherState watcherState = watcherService.state();
             // if there are old nodes in the cluster hosting the watch index shards, we cannot run distributed, only on the master node
             boolean isDistributedWatchExecutionEnabled = isWatchExecutionDistributed(event.state());
             if (isDistributedWatchExecutionEnabled) {
-                if (watcherService.state() == WatcherState.STARTED && event.state().nodes().getLocalNode().isDataNode()) {
+                if (watcherState == WatcherState.STARTED && event.state().nodes().getLocalNode().isDataNode()) {
                     checkAndSetAllocationIds(event.state(), true);
-                } else if (watcherService.state() != WatcherState.STARTED && watcherService.state() != WatcherState.STARTING) {
+                } else if (watcherState != WatcherState.STARTED && watcherState != WatcherState.STARTING) {
                     IndexMetaData watcherIndexMetaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX, event.state().metaData());
                     IndexMetaData triggeredWatchesIndexMetaData = WatchStoreUtils.getConcreteIndex(TriggeredWatchStoreField.INDEX_NAME,
                             event.state().metaData());
@@ -186,11 +187,11 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
                 }
             } else {
                 if (event.localNodeMaster()) {
-                    if (watcherService.state() != WatcherState.STARTED && watcherService.state() != WatcherState.STARTING) {
+                    if (watcherState != WatcherState.STARTED && watcherState != WatcherState.STARTING) {
                         executor.execute(() -> start(event.state()));
                     }
                 } else {
-                    if (watcherService.state() == WatcherState.STARTED || watcherService.state() == WatcherState.STARTING) {
+                    if (watcherState == WatcherState.STARTED || watcherState == WatcherState.STARTING) {
                         executor.execute(() -> watcherService.pauseExecution("Pausing watcher, cluster contains old nodes not supporting" +
                                 " distributed watch execution"));
                     }

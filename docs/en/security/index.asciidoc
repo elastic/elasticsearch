@@ -78,7 +78,7 @@ issues.
   provides more information about how Security supports user authentication,
   authorization, and encryption.
 
-* <<ccs-tribe-clients-integrations>>
+* <<ccs-clients-integrations>>
   shows you how to interact with an Elasticsearch cluster protected by
   X-Pack Security.
 

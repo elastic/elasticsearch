@@ -26,7 +26,7 @@ buildRestTests.expectedUnconvertedCandidates = [
         'en/security/authentication/user-cache.asciidoc',
         'en/security/authorization/field-and-document-access-control.asciidoc',
         'en/security/authorization/run-as-privilege.asciidoc',
-        'en/security/tribe-clients-integrations/http.asciidoc',
+        'en/security/ccs-clients-integrations/http.asciidoc',
         'en/security/authorization/custom-roles-provider.asciidoc',
         'en/watcher/actions/email.asciidoc',
         'en/watcher/actions/hipchat.asciidoc',

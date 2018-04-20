@@ -1,4 +1,4 @@
-[[ccs-tribe-clients-integrations]]
+[[ccs-clients-integrations]]
 == Cross Cluster Search, Clients and Integrations
 
 When using {ref}/modules-cross-cluster-search.html[Cross Cluster Search]
@@ -31,14 +31,14 @@ or at least communicate with the cluster in a secured way:
 * {kibana-ref}/secure-reporting.html[Reporting]
 * {winlogbeat-ref}/securing-beats.html[Winlogbeat]
 
-include::tribe-clients-integrations/cross-cluster.asciidoc[]
+include::ccs-clients-integrations/cross-cluster.asciidoc[]
 
-include::tribe-clients-integrations/java.asciidoc[]
+include::ccs-clients-integrations/java.asciidoc[]
 
-include::tribe-clients-integrations/http.asciidoc[]
+include::ccs-clients-integrations/http.asciidoc[]
 
-include::tribe-clients-integrations/hadoop.asciidoc[]
+include::ccs-clients-integrations/hadoop.asciidoc[]
 
-include::tribe-clients-integrations/beats.asciidoc[]
+include::ccs-clients-integrations/beats.asciidoc[]
 
-include::tribe-clients-integrations/monitoring.asciidoc[]
+include::ccs-clients-integrations/monitoring.asciidoc[]

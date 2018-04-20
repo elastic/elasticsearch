@@ -1,0 +1,22 @@
+evaluationDependsOn(xpackModule('core'))
+
+apply plugin: 'elasticsearch.esplugin'
+esplugin {
+    name 'x-pack-deprecation'
+    description 'Elasticsearch Expanded Pack Plugin - Deprecation'
+    classname 'org.elasticsearch.xpack.deprecation.Deprecation'
+    extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-deprecation'
+
+compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
+
+dependencies {
+    compileOnly "org.elasticsearch.plugin:x-pack-core:${version}"
+}
+
+run {
+    plugin xpackModule('core')
+}
+
+integTest.enabled = false

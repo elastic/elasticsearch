@@ -1,0 +1,40 @@
+[role="xpack"]
+[[monitoring-tribe]]
+=== Configuring a Tribe Node to Work with Monitoring
+
+If you connect to a cluster through a <<modules-tribe,tribe node>>,
+and you want to monitor the tribe node, then you will need to install {xpack} on
+that node as well.
+
+With this configuration, the tribe node is included in the node count displayed
+in the Monitoring UI, but is not included in the node list because it does not
+export any data to the monitoring cluster.
+
+To include the tribe node in the monitoring data, enable Monitoring data
+collection at the tribe level:
+
+[source,yaml]
+----------------------------------
+node.name: my-tribe-node1
+
+tribe:
+  on_conflict: prefer_cluster1
+  c1:
+    cluster.name: cluster1
+    discovery.zen.ping.unicast.hosts: [ "cluster1-node1:9300", "cluster1-node2:9300", "cluster1-node2:9300" ]
+    xpack.monitoring.enabled: true <1>
+  c2:
+    cluster.name: cluster2
+    discovery.zen.ping.unicast.hosts: [ "cluster2-node3:9300", "cluster2-node3:9300", "cluster2-node3:9300" ]
+    xpack.monitoring: <2>
+      enabled: true
+      exporters:
+        id1:
+          type: http
+          host: [ "monitoring-cluster:9200" ]
+----------------------------------
+<1> Enable data collection from the tribe node using a Local Exporter.
+<2> Enable data collection from the tribe node using an HTTP Exporter.
+
+When you enable data collection from the tribe node, it is included in both the
+node count and node list.

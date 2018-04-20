@@ -1,0 +1,8 @@
+-/target
+-/license/target
+-/marvel/target
+-/qa/target
+-/shield/target
+-/watcher/target
+-/x-dev-tools/target
+-*.class

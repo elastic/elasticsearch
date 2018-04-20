@@ -1,0 +1,27 @@
+---
+"Tribe node search":
+
+ - do:
+      index:
+          index:   index1
+          type:    test
+          id:      1
+          body:    { foo: bar }
+
+ - do:
+      index:
+          index:   index2
+          type:    test
+          id:      1
+          body:    { foo: bar }
+
+ - do:
+      indices.refresh: {}
+
+ - do:
+      search:
+          index:   index1,index2
+          body:
+            query:   { term: { foo: bar }}
+
+ - match: { hits.total: 2 }

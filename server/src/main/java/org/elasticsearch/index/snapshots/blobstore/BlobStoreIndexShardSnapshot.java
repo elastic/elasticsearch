@@ -358,11 +358,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
 
     private final int incrementalFileCount;
 
-    private final int totalFileCount;
-
     private final long incrementalSize;
-
-    private final long totalSize;
 
     private final List<FileInfo> indexFiles;
 
@@ -391,16 +387,6 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         this.time = time;
         this.incrementalFileCount = incrementalFileCount;
         this.incrementalSize = incrementalSize;
-
-        int totalFileCount = 0;
-        long totalSize = 0;
-        for (FileInfo indexFile : indexFiles) {
-            totalFileCount ++;
-            totalSize += indexFile.metadata.length();
-        }
-
-        this.totalFileCount = totalFileCount;
-        this.totalSize = totalSize;
     }
 
     /**
@@ -413,9 +399,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         this.startTime = 0;
         this.time = 0;
         this.incrementalFileCount = 0;
-        this.totalFileCount = 0;
         this.incrementalSize = 0;
-        this.totalSize = 0;
     }
 
     /**
@@ -467,10 +451,10 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
     }
 
     /**
-     * Returns total number of files that where snapshotted
+     * Returns total number of files that are referenced by this snapshot
      */
     public int totalFileCount() {
-        return totalFileCount;
+        return indexFiles.size();
     }
 
     /**
@@ -484,23 +468,26 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
      * Returns total size of all files that where snapshotted
      */
     public long totalSize() {
-        return totalSize;
+        return indexFiles.stream().mapToLong(fi -> fi.metadata().length()).sum();
     }
 
     private static final String NAME = "name";
     private static final String INDEX_VERSION = "index_version";
     private static final String START_TIME = "start_time";
     private static final String TIME = "time";
-    private static final String INCREMENTAL_FILE_COUNT = "incremental_file_count";
-    private static final String INCREMENTAL_SIZE = "incremental_size";
     private static final String FILES = "files";
+    // for the sake of BWC keep the actual property names as in 6.x
+    // + there is a constraint in #fromXContent() that leads to ElasticsearchParseException("unknown parameter [incremental_file_count]");
+    private static final String INCREMENTAL_FILE_COUNT = "number_of_files";
+    private static final String INCREMENTAL_SIZE = "total_size";
+
 
     private static final ParseField PARSE_NAME = new ParseField("name");
     private static final ParseField PARSE_INDEX_VERSION = new ParseField("index_version", "index-version");
     private static final ParseField PARSE_START_TIME = new ParseField("start_time");
     private static final ParseField PARSE_TIME = new ParseField("time");
-    private static final ParseField PARSE_INCREMENTAL_FILE_COUNT = new ParseField(INCREMENTAL_FILE_COUNT, "number_of_files");
-    private static final ParseField PARSE_INCREMENTAL_SIZE = new ParseField(INCREMENTAL_SIZE, "total_size");
+    private static final ParseField PARSE_INCREMENTAL_FILE_COUNT = new ParseField(INCREMENTAL_FILE_COUNT);
+    private static final ParseField PARSE_INCREMENTAL_SIZE = new ParseField(INCREMENTAL_SIZE);
     private static final ParseField PARSE_FILES = new ParseField(FILES);
 
     /**

@@ -81,6 +81,7 @@ import org.elasticsearch.test.TestCustomMetaData;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -1011,38 +1012,37 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             .setType("fs")
             .setSettings(Settings.builder().put("location", repoPath)));
 
-        logger.info("--> verify the repository");
-        VerifyRepositoryResponse verifyResponse = client.admin().cluster().prepareVerifyRepository(repositoryName).get();
-        assertThat(verifyResponse.getNodes().length, equalTo(cluster().numDataAndMasterNodes()));
-
         logger.info("--> create a snapshot");
-        CreateSnapshotResponse snapshotResponse = client.admin().cluster().prepareCreateSnapshot(repositoryName, snapshot0)
+        client.admin().cluster().prepareCreateSnapshot(repositoryName, snapshot0)
             .setIncludeGlobalState(true)
             .setWaitForCompletion(true)
-            .execute().actionGet();
-        assertThat(snapshotResponse.status(), equalTo(RestStatus.OK));
-        ensureSearchable();
+            .get();
 
         SnapshotsStatusResponse response = client.admin().cluster().prepareSnapshotStatus(repositoryName)
             .setSnapshots(snapshot0)
-            .execute()
-            .actionGet();
+            .get();
 
         List<SnapshotStatus> snapshots = response.getSnapshots();
 
-        List<Path> files = scanSnapshotFolder(repoPath);
+        List<Path> snapshot0Files = scanSnapshotFolder(repoPath);
         assertThat(snapshots, hasSize(1));
-        SnapshotStats stats = snapshots.get(0).getStats();
 
-
-        assertThat(stats.getTotalFileCount(), is(files.size()));
-        assertThat(stats.getTotalSize(), is(files.stream().mapToLong(f -> {
+        final int snapshot0FileCount = snapshot0Files.size();
+        final long snapshot0FileSize = snapshot0Files.stream().mapToLong(f -> {
             try {
                 return Files.size(f);
             } catch (IOException e) {
-                throw new RuntimeException(e.getMessage(), e);
+                throw new UncheckedIOException(e);
             }
-        }).sum()));
+        }).sum();
+
+        SnapshotStats stats = snapshots.get(0).getStats();
+
+        assertThat(stats.getTotalFileCount(), is(snapshot0FileCount));
+        assertThat(stats.getTotalSize(), is(snapshot0FileSize));
+
+        assertThat(stats.getIncrementalFileCount(), equalTo(snapshot0FileCount));
+        assertThat(stats.getIncrementalSize(), equalTo(snapshot0FileSize));
 
         assertThat(stats.getIncrementalFileCount(), equalTo(stats.getProcessedFileCount()));
         assertThat(stats.getIncrementalSize(), equalTo(stats.getProcessedSize()));
@@ -1053,23 +1053,32 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             client.prepareIndex(indexName, "type").setSource("test", "test" + i).execute().actionGet();
         }
 
-        // create another snapshot and drop 1st one
-        // total size has to grow, and has to be equal to files on fs
+        // create another snapshot
+        // total size has to grow and has to be equal to files on fs
         assertThat(client.admin().cluster()
                 .prepareCreateSnapshot(repositoryName, snapshot1)
                 .setWaitForCompletion(true).get().status(),
             equalTo(RestStatus.OK));
 
+        //  drop 1st one to avoid miscalculation as snapshot reuses some files of prev snapshot
         assertTrue(client.admin().cluster()
             .prepareDeleteSnapshot(repositoryName, snapshot0)
             .get().isAcknowledged());
 
         response = client.admin().cluster().prepareSnapshotStatus(repositoryName)
             .setSnapshots(snapshot1)
-            .execute()
-            .actionGet();
+            .get();
 
-        final List<Path> files1 = scanSnapshotFolder(repoPath);
+        final List<Path> snapshot1Files = scanSnapshotFolder(repoPath);
+
+        final int snapshot1FileCount = snapshot1Files.size();
+        final long snapshot1FileSize = snapshot1Files.stream().mapToLong(f -> {
+            try {
+                return Files.size(f);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }).sum();
 
         snapshots = response.getSnapshots();
 
@@ -1081,14 +1090,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertThat(stats.getTotalSize(), lessThan(anotherStats.getTotalSize()));
         assertThat(stats.getTotalFileCount(), lessThan(anotherStats.getTotalFileCount()));
 
-        assertThat(anotherStats.getTotalFileCount(), is(files1.size()));
-        assertThat(anotherStats.getTotalSize(), is(files1.stream().mapToLong(f -> {
-            try {
-                return Files.size(f);
-            } catch (IOException e) {
-                throw new RuntimeException(e.getMessage(), e);
-            }
-        }).sum()));
+        assertThat(anotherStats.getTotalFileCount(), is(snapshot1FileCount));
+        assertThat(anotherStats.getTotalSize(), is(snapshot1FileSize));
     }
 
 

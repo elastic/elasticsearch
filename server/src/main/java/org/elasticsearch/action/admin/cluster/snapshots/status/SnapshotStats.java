@@ -126,15 +126,15 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
         out.writeVLong(startTime);
         out.writeVLong(time);
 
-        out.writeVInt(totalFileCount);
+        out.writeVInt(incrementalFileCount);
         out.writeVInt(processedFileCount);
 
-        out.writeVLong(totalSize);
+        out.writeVLong(incrementalSize);
         out.writeVLong(processedSize);
 
         if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            out.writeVInt(incrementalFileCount);
-            out.writeVLong(incrementalSize);
+            out.writeVInt(totalFileCount );
+            out.writeVLong(totalSize);
         }
     }
 
@@ -143,18 +143,18 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
         startTime = in.readVLong();
         time = in.readVLong();
 
-        totalFileCount = in.readVInt();
+        incrementalFileCount = in.readVInt();
         processedFileCount = in.readVInt();
 
-        totalSize = in.readVLong();
+        incrementalSize = in.readVLong();
         processedSize = in.readVLong();
 
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            incrementalFileCount = in.readVInt();
-            incrementalSize = in.readVLong();
+            totalFileCount = in.readVInt();
+            totalSize = in.readVLong();
         } else {
-            incrementalFileCount = totalFileCount;
-            incrementalSize = totalSize;
+            totalFileCount = incrementalFileCount;
+            totalSize = incrementalSize;
         }
     }
 

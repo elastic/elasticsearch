@@ -25,6 +25,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -38,28 +39,100 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
     public void testBinarySorted() {
         MappedFieldType keyword = new KeywordFieldMapper.KeywordFieldType();
         keyword.setName("keyword");
-        BinaryValuesSource source = new BinaryValuesSource(keyword, context -> null, 1, 1);
+        BinaryValuesSource source = new BinaryValuesSource(
+            keyword,
+            context -> null,
+            DocValueFormat.RAW,
+            null,
+            1,
+            1
+        );
         assertNull(source.createSortedDocsProducerOrNull(mockIndexReader(100, 49), null));
         IndexReader reader = mockIndexReader(1, 1);
         assertNotNull(source.createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery()));
         assertNotNull(source.createSortedDocsProducerOrNull(reader, null));
         assertNull(source.createSortedDocsProducerOrNull(reader,
             new TermQuery(new Term("keyword", "toto)"))));
-        source = new BinaryValuesSource(keyword, context -> null, 0, -1);
+
+        source = new BinaryValuesSource(
+            keyword,
+            context -> null,
+            DocValueFormat.RAW,
+            "missing_value",
+            1,
+            1
+        );
+        assertNull(source.createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery()));
+        assertNull(source.createSortedDocsProducerOrNull(reader, null));
+
+        source = new BinaryValuesSource(
+            keyword,
+            context -> null,
+            DocValueFormat.RAW,
+            null,
+            0,
+            -1
+        );
+        assertNull(source.createSortedDocsProducerOrNull(reader, null));
+
+        MappedFieldType ip = new IpFieldMapper.IpFieldType();
+        ip.setName("ip");
+        source = new BinaryValuesSource(ip, context -> null, DocValueFormat.RAW,null, 1, 1);
         assertNull(source.createSortedDocsProducerOrNull(reader, null));
     }
 
     public void testGlobalOrdinalsSorted() {
-        MappedFieldType keyword = new KeywordFieldMapper.KeywordFieldType();
+        final MappedFieldType keyword = new KeywordFieldMapper.KeywordFieldType();
         keyword.setName("keyword");
-        BinaryValuesSource source = new BinaryValuesSource(keyword, context -> null, 1, 1);
+        GlobalOrdinalValuesSource source = new GlobalOrdinalValuesSource(
+            BigArrays.NON_RECYCLING_INSTANCE,
+            keyword, context -> null,
+            DocValueFormat.RAW,
+            null,
+            1,
+            1
+        );
         assertNull(source.createSortedDocsProducerOrNull(mockIndexReader(100, 49), null));
         IndexReader reader = mockIndexReader(1, 1);
         assertNotNull(source.createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery()));
         assertNotNull(source.createSortedDocsProducerOrNull(reader, null));
         assertNull(source.createSortedDocsProducerOrNull(reader,
             new TermQuery(new Term("keyword", "toto)"))));
-        source = new BinaryValuesSource(keyword, context -> null, 1, -1);
+
+        source = new GlobalOrdinalValuesSource(
+            BigArrays.NON_RECYCLING_INSTANCE,
+            keyword,
+            context -> null,
+            DocValueFormat.RAW,
+            "missing_value",
+            1,
+            1
+        );
+        assertNull(source.createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery()));
+        assertNull(source.createSortedDocsProducerOrNull(reader, null));
+
+        source = new GlobalOrdinalValuesSource(
+            BigArrays.NON_RECYCLING_INSTANCE,
+            keyword,
+            context -> null,
+            DocValueFormat.RAW,
+            null,
+            1,
+            -1
+        );
+        assertNull(source.createSortedDocsProducerOrNull(reader, null));
+
+        final MappedFieldType ip = new IpFieldMapper.IpFieldType();
+        ip.setName("ip");
+        source = new GlobalOrdinalValuesSource(
+            BigArrays.NON_RECYCLING_INSTANCE,
+            ip,
+            context -> null,
+            DocValueFormat.RAW,
+            null,
+            1,
+            1
+        );
         assertNull(source.createSortedDocsProducerOrNull(reader, null));
     }
 
@@ -72,23 +145,62 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
                     numberType == NumberFieldMapper.NumberType.SHORT ||
                     numberType == NumberFieldMapper.NumberType.INTEGER ||
                     numberType == NumberFieldMapper.NumberType.LONG) {
-                source = new LongValuesSource(BigArrays.NON_RECYCLING_INSTANCE,
-                    number, context -> null, value -> value, DocValueFormat.RAW, 1, 1);
+
+                source = new LongValuesSource(
+                    BigArrays.NON_RECYCLING_INSTANCE,
+                    number,
+                    context -> null,
+                    value -> value,
+                    DocValueFormat.RAW,
+                    null,
+                    1,
+                    1
+                );
                 assertNull(source.createSortedDocsProducerOrNull(mockIndexReader(100, 49), null));
                 IndexReader reader = mockIndexReader(1, 1);
                 assertNotNull(source.createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery()));
                 assertNotNull(source.createSortedDocsProducerOrNull(reader, null));
                 assertNotNull(source.createSortedDocsProducerOrNull(reader, LongPoint.newRangeQuery("number", 0, 1)));
                 assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("keyword", "toto)"))));
-                LongValuesSource sourceRev =
-                    new LongValuesSource(BigArrays.NON_RECYCLING_INSTANCE,
-                        number, context -> null, value -> value, DocValueFormat.RAW, 1, -1);
+
+                LongValuesSource sourceWithMissing = new LongValuesSource(
+                    BigArrays.NON_RECYCLING_INSTANCE,
+                    number,
+                    context -> null,
+                    value -> value,
+                    DocValueFormat.RAW,
+                    0d,
+                    1,
+                    1);
+                assertNull(sourceWithMissing.createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery()));
+                assertNull(sourceWithMissing.createSortedDocsProducerOrNull(reader, null));
+                assertNull(sourceWithMissing.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("keyword", "toto)"))));
+
+                LongValuesSource sourceRev = new LongValuesSource(
+                    BigArrays.NON_RECYCLING_INSTANCE,
+                    number,
+                    context -> null,
+                    value -> value,
+                    DocValueFormat.RAW,
+                    null,
+                    1,
+                    -1
+                );
                 assertNull(sourceRev.createSortedDocsProducerOrNull(reader, null));
             } else if (numberType == NumberFieldMapper.NumberType.HALF_FLOAT ||
-                    numberType == NumberFieldMapper.NumberType.FLOAT ||
-                    numberType == NumberFieldMapper.NumberType.DOUBLE) {
-                source = new DoubleValuesSource(BigArrays.NON_RECYCLING_INSTANCE,
-                    number, context -> null, 1, 1);
+                            numberType == NumberFieldMapper.NumberType.FLOAT ||
+                            numberType == NumberFieldMapper.NumberType.DOUBLE) {
+                source = new DoubleValuesSource(
+                    BigArrays.NON_RECYCLING_INSTANCE,
+                    number,
+                    context -> null,
+                    DocValueFormat.RAW,
+                    null,
+                    1,
+                    1
+                );
+                IndexReader reader = mockIndexReader(1, 1);
+                assertNull(source.createSortedDocsProducerOrNull(reader, null));
             } else{
                 throw new AssertionError ("missing type:" + numberType.typeName());
             }

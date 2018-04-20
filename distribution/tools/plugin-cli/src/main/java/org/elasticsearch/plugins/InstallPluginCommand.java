@@ -208,7 +208,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         String pluginId = arguments.value(options);
-        boolean isBatch = options.has(batchOption) || System.console() == null;
+        final boolean isBatch = options.has(batchOption);
         execute(terminal, pluginId, isBatch, env);
     }
 
@@ -698,10 +698,13 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         final PluginInfo info = loadPluginInfo(terminal, tmpRoot, isBatch, env);
         // read optional security policy (extra permissions), if it exists, confirm or warn the user
         Path policy = tmpRoot.resolve(PluginInfo.ES_PLUGIN_POLICY);
+        final Set<String> permissions;
         if (Files.exists(policy)) {
-            Set<String> permissions = PluginSecurity.parsePermissions(policy, env.tmpFile());
-            PluginSecurity.confirmPolicyExceptions(terminal, permissions, info.hasNativeController(), isBatch);
+            permissions = PluginSecurity.parsePermissions(policy, env.tmpFile());
+        } else {
+            permissions = Collections.emptySet();
         }
+        PluginSecurity.confirmPolicyExceptions(terminal, permissions, info.hasNativeController(), isBatch);
 
         final Path destination = env.pluginsFile().resolve(info.getName());
         deleteOnFailure.add(destination);

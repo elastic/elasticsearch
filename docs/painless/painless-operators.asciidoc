@@ -1,3 +1,4 @@
+[[painless-operators]]
 === Operators
 
 The following is a table of the available operators in Painless.  Each operator will have further information and examples outside of the table.  Many operators will have a promotion table as described by the documentation on promotion [MARK].

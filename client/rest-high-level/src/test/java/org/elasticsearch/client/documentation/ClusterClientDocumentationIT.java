@@ -124,10 +124,6 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.masterNodeTimeout("1m"); // <2>
         // end::put-settings-request-masterTimeout
 
-        // tag::put-settings-request-flat-settings
-        request.flatSettings(true); // <1>
-        // end::put-settings-request-flat-settings
-
         // tag::put-settings-execute
         ClusterUpdateSettingsResponse response = client.cluster().putSettings(request);
         // end::put-settings-execute

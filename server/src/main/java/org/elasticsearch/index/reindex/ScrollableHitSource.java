@@ -30,7 +30,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -201,10 +200,6 @@ public abstract class ScrollableHitSource {
          */
         @Nullable XContentType getXContentType();
         /**
-         * The document id of the parent of the hit if there is a parent or null if there isn't.
-         */
-        @Nullable String getParent();
-        /**
          * The routing on the hit if there is any or null if there isn't.
          */
         @Nullable String getRouting();
@@ -221,7 +216,6 @@ public abstract class ScrollableHitSource {
 
         private BytesReference source;
         private XContentType xContentType;
-        private String parent;
         private String routing;
 
         public BasicHit(String index, String type, String id, long version) {
@@ -264,16 +258,6 @@ public abstract class ScrollableHitSource {
         public BasicHit setSource(BytesReference source, XContentType xContentType) {
             this.source = source;
             this.xContentType = xContentType;
-            return this;
-        }
-
-        @Override
-        public String getParent() {
-            return parent;
-        }
-
-        public BasicHit setParent(String parent) {
-            this.parent = parent;
             return this;
         }
 

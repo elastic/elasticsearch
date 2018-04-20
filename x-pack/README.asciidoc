@@ -1,0 +1,120 @@
+= Elasticsearch X-Pack
+
+A set of Elastic's commercial plugins for Elasticsearch:
+
+- License
+- Security
+- Watcher
+- Monitoring
+- Machine Learning
+- Graph
+
+= Setup
+
+You must checkout `x-pack-elasticsearch` and `elasticsearch` with a specific directory structure. The
+`elasticsearch` checkout will be used when building `x-pack-elasticsearch`. The structure is:
+
+- /path/to/elastic/elasticsearch
+- /path/to/elastic/elasticsearch-extra/x-pack-elasticsearch
+
+== Vault Secret
+
+The build requires a Vault Secret ID. You can use a GitHub token by following these steps:
+
+1. Go to https://github.com/settings/tokens
+2. Click *Generate new token*
+3. Set permissions to `read:org`
+4. Copy the token into `~/.elastic/github.token`
+5. Set the token's file permissions to `600`
+
+```
+$ mkdir ~/.elastic
+$ vi ~/.elastic/github.token
+# Add your_token exactly as it is into the file and save it
+$ chmod 600 ~/.elastic/github.token
+```
+
+If you do not create the token, then you will see something along the lines of this as the failure when trying to build X-Pack:
+
+```
+* What went wrong:
+Missing ~/.elastic/github.token file or VAULT_SECRET_ID environment variable, needed to authenticate with vault for secrets
+```
+
+=== Offline Mode
+
+When running the build in offline mode (`--offline`), it will not required to have the vault secret setup.
+
+== Native Code
+
+**This is mandatory as tests depend on it**
+
+Machine Learning requires platform specific binaries, built from https://github.com/elastic/ml-cpp via CI servers.
+
+= Build
+
+- Run unit tests:
++
+[source, txt]
+-----
+gradle clean test
+-----
+
+- Run all tests:
++
+[source, txt]
+-----
+gradle clean check
+-----
+
+- Run integration tests:
++
+[source, txt]
+-----
+gradle clean integTest
+-----
+
+- Package X-Pack (without running tests)
++
+[source, txt]
+-----
+gradle clean assemble
+-----
+
+- Install X-Pack (without running tests)
++
+[source, txt]
+-----
+gradle clean install
+-----
+
+= Building documentation
+
+The source files in this repository can be included in either the X-Pack
+Reference or the Elasticsearch Reference.
+
+NOTE: In 5.4 and later, the Elasticsearch Reference includes X-Pack-specific
+content that is pulled from this repo.
+
+To build the Elasticsearch Reference on your local machine, use the `docbldes` 
+or `docbldesx` build commands defined in
+https://github.com/elastic/docs/blob/master/doc_build_aliases.sh
+
+== Adding Images
+
+When you include an image in the documentation, specify the path relative to the
+location of the asciidoc file. By convention, we put images in an `images`
+subdirectory.
+
+For example to insert `watcher-ui-edit-watch.png` in `watcher/limitations.asciidoc`:
+
+. Add an `images` subdirectory to the watcher directory if it doesn't already exist.
+. In `limitations.asciidoc` specify:
++
+[source, txt]
+-----
+ image::images/watcher-ui-edit-watch.png["Editing a watch"]
+-----
+
+Please note that image names and anchor IDs must be unique within the book, so
+do not use generic identifiers.

@@ -47,7 +47,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -193,6 +192,8 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 }
                 // Now check the whole map just in case the text matches but something else differs
                 assertEquals(firstToken, secondToken);
+                previousFirst = firstToken;
+                previousSecond = secondToken;
             }
             if (secondTokens.hasNext()) {
                 fail(second + " has more tokens than " + first + ". "

@@ -55,9 +55,15 @@ public class GoogleCloudStorageClientSettings {
 
     /** An override for the Storage host name to connect to. */
     static final Setting.AffixSetting<String> HOST_SETTING = Setting.affixKeySetting(PREFIX, "host",
-            key -> Setting.simpleString(key,
-                    ENDPOINT_SETTING.getConcreteSetting(key.substring(0, key.length() - "host".length()) + "endpoint"),
-                    Setting.Property.NodeScope));
+            key -> {
+                if (key.endsWith("host")) {
+                    return Setting.simpleString(key,
+                            ENDPOINT_SETTING.getConcreteSetting(key.substring(0, key.length() - "host".length()) + "endpoint"),
+                            Setting.Property.NodeScope);
+                } else {
+                    return Setting.simpleString(key, Setting.Property.NodeScope);
+                }
+            });
 
     /** An override for the Google Project ID. */
     static final Setting.AffixSetting<String> PROJECT_ID_SETTING = Setting.affixKeySetting(PREFIX, "project_id",
@@ -160,7 +166,8 @@ public class GoogleCloudStorageClientSettings {
     static GoogleCloudStorageClientSettings getClientSettings(final Settings settings, final String clientName) {
         return new GoogleCloudStorageClientSettings(
             loadCredential(settings, clientName),
-                getConfigValue(settings, clientName, HOST_SETTING), getConfigValue(settings, clientName, PROJECT_ID_SETTING),
+            getConfigValue(settings, clientName, HOST_SETTING),
+            getConfigValue(settings, clientName, PROJECT_ID_SETTING),
             getConfigValue(settings, clientName, CONNECT_TIMEOUT_SETTING),
             getConfigValue(settings, clientName, READ_TIMEOUT_SETTING),
             getConfigValue(settings, clientName, APPLICATION_NAME_SETTING)

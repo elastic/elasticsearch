@@ -37,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
 public class BulkProcessorRetryIT extends ESIntegTestCase {
@@ -147,7 +148,9 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
                 .setSize(0)
                 .get();
 
-        if (rejectedAfterAllRetries) {
+        if (rejectedExecutionExpected) {
+            assertThat((int) results.getHits().getTotalHits(), lessThanOrEqualTo(numberOfAsyncOps));
+        } else if (rejectedAfterAllRetries) {
             assertThat((int) results.getHits().getTotalHits(), lessThan(numberOfAsyncOps));
         } else {
             assertThat((int) results.getHits().getTotalHits(), equalTo(numberOfAsyncOps));

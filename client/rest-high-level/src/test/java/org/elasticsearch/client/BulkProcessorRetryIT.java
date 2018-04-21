@@ -40,6 +40,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
 
@@ -129,7 +130,9 @@ public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
         highLevelClient().indices().refresh(new RefreshRequest());
         int multiGetResponsesCount = highLevelClient().multiGet(multiGetRequest).getResponses().length;
 
-        if (rejectedAfterAllRetries) {
+        if (rejectedExecutionExpected) {
+            assertThat(multiGetResponsesCount, lessThanOrEqualTo(numberOfAsyncOps));
+        } else if (rejectedAfterAllRetries) {
             assertThat(multiGetResponsesCount, lessThan(numberOfAsyncOps));
         } else {
             assertThat(multiGetResponsesCount, equalTo(numberOfAsyncOps));

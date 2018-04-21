@@ -84,7 +84,6 @@ public abstract class AllocationDecider extends AbstractComponent {
         return Decision.ALWAYS;
     }
 
-
     /**
      * Returns a {@link Decision} whether the given shard routing can be allocated at all at this state of the
      * {@link RoutingAllocation}. The default is {@link Decision#ALWAYS}.

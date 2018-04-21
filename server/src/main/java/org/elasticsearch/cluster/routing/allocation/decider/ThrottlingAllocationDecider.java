@@ -32,7 +32,6 @@ import org.elasticsearch.common.settings.Settings;
 import static org.elasticsearch.cluster.routing.allocation.decider.Decision.THROTTLE;
 import static org.elasticsearch.cluster.routing.allocation.decider.Decision.YES;
 
-
 /**
  * {@link ThrottlingAllocationDecider} controls the recovery process per node in
  * the cluster. It exposes two settings via the cluster update API that allow

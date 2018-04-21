@@ -230,7 +230,6 @@ public class AllocationDeciders extends AllocationDecider {
         return ret;
     }
 
-
     @Override
     public Decision canAllocateAnyShardToNode(RoutingNode node, RoutingAllocation allocation) {
         Decision.Multi ret = new Decision.Multi();

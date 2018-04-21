@@ -238,7 +238,6 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         private final MetaData metaData;
         private final float avgShardsPerNode;
         private final NodeSorter sorter;
-
         private final Set<RoutingNode> inEligibleTargetNode;
 
 
@@ -662,6 +661,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             // offloading the shards.
             for (Iterator<ShardRouting> it = allocation.routingNodes().nodeInterleavedShardIterator(); it.hasNext(); ) {
                 ShardRouting shardRouting = it.next();
+
 
                 //Verify if the cluster concurrent recoveries have been reached.
                 if (allocation.deciders().canMoveAnyShard(allocation).type() != Decision.Type.YES) {

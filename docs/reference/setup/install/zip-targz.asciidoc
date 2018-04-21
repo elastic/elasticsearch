@@ -6,7 +6,7 @@ packages can be used to install Elasticsearch on any system and are the
 easiest package format to use when trying out Elasticsearch.
 
 These packages are free to use under the Elastic license. They contain open 
-source, free commercial, and paid commercial features. 
+source and free commercial features and access to paid commercial features.  
 {xpack-ref}/license-management.html[Start a 30-day trial] to try out all of the 
 paid commercial features. See the 
 https://www.elastic.co/subscriptions[Subscriptions] page for information about 
@@ -47,8 +47,8 @@ cd elasticsearch-{version}/ <2>
     `elasticsearch-{version}.zip: OK`.
 <2> This directory is known as `$ES_HOME`.
 
-Alternatively, you can download the following package, which includes only 
-Apache 2.0 licensed code: 
+Alternatively, you can download the following package, which contains only 
+features that are available under the Apache 2.0 license: 
 https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}.zip
 
 endif::[]

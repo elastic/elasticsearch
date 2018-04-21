@@ -9,8 +9,8 @@ and Oracle Enterprise.
 NOTE: RPM install is not supported on distributions with old versions of RPM,
 such as SLES 11 and CentOS 5.  Please see <<zip-targz>> instead.
 
-This package is free to use under the Elastic license. It contains open source, 
-free commercial, and paid commercial features. 
+This package is free to use under the Elastic license. It contains open source 
+and free commercial features and access to paid commercial features. 
 {xpack-ref}/license-management.html[Start a 30-day trial] to try out all of the 
 paid commercial features. See the 
 https://www.elastic.co/subscriptions[Subscriptions] page for information about 
@@ -118,8 +118,8 @@ sudo rpm --install elasticsearch-{version}.rpm
 <1> Compares the SHA of the downloaded RPM and the published checksum, which should output
     `elasticsearch-{version}.rpm: OK`.
     
-Alternatively, you can download the following package, which includes only 
-Apache 2.0 licensed code: 
+Alternatively, you can download the following package, which contains only 
+features that are available under the Apache 2.0 license: 
 https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}.rpm    
 
 endif::[]

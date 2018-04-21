@@ -96,10 +96,6 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             throw new IllegalStateException("cannot create join field [" + name + "] " +
                 "for the partitioned index " + "[" + settings.getIndex().getName() + "]");
         }
-        if (settings.isSingleType() == false) {
-            throw new IllegalStateException("cannot create join field [" + name + "] " +
-                "on multi-types index [" + settings.getIndex().getName() + "]");
-        }
     }
 
     private static void checkObjectOrNested(ContentPath path, String name) {
@@ -316,8 +312,8 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
-        super.doMerge(mergeWith, updateAllTypes);
+    protected void doMerge(Mapper mergeWith) {
+        super.doMerge(mergeWith);
         ParentJoinFieldMapper joinMergeWith = (ParentJoinFieldMapper) mergeWith;
         List<String> conflicts = new ArrayList<>();
         for (ParentIdFieldMapper mapper : parentIdFields) {
@@ -347,7 +343,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
                         conflicts.add("cannot remove child [" + child + "] in join field [" + name() + "]");
                     }
                 }
-                ParentIdFieldMapper merged = (ParentIdFieldMapper) self.merge(mergeWithMapper, updateAllTypes);
+                ParentIdFieldMapper merged = (ParentIdFieldMapper) self.merge(mergeWithMapper);
                 newParentIdFields.add(merged);
             }
         }
@@ -356,7 +352,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
         this.eagerGlobalOrdinals = joinMergeWith.eagerGlobalOrdinals;
         this.parentIdFields = Collections.unmodifiableList(newParentIdFields);
-        this.uniqueFieldMapper = (MetaJoinFieldMapper) uniqueFieldMapper.merge(joinMergeWith.uniqueFieldMapper, updateAllTypes);
+        this.uniqueFieldMapper = (MetaJoinFieldMapper) uniqueFieldMapper.merge(joinMergeWith.uniqueFieldMapper);
         uniqueFieldMapper.setFieldMapper(this);
     }
 

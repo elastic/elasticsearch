@@ -66,6 +66,7 @@ built-in authentication mechanism, you can authenticate on the Storage service u
 https://cloud.google.com/iam/docs/overview#service_account[Service Account] file.
 
 To create a service account file:
+
 1. Connect to the https://console.cloud.google.com/[Google Cloud Platform Console]
 2. Select your project
 3. Got to the https://console.cloud.google.com/permissions[Permission] tab
@@ -115,23 +116,15 @@ PUT _snapshot/my_gcs_repository
 // CONSOLE
 // TEST[skip:we don't have gcs setup while testing this]
 
-[[repository-gcs-bucket-permission]]
-===== Set Bucket Permission
+[[repository-gcs-client]]
+==== Client Settings
 
-The service account used to access the bucket must have the "Writer" access to the bucket:
+The client used to connect to Google Cloud Storage has a number of settings available.
+Client setting names are of the form `gcs.client.CLIENT_NAME.SETTING_NAME` and specified
+inside `elasticsearch.yml`. The default client name looked up by a `gcs` repository is
+called `default`, but can be customized with the repository setting `client`.
 
-1. Connect to the https://console.cloud.google.com/[Google Cloud Platform Console]
-2. Select your project
-3. Got to the https://console.cloud.google.com/storage/browser[Storage Browser]
-4. Select the bucket and "Edit bucket permission"
-5. The service account must be configured as a "User" with "Writer" access
-
-
-[[repository-gcs-repository]]
-==== Create a Repository
-
-Once everything is installed and every node is started, you can create a new repository that
-uses Google Cloud Storage to store snapshots:
+For example:
 
 [source,js]
 ----
@@ -139,12 +132,73 @@ PUT _snapshot/my_gcs_repository
 {
   "type": "gcs",
   "settings": {
-    "bucket": "my_bucket"
+    "bucket": "my_bucket",
+    "client": "my_alternate_client"
   }
 }
 ----
 // CONSOLE
 // TEST[skip:we don't have gcs setup while testing this]
+
+Some settings are sensitive and must be stored in the
+{ref}/secure-settings.html[elasticsearch keystore]. This is the case for the service account file:
+
+[source,sh]
+----
+bin/elasticsearch-keystore add-file gcs.client.default.credentials_file
+----
+
+The following are the available client settings. Those that must be stored in the keystore
+are marked as `Secure`.
+
+`credentials_file`::
+
+    The service account file that is used to authenticate to the Google Cloud Storage service. (Secure)
+
+`endpoint`::
+
+    The Google Cloud Storage service endpoint to connect to. This will be automatically
+    determined by the Google Cloud Storage client but can be specified explicitly.
+
+`connect_timeout`::
+
+    The timeout to establish a connection to the Google Cloud Storage service. The value should
+    specify the unit. For example, a value of `5s` specifies a 5 second timeout. The value of `-1`
+    corresponds to an infinite timeout. The default value is 20 seconds.
+
+`read_timeout`::
+
+    The timeout to read data from an established connection. The value should
+    specify the unit. For example, a value of `5s` specifies a 5 second timeout. The value of `-1`
+    corresponds to an infinite timeout. The default value is 20 seconds.
+
+`application_name`::
+
+    Name used by the client when it uses the Google Cloud Storage service. Setting
+    a custom name can be useful to authenticate your cluster when requests
+    statistics are logged in the Google Cloud Platform. Default to `repository-gcs`
+
+[[repository-gcs-repository]]
+==== Repository Settings
+
+The `gcs` repository type supports a number of settings to customize how data
+is stored in Google Cloud Storage.
+
+These can be specified when creating the repository. For example:
+
+[source,js]
+----
+PUT _snapshot/my_gcs_repository
+{
+  "type": "gcs",
+  "settings": {
+    "bucket": "my_other_bucket",
+    "base_path": "dev"
+  }
+}
+----
+// CONSOLE
+// TEST[skip:we don't have gcs set up while testing this]
 
 The following settings are supported:
 
@@ -154,8 +208,8 @@ The following settings are supported:
 
 `client`::
 
-    The client congfiguration to use. This controls which credentials are used to connect
-    to Compute Engine.
+    The name of the client to use to connect to Google Cloud Storage.
+    Defaults to `default`.
 
 `base_path`::
 
@@ -176,6 +230,15 @@ The following settings are supported:
 
 `application_name`::
 
-    Name used by the plugin when it uses the Google Cloud JSON API. Setting
-    a custom name can be useful to authenticate your cluster when requests
-    statistics are logged in the Google Cloud Platform. Default to `repository-gcs`
+    deprecated[7.0.0, This setting is now defined in the <<repository-gcs-client, client settings>>]
+
+[[repository-gcs-bucket-permission]]
+===== Recommended Bucket Permission
+
+The service account used to access the bucket must have the "Writer" access to the bucket:
+
+1. Connect to the https://console.cloud.google.com/[Google Cloud Platform Console]
+2. Select your project
+3. Got to the https://console.cloud.google.com/storage/browser[Storage Browser]
+4. Select the bucket and "Edit bucket permission"
+5. The service account must be configured as a "User" with "Writer" access

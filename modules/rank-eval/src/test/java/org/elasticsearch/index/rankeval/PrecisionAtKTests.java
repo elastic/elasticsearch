@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -40,29 +41,34 @@ import java.util.List;
 import java.util.Vector;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
+import static org.hamcrest.Matchers.startsWith;
 
 public class PrecisionAtKTests extends ESTestCase {
 
+    private static final int IRRELEVANT_RATING_0 = 0;
+    private static final int RELEVANT_RATING_1 = 1;
+
     public void testPrecisionAtFiveCalculation() {
         List<RatedDocument> rated = new ArrayList<>();
-        rated.add(createRatedDoc("test", "0", TestRatingEnum.RELEVANT.ordinal()));
+        rated.add(createRatedDoc("test", "0", RELEVANT_RATING_1));
         EvalQueryQuality evaluated = (new PrecisionAtK()).evaluate("id", toSearchHits(rated, "test"), rated);
         assertEquals(1, evaluated.getQualityLevel(), 0.00001);
-        assertEquals(1, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
-        assertEquals(1, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRetrieved());
+        assertEquals(1, ((PrecisionAtK.Detail) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(1, ((PrecisionAtK.Detail) evaluated.getMetricDetails()).getRetrieved());
     }
 
     public void testPrecisionAtFiveIgnoreOneResult() {
         List<RatedDocument> rated = new ArrayList<>();
-        rated.add(createRatedDoc("test", "0", TestRatingEnum.RELEVANT.ordinal()));
-        rated.add(createRatedDoc("test", "1", TestRatingEnum.RELEVANT.ordinal()));
-        rated.add(createRatedDoc("test", "2", TestRatingEnum.RELEVANT.ordinal()));
-        rated.add(createRatedDoc("test", "3", TestRatingEnum.RELEVANT.ordinal()));
-        rated.add(createRatedDoc("test", "4", TestRatingEnum.IRRELEVANT.ordinal()));
+        rated.add(createRatedDoc("test", "0", RELEVANT_RATING_1));
+        rated.add(createRatedDoc("test", "1", RELEVANT_RATING_1));
+        rated.add(createRatedDoc("test", "2", RELEVANT_RATING_1));
+        rated.add(createRatedDoc("test", "3", RELEVANT_RATING_1));
+        rated.add(createRatedDoc("test", "4", IRRELEVANT_RATING_0));
         EvalQueryQuality evaluated = (new PrecisionAtK()).evaluate("id", toSearchHits(rated, "test"), rated);
         assertEquals((double) 4 / 5, evaluated.getQualityLevel(), 0.00001);
-        assertEquals(4, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
-        assertEquals(5, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRetrieved());
+        assertEquals(4, ((PrecisionAtK.Detail) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(5, ((PrecisionAtK.Detail) evaluated.getMetricDetails()).getRetrieved());
     }
 
     /**
@@ -80,28 +86,28 @@ public class PrecisionAtKTests extends ESTestCase {
         PrecisionAtK precisionAtN = new PrecisionAtK(2, false, 5);
         EvalQueryQuality evaluated = precisionAtN.evaluate("id", toSearchHits(rated, "test"), rated);
         assertEquals((double) 3 / 5, evaluated.getQualityLevel(), 0.00001);
-        assertEquals(3, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
-        assertEquals(5, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRetrieved());
+        assertEquals(3, ((PrecisionAtK.Detail) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(5, ((PrecisionAtK.Detail) evaluated.getMetricDetails()).getRetrieved());
     }
 
     public void testPrecisionAtFiveCorrectIndex() {
         List<RatedDocument> rated = new ArrayList<>();
-        rated.add(createRatedDoc("test_other", "0", TestRatingEnum.RELEVANT.ordinal()));
-        rated.add(createRatedDoc("test_other", "1", TestRatingEnum.RELEVANT.ordinal()));
-        rated.add(createRatedDoc("test", "0", TestRatingEnum.RELEVANT.ordinal()));
-        rated.add(createRatedDoc("test", "1", TestRatingEnum.RELEVANT.ordinal()));
-        rated.add(createRatedDoc("test", "2", TestRatingEnum.IRRELEVANT.ordinal()));
+        rated.add(createRatedDoc("test_other", "0", RELEVANT_RATING_1));
+        rated.add(createRatedDoc("test_other", "1", RELEVANT_RATING_1));
+        rated.add(createRatedDoc("test", "0", RELEVANT_RATING_1));
+        rated.add(createRatedDoc("test", "1", RELEVANT_RATING_1));
+        rated.add(createRatedDoc("test", "2", IRRELEVANT_RATING_0));
         // the following search hits contain only the last three documents
         EvalQueryQuality evaluated = (new PrecisionAtK()).evaluate("id", toSearchHits(rated.subList(2, 5), "test"), rated);
         assertEquals((double) 2 / 3, evaluated.getQualityLevel(), 0.00001);
-        assertEquals(2, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
-        assertEquals(3, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRetrieved());
+        assertEquals(2, ((PrecisionAtK.Detail) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(3, ((PrecisionAtK.Detail) evaluated.getMetricDetails()).getRetrieved());
     }
 
     public void testIgnoreUnlabeled() {
         List<RatedDocument> rated = new ArrayList<>();
-        rated.add(createRatedDoc("test", "0", TestRatingEnum.RELEVANT.ordinal()));
-        rated.add(createRatedDoc("test", "1", TestRatingEnum.RELEVANT.ordinal()));
+        rated.add(createRatedDoc("test", "0", RELEVANT_RATING_1));
+        rated.add(createRatedDoc("test", "1", RELEVANT_RATING_1));
         // add an unlabeled search hit
         SearchHit[] searchHits = Arrays.copyOf(toSearchHits(rated, "test"), 3);
         searchHits[2] = new SearchHit(2, "2", new Text("testtype"), Collections.emptyMap());
@@ -109,15 +115,15 @@ public class PrecisionAtKTests extends ESTestCase {
 
         EvalQueryQuality evaluated = (new PrecisionAtK()).evaluate("id", searchHits, rated);
         assertEquals((double) 2 / 3, evaluated.getQualityLevel(), 0.00001);
-        assertEquals(2, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
-        assertEquals(3, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRetrieved());
+        assertEquals(2, ((PrecisionAtK.Detail) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(3, ((PrecisionAtK.Detail) evaluated.getMetricDetails()).getRetrieved());
 
         // also try with setting `ignore_unlabeled`
         PrecisionAtK prec = new PrecisionAtK(1, true, 10);
         evaluated = prec.evaluate("id", searchHits, rated);
         assertEquals((double) 2 / 2, evaluated.getQualityLevel(), 0.00001);
-        assertEquals(2, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
-        assertEquals(2, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRetrieved());
+        assertEquals(2, ((PrecisionAtK.Detail) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(2, ((PrecisionAtK.Detail) evaluated.getMetricDetails()).getRetrieved());
     }
 
     public void testNoRatedDocs() throws Exception {
@@ -128,15 +134,23 @@ public class PrecisionAtKTests extends ESTestCase {
         }
         EvalQueryQuality evaluated = (new PrecisionAtK()).evaluate("id", hits, Collections.emptyList());
         assertEquals(0.0d, evaluated.getQualityLevel(), 0.00001);
-        assertEquals(0, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
-        assertEquals(5, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRetrieved());
+        assertEquals(0, ((PrecisionAtK.Detail) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(5, ((PrecisionAtK.Detail) evaluated.getMetricDetails()).getRetrieved());
 
         // also try with setting `ignore_unlabeled`
         PrecisionAtK prec = new PrecisionAtK(1, true, 10);
         evaluated = prec.evaluate("id", hits, Collections.emptyList());
         assertEquals(0.0d, evaluated.getQualityLevel(), 0.00001);
-        assertEquals(0, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRelevantRetrieved());
-        assertEquals(0, ((PrecisionAtK.Breakdown) evaluated.getMetricDetails()).getRetrieved());
+        assertEquals(0, ((PrecisionAtK.Detail) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(0, ((PrecisionAtK.Detail) evaluated.getMetricDetails()).getRetrieved());
+    }
+
+    public void testNoResults() throws Exception {
+        SearchHit[] hits = new SearchHit[0];
+        EvalQueryQuality evaluated = (new PrecisionAtK()).evaluate("id", hits, Collections.emptyList());
+        assertEquals(0.0d, evaluated.getQualityLevel(), 0.00001);
+        assertEquals(0, ((PrecisionAtK.Detail) evaluated.getMetricDetails()).getRelevantRetrieved());
+        assertEquals(0, ((PrecisionAtK.Detail) evaluated.getMetricDetails()).getRetrieved());
     }
 
     public void testParseFromXContent() throws IOException {
@@ -179,6 +193,19 @@ public class PrecisionAtKTests extends ESTestCase {
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);
             assertEquals(testItem.hashCode(), parsedItem.hashCode());
+        }
+    }
+
+    public void testXContentParsingIsNotLenient() throws IOException {
+        PrecisionAtK testItem = createTestItem();
+        XContentType xContentType = randomFrom(XContentType.values());
+        BytesReference originalBytes = toShuffledXContent(testItem, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
+        BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, null, random());
+        try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
+            parser.nextToken();
+            parser.nextToken();
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> PrecisionAtK.fromXContent(parser));
+            assertThat(exception.getMessage(), startsWith("[precision] unknown field"));
         }
     }
 

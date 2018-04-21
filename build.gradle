@@ -36,7 +36,7 @@ import java.security.MessageDigest
 // common maven publishing configuration
 subprojects {
   group = 'org.elasticsearch'
-  version = VersionProperties.elasticsearch
+  version = VersionProperties.elasticsearch.toString()
   description = "Elasticsearch subproject ${project.path}"
 }
 
@@ -79,8 +79,8 @@ configure(subprojects.findAll { it.projectDir.toPath().startsWith(rootPath) }) {
  * backwards compatibility guarantees and only keeping the latest beta or rc
  * in a branch if there are only betas and rcs in the branch so we have
  * *something* to test against. */
-VersionCollection versions = new VersionCollection(file('core/src/main/java/org/elasticsearch/Version.java').readLines('UTF-8'))
-if (versions.currentVersion.toString() != VersionProperties.elasticsearch) {
+VersionCollection versions = new VersionCollection(file('server/src/main/java/org/elasticsearch/Version.java').readLines('UTF-8'))
+if (versions.currentVersion != VersionProperties.elasticsearch) {
   throw new GradleException("The last version in Versions.java [${versions.currentVersion}] does not match " +
           "VersionProperties.elasticsearch [${VersionProperties.elasticsearch}]")
 }
@@ -103,7 +103,7 @@ allprojects {
     isIdea = System.getProperty("idea.active") != null || gradle.startParameter.taskNames.contains('idea') || gradle.startParameter.taskNames.contains('cleanIdea')
 
     // for BWC testing
-    versionCollection = versions
+    bwcVersions = versions
 
     buildMetadata = buildMetadataMap
   }
@@ -122,13 +122,13 @@ task verifyVersions {
     Set<Version> knownVersions = new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /\d\.\d\.\d/ }.collect { Version.fromString(it) })
 
     // Limit the known versions to those that should be index compatible, and are not future versions
-    knownVersions = knownVersions.findAll { it.major >= versions.currentVersion.major - 1 && it.before(VersionProperties.elasticsearch) }
+    knownVersions = knownVersions.findAll { it.major >= bwcVersions.currentVersion.major - 1 && it.before(VersionProperties.elasticsearch) }
 
     /* Limit the listed versions to those that have been marked as released.
      * Versions not marked as released don't get the same testing and we want
      * to make sure that we flip all unreleased versions to released as soon
      * as possible after release. */
-    Set<Version> actualVersions = new TreeSet<>(versions.versionsIndexCompatibleWithCurrent.findAll { false == it.snapshot })
+    Set<Version> actualVersions = new TreeSet<>(bwcVersions.indexCompatible.findAll { false == it.snapshot })
 
     // Finally, compare!
     if (knownVersions.equals(actualVersions) == false) {
@@ -144,13 +144,24 @@ task verifyVersions {
  * the enabled state of every bwc task. It should be set back to true
  * after the backport of the backcompat code is complete.
  */
-allprojects {
-  ext.bwc_tests_enabled = true
+final boolean bwc_tests_enabled = true
+final String bwc_tests_disabled_issue = "" /* place a PR link here when commiting bwc changes */
+if (bwc_tests_enabled == false) {
+  if (bwc_tests_disabled_issue.isEmpty()) {
+    throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")
+  }
+  println "========================= WARNING ========================="
+  println "         Backwards compatibility tests are disabled!"
+  println "See ${bwc_tests_disabled_issue}"
+  println "==========================================================="
+}
+subprojects {
+  ext.bwc_tests_enabled = bwc_tests_enabled
 }
 
 task verifyBwcTestsEnabled {
   doLast {
-    if (project.bwc_tests_enabled == false) {
+    if (bwc_tests_enabled == false) {
       throw new GradleException('Bwc tests are disabled. They must be re-enabled after completing backcompat behavior backporting.')
     }
   }
@@ -181,20 +192,23 @@ subprojects {
   ext.projectSubstitutions = [
     "org.elasticsearch.gradle:build-tools:${version}": ':build-tools',
     "org.elasticsearch:rest-api-spec:${version}": ':rest-api-spec',
-    "org.elasticsearch:elasticsearch:${version}": ':core',
-    "org.elasticsearch:elasticsearch-cli:${version}": ':core:cli',
+    "org.elasticsearch:elasticsearch:${version}": ':server',
+    "org.elasticsearch:elasticsearch-cli:${version}": ':server:cli',
+    "org.elasticsearch:elasticsearch-core:${version}": ':libs:elasticsearch-core',
     "org.elasticsearch:elasticsearch-nio:${version}": ':libs:elasticsearch-nio',
+    "org.elasticsearch:elasticsearch-x-content:${version}": ':libs:x-content',
+    "org.elasticsearch:elasticsearch-secure-sm:${version}": ':libs:secure-sm',
     "org.elasticsearch.client:elasticsearch-rest-client:${version}": ':client:rest',
     "org.elasticsearch.client:elasticsearch-rest-client-sniffer:${version}": ':client:sniffer',
     "org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}": ':client:rest-high-level',
     "org.elasticsearch.client:test:${version}": ':client:test',
     "org.elasticsearch.client:transport:${version}": ':client:transport',
     "org.elasticsearch.test:framework:${version}": ':test:framework',
-    "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:integ-test-zip',
-    "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:zip',
-    "org.elasticsearch.distribution.tar:elasticsearch:${version}": ':distribution:tar',
-    "org.elasticsearch.distribution.rpm:elasticsearch:${version}": ':distribution:rpm',
-    "org.elasticsearch.distribution.deb:elasticsearch:${version}": ':distribution:deb',
+    "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:archives:integ-test-zip',
+    "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:archives:zip',
+    "org.elasticsearch.distribution.tar:elasticsearch:${version}": ':distribution:archives:tar',
+    "org.elasticsearch.distribution.rpm:elasticsearch:${version}": ':distribution:packages:rpm',
+    "org.elasticsearch.distribution.deb:elasticsearch:${version}": ':distribution:packages:deb',
     "org.elasticsearch.test:logger-usage:${version}": ':test:logger-usage',
     // for transport client
     "org.elasticsearch.plugin:transport-netty4-client:${version}": ':modules:transport-netty4',
@@ -206,13 +220,31 @@ subprojects {
     "org.elasticsearch.plugin:rank-eval-client:${version}": ':modules:rank-eval',
   ]
 
-  for (final Version version : versionCollection.versionsIndexCompatibleWithCurrent) {
-    if (version.branch != null) {
-      final String snapshotProject = ":distribution:bwc-snapshot-${version.branch}"
-      project(snapshotProject).ext.bwcVersion = version
-      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${version}"] = snapshotProject
-      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${version}"] = snapshotProject
-      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${version}"] = snapshotProject
+  bwcVersions.snapshotProjectNames.each { snapshotName ->
+    Version snapshot = bwcVersions.getSnapshotForProject(snapshotName)
+    if (snapshot != null ) {
+      String snapshotProject = ":distribution:bwc:${snapshotName}"
+      project(snapshotProject).ext.bwcVersion = snapshot
+      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${snapshot}"] = snapshotProject
+      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${snapshot}"] = snapshotProject
+      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${snapshot}"] = snapshotProject
+    }
+  }
+
+  /*
+   * Gradle only resolve project substitutions during dependency resolution but
+   * we sometimes want to do the resolution at other times. This creates a
+   * convenient method we can call to do it.
+   */
+  ext.dependencyToProject = { Dependency dep ->
+    if (dep instanceof ProjectDependency) {
+      return dep.dependencyProject
+    } else {
+      String substitution = projectSubstitutions.get("${dep.group}:${dep.name}:${dep.version}")
+      if (substitution != null) {
+        return findProject(substitution)
+      }
+      return null
     }
   }
 
@@ -227,23 +259,23 @@ subprojects {
 
     // Handle javadoc dependencies across projects. Order matters: the linksOffline for
     // org.elasticsearch:elasticsearch must be the last one or all the links for the
-    // other packages (e.g org.elasticsearch.client) will point to core rather than
+    // other packages (e.g org.elasticsearch.client) will point to server rather than
     // their own artifacts.
     if (project.plugins.hasPlugin(BuildPlugin)) {
-      String artifactsHost = VersionProperties.elasticsearch.endsWith("-SNAPSHOT") ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
+      String artifactsHost = VersionProperties.elasticsearch.isSnapshot() ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
       Closure sortClosure = { a, b -> b.group <=> a.group }
       Closure depJavadocClosure = { dep ->
         if (dep.group != null && dep.group.startsWith('org.elasticsearch')) {
-          String substitution = project.ext.projectSubstitutions.get("${dep.group}:${dep.name}:${dep.version}")
-          if (substitution != null) {
-            project.javadoc.dependsOn substitution + ':javadoc'
+          Project upstreamProject = dependencyToProject(dep)
+          if (upstreamProject != null) {
+            project.javadoc.dependsOn "${upstreamProject.path}:javadoc"
             String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + dep.name.replaceAll('\\.', '/') + '/' + dep.version
-            project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${project.project(substitution).buildDir}/docs/javadoc/"
+            project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${upstreamProject.buildDir}/docs/javadoc/"
           }
         }
       }
       project.configurations.compile.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
-      project.configurations.provided.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
+      project.configurations.compileOnly.dependencies.findAll().toSorted(sortClosure).each(depJavadocClosure)
     }
   }
 }
@@ -255,22 +287,12 @@ subprojects {
 gradle.projectsEvaluated {
   allprojects {
     if (project.path == ':test:framework') {
-      // :test:framework:test cannot run before and after :core:test
+      // :test:framework:test cannot run before and after :server:test
       return
     }
     configurations.all {
       dependencies.all { Dependency dep ->
-        Project upstreamProject = null
-        if (dep instanceof ProjectDependency) {
-          upstreamProject = dep.dependencyProject
-        } else {
-          // gradle doesn't apply substitutions until resolve time, so they won't
-          // show up as a ProjectDependency above
-          String substitution = projectSubstitutions.get("${dep.group}:${dep.name}:${dep.version}")
-          if (substitution != null) {
-            upstreamProject = findProject(substitution)
-          }
-        }
+        Project upstreamProject = dependencyToProject(dep)
         if (upstreamProject != null) {
           if (project.path == upstreamProject.path) {
             // TODO: distribution integ tests depend on themselves (!), fix that

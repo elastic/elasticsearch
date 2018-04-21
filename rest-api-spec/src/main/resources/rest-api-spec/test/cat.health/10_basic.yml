@@ -45,7 +45,7 @@
                 \d+            \s+ # init
                 \d+            \s+ # unassign
                 \d+            \s+ # pending_tasks
-                (-|\d+[.]\d+ms|s) \s+ # max task waiting time
+                (-|\d+(?:[.]\d+)?m?s) \s+ # max task waiting time
                 \d+\.\d+%             # active shards percent
                 \n
               )+
@@ -72,7 +72,7 @@
                 \d+            \s+ # init
                 \d+            \s+ # unassign
                 \d+            \s+ # pending_tasks
-                (-|\d+[.]\d+ms|s) \s+ # max task waiting time
+                (-|\d+(?:[.]\d+)?m?s) \s+ # max task waiting time
                 \d+\.\d+%             # active shards percent
                 \n
               )+

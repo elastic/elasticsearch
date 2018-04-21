@@ -69,7 +69,6 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<De
      */
     @Override
     protected RequestWrapper<?> copyMetadata(RequestWrapper<?> request, ScrollableHitSource.Hit doc) {
-        request.setParent(doc.getParent());
         request.setRouting(doc.getRouting());
         return request;
     }

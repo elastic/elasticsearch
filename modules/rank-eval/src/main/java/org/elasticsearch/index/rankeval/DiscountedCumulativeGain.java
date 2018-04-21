@@ -140,9 +140,12 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
 
         if (normalize) {
             Collections.sort(allRatings, Comparator.nullsLast(Collections.reverseOrder()));
-            double idcg = computeDCG(
-                    allRatings.subList(0, Math.min(ratingsInSearchHits.size(), allRatings.size())));
-            dcg = dcg / idcg;
+            double idcg = computeDCG(allRatings.subList(0, Math.min(ratingsInSearchHits.size(), allRatings.size())));
+            if (idcg > 0) {
+                dcg = dcg / idcg;
+            } else {
+                dcg = 0;
+            }
         }
         EvalQueryQuality evalQueryQuality = new EvalQueryQuality(taskId, dcg);
         evalQueryQuality.addHitsAndRatings(ratedHits);
@@ -164,7 +167,7 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
     private static final ParseField K_FIELD = new ParseField("k");
     private static final ParseField NORMALIZE_FIELD = new ParseField("normalize");
     private static final ParseField UNKNOWN_DOC_RATING_FIELD = new ParseField("unknown_doc_rating");
-    private static final ConstructingObjectParser<DiscountedCumulativeGain, Void> PARSER = new ConstructingObjectParser<>("dcg_at",
+    private static final ConstructingObjectParser<DiscountedCumulativeGain, Void> PARSER = new ConstructingObjectParser<>("dcg_at", false,
             args -> {
                 Boolean normalized = (Boolean) args[0];
                 Integer optK = (Integer) args[2];

@@ -25,6 +25,7 @@ import com.microsoft.azure.storage.OperationContext;
 import com.microsoft.azure.storage.RetryExponentialRetry;
 import com.microsoft.azure.storage.RetryPolicy;
 import com.microsoft.azure.storage.StorageException;
+import com.microsoft.azure.storage.blob.BlobInputStream;
 import com.microsoft.azure.storage.blob.BlobListingDetails;
 import com.microsoft.azure.storage.blob.BlobProperties;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
@@ -249,12 +250,14 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
     }
 
     @Override
-    public InputStream getInputStream(String account, LocationMode mode, String container, String blob)
-        throws URISyntaxException, StorageException {
+    public InputStream getInputStream(String account, LocationMode mode, String container, String blob) throws URISyntaxException,
+        StorageException {
         logger.trace("reading container [{}], blob [{}]", container, blob);
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlockBlob blockBlobReference = client.getContainerReference(container).getBlockBlobReference(blob);
-        return SocketAccess.doPrivilegedException(() -> blockBlobReference.openInputStream(null, null, generateOperationContext(account)));
+        BlobInputStream is = SocketAccess.doPrivilegedException(() ->
+            blockBlobReference.openInputStream(null, null, generateOperationContext(account)));
+        return AzureStorageService.giveSocketPermissionsToStream(is);
     }
 
     @Override

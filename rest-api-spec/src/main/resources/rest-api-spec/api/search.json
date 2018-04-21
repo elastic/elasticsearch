@@ -16,6 +16,10 @@
         }
       },
       "params": {
+        "include_type_name": {
+          "type" : "string",
+          "description" : "Whether to add the type name to the response"
+        },
         "analyzer": {
           "type" : "string",
           "description" : "The analyzer to use for the query string"
@@ -146,6 +150,11 @@
         "track_total_hits": {
           "type" : "boolean",
           "description": "Indicate if the number of documents that match the query should be tracked"
+        },
+        "allow_partial_search_results": {
+          "type" : "boolean",
+          "default" : true,
+          "description": "Indicate if an error should be returned if there is a partial search failure or timeout"
         },
         "typed_keys": {
           "type" : "boolean",

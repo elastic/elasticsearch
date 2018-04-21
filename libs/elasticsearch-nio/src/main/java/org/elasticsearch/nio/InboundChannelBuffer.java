@@ -59,6 +59,10 @@ public final class InboundChannelBuffer implements AutoCloseable {
         ensureCapacity(PAGE_SIZE);
     }
 
+    public static InboundChannelBuffer allocatingInstance() {
+        return new InboundChannelBuffer(() -> new Page(ByteBuffer.allocate(PAGE_SIZE), () -> {}));
+    }
+
     @Override
     public void close() {
         if (isClosed.compareAndSet(false, true)) {

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.test
 
+import org.elasticsearch.gradle.Version
 import org.gradle.api.GradleException
 import org.gradle.api.Project
 import org.gradle.api.tasks.Input
@@ -28,7 +29,7 @@ class ClusterConfiguration {
     private final Project project
 
     @Input
-    String distribution = 'integ-test-zip'
+    String distribution = 'zip'
 
     @Input
     int numNodes = 1
@@ -37,7 +38,7 @@ class ClusterConfiguration {
     int numBwcNodes = 0
 
     @Input
-    String bwcVersion = null
+    Version bwcVersion = null
 
     @Input
     int httpPort = 0
@@ -123,6 +124,14 @@ class ClusterConfiguration {
         return tmpFile.exists()
     }
 
+    /**
+     * The maximum number of seconds to wait for nodes to complete startup, which includes writing
+     * the ports files for the transports and the pid file. This wait time occurs before the wait
+     * condition is executed.
+     */
+    @Input
+    int nodeStartupWaitSeconds = 30
+
     public ClusterConfiguration(Project project) {
         this.project = project
     }
@@ -132,6 +141,8 @@ class ClusterConfiguration {
     Map<String, Object> settings = new HashMap<>()
 
     Map<String, String> keystoreSettings = new HashMap<>()
+
+    Map<String, Object> keystoreFiles = new HashMap<>()
 
     // map from destination path, to source file
     Map<String, Object> extraConfigFiles = new HashMap<>()
@@ -157,6 +168,15 @@ class ClusterConfiguration {
     @Input
     void keystoreSetting(String name, String value) {
         keystoreSettings.put(name, value)
+    }
+
+    /**
+     * Adds a file to the keystore. The name is the secure setting name, and the sourceFile
+     * is anything accepted by project.file()
+     */
+    @Input
+    void keystoreFile(String name, Object sourceFile) {
+        keystoreFiles.put(name, sourceFile)
     }
 
     @Input

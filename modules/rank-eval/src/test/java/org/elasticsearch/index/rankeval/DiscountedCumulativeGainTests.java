@@ -253,7 +253,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
 
     public static DiscountedCumulativeGain createTestItem() {
         boolean normalize = randomBoolean();
-        Integer unknownDocRating = new Integer(randomIntBetween(0, 1000));
+        Integer unknownDocRating = Integer.valueOf(randomIntBetween(0, 1000));
 
         return new DiscountedCumulativeGain(normalize, unknownDocRating, 10);
     }

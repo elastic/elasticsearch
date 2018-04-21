@@ -1576,6 +1576,23 @@ public class InternalEngineTests extends EngineTestCase {
         assertOpsOnPrimary(ops, Versions.NOT_FOUND, true, engine);
     }
 
+    public void testVersionOnPrimaryWithConcurrentRefresh() throws Exception {
+        List<Engine.Operation> ops = generateSingleDocHistory(false, VersionType.INTERNAL, false, 2, 10, 100);
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean running = new AtomicBoolean(true);
+        Thread refreshThread = new Thread(() -> {
+            latch.countDown();
+            while (running.get()) {
+                engine.refresh("test");
+            }
+        });
+        refreshThread.start();
+        latch.await();
+        assertOpsOnPrimary(ops, Versions.NOT_FOUND, true, engine);
+        running.set(false);
+        refreshThread.join();
+    }
+
     private int assertOpsOnPrimary(List<Engine.Operation> ops, long currentOpVersion, boolean docDeleted, InternalEngine engine)
         throws IOException {
         String lastFieldValue = null;

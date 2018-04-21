@@ -555,7 +555,9 @@ class MockStorage implements Storage {
         when(blobMock.getName()).thenReturn(blobName);
         when(blobMock.getSize()).thenReturn((long) data.length);
         when(blobMock.reload(Matchers.anyVararg())).thenReturn(blobMock);
-        when(blobMock.reader(Matchers.anyVararg())).thenReturn(new ReadChannelFromByteArray(data));
+        doAnswer(invocation -> {
+            return new ReadChannelFromByteArray(data);
+        }).when(blobMock).reader(Matchers.anyVararg());
         when(blobMock.copyTo(Matchers.anyString(), Matchers.anyVararg()))
                 .thenThrow(new RuntimeException("Mock not implemented. Only a single bucket is mocked."));
         doAnswer(invocation -> {

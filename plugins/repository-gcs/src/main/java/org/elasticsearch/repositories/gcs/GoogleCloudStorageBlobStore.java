@@ -167,7 +167,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
         if (readerAndSize == null) {
             throw new NoSuchFileException("Blob [" + blobName + "] does not exit.");
         }
-        final ByteBuffer buffer = ByteBuffer.allocate(64 * 1024);
+        final ByteBuffer buffer = ByteBuffer.allocate(8 * 1024);
         // first read pull data
         buffer.flip();
         return new InputStream() {
@@ -184,13 +184,14 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
                         // pull another chunck
                         buffer.clear();
                         final long bytesRead = SocketAccess.doPrivilegedIOException(() -> readerAndSize.v1().read(buffer));
+                        buffer.flip();
                         if (bytesRead < 0) {
                             return -1;
                         } else if ((bytesRead == 0) && (bytesRemaining == 0)) {
                             return -1;
                         }
                         bytesRemaining -= bytesRead;
-                        buffer.flip();
+                        // retry in case of non-blocking socket
                     }
                 }
             }

@@ -165,14 +165,16 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
             return new Tuple<>(blob.reader(), blob.getSize());
             });
         if (readerAndSize == null) {
-            throw new IOException("Blob [" + blobName + "] does not exit.");
+            throw new NoSuchFileException("Blob [" + blobName + "] does not exit.");
         }
         final ByteBuffer buffer = ByteBuffer.allocate(64 * 1024);
         // first read pull data
         buffer.flip();
         return new InputStream() {
             long bytesRemaining = readerAndSize.v2();
-            @SuppressForbidden(reason = "this reader is backed by a socket instead of a file")
+
+            @SuppressForbidden(reason = "the reader channel is backed by a socket instead of a file,"
+                    + "ie. it is not seekable and reading should advance the readers's internal position")
             @Override
             public int read() throws IOException {
                 while (true) {

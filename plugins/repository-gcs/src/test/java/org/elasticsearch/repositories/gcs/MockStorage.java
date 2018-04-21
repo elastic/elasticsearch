@@ -67,8 +67,8 @@ class MockStorage implements Storage {
     private final ConcurrentMap<String, Blob> blobsMap;
 
     @SuppressForbidden(reason = "mocking here requires reflection that trespasses the access system")
-    MockStorage(final String bucketName, final ConcurrentMap<String, Blob> blobs) {
-        this.blobsMap = blobs;
+    MockStorage(final String bucketName, final ConcurrentMap<String, Blob> blobsMap) {
+        this.blobsMap = blobsMap;
         // mock bucket
         this.theBucket = mock(Bucket.class);
         when(this.theBucket.getName()).thenReturn(bucketName);
@@ -104,7 +104,7 @@ class MockStorage implements Storage {
 
                 @Override
                 public Iterable<Blob> getValues() {
-                    return () -> blobs.entrySet()
+                    return () -> MockStorage.this.blobsMap.entrySet()
                             .stream()
                             .filter(entry1 -> entry1.getKey().startsWith(prefixValue))
                             .map(entry2 -> entry2.getValue())

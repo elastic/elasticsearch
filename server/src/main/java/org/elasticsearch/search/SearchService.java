@@ -21,6 +21,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -1003,8 +1004,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * The action listener is guaranteed to be executed on the search thread-pool
      */
     private void rewriteShardRequest(ShardSearchRequest request, ActionListener<ShardSearchRequest> listener) {
+        final String threadPoolName;
+        if (indicesService.isFrozen(request.shardId())) {
+            threadPoolName = Names.FROZEN;
+        } else {
+            threadPoolName = Names.SEARCH;
+        }
+
         ActionListener<Rewriteable> actionListener = ActionListener.wrap(r ->
-            threadPool.executor(Names.SEARCH).execute(new AbstractRunnable() {
+            threadPool.executor(threadPoolName).execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
                     listener.onFailure(e);

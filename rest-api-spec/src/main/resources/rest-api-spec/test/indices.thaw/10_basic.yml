@@ -1,0 +1,73 @@
+---
+"Basic test for index freeze/thaw":
+  - skip:
+      version: " - 6.99.99"
+      reason: this feature didn't exist until 7.0
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      index:
+        index: test_index
+        type: _doc
+        id: 1
+        body: { "foo": "bar" }
+        refresh: wait_for
+
+  - do:
+      indices.freeze:
+        index: test_index
+
+  - do:
+      search:
+        index: test_index
+
+  - do:
+      catch: /index frozen \(read only\)/
+      index:
+        index: test_index
+        type: _doc
+        id: 2
+        body: { "foo": "bar" }
+
+  - do:
+      indices.thaw:
+        index: test_index
+
+  - do:
+      search:
+        index: test_index
+
+---
+"Thaw index with wait_for_active_shards set to all":
+  - skip:
+      version: " - 6.9.99"
+      reason: freeze/thaw was added in 7.0
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_replicas: 0
+
+  - do:
+      indices.freeze:
+        index: test_index
+
+  - do:
+      indices.thaw:
+        index: test_index
+        wait_for_active_shards: all
+
+  - match: { acknowledged: true }
+  - match: { shards_acknowledged: true }

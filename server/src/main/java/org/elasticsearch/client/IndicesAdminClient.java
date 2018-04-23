@@ -59,6 +59,9 @@ import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequestBuilder;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.elasticsearch.action.admin.indices.freeze.FreezeIndexRequest;
+import org.elasticsearch.action.admin.indices.freeze.FreezeIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.freeze.FreezeIndexResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -110,6 +113,9 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResp
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
+import org.elasticsearch.action.admin.indices.thaw.ThawIndexRequest;
+import org.elasticsearch.action.admin.indices.thaw.ThawIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.thaw.ThawIndexResponse;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequest;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequestBuilder;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusResponse;
@@ -327,7 +333,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     /**
      * Open an index based on the index name.
      *
-     * @param request The close index request
+     * @param request The open index request
      * @return The result future
      * @see org.elasticsearch.client.Requests#openIndexRequest(String)
      */
@@ -336,7 +342,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     /**
      * Open an index based on the index name.
      *
-     * @param request  The close index request
+     * @param request  The open index request
      * @param listener A listener to be notified with a result
      * @see org.elasticsearch.client.Requests#openIndexRequest(String)
      */
@@ -345,9 +351,59 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     /**
      * Opens one or more indices based on their index name.
      *
-     * @param indices The name of the indices to close
+     * @param indices The name of the indices to open
      */
     OpenIndexRequestBuilder prepareOpen(String... indices);
+
+    /**
+     * Freeze an index based on the index name.
+     *
+     * @param request The freeze index request
+     * @return The result future
+     * @see org.elasticsearch.client.Requests#freezeIndexRequest(String)
+     */
+    ActionFuture<FreezeIndexResponse> freeze(FreezeIndexRequest request);
+
+    /**
+     * Freeze an index based on the index name.
+     *
+     * @param request  The freeze index request
+     * @param listener A listener to be notified with a result
+     * @see org.elasticsearch.client.Requests#freezeIndexRequest(String)
+     */
+    void freeze(FreezeIndexRequest request, ActionListener<FreezeIndexResponse> listener);
+
+    /**
+     * Freezes one or more indices based on their index name.
+     *
+     * @param indices The name of the indices to freeze
+     */
+    FreezeIndexRequestBuilder prepareFreeze(String... indices);
+
+    /**
+     * Thaw an index based on the index name.
+     *
+     * @param request The thaw index request
+     * @return The result future
+     * @see org.elasticsearch.client.Requests#thawIndexRequest(String)
+     */
+    ActionFuture<ThawIndexResponse> thaw(ThawIndexRequest request);
+
+    /**
+     * Thaw an index based on the index name.
+     *
+     * @param request  The thaw index request
+     * @param listener A listener to be notified with a result
+     * @see org.elasticsearch.client.Requests#thawIndexRequest(String)
+     */
+    void thaw(ThawIndexRequest request, ActionListener<ThawIndexResponse> listener);
+
+    /**
+     * Thaws one or more indices based on their index name.
+     *
+     * @param indices The name of the indices to thaw
+     */
+    ThawIndexRequestBuilder prepareThaw(String... indices);
 
     /**
      * Explicitly refresh one or more indices (making the content indexed since the last refresh searchable).

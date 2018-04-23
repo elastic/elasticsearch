@@ -1012,7 +1012,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 final String name = indexMetaData.getIndex().getName();
                 boolean added = allIndices.add(name);
                 assert added : "double index named [" + name + "]";
-                if (indexMetaData.getState() == IndexMetaData.State.OPEN) {
+                if (indexMetaData.getState() == IndexMetaData.State.OPEN || indexMetaData.getState() == IndexMetaData.State.FROZEN) {
                     allOpenIndices.add(indexMetaData.getIndex().getName());
                 } else if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
                     allClosedIndices.add(indexMetaData.getIndex().getName());

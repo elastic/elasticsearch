@@ -140,7 +140,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
 
     public enum State {
         OPEN((byte) 0),
-        CLOSE((byte) 1);
+        CLOSE((byte) 1),
+        FROZEN((byte) 2);
 
         private final byte id;
 
@@ -157,6 +158,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                 return OPEN;
             } else if (id == 1) {
                 return CLOSE;
+            } else if (id == 2) {
+                return FROZEN;
             }
             throw new IllegalStateException("No state match for id [" + id + "]");
         }
@@ -166,6 +169,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                 return OPEN;
             } else if ("close".equals(state)) {
                 return CLOSE;
+            } else if ("frozen".equals(state)) {
+                return FROZEN;
             }
             throw new IllegalStateException("No state match for [" + state + "]");
         }

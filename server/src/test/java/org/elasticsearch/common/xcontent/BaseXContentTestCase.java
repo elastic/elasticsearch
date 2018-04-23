@@ -496,7 +496,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         objects.put("{'objects':['a','b','c']}", new Object[]{new Text("a"), new Text(new BytesArray("b")), new Text("c")});
         objects.put("{'objects':null}", null);
         objects.put("{'objects':[null,null,null]}", new Object[]{null, null, null});
-        objects.put("{'objects':['OPEN','CLOSE']}", IndexMetaData.State.values());
+        objects.put("{'objects':['OPEN','CLOSE','FROZEN']}", IndexMetaData.State.values());
         objects.put("{'objects':[{'f1':'v1'},{'f2':'v2'}]}", new Object[]{singletonMap("f1", "v1"), singletonMap("f2", "v2")});
         objects.put("{'objects':[[1,2,3],[4,5]]}", new Object[]{Arrays.asList(1, 2, 3), Arrays.asList(4, 5)});
 

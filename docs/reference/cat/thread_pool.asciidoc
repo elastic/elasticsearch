@@ -19,6 +19,7 @@ node-0 fetch_shard_started 0 0 0
 node-0 fetch_shard_store   0 0 0
 node-0 flush               0 0 0
 node-0 force_merge         0 0 0
+node-0 frozen              0 0 0
 node-0 generic             0 0 0
 node-0 get                 0 0 0
 node-0 listener            0 0 0

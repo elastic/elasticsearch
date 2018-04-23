@@ -1286,4 +1286,16 @@ public class IndicesService extends AbstractLifecycleComponent
     public boolean isMetaDataField(String field) {
         return mapperRegistry.isMetaDataField(field);
     }
+
+    /**
+     * @return true if the provided shardId corresponds to a frozen index
+     */
+    public boolean isFrozen(ShardId shardId) {
+        IndexShard indexShard = getShardOrNull(shardId);
+        if (indexShard == null) {
+            return false;
+        }
+
+        return indexShard.indexSettings().getIndexMetaData().getState() == IndexMetaData.State.FROZEN;
+    }
 }

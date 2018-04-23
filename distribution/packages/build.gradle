@@ -248,9 +248,9 @@ Closure commonDebConfig(boolean oss) {
     configure(commonPackageConfig('deb', oss))
 
     if (oss) {
-      license 'ASL 2.0'
+      license 'ASL-2.0'
     } else {
-      license 'Elastic License'
+      license 'Elastic-License'
     }
 
     version = project.version
@@ -282,9 +282,9 @@ Closure commonRpmConfig(boolean oss) {
     configure(commonPackageConfig('rpm', oss))
 
     if (oss) {
-      license 'ASL-2.0'
+      license 'ASL 2.0'
     } else {
-      license 'Elastic-License'
+      license 'Elastic License'
     }
 
     packageGroup 'Application/Internet'

@@ -76,7 +76,7 @@ memory on a node. The memory usage is based on the content length of the request
 [float]
 ==== Accounting requests circuit breaker
 
-The in flight requests circuit breaker allows Elasticsearch to limit the memory
+The accounting circuit breaker allows Elasticsearch to limit the memory
 usage of things held in memory that are not released when a request is
 completed. This includes things like the Lucene segment memory.
 

@@ -145,4 +145,15 @@ final class PerThreadIDVersionAndSeqNoLookup {
             return null;
         }
     }
+
+    /**
+     * Returns an internal posting list of the given uid
+     */
+    PostingsEnum getPostingsOrNull(BytesRef id) throws IOException {
+        if (termsEnum.seekExact(id)) {
+            docsEnum = termsEnum.postings(docsEnum, 0);
+            return docsEnum;
+        }
+        return null;
+    }
 }

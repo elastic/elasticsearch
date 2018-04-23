@@ -28,13 +28,18 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
@@ -551,6 +556,7 @@ public abstract class EngineTestCase extends ESTestCase {
         } else {
             startWithSeqNo = 0;
         }
+        final int seqNoGap = randomBoolean() ? 1 : 2;
         final String valuePrefix = forReplica ? "r_" : "p_";
         final boolean incrementTermWhenIntroducingSeqNo = randomBoolean();
         for (int i = 0; i < numOfOps; i++) {
@@ -574,7 +580,7 @@ public abstract class EngineTestCase extends ESTestCase {
             }
             if (randomBoolean()) {
                 op = new Engine.Index(id, testParsedDocument("1", null, testDocumentWithTextField(valuePrefix + i), B_1, null),
-                        forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbers.UNASSIGNED_SEQ_NO,
+                        forReplica && i >= startWithSeqNo ? i * seqNoGap : SequenceNumbers.UNASSIGNED_SEQ_NO,
                         forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? primaryTerm + 1 : primaryTerm,
                         version,
                         forReplica ? versionType.versionTypeForReplicationAndRecovery() : versionType,
@@ -583,7 +589,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 );
             } else {
                 op = new Engine.Delete("test", "1", id,
-                        forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbers.UNASSIGNED_SEQ_NO,
+                        forReplica && i >= startWithSeqNo ? i * seqNoGap : SequenceNumbers.UNASSIGNED_SEQ_NO,
                         forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? primaryTerm + 1 : primaryTerm,
                         version,
                         forReplica ? versionType.versionTypeForReplicationAndRecovery() : versionType,
@@ -662,6 +668,33 @@ public abstract class EngineTestCase extends ESTestCase {
                 assertThat(collector.getTotalHits(), equalTo(1));
             }
         }
+    }
+
+    /**
+     * Returns a list of sequence numbers of all existing documents including soft-deleted documents in Lucene.
+     */
+    public static List<Long> getOperationSeqNoInLucene(Engine engine) throws IOException {
+        engine.refresh("test");
+        final List<Long> seqNos = new ArrayList<>();
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+            IndexSearcher indexSearcher = new IndexSearcher(Lucene.includeSoftDeletes(searcher.getDirectoryReader()));
+            List<LeafReaderContext> leaves = indexSearcher.getIndexReader().leaves();
+            NumericDocValues[] seqNoDocValues = new NumericDocValues[leaves.size()];
+            for (int i = 0; i < leaves.size(); i++) {
+                seqNoDocValues[i] = leaves.get(i).reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+            }
+            TopDocs allDocs = indexSearcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
+            for (ScoreDoc scoreDoc : allDocs.scoreDocs) {
+                int leafIndex = ReaderUtil.subIndex(scoreDoc.doc, leaves);
+                int segmentDocId = scoreDoc.doc - leaves.get(leafIndex).docBase;
+                if (seqNoDocValues[leafIndex] != null && seqNoDocValues[leafIndex].advanceExact(segmentDocId)) {
+                    seqNos.add(seqNoDocValues[leafIndex].longValue());
+                } else {
+                    throw new AssertionError("Segment without seqno DocValues");
+                }
+            }
+        }
+        return seqNos;
     }
 
     /**

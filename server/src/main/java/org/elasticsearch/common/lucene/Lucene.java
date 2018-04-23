@@ -30,6 +30,7 @@ import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
@@ -831,6 +832,58 @@ public class Lucene {
                 return maxDoc;
             }
         };
+    }
+
+    /**
+     * Wraps a directory reader to include soft-deleted documents.
+     * This should be only used to query the history of documents rather than the documents.
+     *
+     * @param in the input directory reader
+     * @return the wrapped reader including soft-deleted documents.
+     */
+    public static DirectoryReader includeSoftDeletes(DirectoryReader in) throws IOException {
+        return new DirectoryReaderWithSoftDeletes(in);
+    }
+
+    private static final class DirectoryReaderWithSoftDeletes extends FilterDirectoryReader {
+        static final class SubReaderWithSoftDeletes extends FilterLeafReader {
+            SubReaderWithSoftDeletes(LeafReader in) {
+                super(in);
+            }
+            @Override
+            public Bits getLiveDocs() {
+                return null;
+            }
+            @Override
+            public int numDocs() {
+                return maxDoc();
+            }
+            @Override
+            public CacheHelper getCoreCacheHelper() {
+                return in.getCoreCacheHelper();
+            }
+            @Override
+            public CacheHelper getReaderCacheHelper() {
+                return null; // Modifying liveDocs
+            }
+        }
+        DirectoryReaderWithSoftDeletes(DirectoryReader in) throws IOException {
+            super(in, new FilterDirectoryReader.SubReaderWrapper() {
+                @Override
+                public LeafReader wrap(LeafReader leaf) {
+                    return new SubReaderWithSoftDeletes(leaf);
+                }
+            });
+        }
+        @Override
+        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+            return includeSoftDeletes(in);
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return null; // Modifying liveDocs
+        }
     }
 
     /**

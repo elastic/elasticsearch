@@ -29,9 +29,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 public abstract class ParseContext implements Iterable<ParseContext.Document>{
 
@@ -286,6 +289,16 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         public Iterator<Document> iterator() {
             return in.iterator();
         }
+
+        @Override
+        public void addIgnoredField(String field) {
+            in.addIgnoredField(field);
+        }
+
+        @Override
+        public Collection<String> getIgnoredFields() {
+            return in.getIgnoredFields();
+        }
     }
 
     public static class InternalParseContext extends ParseContext {
@@ -318,6 +331,8 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         private final List<Mapper> dynamicMappers;
 
         private boolean docsReversed = false;
+
+        private final Set<String> ignoredFields = new HashSet<>();
 
         public InternalParseContext(@Nullable Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper,
                 SourceToParse source, XContentParser parser) {
@@ -453,6 +468,17 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
         public Iterator<Document> iterator() {
             return documents.iterator();
         }
+
+
+        @Override
+        public void addIgnoredField(String field) {
+            ignoredFields.add(field);
+        }
+
+        @Override
+        public Collection<String> getIgnoredFields() {
+            return Collections.unmodifiableCollection(ignoredFields);
+        }
     }
 
     /**
@@ -460,6 +486,17 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
      * the iterable will return an empty iterator.
      */
     public abstract Iterable<Document> nonRootDocuments();
+
+
+    /**
+     * Add the given {@code field} to the set of ignored fields.
+     */
+    public abstract void addIgnoredField(String field);
+
+    /**
+     * Return the collection of fields that have been ignored so far.
+     */
+    public abstract Collection<String> getIgnoredFields();
 
     public abstract DocumentMapperParser docMapperParser();
 

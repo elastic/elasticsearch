@@ -192,6 +192,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(0, fields.length);
+        assertArrayEquals(new String[] { "field" }, doc.rootDoc().getValues("_ignored"));
     }
 
     public void testChangeFormat() throws IOException {

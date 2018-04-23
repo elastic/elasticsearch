@@ -1202,14 +1202,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (docValueFields != null) {
             builder.startArray(DOCVALUE_FIELDS_FIELD.getPreferredName());
             for (FieldAndFormat docValueField : docValueFields) {
-                if (docValueField.format == null) {
-                    builder.value(docValueField);
-                } else {
-                    builder.startObject()
-                        .field("field", docValueField.field)
-                        .field("format", docValueField.format)
-                        .endObject();
+                builder.startObject()
+                    .field("field", docValueField.field);
+                if (docValueField.format != null) {
+                    builder.field("format", docValueField.format);
                 }
+                builder.endObject();
             }
             builder.endArray();
         }

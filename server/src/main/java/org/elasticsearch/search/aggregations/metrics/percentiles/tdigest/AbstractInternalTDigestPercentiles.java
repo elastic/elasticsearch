@@ -120,7 +120,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
                 builder.field(CommonFields.KEY.getPreferredName(), keys[i]);
                 builder.field(CommonFields.VALUE.getPreferredName(), value);
                 if (format != DocValueFormat.RAW) {
-                    builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(value));
+                    builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(value).toString());
                 }
                 builder.endObject();
             }

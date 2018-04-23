@@ -600,14 +600,12 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         if (docValueFields != null) {
             builder.startArray(SearchSourceBuilder.DOCVALUE_FIELDS_FIELD.getPreferredName());
             for (FieldAndFormat dvField : docValueFields) {
-                if (dvField.format == null) {
-                    builder.value(dvField.field);
-                } else {
-                    builder.startObject()
-                        .field("field", dvField.field)
-                        .field("format", dvField.format)
-                        .endObject();
+                builder.startObject()
+                    .field("field", dvField.field);
+                if (dvField.format != null) {
+                    builder.field("format", dvField.format);
                 }
+                builder.endObject();
             }
             builder.endArray();
         }

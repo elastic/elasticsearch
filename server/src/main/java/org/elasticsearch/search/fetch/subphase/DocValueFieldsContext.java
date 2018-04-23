@@ -20,11 +20,12 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 
@@ -45,6 +46,13 @@ public class DocValueFieldsContext {
      */
     public static final class FieldAndFormat implements Writeable {
 
+        private static final ConstructingObjectParser<FieldAndFormat, Void> PARSER = new ConstructingObjectParser<>("script",
+                a -> new FieldAndFormat((String) a[0], (String) a[1]));
+        static {
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("field"));
+            PARSER.declareStringOrNull(ConstructingObjectParser.constructorArg(), new ParseField("format"));
+        }
+
         /**
          * Parse a {@link FieldAndFormat} from some {@link XContent}.
          */
@@ -52,34 +60,8 @@ public class DocValueFieldsContext {
             Token token = parser.currentToken();
             if (token.isValue()) {
                 return new FieldAndFormat(parser.text(), null);
-            } else if (token == Token.START_OBJECT) {
-                String field = null, format = null;
-                for (token = parser.nextToken(); token != Token.END_OBJECT; token = parser.nextToken()) {
-                    if (token.isValue() || token == Token.VALUE_NULL) {
-                        switch (parser.currentName()) {
-                        case "field":
-                            field = parser.text();
-                            break;
-                        case "format":
-                            format = parser.textOrNull();
-                            break;
-                        default:
-                            throw new XContentParseException(parser.getTokenLocation(),
-                                    "Unknown field under [docvalue_fields]: [" + parser.currentName() + "]");
-                        }
-                    } else if (token != Token.FIELD_NAME) {
-                        throw new XContentParseException(parser.getTokenLocation(),
-                                "Unexpected token " + token + " while parsing a docvalue field");
-                    }
-                }
-                if (field == null) {
-                    throw new XContentParseException(parser.getTokenLocation(),
-                            "Missing field [field] while parsing a docvalue field");
-                }
-                return new FieldAndFormat(field, format);
             } else {
-                throw new XContentParseException(parser.getTokenLocation(),
-                        "Unexpected token " + token + " while starting to parse a docvalue field");
+                return PARSER.apply(parser, null);
             }
         }
 

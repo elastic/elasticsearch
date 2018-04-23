@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.repositories.gcs;
 
+import com.google.api.services.storage.StorageScopes;
 import com.google.auth.oauth2.ServiceAccountCredentials;
-
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -175,13 +175,16 @@ public class GoogleCloudStorageClientSettings {
     }
 
     /**
-     * Loads the service account file corresponding to a given client name. If no file is defined for the client,
-     * a {@code null} credential is returned.
+     * Loads the service account file corresponding to a given client name. If no
+     * file is defined for the client, a {@code null} credential is returned.
      *
-     * @param settings the {@link Settings}
-     * @param clientName the client name
+     * @param settings
+     *            the {@link Settings}
+     * @param clientName
+     *            the client name
      *
-     * @return the {@link GoogleCredential} to use for the given client, {@code null} if no service account is defined.
+     * @return the {@link ServiceAccountCredentials} to use for the given client,
+     *         {@code null} if no service account is defined.
      */
     static ServiceAccountCredentials loadCredential(final Settings settings, final String clientName) {
         try {
@@ -191,7 +194,12 @@ public class GoogleCloudStorageClientSettings {
                 return null;
             }
             try (InputStream credStream = CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName).get(settings)) {
-                return ServiceAccountCredentials.fromStream(credStream);
+                final ServiceAccountCredentials credentials = ServiceAccountCredentials.fromStream(credStream);
+                if (credentials.createScopedRequired()) {
+                    return (ServiceAccountCredentials) credentials
+                            .createScoped(Collections.singleton(StorageScopes.DEVSTORAGE_FULL_CONTROL));
+                }
+                return credentials;
             }
         } catch (final IOException e) {
             throw new UncheckedIOException(e);

@@ -135,7 +135,7 @@ public class GoogleCloudStorageClientSettings {
     }
 
     public String getProjectId() {
-        return projectId;
+        return projectId != null ? projectId : (credential != null ? credential.getProjectId() : null);
     }
 
     public TimeValue getConnectTimeout() {

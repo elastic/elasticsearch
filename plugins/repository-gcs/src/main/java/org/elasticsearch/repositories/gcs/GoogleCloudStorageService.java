@@ -77,14 +77,14 @@ public class GoogleCloudStorageService extends AbstractComponent {
                     }
                     return mapBuilder.immutableMap();
                 });
-        if (Strings.hasLength(clientSettings.getProjectId())) {
-            storageOptionsBuilder.setProjectId(clientSettings.getProjectId());
-        }
         if (Strings.hasLength(clientSettings.getHost())) {
             storageOptionsBuilder.setHost(clientSettings.getHost());
         }
         if (clientSettings.getCredential() != null) {
             storageOptionsBuilder.setCredentials(clientSettings.getCredential());
+        }
+        if (Strings.hasLength(clientSettings.getProjectId())) {
+            storageOptionsBuilder.setProjectId(clientSettings.getProjectId());
         }
         return storageOptionsBuilder.build().getService();
     }

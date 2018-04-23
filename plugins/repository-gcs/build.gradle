@@ -43,16 +43,21 @@ dependencies {
   compile 'org.threeten:threetenbp:1.3.6'
   compile 'com.google.api:gax:1.23.0'
   compile 'com.google.http-client:google-http-client:1.23.0'
+  compile 'com.google.http-client:google-http-client-jackson:1.23.0'
   compile 'com.google.http-client:google-http-client-jackson2:1.23.0'
   compile 'com.google.http-client:google-http-client-appengine:1.23.0'
   compile 'com.google.guava:guava:20.0'
   compile 'com.google.apis:google-api-services-storage:v1-rev115-1.23.0'
-  //compile 'com.fasterxml.jackson.core:jackson-core:2.1.3'
-  compile 'com.google.protobuf:protobuf-java:3.5.1'
+  compile 'io.opencensus:opencensus-api:0.11.1'
+  compile 'io.opencensus:opencensus-contrib-http-util:0.11.1'
+  compile 'org.codehaus.jackson:jackson-core-asl:1.9.13'
+  compile 'io.grpc:grpc-context:1.9.0'
 
   compile 'io.opencensus:opencensus-api:0.11.1'
   compile 'com.google.api.grpc:proto-google-common-protos:1.8.0'
 
+  //compile 'com.google.protobuf:protobuf-java:3.5.1'
+  //compile 'com.fasterxml.jackson.core:jackson-core:2.1.3'
   //compile 'com.google.api:gax-grpc:1.24.0'
   //compile 'org.threeten:threetenbp:1.3.6'
   //compile 'com.google.auth:google-auth-library-oauth2-http:0.9.1'
@@ -73,6 +78,7 @@ dependencyLicenses {
   mapping from: /google-cloud-.*/, to: 'google-cloud'
   mapping from: /google-auth-.*/, to: 'google-auth'
   mapping from: /google-http-.*/, to: 'google-http'
+  mapping from: /opencensus.*/, to: 'opencensus'
 }
 
 thirdPartyAudit.excludes = [
@@ -132,4 +138,5 @@ integTestCluster {
 
   /* Use a closure on the string to delay evaluation until tests are executed */
   setting 'gcs.client.integration_test.host', "http://${ -> googleCloudStorageFixture.addressAndPort }"
+  setting 'gcs.client.integration_test.project_id', "integration_test"
 }

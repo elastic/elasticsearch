@@ -126,7 +126,7 @@ http://en.wikipedia.org/wiki/Quadtree[quadtree] for grid squares.
 Similar to geohash, quad trees interleave the bits of the latitude and
 longitude the resulting hash is a bit set. A tree level in a quad tree
 represents 2 bits in this bit set, one for each coordinate. The maximum
-amount of levels for the quad trees in Elasticsearch is 50.
+amount of levels for the quad trees in Elasticsearch is 29.
 
 [[spatial-strategy]]
 [float]

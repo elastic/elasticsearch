@@ -20,8 +20,6 @@ are stored and indexed.  For instance, use mappings to define:
 Each index has one _mapping type_ which determines how the document will be
 indexed.
 
-deprecated[6.0.0,See <<removal-of-types>>].
-
 A mapping type has:
 
 <<mapping-fields,Meta-fields>>::

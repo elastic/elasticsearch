@@ -1,12 +1,12 @@
 ￿[[search-explain]]
 == Explain API
 
-The explain API calculates the relevance score for a particular document and
-shows what led to that score. This can help you understand why a document is
-(or isn't) showing up in the search results for a particular query.
+The explain API computes a score explanation for a query and a specific
+document. This can give useful feedback whether a document maches or didn't
+match a specific query
 
-You must run explain against a particular document. You cannot specify multiple
-indices, types, or documents.
+The index and type parameters epect a single index and a single type
+respectively.
 
 [float]
 === Usage
@@ -25,7 +25,7 @@ GET /twitter/_doc/0/_explain
 // CONSOLE
 // TEST[setup:twitter]
 
-This yields the following result:
+This will yield the following result:
 
 [source,js]
 --------------------------------------------------
@@ -101,8 +101,9 @@ of:",
 --------------------------------------------------
 // TESTRESPONSE
 
-The q parameter provides a shortcut for specifying the query. The following
-request is equivalent to the full query_string query in the previous example:
+There is also a simpler way of specifying the query via the q parameter. The
+specified q parameter value is then parsed as if the query_string query was
+used. Example usage of the q parameter in the explain API:
 
 
 [source,js]
@@ -119,26 +120,25 @@ This yields the same result as the previous request.
 
 [horizontal]
 `_source`::
-
-    Set to true to retrieve the document _source along with the explanation.
-To retrieve a subset of the document _source, you can
-use _source_include and _source_exclude. For more information, see the
-<<get-source-filtering,Get API>>.
+Set to true to retrieve the _source of the document explained.
+You can also retrieve part of the document by using _source_include &
+_source_exclude (see) <<get-source-filtering,Get API>> for more details.
 
 `stored_fields`::
-    Specifies which fields to return as part of the explained document.
+    Allows to control which stored fields to return as part of the document
+	explained.
 
 `routing`::
-    Controls routing when routing was used during indexing.
+    Controls the routing in the case the routing was used during indexing.
 
 `parent`::
     Same effect as setting the routing parameter.
 
 `preference`::
-    Specifies the shard on which `explain` is executed.
+    Controls on which shard the `explain` is executed.
 
 `source`::
-    Puts the data of the request in the query string of the url.
+    Allows the data of the request to be put in the query string of the url.
 
 `q`::
     The query string (maps to the query_string query).
@@ -152,12 +152,12 @@ use _source_include and _source_exclude. For more information, see the
     string. Defaults to the default search analyzer.
 
 `analyze_wildcard`::
-    Analize wildcard and prefix queries? Defaults to false.
+    Should wildcard and prefix queries be analyzed or not Defaults to false.
 
 `lenient`::
-    Ignore format-based failures (like providing text to a numeric field)?
-Defaults to false.
+    If set to true will cause format based failures (like providing text to a 
+	numeric field) to be ignored. Defaults to false.
 
 `default_operator`::
-    The default operator to use; can be AND or
+    The default operator to be used, can be AND or
     OR. Defaults to OR.

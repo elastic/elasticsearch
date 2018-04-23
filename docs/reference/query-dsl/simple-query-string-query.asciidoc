@@ -2,8 +2,8 @@
 === Simple Query String Query
 
 A query that uses the SimpleQueryParser to parse its context. Unlike the
-regular `query_string` query, the `simple_query_string` query never
-throws an exception. Instead, it simply discards any invalid parts of the query.
+regular `query_string` query, the `simple_query_string` query will never
+throw an exception ans discards invalid parts of the query.
 For example:
 
 [source,js]
@@ -68,10 +68,6 @@ comprehensive example.
 |`auto_generate_synonyms_phrase_query` |Whether phrase queries should be
 automatically generated for multi terms synonyms.
 Defaults to `true`.
-
--|`all_fields` |  deprecated[6.0.0, set `fields` to `*` instead]
--Perform the query on all fields detected in the mapping that can
--be queried.
 
 |`fuzzy_prefix_length` |Set the prefix length for fuzzy queries. Default
 is `0`.

@@ -235,7 +235,8 @@ explicitly ignore them, as for the purposes of document similarity it seems
 reasonable to assume that "a stop word is never interesting".
 
 `analyzer`::
-Specifies which analyzer to use on the "like" text.
+The analyzer that is used to analyze the free form "like"text. 
+
 
 [float]
 ==== Query Formation Parameters

@@ -45,6 +45,7 @@ dependencies {
   compile 'com.google.http-client:google-http-client:1.23.0'
   compile 'com.google.http-client:google-http-client-jackson:1.23.0'
   compile 'com.google.http-client:google-http-client-jackson2:1.23.0'
+  compile 'com.google.api:gax-httpjson:0.40.0'
   compile 'com.google.http-client:google-http-client-appengine:1.23.0'
   compile 'com.google.guava:guava:20.0'
   compile 'com.google.apis:google-api-services-storage:v1-rev115-1.23.0'

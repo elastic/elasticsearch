@@ -26,4 +26,6 @@ grant {
 
   // gcs client opens socket connections for to access repository
   permission java.net.SocketPermission "*", "connect";
+
+  //permission java.io.FilePermission "<<ALL FILES>>", "read";
 };

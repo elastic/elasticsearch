@@ -20,6 +20,8 @@ package org.elasticsearch.repositories.gcs;
 
 import com.google.api.services.storage.StorageScopes;
 import com.google.auth.oauth2.ServiceAccountCredentials;
+
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -135,7 +137,7 @@ public class GoogleCloudStorageClientSettings {
     }
 
     public String getProjectId() {
-        return projectId != null ? projectId : (credential != null ? credential.getProjectId() : null);
+        return Strings.hasLength(projectId) ? projectId : (credential != null ? credential.getProjectId() : null);
     }
 
     public TimeValue getConnectTimeout() {

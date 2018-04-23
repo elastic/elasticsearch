@@ -123,7 +123,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 }
 
                 @Override
-                public String routing() {
+                public String[] indexRoutings() {
                     return null;
                 }
 

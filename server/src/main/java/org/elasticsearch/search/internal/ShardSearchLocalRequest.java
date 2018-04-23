@@ -58,7 +58,6 @@ import java.util.Optional;
  */
 
 public class ShardSearchLocalRequest implements ShardSearchRequest {
-
     private String clusterAlias;
     private ShardId shardId;
     private int numberOfShards;
@@ -71,7 +70,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     private Boolean requestCache;
     private long nowInMillis;
     private boolean allowPartialSearchResults;
-    private String routing;
+    private String[] indexRoutings = Strings.EMPTY_ARRAY;
     private String preference;
     private boolean profile;
 
@@ -79,10 +78,10 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     }
 
     ShardSearchLocalRequest(SearchRequest searchRequest, ShardId shardId, int numberOfShards,
-                            AliasFilter aliasFilter, float indexBoost, long nowInMillis, String clusterAlias) {
+                            AliasFilter aliasFilter, float indexBoost, long nowInMillis, String clusterAlias, String[] indexRoutings) {
         this(shardId, numberOfShards, searchRequest.searchType(),
                 searchRequest.source(), searchRequest.types(), searchRequest.requestCache(), aliasFilter, indexBoost,
-                searchRequest.allowPartialSearchResults(), searchRequest.routing(), searchRequest.preference());
+                searchRequest.allowPartialSearchResults(), indexRoutings, searchRequest.preference());
         // If allowPartialSearchResults is unset (ie null), the cluster-level default should have been substituted
         // at this stage. Any NPEs in the above are therefore an error in request preparation logic.
         assert searchRequest.allowPartialSearchResults() != null;
@@ -101,7 +100,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
 
     public ShardSearchLocalRequest(ShardId shardId, int numberOfShards, SearchType searchType, SearchSourceBuilder source, String[] types,
                                    Boolean requestCache, AliasFilter aliasFilter, float indexBoost, boolean allowPartialSearchResults,
-                                   String routing, String preference) {
+                                   String[] indexRoutings, String preference) {
         this.shardId = shardId;
         this.numberOfShards = numberOfShards;
         this.searchType = searchType;
@@ -111,7 +110,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         this.aliasFilter = aliasFilter;
         this.indexBoost = indexBoost;
         this.allowPartialSearchResults = allowPartialSearchResults;
-        this.routing = routing;
+        this.indexRoutings = indexRoutings;
         this.preference = preference;
     }
 
@@ -183,8 +182,8 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     }
 
     @Override
-    public String routing() {
-        return routing;
+    public String[] indexRoutings() {
+        return indexRoutings;
     }
 
     @Override
@@ -237,10 +236,10 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
             allowPartialSearchResults = in.readOptionalBoolean();
         }
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            routing = in.readOptionalString();
+            indexRoutings = in.readStringArray();
             preference = in.readOptionalString();
         } else {
-            routing = null;
+            indexRoutings = Strings.EMPTY_ARRAY;
             preference = null;
         }
     }
@@ -258,7 +257,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         if (out.getVersion().onOrAfter(Version.V_5_2_0)) {
             out.writeFloat(indexBoost);
         }
-        if (!asKey) {
+        if (asKey == false) {
             out.writeVLong(nowInMillis);
         }
         out.writeOptionalBoolean(requestCache);
@@ -268,9 +267,9 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
             out.writeOptionalBoolean(allowPartialSearchResults);
         }
-        if (!asKey) {
+        if (asKey == false) {
             if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-                out.writeOptionalString(routing);
+                out.writeStringArray(indexRoutings);
                 out.writeOptionalString(preference);
             }
         }

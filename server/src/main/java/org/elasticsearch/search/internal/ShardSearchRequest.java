@@ -21,6 +21,7 @@ package org.elasticsearch.search.internal;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.CheckedFunction;
@@ -73,12 +74,12 @@ public interface ShardSearchRequest {
     Scroll scroll();
 
     /**
-     * Returns the routing of the original {@link SearchRequest}.
+     * Returns the routing values resolved by the coordinating node for the index pointed by {@link #shardId()}.
      */
-    String routing();
+    String[] indexRoutings();
 
     /**
-     * Returns the preference of the original {@link SearchRequest}.
+     * Returns the preference of the original {@link SearchRequest#preference()}.
      */
     String preference();
 

@@ -86,13 +86,13 @@ public class SliceBuilderTests extends ESTestCase {
     static class ShardSearchRequestTest implements IndicesRequest, ShardSearchRequest {
         private final String[] indices;
         private final int shardId;
-        private final String routing;
+        private final String[] indexRoutings;
         private final String preference;
 
-        ShardSearchRequestTest(String index, int shardId, String routing, String preference) {
+        ShardSearchRequestTest(String index, int shardId, String[] indexRoutings, String preference) {
             this.indices = new String[] { index };
             this.shardId = shardId;
-            this.routing = routing;
+            this.indexRoutings = indexRoutings;
             this.preference = preference;
         }
 
@@ -172,8 +172,8 @@ public class SliceBuilderTests extends ESTestCase {
         }
 
         @Override
-        public String routing() {
-            return routing;
+        public String[] indexRoutings() {
+            return indexRoutings;
         }
 
         @Override
@@ -241,8 +241,8 @@ public class SliceBuilderTests extends ESTestCase {
         return createRequest(shardId,null, null);
     }
 
-    private ShardSearchRequest createRequest(int shardId, String routing, String preference) {
-        return new ShardSearchRequestTest("index", shardId, routing, preference);
+    private ShardSearchRequest createRequest(int shardId, String[] routings, String preference) {
+        return new ShardSearchRequestTest("index", shardId, routings, preference);
     }
 
     private QueryShardContext createShardContext(Version indexVersionCreated, IndexReader reader,
@@ -498,7 +498,8 @@ public class SliceBuilderTests extends ESTestCase {
         try (IndexReader reader = DirectoryReader.open(dir)) {
             QueryShardContext context = createShardContext(Version.CURRENT, reader, "field", DocValuesType.SORTED, 5, 0);
             SliceBuilder builder = new SliceBuilder("field", 6, 10);
-            Query query = builder.toFilter(clusterService, createRequest(1, "foo", null), context, Version.CURRENT);
+            String[] routings = new String[] { "foo" };
+            Query query = builder.toFilter(clusterService, createRequest(1, routings, null), context, Version.CURRENT);
             assertEquals(new DocValuesSliceQuery("field", 6, 10), query);
             query = builder.toFilter(clusterService, createRequest(1, null, "foo"), context, Version.CURRENT);
             assertEquals(new DocValuesSliceQuery("field", 6, 10), query);

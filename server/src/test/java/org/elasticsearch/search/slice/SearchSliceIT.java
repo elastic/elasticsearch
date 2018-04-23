@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.slice;
 
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -48,9 +49,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
 public class SearchSliceIT extends ESIntegTestCase {
-    private static final int NUM_DOCS = 1000;
-
-    private void setupIndex(int numberOfShards, boolean withDocs) throws IOException, ExecutionException, InterruptedException {
+    private void setupIndex(int numDocs, int numberOfShards) throws IOException, ExecutionException, InterruptedException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().
             startObject()
                 .startObject("type")
@@ -75,103 +74,37 @@ public class SearchSliceIT extends ESIntegTestCase {
             .addMapping("type", mapping, XContentType.JSON));
         ensureGreen();
 
-        if (withDocs == false) {
-            return;
-        }
-
         List<IndexRequestBuilder> requests = new ArrayList<>();
-        for (int i = 0; i < NUM_DOCS; i++) {
-            XContentBuilder builder = jsonBuilder();
-            builder.startObject();
-            builder.field("invalid_random_kw", randomAlphaOfLengthBetween(5, 20));
-            builder.field("random_int", randomInt());
-            builder.field("static_int", 0);
-            builder.field("invalid_random_int", randomInt());
-            builder.endObject();
+        for (int i = 0; i < numDocs; i++) {
+            XContentBuilder builder = jsonBuilder()
+                .startObject()
+                    .field("invalid_random_kw", randomAlphaOfLengthBetween(5, 20))
+                    .field("random_int", randomInt())
+                    .field("static_int", 0)
+                    .field("invalid_random_int", randomInt())
+                .endObject();
             requests.add(client().prepareIndex("test", "type").setSource(builder));
         }
         indexRandom(true, requests);
     }
 
-    public void testDocIdSort() throws Exception {
+    public void testSearchSort() throws Exception {
         int numShards = randomIntBetween(1, 7);
-        setupIndex(numShards, true);
-        SearchResponse sr = client().prepareSearch("test")
-            .setQuery(matchAllQuery())
-            .setSize(0)
-            .get();
-        int numDocs = (int) sr.getHits().getTotalHits();
-        assertThat(numDocs, equalTo(NUM_DOCS));
-        int max = randomIntBetween(2, numShards*3);
+        int numDocs = randomIntBetween(100, 1000);
+        setupIndex(numDocs, numShards);
+        int max = randomIntBetween(2, numShards * 3);
         for (String field : new String[]{"_id", "random_int", "static_int"}) {
             int fetchSize = randomIntBetween(10, 100);
+            // test _doc sort
             SearchRequestBuilder request = client().prepareSearch("test")
                 .setQuery(matchAllQuery())
                 .setScroll(new Scroll(TimeValue.timeValueSeconds(10)))
                 .setSize(fetchSize)
                 .addSort(SortBuilders.fieldSort("_doc"));
             assertSearchSlicesWithScroll(request, field, max, numDocs);
-        }
-    }
 
-    public void testWithPreference() throws Exception {
-        int numShards = 10;
-        setupIndex(numShards, true);
-        SearchResponse sr = client().prepareSearch("test")
-            .setQuery(matchAllQuery())
-            .setPreference("_shards:1,4")
-            .setSize(0)
-            .get();
-        int numDocs = (int) sr.getHits().getTotalHits();
-        int max = randomIntBetween(2, numShards*3);
-        for (String field : new String[]{"_id", "random_int", "static_int"}) {
-            int fetchSize = randomIntBetween(10, 100);
-            SearchRequestBuilder request = client().prepareSearch("test")
-                .setQuery(matchAllQuery())
-                .setScroll(new Scroll(TimeValue.timeValueSeconds(10)))
-                .setSize(fetchSize)
-                .setPreference("_shards:1,4")
-                .addSort(SortBuilders.fieldSort("_doc"));
-            assertSearchSlicesWithScroll(request, field, max, numDocs);
-        }
-    }
-
-    public void testWithRouting() throws Exception {
-        int numShards = 10;
-        setupIndex(numShards, true);
-        SearchResponse sr = client().prepareSearch("test")
-            .setQuery(matchAllQuery())
-            .setRouting("foo", "bar")
-            .setSize(0)
-            .get();
-        int numDocs = (int) sr.getHits().getTotalHits();
-        int max = randomIntBetween(2, numShards*3);
-        for (String field : new String[]{"_id", "random_int", "static_int"}) {
-            int fetchSize = randomIntBetween(10, 100);
-            SearchRequestBuilder request = client().prepareSearch("test")
-                .setQuery(matchAllQuery())
-                .setScroll(new Scroll(TimeValue.timeValueSeconds(10)))
-                .setSize(fetchSize)
-                .setRouting("foo", "bar")
-                .addSort(SortBuilders.fieldSort("_doc"));
-            assertSearchSlicesWithScroll(request, field, max, numDocs);
-        }
-    }
-
-    public void testNumericSort() throws Exception {
-        int numShards = randomIntBetween(1, 7);
-        setupIndex(numShards, true);
-        SearchResponse sr = client().prepareSearch("test")
-            .setQuery(matchAllQuery())
-            .setSize(0)
-            .get();
-        int numDocs = (int) sr.getHits().getTotalHits();
-        assertThat(numDocs, equalTo(NUM_DOCS));
-
-        int max = randomIntBetween(2, numShards*3);
-        for (String field : new String[]{"_id", "random_int", "static_int"}) {
-            int fetchSize = randomIntBetween(10, 100);
-            SearchRequestBuilder request = client().prepareSearch("test")
+            // test numeric sort
+            request = client().prepareSearch("test")
                 .setQuery(matchAllQuery())
                 .setScroll(new Scroll(TimeValue.timeValueSeconds(10)))
                 .addSort(SortBuilders.fieldSort("random_int"))
@@ -180,9 +113,68 @@ public class SearchSliceIT extends ESIntegTestCase {
         }
     }
 
+    public void testWithPreferenceAndRoutings() throws Exception {
+        int numShards = 10;
+        int totalDocs = randomIntBetween(100, 1000);
+        setupIndex(totalDocs, numShards);
+        {
+            SearchResponse sr = client().prepareSearch("test")
+                .setQuery(matchAllQuery())
+                .setPreference("_shards:1,4")
+                .setSize(0)
+                .get();
+            int numDocs = (int) sr.getHits().getTotalHits();
+            int max = randomIntBetween(2, numShards * 3);
+            int fetchSize = randomIntBetween(10, 100);
+            SearchRequestBuilder request = client().prepareSearch("test")
+                .setQuery(matchAllQuery())
+                .setScroll(new Scroll(TimeValue.timeValueSeconds(10)))
+                .setSize(fetchSize)
+                .setPreference("_shards:1,4")
+                .addSort(SortBuilders.fieldSort("_doc"));
+            assertSearchSlicesWithScroll(request, "_id", max, numDocs);
+        }
+        {
+            SearchResponse sr = client().prepareSearch("test")
+                .setQuery(matchAllQuery())
+                .setRouting("foo", "bar")
+                .setSize(0)
+                .get();
+            int numDocs = (int) sr.getHits().getTotalHits();
+            int max = randomIntBetween(2, numShards * 3);
+            int fetchSize = randomIntBetween(10, 100);
+            SearchRequestBuilder request = client().prepareSearch("test")
+                .setQuery(matchAllQuery())
+                .setScroll(new Scroll(TimeValue.timeValueSeconds(10)))
+                .setSize(fetchSize)
+                .setRouting("foo", "bar")
+                .addSort(SortBuilders.fieldSort("_doc"));
+            assertSearchSlicesWithScroll(request, "_id", max, numDocs);
+        }
+        {
+            assertAcked(client().admin().indices().prepareAliases()
+                .addAliasAction(IndicesAliasesRequest.AliasActions.add().index("test").alias("alias1").routing("foo"))
+                .addAliasAction(IndicesAliasesRequest.AliasActions.add().index("test").alias("alias2").routing("bar"))
+                .addAliasAction(IndicesAliasesRequest.AliasActions.add().index("test").alias("alias3").routing("baz"))
+                .get());
+            SearchResponse sr = client().prepareSearch("alias1", "alias3")
+                .setQuery(matchAllQuery())
+                .setSize(0)
+                .get();
+            int numDocs = (int) sr.getHits().getTotalHits();
+            int max = randomIntBetween(2, numShards * 3);
+            int fetchSize = randomIntBetween(10, 100);
+            SearchRequestBuilder request = client().prepareSearch("alias1", "alias3")
+                .setQuery(matchAllQuery())
+                .setScroll(new Scroll(TimeValue.timeValueSeconds(10)))
+                .setSize(fetchSize)
+                .addSort(SortBuilders.fieldSort("_doc"));
+            assertSearchSlicesWithScroll(request, "_id", max, numDocs);
+        }
+    }
+
     public void testInvalidFields() throws Exception {
-        int numShards = randomIntBetween(1, 7);
-        setupIndex(numShards, true);
+        setupIndex(0, 1);
         SearchPhaseExecutionException exc = expectThrows(SearchPhaseExecutionException.class,
             () -> client().prepareSearch("test")
                 .setQuery(matchAllQuery())
@@ -206,8 +198,7 @@ public class SearchSliceIT extends ESIntegTestCase {
     }
 
     public void testInvalidQuery() throws Exception {
-        int numShards = randomIntBetween(1, 7);
-        setupIndex(numShards, true);
+        setupIndex(0, 1);
         SearchPhaseExecutionException exc = expectThrows(SearchPhaseExecutionException.class,
             () -> client().prepareSearch()
                 .setQuery(matchAllQuery())
@@ -230,7 +221,7 @@ public class SearchSliceIT extends ESIntegTestCase {
             int numSliceResults = searchResponse.getHits().getHits().length;
             String scrollId = searchResponse.getScrollId();
             for (SearchHit hit : searchResponse.getHits().getHits()) {
-                keys.add(hit.getId());
+                assertTrue(keys.add(hit.getId()));
             }
             while (searchResponse.getHits().getHits().length > 0) {
                 searchResponse = client().prepareSearchScroll("test")
@@ -241,7 +232,7 @@ public class SearchSliceIT extends ESIntegTestCase {
                 totalResults += searchResponse.getHits().getHits().length;
                 numSliceResults += searchResponse.getHits().getHits().length;
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
-                    keys.add(hit.getId());
+                    assertTrue(keys.add(hit.getId()));
                 }
             }
             assertThat(numSliceResults, equalTo(expectedSliceResults));

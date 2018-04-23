@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
@@ -238,7 +239,7 @@ public class SliceBuilderTests extends ESTestCase {
     }
 
     private ShardSearchRequest createRequest(int shardId) {
-        return createRequest(shardId,null, null);
+        return createRequest(shardId, Strings.EMPTY_ARRAY, null);
     }
 
     private ShardSearchRequest createRequest(int shardId, String[] routings, String preference) {
@@ -501,9 +502,9 @@ public class SliceBuilderTests extends ESTestCase {
             String[] routings = new String[] { "foo" };
             Query query = builder.toFilter(clusterService, createRequest(1, routings, null), context, Version.CURRENT);
             assertEquals(new DocValuesSliceQuery("field", 6, 10), query);
-            query = builder.toFilter(clusterService, createRequest(1, null, "foo"), context, Version.CURRENT);
+            query = builder.toFilter(clusterService, createRequest(1, Strings.EMPTY_ARRAY, "foo"), context, Version.CURRENT);
             assertEquals(new DocValuesSliceQuery("field", 6, 10), query);
-            query = builder.toFilter(clusterService, createRequest(1, null, "foo"), context, Version.V_6_2_0);
+            query = builder.toFilter(clusterService, createRequest(1, Strings.EMPTY_ARRAY, "foo"), context, Version.V_6_2_0);
             assertEquals(new DocValuesSliceQuery("field", 1, 2), query);
         }
     }

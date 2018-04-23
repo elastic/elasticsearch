@@ -123,6 +123,12 @@ Closure commonPackageConfig(String type, boolean oss) {
           include oss ? 'APACHE-LICENSE-2.0.txt' : 'ELASTIC-LICENSE.txt'
           rename { 'LICENSE.txt' }
         }
+      } else {
+        assert type == 'deb'
+        into("/usr/share/doc/${packageName}") {
+          from "${packagingFiles}/copyright"
+          fileMode 0644
+        }
       }
       into('modules') {
         with copySpec {
@@ -261,10 +267,6 @@ Closure commonDebConfig(boolean oss) {
 
     into('/usr/share/lintian/overrides') {
       from('src/deb/lintian/elasticsearch')
-    }
-    into('/usr/share/doc/elasticsearch') {
-      from 'src/deb/copyright'
-      fileMode 0644
     }
   }
 }

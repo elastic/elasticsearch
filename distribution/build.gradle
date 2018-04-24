@@ -17,16 +17,12 @@
  * under the License.
  */
 
-import org.apache.tools.ant.filters.FixCrLfFilter
-import org.apache.tools.ant.taskdefs.condition.Os
-import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.ConcatFilesTask
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.NoticeTask
-import org.elasticsearch.gradle.precommit.DependencyLicensesTask
-import org.elasticsearch.gradle.precommit.UpdateShasTask
 import org.elasticsearch.gradle.test.RunTask
-import org.gradle.api.file.RelativePath
+
+import java.nio.file.Path
 
 Collection distributions = project('archives').subprojects + project('packages').subprojects
 
@@ -462,5 +458,16 @@ subprojects {
       result[key] = value
     }
     return result
+  }
+}
+
+static void assertLinesInFile(final Path path, final List<String> actualLines, final List<String> expectedLines) {
+  int line = 0
+  for (final String expectedLine : expectedLines) {
+    final String actualLine = actualLines.get(line)
+    if (expectedLine != actualLine) {
+      throw new GradleException("expected line [${line + 1}] in [${path}] to be [${expectedLine}] but was [${actualLine}]")
+    }
+    line++
   }
 }

@@ -1,3 +1,7 @@
+# A role that has all sorts of configuration:
+# - it can monitor the cluster
+# - for index1 and index2 it can do CRUD things and refresh
+# - for other indices it has search-only privileges
 actual_role:
   run_as: [ "joe" ]
   cluster:

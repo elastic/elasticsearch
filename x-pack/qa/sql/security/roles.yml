@@ -1,3 +1,4 @@
+# tag::rest
 rest_minimal:
   indices:
     - names: test

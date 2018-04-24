@@ -1,3 +1,9 @@
+# roleA   this is an elasticsearch role
+#  - groupA-DN  this is any group, ldap DN, or unix group
+#  - groupB-DN
+#  - user1-DN
+
+#This is an example of ldap mapping configuration
 security:
   - "cn=avengers,ou=marvel,o=superheros"
   - "cn=shield,ou=marvel,o=superheros"

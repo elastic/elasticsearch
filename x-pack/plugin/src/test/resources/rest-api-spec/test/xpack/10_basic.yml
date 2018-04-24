@@ -1,3 +1,5 @@
+# Integration tests for monitoring
+#
 "X-Pack loaded":
     - do:
         cluster.state: {}

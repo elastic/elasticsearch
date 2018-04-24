@@ -35,6 +35,7 @@ setup:
         index: test*
         expand_wildcards: [ closed ]
 
+  - is_true: cluster_uuid
   - is_false: metadata.indices.test_open_index
   - match: {metadata.indices.test_close_index.state: "close"}
 
@@ -44,6 +45,7 @@ setup:
         index: test*
         expand_wildcards: [ open ]
 
+  - is_true: cluster_uuid
   - match: {metadata.indices.test_open_index.state: "open"}
   - is_false: metadata.indices.test_close_index
 
@@ -53,6 +55,7 @@ setup:
         index: test*
         expand_wildcards: [ open,closed ]
 
+  - is_true: cluster_uuid
   - match: {metadata.indices.test_open_index.state: "open"}
   - match: {metadata.indices.test_close_index.state: "close"}
 
@@ -65,6 +68,7 @@ setup:
         index: foobla
         ignore_unavailable: true
 
+  - is_true: cluster_uuid
   - match: {metadata.indices: {}}
 
   - do:
@@ -82,6 +86,7 @@ setup:
         metric: [ metadata ]
         index: not_there*
 
+  - is_true: cluster_uuid
   - match: {metadata.indices: {}}
 
   - do:

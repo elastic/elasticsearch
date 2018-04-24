@@ -13,6 +13,7 @@ setup:
       cluster.state:
         metric: [ blocks ]
 
+  - is_true: cluster_uuid
   - is_true: blocks
   - is_false: nodes
   - is_false: metadata
@@ -31,6 +32,7 @@ setup:
       cluster.state:
         metric: [ blocks ]
 
+  - is_true: cluster_uuid
   - is_true: blocks
   - is_false: nodes
   - is_false: metadata
@@ -50,6 +52,7 @@ setup:
       cluster.state:
         metric: [ nodes ]
 
+  - is_true: cluster_uuid
   - is_false: blocks
   - is_true: nodes
   - is_false: metadata
@@ -62,6 +65,7 @@ setup:
       cluster.state:
         metric: [ metadata ]
 
+  - is_true: cluster_uuid
   - is_false: blocks
   - is_false: nodes
   - is_true: metadata
@@ -75,6 +79,7 @@ setup:
       cluster.state:
         metric: [ routing_table ]
 
+  - is_true: cluster_uuid
   - is_false: blocks
   - is_false: nodes
   - is_false: metadata
@@ -87,6 +92,7 @@ setup:
       cluster.state:
         metric: [ routing_nodes ]
 
+  - is_true: cluster_uuid
   - is_false: blocks
   - is_false: nodes
   - is_false: metadata
@@ -108,6 +114,7 @@ setup:
         metric: [ routing_table, metadata ]
         index: [ testidx ]
 
+  - is_true: cluster_uuid
   - is_false: metadata.indices.another
   - is_false: routing_table.indices.another
   - is_true: metadata.indices.testidx
@@ -120,6 +127,7 @@ setup:
         metric: [ '_all' ]
         index: [ '_all' ]
 
+  - is_true: cluster_uuid
   - is_true: blocks
   - is_true: nodes
   - is_true: metadata
@@ -152,6 +160,7 @@ setup:
   - is_false: metadata.indices.testidx
   - is_false: routing_table.indices.testidx
 
+  - is_true: cluster_uuid
   - is_true: metadata.indices.index1
   - is_true: routing_table.indices.index1
   - is_true: metadata.indices.index2

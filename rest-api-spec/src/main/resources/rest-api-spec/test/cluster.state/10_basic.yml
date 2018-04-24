@@ -2,7 +2,8 @@
 "get cluster state":
   - do:
       cluster.state: {}
-  
+
+  - is_true: cluster_uuid
   - is_true: master_node
 
 ---
@@ -15,6 +16,7 @@
       cluster.state:
         human: true
 
+  - is_true: cluster_uuid
   - is_true: master_node
   - gte: { compressed_size_in_bytes: 50 }
   - is_true: compressed_size

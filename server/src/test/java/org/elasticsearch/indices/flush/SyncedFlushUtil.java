@@ -40,8 +40,7 @@ public class SyncedFlushUtil {
     /**
      * Blocking version of {@link SyncedFlushService#attemptSyncedFlush(ShardId, ActionListener)}
      */
-    public static ShardsSyncedFlushResult attemptSyncedFlush(InternalTestCluster cluster, ShardId shardId) {
-        SyncedFlushService service = cluster.getInstance(SyncedFlushService.class);
+    public static ShardsSyncedFlushResult attemptSyncedFlush(SyncedFlushService service, ShardId shardId) {
         LatchedListener<ShardsSyncedFlushResult> listener = new LatchedListener<>();
         service.attemptSyncedFlush(shardId, listener);
         try {

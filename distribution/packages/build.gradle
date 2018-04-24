@@ -253,10 +253,12 @@ Closure commonDebConfig(boolean oss) {
   return {
     configure(commonPackageConfig('deb', oss))
 
+    // jdeb does not provide a way to set the License control attribute, and ospackage
+    // silently ignores setting it. Instead, we set the license as "custom field"
     if (oss) {
-      license 'ASL-2.0'
+      customFields['License'] = 'ASL-2.0'
     } else {
-      license 'Elastic-License'
+      customFields['License'] = 'Elastic-License'
     }
 
     version = project.version

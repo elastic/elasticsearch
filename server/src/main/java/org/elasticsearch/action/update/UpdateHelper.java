@@ -29,7 +29,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
@@ -49,7 +48,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.LongSupplier;
@@ -292,61 +291,33 @@ public class UpdateHelper extends AbstractComponent {
 
     /**
      * Applies {@link UpdateRequest#fetchSource()} to the _source of the updated document to be returned in a update response.
-     * For BWC this function also extracts the {@link UpdateRequest#fields()} from the updated document to be returned in a update response
      */
     public static GetResult extractGetResult(final UpdateRequest request, String concreteIndex, long version,
                                              final Map<String, Object> source, XContentType sourceContentType,
                                              @Nullable final BytesReference sourceAsBytes) {
-        if ((request.fields() == null || request.fields().length == 0) &&
-            (request.fetchSource() == null || request.fetchSource().fetchSource() == false)) {
+        if (request.fetchSource() == null || request.fetchSource().fetchSource() == false) {
             return null;
-        }
-        SourceLookup sourceLookup = new SourceLookup();
-        sourceLookup.setSource(source);
-        boolean sourceRequested = false;
-        Map<String, DocumentField> fields = null;
-        if (request.fields() != null && request.fields().length > 0) {
-            for (String field : request.fields()) {
-                if (field.equals("_source")) {
-                    sourceRequested = true;
-                    continue;
-                }
-                Object value = sourceLookup.extractValue(field);
-                if (value != null) {
-                    if (fields == null) {
-                        fields = new HashMap<>(2);
-                    }
-                    DocumentField documentField = fields.get(field);
-                    if (documentField == null) {
-                        documentField = new DocumentField(field, new ArrayList<>(2));
-                        fields.put(field, documentField);
-                    }
-                    documentField.getValues().add(value);
-                }
-            }
         }
 
         BytesReference sourceFilteredAsBytes = sourceAsBytes;
-        if (request.fetchSource() != null && request.fetchSource().fetchSource()) {
-            sourceRequested = true;
-            if (request.fetchSource().includes().length > 0 || request.fetchSource().excludes().length > 0) {
-                Object value = sourceLookup.filter(request.fetchSource());
-                try {
-                    final int initialCapacity = Math.min(1024, sourceAsBytes.length());
-                    BytesStreamOutput streamOutput = new BytesStreamOutput(initialCapacity);
-                    try (XContentBuilder builder = new XContentBuilder(sourceContentType.xContent(), streamOutput)) {
-                        builder.value(value);
-                        sourceFilteredAsBytes = BytesReference.bytes(builder);
-                    }
-                } catch (IOException e) {
-                    throw new ElasticsearchException("Error filtering source", e);
+        if (request.fetchSource().includes().length > 0 || request.fetchSource().excludes().length > 0) {
+            SourceLookup sourceLookup = new SourceLookup();
+            sourceLookup.setSource(source);
+            Object value = sourceLookup.filter(request.fetchSource());
+            try {
+                final int initialCapacity = Math.min(1024, sourceAsBytes.length());
+                BytesStreamOutput streamOutput = new BytesStreamOutput(initialCapacity);
+                try (XContentBuilder builder = new XContentBuilder(sourceContentType.xContent(), streamOutput)) {
+                    builder.value(value);
+                    sourceFilteredAsBytes = BytesReference.bytes(builder);
                 }
+            } catch (IOException e) {
+                throw new ElasticsearchException("Error filtering source", e);
             }
         }
 
         // TODO when using delete/none, we can still return the source as bytes by generating it (using the sourceContentType)
-        return new GetResult(concreteIndex, request.type(), request.id(), version, true,
-                sourceRequested ? sourceFilteredAsBytes : null, fields);
+        return new GetResult(concreteIndex, request.type(), request.id(), version, true, sourceFilteredAsBytes, Collections.emptyMap());
     }
 
     public static class Result {

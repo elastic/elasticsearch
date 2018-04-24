@@ -86,7 +86,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.INDEX;
+        return ThreadPool.Names.WRITE;
     }
 
     @Override
@@ -180,8 +180,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 bulkAction.execute(toSingleItemBulkRequest(upsertRequest), wrapBulkResponse(
                         ActionListener.<IndexResponse>wrap(response -> {
                             UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(), response.getId(), response.getSeqNo(), response.getPrimaryTerm(), response.getVersion(), response.getResult());
-                            if ((request.fetchSource() != null && request.fetchSource().fetchSource()) ||
-                                    (request.fields() != null && request.fields().length > 0)) {
+                            if (request.fetchSource() != null && request.fetchSource().fetchSource()) {
                                 Tuple<XContentType, Map<String, Object>> sourceAndContent =
                                         XContentHelper.convertToMap(upsertSourceBytes, true, upsertRequest.getContentType());
                                 update.setGetResult(UpdateHelper.extractGetResult(request, request.concreteIndex(), response.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), upsertSourceBytes));

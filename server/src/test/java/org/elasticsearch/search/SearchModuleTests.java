@@ -324,6 +324,7 @@ public class SearchModuleTests extends ModuleTestCase {
             "simple_query_string",
             "span_containing",
             "span_first",
+            "span_gap",
             "span_multi",
             "span_near",
             "span_not",

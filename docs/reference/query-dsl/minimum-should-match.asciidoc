@@ -1,13 +1,14 @@
 [[query-dsl-minimum-should-match]]
 == Minimum Should Match
 
+The property `minimum_should_match` can be used with a bool `should` that has multiple clauses. Since multiword `match` and `multi-match` queries simply wrap the generated term queries in a bool query, they can use `minimum_should_match` as well.
 The `minimum_should_match` parameter possible values:
 
 [cols="<,<,<",options="header",]
 |=======================================================================
 |Type |Example |Description
 |Integer |`3` |Indicates a fixed value regardless of the number of
-optional clauses.
+optional clauses. Zero is allowed.
 
 |Negative integer |`-2` |Indicates that the total number of optional
 clauses, minus this number should be mandatory.

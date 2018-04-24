@@ -1,0 +1,3 @@
+grant {
+  permission java.lang.RuntimePermission "queuePrintJob";
+};

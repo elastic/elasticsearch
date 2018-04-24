@@ -23,7 +23,7 @@ PUT _template/template_1
     "number_of_shards": 1
   },
   "mappings": {
-    "type1": {
+    "_doc": {
       "_source": {
         "enabled": false
       },
@@ -157,7 +157,7 @@ PUT /_template/template_1
         "number_of_shards" : 1
     },
     "mappings" : {
-        "type1" : {
+        "_doc" : {
             "_source" : { "enabled" : false }
         }
     }
@@ -171,7 +171,7 @@ PUT /_template/template_2
         "number_of_shards" : 1
     },
     "mappings" : {
-        "type1" : {
+        "_doc" : {
             "_source" : { "enabled" : true }
         }
     }
@@ -180,7 +180,7 @@ PUT /_template/template_2
 // CONSOLE
 // TEST[s/^/DELETE _template\/template_1\n/]
 
-The above will disable storing the `_source` on all `type1` types, but
+The above will disable storing the `_source`, but
 for indices that start with `te*`, `_source` will still be enabled.
 Note, for mappings, the merging is "deep", meaning that specific
 object/property based mappings can easily be added/overridden on higher

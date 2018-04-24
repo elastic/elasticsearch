@@ -164,6 +164,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // tag::search-source-setter
             SearchRequest searchRequest = new SearchRequest();
+            searchRequest.indices("posts");
             searchRequest.source(sourceBuilder);
             // end::search-source-setter
 

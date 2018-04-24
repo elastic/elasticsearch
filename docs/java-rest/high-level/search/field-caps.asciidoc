@@ -18,6 +18,16 @@ will cause all fields that match the expression to be returned.
 include-tagged::{doc-tests}/SearchDocumentationIT.java[field-caps-request]
 --------------------------------------------------
 
+[[java-rest-high-field-caps-request-optional]]
+===== Optional arguments
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[field-caps-request-indicesOptions]
+--------------------------------------------------
+<1> Setting `IndicesOptions` controls how unavailable indices are resolved and
+how wildcard expressions are expanded.
+
 [[java-rest-high-field-caps-sync]]
 ==== Synchronous Execution
 

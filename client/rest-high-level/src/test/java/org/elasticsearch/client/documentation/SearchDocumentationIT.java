@@ -716,6 +716,10 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             .indices("posts", "authors", "contributors");
         // end::field-caps-request
 
+        // tag::field-caps-request-indicesOptions
+        request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+        // end::field-caps-request-indicesOptions
+
         // tag::field-caps-execute
         FieldCapabilitiesResponse response = client.fieldCaps(request);
         // end::field-caps-execute

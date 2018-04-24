@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,44 +28,79 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 
-public class FieldCapabilitiesResponseTests extends ESTestCase {
-    private FieldCapabilitiesResponse randomResponse() {
-        Map<String, Map<String, FieldCapabilities> > fieldMap = new HashMap<> ();
-        int numFields = randomInt(10);
-        for (int i = 0; i < numFields; i++) {
-            String fieldName = randomAlphaOfLengthBetween(5, 10);
-            int numIndices = randomIntBetween(1, 5);
-            Map<String, FieldCapabilities> indexFieldMap = new HashMap<> ();
-            for (int j = 0; j < numIndices; j++) {
-                String index = randomAlphaOfLengthBetween(10, 20);
-                indexFieldMap.put(index, FieldCapabilitiesTests.randomFieldCaps());
-            }
-            fieldMap.put(fieldName, indexFieldMap);
-        }
-        return new FieldCapabilitiesResponse(fieldMap);
+public class FieldCapabilitiesResponseTests extends AbstractStreamableXContentTestCase<FieldCapabilitiesResponse> {
+
+    @Override
+    protected FieldCapabilitiesResponse doParseInstance(XContentParser parser) throws IOException {
+        return FieldCapabilitiesResponse.fromXContent(parser);
     }
 
-    public void testSerialization() throws IOException {
-        for (int i = 0; i < 20; i++) {
-            FieldCapabilitiesResponse response = randomResponse();
-            BytesStreamOutput output = new BytesStreamOutput();
-            response.writeTo(output);
-            output.flush();
-            StreamInput input = output.bytes().streamInput();
-            FieldCapabilitiesResponse deserialized = new FieldCapabilitiesResponse();
-            deserialized.readFrom(input);
-            assertEquals(deserialized, response);
-            assertEquals(deserialized.hashCode(), response.hashCode());
+    @Override
+    protected FieldCapabilitiesResponse createBlankInstance() {
+        return new FieldCapabilitiesResponse();
+    }
+
+    @Override
+    protected FieldCapabilitiesResponse createTestInstance() {
+        Map<String, Map<String, FieldCapabilities>> responses = new HashMap<>();
+
+        String[] fields = generateRandomStringArray(5, 10, false, true);
+        assertNotNull(fields);
+
+        for (String field : fields) {
+            Map<String, FieldCapabilities> typesToCapabilities = new HashMap<>();
+            String[] types = generateRandomStringArray(5, 10, false, false);
+            assertNotNull(types);
+
+            for (String type : types) {
+                typesToCapabilities.put(type, FieldCapabilitiesTests.randomFieldCaps(field));
+            }
+            responses.put(field, typesToCapabilities);
         }
+        return new FieldCapabilitiesResponse(responses);
+    }
+
+    @Override
+    protected FieldCapabilitiesResponse mutateInstance(FieldCapabilitiesResponse response) {
+        Map<String, Map<String, FieldCapabilities>> mutatedResponses = new HashMap<>(response.get());
+
+        int mutation = response.get().isEmpty() ? 0 : randomIntBetween(0, 2);
+
+        switch (mutation) {
+            case 0:
+                String toAdd = randomAlphaOfLength(10);
+                mutatedResponses.put(toAdd, Collections.singletonMap(
+                    randomAlphaOfLength(10),
+                    FieldCapabilitiesTests.randomFieldCaps(toAdd)));
+                break;
+            case 1:
+                String toRemove = randomFrom(mutatedResponses.keySet());
+                mutatedResponses.remove(toRemove);
+                break;
+            case 2:
+                String toReplace = randomFrom(mutatedResponses.keySet());
+                mutatedResponses.put(toReplace, Collections.singletonMap(
+                    randomAlphaOfLength(10),
+                    FieldCapabilitiesTests.randomFieldCaps(toReplace)));
+                break;
+        }
+        return new FieldCapabilitiesResponse(mutatedResponses);
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return field -> field.startsWith("fields");
     }
 
     public void testToXContent() throws IOException {
@@ -125,52 +161,6 @@ public class FieldCapabilitiesResponseTests extends ESTestCase {
         Map<String, Map<String, FieldCapabilities>> responses = new HashMap<>();
         responses.put("title", titleCapabilities);
         responses.put("rating", ratingCapabilities);
-        return new FieldCapabilitiesResponse(responses);
-    }
-
-    public void testFromXContent() throws IOException {
-        FieldCapabilitiesResponse response = createRandomResponse();
-        boolean humanReadable = randomBoolean();
-        XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference content = toShuffledXContent(response, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
-
-        Predicate<String> excludedPaths = path -> path.startsWith("fields");
-        BytesReference contentWithRandomFields = insertRandomFields(xContentType, content, excludedPaths, random());
-
-        FieldCapabilitiesResponse parsedResponse;
-        try (XContentParser parser = createParser(xContentType.xContent(), contentWithRandomFields)) {
-            parsedResponse = FieldCapabilitiesResponse.fromXContent(parser);
-            assertNull(parser.nextToken());
-        }
-
-        assertNotSame(response, parsedResponse);
-        assertEquals(response, parsedResponse);
-    }
-
-    private static FieldCapabilitiesResponse createRandomResponse() {
-        Map<String, Map<String, FieldCapabilities>> responses = new HashMap<>();
-
-        String[] fields = generateRandomStringArray(5, 10, false, true);
-        assertNotNull(fields);
-
-        for (String field : fields) {
-            responses.put(field, new HashMap<>());
-
-            String[] types = generateRandomStringArray(5, 10, false, false);
-            assertNotNull(types);
-
-            for (String type : types) {
-                FieldCapabilities capabilities = new FieldCapabilities(field, type,
-                    randomBoolean(),
-                    randomBoolean(),
-                    generateRandomStringArray(5, 10, true, false),
-                    generateRandomStringArray(3, 10, true, false),
-                    generateRandomStringArray(3, 10, true, false));
-
-                Map<String, FieldCapabilities> typesToCapabilities = responses.get(field);
-                typesToCapabilities.put(type, capabilities);
-            }
-        }
         return new FieldCapabilitiesResponse(responses);
     }
 }

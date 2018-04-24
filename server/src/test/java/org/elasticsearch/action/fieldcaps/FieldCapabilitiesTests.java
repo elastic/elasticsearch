@@ -29,7 +29,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class FieldCapabilitiesTests extends AbstractWireSerializingTestCase<FieldCapabilities> {
     @Override
     protected FieldCapabilities createTestInstance() {
-        return randomFieldCaps();
+        String fieldName = randomAlphaOfLengthBetween(5, 20);
+        return randomFieldCaps(fieldName);
     }
 
     @Override
@@ -82,7 +83,7 @@ public class FieldCapabilitiesTests extends AbstractWireSerializingTestCase<Fiel
         }
     }
 
-    static FieldCapabilities randomFieldCaps() {
+    static FieldCapabilities randomFieldCaps(String fieldName) {
         String[] indices = null;
         if (randomBoolean()) {
             indices = new String[randomIntBetween(1, 5)];
@@ -104,7 +105,7 @@ public class FieldCapabilitiesTests extends AbstractWireSerializingTestCase<Fiel
                 nonAggregatableIndices[i] = randomAlphaOfLengthBetween(5, 20);
             }
         }
-        return new FieldCapabilities(randomAlphaOfLengthBetween(5, 20),
+        return new FieldCapabilities(fieldName,
             randomAlphaOfLengthBetween(5, 20), randomBoolean(), randomBoolean(),
             indices, nonSearchableIndices, nonAggregatableIndices);
     }

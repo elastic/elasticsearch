@@ -103,10 +103,12 @@ public class OverallBucketsIT extends MlNativeAutodetectIntegTestCase {
 
         // Since this job ran for 3000 buckets, it's a good place to assert
         // that established model memory matches model memory in the job stats
-        GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
-        ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
-        Job updatedJob = getJob(job.getId()).get(0);
-        assertThat(updatedJob.getEstablishedModelMemory(), equalTo(modelSizeStats.getModelBytes()));
+        assertBusy(() -> {
+            GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
+            ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
+            Job updatedJob = getJob(job.getId()).get(0);
+            assertThat(updatedJob.getEstablishedModelMemory(), equalTo(modelSizeStats.getModelBytes()));
+        });
     }
 
     private static Map<String, Object> createRecord(long timestamp) {

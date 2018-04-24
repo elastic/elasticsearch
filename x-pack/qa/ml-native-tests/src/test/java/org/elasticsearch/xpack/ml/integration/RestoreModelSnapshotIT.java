@@ -75,10 +75,12 @@ public class RestoreModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
 
         // Since these jobs ran for 72 buckets, it's a good place to assert
         // that established model memory matches model memory in the job stats
-        GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
-        ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
-        Job updatedJob = getJob(job.getId()).get(0);
-        assertThat(updatedJob.getEstablishedModelMemory(), equalTo(modelSizeStats.getModelBytes()));
+        assertBusy(() -> {
+            GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
+            ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
+            Job updatedJob = getJob(job.getId()).get(0);
+            assertThat(updatedJob.getEstablishedModelMemory(), equalTo(modelSizeStats.getModelBytes()));
+        });
     }
 
     private Job.Builder buildAndRegisterJob(String jobId, TimeValue bucketSpan) throws Exception {

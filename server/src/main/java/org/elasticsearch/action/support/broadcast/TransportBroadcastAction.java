@@ -284,7 +284,7 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
 
         @Override
         public void messageReceived(ShardRequest request, TransportChannel channel, Task task) throws Exception {
-            channel.sendResponse(shardOperation(request));
+            channel.sendResponse(shardOperation(request, task);
         }
 
         @Override

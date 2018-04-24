@@ -16,14 +16,14 @@ and are allocated to non-heap memory.  Primitive type values are copied when
 <<assignment, assigned>> and when passed into a <<method-access, method>> or
 function as arguments.
 
-Primitive types have a corresponding <<reference-types, reference type>> (also
+Primitive types have corresponding <<reference-types, reference types>> (also
 known as a <<boxing-unboxing, boxed type>>). Any member of the corresponding
 <<reference-types, reference type>> can be <<field-access, accessed>> or
 <<method-access, called>> by executing the appropriate operation on the
-primitive type value. Operations performed in this manner convert (box) the
-primitive type value to its corresponding <<reference-types, reference type>>
-value at runtime and execute the specified <<field-access, field access>> or
-<<method-access, method call>>.
+primitive type value. Operations performed in this manner convert
+(<<boxing-unboxing, box>>) the primitive type value to its corresponding
+<<reference-types, reference type>> value at runtime and execute the specified
+<<field-access, field access>> or <<method-access, method call>>.
 
 The following primitive types are available:
 
@@ -121,14 +121,15 @@ instance. Reference type values are shallow-copied when
 <<assignment, assigned>> and when passed into a <<method-access, method>> or
 function as arguments.
 
-The default value for a <<declaration, newly-declared>> reference type value is
-`null`. <<assignment, Assign>> a <<constructor-call, newly-allocated>> reference
-type instance or <<assignment, refer>> an existing reference type instance to a
-reference type value for <<painless-operators, use>> later in a script.
-<<assignment, Assign>> `null` to a reference type value to indicate the
+The default value for a <<declaration, newly-declared>> reference type
+<<painless-variables, variable>> is `null`. <<assignment, Assign>> a
+<<constructor-call, newly-allocated>> reference type instance or
+<<assignment, refer>> an existing reference type instance to a reference type
+<<painless-variables, variable>> for <<painless-operators, use>> later in a
+script. <<assignment, Assign>> `null` to a reference type value to indicate the
 reference type value refers to no reference type instance.  A reference type
-instance will be garbage collected by the JVM when no reference type values refer
-to that reference type instance.
+instance will be garbage collected by the JVM when no reference type values
+refer to that reference type instance.
 
 Reference type objects can contain member fields, member methods, and
 constructors. Member fields are named and typed pieces of data that are read
@@ -227,31 +228,42 @@ relationships.
 [[dynamic-types]]
 ==== Dynamic Types
 
-Painless supports one dynamic type: `def`.  The `def` type can represent any
-primitive or reference type. When you use the `def` type, it mimics the exact
-behavior of whatever type it represents at runtime. The default value for the
-def type is `null.`
+Dynamic types can represent values of any primitive type or reference type
+under a single type name `def`.  The `def` type mimics the behavior of whatever
+value is currently represented.
 
-Internally, if the `def` type represents a primitive type, it is converted to the
-corresponding reference type. It still behaves like the primitive type, however,
-including within the casting model. The `def` type can be assigned to different
-types during the course of script execution.
+Internally, if a `def` type value is a primitive type value, the value is
+converted (<<boxing-unboxing, boxed>>) to the corresponding reference type
+instance. However, the `def` type still behaves like the primitive type
+including within the <<painless-casting, casting model>>.
 
-IMPORTANT: Because a `def` type variable can be assigned to different types
-during execution, type conversion errors that occur when using the `def` type
-happen at runtime.
+The default value for a <<declaration, newly-declared>> `def` type
+<<painless-variables, variable>> is `null`. A `def` type
+<<painless-variables, variable>> can have different types
+<<assignment, assigned>> throughout a script.
 
-Using the `def` type can have a slight impact on performance. If performance is
-critical, it's better to declare static types.
+<<painless-operators, Operations>> using the `def` type will generate
+errors at *runtime* if an inappropriate type is used. Using the `def` type can
+have a slight impact on performance. Use only primitive types and reference
+types directly when performance is critical.
 
-*Examples:*
+*Examples*
+
+* General uses of the `def` type.
++
 [source,Java]
 ----
-def x = 1;               // Declare def variable x and set it to the
-                         //   literal int 1
-def l = new ArrayList(); // Declare def variable l and set it a newly
-                         //   allocated ArrayList
+<1> def i = 1;
+<2> def l = new ArrayList();
+<3> l = i;
 ----
++
+<1> declare `def i`;
+    assign `1` to `i`
+<2> declare `def l`;
+    assign a new `ArrayList` to `l`
+<3> assign `i` to `l`;
+    note the switch in type from `ArrayList` to `int`
 
 [[string-type]]
 ==== String Type

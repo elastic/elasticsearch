@@ -63,6 +63,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -305,29 +306,22 @@ public class JobManager extends AbstractComponent {
     }
 
     private void internalJobUpdate(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
-
-        Job job = getJobOrThrowIfUnknown(request.getJobId());
-        final Job updatedJob = request.getJobUpdate().mergeWithJob(job, maxModelMemoryLimit);
-        if (updatedJob.equals(job)) {
-            // No change will results in a clusterstate update no-op so don't
-            // submit the request.
-            actionListener.onResponse(new PutJobAction.Response(updatedJob));
-            return;
-        }
-
         if (request.isWaitForAck()) {
             // Use the ack cluster state update
             clusterService.submitStateUpdateTask("update-job-" + request.getJobId(),
                     new AckedClusterStateUpdateTask<PutJobAction.Response>(request, actionListener) {
+                        private AtomicReference<Job> updatedJob = new AtomicReference<>();
 
                         @Override
                         protected PutJobAction.Response newResponse(boolean acknowledged) {
-                            return new PutJobAction.Response(updatedJob);
+                            return new PutJobAction.Response(updatedJob.get());
                         }
 
                         @Override
                         public ClusterState execute(ClusterState currentState) {
-                            return updateClusterState(updatedJob, true, currentState);
+                            Job job = getJobOrThrowIfUnknown(request.getJobId(), currentState);
+                            updatedJob.set(request.getJobUpdate().mergeWithJob(job, maxModelMemoryLimit));
+                            return updateClusterState(updatedJob.get(), true, currentState);
                         }
 
                         @Override
@@ -337,10 +331,13 @@ public class JobManager extends AbstractComponent {
                     });
         } else {
             clusterService.submitStateUpdateTask("update-job-" + request.getJobId(), new ClusterStateUpdateTask() {
+                private AtomicReference<Job> updatedJob = new AtomicReference<>();
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    return updateClusterState(updatedJob, true, currentState);
+                    Job job = getJobOrThrowIfUnknown(request.getJobId(), currentState);
+                    updatedJob.set(request.getJobUpdate().mergeWithJob(job, maxModelMemoryLimit));
+                    return updateClusterState(updatedJob.get(), true, currentState);
                 }
 
                 @Override
@@ -351,8 +348,7 @@ public class JobManager extends AbstractComponent {
                 @Override
                 public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
                     afterClusterStateUpdate(clusterChangedEvent.state(), request);
-                    actionListener.onResponse(new PutJobAction.Response(updatedJob));
-
+                    actionListener.onResponse(new PutJobAction.Response(updatedJob.get()));
                 }
             });
         }

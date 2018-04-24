@@ -110,11 +110,14 @@ import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.StringJoiner;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -1226,28 +1229,32 @@ public class RequestTests extends ESTestCase {
             .indices(indices)
             .fields(fields);
 
-        Map<String, String> expectedIndicesParams = new HashMap<>();
+        Map<String, String> indicesOptionsParams = new HashMap<>();
         setRandomIndicesOptions(fieldCapabilitiesRequest::indicesOptions,
             fieldCapabilitiesRequest::indicesOptions,
-            expectedIndicesParams);
+            indicesOptionsParams);
 
         Request request = Request.fieldCaps(fieldCapabilitiesRequest);
 
         // Verify that the resulting REST request looks as expected.
-        StringJoiner expectedEndpoint = new StringJoiner("/", "/", "");
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
         String joinedIndices = String.join(",", indices);
         if (!joinedIndices.isEmpty()) {
-            expectedEndpoint.add(joinedIndices);
+            endpoint.add(joinedIndices);
         }
-        expectedEndpoint.add("_field_caps");
+        endpoint.add("_field_caps");
 
-        assertEquals(expectedEndpoint.toString(), request.getEndpoint());
+        assertEquals(endpoint.toString(), request.getEndpoint());
         assertEquals(4, request.getParameters().size());
 
-        // Note that we don't check the field param value explicitly, as field
-        // names are added to the request in a non-deterministic order.
+        // Note that we don't check the field param value explicitly, as field names are passed through
+        // a hash set before being added to the request, and can appear in a non-deterministic order.
         assertThat(request.getParameters(), hasKey("fields"));
-        for (Map.Entry<String, String> param : expectedIndicesParams.entrySet()) {
+        String[] requestFields = Strings.splitStringByCommaToArray(request.getParameters().get("fields"));
+        assertEquals(new HashSet<>(Arrays.asList(fields)),
+            new HashSet<>(Arrays.asList(requestFields)));
+
+        for (Map.Entry<String, String> param : indicesOptionsParams.entrySet()) {
             assertThat(request.getParameters(), hasEntry(param.getKey(), param.getValue()));
         }
 

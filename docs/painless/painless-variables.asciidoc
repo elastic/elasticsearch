@@ -72,7 +72,8 @@ assignment: ID '=' expression
 <2> i = 10;
 ----
 +
-<1> declare `int i`
+<1> declare `int i`;
+    assign default value `0` to `i`
 <2> assign `10` to `i`
 +
 * <<declaration, Declaration>> combined with immediate variable assignment.
@@ -83,8 +84,10 @@ assignment: ID '=' expression
 <2> double j = 2.0;
 ----
 +
-<1> declare `int i`; assign `10` to `i`
-<2> declare `double j`; assign `2.0` to `j`
+<1> declare `int i`;
+    assign `10` to `i`
+<2> declare `double j`;
+    assign `2.0` to `j`
 +
 * Assignment of one variable to another using
 <<primitive-types, primitive types>>.
@@ -95,8 +98,10 @@ assignment: ID '=' expression
 <2> int j = i;
 ----
 +
-<1> declare `int i`; assign `10` to `i`
-<2> declare `int j`; assign `j` to `i`
+<1> declare `int i`;
+    assign `10` to `i`
+<2> declare `int j`;
+    assign `j` to `i`
 +
 * Assignment with <<reference-types, reference types>> using the
 <<constructor-call, new operator>>.
@@ -107,9 +112,10 @@ assignment: ID '=' expression
 <2> Map m = new HashMap();
 ----
 +
-<1> declare `ArrayList l`; assign a newly-allocated `Arraylist` to `l`
-<2> declare `Map m`; assign a newly-allocated `HashMap` to `m`
-    with an implicit cast to `Map`
+<1> declare `ArrayList l`;
+    assign a newly-allocated `Arraylist` to `l`
+<2> declare `Map m`;
+    assign a newly-allocated `HashMap` to `m` with an implicit cast to `Map`
 +
 * Assignment of one variable to another using
 <<reference-types, reference types>>.
@@ -122,8 +128,10 @@ assignment: ID '=' expression
 <4> m = k;
 ----
 +
-<1> declare `List l`; assign a newly-allocated `Arraylist` to `l`
-    with an implicit cast to `List`
-<2> declare `List k`; assign a shallow-copy of `l` to `k`
+<1> declare `List l`;
+    assign a newly-allocated `Arraylist` to `l` with an implicit cast to `List`
+<2> declare `List k`;
+    assign a shallow-copy of `l` to `k`
 <3> declare `List m`;
+    assign default value `null` to `m`
 <4> assign a shallow-copy of `k` to `m`

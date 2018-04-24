@@ -22,8 +22,8 @@ package org.elasticsearch.ingest.common;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
-import org.joda.time.DateTimeZone;
 
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -42,7 +42,7 @@ public class DateIndexNameFactoryTests extends ESTestCase {
         assertThat(processor.getIndexNamePrefix(), Matchers.equalTo(""));
         assertThat(processor.getDateRounding(), Matchers.equalTo("y"));
         assertThat(processor.getIndexNameFormat(), Matchers.equalTo("yyyy-MM-dd"));
-        assertThat(processor.getTimezone(), Matchers.equalTo(DateTimeZone.UTC));
+        assertThat(processor.getTimezone(), Matchers.equalTo(ZoneOffset.UTC));
     }
 
     public void testSpecifyOptionalSettings() throws Exception {
@@ -72,7 +72,7 @@ public class DateIndexNameFactoryTests extends ESTestCase {
         config.put("timezone", "+02:00");
 
         processor = factory.create(null, null, config);
-        assertThat(processor.getTimezone(), Matchers.equalTo(DateTimeZone.forOffsetHours(2)));
+        assertThat(processor.getTimezone(), Matchers.equalTo(ZoneOffset.ofHours(2)));
 
         config = new HashMap<>();
         config.put("field", "_field");

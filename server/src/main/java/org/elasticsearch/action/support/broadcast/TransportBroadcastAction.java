@@ -84,11 +84,7 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
 
     protected abstract ShardResponse newShardResponse();
 
-    protected abstract ShardResponse shardOperation(ShardRequest request) throws IOException;
-
-    protected ShardResponse shardOperation(ShardRequest request, Task task) throws IOException {
-        return shardOperation(request);
-    }
+    protected abstract ShardResponse shardOperation(ShardRequest request, Task task) throws IOException;
 
     /**
      * Determines the shards this operation will be executed on. The operation is executed once per shard iterator, typically

@@ -88,13 +88,11 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
      */
     boolean doesBucketExist(String bucketName) {
         try {
-            return SocketAccess.doPrivilegedIOException(() -> {
-                final Bucket bucket = storage.get(bucketName);
-                if (bucket != null) {
-                    return Strings.hasText(bucket.getName());
-                }
-                return false;
-            });
+            final Bucket bucket = SocketAccess.doPrivilegedIOException(() -> storage.get(bucketName));
+            if (bucket != null) {
+                return Strings.hasText(bucket.getName());
+            }
+            return false;
         } catch (final Exception e) {
             throw new BlobStoreException("Unable to check if bucket [" + bucketName + "] exists", e);
         }
@@ -261,7 +259,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
             return;
         }
         final List<BlobId> blobIdsToDelete = blobNames.stream().map(blobName -> BlobId.of(bucket, blobName)).collect(Collectors.toList());
-        final List<Boolean> deletedStatuses = storage.delete(blobIdsToDelete);
+        final List<Boolean> deletedStatuses = SocketAccess.doPrivilegedIOException(() -> storage.delete(blobIdsToDelete));
         assert blobIdsToDelete.size() == deletedStatuses.size();
         boolean failed = false;
         for (int i = 0; i < blobIdsToDelete.size(); i++) {

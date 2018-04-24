@@ -20,9 +20,10 @@
 grant {
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.RuntimePermission "setFactory";
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-  permission java.net.URLPermission "http://www.googleapis.com/*", "*";
-  permission java.net.URLPermission "https://www.googleapis.com/*", "*";
+  permission java.net.URLPermission "https://www.googleapis.com/-", "*:*";
+  permission java.net.URLPermission "https://accounts.google.com/-", "*:*";
 
   // gcs client opens socket connections for to access repository
   permission java.net.SocketPermission "*", "connect";

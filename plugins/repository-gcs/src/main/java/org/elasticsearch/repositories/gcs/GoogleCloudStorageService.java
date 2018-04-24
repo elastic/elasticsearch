@@ -19,10 +19,13 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
+import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.gax.retrying.RetrySettings;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
+
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -30,6 +33,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.threeten.bp.Duration;
 
+import java.io.IOException;
+import java.security.GeneralSecurityException;
 import java.util.Map;
 
 public class GoogleCloudStorageService extends AbstractComponent {
@@ -57,15 +62,17 @@ public class GoogleCloudStorageService extends AbstractComponent {
      *            name of client settings to use from secure settings
      * @return a Client instance that can be used to manage Storage objects
      */
-    public Storage createClient(String clientName) {
+    public Storage createClient(String clientName) throws GeneralSecurityException, IOException {
         final GoogleCloudStorageClientSettings clientSettings = clientsSettings.get(clientName);
         if (clientSettings == null) {
             throw new IllegalArgumentException("Unknown client name [" + clientName + "]. Existing client configs: "
                     + Strings.collectionToDelimitedString(clientsSettings.keySet(), ","));
         }
+        final NetHttpTransport netHttpTransport = GoogleNetHttpTransport.newTrustedTransport();
         final HttpTransportOptions httpTransportOptions = HttpTransportOptions.newBuilder()
                 .setConnectTimeout(toTimeout(clientSettings.getConnectTimeout()))
                 .setReadTimeout(toTimeout(clientSettings.getReadTimeout()))
+                .setHttpTransportFactory(() -> netHttpTransport)
                 .build();
         final StorageOptions.Builder storageOptionsBuilder = StorageOptions.newBuilder()
                 .setRetrySettings(retrySettings)
@@ -86,7 +93,8 @@ public class GoogleCloudStorageService extends AbstractComponent {
         if (Strings.hasLength(clientSettings.getProjectId())) {
             storageOptionsBuilder.setProjectId(clientSettings.getProjectId());
         }
-        return storageOptionsBuilder.build().getService();
+        final StorageOptions storageOptions = storageOptionsBuilder.build();
+        return storageOptions.getService();
     }
 
     /**

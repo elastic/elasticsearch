@@ -139,5 +139,4 @@ integTestCluster {
 
   /* Use a closure on the string to delay evaluation until tests are executed */
   setting 'gcs.client.integration_test.host', "http://${ -> googleCloudStorageFixture.addressAndPort }"
-  setting 'gcs.client.integration_test.project_id', "integration_test"
 }

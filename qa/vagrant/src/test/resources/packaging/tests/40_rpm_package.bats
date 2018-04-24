@@ -45,7 +45,12 @@ setup() {
 }
 
 @test "[RPM] package depends on bash" {
-    rpm -qpR elasticsearch-$(cat version).rpm | grep '/bin/bash'
+    rpm -qpR elasticsearch-oss-$(cat version).rpm | grep '/bin/bash'
+}
+
+@test "[RPM] package conflicts" {
+    rpm -qp --conflicts elasticsearch-oss-$(cat version).rpm | grep "^elasticsearch\s*$"
+    rpm -qp --conflicts elasticsearch-$(cat version).rpm | grep "^elasticsearch-oss\s*$"
 }
 
 ##################################
@@ -57,21 +62,21 @@ setup() {
 }
 
 @test "[RPM] package is available" {
-    count=$(ls elasticsearch-$(cat version).rpm | wc -l)
+    count=$(ls elasticsearch-oss-$(cat version).rpm | wc -l)
     [ "$count" -eq 1 ]
 }
 
 @test "[RPM] package is not installed" {
-    run rpm -qe 'elasticsearch'
+    run rpm -qe 'elasticsearch-oss'
     [ "$status" -eq 1 ]
 }
 
 @test "[RPM] install package" {
-    rpm -i elasticsearch-$(cat version).rpm
+    rpm -i elasticsearch-oss-$(cat version).rpm
 }
 
 @test "[RPM] package is installed" {
-    rpm -qe 'elasticsearch'
+    rpm -qe 'elasticsearch-oss'
 }
 
 @test "[RPM] verify package installation" {
@@ -103,11 +108,11 @@ setup() {
 @test "[RPM] remove package" {
     # User installed scripts aren't removed so we'll just get them ourselves
     rm -rf $ESSCRIPTS
-    rpm -e 'elasticsearch'
+    rpm -e 'elasticsearch-oss'
 }
 
 @test "[RPM] package has been removed" {
-    run rpm -qe 'elasticsearch'
+    run rpm -qe 'elasticsearch-oss'
     [ "$status" -eq 1 ]
 }
 
@@ -143,11 +148,11 @@ setup() {
 }
 
 @test "[RPM] reinstall package" {
-    rpm -i elasticsearch-$(cat version).rpm
+    rpm -i elasticsearch-oss-$(cat version).rpm
 }
 
 @test "[RPM] package is installed by reinstall" {
-    rpm -qe 'elasticsearch'
+    rpm -qe 'elasticsearch-oss'
 }
 
 @test "[RPM] verify package reinstallation" {
@@ -159,7 +164,7 @@ setup() {
     echo "# ping" >> "/etc/elasticsearch/elasticsearch.yml"
     echo "# ping" >> "/etc/elasticsearch/jvm.options"
     echo "# ping" >> "/etc/elasticsearch/log4j2.properties"
-    rpm -e 'elasticsearch'
+    rpm -e 'elasticsearch-oss'
 }
 
 @test "[RPM] verify preservation" {
@@ -202,6 +207,6 @@ setup() {
 }
 
 @test "[RPM] package has been removed again" {
-    run rpm -qe 'elasticsearch'
+    run rpm -qe 'elasticsearch-oss'
     [ "$status" -eq 1 ]
 }

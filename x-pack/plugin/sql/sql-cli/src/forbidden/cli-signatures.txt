@@ -1,0 +1,3 @@
+@defaultMessage println doesn't pay attention to terminal type so it breaks tests on Windows. Just use \n.
+java.io.PrintWriter#println()
+java.io.PrintWriter#println(java.lang.String)

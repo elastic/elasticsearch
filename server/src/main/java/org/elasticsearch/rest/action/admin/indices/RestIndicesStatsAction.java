@@ -62,7 +62,6 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         metrics.put("store", r -> r.store(true));
         metrics.put("indexing", r -> r.indexing(true));
         metrics.put("search", r -> r.search(true));
-        metrics.put("suggest", r -> r.search(true));
         metrics.put("get", r -> r.get(true));
         metrics.put("merge", r -> r.merge(true));
         metrics.put("refresh", r -> r.refresh(true));
@@ -102,9 +101,6 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             for (final String metric : metrics) {
                 final Consumer<IndicesStatsRequest> consumer = METRICS.get(metric);
                 if (consumer != null) {
-                    if ("suggest".equals(metric)) {
-                        deprecationLogger.deprecated("the suggest metric is deprecated on the indices stats API [" + request.uri() + "]");
-                    }
                     consumer.accept(indicesStatsRequest);
                 } else {
                     invalidMetrics.add(metric);

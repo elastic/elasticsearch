@@ -20,6 +20,7 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -100,7 +101,10 @@ public class FieldCapabilitiesResponseTests extends AbstractStreamableXContentTe
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> field.startsWith("fields");
+        // Disallow random fields from being inserted under the 'fields' key, as this
+        // map only contains field names, and also under 'fields.FIELD_NAME', as these
+        // maps only contain type names.
+        return field -> field.matches("fields(\\.\\w+)?");
     }
 
     public void testToXContent() throws IOException {

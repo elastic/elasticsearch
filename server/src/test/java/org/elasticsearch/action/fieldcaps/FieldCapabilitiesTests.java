@@ -20,17 +20,26 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class FieldCapabilitiesTests extends AbstractWireSerializingTestCase<FieldCapabilities> {
+public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCapabilities> {
+    private static final String FIELD_NAME = "field";
+
+    @Override
+    protected FieldCapabilities doParseInstance(XContentParser parser) throws IOException {
+        return FieldCapabilities.fromXContent(FIELD_NAME, parser);
+    }
+
     @Override
     protected FieldCapabilities createTestInstance() {
-        String fieldName = randomAlphaOfLengthBetween(5, 20);
-        return randomFieldCaps(fieldName);
+        return randomFieldCaps(FIELD_NAME);
     }
 
     @Override

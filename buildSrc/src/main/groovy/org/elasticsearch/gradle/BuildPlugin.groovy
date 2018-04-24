@@ -619,6 +619,7 @@ class BuildPlugin implements Plugin<Project> {
                 jarTask.metaInf {
                     from(project.licenseFile.parent) {
                         include project.licenseFile.name
+                        rename { 'LICENSE.txt' }
                     }
                     from(project.noticeFile.parent) {
                         include project.noticeFile.name

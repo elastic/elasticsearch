@@ -1,3 +1,6 @@
+# All cluster rights
+# All operations on all indices
+# Run as all users
 admin:
   cluster:
     - all

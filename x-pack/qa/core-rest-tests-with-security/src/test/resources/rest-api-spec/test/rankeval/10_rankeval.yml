@@ -1,3 +1,5 @@
+# remove this test from core-tests-with-security as soon as we can
+# pull in rest test from modules in core
 ---
 "Basic Rankeval test":
 

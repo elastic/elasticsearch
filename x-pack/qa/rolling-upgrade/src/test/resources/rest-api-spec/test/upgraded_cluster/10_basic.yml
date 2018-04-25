@@ -1,0 +1,67 @@
+---
+"Index data and search on the upgraded cluster":
+ - do:
+     cluster.health:
+        wait_for_status: green
+        wait_for_nodes: 2
+        # wait for long enough that we give delayed unassigned shards to stop being delayed
+        timeout: 70s
+        level: shards
+
+ - do:
+     search:
+       index: test_index
+
+ - match: { hits.total: 10 } # no new indexed data, so expect the original 10 documents from the old and mixed clusters
+
+ - do:
+     bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+          - '{"f1": "v1_upgraded", "f2": 10}'
+          - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+          - '{"f1": "v2_upgraded", "f2": 11}'
+          - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+          - '{"f1": "v3_upgraded", "f2": 12}'
+          - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+          - '{"f1": "v4_upgraded", "f2": 13}'
+          - '{"index": {"_index": "test_index", "_type": "test_type"}}'
+          - '{"f1": "v5_upgraded", "f2": 14}'
+
+ - do:
+     search:
+        index: test_index
+
+ - match: { hits.total: 15 } # 10 docs from previous clusters plus 5 new docs
+
+---
+"Get indexed scroll and execute scroll":
+  - do:
+      get:
+        index: scroll_index
+        type: doc
+        id: 1
+
+  - set: {_source.value: scroll_id}
+
+  - do:
+      scroll:
+        scroll_id: $scroll_id
+        scroll: 1m
+
+  - match: {hits.total:      2    }
+  - length: {hits.hits:      1    }
+  - match: {hits.hits.0._id: "43" }
+
+  - do:
+      scroll:
+        scroll_id: $scroll_id
+        scroll: 1m
+
+  - match: {hits.total:      2    }
+  - length: {hits.hits:      0    }
+
+  - do:
+      clear_scroll:
+        scroll_id: $scroll_id

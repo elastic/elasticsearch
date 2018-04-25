@@ -1113,6 +1113,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             BlobStoreIndexShardSnapshots snapshots = tuple.v1();
             int fileListGeneration = tuple.v2();
 
+            if (snapshots.snapshots().stream().anyMatch(sf -> sf.snapshot().equals(snapshotId.getName()))) {
+                throw new IndexShardSnapshotFailedException(shardId,
+                    "Duplicate snapshot name [" + snapshotId.getName() + "] detected, aborting");
+            }
+
             final List<BlobStoreIndexShardSnapshot.FileInfo> indexCommitPointFiles = new ArrayList<>();
 
             store.incRef();

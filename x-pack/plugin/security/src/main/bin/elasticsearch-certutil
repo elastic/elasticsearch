@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License;
+# you may not use this file except in compliance with the Elastic License.
+
+source "`dirname "$0"`"/elasticsearch-env
+
+source "`dirname "$0"`"/x-pack-security-env
+
+exec \
+  "$JAVA" \
+  $ES_JAVA_OPTS \
+  -Des.path.home="$ES_HOME" \
+  -Des.path.conf="$ES_PATH_CONF" \
+  -Des.distribution.flavor="$ES_DISTRIBUTION_FLAVOR" \
+  -Des.distribution.type="$ES_DISTRIBUTION_TYPE" \
+  -cp "$ES_CLASSPATH" \
+  org.elasticsearch.xpack.core.ssl.CertificateTool \
+  "$@"

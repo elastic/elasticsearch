@@ -581,7 +581,7 @@ public class InternalEngine extends Engine {
         /** the op is more recent than the one that last modified the doc found in lucene*/
         OP_NEWER,
         /** the op is stale but its history is existed in Lucene */
-        OP_STALE_HISTORY_EXISTED,
+        OP_STALE_HISTORY_EXISTS,
         /** the op is stale and its history is not found in Lucene */
         OP_STALE_HISTORY_NOT_FOUND,
         /** no doc was found in lucene */
@@ -590,7 +590,7 @@ public class InternalEngine extends Engine {
 
     private OpVsLuceneDocStatus compareToLuceneHistory(final Operation op, final Searcher searcher) throws IOException {
         if (VersionsAndSeqNoResolver.hasHistoryInLucene(searcher.reader(), op.uid(), op.seqNo(), op.primaryTerm())) {
-            return OpVsLuceneDocStatus.OP_STALE_HISTORY_EXISTED;
+            return OpVsLuceneDocStatus.OP_STALE_HISTORY_EXISTS;
         } else {
             return OpVsLuceneDocStatus.OP_STALE_HISTORY_NOT_FOUND;
         }
@@ -606,7 +606,7 @@ public class InternalEngine extends Engine {
                 (op.seqNo() == versionValue.seqNo && op.primaryTerm() > versionValue.term)) {
                 status = OpVsLuceneDocStatus.OP_NEWER;
             } else if (op.seqNo() == versionValue.seqNo && op.primaryTerm() == versionValue.term) {
-                status = OpVsLuceneDocStatus.OP_STALE_HISTORY_EXISTED;
+                status = OpVsLuceneDocStatus.OP_STALE_HISTORY_EXISTS;
             } else {
                 status = OpVsLuceneDocStatus.OP_STALE_HISTORY_NOT_FOUND;
             }
@@ -861,11 +861,11 @@ public class InternalEngine extends Engine {
                 // question may have been deleted in an out of order op that is not replayed.
                 // See testRecoverFromStoreWithOutOfOrderDelete for an example of local recovery
                 // See testRecoveryWithOutOfOrderDelete for an example of peer recovery
-                opVsLucene = OpVsLuceneDocStatus.OP_STALE_HISTORY_EXISTED;
+                opVsLucene = OpVsLuceneDocStatus.OP_STALE_HISTORY_EXISTS;
             } else {
                 opVsLucene = compareOpToLuceneDocBasedOnSeqNo(index);
             }
-            if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_HISTORY_EXISTED) {
+            if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_HISTORY_EXISTS) {
                 plan = IndexingStrategy.processButSkipLucene(false, index.seqNo(), index.version());
             } else if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_HISTORY_NOT_FOUND) {
                 plan = IndexingStrategy.processAsStaleOp(softDeleteEnabled, index.seqNo(), index.version());
@@ -1193,14 +1193,14 @@ public class InternalEngine extends Engine {
             // question may have been deleted in an out of order op that is not replayed.
             // See testRecoverFromStoreWithOutOfOrderDelete for an example of local recovery
             // See testRecoveryWithOutOfOrderDelete for an example of peer recovery
-            opVsLucene = OpVsLuceneDocStatus.OP_STALE_HISTORY_EXISTED;
+            opVsLucene = OpVsLuceneDocStatus.OP_STALE_HISTORY_EXISTS;
         } else {
             opVsLucene = compareOpToLuceneDocBasedOnSeqNo(delete);
         }
 
         final DeletionStrategy plan;
 
-        if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_HISTORY_EXISTED) {
+        if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_HISTORY_EXISTS) {
             plan = DeletionStrategy.processButSkipLucene(false, delete.seqNo(), delete.version());
         } else if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_HISTORY_NOT_FOUND) {
             plan = DeletionStrategy.processAsStaleOp(softDeleteEnabled, false, delete.seqNo(), delete.version());

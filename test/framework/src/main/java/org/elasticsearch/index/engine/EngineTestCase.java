@@ -677,7 +677,7 @@ public abstract class EngineTestCase extends ESTestCase {
         engine.refresh("test");
         final List<Long> seqNos = new ArrayList<>();
         try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
-            IndexSearcher indexSearcher = new IndexSearcher(Lucene.includeSoftDeletes(searcher.getDirectoryReader()));
+            IndexSearcher indexSearcher = new IndexSearcher(Lucene.wrapAllDocsLive(searcher.getDirectoryReader()));
             List<LeafReaderContext> leaves = indexSearcher.getIndexReader().leaves();
             NumericDocValues[] seqNoDocValues = new NumericDocValues[leaves.size()];
             for (int i = 0; i < leaves.size(); i++) {

@@ -3098,7 +3098,7 @@ public class IndexShardTests extends IndexShardTestCase {
         deleteDoc(shard, "test", "0");
         shard.refresh("test");
         try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-            IndexSearcher searchWithSoftDeletes = new IndexSearcher(Lucene.includeSoftDeletes(searcher.getDirectoryReader()));
+            IndexSearcher searchWithSoftDeletes = new IndexSearcher(Lucene.wrapAllDocsLive(searcher.getDirectoryReader()));
             assertThat(searcher.searcher().search(new TermQuery(new Term("foo", "bar")), 10).totalHits, equalTo(0L));
             assertThat(searchWithSoftDeletes.search(new TermQuery(new Term("foo", "bar")), 10).totalHits, equalTo(1L));
             assertThat(searcher.searcher().search(new TermQuery(new Term("foo", "baz")), 10).totalHits, equalTo(1L));

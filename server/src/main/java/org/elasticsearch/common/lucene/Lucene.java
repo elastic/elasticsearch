@@ -835,19 +835,19 @@ public class Lucene {
     }
 
     /**
-     * Wraps a directory reader to include soft-deleted documents.
-     * This should be only used to query the history of documents rather than the documents.
+     * Wraps a directory reader to include all live docs.
+     * The wrapped reader can be used to query documents which are soft-deleted.
      *
      * @param in the input directory reader
-     * @return the wrapped reader including soft-deleted documents.
+     * @return the wrapped reader
      */
-    public static DirectoryReader includeSoftDeletes(DirectoryReader in) throws IOException {
-        return new DirectoryReaderWithSoftDeletes(in);
+    public static DirectoryReader wrapAllDocsLive(DirectoryReader in) throws IOException {
+        return new DirectoryReaderWithAllLiveDocs(in);
     }
 
-    private static final class DirectoryReaderWithSoftDeletes extends FilterDirectoryReader {
-        static final class SubReaderWithSoftDeletes extends FilterLeafReader {
-            SubReaderWithSoftDeletes(LeafReader in) {
+    private static final class DirectoryReaderWithAllLiveDocs extends FilterDirectoryReader {
+        static final class SubReaderWithAllLiveDocs extends FilterLeafReader {
+            SubReaderWithAllLiveDocs(LeafReader in) {
                 super(in);
             }
             @Override
@@ -867,17 +867,17 @@ public class Lucene {
                 return null; // Modifying liveDocs
             }
         }
-        DirectoryReaderWithSoftDeletes(DirectoryReader in) throws IOException {
+        DirectoryReaderWithAllLiveDocs(DirectoryReader in) throws IOException {
             super(in, new FilterDirectoryReader.SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader leaf) {
-                    return new SubReaderWithSoftDeletes(leaf);
+                    return new SubReaderWithAllLiveDocs(leaf);
                 }
             });
         }
         @Override
         protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-            return includeSoftDeletes(in);
+            return wrapAllDocsLive(in);
         }
 
         @Override

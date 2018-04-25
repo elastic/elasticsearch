@@ -212,9 +212,11 @@ public final class VersionsAndSeqNoResolver {
                 continue;
             }
             final NumericDocValues seqNoDV = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+            assert seqNoDV != null : "SeqNoDV does not exist";
             final NumericDocValues primaryTermDV = leaf.reader().getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+            assert primaryTermDV != null : "PrimaryTermDV does not exist";
             for (int docId = postingsEnum.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = postingsEnum.nextDoc()) {
-                if (seqNoDV != null && seqNoDV.advanceExact(docId) && primaryTermDV != null && primaryTermDV.advanceExact(docId)) {
+                if (seqNoDV.advanceExact(docId) && primaryTermDV.advanceExact(docId)) {
                     if (seqNoDV.longValue() == seqNo && primaryTermDV.longValue() >= primaryTerm) {
                         return true;
                     }

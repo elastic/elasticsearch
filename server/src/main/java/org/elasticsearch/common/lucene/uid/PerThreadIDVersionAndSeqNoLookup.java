@@ -111,20 +111,18 @@ final class PerThreadIDVersionAndSeqNoLookup {
      * {@link DocIdSetIterator#NO_MORE_DOCS} is returned if not found
      * */
     private int getDocID(BytesRef id, Bits liveDocs) throws IOException {
-        if (termsEnum.seekExact(id)) {
-            int docID = DocIdSetIterator.NO_MORE_DOCS;
+        int docID = DocIdSetIterator.NO_MORE_DOCS;
+        final PostingsEnum docsEnum = getPostingsOrNull(id);
+        if (docsEnum != null) {
             // there may be more than one matching docID, in the case of nested docs, so we want the last one:
-            docsEnum = termsEnum.postings(docsEnum, 0);
             for (int d = docsEnum.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = docsEnum.nextDoc()) {
                 if (liveDocs != null && liveDocs.get(d) == false) {
                     continue;
                 }
                 docID = d;
             }
-            return docID;
-        } else {
-            return DocIdSetIterator.NO_MORE_DOCS;
         }
+        return docID;
     }
 
     /** Return null if id is not found. */

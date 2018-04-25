@@ -460,14 +460,3 @@ subprojects {
     return result
   }
 }
-
-static void assertLinesInFile(final Path path, final List<String> actualLines, final List<String> expectedLines) {
-  int line = 0
-  for (final String expectedLine : expectedLines) {
-    final String actualLine = actualLines.get(line)
-    if (expectedLine != actualLine) {
-      throw new GradleException("expected line [${line + 1}] in [${path}] to be [${expectedLine}] but was [${actualLine}]")
-    }
-    line++
-  }
-}

@@ -84,11 +84,4 @@ public class RestIndicesStatsActionTests extends ESTestCase {
         assertThat(e, hasToString(containsString("request [/_stats] contains _all and individual metrics [_all," + metric + "]")));
     }
 
-    public void testSuggestIsDeprecated() throws IOException {
-        final Map<String, String> params = Collections.singletonMap("metric", "suggest");
-        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_stats").withParams(params).build();
-        action.prepareRequest(request, mock(NodeClient.class));
-        assertWarnings("the suggest metric is deprecated on the indices stats API [/_stats]");
-    }
-
 }

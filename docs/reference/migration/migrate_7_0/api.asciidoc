@@ -22,7 +22,14 @@ The following parameters starting with underscore have been removed:
 Instead of these removed parameters, use their non camel case equivalents without
 starting underscore, e.g. use `version_type` instead of `_version_type` or `versionType`.
 
-
 ==== The parameter `fields` deprecated in 6.x has been removed from Bulk request 
 and Update request. The Update API returns `400 - Bad request` if request contains 
 unknown parameters (instead of ignored in the previous version).
+
+[[remove-suggest-metric]]
+==== Remove support for `suggest` metric/index metric in indices stats and nodes stats APIs
+
+Previously, `suggest` stats were folded into `search` stats. Support for the
+`suggest` metric on the indices stats and nodes stats APIs remained for
+backwards compatibility. Backwards support for the `suggest` metric was
+deprecated in 6.3.0 and now removed in 7.0.0.

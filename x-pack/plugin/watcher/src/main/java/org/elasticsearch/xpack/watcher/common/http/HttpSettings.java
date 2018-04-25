@@ -28,6 +28,29 @@ public class HttpSettings {
     static final Setting<TimeValue> CONNECTION_TIMEOUT = Setting.timeSetting("xpack.http.default_connection_timeout",
             DEFAULT_CONNECTION_TIMEOUT, Property.NodeScope);
 
+
+    // these are very apache http client specific settings, which only apply to how the apache http client is working
+    // keep them in their own namespace, so that we could for example switch to the new java http client to get rid
+    // of another dependency in the future
+    // more information https://hc.apache.org/httpcomponents-client-ga/tutorial/html/connmgmt.html
+
+    // should idle connections be evicted? This will start an additional thread doing this
+    static final Setting<Boolean> APACHE_HTTP_CLIENT_EVICT_IDLE_CONNECTIONS =
+        Setting.boolSetting("xpack.http.apache.evict_idle_connections", false, Property.NodeScope);
+    // what is the timeout for evicting idle connections
+    // this prevents form many connections being open due to the pooled client
+    // this value resembles the default set in org.apache.http.impl.client.HttpClientBuilder.build()
+    static final Setting<TimeValue> APACHE_HTTP_CLIENT_EVICT_IDLE_CONNECTIONS_TIMEOUT =
+        Setting.timeSetting("xpack.http.apache.evict_idle_connections_timeout", TimeValue.timeValueSeconds(10), Property.NodeScope);
+    // how many total connections should the http client be able to keep open at once
+    static final Setting<Integer> APACHE_HTTP_CLIENT_MAX_CONN_TOTAL =
+        Setting.intSetting("xpack.http.apache.max_conn_total", 100, 1, Property.NodeScope);
+    // how many total connections per route should the http client be able to keep open at once
+    // this for example defines how often a user is able to poll the same _search endpoint of a remote cluster, which is
+    // also the reason why this is set to the same value than the total connections
+    static final Setting<Integer> APACHE_HTTP_CLIENT_MAX_CONN_PER_ROUTE =
+        Setting.intSetting("xpack.http.apache.max_conn_total_per_route", APACHE_HTTP_CLIENT_MAX_CONN_TOTAL, 1, Property.NodeScope);
+
     private static final String PROXY_HOST_KEY = "xpack.http.proxy.host";
     private static final String PROXY_PORT_KEY = "xpack.http.proxy.port";
     private static final String PROXY_SCHEME_KEY = "xpack.http.proxy.scheme";
@@ -54,6 +77,10 @@ public class HttpSettings {
         settings.add(PROXY_PORT);
         settings.add(PROXY_SCHEME);
         settings.add(MAX_HTTP_RESPONSE_SIZE);
+        settings.add(APACHE_HTTP_CLIENT_EVICT_IDLE_CONNECTIONS);
+        settings.add(APACHE_HTTP_CLIENT_EVICT_IDLE_CONNECTIONS_TIMEOUT);
+        settings.add(APACHE_HTTP_CLIENT_MAX_CONN_TOTAL);
+        settings.add(APACHE_HTTP_CLIENT_MAX_CONN_PER_ROUTE);
         return settings;
     }
 

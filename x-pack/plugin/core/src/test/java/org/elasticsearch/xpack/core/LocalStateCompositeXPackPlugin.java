@@ -38,6 +38,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
@@ -57,9 +58,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -389,6 +390,13 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
                 .map(p -> p.getPersistentTasksExecutor(clusterService, threadPool, client))
                 .flatMap(List::stream)
                 .collect(toList());
+    }
+
+    @Override
+    public void close() throws IOException {
+        for (Plugin plugin : plugins) {
+            plugin.close();
+        }
     }
 
     private <T> List<T> filterPlugins(Class<T> type) {

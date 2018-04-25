@@ -24,7 +24,7 @@ public class DataStreamDiagnostics {
 
     private static final Logger LOGGER = Loggers.getLogger(DataStreamDiagnostics.class);
 
-    private final BucketHistogram bucketHistogram;
+    private final BucketDiagnostics bucketDiagnostics;
 
     private long bucketCount = 0;
     private long emptyBucketCount = 0;
@@ -33,10 +33,10 @@ public class DataStreamDiagnostics {
     private long latestSparseBucketTime = -1;
 
     public DataStreamDiagnostics(Job job) {
-        bucketHistogram = new BucketHistogram(job, createBucketFlushListener());
+        bucketDiagnostics = new BucketDiagnostics(job, createBucketFlushListener());
     }
 
-    private BucketHistogram.BucketFlushListener createBucketFlushListener() {
+    private BucketDiagnostics.BucketFlushListener createBucketFlushListener() {
         return (flushedBucketStartMs, flushedBucketCount) -> {
             ++bucketCount;
             if (flushedBucketCount == 0) {
@@ -45,7 +45,7 @@ public class DataStreamDiagnostics {
             } else {
                 // simplistic way to calculate data sparsity, just take the log and
                 // check the difference
-                double averageBucketSize = bucketHistogram.averageBucketCount();
+                double averageBucketSize = bucketDiagnostics.averageBucketCount();
                 double logAverageBucketSize = Math.log(averageBucketSize);
                 double logBucketSize = Math.log(flushedBucketCount);
                 double sparsityScore = logAverageBucketSize - logBucketSize;
@@ -67,7 +67,7 @@ public class DataStreamDiagnostics {
      *            The record timestamp in milliseconds since epoch
      */
     public void checkRecord(long recordTimestampInMs) {
-        bucketHistogram.addRecord(recordTimestampInMs);
+        bucketDiagnostics.addRecord(recordTimestampInMs);
     }
 
     /**
@@ -75,7 +75,7 @@ public class DataStreamDiagnostics {
      */
     public void flush() {
         // flush all we know
-        bucketHistogram.flush();
+        bucketDiagnostics.flush();
     }
 
     public long getBucketCount() {

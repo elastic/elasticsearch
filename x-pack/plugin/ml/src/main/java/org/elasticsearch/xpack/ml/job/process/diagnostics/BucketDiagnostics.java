@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.core.ml.utils.Intervals;
  * circular buffer. When time is advanced, all buckets
  * out of the window are flushed.
  */
-class BucketHistogram {
+class BucketDiagnostics {
 
     private static final int MIN_BUCKETS = 10;
 
@@ -33,7 +33,7 @@ class BucketHistogram {
     private long latestFlushedBucketStartMs = -1;
     private final BucketFlushListener bucketFlushListener;
 
-    public BucketHistogram(Job job, BucketFlushListener bucketFlushListener) {
+    public BucketDiagnostics(Job job, BucketFlushListener bucketFlushListener) {
         bucketSpanMs = job.getAnalysisConfig().getBucketSpan().millis();
         latencyMs = job.getAnalysisConfig().getLatency() == null ? 0 : job.getAnalysisConfig().getLatency().millis();
         maxSize = Math.max((int) (Intervals.alignToCeil(latencyMs, bucketSpanMs) / bucketSpanMs), MIN_BUCKETS);

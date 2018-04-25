@@ -40,6 +40,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
@@ -53,7 +54,9 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -64,6 +67,7 @@ import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -366,9 +370,10 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
 
             final IndexShard oldPrimary = shards.getPrimary();
             final IndexShard newPrimary = shards.getReplicas().get(0);
+            final IndexShard justReplica = shards.getReplicas().get(1);
 
             // simulate docs that were inflight when primary failed
-            final int extraDocs = randomIntBetween(0, 5);
+            final int extraDocs = randomIntBetween(1, 5);
             logger.info("--> indexing {} extra docs", extraDocs);
             for (int i = 0; i < extraDocs; i++) {
                 final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "extra_" + i)
@@ -376,6 +381,20 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
                 indexOnReplica(bulkShardRequest, shards, newPrimary);
             }
+
+
+            final int extraDocsToBeTrimmed = randomIntBetween(3, 10);
+            logger.info("--> indexing {} extra docs to be trimmed", extraDocsToBeTrimmed);
+            for (int i = 0; i < extraDocsToBeTrimmed; i++) {
+                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "extra_trimmed_" + i)
+                    .source("{}", XContentType.JSON);
+                final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
+                // have to replicate to another replica != newPrimary one - the subject to trim
+                indexOnReplica(bulkShardRequest, shards, justReplica);
+            }
+
+            logger.info("--> seqNo primary {} replica {}", oldPrimary.seqNoStats(), newPrimary.seqNoStats());
+
             logger.info("--> resyncing replicas");
             PrimaryReplicaSyncer.ResyncTask task = shards.promoteReplicaToPrimary(newPrimary).get();
             if (syncedGlobalCheckPoint) {
@@ -383,7 +402,37 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             } else {
                 assertThat(task.getResyncedOperations(), greaterThanOrEqualTo(extraDocs));
             }
-            shards.assertAllEqual(initialDocs + extraDocs);
+            SeqNoStats primarySeqNoStat = shards.getPrimary().seqNoStats();
+            logger.info("--> seqNo primary {} {}", shards.getPrimary().nodeName(), primarySeqNoStat);
+            List<IndexShard> replicas = shards.getReplicas();
+            for (IndexShard replica : replicas) {
+                logger.info("--> seqNo replica {} {}", replica.nodeName(), replica.seqNoStats());
+            }
+
+            // check all docs on primary are available on replica
+            Set<String> primaryIds = getShardDocUIDs(newPrimary);
+            assertThat(primaryIds.size(), equalTo(initialDocs + extraDocs));
+            for (IndexShard replica : replicas) {
+                Set<String> replicaIds = getShardDocUIDs(replica);
+                Set<String> temp = new HashSet<>(primaryIds);
+                temp.removeAll(replicaIds);
+                assertThat(replica.routingEntry() + " is missing docs", temp, empty());
+                temp = new HashSet<>(replicaIds);
+                temp.removeAll(primaryIds);
+                // yeah, replica has more docs as there is no Lucene roll back on it
+                assertThat(replica.routingEntry() + " has to have extra docs", temp, not(empty()));
+            }
+
+            // check translog on replica is trimmed
+            int translogOperations = 0;
+            try(Translog.Snapshot snapshot = getTranslog(justReplica).newSnapshot()) {
+                Translog.Operation next;
+                while ((next = snapshot.next()) != null) {
+                    translogOperations++;
+                    assertTrue("unexpected op: " + next, next.seqNo() < initialDocs + extraDocs);
+                }
+            }
+            assertThat(translogOperations, is(initialDocs + extraDocs));
         }
     }
 

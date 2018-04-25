@@ -1197,6 +1197,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert currentEngineReference.get() == null;
     }
 
+    public void trimTranslog(long belowTerm, long aboveSeqNo) throws IOException {
+        getEngine().trimTranslog(belowTerm, aboveSeqNo);
+    }
+
     public Engine.Result applyTranslogOperation(Translog.Operation operation, Engine.Operation.Origin origin,
                                                 Consumer<Mapping> onMappingUpdate) throws IOException {
         final Engine.Result result;

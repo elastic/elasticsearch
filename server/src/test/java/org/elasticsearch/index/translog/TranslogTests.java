@@ -119,7 +119,9 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
@@ -1474,8 +1476,8 @@ public class TranslogTests extends ESTestCase {
             fail("corrupted");
         } catch (IllegalStateException ex) {
             assertEquals("Checkpoint file translog-3.ckp already exists but has corrupted content expected: Checkpoint{offset=3080, " +
-                "numOps=55, generation=3, minSeqNo=45, maxSeqNo=99, globalCheckpoint=-1, minTranslogGeneration=1} but got: Checkpoint{offset=0, numOps=0, " +
-                "generation=0, minSeqNo=-1, maxSeqNo=-1, globalCheckpoint=-1, minTranslogGeneration=0}", ex.getMessage());
+                "numOps=55, generation=3, minSeqNo=45, maxSeqNo=99, globalCheckpoint=-1, minTranslogGeneration=1, trimmedAboveSeqNo=-2} but got: Checkpoint{offset=0, numOps=0, " +
+                "generation=0, minSeqNo=-1, maxSeqNo=-1, globalCheckpoint=-1, minTranslogGeneration=0, trimmedAboveSeqNo=-1}", ex.getMessage());
         }
         Checkpoint.write(FileChannel::open, config.getTranslogPath().resolve(Translog.getCommitCheckpointFileName(read.generation)), read, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
         try (Translog translog = new Translog(config, translogUUID, deletionPolicy, () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get)) {
@@ -1505,6 +1507,42 @@ public class TranslogTests extends ESTestCase {
         final List<Translog.Operation> readOperations = Translog.readOperations(out.bytes().streamInput());
         assertEquals(ops.size(), readOperations.size());
         assertEquals(ops, readOperations);
+    }
+
+    public void testTrimmedSnapshot() throws Exception {
+        List<Translog.Index> operations = new ArrayList<>();
+        int translogOperations = randomIntBetween(10, 100);
+        int maxTrimmedSeqNo = translogOperations - randomIntBetween(4, 8);
+
+        for (int op = 0; op < translogOperations; op++) {
+            String ascii = randomAlphaOfLengthBetween(1, 50);
+            Translog.Index operation = new Translog.Index("test", "" + op, op,
+                primaryTerm.get(), ascii.getBytes("UTF-8"));
+            operations.add(operation);
+        }
+        // shuffle a bit - move several first items to the end
+        for(int i = 0, len = randomIntBetween(5, 10); i < len; i++){
+            operations.add(operations.remove(0));
+        }
+
+        for (Translog.Index operation : operations) {
+            translog.add(operation);
+        }
+
+        translog.rollGeneration();
+
+        translog.trim(primaryTerm.get() + 1, maxTrimmedSeqNo);
+        translog.sync();
+
+        Set<Long> expectedSeqNo = LongStream.range(0, maxTrimmedSeqNo + 1).boxed().collect(Collectors.toSet());
+        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+            Translog.Operation next;
+            while ((next = snapshot.next()) != null) {
+                assertThat(expectedSeqNo.remove(next.seqNo()), is(true));
+            }
+            assertThat(snapshot.skippedOperations(), is(translogOperations - (maxTrimmedSeqNo + 1)));
+        }
+        assertThat(expectedSeqNo, hasSize(0));
     }
 
     public void testLocationHashCodeEquals() throws IOException {
@@ -2393,7 +2431,7 @@ public class TranslogTests extends ESTestCase {
         }
         final long generation = randomNonNegativeLong();
         return new Checkpoint(randomLong(), randomInt(), generation, minSeqNo, maxSeqNo, randomNonNegativeLong(),
-            randomLongBetween(1, generation));
+            randomLongBetween(1, generation), maxSeqNo);
     }
 
     public void testCheckpointOnDiskFull() throws IOException {
@@ -2617,7 +2655,7 @@ public class TranslogTests extends ESTestCase {
                     assertThat(Tuple.tuple(op.seqNo(), op.primaryTerm()), isIn(seenSeqNos));
                     readFromSnapshot++;
                 }
-                readFromSnapshot += snapshot.overriddenOperations();
+                readFromSnapshot += snapshot.skippedOperations();
             }
             assertThat(readFromSnapshot, equalTo(expectedSnapshotOps));
             final long seqNoLowerBound = seqNo;

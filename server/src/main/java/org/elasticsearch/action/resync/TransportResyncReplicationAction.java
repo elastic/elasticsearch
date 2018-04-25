@@ -135,6 +135,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
                 }
             }
         }
+        replica.trimTranslog(request.getBelowTermId(), request.getTrimmedAboveSeqNo());
         return location;
     }
 

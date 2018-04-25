@@ -32,6 +32,7 @@ final class TranslogSnapshot extends BaseTranslogReader {
 
     private final ByteBuffer reusableBuffer;
     private long position;
+    private int skippedOperations;
     private int readOperations;
     private BufferedChecksumStreamInput reuse;
 
@@ -54,17 +55,24 @@ final class TranslogSnapshot extends BaseTranslogReader {
         return totalOperations;
     }
 
+    int skippedOperations(){
+        return skippedOperations;
+    }
+
     @Override
     Checkpoint getCheckpoint() {
         return checkpoint;
     }
 
     public Translog.Operation next() throws IOException {
-        if (readOperations < totalOperations) {
-            return readOperation();
-        } else {
-            return null;
+        while (readOperations < totalOperations) {
+            final Translog.Operation operation = readOperation();
+            if (operation.seqNo() <= checkpoint.trimmedAboveSeqNo || checkpoint.trimmedAboveSeqNo < 0) {
+                return operation;
+            }
+            skippedOperations++;
         }
+        return null;
     }
 
     protected Translog.Operation readOperation() throws IOException {

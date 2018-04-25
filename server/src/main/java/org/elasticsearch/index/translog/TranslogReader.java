@@ -37,7 +37,7 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
     protected final long length;
     private final int totalOperations;
     private final Checkpoint checkpoint;
-    protected final AtomicBoolean closed = new AtomicBoolean(false);
+    protected final AtomicBoolean closed;
 
     /**
      * Create a translog writer against the specified translog file channel.
@@ -48,10 +48,24 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
      * @param header     the header of the translog file
      */
     TranslogReader(final Checkpoint checkpoint, final FileChannel channel, final Path path, final TranslogHeader header) {
+        this(checkpoint, channel, path, header,  new AtomicBoolean(false));
+    }
+
+    /**
+     * Create a translog writer against the specified translog file channel.
+     *
+     * @param checkpoint the translog checkpoint
+     * @param channel    the translog file channel to open a translog reader against
+     * @param path       the path to the translog
+     * @param header     the header of the translog file
+     *
+     */
+    TranslogReader(final Checkpoint checkpoint, final FileChannel channel, final Path path, final TranslogHeader header, AtomicBoolean closed) {
         super(checkpoint.generation, channel, path, header);
         this.length = checkpoint.offset;
         this.totalOperations = checkpoint.numOps;
         this.checkpoint = checkpoint;
+        this.closed = closed;
     }
 
     /**
@@ -68,6 +82,13 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
             final FileChannel channel, final Path path, final Checkpoint checkpoint, final String translogUUID) throws IOException {
         final TranslogHeader header = TranslogHeader.read(translogUUID, path, channel);
         return new TranslogReader(checkpoint, channel, path, header);
+    }
+
+    /**
+     * Create a new reader with new checkoint that shares resources with current one
+     */
+    TranslogReader withNewCheckpoint(final Checkpoint newCheckpoint){
+        return new TranslogReader(newCheckpoint, channel, path, header,  closed);
     }
 
     public long sizeInBytes() {

@@ -235,6 +235,13 @@ public abstract class Engine implements Closeable {
      */
     public abstract boolean isThrottled();
 
+    /**
+     * Trims translog for terms below <code>belowTerm</code> and seq# above <code>aboveSeqNo</code>
+     */
+    public void trimTranslog(long belowTerm, long aboveSeqNo) throws IOException {
+        getTranslog().trim(belowTerm, aboveSeqNo);
+    }
+
     /** A Lock implementation that always allows the lock to be acquired */
     protected static final class NoOpLock implements Lock {
 

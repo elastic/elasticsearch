@@ -35,6 +35,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.tasks.Task;
@@ -83,6 +84,8 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
         ActionListener<ResyncTask> resyncListener = null;
         try {
             final long startingSeqNo = indexShard.getGlobalCheckpoint() + 1;
+            final SeqNoStats seqNoStats = indexShard.seqNoStats();
+            final long maxSeqNo = seqNoStats != null ? seqNoStats.getMaxSeqNo() : SequenceNumbers.UNASSIGNED_SEQ_NO;
             Translog.Snapshot snapshot = indexShard.newTranslogSnapshotFromMinSeqNo(startingSeqNo);
             resyncListener = new ActionListener<ResyncTask>() {
                 @Override
@@ -135,7 +138,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
                 }
             };
             resync(shardId, indexShard.routingEntry().allocationId().getId(), indexShard.getPrimaryTerm(), wrappedSnapshot,
-                startingSeqNo, resyncListener);
+                startingSeqNo, maxSeqNo, resyncListener);
         } catch (Exception e) {
             if (resyncListener != null) {
                 resyncListener.onFailure(e);
@@ -146,7 +149,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
     }
 
     private void resync(final ShardId shardId, final String primaryAllocationId, final long primaryTerm, final Translog.Snapshot snapshot,
-                        long startingSeqNo, ActionListener<ResyncTask> listener) {
+                        long startingSeqNo, long maxSeqNo, ActionListener<ResyncTask> listener) {
         ResyncRequest request = new ResyncRequest(shardId, primaryAllocationId);
         ResyncTask resyncTask = (ResyncTask) taskManager.register("transport", "resync", request); // it's not transport :-)
         ActionListener<Void> wrappedListener = new ActionListener<Void>() {
@@ -166,7 +169,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
         };
         try {
             new SnapshotSender(logger, syncAction, resyncTask, shardId, primaryAllocationId, primaryTerm, snapshot, chunkSize.bytesAsInt(),
-                startingSeqNo, wrappedListener).run();
+                startingSeqNo, maxSeqNo, wrappedListener).run();
         } catch (Exception e) {
             wrappedListener.onFailure(e);
         }
@@ -186,14 +189,16 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
         private final ShardId shardId;
         private final Translog.Snapshot snapshot;
         private final long startingSeqNo;
+        private final long maxSeqNo;
         private final int chunkSizeInBytes;
         private final ActionListener<Void> listener;
+        private final AtomicInteger totalPackets = new AtomicInteger();
         private final AtomicInteger totalSentOps = new AtomicInteger();
         private final AtomicInteger totalSkippedOps = new AtomicInteger();
         private AtomicBoolean closed = new AtomicBoolean();
 
         SnapshotSender(Logger logger, SyncAction syncAction, ResyncTask task, ShardId shardId, String primaryAllocationId, long primaryTerm,
-                       Translog.Snapshot snapshot, int chunkSizeInBytes, long startingSeqNo, ActionListener<Void> listener) {
+                       Translog.Snapshot snapshot, int chunkSizeInBytes, long startingSeqNo, long maxSeqNo, ActionListener<Void> listener) {
             this.logger = logger;
             this.syncAction = syncAction;
             this.task = task;
@@ -203,6 +208,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
             this.snapshot = snapshot;
             this.chunkSizeInBytes = chunkSizeInBytes;
             this.startingSeqNo = startingSeqNo;
+            this.maxSeqNo = maxSeqNo;
             this.listener = listener;
             task.setTotalOperations(snapshot.totalOperations());
         }
@@ -248,11 +254,15 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
                 }
             }
 
-            if (!operations.isEmpty()) {
+            final long trimmedAboveSeqNo = totalPackets.get() == 0 ? maxSeqNo : SequenceNumbers.UNASSIGNED_SEQ_NO;
+            // have to send sync request even in case of there are no operations to sync - have to sync trimmedAboveSeqNo at least
+            if (!operations.isEmpty() || totalPackets.get() == 0) {
                 task.setPhase("sending_ops");
-                ResyncReplicationRequest request = new ResyncReplicationRequest(shardId, operations.toArray(EMPTY_ARRAY));
+                ResyncReplicationRequest request =
+                    new ResyncReplicationRequest(shardId, primaryTerm, trimmedAboveSeqNo, operations.toArray(EMPTY_ARRAY));
                 logger.trace("{} sending batch of [{}][{}] (total sent: [{}], skipped: [{}])", shardId, operations.size(),
                     new ByteSizeValue(size), totalSentOps.get(), totalSkippedOps.get());
+                totalPackets.incrementAndGet();
                 syncAction.sync(request, task, primaryAllocationId, primaryTerm, this);
             } else if (closed.compareAndSet(false, true)) {
                 logger.trace("{} resync completed (total sent: [{}], skipped: [{}])", shardId, totalSentOps.get(), totalSkippedOps.get());

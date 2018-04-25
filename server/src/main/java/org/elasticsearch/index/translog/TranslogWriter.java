@@ -20,7 +20,6 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.OutputStreamDataOutput;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -92,6 +91,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         this.minSeqNo = initialCheckpoint.minSeqNo;
         assert initialCheckpoint.maxSeqNo == SequenceNumbers.NO_OPS_PERFORMED : initialCheckpoint.maxSeqNo;
         this.maxSeqNo = initialCheckpoint.maxSeqNo;
+        assert initialCheckpoint.trimmedAboveSeqNo == SequenceNumbers.NO_OPS_PERFORMED : initialCheckpoint.trimmedAboveSeqNo;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.seenSequenceNumbers = Assertions.ENABLED ? new HashMap<>() : null;
     }
@@ -241,7 +241,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     @Override
     synchronized Checkpoint getCheckpoint() {
         return new Checkpoint(totalOffset, operationCounter, generation, minSeqNo, maxSeqNo,
-            globalCheckpointSupplier.getAsLong(), minTranslogGenerationSupplier.getAsLong());
+            globalCheckpointSupplier.getAsLong(), minTranslogGenerationSupplier.getAsLong(),
+            SequenceNumbers.UNASSIGNED_SEQ_NO);
     }
 
     @Override

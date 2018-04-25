@@ -23,9 +23,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -194,35 +192,5 @@ public final class VersionsAndSeqNoResolver {
     public static long loadVersion(IndexReader reader, Term term) throws IOException {
         final DocIdAndVersion docIdAndVersion = loadDocIdAndVersion(reader, term);
         return docIdAndVersion == null ? NOT_FOUND : docIdAndVersion.version;
-    }
-
-    /**
-     * Checks for the existence of the history of a pair SeqNo/PrimaryTerm in Lucene. The checking pair is considered as existed
-     * if there is a pair such as the seqNo equals to the checking seqNo and the primary term is at least the checking term.
-     */
-    public static boolean hasHistoryInLucene(IndexReader reader, Term idTerm, long seqNo, long primaryTerm) throws IOException {
-        final PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, idTerm.field());
-        final List<LeafReaderContext> leaves = reader.leaves();
-        // iterate backwards to optimize for the frequently updated documents which are likely to be in the last segments
-        for (int i = leaves.size() - 1; i >= 0; i--) {
-            final LeafReaderContext leaf = leaves.get(i);
-            final PerThreadIDVersionAndSeqNoLookup lookup = lookups[leaf.ord];
-            final PostingsEnum postingsEnum = lookup.getPostingsOrNull(idTerm.bytes());
-            if (postingsEnum == null) {
-                continue;
-            }
-            final NumericDocValues seqNoDV = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
-            assert seqNoDV != null : "SeqNoDV does not exist";
-            final NumericDocValues primaryTermDV = leaf.reader().getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
-            assert primaryTermDV != null : "PrimaryTermDV does not exist";
-            for (int docId = postingsEnum.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = postingsEnum.nextDoc()) {
-                if (seqNoDV.advanceExact(docId) && primaryTermDV.advanceExact(docId)) {
-                    if (seqNoDV.longValue() == seqNo && primaryTermDV.longValue() >= primaryTerm) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
     }
 }

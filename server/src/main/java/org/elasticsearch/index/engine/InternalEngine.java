@@ -580,20 +580,10 @@ public class InternalEngine extends Engine {
     enum OpVsLuceneDocStatus {
         /** the op is more recent than the one that last modified the doc found in lucene*/
         OP_NEWER,
-        /** the op is stale but its history is existed in Lucene */
-        OP_STALE_HISTORY_EXISTS,
-        /** the op is stale and its history is not found in Lucene */
-        OP_STALE_HISTORY_NOT_FOUND,
+        /** the op is older or the same as the one that last modified the doc found in lucene*/
+        OP_STALE_OR_EQUAL,
         /** no doc was found in lucene */
         LUCENE_DOC_NOT_FOUND
-    }
-
-    private OpVsLuceneDocStatus compareToLuceneHistory(final Operation op, final Searcher searcher) throws IOException {
-        if (VersionsAndSeqNoResolver.hasHistoryInLucene(searcher.reader(), op.uid(), op.seqNo(), op.primaryTerm())) {
-            return OpVsLuceneDocStatus.OP_STALE_HISTORY_EXISTS;
-        } else {
-            return OpVsLuceneDocStatus.OP_STALE_HISTORY_NOT_FOUND;
-        }
     }
 
     private OpVsLuceneDocStatus compareOpToLuceneDocBasedOnSeqNo(final Operation op) throws IOException {
@@ -602,13 +592,11 @@ public class InternalEngine extends Engine {
         VersionValue versionValue = getVersionFromMap(op.uid().bytes());
         assert incrementVersionLookup();
         if (versionValue != null) {
-            if (op.seqNo() > versionValue.seqNo ||
-                (op.seqNo() == versionValue.seqNo && op.primaryTerm() > versionValue.term)) {
+            if  (op.seqNo() > versionValue.seqNo ||
+                (op.seqNo() == versionValue.seqNo && op.primaryTerm() > versionValue.term))
                 status = OpVsLuceneDocStatus.OP_NEWER;
-            } else if (op.seqNo() == versionValue.seqNo && op.primaryTerm() == versionValue.term) {
-                status = OpVsLuceneDocStatus.OP_STALE_HISTORY_EXISTS;
-            } else {
-                status = OpVsLuceneDocStatus.OP_STALE_HISTORY_NOT_FOUND;
+            else {
+                status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
             }
         } else {
             // load from index
@@ -625,10 +613,10 @@ public class InternalEngine extends Engine {
                     if (op.primaryTerm() > existingTerm) {
                         status = OpVsLuceneDocStatus.OP_NEWER;
                     } else {
-                        status = compareToLuceneHistory(op, searcher);
+                        status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
                     }
                 } else {
-                    status = compareToLuceneHistory(op, searcher);
+                    status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
                 }
             }
         }
@@ -852,7 +840,6 @@ public class InternalEngine extends Engine {
             // unlike the primary, replicas don't really care to about creation status of documents
             // this allows to ignore the case where a document was found in the live version maps in
             // a delete state and return false for the created flag in favor of code simplicity
-            final OpVsLuceneDocStatus opVsLucene;
             if (index.seqNo() <= localCheckpointTracker.getCheckpoint()){
                 // the operation seq# is lower then the current local checkpoint and thus was already put into lucene
                 // this can happen during recovery where older operations are sent from the translog that are already
@@ -861,18 +848,15 @@ public class InternalEngine extends Engine {
                 // question may have been deleted in an out of order op that is not replayed.
                 // See testRecoverFromStoreWithOutOfOrderDelete for an example of local recovery
                 // See testRecoveryWithOutOfOrderDelete for an example of peer recovery
-                opVsLucene = OpVsLuceneDocStatus.OP_STALE_HISTORY_EXISTS;
-            } else {
-                opVsLucene = compareOpToLuceneDocBasedOnSeqNo(index);
-            }
-            if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_HISTORY_EXISTS) {
                 plan = IndexingStrategy.processButSkipLucene(false, index.seqNo(), index.version());
-            } else if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_HISTORY_NOT_FOUND) {
-                plan = IndexingStrategy.processAsStaleOp(softDeleteEnabled, index.seqNo(), index.version());
             } else {
-                plan = IndexingStrategy.processNormally(
-                    opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND, index.seqNo(), index.version()
-                );
+                final OpVsLuceneDocStatus opVsLucene = compareOpToLuceneDocBasedOnSeqNo(index);
+                if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_OR_EQUAL) {
+                    plan = IndexingStrategy.processAsStaleOp(softDeleteEnabled, index.seqNo(), index.version());
+                } else {
+                    plan = IndexingStrategy.processNormally(opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND,
+                        index.seqNo(), index.version());
+                }
             }
         }
         return plan;
@@ -1184,7 +1168,7 @@ public class InternalEngine extends Engine {
         // unlike the primary, replicas don't really care to about found status of documents
         // this allows to ignore the case where a document was found in the live version maps in
         // a delete state and return true for the found flag in favor of code simplicity
-        final OpVsLuceneDocStatus opVsLucene;
+        final DeletionStrategy plan;
         if (delete.seqNo() <= localCheckpointTracker.getCheckpoint()) {
             // the operation seq# is lower then the current local checkpoint and thus was already put into lucene
             // this can happen during recovery where older operations are sent from the translog that are already
@@ -1193,21 +1177,15 @@ public class InternalEngine extends Engine {
             // question may have been deleted in an out of order op that is not replayed.
             // See testRecoverFromStoreWithOutOfOrderDelete for an example of local recovery
             // See testRecoveryWithOutOfOrderDelete for an example of peer recovery
-            opVsLucene = OpVsLuceneDocStatus.OP_STALE_HISTORY_EXISTS;
-        } else {
-            opVsLucene = compareOpToLuceneDocBasedOnSeqNo(delete);
-        }
-
-        final DeletionStrategy plan;
-
-        if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_HISTORY_EXISTS) {
             plan = DeletionStrategy.processButSkipLucene(false, delete.seqNo(), delete.version());
-        } else if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_HISTORY_NOT_FOUND) {
-            plan = DeletionStrategy.processAsStaleOp(softDeleteEnabled, false, delete.seqNo(), delete.version());
         } else {
-            plan = DeletionStrategy.processNormally(
-                opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND,
-                delete.seqNo(), delete.version());
+            final OpVsLuceneDocStatus opVsLucene = compareOpToLuceneDocBasedOnSeqNo(delete);
+            if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_OR_EQUAL) {
+                plan = DeletionStrategy.processAsStaleOp(softDeleteEnabled, false, delete.seqNo(), delete.version());
+            } else {
+                plan = DeletionStrategy.processNormally(opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND,
+                    delete.seqNo(), delete.version());
+            }
         }
         return plan;
     }

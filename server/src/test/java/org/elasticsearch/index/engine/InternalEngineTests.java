@@ -4605,9 +4605,7 @@ public class InternalEngineTests extends EngineTestCase {
                     engine.forceMerge(true);
                 }
             }
-            List<Long> operationsInLucene = getOperationSeqNoInLucene(engine);
-            assertThat(operationsInLucene, hasSize(expectedSeqNos.size()));
-            assertThat(operationsInLucene, containsInAnyOrder(expectedSeqNos.toArray()));
+            assertThat(getOperationSeqNoInLucene(engine), containsInAnyOrder(expectedSeqNos.toArray()));
         }
     }
 

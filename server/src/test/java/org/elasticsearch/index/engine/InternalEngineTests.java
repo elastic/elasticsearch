@@ -1553,6 +1553,9 @@ public class InternalEngineTests extends EngineTestCase {
         }
         iter1.forEachRemaining(o -> allOps.add(seqNoUpdater.apply(o)));
         iter2.forEachRemaining(o -> allOps.add(seqNoUpdater.apply(o)));
+        // insert some duplicates
+        allOps.addAll(randomSubsetOf(allOps));
+
         shuffle(allOps, random());
         concurrentlyApplyOps(allOps, engine);
 

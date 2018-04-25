@@ -117,8 +117,9 @@ verify_package_installation() {
         assert_file "/etc/default/elasticsearch" f root elasticsearch 660
 
         # Doc files
-        assert_file "/usr/share/doc/elasticsearch" d root root 755
-        assert_file "/usr/share/doc/elasticsearch/copyright" f root root 644
+        local docs=$(readlink -f /usr/share/doc/elasticsearch*)
+        assert_file $docs d root root 755
+        assert_file "$docs/copyright" f root root 644
     fi
 
     if is_rpm; then

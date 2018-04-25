@@ -93,8 +93,7 @@ public class GoogleCloudStorageService extends AbstractComponent {
         if (Strings.hasLength(clientSettings.getProjectId())) {
             storageOptionsBuilder.setProjectId(clientSettings.getProjectId());
         }
-        final StorageOptions storageOptions = storageOptionsBuilder.build();
-        return storageOptions.getService();
+        return storageOptionsBuilder.build().getService();
     }
 
     /**

@@ -58,6 +58,7 @@ public class GoogleCloudStorageClientSettings {
     /** An override for the Storage host name to connect to. */
     static final Setting.AffixSetting<String> HOST_SETTING = Setting.affixKeySetting(PREFIX, "host",
             key -> {
+                // falback to the deprecated setting
                 if (key.endsWith("host")) {
                     return Setting.simpleString(key,
                             ENDPOINT_SETTING.getConcreteSetting(key.substring(0, key.length() - "host".length()) + "endpoint"),

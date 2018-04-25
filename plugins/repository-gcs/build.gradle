@@ -82,7 +82,6 @@ forbiddenApisTest {
 task googleCloudStorageFixture(type: AntFixture) {
     dependsOn compileTestJava
     env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
-    env 'ES_JAVA_OPTS', "-Djava.security.debug=access,failure"
     executable = new File(project.runtimeJavaHome, 'bin/java')
     args 'org.elasticsearch.repositories.gcs.GoogleCloudStorageFixture', baseDir, 'bucket_test'
 }

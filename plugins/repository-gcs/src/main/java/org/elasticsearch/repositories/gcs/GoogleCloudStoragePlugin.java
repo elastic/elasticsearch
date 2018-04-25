@@ -78,29 +78,6 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
             Data.nullOf(GoogleJsonError.ErrorInfo.class);
             ClassInfo.of(GoogleJsonError.class, false);
 
-            // Data.nullOf(Bucket.Cors.class);
-            // ClassInfo.of(Bucket.class, false);
-            // ClassInfo.of(Bucket.Cors.class, false);
-            // ClassInfo.of(Bucket.Lifecycle.class, false);
-            // ClassInfo.of(Bucket.Logging.class, false);
-            // ClassInfo.of(Bucket.Owner.class, false);
-            // ClassInfo.of(Bucket.Versioning.class, false);
-            // ClassInfo.of(Bucket.Website.class, false);
-            //
-            // ClassInfo.of(StorageObject.class, false);
-            // ClassInfo.of(StorageObject.Owner.class, false);
-            //
-            // ClassInfo.of(Objects.class, false);
-            //
-            // ClassInfo.of(Storage.Buckets.Get.class, false);
-            // ClassInfo.of(Storage.Buckets.Insert.class, false);
-            //
-            // ClassInfo.of(Storage.Objects.Get.class, false);
-            // ClassInfo.of(Storage.Objects.Insert.class, false);
-            // ClassInfo.of(Storage.Objects.Delete.class, false);
-            // ClassInfo.of(Storage.Objects.Copy.class, false);
-            // ClassInfo.of(Storage.Objects.List.class, false);
-
             return null;
         });
     }

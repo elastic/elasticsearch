@@ -172,10 +172,10 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
             long bytesRemaining = readerAndSize.v2();
 
             @SuppressForbidden(reason = "the reader channel is backed by a socket instead of a file,"
-                    + "ie. it is not seekable and reading should advance the readers's internal position")
+                    + "ie. it is not seekable and reading should advance the channel's internal position")
             @Override
             public int read() throws IOException {
-                while (true) {
+                while (bytesRemaining > 0) {
                     try {
                         return (0xFF & buffer.get());
                     } catch (final BufferUnderflowException e) {
@@ -192,6 +192,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
                         // retry in case of non-blocking socket
                     }
                 }
+                return -1;
             }
 
             @Override

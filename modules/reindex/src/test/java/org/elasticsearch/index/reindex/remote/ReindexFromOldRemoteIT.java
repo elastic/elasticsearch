@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.smoketest;
+package org.elasticsearch.index.reindex.remote;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
@@ -27,6 +27,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
@@ -38,6 +39,9 @@ import static org.hamcrest.Matchers.containsString;
 
 public class ReindexFromOldRemoteIT extends ESRestTestCase {
     private void oldEsTestCase(String portPropertyName, String requestsPerSecond) throws IOException {
+        boolean enabled = Booleans.parseBoolean(System.getProperty("tests.fromOld"));
+        assumeTrue("test is disabled, probably because this is windows", enabled);
+
         int oldEsPort = Integer.parseInt(System.getProperty(portPropertyName));
         try (RestClient oldEs = RestClient.builder(new HttpHost("127.0.0.1", oldEsPort)).build()) {
             try {

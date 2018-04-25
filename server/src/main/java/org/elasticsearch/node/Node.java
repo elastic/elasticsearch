@@ -284,9 +284,11 @@ public class Node implements Closeable {
 
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
             logger.info(
-                "version[{}], pid[{}], build[{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
+                "version[{}], pid[{}], build[{}/{}/{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
                 Version.displayVersion(Version.CURRENT, Build.CURRENT.isSnapshot()),
                 jvmInfo.pid(),
+                Build.CURRENT.flavor().displayName(),
+                Build.CURRENT.type().displayName(),
                 Build.CURRENT.shortHash(),
                 Build.CURRENT.date(),
                 Constants.OS_NAME,
@@ -755,8 +757,7 @@ public class Node implements Closeable {
         logger.info("closing ...");
         List<Closeable> toClose = new ArrayList<>();
         StopWatch stopWatch = new StopWatch("node_close");
-        toClose.add(() -> stopWatch.start("tribe"));
-        toClose.add(() -> stopWatch.stop().start("node_service"));
+        toClose.add(() -> stopWatch.start("node_service"));
         toClose.add(nodeService);
         toClose.add(() -> stopWatch.stop().start("http"));
         toClose.add(injector.getInstance(HttpServerTransport.class));

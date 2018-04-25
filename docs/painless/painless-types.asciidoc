@@ -85,9 +85,12 @@ logical quanity with two possible values of `true` and `false`
 <3> boolean b = true;
 ----
 +
-<1> declare `int i`; assign `1` to `i`
-<2> declare `double d`; assign the default value of `0.0` to `d`
-<3> declare `boolean b`; assign `true` to `b`
+<1> declare `int i`;
+    assign `1` to `i`
+<2> declare `double d`;
+    assign the default value of `0.0` to `d`
+<3> declare `boolean b`;
+    assign `true` to `b`
 +
 * Method call on a primitive type from the corresponding
 <<reference-types, reference type>>.
@@ -98,9 +101,10 @@ logical quanity with two possible values of `true` and `false`
 <2> i.toString();
 ----
 +
-<1> declare `int i`; assign `1` to `i`
+<1> declare `int i`;
+    assign `1` to `i`
 <2> implicitly convert (box) `i` to the reference type `Integer`;
-invoke the `Integer` method `toString` on the converted (boxed) value
+    call the non-static member method `toString` on the converted (boxed) value
 
 [[reference-types]]
 ==== Reference Types
@@ -112,7 +116,7 @@ use in scripts.
 
 A reference type instance is a single set of data for one reference type
 object allocated to the heap. A reference type instance is allocated using the
-<<constructor-call, new operator>>.
+<<constructor-call, `new` operator>>.
 
 Reference type values refer to reference type instances, and multiple reference
 type values may refer to a single reference type instance. A change to a
@@ -138,7 +142,7 @@ functions decicated to a single reference type object that can manipulate
 member fields and return values.  Call member methods using the
 <<method-access, dot-operator>>.  Constructors are a special type of function
 used to allocate a reference type instance using the
-<<constructor-call, new operator>>.
+<<constructor-call, `new` operator>>.
 
 Reference type objects can have both static and non-static members (member
 fields and member methods). <<field-access, Access>> and
@@ -184,7 +188,7 @@ relationships.
 +
 <1> declare `List l`;
     assign a new `ArrayList` to `l`
-<2> call non-static member method `add` on l with arguments of `1`
+<2> call non-static member method `add` on `l` with arguments of `1`
 <3> declare `int i`;
     call non-static member method `get` on `l` with arguments `0`;
     add `1` to `2`;
@@ -243,15 +247,15 @@ The default value for a <<declaration, newly-declared>> `def` type
 <<assignment, assigned>> throughout a script.
 
 <<painless-operators, Operations>> using the `def` type will generate
-errors at *runtime* if an inappropriate type is used. Using the `def` type can
-have a slight impact on performance. Use only primitive types and reference
-types directly when performance is critical.
+errors at runtime if an inappropriate type is represented. Using the `def`
+type can have a slight impact on performance. Use only primitive types and
+reference types directly when performance is critical.
 
 *Examples*
 
 * General uses of the `def` type.
 +
-[source,Java]
+[source,Painless]
 ----
 <1> def i = 1;
 <2> def l = new ArrayList();
@@ -268,33 +272,38 @@ types directly when performance is critical.
 [[string-type]]
 ==== String Type
 
-A `String` is a specialized reference type that is immutable and does not have
-to be explicitly allocated. You can directly assign to a `String` without first
-allocating it with the `new` keyword. (Strings can be allocated with the `new`
-keyword, but it's not required.)
+The `String` type is a specialized reference type that does not require
+explicit allocation. Use <<strings, string literals>> to directly
+<<assignment, assign>> or <<painless-operators, operate>> on `String` values.
+While not required, the <<constructor-call, `new` operator>> can allocate
+`String` values.
 
-When assigning a value to a `String`, you must enclose the text in single or
-double quotes. Strings are allocated according to the standard Java Memory Model.
-The default value for a `String` is `null.`
+*Examples*
+[source,Painless]
 
-*Examples:*
-[source,Java]
+* General use of the `String` type.
++
 ----
-String r = "some text";             // Declare String r and set it to the
-                                    //   String "some text"
-String s = 'some text';             // Declare String s and set it to the
-                                    //   String 'some text'
-String t = new String("some text"); // Declare String t and set it to the
-                                    //   String "some text"
-String u;                           // Declare String u and set it to the
-                                    //   default value null
+<1> String r = "some text";
+<2> String s = 'some text';
+<3> String t = new String("some text");
+<4> String u;
 ----
++
+<1> declare `String r`;
+    assign `"some text"` to `r`
+<2> declare `String s`;
+    assign `'some text'` to `s`
+<3> declare `String t`;
+    assign new `String` with arguments `"some text"` to `t`
+<4> declare `String u`;
+    assign the default value of `null` to `u`
 
 [[void-type]]
 ==== void Type
 
-The `void` type represents the concept of no type. In Painless, `void` declares
-that a function has no return value.
+The `void` type represents the concept of a lack of type. The `void` type is
+primarily used to indicate a function will return no value.
 
 [[array-type]]
 ==== Array Type

@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.job.process;
+package org.elasticsearch.xpack.ml.job.process.diagnostics;
 
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Date;
 
@@ -21,9 +20,9 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
 
     private static final long BUCKET_SPAN = 60000;
     private Job job;
-    
+
     @Before
-    public void setUpMocks() throws IOException {
+    public void setUpMocks() {
         AnalysisConfig.Builder acBuilder = new AnalysisConfig.Builder(Arrays.asList(new Detector.Builder("metric", "field").build()));
         acBuilder.setBucketSpan(TimeValue.timeValueMillis(BUCKET_SPAN));
         acBuilder.setLatency(TimeValue.ZERO);
@@ -80,6 +79,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
         assertEquals(null, d.getLatestSparseBucketTime());
         assertEquals(new Date(BUCKET_SPAN * 2), d.getLatestEmptyBucketTime());
     }
+
     public void testSimple() {
         DataStreamDiagnostics d = new DataStreamDiagnostics(job);
 
@@ -93,6 +93,28 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
         d.checkRecord(490000);
         d.checkRecord(550000);
         d.checkRecord(610000);
+
+        d.flush();
+        assertEquals(9, d.getBucketCount());
+        assertEquals(0, d.getEmptyBucketCount());
+        assertEquals(0, d.getSparseBucketCount());
+        assertEquals(null, d.getLatestSparseBucketTime());
+        assertEquals(null, d.getLatestEmptyBucketTime());
+    }
+
+    public void testSimpleReverse() {
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job);
+
+        d.checkRecord(610000);
+        d.checkRecord(550000);
+        d.checkRecord(490000);
+        d.checkRecord(430000);
+        d.checkRecord(370000);
+        d.checkRecord(310000);
+        d.checkRecord(250000);
+        d.checkRecord(190000);
+        d.checkRecord(130000);
+        d.checkRecord(70000);
 
         d.flush();
         assertEquals(9, d.getBucketCount());
@@ -280,7 +302,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
 
     /**
      * Send signals, make a longer period of sparse signals, then go up again
-     * 
+     *
      * The number of sparse buckets should not be to much, it could be normal.
      */
     public void testSparseBucketsLongerPeriod() {

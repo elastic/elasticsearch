@@ -13,6 +13,7 @@
 `es.thread_pool.write.use_bulk_as_display_name` system property>> ({pull}29609[#29609])
 
 <<systemd-service-file-config, Systemd service file is no longer marked as configuration>> ({pull}29004[#29004])
+<<remove-suggest-metric, Removed `suggest` metric on stats APIs>> ({pull}29635[#29635])
 
 === Breaking Java Changes
 

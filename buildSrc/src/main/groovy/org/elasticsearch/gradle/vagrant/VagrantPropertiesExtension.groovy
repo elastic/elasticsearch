@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.vagrant
 
+import org.elasticsearch.gradle.Version
 import org.gradle.api.tasks.Input
 
 class VagrantPropertiesExtension {
@@ -26,7 +27,7 @@ class VagrantPropertiesExtension {
     List<String> boxes
 
     @Input
-    String upgradeFromVersion
+    Version upgradeFromVersion
 
     @Input
     List<String> upgradeFromVersions

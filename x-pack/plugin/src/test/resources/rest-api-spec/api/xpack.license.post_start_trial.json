@@ -1,0 +1,19 @@
+{
+  "xpack.license.post_start_trial": {
+    "documentation": "https://www.elastic.co/guide/en/x-pack/current/license-management.html",
+    "methods": ["POST"],
+    "url": {
+      "path": "/_xpack/license/start_trial",
+      "paths": ["/_xpack/license/start_trial"],
+      "parts" : {
+      },
+      "params": {
+        "type": {
+          "type" : "string",
+          "description" : "The type of trial license to generate (default: \"trial\")"
+        }
+      }
+    },
+    "body": null
+  }
+}

@@ -40,10 +40,9 @@ subprojects {
   description = "Elasticsearch subproject ${project.path}"
 }
 
-Path rootPath = rootDir.toPath()
-// setup pom license info, but only for artifacts that are part of elasticsearch
-configure(subprojects.findAll { it.projectDir.toPath().startsWith(rootPath) }) {
-
+subprojects {
+  project.ext.licenseName = 'The Apache Software License, Version 2.0'
+  project.ext.licenseUrl = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
   // we only use maven publish to add tasks for pom generation
   plugins.withType(MavenPublishPlugin).whenPluginAdded {
     publishing {
@@ -55,8 +54,8 @@ configure(subprojects.findAll { it.projectDir.toPath().startsWith(rootPath) }) {
             node.appendNode('inceptionYear', '2009')
 
             Node license = node.appendNode('licenses').appendNode('license')
-            license.appendNode('name', 'The Apache Software License, Version 2.0')
-            license.appendNode('url', 'http://www.apache.org/licenses/LICENSE-2.0.txt')
+            license.appendNode('name', project.licenseName)
+            license.appendNode('url', project.licenseUrl)
             license.appendNode('distribution', 'repo')
 
             Node developer = node.appendNode('developers').appendNode('developer')
@@ -68,7 +67,7 @@ configure(subprojects.findAll { it.projectDir.toPath().startsWith(rootPath) }) {
     }
   }
   plugins.withType(BuildPlugin).whenPluginAdded {
-    project.licenseFile = project.rootProject.file('LICENSE.txt')
+    project.licenseFile = project.rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
     project.noticeFile = project.rootProject.file('NOTICE.txt')
   }
 }
@@ -206,9 +205,13 @@ subprojects {
     "org.elasticsearch.test:framework:${version}": ':test:framework',
     "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:archives:integ-test-zip',
     "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:archives:zip',
+    "org.elasticsearch.distribution.zip:elasticsearch-oss:${version}": ':distribution:archives:oss-zip',
     "org.elasticsearch.distribution.tar:elasticsearch:${version}": ':distribution:archives:tar',
+    "org.elasticsearch.distribution.tar:elasticsearch-oss:${version}": ':distribution:archives:oss-tar',
     "org.elasticsearch.distribution.rpm:elasticsearch:${version}": ':distribution:packages:rpm',
+    "org.elasticsearch.distribution.rpm:elasticsearch-oss:${version}": ':distribution:packages:oss-rpm',
     "org.elasticsearch.distribution.deb:elasticsearch:${version}": ':distribution:packages:deb',
+    "org.elasticsearch.distribution.deb:elasticsearch-oss:${version}": ':distribution:packages:oss-deb',
     "org.elasticsearch.test:logger-usage:${version}": ':test:logger-usage',
     // for transport client
     "org.elasticsearch.plugin:transport-netty4-client:${version}": ':modules:transport-netty4',
@@ -228,6 +231,11 @@ subprojects {
       ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${snapshot}"] = snapshotProject
       ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${snapshot}"] = snapshotProject
       ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${snapshot}"] = snapshotProject
+      if (snapshot.onOrAfter('6.3.0')) {
+        ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch-oss:${snapshot}"] = snapshotProject
+        ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch-oss:${snapshot}"] = snapshotProject
+        ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch-oss:${snapshot}"] = snapshotProject
+      }
     }
   }
 

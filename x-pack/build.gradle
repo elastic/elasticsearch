@@ -57,6 +57,7 @@ subprojects {
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-security:${version}": xpackModule('security')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-upgrade:${version}": xpackModule('upgrade')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-watcher:${version}": xpackModule('watcher')]
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-ccr:${version}": xpackModule('ccr')]
 
   bwcVersions.snapshotProjectNames.each { snapshotName ->
     Version snapshot = bwcVersions.getSnapshotForProject(snapshotName)

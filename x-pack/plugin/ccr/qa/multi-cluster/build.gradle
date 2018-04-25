@@ -14,7 +14,6 @@ task leaderClusterTest(type: RestIntegTestTask) {
 leaderClusterTestCluster {
     numNodes = 1
     clusterName = 'leader-cluster'
-    plugin xpackProject('plugin').path
 }
 
 leaderClusterTestRunner {
@@ -27,7 +26,6 @@ followClusterTestCluster {
     dependsOn leaderClusterTestRunner
     numNodes = 1
     clusterName = 'follow-cluster'
-    plugin xpackProject('plugin').path
     setting 'search.remote.leader_cluster.seeds', "\"${-> leaderClusterTest.nodes.get(0).transportUri()}\""
 }
 

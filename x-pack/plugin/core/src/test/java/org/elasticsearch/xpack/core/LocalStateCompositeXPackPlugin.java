@@ -32,7 +32,9 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
@@ -42,6 +44,7 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
+import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
@@ -68,6 +71,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -78,7 +82,7 @@ import java.util.stream.Collectors;
 import static java.util.stream.Collectors.toList;
 
 public class LocalStateCompositeXPackPlugin extends XPackPlugin implements ScriptPlugin, ActionPlugin, IngestPlugin, NetworkPlugin,
-        ClusterPlugin, DiscoveryPlugin, MapperPlugin, AnalysisPlugin, PersistentTaskPlugin {
+        ClusterPlugin, DiscoveryPlugin, MapperPlugin, AnalysisPlugin, PersistentTaskPlugin, EnginePlugin {
 
     private XPackLicenseState licenseState;
     private SSLService sslService;
@@ -390,6 +394,21 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
                 .flatMap(List::stream)
                 .collect(toList());
     }
+
+    @Override
+    public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
+        List<Optional<EngineFactory>> enginePlugins = filterPlugins(EnginePlugin.class).stream()
+            .map(p -> p.getEngineFactory(indexSettings))
+            .collect(Collectors.toList());
+        if (enginePlugins.size() == 0) {
+            return Optional.empty();
+        } else if (enginePlugins.size() == 1) {
+            return enginePlugins.stream().findFirst().get();
+        } else {
+            throw new IllegalStateException("Only one EngineFactory plugin allowed");
+        }
+    }
+
 
     private <T> List<T> filterPlugins(Class<T> type) {
         return plugins.stream().filter(x -> type.isAssignableFrom(x.getClass())).map(p -> ((T)p))

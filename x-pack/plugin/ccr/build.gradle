@@ -1,7 +1,7 @@
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import org.elasticsearch.gradle.BuildPlugin
 
-evaluationDependsOn(':x-pack-elasticsearch:plugin:core')
+evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
 esplugin {
@@ -11,8 +11,6 @@ esplugin {
     hasNativeController false
     requiresKeystore true
     extendedPlugins = ['x-pack-core']
-    licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')
-    noticeFile project(':x-pack-elasticsearch').file('NOTICE.txt')
 }
 archivesBaseName = 'x-pack-ccr'
 
@@ -48,5 +46,5 @@ dependencyLicenses {
 }
 
 run {
-    plugin ':x-pack-elasticsearch:plugin:core'
+    plugin xpackModule('core')
 }

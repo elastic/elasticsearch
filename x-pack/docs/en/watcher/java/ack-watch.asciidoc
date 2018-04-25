@@ -1,0 +1,60 @@
+[float]
+[[api-java-ack-watch]]
+=== Ack Watch API
+
+<<actions-ack-throttle, Acknowledging>> a watch enables you to manually throttle
+execution of the watch actions. The action's _acknowledgement state_ is stored in
+the `status.actions.<id>.ack.state` structure.
+
+The current status of the watch and the state of its actions are returned as part
+of the <<api-java-get-watch, Get Watch API>> response:
+
+[source,java]
+--------------------------------------------------
+GetWatchResponse getWatchResponse = watcherClient.prepareGetWatch("my-watch").get();
+State state = getWatchResponse.getStatus().actionStatus("my-action").ackStatus().state();
+--------------------------------------------------
+
+The action state of a newly created watch is `awaits_successful_execution`. When
+the watch runs and its condition is met, the state changes to `ackable`.
+Acknowledging the action sets the state to `acked`.
+
+When an action state is set to `acked`, further executions of that action are
+throttled until its state is reset to `awaits_successful_execution`. This happens
+when the watch condition is no longer met (the condition evaluates to `false`).
+
+The following snippet shows how to acknowledge an action. You specify the IDs of
+the watch and the action you want to acknowledge--in this example `my-watch` and
+`my-action`:
+
+[source,java]
+--------------------------------------------------
+AckWatchResponse ackResponse = watcherClient.prepareAckWatch("my-watch").setActionIds("my-action").get();
+--------------------------------------------------
+
+As a response to this request, the status of the watch and the state of the
+action are returned and can be obtained from `AckWatchResponse` object:
+
+[source,java]
+--------------------------------------------------
+WatchStatus status = ackResponse.getStatus();
+ActionStatus actionStatus = status.actionStatus("my-action");
+ActionStatus.AckStatus ackStatus = actionStatus.ackStatus();
+ActionStatus.AckStatus.State ackState = ackStatus.state();
+--------------------------------------------------
+
+You can acknowledge multiple actions:
+
+[source,java]
+--------------------------------------------------
+AckWatchResponse ackResponse = watcherClient.prepareAckWatch("my-watch")
+  .setActionIds("action1", "action2")
+  .get();
+--------------------------------------------------
+
+To acknowledge all actions of a watch, specify only the watch ID:
+
+[source,java]
+--------------------------------------------------
+AckWatchResponse ackResponse = watcherClient.prepareAckWatch("my-watch").get();
+--------------------------------------------------

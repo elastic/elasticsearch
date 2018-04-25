@@ -56,8 +56,7 @@ public class FollowIndexIT extends ESRestTestCase {
             Settings indexSettings = Settings.builder()
                     .put("index.xpack.ccr.following_index", true)
                     .build();
-            // TODO: remove mapping here when ccr syncs mappings too
-            createIndex(followIndexName, indexSettings, "\"doc\": { \"properties\": { \"field\": { \"type\": \"integer\" }}}");
+            createIndex(followIndexName, indexSettings);
             ensureYellow(followIndexName);
 
             followIndex("leader_cluster:" + leaderIndexName, followIndexName);

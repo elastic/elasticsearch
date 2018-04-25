@@ -12,12 +12,13 @@ public class ShardChangesResponseTests extends AbstractStreamableTestCase<ShardC
 
     @Override
     protected ShardChangesAction.Response createTestInstance() {
+        final long indexMetadataVersion = randomNonNegativeLong();
         final int numOps = randomInt(8);
         final Translog.Operation[] operations = new Translog.Operation[numOps];
         for (int i = 0; i < numOps; i++) {
             operations[i] = new Translog.NoOp(i, 0, "test");
         }
-        return new ShardChangesAction.Response(operations);
+        return new ShardChangesAction.Response(indexMetadataVersion, operations);
     }
 
     @Override

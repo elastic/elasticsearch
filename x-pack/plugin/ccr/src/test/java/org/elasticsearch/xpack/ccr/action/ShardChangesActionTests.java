@@ -5,9 +5,12 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -36,6 +39,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
                 .put("index.translog.generation_threshold_size", new ByteSizeValue(randomIntBetween(8, 64), ByteSizeUnit.KB))
                 .build();
         final IndexService indexService = createIndex("index", settings);
+        IndexMetaData indexMetaData = indexService.getMetaData();
 
         final int numWrites = randomIntBetween(2, 8192);
         for (int i = 0; i < numWrites; i++) {
@@ -49,7 +53,8 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
             int min = randomIntBetween(0, numWrites - 1);
             int max = randomIntBetween(min, numWrites - 1);
 
-            final ShardChangesAction.Response r = ShardChangesAction.getOperationsBetween(indexShard, min, max, Long.MAX_VALUE);
+            final ShardChangesAction.Response r =
+                    ShardChangesAction.getOperationsBetween(indexShard, min, max, Long.MAX_VALUE, indexMetaData);
             /*
              * We are not guaranteed that operations are returned to us in order they are in the translog (if our read crosses multiple
              * generations) so the best we can assert is that we see the expected operations.
@@ -61,23 +66,32 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
 
         // get operations for a range no operations exists:
         Exception e = expectThrows(IllegalStateException.class,
-                () -> ShardChangesAction.getOperationsBetween(indexShard, numWrites, numWrites + 1, Long.MAX_VALUE));
+                () -> ShardChangesAction.getOperationsBetween(indexShard, numWrites, numWrites + 1, Long.MAX_VALUE, indexMetaData));
         assertThat(e.getMessage(), containsString("Not all operations between min_seq_no [" + numWrites + "] and max_seq_no [" +
                 (numWrites + 1) +"] found, tracker checkpoint ["));
 
         // get operations for a range some operations do not exist:
         e = expectThrows(IllegalStateException.class,
-                () -> ShardChangesAction.getOperationsBetween(indexShard, numWrites  - 10, numWrites + 10, Long.MAX_VALUE));
+                () -> ShardChangesAction.getOperationsBetween(indexShard, numWrites  - 10, numWrites + 10, Long.MAX_VALUE, indexMetaData));
         assertThat(e.getMessage(), containsString("Not all operations between min_seq_no [" + (numWrites - 10) + "] and max_seq_no [" +
                 (numWrites + 10) +"] found, tracker checkpoint ["));
     }
 
     public void testGetOperationsBetweenWhenShardNotStarted() throws Exception {
+        IndexMetaData indexMetaData = IndexMetaData.builder("index")
+                .settings(Settings.builder()
+                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+                        .build())
+                .build();
         IndexShard indexShard = Mockito.mock(IndexShard.class);
 
         ShardRouting shardRouting = TestShardRouting.newShardRouting("index", 0, "_node_id", true, ShardRoutingState.INITIALIZING);
         Mockito.when(indexShard.routingEntry()).thenReturn(shardRouting);
-        expectThrows(IndexShardNotStartedException.class, () -> ShardChangesAction.getOperationsBetween(indexShard, 0, 1, Long.MAX_VALUE));
+        expectThrows(IndexShardNotStartedException.class,
+                () -> ShardChangesAction.getOperationsBetween(indexShard, 0, 1, Long.MAX_VALUE, indexMetaData));
     }
 
     public void testGetOperationsBetweenExceedByteLimit() throws Exception {
@@ -93,7 +107,8 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
         }
 
         final IndexShard indexShard = indexService.getShard(0);
-        final ShardChangesAction.Response r = ShardChangesAction.getOperationsBetween(indexShard, 0, numWrites - 1, 256);
+        final ShardChangesAction.Response r =
+                ShardChangesAction.getOperationsBetween(indexShard, 0, numWrites - 1, 256, indexService.getMetaData());
         assertThat(r.getOperations().length, equalTo(12));
         assertThat(r.getOperations()[0].seqNo(), equalTo(0L));
         assertThat(r.getOperations()[1].seqNo(), equalTo(1L));

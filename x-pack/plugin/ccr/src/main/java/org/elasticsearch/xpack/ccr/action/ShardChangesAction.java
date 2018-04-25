@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -159,13 +160,19 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
 
     public static final class Response extends ActionResponse {
 
+        private long indexMetadataVersion;
         private Translog.Operation[] operations;
 
         Response() {
         }
 
-        Response(final Translog.Operation[] operations) {
+        Response(long indexMetadataVersion, final Translog.Operation[] operations) {
+            this.indexMetadataVersion = indexMetadataVersion;
             this.operations = operations;
+        }
+
+        public long getIndexMetadataVersion() {
+            return indexMetadataVersion;
         }
 
         public Translog.Operation[] getOperations() {
@@ -175,12 +182,14 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
         @Override
         public void readFrom(final StreamInput in) throws IOException {
             super.readFrom(in);
+            indexMetadataVersion = in.readVLong();
             operations = in.readArray(Translog.Operation::readOperation, Translog.Operation[]::new);
         }
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
+            out.writeVLong(indexMetadataVersion);
             out.writeArray(Translog.Operation::writeOperation, operations);
         }
 
@@ -189,12 +198,16 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             final Response response = (Response) o;
-            return Arrays.equals(operations, response.operations);
+            return indexMetadataVersion == response.indexMetadataVersion &&
+                    Arrays.equals(operations, response.operations);
         }
 
         @Override
         public int hashCode() {
-            return Arrays.hashCode(operations);
+            int result = 1;
+            result += Objects.hashCode(indexMetadataVersion);
+            result += Arrays.hashCode(operations);
+            return result;
         }
     }
 
@@ -227,7 +240,8 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
             IndexService indexService = indicesService.indexServiceSafe(request.getShard().getIndex());
             IndexShard indexShard = indexService.getShard(request.getShard().id());
 
-            return getOperationsBetween(indexShard, request.minSeqNo, request.maxSeqNo, request.maxTranslogsBytes);
+            IndexMetaData indexMetaData = clusterService.state().metaData().index(shardId.getIndex());
+            return getOperationsBetween(indexShard, request.minSeqNo, request.maxSeqNo, request.maxTranslogsBytes, indexMetaData);
         }
 
         @Override
@@ -252,7 +266,8 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
 
     private static final Translog.Operation[] EMPTY_OPERATIONS_ARRAY = new Translog.Operation[0];
 
-    static Response getOperationsBetween(IndexShard indexShard, long minSeqNo, long maxSeqNo, long byteLimit) throws IOException {
+    static Response getOperationsBetween(IndexShard indexShard, long minSeqNo, long maxSeqNo, long byteLimit,
+                                         IndexMetaData indexMetaData) throws IOException {
         if (indexShard.state() != IndexShardState.STARTED) {
             throw new IndexShardNotStartedException(indexShard.shardId(), indexShard.state());
         }
@@ -276,17 +291,17 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
                         seenBytes += orderedOp.estimateSize();
                         operations.add(orderedOp);
                         if (nextExpectedSeqNo > maxSeqNo) {
-                            return new Response(operations.toArray(EMPTY_OPERATIONS_ARRAY));
+                            return new Response(indexMetaData.getVersion(), operations.toArray(EMPTY_OPERATIONS_ARRAY));
                         }
                     } else {
-                        return new Response(operations.toArray(EMPTY_OPERATIONS_ARRAY));
+                        return new Response(indexMetaData.getVersion(), operations.toArray(EMPTY_OPERATIONS_ARRAY));
                     }
                 }
             }
         }
 
         if (nextExpectedSeqNo >= maxSeqNo) {
-            return new Response(operations.toArray(EMPTY_OPERATIONS_ARRAY));
+            return new Response(indexMetaData.getVersion(), operations.toArray(EMPTY_OPERATIONS_ARRAY));
         } else {
             String message = "Not all operations between min_seq_no [" + minSeqNo + "] and max_seq_no [" + maxSeqNo +
                     "] found, tracker checkpoint [" + nextExpectedSeqNo + "]";

@@ -461,7 +461,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         AtomicReference<Exception> errorHolder = new AtomicReference<>();
         AtomicReference<QueryPage<CategoryDefinition>> resultHolder = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        jobProvider.categoryDefinitions(JOB_ID, categoryId, null, null, r -> {
+        jobProvider.categoryDefinitions(JOB_ID, categoryId, false, null, null, r -> {
             resultHolder.set(r);
             latch.countDown();
         }, e -> {

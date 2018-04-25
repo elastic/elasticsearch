@@ -24,6 +24,8 @@
 
 === Bug Fixes
 
+Fix NullPointerException when creating or deleting a snapshot ({pull}TODO[#TODO])
+
 === Regressions
 
 === Known Issues

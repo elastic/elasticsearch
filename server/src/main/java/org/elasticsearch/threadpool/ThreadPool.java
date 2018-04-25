@@ -21,7 +21,6 @@ package org.elasticsearch.threadpool;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Counter;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -38,6 +37,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.node.Node;
 
 import java.io.Closeable;
@@ -79,6 +79,7 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
         public static final String FORCE_MERGE = "force_merge";
         public static final String FETCH_SHARD_STARTED = "fetch_shard_started";
         public static final String FETCH_SHARD_STORE = "fetch_shard_store";
+        public static final String NODE_CONNECTIONS = "node_connections";
     }
 
     public enum ThreadPoolType {
@@ -135,6 +136,7 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
         map.put(Names.FORCE_MERGE, ThreadPoolType.FIXED);
         map.put(Names.FETCH_SHARD_STARTED, ThreadPoolType.SCALING);
         map.put(Names.FETCH_SHARD_STORE, ThreadPoolType.SCALING);
+        map.put(Names.NODE_CONNECTIONS, ThreadPoolType.SCALING);
         THREAD_POOL_TYPES = Collections.unmodifiableMap(map);
     }
 
@@ -186,6 +188,7 @@ public class ThreadPool extends AbstractComponent implements Scheduler, Closeabl
         builders.put(Names.FETCH_SHARD_STARTED, new ScalingExecutorBuilder(Names.FETCH_SHARD_STARTED, 1, 2 * availableProcessors, TimeValue.timeValueMinutes(5)));
         builders.put(Names.FORCE_MERGE, new FixedExecutorBuilder(settings, Names.FORCE_MERGE, 1, -1));
         builders.put(Names.FETCH_SHARD_STORE, new ScalingExecutorBuilder(Names.FETCH_SHARD_STORE, 1, 2 * availableProcessors, TimeValue.timeValueMinutes(5)));
+        builders.put(Names.NODE_CONNECTIONS, new ScalingExecutorBuilder(Names.NODE_CONNECTIONS, 1, 2 * availableProcessors, TimeValue.timeValueMinutes(5)));
         for (final ExecutorBuilder<?> builder : customBuilders) {
             if (builders.containsKey(builder.name())) {
                 throw new IllegalArgumentException("builder with name [" + builder.name() + "] already exists");

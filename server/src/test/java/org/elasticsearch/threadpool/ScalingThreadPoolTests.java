@@ -105,6 +105,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
         sizes.put(ThreadPool.Names.SNAPSHOT, ThreadPool::halfNumberOfProcessorsMaxFive);
         sizes.put(ThreadPool.Names.FETCH_SHARD_STARTED, ThreadPool::twiceNumberOfProcessors);
         sizes.put(ThreadPool.Names.FETCH_SHARD_STORE, ThreadPool::twiceNumberOfProcessors);
+        sizes.put(ThreadPool.Names.NODE_CONNECTIONS, ThreadPool::twiceNumberOfProcessors);
         return sizes.get(threadPoolName).apply(numberOfProcessors);
     }
 

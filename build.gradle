@@ -440,14 +440,15 @@ task run(type: Run) {
 
 task wrapper(type: Wrapper) {
   distributionType = DistributionType.ALL
-  jarFile = "${project.projectDir}/.gradle-wrapper/gradle-wrapper.jar"
+  jarFile = file('.gradle-wrapper/gradle-wrapper.jar')
   doLast {
     final DistributionLocator locator = new DistributionLocator()
     final GradleVersion version = GradleVersion.version(gradleVersion)
     final URI distributionUri = locator.getDistributionFor(version, distributionType.name().toLowerCase(Locale.ENGLISH))
     final URI sha256Uri = new URI(distributionUri.toString() + ".sha256")
     final String sha256Sum = new String(sha256Uri.toURL().bytes)
-    getPropertiesFile().setText("distributionSha256Sum=${sha256Sum}\n", 'UTF-8')
+    final String existingProperties = getPropertiesFile().getText('UTF-8')
+    getPropertiesFile().setText("${existingProperties}distributionSha256Sum=${sha256Sum}\n", 'UTF-8')
   }
 }
 

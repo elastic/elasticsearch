@@ -536,6 +536,22 @@ public class XPackLicenseState {
     }
 
     /**
+     * Determine if Index Lifecycle API should be enabled.
+     * <p>
+     * Index Lifecycle API is available in for all license types except
+     * {@link OperationMode#MISSING}
+     *
+     * @return {@code true} as long as the license is valid. Otherwise
+     *         {@code false}.
+     */
+    public boolean isIndexLifecycleAllowed() {
+        // status is volatile
+        Status localStatus = status;
+        // Should work on all active licenses
+        return localStatus.active;
+    }
+
+    /**
      * Determine if SQL support should be enabled.
      * <p>
      *  SQL is available for all license types except {@link OperationMode#MISSING}

@@ -60,6 +60,12 @@ public class XPackSettings {
     public static final Setting<Boolean> LOGSTASH_ENABLED = Setting.boolSetting("xpack.logstash.enabled", true,
             Setting.Property.NodeScope);
 
+    /**
+     * Setting for enabling or disabling the index lifecycle extension. Defaults to true.
+     */
+    public static final Setting<Boolean> INDEX_LIFECYCLE_ENABLED = Setting.boolSetting("xpack.index_lifecycle.enabled", true,
+        Setting.Property.NodeScope);
+
     /** Setting for enabling or disabling TLS. Defaults to false. */
     public static final Setting<Boolean> TRANSPORT_SSL_ENABLED = Setting.boolSetting("xpack.security.transport.ssl.enabled", false,
             Property.NodeScope);
@@ -149,6 +155,7 @@ public class XPackSettings {
         settings.add(SQL_ENABLED);
         settings.add(USER_SETTING);
         settings.add(ROLLUP_ENABLED);
+        settings.add(INDEX_LIFECYCLE_ENABLED);
         return Collections.unmodifiableList(settings);
     }
 

@@ -51,6 +51,7 @@ processTestResources.dependsOn(createNodeKeyStore)
 
 integTestCluster {
   dependsOn createNodeKeyStore
+  setting 'xpack.index_lifecycle.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.ml.enabled', 'true'
   setting 'logger.org.elasticsearch.xpack.ml.datafeed', 'TRACE'

@@ -16,7 +16,7 @@ es_meta_plugin {
   name = 'x-pack'
   description = 'Elasticsearch Expanded Pack Plugin'
   plugins = ['core', 'deprecation', 'graph', 'logstash',
-             'ml', 'monitoring', 'security', 'upgrade', 'watcher', 'sql', 'rollup']
+             'ml', 'monitoring', 'security', 'upgrade', 'watcher', 'sql', 'rollup', 'index-lifecycle']
 }
 
 dependencies {

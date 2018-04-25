@@ -10,10 +10,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -139,8 +139,26 @@ public class FollowExistingIndexAction extends Action<FollowExistingIndexAction.
         }
     }
 
-    public static class Response extends ActionResponse {
+    public static class Response extends AcknowledgedResponse {
 
+        Response() {
+        }
+
+        Response(boolean acknowledged) {
+            super(acknowledged);
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            readAcknowledged(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            writeAcknowledged(out);
+        }
     }
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
@@ -261,7 +279,7 @@ public class FollowExistingIndexAction extends Action<FollowExistingIndexAction.
 
                                         if (error == null) {
                                             // include task ids?
-                                            handler.onResponse(new Response());
+                                            handler.onResponse(new Response(true));
                                         } else {
                                             // TODO: cancel all started tasks
                                             handler.onFailure(error);

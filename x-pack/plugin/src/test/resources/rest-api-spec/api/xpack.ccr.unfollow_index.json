@@ -1,0 +1,19 @@
+{
+  "xpack.ccr.unfollow_index": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current",
+    "methods": [ "POST" ],
+    "url": {
+      "path": "/_xpack/ccr/{follow_index}/_unfollow",
+      "paths": [ "/_xpack/ccr/{follow_index}/_unfollow" ],
+      "parts": {
+        "follow_index": {
+          "type": "string",
+          "required": true,
+          "description": "The name of the follow index that should stop following its leader index."
+        }
+      },
+      "params": {
+      }
+    }
+  }
+}

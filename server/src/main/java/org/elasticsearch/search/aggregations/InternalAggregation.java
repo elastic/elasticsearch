@@ -153,10 +153,16 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      */
     public Object getProperty(String path) {
         AggregationPath aggPath = AggregationPath.parse(path);
-        return getProperty(aggPath.getPathElementsAsStringList());
+        return getProperty(aggPath.getPathElementsAsStringList(), true);
     }
 
-    public abstract Object getProperty(List<String> path);
+    /**
+     *
+     * @param path the path to the property in the aggregation tree
+     * @param allowMultiBucket true if multi-bucket aggregations are allowed to be processed, false if exception should be thrown
+     * @return the value of the property
+     */
+    public abstract Object getProperty(List<String> path, boolean allowMultiBucket);
 
     /**
      * Read a size under the assumption that a value of 0 means unlimited.

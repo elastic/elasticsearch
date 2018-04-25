@@ -128,7 +128,7 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
     }
 
     @Override
-    public Object getProperty(List<String> path) {
+    public Object getProperty(List<String> path, boolean allowMultiBucket) {
         if (path.isEmpty()) {
             return this;
         } else if (path.size() == 1) {

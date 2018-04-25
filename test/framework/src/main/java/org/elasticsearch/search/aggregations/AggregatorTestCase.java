@@ -60,14 +60,14 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.mock.orig.Mockito;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourceSubPhase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.junit.After;
@@ -79,12 +79,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 
 /**
  * Base class for testing {@link Aggregator} implementations.
@@ -132,8 +132,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(mapperService.types()).thenReturn(Collections.singleton(TYPE_NAME));
         when(searchContext.mapperService()).thenReturn(mapperService);
         IndexFieldDataService ifds = new IndexFieldDataService(indexSettings,
-                new IndicesFieldDataCache(Settings.EMPTY, new IndexFieldDataCache.Listener() {
-                }), circuitBreakerService, mapperService);
+            new IndicesFieldDataCache(Settings.EMPTY, new IndexFieldDataCache.Listener() {
+            }), circuitBreakerService, mapperService);
         when(searchContext.getForField(Mockito.any(MappedFieldType.class)))
             .thenAnswer(invocationOnMock -> ifds.getForField((MappedFieldType) invocationOnMock.getArguments()[0]));
 
@@ -213,7 +213,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(searchContext.numberOfShards()).thenReturn(1);
         when(searchContext.searcher()).thenReturn(contextIndexSearcher);
         when(searchContext.fetchPhase())
-                .thenReturn(new FetchPhase(Arrays.asList(new FetchSourceSubPhase(), new DocValueFieldsFetchSubPhase())));
+            .thenReturn(new FetchPhase(Arrays.asList(new FetchSourceSubPhase(), new DocValueFieldsFetchSubPhase())));
         when(searchContext.getObjectMapper(anyString())).thenAnswer(invocation -> {
             String fieldName = (String) invocation.getArguments()[0];
             if (fieldName.startsWith(NESTEDFIELD_PREFIX)) {
@@ -234,12 +234,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     protected IndexSettings createIndexSettings() {
         return new IndexSettings(
-                IndexMetaData.builder("_index").settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
-                        .numberOfShards(1)
-                        .numberOfReplicas(0)
-                        .creationDate(System.currentTimeMillis())
-                        .build(),
-                Settings.EMPTY
+            IndexMetaData.builder("_index").settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .creationDate(System.currentTimeMillis())
+                .build(),
+            Settings.EMPTY
         );
     }
 
@@ -254,7 +254,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * sub-tests that need a more complex mock can overwrite this
      */
     protected QueryShardContext queryShardContextMock(MapperService mapperService, MappedFieldType[] fieldTypes,
-            CircuitBreakerService circuitBreakerService) {
+                                                      CircuitBreakerService circuitBreakerService) {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         when(queryShardContext.getMapperService()).thenReturn(mapperService);
         for (MappedFieldType fieldType : fieldTypes) {
@@ -367,6 +367,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
             @SuppressWarnings("unchecked")
             A internalAgg = (A) aggs.get(0).doReduce(aggs, context);
+            if (internalAgg.pipelineAggregators().size() > 0) {
+                for (PipelineAggregator pipelineAggregator : internalAgg.pipelineAggregators()) {
+                    internalAgg = (A) pipelineAggregator.reduce(internalAgg, context);
+                }
+            }
             InternalAggregationTestCase.assertMultiBucketConsumer(internalAgg, reduceBucketConsumer);
             return internalAgg;
         }

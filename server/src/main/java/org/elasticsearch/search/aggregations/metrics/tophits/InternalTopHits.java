@@ -150,7 +150,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
     }
 
     @Override
-    public Object getProperty(List<String> path) {
+    public Object getProperty(List<String> path, boolean allowMultiBucket) {
         if (path.isEmpty()) {
             return this;
         } else {

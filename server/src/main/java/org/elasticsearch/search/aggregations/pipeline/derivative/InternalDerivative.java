@@ -73,7 +73,7 @@ public class InternalDerivative extends InternalSimpleValue implements Derivativ
     }
 
     @Override
-    public Object getProperty(List<String> path) {
+    public Object getProperty(List<String> path, boolean allowMultiBucket) {
         if (path.isEmpty()) {
             return this;
         } else if (path.size() == 1 && "value".equals(path.get(0))) {

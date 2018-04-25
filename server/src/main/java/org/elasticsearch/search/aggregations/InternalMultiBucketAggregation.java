@@ -68,7 +68,12 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
     public abstract List<? extends InternalBucket> getBuckets();
 
     @Override
-    public Object getProperty(List<String> path) {
+    public Object getProperty(List<String> path, boolean allowMultiBucket) {
+        if (allowMultiBucket == false) {
+            throw new AggregationExecutionException("[" + getName() + "] is a [" + getType()
+                + "], but only single bucket or numeric aggs are allowed.");
+        }
+
         if (path.isEmpty()) {
             return this;
         } else if (path.get(0).equals("_bucket_count")) {
@@ -119,6 +124,10 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
     public abstract static class InternalBucket implements Bucket, Writeable {
 
         public Object getProperty(String containingAggName, List<String> path) {
+            return getProperty(containingAggName, path, true);
+        }
+
+        public Object getProperty(String containingAggName, List<String> path, boolean allowMultiBucket) {
             if (path.isEmpty()) {
                 return this;
             }
@@ -140,7 +149,11 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
                 throw new InvalidAggregationPathException("Cannot find an aggregation named [" + aggName + "] in [" + containingAggName
                         + "]");
             }
-            return aggregation.getProperty(path.subList(1, path.size()));
+            if (allowMultiBucket == false && aggregation instanceof InternalMultiBucketAggregation) {
+                throw new AggregationExecutionException("[" + aggName + "] is a [" + aggregation.getType()
+                    + "], but only single bucket or numeric aggs are allowed.");
+            }
+            return aggregation.getProperty(path.subList(1, path.size()), allowMultiBucket);
         }
     }
 }

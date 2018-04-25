@@ -22,8 +22,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
@@ -110,7 +112,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     }
 
     @Override
-    public Object getProperty(List<String> path) {
+    public Object getProperty(List<String> path, boolean allowMultiBucket) {
         if (path.isEmpty()) {
             return this;
         } else {
@@ -125,7 +127,11 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
             if (aggregation == null) {
                 throw new IllegalArgumentException("Cannot find an aggregation named [" + aggName + "] in [" + getName() + "]");
             }
-            return aggregation.getProperty(path.subList(1, path.size()));
+            if (allowMultiBucket == false && aggregation instanceof InternalMultiBucketAggregation) {
+                throw new AggregationExecutionException("[" + aggName + "] is a [" + aggregation.getType()
+                    + "], but only single bucket or numeric aggs are allowed.");
+            }
+            return aggregation.getProperty(path.subList(1, path.size()), allowMultiBucket);
         }
     }
 

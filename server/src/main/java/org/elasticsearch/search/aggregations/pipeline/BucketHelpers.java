@@ -155,7 +155,7 @@ public class BucketHelpers {
     public static Double resolveBucketValue(MultiBucketsAggregation agg,
             InternalMultiBucketAggregation.InternalBucket bucket, List<String> aggPathAsList, GapPolicy gapPolicy) {
         try {
-            Object propertyValue = bucket.getProperty(agg.getName(), aggPathAsList);
+            Object propertyValue = bucket.getProperty(agg.getName(), aggPathAsList, false);
             if (propertyValue == null) {
                 throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
                         + " must reference either a number value or a single value numeric metric aggregation");

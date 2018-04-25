@@ -35,9 +35,6 @@
         }
       }
     },
-    "body": {
-      "description": "Field json objects containing an array of field names",
-      "required": false
-    }
+    "body": null
   }
 }

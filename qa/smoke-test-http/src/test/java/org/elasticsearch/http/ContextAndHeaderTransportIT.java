@@ -33,6 +33,7 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -103,12 +104,12 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
 
     @Before
     public void createIndices() throws Exception {
-        String mapping = jsonBuilder().startObject().startObject("type")
+        String mapping = Strings.toString(jsonBuilder().startObject().startObject("type")
             .startObject("properties")
             .startObject("location").field("type", "geo_shape").endObject()
             .startObject("name").field("type", "text").endObject()
             .endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
 
         Settings settings = Settings.builder()
             .put(indexSettings())

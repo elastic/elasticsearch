@@ -144,7 +144,7 @@ class Netty4HttpClient implements Closeable {
             for (HttpRequest request : requests) {
                 channelFuture.channel().writeAndFlush(request);
             }
-            latch.await(10, TimeUnit.SECONDS);
+            latch.await(30, TimeUnit.SECONDS);
 
         } finally {
             if (channelFuture != null) {

@@ -37,9 +37,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
@@ -167,6 +165,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
     public HasChildQueryBuilder innerHit(InnerHitBuilder innerHit) {
         this.innerHitBuilder = innerHit;
+        innerHitBuilder.setIgnoreUnmapped(ignoreUnmapped);
         return this;
     }
 
@@ -212,6 +211,9 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
      */
     public HasChildQueryBuilder ignoreUnmapped(boolean ignoreUnmapped) {
         this.ignoreUnmapped = ignoreUnmapped;
+        if (innerHitBuilder!= null ){
+            innerHitBuilder.setIgnoreUnmapped(ignoreUnmapped);
+        }
         return this;
     }
 
@@ -291,7 +293,6 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         hasChildQueryBuilder.ignoreUnmapped(ignoreUnmapped);
         if (innerHitBuilder != null) {
             hasChildQueryBuilder.innerHit(innerHitBuilder);
-            hasChildQueryBuilder.ignoreUnmapped(ignoreUnmapped);
         }
         return hasChildQueryBuilder;
     }
@@ -303,14 +304,6 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        if (context.getIndexSettings().isSingleType()) {
-            return joinFieldDoToQuery(context);
-        } else {
-            return parentFieldDoToQuery(context);
-        }
-    }
-
-    private Query joinFieldDoToQuery(QueryShardContext context) throws IOException {
         ParentJoinFieldMapper joinFieldMapper = ParentJoinFieldMapper.getMapper(context.getMapperService());
         if (joinFieldMapper == null) {
             if (ignoreUnmapped) {
@@ -337,44 +330,6 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                     "] doesn't hold [" + type + "] as a child");
             }
         }
-    }
-
-    private Query parentFieldDoToQuery(QueryShardContext context) throws IOException {
-        Query innerQuery;
-        final String[] previousTypes = context.getTypes();
-        context.setTypes(type);
-        try {
-            innerQuery = query.toQuery(context);
-        } finally {
-            context.setTypes(previousTypes);
-        }
-        DocumentMapper childDocMapper = context.getMapperService().documentMapper(type);
-        if (childDocMapper == null) {
-            if (ignoreUnmapped) {
-                return new MatchNoDocsQuery();
-            } else {
-                throw new QueryShardException(context, "[" + NAME + "] no mapping found for type [" + type + "]");
-            }
-        }
-        ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
-        if (parentFieldMapper.active() == false) {
-            throw new QueryShardException(context, "[" + NAME + "] _parent field has no parent type configured");
-        }
-        String parentType = parentFieldMapper.type();
-        DocumentMapper parentDocMapper = context.getMapperService().documentMapper(parentType);
-        if (parentDocMapper == null) {
-            throw new QueryShardException(context,
-                "[" + NAME + "] Type [" + type + "] points to a non existent parent type [" + parentType + "]");
-        }
-
-        // wrap the query with type query
-        innerQuery = Queries.filtered(innerQuery, childDocMapper.typeFilter(context));
-
-        String joinField = ParentFieldMapper.joinField(parentType);
-        final MappedFieldType parentFieldType = parentDocMapper.parentFieldMapper().getParentJoinFieldType();
-        final SortedSetDVOrdinalsIndexFieldData fieldData = context.getForField(parentFieldType);
-        return new LateParsingQuery(parentDocMapper.typeFilter(context), innerQuery, minChildren(), maxChildren(),
-            joinField, scoreMode, fieldData, context.getSearchSimilarity());
     }
 
     /**

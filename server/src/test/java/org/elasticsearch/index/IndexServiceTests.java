@@ -22,6 +22,7 @@ package org.elasticsearch.index;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -60,7 +61,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         filterBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.close();
-        return new CompressedXContent(builder.string());
+        return new CompressedXContent(Strings.toString(builder));
     }
 
     public void testBaseAsyncTask() throws InterruptedException, IOException {
@@ -249,7 +250,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         client().prepareIndex("test", "test", "1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
         IndexShard shard = indexService.getShard(0);
         assertBusy(() -> {
-            assertFalse(shard.getTranslog().syncNeeded());
+            assertFalse(shard.isSyncNeeded());
         });
     }
 
@@ -274,7 +275,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         client().prepareIndex("test", "test", "1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
         assertNotNull(indexService.getFsyncTask());
         final IndexShard shard = indexService.getShard(0);
-        assertBusy(() -> assertFalse(shard.getTranslog().syncNeeded()));
+        assertBusy(() -> assertFalse(shard.isSyncNeeded()));
 
         client()
                 .admin()
@@ -310,7 +311,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         indexService.updateMetaData(metaData);
 
         IndexShard shard = indexService.getShard(0);
-        assertBusy(() -> assertThat(shard.getTranslog().totalOperations(), equalTo(0)));
+        assertBusy(() -> assertThat(shard.estimateTranslogOperationsFromMinSeq(0L), equalTo(0)));
     }
 
     public void testIllegalFsyncInterval() {

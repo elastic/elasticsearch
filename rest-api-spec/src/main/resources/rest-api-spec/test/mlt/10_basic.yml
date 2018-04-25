@@ -32,7 +32,6 @@
   - do:
       search:
           index:   test_1
-          type:    test
           body:
             query:
               more_like_this:

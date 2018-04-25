@@ -390,14 +390,11 @@ public class IndexStatsIT extends ESIntegTestCase {
     }
 
     public void testSimpleStats() throws Exception {
-        // this test has some type stats tests that can be removed in 7.0
-        assertAcked(prepareCreate("test1")
-            .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))); // allows for multiple types
-        createIndex("test2");
+        createIndex("test1", "test2");
         ensureGreen();
 
-        client().prepareIndex("test1", "type1", Integer.toString(1)).setSource("field", "value").execute().actionGet();
-        client().prepareIndex("test1", "type2", Integer.toString(1)).setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test1", "type", Integer.toString(1)).setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test1", "type", Integer.toString(2)).setSource("field", "value").execute().actionGet();
         client().prepareIndex("test2", "type", Integer.toString(1)).setSource("field", "value").execute().actionGet();
         refresh();
 
@@ -435,6 +432,10 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(stats.getIndex("test1").getTotal().getIndexing().getTotal().getDeleteCurrent(), equalTo(0L));
         assertThat(stats.getIndex("test1").getTotal().getSearch().getTotal().getFetchCurrent(), equalTo(0L));
         assertThat(stats.getIndex("test1").getTotal().getSearch().getTotal().getQueryCurrent(), equalTo(0L));
+        assertThat(stats.getIndex("test2").getTotal().getIndexing().getTotal().getIndexCurrent(), equalTo(0L));
+        assertThat(stats.getIndex("test2").getTotal().getIndexing().getTotal().getDeleteCurrent(), equalTo(0L));
+        assertThat(stats.getIndex("test2").getTotal().getSearch().getTotal().getFetchCurrent(), equalTo(0L));
+        assertThat(stats.getIndex("test2").getTotal().getSearch().getTotal().getQueryCurrent(), equalTo(0L));
 
         // check flags
         stats = client().admin().indices().prepareStats().clear()
@@ -450,19 +451,8 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(stats.getTotal().getFlush(), notNullValue());
         assertThat(stats.getTotal().getRefresh(), notNullValue());
 
-        // check types
-        stats = client().admin().indices().prepareStats().setTypes("type1", "type").execute().actionGet();
-        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type1").getIndexCount(), equalTo(1L));
-        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type").getIndexCount(), equalTo(1L));
-        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type1").getIndexFailedCount(), equalTo(0L));
-        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type2"), nullValue());
-        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type1").getIndexCurrent(), equalTo(0L));
-        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type1").getDeleteCurrent(), equalTo(0L));
-
-
-        assertThat(stats.getTotal().getGet().getCount(), equalTo(0L));
         // check get
-        GetResponse getResponse = client().prepareGet("test1", "type1", "1").execute().actionGet();
+        GetResponse getResponse = client().prepareGet("test2", "type", "1").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
 
         stats = client().admin().indices().prepareStats().execute().actionGet();
@@ -471,7 +461,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(stats.getTotal().getGet().getMissingCount(), equalTo(0L));
 
         // missing get
-        getResponse = client().prepareGet("test1", "type1", "2").execute().actionGet();
+        getResponse = client().prepareGet("test2", "type", "2").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
 
         stats = client().admin().indices().prepareStats().execute().actionGet();
@@ -498,12 +488,12 @@ public class IndexStatsIT extends ESIntegTestCase {
 
         // index failed
         try {
-            client().prepareIndex("test1", "type1", Integer.toString(1)).setSource("field", "value").setVersion(1)
+            client().prepareIndex("test1", "type", Integer.toString(1)).setSource("field", "value").setVersion(1)
                     .setVersionType(VersionType.EXTERNAL).execute().actionGet();
             fail("Expected a version conflict");
         } catch (VersionConflictEngineException e) {}
         try {
-            client().prepareIndex("test1", "type2", Integer.toString(1)).setSource("field", "value").setVersion(1)
+            client().prepareIndex("test2", "type", Integer.toString(1)).setSource("field", "value").setVersion(1)
                     .setVersionType(VersionType.EXTERNAL).execute().actionGet();
             fail("Expected a version conflict");
         } catch (VersionConflictEngineException e) {}
@@ -513,11 +503,9 @@ public class IndexStatsIT extends ESIntegTestCase {
             fail("Expected a version conflict");
         } catch (VersionConflictEngineException e) {}
 
-        stats = client().admin().indices().prepareStats().setTypes("type1", "type2").execute().actionGet();
-        assertThat(stats.getIndex("test1").getPrimaries().getIndexing().getTotal().getIndexFailedCount(), equalTo(2L));
-        assertThat(stats.getIndex("test2").getPrimaries().getIndexing().getTotal().getIndexFailedCount(), equalTo(1L));
-        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type1").getIndexFailedCount(), equalTo(1L));
-        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type2").getIndexFailedCount(), equalTo(1L));
+
+        stats = client().admin().indices().prepareStats().execute().actionGet();
+        assertThat(stats.getIndex("test2").getPrimaries().getIndexing().getTotal().getIndexFailedCount(), equalTo(2L));
         assertThat(stats.getPrimaries().getIndexing().getTotal().getIndexFailedCount(), equalTo(3L));
     }
 
@@ -601,10 +589,6 @@ public class IndexStatsIT extends ESIntegTestCase {
 
         IndicesStatsResponse stats = builder.execute().actionGet();
         for (Flag flag : values) {
-            if (flag == Flag.Suggest) {
-                // suggest flag is unused
-                continue;
-            }
             assertThat(isSet(flag, stats.getPrimaries()), equalTo(false));
             assertThat(isSet(flag, stats.getTotal()), equalTo(false));
         }
@@ -640,10 +624,6 @@ public class IndexStatsIT extends ESIntegTestCase {
         }
 
         for (Flag flag : EnumSet.complementOf(flags)) { // check the complement
-            if (flag == Flag.Suggest) {
-                // suggest flag is unused
-                continue;
-            }
             assertThat(isSet(flag, stats.getPrimaries()), equalTo(false));
             assertThat(isSet(flag, stats.getTotal()), equalTo(false));
         }
@@ -696,7 +676,7 @@ public class IndexStatsIT extends ESIntegTestCase {
     public void testFlagOrdinalOrder() {
         Flag[] flags = new Flag[]{Flag.Store, Flag.Indexing, Flag.Get, Flag.Search, Flag.Merge, Flag.Flush, Flag.Refresh,
                 Flag.QueryCache, Flag.FieldData, Flag.Docs, Flag.Warmer, Flag.Completion, Flag.Segments,
-                Flag.Translog, Flag.Suggest, Flag.RequestCache, Flag.Recovery};
+                Flag.Translog, Flag.RequestCache, Flag.Recovery};
 
         assertThat(flags.length, equalTo(Flag.values().length));
         for (int i = 0; i < flags.length; i++) {
@@ -947,8 +927,6 @@ public class IndexStatsIT extends ESIntegTestCase {
             case Translog:
                 builder.setTranslog(set);
                 break;
-            case Suggest: // unused
-                break;
             case RequestCache:
                 builder.setRequestCache(set);
                 break;
@@ -991,8 +969,6 @@ public class IndexStatsIT extends ESIntegTestCase {
                 return response.getSegments() != null;
             case Translog:
                 return response.getTranslog() != null;
-            case Suggest: // unused
-                return true;
             case RequestCache:
                 return response.getRequestCache() != null;
             case Recovery:

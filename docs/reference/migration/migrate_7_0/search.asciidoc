@@ -5,6 +5,13 @@
 *   The default value for `transpositions` parameter of `fuzzy` query
     has been changed to `true`.
 
+*   The `query_string` options `use_dismax`, `split_on_whitespace`,
+    `all_fields`, `locale`, `auto_generate_phrase_query` and
+    `lowercase_expanded_terms` deprecated in 6.x have been removed.
+
+*   Purely negative queries (only MUST_NOT clauses) now return a score of `0`
+    rather than `1`.
+
 ==== Adaptive replica selection enabled by default
 
 Adaptive replica selection has been enabled by default. If you wish to return to
@@ -66,3 +73,8 @@ Executing a Regexp Query with a long regex string may degrade search performance
 To safeguard against this, the maximum length of regex that can be used in a
 Regexp Query request has been limited to 1000. This default maximum can be changed
 for a particular index with the index setting `index.max_regex_length`.
+
+==== Invalid `_search` request body
+
+Search requests with extra content after the main object will no longer be accepted
+by the `_search` endpoint. A parsing exception will be thrown instead.

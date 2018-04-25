@@ -184,7 +184,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         timedOut = in.readBoolean();
         numberOfInFlightFetch = in.readInt();
         delayedUnassignedShards= in.readInt();
-        taskMaxWaitingTime = new TimeValue(in);
+        taskMaxWaitingTime = in.readTimeValue();
     }
 
     @Override
@@ -197,7 +197,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         out.writeBoolean(timedOut);
         out.writeInt(numberOfInFlightFetch);
         out.writeInt(delayedUnassignedShards);
-        taskMaxWaitingTime.writeTo(out);
+        out.writeTimeValue(taskMaxWaitingTime);
     }
 
     @Override
@@ -245,7 +245,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         builder.field(DELAYED_UNASSIGNED_SHARDS, getDelayedUnassignedShards());
         builder.field(NUMBER_OF_PENDING_TASKS, getNumberOfPendingTasks());
         builder.field(NUMBER_OF_IN_FLIGHT_FETCH, getNumberOfInFlightFetch());
-        builder.timeValueField(TASK_MAX_WAIT_TIME_IN_QUEUE_IN_MILLIS, TASK_MAX_WAIT_TIME_IN_QUEUE, getTaskMaxWaitingTime());
+        builder.humanReadableField(TASK_MAX_WAIT_TIME_IN_QUEUE_IN_MILLIS, TASK_MAX_WAIT_TIME_IN_QUEUE, getTaskMaxWaitingTime());
         builder.percentageField(ACTIVE_SHARDS_PERCENT_AS_NUMBER, ACTIVE_SHARDS_PERCENT, getActiveShardsPercent());
 
         String level = params.param("level", "cluster");

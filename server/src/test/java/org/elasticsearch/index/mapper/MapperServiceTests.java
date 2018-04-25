@@ -21,6 +21,9 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -83,25 +86,6 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertTrue(e.getMessage(), e.getMessage().contains("mapping type name [" + type + "] is too long; limit is length 255 but was [256]"));
     }
 
-    public void testTypes() throws Exception {
-        IndexService indexService1 = createIndex("index1", Settings.builder().put("index.version.created", Version.V_5_6_0) // multi types
-            .build());
-        MapperService mapperService = indexService1.mapperService();
-        assertEquals(Collections.emptySet(), mapperService.types());
-
-        mapperService.merge("type1", new CompressedXContent("{\"type1\":{}}"), MapperService.MergeReason.MAPPING_UPDATE);
-        assertNull(mapperService.documentMapper(MapperService.DEFAULT_MAPPING));
-        assertEquals(Collections.singleton("type1"), mapperService.types());
-
-        mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent("{\"_default_\":{}}"), MapperService.MergeReason.MAPPING_UPDATE);
-        assertNotNull(mapperService.documentMapper(MapperService.DEFAULT_MAPPING));
-        assertEquals(Collections.singleton("type1"), mapperService.types());
-
-        mapperService.merge("type2", new CompressedXContent("{\"type2\":{}}"), MapperService.MergeReason.MAPPING_UPDATE);
-        assertNotNull(mapperService.documentMapper(MapperService.DEFAULT_MAPPING));
-        assertEquals(new HashSet<>(Arrays.asList("type1", "type2")), mapperService.types());
-    }
-
     public void testTypeValidation() {
         InvalidTypeNameException e = expectThrows(InvalidTypeNameException.class, () -> MapperService.validateTypeName("_type"));
         assertEquals("mapping type name [_type] can't start with '_' unless it is called [_doc]", e.getMessage());
@@ -135,15 +119,15 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         } else {
             throw e;
         }
-        assertFalse(indexService.mapperService().hasMapping(MapperService.DEFAULT_MAPPING));
+        assertNull(indexService.mapperService().documentMapper(MapperService.DEFAULT_MAPPING));
     }
 
     public void testTotalFieldsExceedsLimit() throws Throwable {
         Function<String, String> mapping = type -> {
             try {
-                return XContentFactory.jsonBuilder().startObject().startObject(type).startObject("properties")
+                return Strings.toString(XContentFactory.jsonBuilder().startObject().startObject(type).startObject("properties")
                     .startObject("field1").field("type", "keyword")
-                    .endObject().endObject().endObject().endObject().string();
+                    .endObject().endObject().endObject().endObject());
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -158,29 +142,29 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testMappingDepthExceedsLimit() throws Throwable {
-        CompressedXContent simpleMapping = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
+        CompressedXContent simpleMapping = new CompressedXContent(BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
                 .startObject("properties")
                     .startObject("field")
                         .field("type", "text")
                     .endObject()
-                .endObject().endObject().bytes());
+                .endObject().endObject()));
         IndexService indexService1 = createIndex("test1", Settings.builder().put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), 1).build());
         // no exception
         indexService1.mapperService().merge("type", simpleMapping, MergeReason.MAPPING_UPDATE);
 
-        CompressedXContent objectMapping = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
+        CompressedXContent objectMapping = new CompressedXContent(BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
                 .startObject("properties")
                     .startObject("object1")
                         .field("type", "object")
                     .endObject()
-                .endObject().endObject().bytes());
+                .endObject().endObject()));
 
         IndexService indexService2 = createIndex("test2");
         // no exception
         indexService2.mapperService().merge("type", objectMapping, MergeReason.MAPPING_UPDATE);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> indexService1.mapperService().merge("type2", objectMapping, MergeReason.MAPPING_UPDATE));
+                () -> indexService1.mapperService().merge("type", objectMapping, MergeReason.MAPPING_UPDATE));
         assertThat(e.getMessage(), containsString("Limit of mapping depth [1] in index [test1] has been exceeded"));
     }
 
@@ -211,51 +195,6 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertThat(e.getMessage(), startsWith("Failed to parse mapping [type1]: "));
     }
 
-    public void testMergeParentTypesSame() {
-        // Verifies that a merge (absent a DocumentMapper change)
-        // doesn't change the parentTypes reference.
-        // The collection was being rewrapped with each merge
-        // in v5.2 resulting in eventual StackOverflowErrors.
-        // https://github.com/elastic/elasticsearch/issues/23604
-
-        IndexService indexService1 = createIndex("index1");
-        MapperService mapperService = indexService1.mapperService();
-        Set<String> parentTypes = mapperService.getParentTypes();
-
-        Map<String, Map<String, Object>> mappings = new HashMap<>();
-        mapperService.merge(mappings, MergeReason.MAPPING_UPDATE);
-        assertSame(parentTypes, mapperService.getParentTypes());
-    }
-
-    public void testOtherDocumentMappersOnlyUpdatedWhenChangingFieldType() throws IOException {
-        IndexService indexService = createIndex("test",
-            Settings.builder().put("index.version.created", Version.V_5_6_0).build()); // multiple types
-
-        CompressedXContent simpleMapping = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
-            .startObject("field")
-            .field("type", "text")
-            .endObject()
-            .endObject().endObject().bytes());
-
-        indexService.mapperService().merge("type1", simpleMapping, MergeReason.MAPPING_UPDATE);
-        DocumentMapper documentMapper = indexService.mapperService().documentMapper("type1");
-
-        indexService.mapperService().merge("type2", simpleMapping, MergeReason.MAPPING_UPDATE);
-        assertSame(indexService.mapperService().documentMapper("type1"), documentMapper);
-
-        CompressedXContent normsDisabledMapping = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
-            .startObject("field")
-            .field("type", "text")
-            .field("norms", false)
-            .endObject()
-            .endObject().endObject().bytes());
-
-        indexService.mapperService().merge("type3", normsDisabledMapping, MergeReason.MAPPING_UPDATE);
-        assertNotSame(indexService.mapperService().documentMapper("type1"), documentMapper);
-    }
-
      public void testPartitionedConstraints() {
         // partitioned index must have routing
          IllegalArgumentException noRoutingException = expectThrows(IllegalArgumentException.class, () -> {
@@ -267,19 +206,6 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                     .execute().actionGet();
         });
         assertTrue(noRoutingException.getMessage(), noRoutingException.getMessage().contains("must have routing"));
-
-        // partitioned index cannot have parent/child relationships
-        IllegalArgumentException parentException = expectThrows(IllegalArgumentException.class, () -> {
-            client().admin().indices().prepareCreate("test-index")
-                    .addMapping("parent", "{\"parent\":{\"_routing\":{\"required\":true}}}", XContentType.JSON)
-                    .addMapping("child", "{\"child\": {\"_routing\":{\"required\":true}, \"_parent\": {\"type\": \"parent\"}}}",
-                        XContentType.JSON)
-                    .setSettings(Settings.builder()
-                        .put("index.number_of_shards", 4)
-                        .put("index.routing_partition_size", 2))
-                    .execute().actionGet();
-        });
-        assertTrue(parentException.getMessage(), parentException.getMessage().contains("cannot have a _parent field"));
 
         // valid partitioned index
         assertTrue(client().admin().indices().prepareCreate("test-index")
@@ -299,12 +225,12 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertThat(invalidNestedException.getMessage(),
             containsString("cannot have nested fields when index sort is activated"));
         IndexService indexService =  createIndex("test", settings, "t", "foo", "type=keyword");
-        CompressedXContent nestedFieldMapping = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
+        CompressedXContent nestedFieldMapping = new CompressedXContent(BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
             .startObject("properties")
             .startObject("nested_field")
             .field("type", "nested")
             .endObject()
-            .endObject().endObject().bytes());
+            .endObject().endObject()));
         invalidNestedException = expectThrows(IllegalArgumentException.class,
             () -> indexService.mapperService().merge("t", nestedFieldMapping,
                 MergeReason.MAPPING_UPDATE));
@@ -313,19 +239,46 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testForbidMultipleTypes() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
         MapperService mapperService = createIndex("test").mapperService();
         mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
 
-        String mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type2").endObject().endObject().string();
+        String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type2").endObject().endObject());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> mapperService.merge("type2", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE));
         assertThat(e.getMessage(), Matchers.startsWith("Rejecting mapping update to [test] as the final mapping would have more than 1 type: "));
     }
 
-    public void testDefaultMappingIsDeprecated() throws IOException {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("_default_").endObject().endObject().string();
+    /**
+     * This test checks that the multi-type validation is done before we do any other kind of validation on the mapping that's added,
+     * see https://github.com/elastic/elasticsearch/issues/29313
+     */
+    public void testForbidMultipleTypesWithConflictingMappings() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("field1").field("type", "integer_range").endObject().endObject().endObject().endObject());
         MapperService mapperService = createIndex("test").mapperService();
+        mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+
+        String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type2")
+            .startObject("properties").startObject("field1").field("type", "integer").endObject().endObject().endObject().endObject());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> mapperService.merge("type2", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE));
+        assertThat(e.getMessage(), Matchers.startsWith("Rejecting mapping update to [test] as the final mapping would have more than 1 type: "));
+    }
+
+    public void testDefaultMappingIsRejectedOn7() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_default_").endObject().endObject());
+        MapperService mapperService = createIndex("test").mapperService();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> mapperService.merge("_default_", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE));
+        assertEquals("The [default] mapping cannot be updated on index [test]: defaults mappings are not useful anymore now that indices " +
+                "can have at most one type.", e.getMessage());
+    }
+
+    public void testDefaultMappingIsDeprecatedOn6() throws IOException {
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_3_0).build();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_default_").endObject().endObject());
+        MapperService mapperService = createIndex("test", settings).mapperService();
         mapperService.merge("_default_", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         assertWarnings("[_default_] mapping is deprecated since it is not useful anymore now that indexes " +
                 "cannot have more than one type");

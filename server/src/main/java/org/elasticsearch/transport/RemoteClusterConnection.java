@@ -19,7 +19,6 @@
 package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.SetOnce;
@@ -65,6 +64,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -433,7 +433,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                                 handshakeNode = transportService.handshake(connection, remoteProfile.getHandshakeTimeout().millis(),
                                     (c) -> remoteClusterName.get() == null ? true : c.equals(remoteClusterName.get()));
                             } catch (IllegalStateException ex) {
-                                logger.warn((Supplier<?>) () -> new ParameterizedMessage("seed node {} cluster name mismatch expected " +
+                                logger.warn(() -> new ParameterizedMessage("seed node {} cluster name mismatch expected " +
                                     "cluster name {}", connection.getNode(), remoteClusterName.get()), ex);
                                 throw ex;
                             }
@@ -475,8 +475,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             } catch (ConnectTransportException | IOException | IllegalStateException ex) {
                 // ISE if we fail the handshake with an version incompatible node
                 if (seedNodes.hasNext()) {
-                    logger.debug((Supplier<?>) () -> new ParameterizedMessage("fetching nodes from external cluster {} failed",
-                        clusterAlias), ex);
+                    logger.debug(() -> new ParameterizedMessage("fetching nodes from external cluster {} failed", clusterAlias), ex);
                     collectRemoteNodes(seedNodes, transportService, listener);
                 } else {
                     listener.onFailure(ex);
@@ -551,8 +550,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                                     } catch (ConnectTransportException | IllegalStateException ex) {
                                         // ISE if we fail the handshake with an version incompatible node
                                         // fair enough we can't connect just move on
-                                        logger.debug((Supplier<?>)
-                                            () -> new ParameterizedMessage("failed to connect to node {}", node), ex);
+                                        logger.debug(() -> new ParameterizedMessage("failed to connect to node {}", node), ex);
                                     }
                                 }
                             }
@@ -562,9 +560,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                 } catch (CancellableThreads.ExecutionCancelledException ex) {
                     listener.onFailure(ex); // we got canceled - fail the listener and step out
                 } catch (Exception ex) {
-                    logger.warn((Supplier<?>)
-                        () -> new ParameterizedMessage("fetching nodes from external cluster {} failed",
-                            clusterAlias), ex);
+                    logger.warn(() -> new ParameterizedMessage("fetching nodes from external cluster {} failed", clusterAlias), ex);
                     collectRemoteNodes(seedNodes, transportService, listener);
                 }
             }
@@ -572,9 +568,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             @Override
             public void handleException(TransportException exp) {
                 assert transportService.getThreadPool().getThreadContext().isSystemContext() == false : "context is a system context";
-                logger.warn((Supplier<?>)
-                    () -> new ParameterizedMessage("fetching nodes from external cluster {} failed", clusterAlias),
-                    exp);
+                logger.warn(() -> new ParameterizedMessage("fetching nodes from external cluster {} failed", clusterAlias), exp);
                 try {
                     IOUtils.closeWhileHandlingException(connection);
                 } finally {

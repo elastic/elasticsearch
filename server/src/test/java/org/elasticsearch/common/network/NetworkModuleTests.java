@@ -24,6 +24,7 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
@@ -151,6 +152,7 @@ public class NetworkModuleTests extends ModuleTestCase {
         assertSame(custom, module.getTransportSupplier());
         assertTrue(module.isTransportClient());
         assertFalse(module.isHttpEnabled());
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
     }
 
     public void testRegisterHttpTransport() {
@@ -181,6 +183,7 @@ public class NetworkModuleTests extends ModuleTestCase {
         assertFalse(newModule.isTransportClient());
         assertFalse(newModule.isHttpEnabled());
         expectThrows(IllegalStateException.class, () -> newModule.getHttpServerTransportSupplier());
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
     }
 
     public void testOverrideDefault() {
@@ -306,7 +309,7 @@ public class NetworkModuleTests extends ModuleTestCase {
             });
         });
         assertEquals("interceptor must not be null", nullPointerException.getMessage());
-
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
     }
 
     private NetworkModule newNetworkModule(Settings settings, boolean transportClient, NetworkPlugin... plugins) {

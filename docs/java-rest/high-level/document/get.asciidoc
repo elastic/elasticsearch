@@ -14,6 +14,7 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[get-request]
 <2> Type
 <3> Document id
 
+[[java-rest-high-document-get-request-optional-arguments]]
 ==== Optional arguments
 The following arguments can optionally be provided:
 
@@ -49,12 +50,6 @@ separately in the mappings)
 include-tagged::{doc-tests}/CRUDDocumentationIT.java[get-request-routing]
 --------------------------------------------------
 <1> Routing value
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[get-request-parent]
---------------------------------------------------
-<1> Parent value
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

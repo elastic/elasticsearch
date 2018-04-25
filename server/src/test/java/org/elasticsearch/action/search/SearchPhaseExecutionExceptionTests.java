@@ -135,7 +135,7 @@ public class SearchPhaseExecutionExceptionTests extends ESTestCase {
                                             "\"col\":7" +
                                 "}" +
                             "}" +
-                    "]}", builder.string());
+                    "]}", Strings.toString(builder));
         }
     }
 

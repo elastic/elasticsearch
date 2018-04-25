@@ -26,11 +26,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.UidFieldMapper;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -51,10 +49,8 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
  */
 public class FieldsVisitor extends StoredFieldVisitor {
     private static final Set<String> BASE_REQUIRED_FIELDS = unmodifiableSet(newHashSet(
-            UidFieldMapper.NAME,
             IdFieldMapper.NAME,
-            RoutingFieldMapper.NAME,
-            ParentFieldMapper.NAME));
+            RoutingFieldMapper.NAME));
 
     private final boolean loadSource;
     private final Set<String> requiredFields;
@@ -81,12 +77,10 @@ public class FieldsVisitor extends StoredFieldVisitor {
     }
 
     public void postProcess(MapperService mapperService) {
-        if (mapperService.getIndexSettings().isSingleType()) {
-            final Collection<String> types = mapperService.types();
-            assert types.size() <= 1 : types;
-            if (types.isEmpty() == false) {
-                type = types.iterator().next();
-            }
+        final Collection<String> types = mapperService.types();
+        assert types.size() <= 1 : types;
+        if (types.isEmpty() == false) {
+            type = types.iterator().next();
         }
         for (Map.Entry<String, List<Object>> entry : fields().entrySet()) {
             MappedFieldType fieldType = mapperService.fullName(entry.getKey());
@@ -115,19 +109,7 @@ public class FieldsVisitor extends StoredFieldVisitor {
     @Override
     public void stringField(FieldInfo fieldInfo, byte[] bytes) throws IOException {
         final String value = new String(bytes, StandardCharsets.UTF_8);
-        if (UidFieldMapper.NAME.equals(fieldInfo.name)) {
-            // 5.x-only
-            // TODO: Remove when we are on 7.x
-            Uid uid = Uid.createUid(value);
-            type = uid.type();
-            id = uid.id();
-        } else if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
-            // only applies to 5.x indices that have single_type = true
-            // TODO: Remove when we are on 7.x
-            id = value;
-        } else {
-            addValue(fieldInfo.name, value);
-        }
+        addValue(fieldInfo.name, value);
     }
 
     @Override

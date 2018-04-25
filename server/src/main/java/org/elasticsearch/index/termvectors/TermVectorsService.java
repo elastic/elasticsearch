@@ -85,7 +85,7 @@ public class TermVectorsService  {
             termVectorsResponse.setExists(false);
             return termVectorsResponse;
         }
-        Engine.GetResult get = indexShard.get(new Engine.Get(request.realtime(), request.type(), request.id(), uidTerm)
+        Engine.GetResult get = indexShard.get(new Engine.Get(request.realtime(), false, request.type(), request.id(), uidTerm)
                 .version(request.version()).versionType(request.versionType()));
 
         Fields termVectorsByField = null;
@@ -114,7 +114,7 @@ public class TermVectorsService  {
             /* or from an existing document */
             else if (docIdAndVersion != null) {
                 // fields with stored term vectors
-                termVectorsByField = docIdAndVersion.context.reader().getTermVectors(docIdAndVersion.docId);
+                termVectorsByField = docIdAndVersion.reader.getTermVectors(docIdAndVersion.docId);
                 Set<String> selectedFields = request.selectedFields();
                 // generate tvs for fields where analyzer is overridden
                 if (selectedFields == null && request.perFieldAnalyzer() != null) {

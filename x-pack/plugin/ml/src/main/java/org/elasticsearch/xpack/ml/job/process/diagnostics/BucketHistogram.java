@@ -36,7 +36,7 @@ class BucketHistogram {
     public BucketHistogram(Job job, BucketFlushListener bucketFlushListener) {
         bucketSpanMs = job.getAnalysisConfig().getBucketSpan().millis();
         latencyMs = job.getAnalysisConfig().getLatency() == null ? 0 : job.getAnalysisConfig().getLatency().millis();
-        maxSize = Math.max((int) (latencyMs / bucketSpanMs), MIN_BUCKETS);
+        maxSize = Math.max((int) (Intervals.alignToCeil(latencyMs, bucketSpanMs) / bucketSpanMs), MIN_BUCKETS);
         buckets = new long[maxSize];
         this.bucketFlushListener = bucketFlushListener;
     }

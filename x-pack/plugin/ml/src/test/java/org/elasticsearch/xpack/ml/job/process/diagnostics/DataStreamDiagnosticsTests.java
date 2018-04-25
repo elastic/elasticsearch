@@ -31,7 +31,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
         Job.Builder builder = new Job.Builder("job_id");
         builder.setAnalysisConfig(acBuilder);
         builder.setDataDescription(new DataDescription.Builder());
-        job = builder.build(new Date());
+        job = createJob(TimeValue.timeValueMillis(BUCKET_SPAN), null);
     }
 
     public void testIncompleteBuckets() {
@@ -122,6 +122,36 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
         assertEquals(0, d.getSparseBucketCount());
         assertEquals(null, d.getLatestSparseBucketTime());
         assertEquals(null, d.getLatestEmptyBucketTime());
+    }
+
+    public void testWithLatencyLessThanTenBuckets() {
+        job = createJob(TimeValue.timeValueMillis(BUCKET_SPAN), TimeValue.timeValueMillis(3 * BUCKET_SPAN));
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job);
+
+        long timestamp = 70000;
+        while (timestamp < 70000 + 20 * BUCKET_SPAN) {
+            sendManyDataPoints(d, timestamp - BUCKET_SPAN, timestamp + timestamp, 100);
+            timestamp += BUCKET_SPAN;
+        }
+
+        assertEquals(10, d.getBucketCount());
+        d.flush();
+        assertEquals(19, d.getBucketCount());
+    }
+
+    public void testWithLatencyGreaterThanTenBuckets() {
+        job = createJob(TimeValue.timeValueMillis(BUCKET_SPAN), TimeValue.timeValueMillis(13 * BUCKET_SPAN + 10000));
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job);
+
+        long timestamp = 70000;
+        while (timestamp < 70000 + 20 * BUCKET_SPAN) {
+            sendManyDataPoints(d, timestamp - BUCKET_SPAN, timestamp + timestamp, 100);
+            timestamp += BUCKET_SPAN;
+        }
+
+        assertEquals(6, d.getBucketCount());
+        d.flush();
+        assertEquals(19, d.getBucketCount());
     }
 
     public void testEmptyBuckets() {
@@ -327,6 +357,20 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
         assertEquals(2, d.getSparseBucketCount());
         assertEquals(new Date(420000), d.getLatestSparseBucketTime());
         assertEquals(null, d.getLatestEmptyBucketTime());
+    }
+
+    private static Job createJob(TimeValue bucketSpan, TimeValue latency) {
+        AnalysisConfig.Builder acBuilder = new AnalysisConfig.Builder(Arrays.asList(new Detector.Builder("metric", "field").build()));
+        acBuilder.setBucketSpan(bucketSpan);
+        if (latency != null) {
+            acBuilder.setLatency(latency);
+        }
+        acBuilder.setDetectors(Arrays.asList(new Detector.Builder("metric", "field").build()));
+
+        Job.Builder builder = new Job.Builder("job_id");
+        builder.setAnalysisConfig(acBuilder);
+        builder.setDataDescription(new DataDescription.Builder());
+        return builder.build(new Date());
     }
 
     public void testFlushAfterZeroRecords() {

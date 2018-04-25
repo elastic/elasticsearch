@@ -19,7 +19,7 @@ load $BATS_UTILS/xpack.bash
 setup() {
     skip_not_tar_gz
     export ESHOME=/tmp/elasticsearch
-    export ARCHIVE_NAME="elasticsearch"
+    export PACKAGE_NAME="elasticsearch"
     export_elasticsearch_paths
     export ESPLUGIN_COMMAND_USER=elasticsearch
 }

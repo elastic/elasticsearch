@@ -40,7 +40,7 @@ install_archive() {
     echo "Unpacking tarball to $ESHOME"
     rm -rf /tmp/untar
     mkdir -p /tmp/untar
-    tar -xzpf "${ARCHIVE_NAME}-${version}.tar.gz" -C /tmp/untar
+    tar -xzpf "${PACKAGE_NAME}-${version}.tar.gz" -C /tmp/untar
 
     find /tmp/untar -depth -type d -name 'elasticsearch*' -exec mv {} "$ESHOME" \; > /dev/null
 
@@ -82,7 +82,7 @@ export_elasticsearch_paths() {
     export ESDATA="$ESHOME/data"
     export ESLOG="$ESHOME/logs"
 
-    export ARCHIVE_NAME=${ARCHIVE_NAME:-"elasticsearch-oss"}
+    export PACKAGE_NAME=${PACKAGE_NAME:-"elasticsearch-oss"}
 }
 
 # Checks that all directories & files are correctly installed

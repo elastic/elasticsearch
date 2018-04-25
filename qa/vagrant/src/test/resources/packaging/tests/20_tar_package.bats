@@ -56,7 +56,7 @@ setup() {
 
 @test "[TAR] archive is available" {
     local version=$(cat version)
-    count=$(find . -type f -name "${ARCHIVE_NAME}-${version}.tar.gz" | wc -l)
+    count=$(find . -type f -name "${PACKAGE_NAME}-${version}.tar.gz" | wc -l)
     [ "$count" -eq 1 ]
 }
 

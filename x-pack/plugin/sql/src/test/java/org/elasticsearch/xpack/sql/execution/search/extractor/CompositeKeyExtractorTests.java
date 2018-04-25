@@ -57,6 +57,7 @@ public class CompositeKeyExtractorTests extends AbstractWireSerializingTestCase<
         assertEquals(value, extractor.extract(bucket));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30156")
     public void testExtractDate() {
         CompositeKeyExtractor extractor = new CompositeKeyExtractor(randomAlphaOfLength(16), Property.VALUE, randomTimeZone());
 

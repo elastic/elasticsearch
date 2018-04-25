@@ -65,6 +65,7 @@ integTestCluster {
   setting 'xpack.monitoring.exporters._http.ssl.verification_mode', 'full'
 
   setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.index_lifecycle.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.http.ssl.enabled', 'true'
   setting 'xpack.security.http.ssl.key', 'testnode.pem'

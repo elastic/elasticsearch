@@ -1,13 +1,13 @@
+evaluationDependsOn(xpackModule('core'))
+
 apply plugin: 'elasticsearch.esplugin'
 esplugin {
     name 'x-pack-index-lifecycle'
     description 'Elasticsearch Expanded Pack Plugin - Index Lifecycle'
     classname 'org.elasticsearch.xpack.indexlifecycle.IndexLifecycle'
+    extendedPlugins = ['x-pack-core']
     hasNativeController false
     requiresKeystore true
-    extendedPlugins = ['x-pack-core']
-    licenseFile project(':x-pack-elasticsearch').file('LICENSE.txt')
-    noticeFile project(':x-pack-elasticsearch').file('NOTICE.txt')
 }
 archivesBaseName = 'x-pack-index-lifecycle'
 
@@ -21,10 +21,6 @@ dependencies {
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
-dependencyLicenses {
-    ignoreSha 'x-pack-core'
-}
-
 run {
-    plugin ':x-pack-elasticsearch:plugin:core'
+    plugin xpackModule('core')
 }

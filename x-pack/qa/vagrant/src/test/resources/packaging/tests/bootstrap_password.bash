@@ -11,6 +11,7 @@ load $BATS_UTILS/xpack.bash
 setup() {
     if [ $BATS_TEST_NUMBER == 1 ]; then
         export PACKAGE_NAME="elasticsearch"
+        export ARCHIVE_NAME="elasticsearch"
         clean_before_test
         install
 

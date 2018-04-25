@@ -16,6 +16,7 @@ certificates="/tmp/certificates.zip"
 
 setup() {
     export PACKAGE_NAME="elasticsearch"
+    export ARCHIVE_NAME="elasticsearch"
     if [ $BATS_TEST_NUMBER == 1 ]; then
         clean_before_test
     fi

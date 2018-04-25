@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
@@ -55,12 +56,12 @@ import org.mockito.ArgumentCaptor;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 
 import static java.util.Arrays.asList;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -68,15 +69,20 @@ import static org.mockito.Mockito.when;
 
 public class WatcherServiceTests extends ESTestCase {
 
-    public void testValidateStartWithClosedIndex() throws Exception {
+    private final ExecutorService executorService = EsExecutors.newDirectExecutorService();
+
+    public void testValidateStartWithClosedIndex() {
         TriggerService triggerService = mock(TriggerService.class);
         TriggeredWatchStore triggeredWatchStore = mock(TriggeredWatchStore.class);
         ExecutionService executionService = mock(ExecutionService.class);
-        when(executionService.validate(anyObject())).thenReturn(true);
         WatchParser parser = mock(WatchParser.class);
 
         WatcherService service = new WatcherService(Settings.EMPTY, triggerService, triggeredWatchStore,
-                executionService, parser, mock(Client.class));
+                executionService, parser, mock(Client.class), executorService) {
+            @Override
+            void stopExecutor() {
+            }
+        };
 
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         MetaData.Builder metaDataBuilder = MetaData.builder();
@@ -97,14 +103,17 @@ public class WatcherServiceTests extends ESTestCase {
         TriggerService triggerService = mock(TriggerService.class);
         TriggeredWatchStore triggeredWatchStore = mock(TriggeredWatchStore.class);
         ExecutionService executionService = mock(ExecutionService.class);
-        when(executionService.validate(anyObject())).thenReturn(true);
         WatchParser parser = mock(WatchParser.class);
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         WatcherService service = new WatcherService(settings, triggerService, triggeredWatchStore,
-                executionService, parser, client);
+                executionService, parser, client, executorService) {
+            @Override
+            void stopExecutor() {
+            }
+        };
 
 
         // cluster state setup, with one node, one shard

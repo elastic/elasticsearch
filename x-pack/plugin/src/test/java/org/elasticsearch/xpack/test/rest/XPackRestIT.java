@@ -97,17 +97,26 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
         // ensure watcher is started, so that a test can stop watcher and everything still works fine
         if (isWatcherTest()) {
             assertBusy(() -> {
-                try {
-                    ClientYamlTestResponse response =
-                            getAdminExecutionContext().callApi("xpack.watcher.stats", emptyMap(), emptyList(), emptyMap());
-                    String state = (String) response.evaluate("stats.0.watcher_state");
-                    if ("started".equals(state) == false) {
-                        getAdminExecutionContext().callApi("xpack.watcher.start", emptyMap(), emptyList(), emptyMap());
-                    }
-                    // assertion required to exit the assertBusy lambda
-                    assertThat(state, is("started"));
-                } catch (IOException e) {
-                    throw new AssertionError(e);
+                ClientYamlTestResponse response =
+                    getAdminExecutionContext().callApi("xpack.watcher.stats", emptyMap(), emptyList(), emptyMap());
+                String state = (String) response.evaluate("stats.0.watcher_state");
+
+                switch (state) {
+                    case "stopped":
+                        ClientYamlTestResponse startResponse =
+                            getAdminExecutionContext().callApi("xpack.watcher.start", emptyMap(), emptyList(), emptyMap());
+                        boolean isAcknowledged = (boolean) startResponse.evaluate("acknowledged");
+                        assertThat(isAcknowledged, is(true));
+                        break;
+                    case "stopping":
+                        throw new AssertionError("waiting until stopping state reached stopped state to start again");
+                    case "starting":
+                        throw new AssertionError("waiting until starting state reached started state");
+                    case "started":
+                        // all good here, we are done
+                        break;
+                    default:
+                        throw new AssertionError("unknown state[" + state + "]");
                 }
             });
         }

@@ -29,7 +29,6 @@ import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -38,7 +37,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.ioException;
 
-public class HistoryStore extends AbstractComponent {
+public class HistoryStore extends AbstractComponent implements AutoCloseable {
 
     public static final String DOC_TYPE = "doc";
 
@@ -47,24 +46,17 @@ public class HistoryStore extends AbstractComponent {
     private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
     private final Lock putUpdateLock = readWriteLock.readLock();
     private final Lock stopLock = readWriteLock.writeLock();
-    private final AtomicBoolean started = new AtomicBoolean(false);
 
     public HistoryStore(Settings settings, Client client) {
         super(settings);
         this.client = client;
     }
 
-    public void start() {
-        started.set(true);
-    }
-
-    public void stop() {
-        stopLock.lock(); //This will block while put or update actions are underway
-        try {
-            started.set(false);
-        } finally {
-            stopLock.unlock();
-        }
+    @Override
+    public void close() {
+        // This will block while put or update actions are underway
+        stopLock.lock();
+        stopLock.unlock();
     }
 
     /**
@@ -72,9 +64,6 @@ public class HistoryStore extends AbstractComponent {
      * If the specified watchRecord already was stored this call will fail with a version conflict.
      */
     public void put(WatchRecord watchRecord) throws Exception {
-        if (!started.get()) {
-            throw new IllegalStateException("unable to persist watch record history store is not ready");
-        }
         String index = HistoryStoreField.getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime());
         putUpdateLock.lock();
         try (XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -82,8 +71,8 @@ public class HistoryStore extends AbstractComponent {
             watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
 
             IndexRequest request = new IndexRequest(index, DOC_TYPE, watchRecord.id().value())
-                    .source(builder)
-                    .opType(IndexRequest.OpType.CREATE);
+                .source(builder)
+                .opType(IndexRequest.OpType.CREATE);
             client.index(request).actionGet(30, TimeUnit.SECONDS);
             logger.debug("indexed watch history record [{}]", watchRecord.id().value());
         } catch (IOException ioe) {
@@ -98,9 +87,6 @@ public class HistoryStore extends AbstractComponent {
      * Any existing watchRecord will be overwritten.
      */
     public void forcePut(WatchRecord watchRecord) {
-        if (!started.get()) {
-            throw new IllegalStateException("unable to persist watch record history store is not ready");
-        }
         String index = HistoryStoreField.getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime());
         putUpdateLock.lock();
         try {
@@ -109,17 +95,17 @@ public class HistoryStore extends AbstractComponent {
                 watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
 
                 IndexRequest request = new IndexRequest(index, DOC_TYPE, watchRecord.id().value())
-                        .source(builder)
-                        .opType(IndexRequest.OpType.CREATE);
+                    .source(builder)
+                    .opType(IndexRequest.OpType.CREATE);
                 client.index(request).get(30, TimeUnit.SECONDS);
                 logger.debug("indexed watch history record [{}]", watchRecord.id().value());
             } catch (VersionConflictEngineException vcee) {
                 watchRecord = new WatchRecord.MessageWatchRecord(watchRecord, ExecutionState.EXECUTED_MULTIPLE_TIMES,
-                        "watch record [{ " + watchRecord.id() + " }] has been stored before, previous state [" + watchRecord.state() + "]");
+                    "watch record [{ " + watchRecord.id() + " }] has been stored before, previous state [" + watchRecord.state() + "]");
                 try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder();
                      ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
                     IndexRequest request = new IndexRequest(index, DOC_TYPE, watchRecord.id().value())
-                            .source(xContentBuilder.value(watchRecord));
+                        .source(xContentBuilder.value(watchRecord));
                     client.index(request).get(30, TimeUnit.SECONDS);
                 }
                 logger.debug("overwrote watch history record [{}]", watchRecord.id().value());
@@ -142,11 +128,7 @@ public class HistoryStore extends AbstractComponent {
     public static boolean validate(ClusterState state) {
         String currentIndex = HistoryStoreField.getHistoryIndexNameForTime(DateTime.now(DateTimeZone.UTC));
         IndexMetaData indexMetaData = WatchStoreUtils.getConcreteIndex(currentIndex, state.metaData());
-        if (indexMetaData == null) {
-            return true;
-        } else {
-            return indexMetaData.getState() == IndexMetaData.State.OPEN &&
-                    state.routingTable().index(indexMetaData.getIndex()).allPrimaryShardsActive();
-        }
+        return indexMetaData == null || (indexMetaData.getState() == IndexMetaData.State.OPEN &&
+            state.routingTable().index(indexMetaData.getIndex()).allPrimaryShardsActive());
     }
 }

@@ -42,7 +42,6 @@ import static org.elasticsearch.xpack.core.watcher.history.HistoryStoreField.get
 import static org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.joda.time.DateTimeZone.UTC;
@@ -64,7 +63,6 @@ public class HistoryStoreTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         historyStore = new HistoryStore(Settings.EMPTY, client);
-        historyStore.start();
     }
 
     public void testPut() throws Exception {
@@ -80,7 +78,7 @@ public class HistoryStoreTests extends ESTestCase {
             IndexRequest request = (IndexRequest) invocation.getArguments()[0];
             PlainActionFuture<IndexResponse> indexFuture = PlainActionFuture.newFuture();
             if (request.id().equals(wid.value()) && request.type().equals(HistoryStore.DOC_TYPE) && request.opType() == OpType.CREATE
-                    && request.index().equals(index)) {
+                && request.index().equals(index)) {
                 indexFuture.onResponse(indexResponse);
             } else {
                 indexFuture.onFailure(new ElasticsearchException("test issue"));
@@ -92,32 +90,16 @@ public class HistoryStoreTests extends ESTestCase {
         verify(client).index(any());
     }
 
-    public void testPutStopped() throws Exception {
-        Wid wid = new Wid("_name", new DateTime(0, UTC));
-        ScheduleTriggerEvent event = new ScheduleTriggerEvent(wid.watchId(), new DateTime(0, UTC), new DateTime(0, UTC));
-        WatchRecord watchRecord = new WatchRecord.MessageWatchRecord(wid, event, ExecutionState.EXECUTED, null, randomAlphaOfLength(10));
-
-        historyStore.stop();
-        try {
-            historyStore.put(watchRecord);
-            fail("Expected IllegalStateException");
-        } catch (IllegalStateException e) {
-            assertThat(e.getMessage(), is("unable to persist watch record history store is not ready"));
-        } finally {
-            historyStore.start();
-        }
-    }
-
     public void testIndexNameGeneration() {
         String indexTemplateVersion = INDEX_TEMPLATE_VERSION;
         assertThat(getHistoryIndexNameForTime(new DateTime(0, UTC)),
-                equalTo(".watcher-history-"+ indexTemplateVersion +"-1970.01.01"));
+            equalTo(".watcher-history-"+ indexTemplateVersion +"-1970.01.01"));
         assertThat(getHistoryIndexNameForTime(new DateTime(100000000000L, UTC)),
-                equalTo(".watcher-history-" + indexTemplateVersion + "-1973.03.03"));
+            equalTo(".watcher-history-" + indexTemplateVersion + "-1973.03.03"));
         assertThat(getHistoryIndexNameForTime(new DateTime(1416582852000L, UTC)),
-                equalTo(".watcher-history-" + indexTemplateVersion + "-2014.11.21"));
+            equalTo(".watcher-history-" + indexTemplateVersion + "-2014.11.21"));
         assertThat(getHistoryIndexNameForTime(new DateTime(2833165811000L, UTC)),
-                equalTo(".watcher-history-" + indexTemplateVersion + "-2059.10.12"));
+            equalTo(".watcher-history-" + indexTemplateVersion + "-2059.10.12"));
     }
 
     public void testStoreWithHideSecrets() throws Exception {

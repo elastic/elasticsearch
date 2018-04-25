@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.repositories.gcs;
 
+import com.google.api.services.storage.StorageScopes;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 
 import org.elasticsearch.common.collect.Tuple;
@@ -32,6 +33,7 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -178,14 +180,13 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
     /** Generates a random GoogleCredential along with its corresponding Service Account file provided as a byte array **/
     private static Tuple<ServiceAccountCredentials, byte[]> randomCredential(final String clientName) throws Exception {
         final KeyPair keyPair = KeyPairGenerator.getInstance("RSA").generateKeyPair();
-
         final ServiceAccountCredentials.Builder credentialBuilder = ServiceAccountCredentials.newBuilder();
         credentialBuilder.setClientId("id_" + clientName);
         credentialBuilder.setClientEmail(clientName);
         credentialBuilder.setProjectId("project_id_" + clientName);
         credentialBuilder.setPrivateKey(keyPair.getPrivate());
         credentialBuilder.setPrivateKeyId("private_key_id_" + clientName);
-
+        credentialBuilder.setScopes(Collections.singleton(StorageScopes.DEVSTORAGE_FULL_CONTROL));
         final String encodedPrivateKey = Base64.getEncoder().encodeToString(keyPair.getPrivate().getEncoded());
         final String serviceAccount = "{\"type\":\"service_account\"," +
             "\"project_id\":\"project_id_" + clientName + "\"," +
@@ -201,7 +202,6 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             "\"client_x509_cert_url\":\"https://www.googleapis.com/robot/v1/metadata/x509/" +
             clientName +
             "%40appspot.gserviceaccount.com\"}";
-
         return Tuple.tuple(credentialBuilder.build(), serviceAccount.getBytes(StandardCharsets.UTF_8));
     }
 

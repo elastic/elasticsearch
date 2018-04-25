@@ -1,8 +1,3 @@
-import org.elasticsearch.gradle.test.AntFixture
-
-import java.security.KeyPair
-import java.security.KeyPairGenerator
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -22,57 +17,40 @@ import java.security.KeyPairGenerator
  * under the License.
  */
 
+import org.elasticsearch.gradle.test.AntFixture
+import java.security.KeyPair
+import java.security.KeyPairGenerator
+
+
 esplugin {
   description 'The GCS repository plugin adds Google Cloud Storage support for repositories.'
   classname 'org.elasticsearch.repositories.gcs.GoogleCloudStoragePlugin'
 }
 
-//versions << [
-//        'google': '1.23.0',
-//]
-
 dependencies {
   compile 'com.google.cloud:google-cloud-storage:1.26.0'
   compile 'com.google.cloud:google-cloud-core:1.26.0'
   compile 'com.google.cloud:google-cloud-core-http:1.26.0'
-  compile 'com.google.api-client:google-api-client:1.23.0'
   compile 'com.google.auth:google-auth-library-oauth2-http:0.9.0'
   compile 'com.google.auth:google-auth-library-credentials:0.9.0'
   compile 'com.google.oauth-client:google-oauth-client:1.23.0'
-  compile 'com.google.api:api-common:1.5.0'
-  compile 'org.threeten:threetenbp:1.3.6'
-  compile 'com.google.api:gax:1.23.0'
   compile 'com.google.http-client:google-http-client:1.23.0'
   compile 'com.google.http-client:google-http-client-jackson:1.23.0'
   compile 'com.google.http-client:google-http-client-jackson2:1.23.0'
-  compile 'com.google.api:gax-httpjson:0.40.0'
   compile 'com.google.http-client:google-http-client-appengine:1.23.0'
+  compile 'com.google.api-client:google-api-client:1.23.0'
+  compile 'com.google.api:gax:1.23.0'
+  compile 'com.google.api:gax-httpjson:0.40.0'
+  compile 'com.google.api:api-common:1.5.0'
+  compile 'com.google.api.grpc:proto-google-common-protos:1.8.0'
   compile 'com.google.guava:guava:20.0'
   compile 'com.google.apis:google-api-services-storage:v1-rev115-1.23.0'
-  compile 'io.opencensus:opencensus-api:0.11.1'
-  compile 'io.opencensus:opencensus-contrib-http-util:0.11.1'
   compile 'org.codehaus.jackson:jackson-core-asl:1.9.13'
   compile 'io.grpc:grpc-context:1.9.0'
-
   compile 'io.opencensus:opencensus-api:0.11.1'
-  compile 'com.google.api.grpc:proto-google-common-protos:1.8.0'
-
-  //compile 'com.google.protobuf:protobuf-java:3.5.1'
-  //compile 'com.fasterxml.jackson.core:jackson-core:2.1.3'
-  //compile 'com.google.api:gax-grpc:1.24.0'
-  //compile 'org.threeten:threetenbp:1.3.6'
-  //compile 'com.google.auth:google-auth-library-oauth2-http:0.9.1'
-  //compile 'com.google.auth:google-auth-library-credentials:0.9.1'
-
-
-//  compile "com.google.apis:google-api-services-storage:v1-rev115-${versions.google}"
-//  compile "com.google.api-client:google-api-client:${versions.google}"
-//  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-//  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-//  compile "commons-logging:commons-logging:${versions.commonslogging}"
-//  compile "commons-codec:commons-codec:${versions.commonscodec}"
-//  compile "com.google.http-client:google-http-client:${versions.google}"
-//  compile "com.google.http-client:google-http-client-jackson2:${versions.google}"
+  compile 'io.opencensus:opencensus-api:0.11.1'
+  compile 'io.opencensus:opencensus-contrib-http-util:0.11.1'
+  compile 'org.threeten:threetenbp:1.3.6'
 }
 
 dependencyLicenses {
@@ -84,6 +62,7 @@ dependencyLicenses {
 
 thirdPartyAudit.excludes = [
         // classes are missing
+        //'com.google.appengine.api'
         //'com.google.common.base.Splitter',
         //'com.google.common.collect.Lists',
         //'javax.servlet.ServletContextEvent',
@@ -103,6 +82,7 @@ forbiddenApisTest {
 task googleCloudStorageFixture(type: AntFixture) {
     dependsOn compileTestJava
     env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
+    env 'ES_JAVA_OPTS', "-Djava.security.debug=access,failure"
     executable = new File(project.runtimeJavaHome, 'bin/java')
     args 'org.elasticsearch.repositories.gcs.GoogleCloudStorageFixture', baseDir, 'bucket_test'
 }

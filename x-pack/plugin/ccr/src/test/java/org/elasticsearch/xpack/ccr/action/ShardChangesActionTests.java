@@ -11,8 +11,6 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.RandomIndexWriter;
@@ -45,7 +43,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ShardChangesActionTests extends ESSingleNodeTestCase {
@@ -163,10 +160,6 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
                     }
                 }
                 try(DirectoryReader ir = DirectoryReader.open(iw.w)) {
-                    ShardChangesAction.CCRIndexReader ccrIndexReader = new ShardChangesAction.CCRIndexReader(ir);
-                    assertThat(ccrIndexReader.numDocs(), equalTo(ccrIndexReader.maxDoc()));
-                    assertThat(ccrIndexReader.numDeletedDocs(), equalTo(0));
-
                     List<Translog.Operation> ops =
                         ShardChangesAction.getOperationsBetween(0, numDocs - 1, Long.MAX_VALUE, ir, mapperService);
                     assertThat(ops.size(), equalTo(numDocs));

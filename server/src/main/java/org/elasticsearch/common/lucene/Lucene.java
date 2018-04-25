@@ -30,6 +30,7 @@ import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
@@ -839,4 +840,57 @@ public class Lucene {
     public static NumericDocValuesField newSoftDeleteField() {
         return new NumericDocValuesField(SOFT_DELETE_FIELD, 1);
     }
+
+    /**
+     * Wraps the provided {@link DirectoryReader} and return a new {@link DirectoryReader} instance that ignores
+     * deleted documents.
+     */
+    public static DirectoryReader ignoreDeletes(DirectoryReader in) throws IOException {
+        return new NoDeletesIndexReader(in);
+    }
+
+    private static final class NoDeletesIndexReader extends FilterDirectoryReader {
+
+        private static final class NoDeletesIndexReaderWrapper extends SubReaderWrapper {
+            @Override
+            public LeafReader wrap(LeafReader in) {
+                return new FilterLeafReader(in) {
+                    @Override
+                    public CacheHelper getCoreCacheHelper() {
+                        return null;
+                    }
+
+                    @Override
+                    public CacheHelper getReaderCacheHelper() {
+                        return null;
+                    }
+
+                    @Override
+                    public int numDocs() {
+                        return maxDoc();
+                    }
+
+                    @Override
+                    public Bits getLiveDocs() {
+                        return null;
+                    }
+                };
+            }
+        }
+
+        private NoDeletesIndexReader(DirectoryReader in) throws IOException {
+            super(in, new NoDeletesIndexReaderWrapper());
+        }
+
+        @Override
+        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+            return new NoDeletesIndexReader(in);
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return in.getReaderCacheHelper();
+        }
+    }
+
 }

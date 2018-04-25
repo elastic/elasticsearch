@@ -23,6 +23,8 @@ import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Field.Store;
+import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
@@ -42,6 +44,9 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -52,6 +57,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class LuceneTests extends ESTestCase {
     public void testWaitForIndex() throws Exception {
@@ -405,5 +412,30 @@ public class LuceneTests extends ESTestCase {
     public void testMMapHackSupported() throws Exception {
         // add assume's here if needed for certain platforms, but we should know if it does not work.
         assertTrue("MMapDirectory does not support unmapping: " + MMapDirectory.UNMAP_NOT_SUPPORTED_REASON, MMapDirectory.UNMAP_SUPPORTED);
+    }
+
+    public void testIgnoreDeletes() throws IOException {
+        try (Directory directory = newDirectory()) {
+            IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
+            indexWriterConfig.setMergePolicy(NoMergePolicy.INSTANCE);
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory, indexWriterConfig)) {
+                int numDocs = randomIntBetween(0, 32);
+                for (int i = 0; i < numDocs; i++) {
+                    Document document = new Document();
+                    document.add(new StringField("field", Integer.toString(i), Store.NO));
+
+                    iw.addDocument(document);
+                    if (randomBoolean()) {
+                        iw.deleteDocuments(new Term("field", Integer.toString(i)));
+                    }
+                }
+                try(DirectoryReader ir = DirectoryReader.open(iw.w)) {
+                    DirectoryReader noDeletesReader = Lucene.ignoreDeletes(ir);
+                    assertThat(noDeletesReader.numDocs(), equalTo(noDeletesReader.maxDoc()));
+                    assertThat(noDeletesReader.numDeletedDocs(), equalTo(0));
+                }
+            }
+
+        }
     }
 }

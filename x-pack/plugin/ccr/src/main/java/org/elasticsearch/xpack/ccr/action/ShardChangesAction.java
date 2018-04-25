@@ -6,9 +6,6 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FilterDirectoryReader;
-import org.apache.lucene.index.FilterLeafReader;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.ReaderUtil;
@@ -22,7 +19,6 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -297,7 +293,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
 
     static List<Translog.Operation> getOperationsBetween(long minSeqNo, long maxSeqNo, long byteLimit,
                                                          DirectoryReader indexReader, MapperService mapperService) throws IOException {
-        IndexSearcher searcher = new IndexSearcher(new CCRIndexReader(indexReader));
+        IndexSearcher searcher = new IndexSearcher(Lucene.ignoreDeletes(indexReader));
         searcher.setQueryCache(null);
 
         MappedFieldType seqNoFieldType = mapperService.fullName(SeqNoFieldMapper.NAME);
@@ -388,50 +384,6 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
 
         long value = softDeleteField.longValue();
         return value == 1L;
-    }
-
-    static final class CCRIndexReader extends FilterDirectoryReader {
-
-        static final class CCRSubReaderWrapper extends SubReaderWrapper {
-            @Override
-            public LeafReader wrap(LeafReader in) {
-                return new FilterLeafReader(in) {
-                    @Override
-                    public CacheHelper getCoreCacheHelper() {
-                        return null;
-                    }
-
-                    @Override
-                    public CacheHelper getReaderCacheHelper() {
-                        return null;
-                    }
-
-                    @Override
-                    public int numDocs() {
-                        return maxDoc();
-                    }
-
-                    @Override
-                    public Bits getLiveDocs() {
-                        return null;
-                    }
-                };
-            }
-        }
-
-        CCRIndexReader(DirectoryReader in) throws IOException {
-            super(in, new CCRSubReaderWrapper());
-        }
-
-        @Override
-        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-            return new CCRIndexReader(in);
-        }
-
-        @Override
-        public CacheHelper getReaderCacheHelper() {
-            return in.getReaderCacheHelper();
-        }
     }
 
 }

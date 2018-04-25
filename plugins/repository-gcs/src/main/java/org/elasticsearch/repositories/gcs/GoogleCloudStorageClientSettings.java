@@ -30,6 +30,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -197,12 +198,14 @@ public class GoogleCloudStorageClientSettings {
                 return null;
             }
             try (InputStream credStream = CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName).get(settings)) {
-                final ServiceAccountCredentials credentials = ServiceAccountCredentials.fromStream(credStream);
-                if (credentials.createScopedRequired()) {
-                    return (ServiceAccountCredentials) credentials
-                            .createScoped(Collections.singleton(StorageScopes.DEVSTORAGE_FULL_CONTROL));
-                }
-                return credentials;
+                final Collection<String> scopes = Collections.singleton(StorageScopes.DEVSTORAGE_FULL_CONTROL);
+                return SocketAccess.doPrivilegedIOException(() -> {
+                    final ServiceAccountCredentials credentials = ServiceAccountCredentials.fromStream(credStream);
+                    if (credentials.createScopedRequired()) {
+                        return (ServiceAccountCredentials) credentials.createScoped(scopes);
+                    }
+                    return credentials;
+                });
             }
         } catch (final IOException e) {
             throw new UncheckedIOException(e);

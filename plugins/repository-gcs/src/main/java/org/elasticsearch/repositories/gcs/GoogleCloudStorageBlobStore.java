@@ -175,10 +175,13 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
                     + "ie. it is not seekable and reading should advance the channel's internal position")
             @Override
             public int read() throws IOException {
-                while (bytesRemaining > 0) {
+                while (true) {
                     try {
                         return (0xFF & buffer.get());
                     } catch (final BufferUnderflowException e) {
+                        if (bytesRemaining == 0) {
+                            return -1;
+                        }
                         // pull another chunck
                         buffer.clear();
                         final long bytesRead = SocketAccess.doPrivilegedIOException(() -> readerAndSize.v1().read(buffer));
@@ -189,10 +192,10 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
                             return -1;
                         }
                         bytesRemaining -= bytesRead;
+                        assert bytesRemaining >= 0;
                         // retry in case of non-blocking socket
                     }
                 }
-                return -1;
             }
 
             @Override

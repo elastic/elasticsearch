@@ -28,5 +28,7 @@ grant {
   // gcs client opens socket connections for to access repository
   permission java.net.SocketPermission "*", "connect";
 
+  //add read file permissions for the gcloud credentials
+  //eg. new File(System.getProperty("user.home"), ".config/gcloud")
   //permission java.io.FilePermission "<<ALL FILES>>", "read";
 };

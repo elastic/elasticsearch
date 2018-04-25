@@ -1507,7 +1507,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    public void testConcurrentOutOfDocsOnReplica() throws IOException, InterruptedException {
+    public void testConcurrentOutOfOrderDocsOnReplica() throws IOException, InterruptedException {
         final List<Engine.Operation> opsDoc1 =
             generateSingleDocHistory(true, randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL), 2, 100, 300, "1");
         final Engine.Operation lastOpDoc1 = opsDoc1.get(opsDoc1.size() - 1);

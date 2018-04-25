@@ -9,23 +9,23 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 
+import java.util.Locale;
 import java.util.Objects;
 
 public class RolloverStep extends AsyncActionStep {
     public static final String NAME = "attempt_rollover";
 
-    private String alias;
     private ByteSizeValue maxSize;
     private TimeValue maxAge;
     private Long maxDocs;
 
-    public RolloverStep(StepKey key, StepKey nextStepKey, Client client, String alias, ByteSizeValue maxSize, TimeValue maxAge,
+    public RolloverStep(StepKey key, StepKey nextStepKey, Client client, ByteSizeValue maxSize, TimeValue maxAge,
             Long maxDocs) {
         super(key, nextStepKey, client);
-        this.alias = alias;
         this.maxSize = maxSize;
         this.maxAge = maxAge;
         this.maxDocs = maxDocs;
@@ -33,8 +33,15 @@ public class RolloverStep extends AsyncActionStep {
 
     @Override
     public void performAction(IndexMetaData indexMetaData, Listener listener) {
-        // TODO(talevy): shouldn't we double-check that this alias is managed by us/this-index?
-        RolloverRequest rolloverRequest = new RolloverRequest(alias, null);
+        String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetaData.getSettings());
+
+        if (Strings.isNullOrEmpty(rolloverAlias)) {
+            listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT, "setting [%s] for index [%s] is empty or not defined",
+                RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, indexMetaData.getIndex().getName())));
+            return;
+        }
+
+        RolloverRequest rolloverRequest = new RolloverRequest(rolloverAlias, null);
         if (maxAge != null) {
             rolloverRequest.addMaxIndexAgeCondition(maxAge);
         }
@@ -46,10 +53,6 @@ public class RolloverStep extends AsyncActionStep {
         }
         getClient().admin().indices().rolloverIndex(rolloverRequest,
                 ActionListener.wrap(response -> listener.onResponse(response.isRolledOver()), listener::onFailure));
-    }
-    
-    String getAlias() {
-        return alias;
     }
     
     ByteSizeValue getMaxSize() {
@@ -66,7 +69,7 @@ public class RolloverStep extends AsyncActionStep {
     
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), alias, maxSize, maxAge, maxDocs);
+        return Objects.hash(super.hashCode(), maxSize, maxAge, maxDocs);
     }
     
     @Override
@@ -79,7 +82,6 @@ public class RolloverStep extends AsyncActionStep {
         }
         RolloverStep other = (RolloverStep) obj;
         return super.equals(obj) &&
-                Objects.equals(alias, other.alias) &&
                 Objects.equals(maxSize, other.maxSize) &&
                 Objects.equals(maxAge, other.maxAge) &&
                 Objects.equals(maxDocs, other.maxDocs);

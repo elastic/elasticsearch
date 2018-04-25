@@ -46,7 +46,12 @@ setup() {
 }
 
 @test "[DEB] package depends on bash" {
-    dpkg -I elasticsearch-$(cat version).deb | grep "Depends:.*bash.*"
+    dpkg -I elasticsearch-oss-$(cat version).deb | grep "Depends:.*bash.*"
+}
+
+@test "[DEB] package conflicts" {
+    dpkg -I elasticsearch-oss-$(cat version).deb | grep "^ Conflicts: elasticsearch$"
+    dpkg -I elasticsearch-$(cat version).deb | grep "^ Conflicts: elasticsearch-oss$"
 }
 
 ##################################
@@ -58,21 +63,21 @@ setup() {
 }
 
 @test "[DEB] package is available" {
-    count=$(ls elasticsearch-$(cat version).deb | wc -l)
+    count=$(ls elasticsearch-oss-$(cat version).deb | wc -l)
     [ "$count" -eq 1 ]
 }
 
 @test "[DEB] package is not installed" {
-    run dpkg -s 'elasticsearch'
+    run dpkg -s 'elasticsearch-oss'
     [ "$status" -eq 1 ]
 }
 
 @test "[DEB] install package" {
-    dpkg -i elasticsearch-$(cat version).deb
+    dpkg -i elasticsearch-oss-$(cat version).deb
 }
 
 @test "[DEB] package is installed" {
-    dpkg -s 'elasticsearch'
+    dpkg -s 'elasticsearch-oss'
 }
 
 @test "[DEB] verify package installation" {
@@ -109,11 +114,11 @@ setup() {
 # Uninstall DEB package
 ##################################
 @test "[DEB] remove package" {
-    dpkg -r 'elasticsearch'
+    dpkg -r 'elasticsearch-oss'
 }
 
 @test "[DEB] package has been removed" {
-    run dpkg -s 'elasticsearch'
+    run dpkg -s 'elasticsearch-oss'
     [ "$status" -eq 0 ]
     echo "$output" | grep -i "status" | grep -i "deinstall ok"
 }
@@ -167,7 +172,7 @@ setup() {
 @test "[DEB] purge package" {
     # User installed scripts aren't removed so we'll just get them ourselves
     rm -rf $ESSCRIPTS
-    dpkg --purge 'elasticsearch'
+    dpkg --purge 'elasticsearch-oss'
 }
 
 @test "[DEB] verify package purge" {
@@ -191,16 +196,16 @@ setup() {
 }
 
 @test "[DEB] package has been completly removed" {
-    run dpkg -s 'elasticsearch'
+    run dpkg -s 'elasticsearch-oss'
     [ "$status" -eq 1 ]
 }
 
 @test "[DEB] reinstall package" {
-    dpkg -i elasticsearch-$(cat version).deb
+    dpkg -i elasticsearch-oss-$(cat version).deb
 }
 
 @test "[DEB] package is installed by reinstall" {
-    dpkg -s 'elasticsearch'
+    dpkg -s 'elasticsearch-oss'
 }
 
 @test "[DEB] verify package reinstallation" {
@@ -208,10 +213,10 @@ setup() {
 }
 
 @test "[DEB] repurge package" {
-    dpkg --purge 'elasticsearch'
+    dpkg --purge 'elasticsearch-oss'
 }
 
 @test "[DEB] package has been completly removed again" {
-    run dpkg -s 'elasticsearch'
+    run dpkg -s 'elasticsearch-oss'
     [ "$status" -eq 1 ]
 }

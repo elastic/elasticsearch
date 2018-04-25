@@ -12,6 +12,8 @@
 <<write-thread-pool-fallback, Removed `thread_pool.bulk.*` settings and
 `es.thread_pool.write.use_bulk_as_display_name` system property>> ({pull}29609[#29609])
 
+<<remove-suggest-metric, Removed `suggest` metric on stats APIs>> ({pull}29635[#29635])
+
 === Breaking Java Changes
 
 === Deprecations

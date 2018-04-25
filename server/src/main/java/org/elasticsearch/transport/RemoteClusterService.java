@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.transport;
 
+import org.elasticsearch.client.Client;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -36,6 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -397,5 +399,19 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                 }
             });
         }
+    }
+
+    /**
+     * Returns a client to the remote cluster if the given cluster alias exists.
+     * @param threadPool the {@link ThreadPool} for the client
+     * @param clusterAlias the cluster alias the remote cluster is registered under
+     *
+     * @throws IllegalArgumentException if the given clusterAlias doesn't exist
+     */
+    public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias) {
+        if (transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias) == false) {
+            throw new IllegalArgumentException("unknown cluster alias [" + clusterAlias + "]");
+        }
+        return new RemoteClusterAwareClient(settings, threadPool, transportService, clusterAlias);
     }
 }

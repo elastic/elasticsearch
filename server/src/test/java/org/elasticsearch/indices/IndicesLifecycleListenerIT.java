@@ -58,7 +58,6 @@ import static org.elasticsearch.index.shard.IndexShardState.CLOSED;
 import static org.elasticsearch.index.shard.IndexShardState.CREATED;
 import static org.elasticsearch.index.shard.IndexShardState.POST_RECOVERY;
 import static org.elasticsearch.index.shard.IndexShardState.RECOVERING;
-import static org.elasticsearch.index.shard.IndexShardState.RELOCATED;
 import static org.elasticsearch.index.shard.IndexShardState.STARTED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -186,7 +185,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         ensureGreen();
 
         //the 3 relocated shards get closed on the first node
-        assertShardStatesMatch(stateChangeListenerNode1, 3, RELOCATED, CLOSED);
+        assertShardStatesMatch(stateChangeListenerNode1, 3, CLOSED);
         //the 3 relocated shards get created on the second node
         assertShardStatesMatch(stateChangeListenerNode2, 3, CREATED, RECOVERING, POST_RECOVERY, STARTED);
 

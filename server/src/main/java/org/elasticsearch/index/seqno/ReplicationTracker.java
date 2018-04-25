@@ -84,7 +84,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      *   to replica mode (using {@link #completeRelocationHandoff}), as the relocation target will be in charge of the global checkpoint
      *   computation from that point on.
      */
-    boolean primaryMode;
+    volatile boolean primaryMode;
     /**
      * Boolean flag that indicates if a relocation handoff is in progress. A handoff is started by calling {@link #startRelocationHandoff}
      * and is finished by either calling {@link #completeRelocationHandoff} or {@link #abortRelocationHandoff}, depending on whether the
@@ -250,6 +250,14 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 .filter(e -> e.getValue().inSync)
                 .forEach(e -> globalCheckpoints.put(e.getKey(), e.getValue().globalCheckpoint));
         return globalCheckpoints;
+    }
+
+    /**
+     * Returns whether the replication tracker is in primary mode, i.e., whether the current shard is acting as primary from the point of
+     * view of replication.
+     */
+    public boolean isPrimaryMode() {
+        return primaryMode;
     }
 
     /**

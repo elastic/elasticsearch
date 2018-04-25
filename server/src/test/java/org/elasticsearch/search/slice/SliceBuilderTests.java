@@ -40,8 +40,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.ESTestCase;
 
@@ -158,9 +158,9 @@ public class SliceBuilderTests extends ESTestCase {
                     return null;
                 }
             };
-            fieldType.setName(UidFieldMapper.NAME);
+            fieldType.setName(IdFieldMapper.NAME);
             fieldType.setHasDocValues(false);
-            when(context.fieldMapper(UidFieldMapper.NAME)).thenReturn(fieldType);
+            when(context.fieldMapper(IdFieldMapper.NAME)).thenReturn(fieldType);
             when(context.getIndexReader()).thenReturn(reader);
             Settings settings = Settings.builder()
                     .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -225,7 +225,7 @@ public class SliceBuilderTests extends ESTestCase {
             Map<Integer, AtomicInteger> numSliceMap = new HashMap<>();
             for (int i = 0; i < numSlices; i++) {
                 for (int j = 0; j < numShards; j++) {
-                    SliceBuilder slice = new SliceBuilder("_uid", i, numSlices);
+                    SliceBuilder slice = new SliceBuilder("_id", i, numSlices);
                     Query q = slice.toFilter(context, j, numShards);
                     if (q instanceof TermsSliceQuery || q instanceof MatchAllDocsQuery) {
                         AtomicInteger count = numSliceMap.get(j);
@@ -254,7 +254,7 @@ public class SliceBuilderTests extends ESTestCase {
             List<Integer> targetShards = new ArrayList<>();
             for (int i = 0; i < numSlices; i++) {
                 for (int j = 0; j < numShards; j++) {
-                    SliceBuilder slice = new SliceBuilder("_uid", i, numSlices);
+                    SliceBuilder slice = new SliceBuilder("_id", i, numSlices);
                     Query q = slice.toFilter(context, j, numShards);
                     if (q instanceof MatchNoDocsQuery == false) {
                         assertThat(q, instanceOf(MatchAllDocsQuery.class));
@@ -270,7 +270,7 @@ public class SliceBuilderTests extends ESTestCase {
             numSlices = numShards;
             for (int i = 0; i < numSlices; i++) {
                 for (int j = 0; j < numShards; j++) {
-                    SliceBuilder slice = new SliceBuilder("_uid", i, numSlices);
+                    SliceBuilder slice = new SliceBuilder("_id", i, numSlices);
                     Query q = slice.toFilter(context, j, numShards);
                     if (i == j) {
                         assertThat(q, instanceOf(MatchAllDocsQuery.class));
@@ -310,5 +310,69 @@ public class SliceBuilderTests extends ESTestCase {
                 expectThrows(IllegalArgumentException.class, () -> builder.toFilter(context, 0, 1));
             assertThat(exc.getMessage(), containsString("cannot load numeric doc values"));
         }
+    }
+
+
+    public void testToFilterDeprecationMessage() throws IOException {
+        Directory dir = new RAMDirectory();
+        try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {
+            writer.commit();
+        }
+        QueryShardContext context = mock(QueryShardContext.class);
+        try (IndexReader reader = DirectoryReader.open(dir)) {
+            MappedFieldType fieldType = new MappedFieldType() {
+                @Override
+                public MappedFieldType clone() {
+                    return null;
+                }
+
+                @Override
+                public String typeName() {
+                    return null;
+                }
+
+                @Override
+                public Query termQuery(Object value, @Nullable QueryShardContext context) {
+                    return null;
+                }
+
+                public Query existsQuery(QueryShardContext context) {
+                    return null;
+                }
+            };
+            fieldType.setName("_uid");
+            fieldType.setHasDocValues(false);
+            when(context.fieldMapper("_uid")).thenReturn(fieldType);
+            when(context.getIndexReader()).thenReturn(reader);
+            Settings settings = Settings.builder()
+                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_3_0)
+                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
+                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .build();
+            IndexMetaData indexState = IndexMetaData.builder("index").settings(settings).build();
+            IndexSettings indexSettings = new IndexSettings(indexState, Settings.EMPTY);
+            when(context.getIndexSettings()).thenReturn(indexSettings);
+            SliceBuilder builder = new SliceBuilder("_uid", 5, 10);
+            Query query = builder.toFilter(context, 0, 1);
+            assertThat(query, instanceOf(TermsSliceQuery.class));
+            assertThat(builder.toFilter(context, 0, 1), equalTo(query));
+            assertWarnings("Computing slices on the [_uid] field is deprecated for 6.x indices, use [_id] instead");
+        }
+
+    }
+
+    public void testSerializationBackcompat() throws IOException {
+        SliceBuilder sliceBuilder = new SliceBuilder(1, 5);
+        assertEquals(IdFieldMapper.NAME, sliceBuilder.getField());
+
+        SliceBuilder copy62 = copyWriteable(sliceBuilder,
+                new NamedWriteableRegistry(Collections.emptyList()),
+                SliceBuilder::new, Version.V_6_2_0);
+        assertEquals(sliceBuilder, copy62);
+
+        SliceBuilder copy63 = copyWriteable(copy62,
+                new NamedWriteableRegistry(Collections.emptyList()),
+                SliceBuilder::new, Version.V_6_3_0);
+        assertEquals(sliceBuilder, copy63);
     }
 }

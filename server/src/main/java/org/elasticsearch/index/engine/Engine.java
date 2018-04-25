@@ -21,7 +21,6 @@ package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
@@ -67,6 +66,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogStats;
 
 import java.io.Closeable;
 import java.io.FileNotFoundException;
@@ -511,8 +511,18 @@ public abstract class Engine implements Closeable {
         EXTERNAL, INTERNAL
     }
 
-    /** returns the translog for this engine */
-    public abstract Translog getTranslog();
+    /**
+     * Returns the translog associated with this engine.
+     * Prefer to keep the translog package-private, so that an engine can control all accesses to the translog.
+     */
+    abstract Translog getTranslog();
+
+    /**
+     * Checks if the underlying storage sync is required.
+     */
+    public boolean isTranslogSyncNeeded() {
+        return getTranslog().syncNeeded();
+    }
 
     /**
      * Ensures that all locations in the given stream have been written to the underlying storage.
@@ -520,6 +530,36 @@ public abstract class Engine implements Closeable {
     public abstract boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException;
 
     public abstract void syncTranslog() throws IOException;
+
+    public Closeable acquireTranslogRetentionLock() {
+        return getTranslog().acquireRetentionLock();
+    }
+
+    /**
+     * Creates a new translog snapshot from this engine for reading translog operations whose seq# at least the provided seq#.
+     * The caller has to close the returned snapshot after finishing the reading.
+     */
+    public Translog.Snapshot newTranslogSnapshotFromMinSeqNo(long minSeqNo) throws IOException {
+        return getTranslog().newSnapshotFromMinSeqNo(minSeqNo);
+    }
+
+    /**
+     * Returns the estimated number of translog operations in this engine whose seq# at least the provided seq#.
+     */
+    public int estimateTranslogOperationsFromMinSeq(long minSeqNo) {
+        return getTranslog().estimateTotalOperationsFromMinSeq(minSeqNo);
+    }
+
+    public TranslogStats getTranslogStats() {
+        return getTranslog().stats();
+    }
+
+    /**
+     * Returns the last location that the translog of this engine has written into.
+     */
+    public Translog.Location getTranslogLastWriteLocation() {
+        return getTranslog().getLastWriteLocation();
+    }
 
     protected final void ensureOpen(Exception suppressed) {
         if (isClosed.get()) {
@@ -546,6 +586,13 @@ public abstract class Engine implements Closeable {
      * @return the sequence number service
      */
     public abstract LocalCheckpointTracker getLocalCheckpointTracker();
+
+    /**
+     * Returns the latest global checkpoint value that has been persisted in the underlying storage (i.e. translog's checkpoint)
+     */
+    public long getLastSyncedGlobalCheckpoint() {
+        return getTranslog().getLastSyncedGlobalCheckpoint();
+    }
 
     /**
      * Global stats on segments.
@@ -597,7 +644,7 @@ public abstract class Engine implements Closeable {
             try {
                 directory = engineConfig.getCodec().compoundFormat().getCompoundReader(segmentReader.directory(), segmentCommitInfo.info, IOContext.READ);
             } catch (IOException e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("Error when opening compound reader for Directory [{}] and SegmentCommitInfo [{}]", segmentReader.directory(), segmentCommitInfo), e);
+                logger.warn(() -> new ParameterizedMessage("Error when opening compound reader for Directory [{}] and SegmentCommitInfo [{}]", segmentReader.directory(), segmentCommitInfo), e);
 
                 return ImmutableOpenMap.of();
             }
@@ -613,15 +660,14 @@ public abstract class Engine implements Closeable {
                 files = directory.listAll();
             } catch (IOException e) {
                 final Directory finalDirectory = directory;
-                logger.warn(
-                    (Supplier<?>) () -> new ParameterizedMessage("Couldn't list Compound Reader Directory [{}]", finalDirectory), e);
+                logger.warn(() -> new ParameterizedMessage("Couldn't list Compound Reader Directory [{}]", finalDirectory), e);
                 return ImmutableOpenMap.of();
             }
         } else {
             try {
                 files = segmentReader.getSegmentInfo().files().toArray(new String[]{});
             } catch (IOException e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("Couldn't list Directory from SegmentReader [{}] and SegmentInfo [{}]", segmentReader, segmentReader.getSegmentInfo()), e);
+                logger.warn(() -> new ParameterizedMessage("Couldn't list Directory from SegmentReader [{}] and SegmentInfo [{}]", segmentReader, segmentReader.getSegmentInfo()), e);
                 return ImmutableOpenMap.of();
             }
         }
@@ -634,13 +680,10 @@ public abstract class Engine implements Closeable {
                 length = directory.fileLength(file);
             } catch (NoSuchFileException | FileNotFoundException e) {
                 final Directory finalDirectory = directory;
-                logger.warn((Supplier<?>)
-                    () -> new ParameterizedMessage("Tried to query fileLength but file is gone [{}] [{}]", finalDirectory, file), e);
+                logger.warn(() -> new ParameterizedMessage("Tried to query fileLength but file is gone [{}] [{}]", finalDirectory, file), e);
             } catch (IOException e) {
                 final Directory finalDirectory = directory;
-                logger.warn(
-                    (Supplier<?>)
-                        () -> new ParameterizedMessage("Error when trying to query fileLength [{}] [{}]", finalDirectory, file), e);
+                logger.warn(() -> new ParameterizedMessage("Error when trying to query fileLength [{}] [{}]", finalDirectory, file), e);
             }
             if (length == 0L) {
                 continue;
@@ -653,9 +696,7 @@ public abstract class Engine implements Closeable {
                 directory.close();
             } catch (IOException e) {
                 final Directory finalDirectory = directory;
-                logger.warn(
-                    (Supplier<?>)
-                        () -> new ParameterizedMessage("Error when closing compound reader on Directory [{}]", finalDirectory), e);
+                logger.warn(() -> new ParameterizedMessage("Error when closing compound reader on Directory [{}]", finalDirectory), e);
             }
         }
 
@@ -706,7 +747,7 @@ public abstract class Engine implements Closeable {
                     try {
                         segment.sizeInBytes = info.sizeInBytes();
                     } catch (IOException e) {
-                        logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
+                        logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
                     }
                     segments.put(info.info.name, segment);
                 } else {
@@ -732,7 +773,7 @@ public abstract class Engine implements Closeable {
         try {
             segment.sizeInBytes = info.sizeInBytes();
         } catch (IOException e) {
-            logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
+            logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
         }
         segment.memoryInBytes = segmentReader.ramBytesUsed();
         segment.segmentSort = info.info.getIndexSort();
@@ -818,6 +859,16 @@ public abstract class Engine implements Closeable {
     public abstract void trimTranslog() throws EngineException;
 
     /**
+     * Tests whether or not the translog generation should be rolled to a new generation.
+     * This test is based on the size of the current generation compared to the configured generation threshold size.
+     *
+     * @return {@code true} if the current generation should be rolled to a new generation
+     */
+    public boolean shouldRollTranslogGeneration() {
+        return getTranslog().shouldRollGeneration();
+    }
+
+    /**
      * Rolls the translog generation and cleans unneeded.
      */
     public abstract void rollTranslogGeneration() throws EngineException;
@@ -880,7 +931,7 @@ public abstract class Engine implements Closeable {
             store.incRef();
             try {
                 if (failedEngine.get() != null) {
-                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("tried to fail engine but engine is already failed. ignoring. [{}]", reason), failure);
+                    logger.warn(() -> new ParameterizedMessage("tried to fail engine but engine is already failed. ignoring. [{}]", reason), failure);
                     return;
                 }
                 // this must happen before we close IW or Translog such that we can check this state to opt out of failing the engine
@@ -890,7 +941,7 @@ public abstract class Engine implements Closeable {
                     // we just go and close this engine - no way to recover
                     closeNoLock("engine failed on: [" + reason + "]", closedLatch);
                 } finally {
-                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed engine [{}]", reason), failure);
+                    logger.warn(() -> new ParameterizedMessage("failed engine [{}]", reason), failure);
                     // we must set a failure exception, generate one if not supplied
                     // we first mark the store as corrupted before we notify any listeners
                     // this must happen first otherwise we might try to reallocate so quickly
@@ -913,7 +964,7 @@ public abstract class Engine implements Closeable {
                 store.decRef();
             }
         } else {
-            logger.debug((Supplier<?>) () -> new ParameterizedMessage("tried to fail engine but could not acquire lock - engine should be failed by now [{}]", reason), failure);
+            logger.debug(() -> new ParameterizedMessage("tried to fail engine but could not acquire lock - engine should be failed by now [{}]", reason), failure);
         }
     }
 
@@ -1073,14 +1124,13 @@ public abstract class Engine implements Closeable {
             this.autoGeneratedIdTimestamp = autoGeneratedIdTimestamp;
         }
 
-        public Index(Term uid, ParsedDocument doc) {
-            this(uid, doc, Versions.MATCH_ANY);
+        public Index(Term uid, long primaryTerm, ParsedDocument doc) {
+            this(uid, primaryTerm, doc, Versions.MATCH_ANY);
         } // TEST ONLY
 
-        Index(Term uid, ParsedDocument doc, long version) {
-            // use a primary term of 2 to allow tests to reduce it to a valid >0 term
-            this(uid, doc, SequenceNumbers.UNASSIGNED_SEQ_NO, 2, version, VersionType.INTERNAL,
-                    Origin.PRIMARY, System.nanoTime(), -1, false);
+        Index(Term uid, long primaryTerm, ParsedDocument doc, long version) {
+            this(uid, doc, SequenceNumbers.UNASSIGNED_SEQ_NO, primaryTerm, version, VersionType.INTERNAL,
+                Origin.PRIMARY, System.nanoTime(), -1, false);
         } // TEST ONLY
 
         public ParsedDocument parsedDoc() {
@@ -1104,10 +1154,6 @@ public abstract class Engine implements Closeable {
 
         public String routing() {
             return this.doc.routing();
-        }
-
-        public String parent() {
-            return this.doc.parent();
         }
 
         public List<Document> docs() {
@@ -1154,8 +1200,8 @@ public abstract class Engine implements Closeable {
             this.id = Objects.requireNonNull(id);
         }
 
-        public Delete(String type, String id, Term uid) {
-            this(type, id, uid, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, Versions.MATCH_ANY, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime());
+        public Delete(String type, String id, Term uid, long primaryTerm) {
+            this(type, id, uid, SequenceNumbers.UNASSIGNED_SEQ_NO, primaryTerm, Versions.MATCH_ANY, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime());
         }
 
         public Delete(Delete template, VersionType versionType) {
@@ -1239,14 +1285,16 @@ public abstract class Engine implements Closeable {
         private final boolean realtime;
         private final Term uid;
         private final String type, id;
+        private final boolean readFromTranslog;
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
 
-        public Get(boolean realtime, String type, String id, Term uid) {
+        public Get(boolean realtime, boolean readFromTranslog, String type, String id, Term uid) {
             this.realtime = realtime;
             this.type = type;
             this.id = id;
             this.uid = uid;
+            this.readFromTranslog = readFromTranslog;
         }
 
         public boolean realtime() {
@@ -1281,6 +1329,10 @@ public abstract class Engine implements Closeable {
         public Get versionType(VersionType versionType) {
             this.versionType = versionType;
             return this;
+        }
+
+        public boolean isReadFromTranslog() {
+            return readFromTranslog;
         }
     }
 

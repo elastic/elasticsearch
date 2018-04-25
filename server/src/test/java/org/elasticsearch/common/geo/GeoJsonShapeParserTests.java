@@ -19,20 +19,27 @@
 
 package org.elasticsearch.common.geo;
 
-import com.vividsolutions.jts.geom.Coordinate;
-import com.vividsolutions.jts.geom.LineString;
-import com.vividsolutions.jts.geom.LinearRing;
-import com.vividsolutions.jts.geom.MultiLineString;
-import com.vividsolutions.jts.geom.Point;
-import com.vividsolutions.jts.geom.Polygon;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.LineString;
+import org.locationtech.jts.geom.LinearRing;
+import org.locationtech.jts.geom.MultiLineString;
+import org.locationtech.jts.geom.Point;
+import org.locationtech.jts.geom.Polygon;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions;
 import org.locationtech.spatial4j.exception.InvalidShapeException;
 import org.locationtech.spatial4j.shape.Circle;
@@ -135,8 +142,9 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
                     .startArray("coordinates").value(100.0).value(0.0).value(15.0).value(18.0).endArray()
                 .endObject();
 
-        Point expectedPt = GEOMETRY_FACTORY.createPoint(new Coordinate(100.0, 0.0));
-        assertGeometryEquals(new JtsPoint(expectedPt, SPATIAL_CONTEXT), pointGeoJson);
+        XContentParser parser = createParser(pointGeoJson);
+        parser.nextToken();
+        ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
 
         // multi dimension linestring
         XContentBuilder lineGeoJson = XContentFactory.jsonBuilder()
@@ -148,13 +156,9 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
                     .endArray()
                 .endObject();
 
-        List<Coordinate> lineCoordinates = new ArrayList<>();
-        lineCoordinates.add(new Coordinate(100, 0));
-        lineCoordinates.add(new Coordinate(101, 1));
-
-        LineString expectedLS = GEOMETRY_FACTORY.createLineString(
-                lineCoordinates.toArray(new Coordinate[lineCoordinates.size()]));
-        assertGeometryEquals(jtsGeom(expectedLS), lineGeoJson);
+        parser = createParser(lineGeoJson);
+        parser.nextToken();
+        ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
     }
 
     @Override
@@ -229,6 +233,61 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         LinearRing shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
         Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, null);
         assertGeometryEquals(jtsGeom(expected), polygonGeoJson);
+    }
+
+    public void testParse3DPolygon() throws IOException {
+        XContentBuilder polygonGeoJson = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("type", "Polygon")
+            .startArray("coordinates")
+            .startArray()
+            .startArray().value(100.0).value(1.0).value(10.0).endArray()
+            .startArray().value(101.0).value(1.0).value(10.0).endArray()
+            .startArray().value(101.0).value(0.0).value(10.0).endArray()
+            .startArray().value(100.0).value(0.0).value(10.0).endArray()
+            .startArray().value(100.0).value(1.0).value(10.0).endArray()
+            .endArray()
+            .endArray()
+            .endObject();
+
+        List<Coordinate> shellCoordinates = new ArrayList<>();
+        shellCoordinates.add(new Coordinate(100, 0, 10));
+        shellCoordinates.add(new Coordinate(101, 0, 10));
+        shellCoordinates.add(new Coordinate(101, 1, 10));
+        shellCoordinates.add(new Coordinate(100, 1, 10));
+        shellCoordinates.add(new Coordinate(100, 0, 10));
+
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_6_3_0)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()).build();
+        LinearRing shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
+        Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, null);
+        Mapper.BuilderContext mockBuilderContext = new Mapper.BuilderContext(indexSettings, new ContentPath());
+        final GeoShapeFieldMapper mapperBuilder = new GeoShapeFieldMapper.Builder("test").ignoreZValue(true).build(mockBuilderContext);
+        XContentParser parser = createParser(polygonGeoJson);
+        parser.nextToken();
+        ElasticsearchGeoAssertions.assertEquals(jtsGeom(expected), ShapeParser.parse(parser, mapperBuilder).build());
+    }
+
+    public void testInvalidDimensionalPolygon() throws IOException {
+        XContentBuilder polygonGeoJson = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("type", "Polygon")
+            .startArray("coordinates")
+            .startArray()
+            .startArray().value(100.0).value(1.0).value(10.0).endArray()
+            .startArray().value(101.0).value(1.0).endArray()
+            .startArray().value(101.0).value(0.0).value(10.0).endArray()
+            .startArray().value(100.0).value(0.0).value(10.0).endArray()
+            .startArray().value(100.0).value(1.0).value(10.0).endArray()
+            .endArray()
+            .endArray()
+            .endObject();
+        XContentParser parser = createParser(polygonGeoJson);
+        parser.nextToken();
+        ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
     }
 
     public void testParseInvalidPoint() throws IOException {
@@ -325,6 +384,46 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         parser.nextToken();
         ElasticsearchGeoAssertions.assertValidException(parser, InvalidShapeException.class);
     }
+
+    public void testParseInvalidDimensionalMultiPolygon() throws IOException {
+        // test invalid multipolygon (an "accidental" polygon with inner rings outside outer ring)
+        String multiPolygonGeoJson = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+            .field("type", "MultiPolygon")
+            .startArray("coordinates")
+            .startArray()//first poly (without holes)
+            .startArray()
+            .startArray().value(102.0).value(2.0).endArray()
+            .startArray().value(103.0).value(2.0).endArray()
+            .startArray().value(103.0).value(3.0).endArray()
+            .startArray().value(102.0).value(3.0).endArray()
+            .startArray().value(102.0).value(2.0).endArray()
+            .endArray()
+            .endArray()
+            .startArray()//second poly (with hole)
+            .startArray()
+            .startArray().value(100.0).value(0.0).endArray()
+            .startArray().value(101.0).value(0.0).endArray()
+            .startArray().value(101.0).value(1.0).endArray()
+            .startArray().value(100.0).value(1.0).endArray()
+            .startArray().value(100.0).value(0.0).endArray()
+            .endArray()
+            .startArray()//hole
+            .startArray().value(100.2).value(0.8).endArray()
+            .startArray().value(100.2).value(0.2).value(10.0).endArray()
+            .startArray().value(100.8).value(0.2).endArray()
+            .startArray().value(100.8).value(0.8).endArray()
+            .startArray().value(100.2).value(0.8).endArray()
+            .endArray()
+            .endArray()
+            .endArray()
+            .endObject());
+
+        XContentParser parser = createParser(JsonXContent.jsonXContent, multiPolygonGeoJson);
+        parser.nextToken();
+        ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+    }
+
 
     public void testParseOGCPolygonWithoutHoles() throws IOException {
         // test 1: ccw poly not crossing dateline

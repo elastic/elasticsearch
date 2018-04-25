@@ -30,7 +30,7 @@ public class IndexShardRelocatedException extends IllegalIndexShardStateExceptio
     }
 
     public IndexShardRelocatedException(ShardId shardId, String reason) {
-        super(shardId, IndexShardState.RELOCATED, reason);
+        super(shardId, IndexShardState.STARTED, reason);
     }
 
     public IndexShardRelocatedException(StreamInput in) throws IOException{

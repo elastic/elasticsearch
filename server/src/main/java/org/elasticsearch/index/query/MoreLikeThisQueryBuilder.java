@@ -24,7 +24,6 @@ import org.apache.lucene.index.Fields;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -48,13 +47,14 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
-import org.elasticsearch.index.mapper.UidFieldMapper;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -69,7 +69,6 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.mapper.Uid.createUidAsBytes;
 
 /**
  * A more like this query that finds documents that are "like" the provided set of document(s).
@@ -224,7 +223,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
                     xContentType = in.readEnum(XContentType.class);
                 } else {
-                    xContentType = XContentFactory.xContentType(doc);
+                    xContentType = XContentHelper.xContentType(doc);
                 }
             } else {
                 id = in.readString();
@@ -1131,21 +1130,21 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     private static void handleExclude(BooleanQuery.Builder boolQuery, Item[] likeItems, QueryShardContext context) {
-        MappedFieldType uidField = context.fieldMapper(UidFieldMapper.NAME);
-        if (uidField == null) {
+        MappedFieldType idField = context.fieldMapper(IdFieldMapper.NAME);
+        if (idField == null) {
             // no mappings, nothing to exclude
             return;
         }
         // artificial docs get assigned a random id and should be disregarded
-        List<BytesRef> uids = new ArrayList<>();
+        List<String> ids = new ArrayList<>();
         for (Item item : likeItems) {
             if (item.doc() != null) {
                 continue;
             }
-            uids.add(createUidAsBytes(item.type(), item.id()));
+            ids.add(item.id());
         }
-        if (!uids.isEmpty()) {
-            Query query = uidField.termsQuery(uids, context);
+        if (!ids.isEmpty()) {
+            Query query = idField.termsQuery(ids, context);
             boolQuery.add(query, BooleanClause.Occur.MUST_NOT);
         }
     }

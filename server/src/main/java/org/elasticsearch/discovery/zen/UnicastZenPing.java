@@ -22,7 +22,6 @@ package org.elasticsearch.discovery.zen;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
@@ -513,18 +512,13 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
             public void onFailure(Exception e) {
                 if (e instanceof ConnectTransportException || e instanceof AlreadyClosedException) {
                     // can't connect to the node - this is more common path!
-                    logger.trace(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "[{}] failed to ping {}", pingingRound.id(), node), e);
+                    logger.trace(() -> new ParameterizedMessage("[{}] failed to ping {}", pingingRound.id(), node), e);
                 } else if (e instanceof RemoteTransportException) {
                     // something went wrong on the other side
-                    logger.debug(
-                        (Supplier<?>) () -> new ParameterizedMessage(
+                    logger.debug(() -> new ParameterizedMessage(
                             "[{}] received a remote error as a response to ping {}", pingingRound.id(), node), e);
                 } else {
-                    logger.warn(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "[{}] failed send ping to {}", pingingRound.id(), node), e);
+                    logger.warn(() -> new ParameterizedMessage("[{}] failed send ping to {}", pingingRound.id(), node), e);
                 }
             }
 
@@ -574,9 +568,9 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
                 if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException ||
                     exp.getCause() instanceof AlreadyClosedException) {
                     // ok, not connected...
-                    logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to connect to {}", node), exp);
+                    logger.trace(() -> new ParameterizedMessage("failed to connect to {}", node), exp);
                 } else if (closed == false) {
-                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to send ping to [{}]", node), exp);
+                    logger.warn(() -> new ParameterizedMessage("failed to send ping to [{}]", node), exp);
                 }
             }
         };
@@ -633,7 +627,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         UnicastPingRequest(StreamInput in) throws IOException {
             super(in);
             id = in.readInt();
-            timeout = new TimeValue(in);
+            timeout = in.readTimeValue();
             pingResponse = new PingResponse(in);
         }
 
@@ -646,7 +640,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeInt(id);
-            timeout.writeTo(out);
+            out.writeTimeValue(timeout);
             pingResponse.writeTo(out);
         }
     }

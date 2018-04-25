@@ -191,7 +191,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
             }
             boolean changed = false;
             for (int j = 0; j < randomIntBetween(1, 10); j++) {
-                switch (randomInt(4)) {
+                switch (randomInt(3)) {
                     case 0:
                         lastKnownTask = addRandomTask(builder);
                         changed = true;
@@ -221,15 +221,6 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
                         } else {
                             String fLastKnownTask = lastKnownTask;
                             expectThrows(ResourceNotFoundException.class, () -> builder.removeTask(fLastKnownTask));
-                        }
-                        break;
-                    case 4:
-                        if (builder.hasTask(lastKnownTask)) {
-                            changed = true;
-                            builder.finishTask(lastKnownTask);
-                        } else {
-                            String fLastKnownTask = lastKnownTask;
-                            expectThrows(ResourceNotFoundException.class, () -> builder.finishTask(fLastKnownTask));
                         }
                         break;
                 }

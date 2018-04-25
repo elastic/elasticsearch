@@ -42,7 +42,6 @@ import static org.elasticsearch.action.ingest.SimulatePipelineRequest.Fields;
 import static org.elasticsearch.action.ingest.SimulatePipelineRequest.SIMULATED_PIPELINE_ID;
 import static org.elasticsearch.ingest.IngestDocument.MetaData.ID;
 import static org.elasticsearch.ingest.IngestDocument.MetaData.INDEX;
-import static org.elasticsearch.ingest.IngestDocument.MetaData.PARENT;
 import static org.elasticsearch.ingest.IngestDocument.MetaData.ROUTING;
 import static org.elasticsearch.ingest.IngestDocument.MetaData.TYPE;
 import static org.elasticsearch.ingest.IngestDocument.MetaData.VERSION;
@@ -123,7 +122,7 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         for (int i = 0; i < numDocs; i++) {
             Map<String, Object> doc = new HashMap<>();
             Map<String, Object> expectedDoc = new HashMap<>();
-            List<IngestDocument.MetaData> fields = Arrays.asList(INDEX, TYPE, ID, ROUTING, PARENT, VERSION, VERSION_TYPE);
+            List<IngestDocument.MetaData> fields = Arrays.asList(INDEX, TYPE, ID, ROUTING, VERSION, VERSION_TYPE);
             for(IngestDocument.MetaData field : fields) {
                 if (field == VERSION) {
                     Long value = randomLong();
@@ -194,7 +193,6 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             assertThat(metadataMap.get(TYPE), equalTo(expectedDocument.get(TYPE.getFieldName())));
             assertThat(metadataMap.get(ID), equalTo(expectedDocument.get(ID.getFieldName())));
             assertThat(metadataMap.get(ROUTING), equalTo(expectedDocument.get(ROUTING.getFieldName())));
-            assertThat(metadataMap.get(PARENT), equalTo(expectedDocument.get(PARENT.getFieldName())));
             assertThat(metadataMap.get(VERSION), equalTo(expectedDocument.get(VERSION.getFieldName())));
             assertThat(metadataMap.get(VERSION_TYPE), equalTo(expectedDocument.get(VERSION_TYPE.getFieldName())));
             assertThat(ingestDocument.getSourceAndMetadata(), equalTo(expectedDocument.get(Fields.SOURCE)));

@@ -275,6 +275,7 @@ import org.elasticsearch.rest.action.admin.indices.RestSplitIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestSyncedFlushAction;
 import org.elasticsearch.rest.action.admin.indices.RestUpdateSettingsAction;
 import org.elasticsearch.rest.action.admin.indices.RestUpgradeAction;
+import org.elasticsearch.rest.action.admin.indices.RestUpgradeStatusAction;
 import org.elasticsearch.rest.action.admin.indices.RestValidateQueryAction;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.rest.action.cat.RestAliasAction;
@@ -592,6 +593,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestSyncedFlushAction(settings, restController));
         registerHandler.accept(new RestForceMergeAction(settings, restController));
         registerHandler.accept(new RestUpgradeAction(settings, restController));
+        registerHandler.accept(new RestUpgradeStatusAction(settings, restController));
         registerHandler.accept(new RestClearIndicesCacheAction(settings, restController));
 
         registerHandler.accept(new RestIndexAction(settings, restController));

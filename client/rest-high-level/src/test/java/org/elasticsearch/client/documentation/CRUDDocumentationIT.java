@@ -37,10 +37,14 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.elasticsearch.action.get.MultiGetRequest;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -68,6 +72,11 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 
@@ -112,7 +121,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             builder.startObject();
             {
                 builder.field("user", "kimchy");
-                builder.field("postDate", new Date());
+                builder.timeField("postDate", new Date());
                 builder.field("message", "trying out Elasticsearch");
             }
             builder.endObject();
@@ -177,9 +186,6 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::index-request-routing
             request.routing("routing"); // <1>
             // end::index-request-routing
-            // tag::index-request-parent
-            request.parent("parent"); // <1>
-            // end::index-request-parent
             // tag::index-request-timeout
             request.timeout(TimeValue.timeValueSeconds(1)); // <1>
             request.timeout("1s"); // <2>
@@ -322,7 +328,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
             {
-                builder.field("updated", new Date());
+                builder.timeField("updated", new Date());
                 builder.field("reason", "daily update");
             }
             builder.endObject();
@@ -466,9 +472,6 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::update-request-routing
             request.routing("routing"); // <1>
             // end::update-request-routing
-            // tag::update-request-parent
-            request.parent("parent"); // <1>
-            // end::update-request-parent
             // tag::update-request-timeout
             request.timeout(TimeValue.timeValueSeconds(1)); // <1>
             request.timeout("1s"); // <2>
@@ -574,9 +577,6 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::delete-request-routing
             request.routing("routing"); // <1>
             // end::delete-request-routing
-            // tag::delete-request-parent
-            request.parent("parent"); // <1>
-            // end::delete-request-parent
             // tag::delete-request-timeout
             request.timeout(TimeValue.timeValueMinutes(2)); // <1>
             request.timeout("2m"); // <2>
@@ -809,7 +809,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             GetRequest request = new GetRequest("posts", "doc", "1");
             //tag::get-request-no-source
-            request.fetchSourceContext(new FetchSourceContext(false)); // <1>
+            request.fetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE); // <1>
             //end::get-request-no-source
             GetResponse getResponse = client.get(request);
             assertNull(getResponse.getSourceInternal());
@@ -860,9 +860,6 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::get-request-routing
             request.routing("routing"); // <1>
             //end::get-request-routing
-            //tag::get-request-parent
-            request.parent("parent"); // <1>
-            //end::get-request-parent
             //tag::get-request-preference
             request.preference("preference"); // <1>
             //end::get-request-preference
@@ -929,6 +926,49 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 }
             }
             // end::get-conflict
+        }
+    }
+
+    public void testExists() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        // tag::exists-request
+        GetRequest getRequest = new GetRequest(
+            "posts", // <1>
+            "doc",   // <2>
+            "1");    // <3>
+        getRequest.fetchSourceContext(new FetchSourceContext(false)); // <4>
+        getRequest.storedFields("_none_");                            // <5>
+        // end::exists-request
+        {
+            // tag::exists-execute
+            boolean exists = client.exists(getRequest);
+            // end::exists-execute
+            assertFalse(exists);
+        }
+        {
+            // tag::exists-execute-listener
+            ActionListener<Boolean> listener = new ActionListener<Boolean>() {
+                @Override
+                public void onResponse(Boolean exists) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::exists-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::exists-execute-async
+            client.existsAsync(getRequest, listener); // <1>
+            // end::exists-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
 
@@ -1022,5 +1062,200 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                     .constantBackoff(TimeValue.timeValueSeconds(1L), 3)); // <5>
             // end::bulk-processor-options
         }
+    }
+
+    public void testMultiGet() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            String mappings = "{\n" +
+            "    \"mappings\" : {\n" +
+            "        \"type\" : {\n" +
+            "            \"properties\" : {\n" +
+            "                \"foo\" : {\n" +
+            "                    \"type\": \"text\",\n" +
+            "                    \"store\": true\n" +
+            "                }\n" +
+            "            }\n" +
+            "        }\n" +
+            "    }\n" +
+            "}";
+
+            NStringEntity entity = new NStringEntity(mappings, ContentType.APPLICATION_JSON);
+            Response response = client().performRequest("PUT", "/index", Collections.emptyMap(), entity);
+            assertEquals(200, response.getStatusLine().getStatusCode());
+        }
+
+        Map<String, Object> source = new HashMap<>();
+        source.put("foo", "val1");
+        source.put("bar", "val2");
+        source.put("baz", "val3");
+        client.index(new IndexRequest("index", "type", "example_id")
+            .source(source)
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE));
+
+        {
+            // tag::multi-get-request
+            MultiGetRequest request = new MultiGetRequest();
+            request.add(new MultiGetRequest.Item(
+                "index",         // <1>
+                "type",          // <2>
+                "example_id"));  // <3>
+            request.add(new MultiGetRequest.Item("index", "type", "another_id"));  // <4>
+            // end::multi-get-request
+
+            // Add a missing index so we can test it.
+            request.add(new MultiGetRequest.Item("missing_index", "type", "id"));
+
+            // tag::multi-get-request-item-extras
+            request.add(new MultiGetRequest.Item("index", "type", "with_routing")
+                .routing("some_routing"));          // <1>
+            request.add(new MultiGetRequest.Item("index", "type", "with_version")
+                .versionType(VersionType.EXTERNAL)  // <2>
+                .version(10123L));                  // <3>
+            // end::multi-get-request-item-extras
+            // tag::multi-get-request-top-level-extras
+            request.preference("some_preference");  // <1>
+            request.realtime(false);                // <2>
+            request.refresh(true);                  // <3>
+            // end::multi-get-request-top-level-extras
+
+            // tag::multi-get-execute
+            MultiGetResponse response = client.multiGet(request);
+            // end::multi-get-execute
+
+            // tag::multi-get-response
+            MultiGetItemResponse firstItem = response.getResponses()[0];
+            assertNull(firstItem.getFailure());              // <1>
+            GetResponse firstGet = firstItem.getResponse();  // <2>
+            String index = firstItem.getIndex();
+            String type = firstItem.getType();
+            String id = firstItem.getId();
+            if (firstGet.isExists()) {
+                long version = firstGet.getVersion();
+                String sourceAsString = firstGet.getSourceAsString();        // <3>
+                Map<String, Object> sourceAsMap = firstGet.getSourceAsMap(); // <4>
+                byte[] sourceAsBytes = firstGet.getSourceAsBytes();          // <5>
+            } else {
+                // <6>
+            }
+            // end::multi-get-response
+
+            assertTrue(firstGet.isExists());
+            assertEquals(source, firstGet.getSource());
+
+            MultiGetItemResponse missingIndexItem = response.getResponses()[2];
+            // tag::multi-get-indexnotfound
+            assertNull(missingIndexItem.getResponse());                // <1>
+            Exception e = missingIndexItem.getFailure().getFailure();  // <2>
+            ElasticsearchException ee = (ElasticsearchException) e;    // <3>
+            // TODO status is broken! fix in a followup
+            // assertEquals(RestStatus.NOT_FOUND, ee.status());        // <4>
+            assertThat(e.getMessage(),
+                containsString("reason=no such index"));               // <5>
+            // end::multi-get-indexnotfound
+
+            // tag::multi-get-execute-listener
+            ActionListener<MultiGetResponse> listener = new ActionListener<MultiGetResponse>() {
+                @Override
+                public void onResponse(MultiGetResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::multi-get-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::multi-get-execute-async
+            client.multiGetAsync(request, listener); // <1>
+            // end::multi-get-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+        {
+            MultiGetRequest request = new MultiGetRequest();
+            // tag::multi-get-request-no-source
+            request.add(new MultiGetRequest.Item("index", "type", "example_id")
+                .fetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE));  // <1>
+            // end::multi-get-request-no-source
+            MultiGetItemResponse item = unwrapAndAssertExample(client.multiGet(request));
+            assertNull(item.getResponse().getSource());
+        }
+        {
+            MultiGetRequest request = new MultiGetRequest();
+            // tag::multi-get-request-source-include
+            String[] includes = new String[] {"foo", "*r"};
+            String[] excludes = Strings.EMPTY_ARRAY;
+            FetchSourceContext fetchSourceContext =
+                    new FetchSourceContext(true, includes, excludes);
+            request.add(new MultiGetRequest.Item("index", "type", "example_id")
+                .fetchSourceContext(fetchSourceContext));  // <1>
+            // end::multi-get-request-source-include
+            MultiGetItemResponse item = unwrapAndAssertExample(client.multiGet(request));
+            assertThat(item.getResponse().getSource(), hasEntry("foo", "val1"));
+            assertThat(item.getResponse().getSource(), hasEntry("bar", "val2"));
+            assertThat(item.getResponse().getSource(), not(hasKey("baz")));
+        }
+        {
+            MultiGetRequest request = new MultiGetRequest();
+            // tag::multi-get-request-source-exclude
+            String[] includes = Strings.EMPTY_ARRAY;
+            String[] excludes = new String[] {"foo", "*r"};
+            FetchSourceContext fetchSourceContext =
+                    new FetchSourceContext(true, includes, excludes);
+            request.add(new MultiGetRequest.Item("index", "type", "example_id")
+                .fetchSourceContext(fetchSourceContext));  // <1>
+            // end::multi-get-request-source-exclude
+            MultiGetItemResponse item = unwrapAndAssertExample(client.multiGet(request));
+            assertThat(item.getResponse().getSource(), not(hasKey("foo")));
+            assertThat(item.getResponse().getSource(), not(hasKey("bar")));
+            assertThat(item.getResponse().getSource(), hasEntry("baz", "val3"));
+        }
+        {
+            MultiGetRequest request = new MultiGetRequest();
+            // tag::multi-get-request-stored
+            request.add(new MultiGetRequest.Item("index", "type", "example_id")
+                .storedFields("foo"));  // <1>
+            MultiGetResponse response = client.multiGet(request);
+            MultiGetItemResponse item = response.getResponses()[0];
+            String value = item.getResponse().getField("foo").getValue(); // <2>
+            // end::multi-get-request-stored
+            assertNull(item.getResponse().getSource());
+            assertEquals("val1", value);
+        }
+        {
+            // tag::multi-get-conflict
+            MultiGetRequest request = new MultiGetRequest();
+            request.add(new MultiGetRequest.Item("index", "type", "example_id")
+                .version(1000L));
+            MultiGetResponse response = client.multiGet(request);
+            MultiGetItemResponse item = response.getResponses()[0];
+            assertNull(item.getResponse());                          // <1>
+            Exception e = item.getFailure().getFailure();            // <2>
+            ElasticsearchException ee = (ElasticsearchException) e;  // <3>
+            // TODO status is broken! fix in a followup
+            // assertEquals(RestStatus.CONFLICT, ee.status());          // <4>
+            assertThat(e.getMessage(),
+                containsString("version conflict, current version [1] is "
+                    + "different than the one provided [1000]"));    // <5>
+            // end::multi-get-conflict
+        }
+
+    }
+
+    private MultiGetItemResponse unwrapAndAssertExample(MultiGetResponse response) {
+        assertThat(response.getResponses(), arrayWithSize(1));
+        MultiGetItemResponse item = response.getResponses()[0];
+        assertEquals("index", item.getIndex());
+        assertEquals("type", item.getType());
+        assertEquals("example_id", item.getId());
+        return item;
     }
 }

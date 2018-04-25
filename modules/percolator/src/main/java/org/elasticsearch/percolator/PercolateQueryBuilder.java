@@ -69,7 +69,6 @@ import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperForType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -133,7 +132,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
      */
     @Deprecated
     public PercolateQueryBuilder(String field, String documentType, BytesReference document) {
-        this(field, documentType, Collections.singletonList(document), XContentFactory.xContentType(document));
+        this(field, documentType, Collections.singletonList(document), XContentHelper.xContentType(document));
     }
 
     /**
@@ -276,7 +275,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
                 documentXContentType = in.readEnum(XContentType.class);
             } else {
-                documentXContentType = XContentFactory.xContentType(documents.iterator().next());
+                documentXContentType = XContentHelper.xContentType(documents.iterator().next());
             }
         } else {
             documentXContentType = null;
@@ -349,7 +348,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                 try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
                         LoggingDeprecationHandler.INSTANCE, document)) {
                     parser.nextToken();
-                    XContentHelper.copyCurrentStructure(builder.generator(), parser);
+                    builder.generator().copyCurrentStructure(parser);
                 }
             }
             builder.endArray();
@@ -525,7 +524,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                 return this; // not executed yet
             } else {
                 return new PercolateQueryBuilder(field, documentType, Collections.singletonList(source),
-                    XContentFactory.xContentType(source));
+                    XContentHelper.xContentType(source));
             }
         }
         GetRequest getRequest = new GetRequest(indexedDocumentIndex, indexedDocumentType, indexedDocumentId);
@@ -582,32 +581,21 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         final List<ParsedDocument> docs = new ArrayList<>();
         final DocumentMapper docMapper;
         final MapperService mapperService = context.getMapperService();
-        if (context.getIndexSettings().isSingleType()) {
-            Collection<String> types = mapperService.types();
-            if (types.size() != 1) {
-                throw new IllegalStateException("Only a single type should exist, but [" + types.size() + " types exists");
+        Collection<String> types = mapperService.types();
+        if (types.size() != 1) {
+            throw new IllegalStateException("Only a single type should exist, but [" + types.size() + " types exists");
+        }
+        String type = types.iterator().next();
+        if (documentType != null) {
+            DEPRECATION_LOGGER.deprecated("[document_type] parameter has been deprecated because types have been deprecated");
+            if (documentType.equals(type) == false) {
+                throw new IllegalArgumentException("specified document_type [" + documentType +
+                    "] is not equal to the actual type [" + type + "]");
             }
-            String type = types.iterator().next();
-            if (documentType != null) {
-                DEPRECATION_LOGGER.deprecated("[document_type] parameter has been deprecated because types have been deprecated");
-                if (documentType.equals(type) == false) {
-                    throw new IllegalArgumentException("specified document_type [" + documentType +
-                        "] is not equal to the actual type [" + type + "]");
-                }
-            }
-            docMapper = mapperService.documentMapper(type);
-            for (BytesReference document : documents) {
-                docs.add(docMapper.parse(source(context.index().getName(), type, "_temp_id", document, documentXContentType)));
-            }
-        } else {
-            if (documentType == null) {
-                throw new IllegalArgumentException("[percolate] query is missing required [document_type] parameter");
-            }
-            DocumentMapperForType docMapperForType = mapperService.documentMapperWithAutoCreate(documentType);
-            docMapper = docMapperForType.getDocumentMapper();
-            for (BytesReference document : documents) {
-                docs.add(docMapper.parse(source(context.index().getName(), documentType, "_temp_id", document, documentXContentType)));
-            }
+        }
+        docMapper = mapperService.documentMapper(type);
+        for (BytesReference document : documents) {
+            docs.add(docMapper.parse(source(context.index().getName(), type, "_temp_id", document, documentXContentType)));
         }
 
         FieldNameAnalyzer fieldNameAnalyzer = (FieldNameAnalyzer) docMapper.mappers().indexAnalyzer();

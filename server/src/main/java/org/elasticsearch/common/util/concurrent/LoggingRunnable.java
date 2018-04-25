@@ -21,7 +21,6 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 
 public class LoggingRunnable implements Runnable {
 
@@ -38,7 +37,7 @@ public class LoggingRunnable implements Runnable {
         try {
             runnable.run();
         } catch (Exception e) {
-            logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to execute [{}]", runnable.toString()), e);
+            logger.warn(() -> new ParameterizedMessage("failed to execute [{}]", runnable.toString()), e);
         }
     }
 

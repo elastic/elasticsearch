@@ -1,0 +1,86 @@
+[[cat-health]]
+== cat health
+
+`health` is a terse, one-line representation of the same information
+from `/_cluster/health`.
+
+[source,js]
+--------------------------------------------------
+GET /_cat/health?v
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT twitter\n{"settings":{"number_of_replicas": 0}}\n/]
+
+[source,txt]
+--------------------------------------------------
+epoch      timestamp cluster       status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
+1475871424 16:17:04  elasticsearch green           1         1      5   5    0    0        0             0                  -                100.0%
+--------------------------------------------------
+// TESTRESPONSE[s/1475871424 16:17:04/\\d+ \\d+:\\d+:\\d+/]
+// TESTRESPONSE[s/elasticsearch/[^ ]+/ s/0                  -/\\d+ (-|\\d+(\\.\\d+)?[ms]+)/ _cat]
+
+It has one option `ts` to disable the timestamping:
+
+[source,js]
+--------------------------------------------------
+GET /_cat/health?v&ts=false
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT twitter\n{"settings":{"number_of_replicas": 0}}\n/]
+
+which looks like:
+
+[source,txt]
+--------------------------------------------------
+cluster       status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
+elasticsearch green           1         1      5   5    0    0        0             0                  -                100.0%
+--------------------------------------------------
+// TESTRESPONSE[s/elasticsearch/[^ ]+/ s/0                  -/\\d+ (-|\\d+(\\.\\d+)?[ms]+)/ _cat]
+
+A common use of this command is to verify the health is consistent
+across nodes:
+
+[source,sh]
+--------------------------------------------------
+% pssh -i -h list.of.cluster.hosts curl -s localhost:9200/_cat/health
+[1] 20:20:52 [SUCCESS] es3.vm
+1384309218 18:20:18 foo green 3 3 3 3 0 0 0 0
+[2] 20:20:52 [SUCCESS] es1.vm
+1384309218 18:20:18 foo green 3 3 3 3 0 0 0 0
+[3] 20:20:52 [SUCCESS] es2.vm
+1384309218 18:20:18 foo green 3 3 3 3 0 0 0 0
+--------------------------------------------------
+// NOTCONSOLE
+
+A less obvious use is to track recovery of a large cluster over
+time. With enough shards, starting a cluster, or even recovering after
+losing a node, can take time (depending on your network & disk). A way
+to track its progress is by using this command in a delayed loop:
+
+[source,sh]
+--------------------------------------------------
+% while true; do curl localhost:9200/_cat/health; sleep 120; done
+1384309446 18:24:06 foo red 3 3 20 20 0 0 1812 0
+1384309566 18:26:06 foo yellow 3 3 950 916 0 12 870 0
+1384309686 18:28:06 foo yellow 3 3 1328 916 0 12 492 0
+1384309806 18:30:06 foo green 3 3 1832 916 4 0 0
+^C
+--------------------------------------------------
+// NOTCONSOLE
+
+In this scenario, we can tell that recovery took roughly four minutes.
+If this were going on for hours, we would be able to watch the
+`UNASSIGNED` shards drop precipitously.  If that number remained
+static, we would have an idea that there is a problem.
+
+[float]
+[[timestamp]]
+=== Why the timestamp?
+
+You typically are using the `health` command when a cluster is
+malfunctioning.  During this period, it's extremely important to
+correlate activities across log files, alerting systems, etc.
+
+There are two outputs.  The `HH:MM:SS` output is simply for quick
+human consumption.  The epoch time retains more information, including
+date, and is machine sortable if your recovery spans days.

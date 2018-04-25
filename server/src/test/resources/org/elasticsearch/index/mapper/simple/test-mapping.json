@@ -1,0 +1,83 @@
+{
+    "person":{
+        "_meta":{
+            "param1":"value1"
+        },
+        "date_formats":["yyyy-MM-dd", "dd-MM-yyyy"],
+        "dynamic":false,
+        "enabled":true,
+        "_source":{
+        },
+        "properties":{
+            "name":{
+                "type":"object",
+                "dynamic":false,
+                "properties":{
+                    "first":{
+                        "type": "text",
+                        "store":true
+                    },
+                    "last":{
+                        "type": "keyword"
+                    }
+                }
+            },
+            "address":{
+                "type":"object",
+                "properties":{
+                    "first":{
+                        "properties":{
+                            "location":{
+                                "type": "text",
+                                "store":true
+                            }
+                        }
+                    },
+                    "last":{
+                        "properties":{
+                            "location":{
+                                "type": "text"
+                            }
+                        }
+                    }
+                }
+            },
+            "age":{
+                "type":"integer",
+                "null_value":0
+            },
+            "birthdate":{
+                "type":"date",
+                "format":"yyyy-MM-dd"
+            },
+            "nerd":{
+                "type":"boolean"
+            },
+            "dogs":{
+                "type": "text"
+            },
+            "complex":{
+                "type":"object",
+                "properties":{
+                    "value1":{
+                        "type": "text"
+                    },
+                    "value2":{
+                        "type": "text"
+                    }
+                }
+            },
+            "complex2":{
+                "type":"object",
+                "properties":{
+                    "value1":{
+                        "type": "text"
+                    },
+                    "value2":{
+                        "type": "text"
+                    }
+                }
+            }
+        }
+    }
+}

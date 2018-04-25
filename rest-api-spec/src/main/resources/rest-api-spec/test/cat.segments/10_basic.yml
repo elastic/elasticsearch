@@ -1,0 +1,176 @@
+---
+"Help":
+  - do:
+      cat.segments:
+        help: true
+
+  - match:
+      $body: |
+               /^   index        .+   \n
+                    shard        .+   \n
+                    prirep       .+   \n
+                    ip           .+   \n
+                    id           .+   \n
+                    segment      .+   \n
+                    generation   .+   \n
+                    docs.count   .+   \n
+                    docs.deleted .+   \n
+                    size         .+   \n
+                    size.memory  .+   \n
+                    committed    .+   \n
+                    searchable   .+   \n
+                    version      .+   \n
+                    compound     .+   \n
+               $/
+---
+"Test cat segments output":
+
+  - do:
+      cat.segments: {}
+
+  - match:
+      $body: |
+               /^$/
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: "3"
+            number_of_replicas: "0"
+  - do:
+      index:
+        index: index1
+        type: type
+        body: { foo: bar }
+        refresh: true
+  - do:
+      cat.segments: {}
+  - match:
+      $body: |
+                 /^(index1 \s+ \d \s+ (p|r) \s+ \d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3} \s+ _\d (\s\d){3} \s+
+                 (\d+|\d+[.]\d+)(kb|b) \s+ \d+ (\s+ (false|true)){2} \s+  \d+\.\d+(\.\d+)? \s+ (false|true) \s? \n?)$/
+
+  - do:
+      indices.create:
+        index: index2
+        body:
+          settings:
+            number_of_shards: "3"
+            number_of_replicas: "0"
+  - do:
+      index:
+        index: index2
+        type: type
+        body: { foo: bar }
+        refresh: true
+  - do:
+       cluster.health:
+         wait_for_status: green
+
+
+  - do:
+      cat.segments: {}
+  - match:
+      $body: |
+                  /^(index(1|2) .+ \n?){2}$/
+
+  - do:
+      cat.segments:
+        index: index2
+  - match:
+      $body: |
+                  /^(index2 .+ \n?)$/
+
+---
+"Test cat segments on closed index behaviour":
+
+  - skip:
+      version: " - 5.99.99"
+      reason:  status code  on closed indices changed in 6.0.0 from 403 to 400
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.close:
+        index: index1
+
+  - do:
+      catch: bad_request
+      cat.segments:
+        index: index1
+
+---
+"Test cat segments using wildcards":
+
+  - do:
+      indices.create:
+        index: foo
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      index:
+        index: foo
+        type: type
+        body: { test: foo }
+        refresh: true
+
+  - do:
+      indices.create:
+        index: bar
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      index:
+        index: bar
+        type: type
+        body: { test: bar }
+        refresh: true
+
+  - do:
+      indices.create:
+        index: baz
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      index:
+        index: baz
+        type: type
+        body: { test: baz }
+        refresh: true
+
+  - do:
+      cat.segments:
+        index: f*
+        v: false
+        h: i
+
+  - match:
+      $body: |
+               /^(foo \n?)$/
+
+  - do:
+      cat.segments:
+        index: ba*
+        v: false
+        h: i
+
+  - match:
+      $body: |
+               /^(ba(r|z) \n?){2}$/

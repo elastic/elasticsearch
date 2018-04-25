@@ -1,0 +1,50 @@
+[[query-dsl]]
+= Query DSL
+
+[partintro]
+--
+
+Elasticsearch provides a full Query DSL (Domain Specific Language) based on JSON to define queries.
+Think of the Query DSL as an AST (Abstract Syntax Tree) of queries, consisting of two types of
+clauses:
+
+Leaf query clauses::
+
+Leaf query clauses look for a particular value in a particular field, such as the
+<<query-dsl-match-query,`match`>>, <<query-dsl-term-query,`term`>> or
+<<query-dsl-range-query,`range`>> queries.  These queries can be used
+by themselves.
+
+Compound query clauses::
+
+Compound query clauses wrap other leaf *or* compound queries and are used to combine
+multiple queries in a logical fashion (such as the
+<<query-dsl-bool-query,`bool`>> or <<query-dsl-dis-max-query,`dis_max`>> query),
+or to alter their behaviour (such as the
+<<query-dsl-constant-score-query,`constant_score`>> query).
+
+Query clauses behave differently depending on whether they are used in
+<<query-filter-context,query context or filter context>>.
+--
+
+include::query-dsl/query_filter_context.asciidoc[]
+
+include::query-dsl/match-all-query.asciidoc[]
+
+include::query-dsl/full-text-queries.asciidoc[]
+
+include::query-dsl/term-level-queries.asciidoc[]
+
+include::query-dsl/compound-queries.asciidoc[]
+
+include::query-dsl/joining-queries.asciidoc[]
+
+include::query-dsl/geo-queries.asciidoc[]
+
+include::query-dsl/special-queries.asciidoc[]
+
+include::query-dsl/span-queries.asciidoc[]
+
+include::query-dsl/minimum-should-match.asciidoc[]
+
+include::query-dsl/multi-term-rewrite.asciidoc[]

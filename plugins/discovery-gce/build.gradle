@@ -1,0 +1,73 @@
+import org.elasticsearch.gradle.LoggedExec
+
+esplugin {
+  description 'The Google Compute Engine (GCE) Discovery plugin allows to use GCE API for the unicast discovery mechanism.'
+  classname 'org.elasticsearch.plugin.discovery.gce.GceDiscoveryPlugin'
+}
+
+versions << [
+  'google': '1.23.0'
+]
+
+dependencies {
+  compile "com.google.apis:google-api-services-compute:v1-rev160-${versions.google}"
+  compile "com.google.api-client:google-api-client:${versions.google}"
+  compile "com.google.oauth-client:google-oauth-client:${versions.google}"
+  compile "com.google.http-client:google-http-client:${versions.google}"
+  compile "com.google.http-client:google-http-client-jackson2:${versions.google}"
+  compile 'com.google.code.findbugs:jsr305:1.3.9'
+  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  compile "commons-logging:commons-logging:${versions.commonslogging}"
+  compile "commons-codec:commons-codec:${versions.commonscodec}"
+}
+
+
+// needed to be consistent with ssl host checking
+String host = InetAddress.getLoopbackAddress().getHostAddress();
+
+// location of keystore and files to generate it
+File keystore = new File(project.buildDir, 'keystore/test-node.jks')
+
+// generate the keystore
+task createKey(type: LoggedExec) {
+  doFirst {
+    project.delete(keystore.parentFile)
+    keystore.parentFile.mkdirs()
+  }
+  executable = new File(project.runtimeJavaHome, 'bin/keytool')
+  standardInput = new ByteArrayInputStream('FirstName LastName\nUnit\nOrganization\nCity\nState\nNL\nyes\n\n'.getBytes('UTF-8'))
+  args '-genkey',
+          '-alias', 'test-node',
+          '-keystore', keystore,
+          '-keyalg', 'RSA',
+          '-keysize', '2048',
+          '-validity', '712',
+          '-dname', 'CN=' + host,
+          '-keypass', 'keypass',
+          '-storepass', 'keypass'
+}
+
+// add keystore to test classpath: it expects it there
+sourceSets.test.resources.srcDir(keystore.parentFile)
+processTestResources.dependsOn(createKey)
+
+dependencyLicenses {
+  mapping from: /google-.*/, to: 'google'
+}
+
+test {
+  // this is needed for insecure plugins, remove if possible!
+  systemProperty 'tests.artifact', project.name 
+}
+
+thirdPartyAudit.excludes = [
+  // classes are missing
+  'com.google.common.base.Splitter', 
+  'com.google.common.collect.Lists', 
+  'javax.servlet.ServletContextEvent', 
+  'javax.servlet.ServletContextListener', 
+  'org.apache.avalon.framework.logger.Logger', 
+  'org.apache.log.Hierarchy', 
+  'org.apache.log.Logger',
+]

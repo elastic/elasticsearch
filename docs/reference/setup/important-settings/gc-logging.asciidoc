@@ -1,0 +1,7 @@
+[[gc-logging]]
+=== GC logging
+
+By default, Elasticsearch enables GC logs. These are configured in
+<<jvm-options,`jvm.options`>> and default to the same default location as the
+Elasticsearch logs. The default configuration rotates the logs every 64 MB and
+can consume up to 2 GB of disk space.

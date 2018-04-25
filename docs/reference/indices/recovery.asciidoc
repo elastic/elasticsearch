@@ -1,0 +1,299 @@
+[[indices-recovery]]
+== Indices Recovery
+
+The indices recovery API provides insight into on-going index shard recoveries.
+Recovery status may be reported for specific indices, or cluster-wide.
+
+For example, the following command would show recovery information for the indices "index1" and "index2".
+
+[source,js]
+--------------------------------------------------
+GET index1,index2/_recovery?human
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT index1\nPUT index2\n/]
+
+To see cluster-wide recovery status simply leave out the index names.
+
+//////////////////////////
+
+Here we create a repository and snapshot index1 in
+order to restore it right after and prints out the
+indices recovery result.
+
+[source,js]
+--------------------------------------------------
+# create the index
+PUT index1
+{"settings": {"index.number_of_shards": 1}}
+
+# create the repository
+PUT /_snapshot/my_repository
+{"type": "fs","settings": {"location": "recovery_asciidoc" }}
+
+# snapshot the index
+PUT /_snapshot/my_repository/snap_1?wait_for_completion=true
+
+# delete the index
+DELETE index1
+
+# and restore the snapshot
+POST /_snapshot/my_repository/snap_1/_restore?wait_for_completion=true
+
+--------------------------------------------------
+// CONSOLE
+
+[source,js]
+--------------------------------------------------
+{
+  "snapshot": {
+    "snapshot": "snap_1",
+    "indices": [
+      "index1"
+    ],
+    "shards": {
+      "total": 1,
+      "failed": 0,
+      "successful": 1
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+GET /_recovery?human
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Response:
+[source,js]
+--------------------------------------------------
+{
+  "index1" : {
+    "shards" : [ {
+      "id" : 0,
+      "type" : "SNAPSHOT",
+      "stage" : "INDEX",
+      "primary" : true,
+      "start_time" : "2014-02-24T12:15:59.716",
+      "start_time_in_millis": 1393244159716,
+      "stop_time" : "0s",
+      "stop_time_in_millis" : 0,
+      "total_time" : "2.9m",
+      "total_time_in_millis" : 175576,
+      "source" : {
+        "repository" : "my_repository",
+        "snapshot" : "my_snapshot",
+        "index" : "index1",
+        "version" : "{version}"
+      },
+      "target" : {
+        "id" : "ryqJ5lO5S4-lSFbGntkEkg",
+        "host" : "my.fqdn",
+        "transport_address" : "my.fqdn",
+        "ip" : "10.0.1.7",
+        "name" : "my_es_node"
+      },
+      "index" : {
+        "size" : {
+          "total" : "75.4mb",
+          "total_in_bytes" : 79063092,
+          "reused" : "0b",
+          "reused_in_bytes" : 0,
+          "recovered" : "65.7mb",
+          "recovered_in_bytes" : 68891939,
+          "percent" : "87.1%"
+        },
+        "files" : {
+          "total" : 73,
+          "reused" : 0,
+          "recovered" : 69,
+          "percent" : "94.5%"
+        },
+        "total_time" : "0s",
+        "total_time_in_millis" : 0,
+        "source_throttle_time" : "0s",
+        "source_throttle_time_in_millis" : 0,
+        "target_throttle_time" : "0s",
+        "target_throttle_time_in_millis" : 0
+      },
+      "translog" : {
+        "recovered" : 0,
+        "total" : 0,
+        "percent" : "100.0%",
+        "total_on_start" : 0,
+        "total_time" : "0s",
+        "total_time_in_millis" : 0,
+      },
+      "verify_index" : {
+        "check_index_time" : "0s",
+        "check_index_time_in_millis" : 0,
+        "total_time" : "0s",
+        "total_time_in_millis" : 0
+      }
+    } ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
+// TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
+////
+The TESTRESPONSE above replace all the fields values by the expected ones in the test,
+because we don't really care about the field values but we want to check the fields names.
+////
+
+The above response shows a single index recovering a single shard. In this case, the source of the recovery is a snapshot repository
+and the target of the recovery is the node with name "my_es_node".
+
+Additionally, the output shows the number and percent of files recovered, as well as the number and percent of bytes recovered.
+
+In some cases a higher level of detail may be preferable. Setting "detailed=true" will present a list of physical files in recovery.
+
+[source,js]
+--------------------------------------------------
+GET _recovery?human&detailed=true
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT index1\n{"settings": {"index.number_of_shards": 1}}\n/]
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+  "index1" : {
+    "shards" : [ {
+      "id" : 0,
+      "type" : "STORE",
+      "stage" : "DONE",
+      "primary" : true,
+      "start_time" : "2014-02-24T12:38:06.349",
+      "start_time_in_millis" : "1393245486349",
+      "stop_time" : "2014-02-24T12:38:08.464",
+      "stop_time_in_millis" : "1393245488464",
+      "total_time" : "2.1s",
+      "total_time_in_millis" : 2115,
+      "source" : {
+        "id" : "RGMdRc-yQWWKIBM4DGvwqQ",
+        "host" : "my.fqdn",
+        "transport_address" : "my.fqdn",
+        "ip" : "10.0.1.7",
+        "name" : "my_es_node"
+      },
+      "target" : {
+        "id" : "RGMdRc-yQWWKIBM4DGvwqQ",
+        "host" : "my.fqdn",
+        "transport_address" : "my.fqdn",
+        "ip" : "10.0.1.7",
+        "name" : "my_es_node"
+      },
+      "index" : {
+        "size" : {
+          "total" : "24.7mb",
+          "total_in_bytes" : 26001617,
+          "reused" : "24.7mb",
+          "reused_in_bytes" : 26001617,
+          "recovered" : "0b",
+          "recovered_in_bytes" : 0,
+          "percent" : "100.0%"
+        },
+        "files" : {
+          "total" : 26,
+          "reused" : 26,
+          "recovered" : 0,
+          "percent" : "100.0%",
+          "details" : [ {
+            "name" : "segments.gen",
+            "length" : 20,
+            "recovered" : 20
+          }, {
+            "name" : "_0.cfs",
+            "length" : 135306,
+            "recovered" : 135306
+          }, {
+            "name" : "segments_2",
+            "length" : 251,
+            "recovered" : 251
+          }
+          ]
+        },
+        "total_time" : "2ms",
+        "total_time_in_millis" : 2,
+        "source_throttle_time" : "0s",
+        "source_throttle_time_in_millis" : 0,
+        "target_throttle_time" : "0s",
+        "target_throttle_time_in_millis" : 0
+      },
+      "translog" : {
+        "recovered" : 71,
+        "total" : 0,
+        "percent" : "100.0%",
+        "total_on_start" : 0,
+        "total_time" : "2.0s",
+        "total_time_in_millis" : 2025
+      },
+      "verify_index" : {
+        "check_index_time" : 0,
+        "check_index_time_in_millis" : 0,
+        "total_time" : "88ms",
+        "total_time_in_millis" : 88
+      }
+    } ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"source" : \{[^}]*\}/"source" : $body.$_path/]
+// TESTRESPONSE[s/"details" : \[[^\]]*\]//]
+// TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
+// TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
+////
+The TESTRESPONSE above replace all the fields values by the expected ones in the test,
+because we don't really care about the field values but we want to check the fields names.
+It also removes the "details" part which is important in this doc but really hard to test.
+////
+
+This response shows a detailed listing (truncated for brevity) of the actual files recovered and their sizes.
+
+Also shown are the timings in milliseconds of the various stages of recovery: index retrieval, translog replay, and index start time.
+
+Note that the above listing indicates that the recovery is in stage "done". All recoveries, whether on-going or complete, are kept in
+cluster state and may be reported on at any time. Setting "active_only=true" will cause only on-going recoveries to be reported.
+
+Here is a complete list of options:
+
+[horizontal]
+`detailed`::        Display a detailed view. This is primarily useful for viewing the recovery of physical index files. Default: false.
+`active_only`::     Display only those recoveries that are currently on-going. Default: false.
+
+Description of output fields:
+
+[horizontal]
+`id`::              Shard ID
+`type`::            Recovery type:
+                        * store
+                        * snapshot
+                        * replica
+                        * relocating
+`stage`::           Recovery stage:
+                        * init:     Recovery has not started
+                        * index:    Reading index meta-data and copying bytes from source to destination
+                        * start:    Starting the engine; opening the index for use
+                        * translog: Replaying transaction log
+                        * finalize: Cleanup
+                        * done:     Complete
+`primary`::         True if shard is primary, false otherwise
+`start_time`::      Timestamp of recovery start
+`stop_time`::       Timestamp of recovery finish
+`total_time_in_millis`::    Total time to recover shard in milliseconds
+`source`::          Recovery source:
+                        * repository description if recovery is from a snapshot
+                        * description of source node otherwise
+`target`::          Destination node
+`index`::           Statistics about physical index recovery
+`translog`::        Statistics about translog recovery
+`start`::           Statistics about time to open and start the index

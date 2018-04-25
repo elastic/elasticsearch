@@ -1,0 +1,844 @@
+[[search-profile]]
+== Profile API
+
+WARNING:  The Profile API is a debugging tool and adds significant overhead to search execution.
+
+The Profile API provides detailed timing information about the execution of individual components
+in a search request.  It gives the user insight into how search requests are executed at a low level so that
+the user can understand why certain requests are slow, and take steps to improve them.
+
+The output from the Profile API is *very* verbose, especially for complicated requests executed across
+many shards. Pretty-printing the response is recommended to help understand the output
+
+[float]
+=== Usage
+
+Any `_search` request can be profiled by adding a top-level `profile` parameter:
+
+[source,js]
+--------------------------------------------------
+GET /twitter/_search
+{
+  "profile": true,<1>
+  "query" : {
+    "match" : { "message" : "some number" }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+<1> Setting the top-level `profile` parameter to `true` will enable profiling
+for the search
+
+This will yield the following result:
+
+[source,js]
+--------------------------------------------------
+{
+   "took": 25,
+   "timed_out": false,
+   "_shards": {
+      "total": 1,
+      "successful": 1,
+      "skipped" : 0,
+      "failed": 0
+   },
+   "hits": {
+      "total": 4,
+      "max_score": 0.5093388,
+      "hits": [...] <1>
+   },
+   "profile": {
+     "shards": [
+        {
+           "id": "[2aE02wS1R8q_QFnYu6vDVQ][twitter][0]",
+           "searches": [
+              {
+                 "query": [
+                    {
+                       "type": "BooleanQuery",
+                       "description": "message:some message:number",
+                       "time_in_nanos": "1873811",
+                       "breakdown": {
+                          "score": 51306,
+                          "score_count": 4,
+                          "build_scorer": 2935582,
+                          "build_scorer_count": 1,
+                          "match": 0,
+                          "match_count": 0,
+                          "create_weight": 919297,
+                          "create_weight_count": 1,
+                          "next_doc": 53876,
+                          "next_doc_count": 5,
+                          "advance": 0,
+                          "advance_count": 0
+                       },
+                       "children": [
+                          {
+                             "type": "TermQuery",
+                             "description": "message:some",
+                             "time_in_nanos": "391943",
+                             "breakdown": {
+                                "score": 28776,
+                                "score_count": 4,
+                                "build_scorer": 784451,
+                                "build_scorer_count": 1,
+                                "match": 0,
+                                "match_count": 0,
+                                "create_weight": 1669564,
+                                "create_weight_count": 1,
+                                "next_doc": 10111,
+                                "next_doc_count": 5,
+                                "advance": 0,
+                                "advance_count": 0
+                             }
+                          },
+                          {
+                             "type": "TermQuery",
+                             "description": "message:number",
+                             "time_in_nanos": "210682",
+                             "breakdown": {
+                                "score": 4552,
+                                "score_count": 4,
+                                "build_scorer": 42602,
+                                "build_scorer_count": 1,
+                                "match": 0,
+                                "match_count": 0,
+                                "create_weight": 89323,
+                                "create_weight_count": 1,
+                                "next_doc": 2852,
+                                "next_doc_count": 5,
+                                "advance": 0,
+                                "advance_count": 0
+                             }
+                          }
+                       ]
+                    }
+                 ],
+                 "rewrite_time": 51443,
+                 "collector": [
+                    {
+                       "name": "CancellableCollector",
+                       "reason": "search_cancelled",
+                       "time_in_nanos": "304311",
+                       "children": [
+                         {
+                           "name": "SimpleTopScoreDocCollector",
+                           "reason": "search_top_hits",
+                           "time_in_nanos": "32273"
+                         }
+                       ]
+                    }
+                 ]
+              }
+           ],
+           "aggregations": []
+        }
+     ]
+   }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 25/"took": $body.took/]
+// TESTRESPONSE[s/"hits": \[...\]/"hits": $body.$_path/]
+// TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
+// TESTRESPONSE[s/\[2aE02wS1R8q_QFnYu6vDVQ\]\[twitter\]\[0\]/$body.$_path/]
+
+<1> Search results are returned, but were omitted here for brevity
+
+Even for a simple query, the response is relatively complicated.  Let's break it down piece-by-piece before moving
+to more complex examples.
+
+First, the overall structure of the profile response is as follows:
+
+[source,js]
+--------------------------------------------------
+{
+   "profile": {
+        "shards": [
+           {
+              "id": "[2aE02wS1R8q_QFnYu6vDVQ][twitter][0]",  <1>
+              "searches": [
+                 {
+                    "query": [...],             <2>
+                    "rewrite_time": 51443,      <3>
+                    "collector": [...]          <4>
+                 }
+              ],
+              "aggregations": [...]             <5>
+           }
+        ]
+     }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"profile": /"took": $body.took, "timed_out": $body.timed_out, "_shards": $body._shards, "hits": $body.hits, "profile": /]
+// TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
+// TESTRESPONSE[s/\[2aE02wS1R8q_QFnYu6vDVQ\]\[twitter\]\[0\]/$body.$_path/]
+// TESTRESPONSE[s/"query": \[...\]/"query": $body.$_path/]
+// TESTRESPONSE[s/"collector": \[...\]/"collector": $body.$_path/]
+// TESTRESPONSE[s/"aggregations": \[...\]/"aggregations": []/]
+<1> A profile is returned for each shard that participated in the response, and is identified
+by a unique ID
+<2> Each profile contains a section which holds details about the query execution
+<3> Each profile has a single time representing the cumulative rewrite time
+<4> Each profile also contains a section about the Lucene Collectors which run the search
+<5> Each profile contains a section which holds the details about the aggregation execution
+
+Because a search request may be executed against one or more shards in an index, and a search may cover
+one or more indices, the top level element in the profile response is an array of `shard` objects.
+Each shard object lists it's `id` which uniquely identifies the shard.  The ID's format is
+`[nodeID][indexName][shardID]`.
+
+The profile itself may consist of one or more "searches", where a search is a query executed against the underlying
+Lucene index.  Most Search Requests submitted by the user will only execute a single `search` against the Lucene index.
+But occasionally multiple searches will be executed, such as including a global aggregation (which needs to execute
+a secondary "match_all" query for the global context).
+
+Inside each `search` object there will be two arrays of profiled information:
+a `query` array and a `collector` array.  Alongside the `search` object is an `aggregations` object that contains the profile information for the aggregations. In the future, more sections may be added, such as `suggest`, `highlight`, etc
+
+There will also be a `rewrite` metric showing the total time spent rewriting the query (in nanoseconds).
+
+NOTE: As with other statistics apis, the Profile API supports human readable outputs. This can be turned on by adding
+`?human=true` to the query string. In this case, the output contains the additional `time` field containing rounded,
+human readable timing information (e.g. `"time": "391,9ms"`, `"time": "123.3micros"`).
+
+=== Profiling Queries
+
+[NOTE]
+=======================================
+The details provided by the Profile API directly expose Lucene class names and concepts, which means
+that complete interpretation of the results require fairly advanced knowledge of Lucene.  This
+page attempts to give a crash-course in how Lucene executes queries so that you can use the Profile API to successfully
+diagnose and debug queries, but it is only an overview.  For complete understanding, please refer
+to Lucene's documentation and, in places, the code.
+
+With that said, a complete understanding is often not required to fix a slow query.  It is usually
+sufficient to see that a particular component of a query is slow, and not necessarily understand why
+the `advance` phase of that query is the cause, for example.
+=======================================
+
+==== `query` Section
+
+The `query` section contains detailed timing of the query tree executed by Lucene on a particular shard.
+The overall structure of this query tree will resemble your original Elasticsearch query, but may be slightly
+(or sometimes very) different.  It will also use similar but not always identical naming.  Using our previous
+`match` query example, let's analyze the `query` section:
+
+[source,js]
+--------------------------------------------------
+"query": [
+    {
+       "type": "BooleanQuery",
+       "description": "message:some message:number",
+       "time_in_nanos": "1873811",
+       "breakdown": {...},               <1>
+       "children": [
+          {
+             "type": "TermQuery",
+             "description": "message:some",
+             "time_in_nanos": "391943",
+             "breakdown": {...}
+          },
+          {
+             "type": "TermQuery",
+             "description": "message:number",
+             "time_in_nanos": "210682",
+             "breakdown": {...}
+          }
+       ]
+    }
+]
+--------------------------------------------------
+// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n"searches": [{\n/]
+// TESTRESPONSE[s/]$/],"rewrite_time": $body.$_path, "collector": $body.$_path}], "aggregations": []}]}}/]
+// TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
+// TESTRESPONSE[s/"breakdown": \{...\}/"breakdown": $body.$_path/]
+<1> The breakdown timings are omitted for simplicity
+
+Based on the profile structure, we can see that our `match` query was rewritten by Lucene into a BooleanQuery with two
+clauses (both holding a TermQuery).  The `type` field displays the Lucene class name, and often aligns with
+the equivalent name in Elasticsearch.  The `description` field displays the Lucene explanation text for the query, and
+is made available to help differentiating between parts of your query (e.g. both `message:search` and `message:test`
+are TermQuery's and would appear identical otherwise.
+
+The `time_in_nanos` field shows that this query took ~1.8ms for the entire BooleanQuery to execute.  The recorded time is inclusive
+of all children.
+
+The `breakdown` field will give detailed stats about how the time was spent, we'll look at
+that in a moment.  Finally, the `children` array lists any sub-queries that may be present.  Because we searched for two
+values ("search test"), our BooleanQuery holds two children TermQueries.  They have identical information (type, time,
+breakdown, etc).  Children are allowed to have their own children.
+
+===== Timing Breakdown
+
+The `breakdown` component lists detailed timing statistics about low-level Lucene execution:
+
+[source,js]
+--------------------------------------------------
+"breakdown": {
+   "score": 51306,
+   "score_count": 4,
+   "build_scorer": 2935582,
+   "build_scorer_count": 1,
+   "match": 0,
+   "match_count": 0,
+   "create_weight": 919297,
+   "create_weight_count": 1,
+   "next_doc": 53876,
+   "next_doc_count": 5,
+   "advance": 0,
+   "advance_count": 0
+}
+--------------------------------------------------
+// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n"searches": [{\n"query": [{\n"type": "BooleanQuery",\n"description": "message:some message:number",\n"time_in_nanos": $body.$_path,/]
+// TESTRESPONSE[s/}$/},\n"children": $body.$_path}],\n"rewrite_time": $body.$_path, "collector": $body.$_path}], "aggregations": []}]}}/]
+// TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
+
+Timings are listed in wall-clock nanoseconds and are not normalized at all.  All caveats about the overall
+`time_in_nanos` apply here.  The intention of the breakdown is to give you a feel for A) what machinery in Lucene is
+actually eating time, and B) the magnitude of differences in times between the various components.  Like the overall time,
+the breakdown is inclusive of all children times.
+
+The meaning of the stats are as follows:
+
+[float]
+==== All parameters:
+
+[horizontal]
+`create_weight`::
+
+    A Query in Lucene must be capable of reuse across multiple IndexSearchers (think of it as the engine that
+    executes a search against a specific Lucene Index).  This puts Lucene in a tricky spot, since many queries
+    need to accumulate temporary state/statistics associated with the index it is being used against, but the
+    Query contract mandates that it must be immutable.
+    {empty} +
+    {empty} +
+    To get around this, Lucene asks each query to generate a Weight object which acts as a temporary context
+    object to hold state associated with this particular (IndexSearcher, Query) tuple.  The `weight` metric
+    shows how long this process takes
+
+`build_scorer`::
+
+    This parameter shows how long it takes to build a Scorer for the query.  A Scorer is the mechanism that
+    iterates over matching documents generates a score per-document (e.g. how well does "foo" match the document?).
+    Note, this records the time required to generate the Scorer object, not actually score the documents.  Some
+    queries have faster or slower initialization of the Scorer, depending on optimizations, complexity, etc.
+    {empty} +
+    {empty} +
+    This may also showing timing associated with caching, if enabled and/or applicable for the query
+
+`next_doc`::
+
+    The Lucene method `next_doc` returns Doc ID of the next document matching the query.  This statistic shows
+    the time it takes to determine which document is the next match, a process that varies considerably depending
+    on the nature of the query.   Next_doc is a specialized form of advance() which is more convenient for many
+    queries in Lucene.  It is equivalent to advance(docId() + 1)
+
+`advance`::
+
+    `advance` is the "lower level" version of next_doc: it serves the same purpose of finding the next matching
+    doc, but requires the calling query to perform extra tasks such as identifying and moving past skips, etc.
+    However,  not all queries can use next_doc, so `advance` is also timed for those queries.
+    {empty} +
+    {empty} +
+    Conjunctions (e.g. `must` clauses in a boolean) are typical consumers of `advance`
+
+`matches`::
+
+    Some queries, such as phrase queries, match documents using a "Two Phase" process.  First, the document is
+    "approximately" matched, and if it matches approximately, it is checked a second time with a more rigorous
+    (and expensive) process.  The second phase verification is what the `matches` statistic measures.
+    {empty} +
+    {empty} +
+    For example, a phrase query first checks a document approximately by ensuring all terms in the phrase are
+    present in the doc.  If all the terms are present, it then executes the second phase verification to ensure
+    the terms are in-order to form the phrase, which is relatively more expensive than just checking for presence
+    of the terms.
+    {empty} +
+    {empty} +
+    Because this two-phase process is only used by a handful of queries, the `metric` statistic will often be zero
+
+`score`::
+
+    This records the time taken to score a particular document via it's Scorer
+
+`*_count`::
+    Records the number of invocations of the particular method.  For example, `"next_doc_count": 2,`
+    means the `nextDoc()` method was called on two different documents.  This can be used to help judge
+    how selective queries are, by comparing counts between different query components.
+
+==== `collectors` Section
+
+The Collectors portion of the response shows high-level execution details. Lucene works by defining a "Collector"
+which is responsible for coordinating the traversal, scoring and collection of matching documents.  Collectors
+are also how a single query can record aggregation results, execute unscoped "global" queries, execute post-query
+filters, etc.
+
+Looking at the previous example:
+
+[source,js]
+--------------------------------------------------
+"collector": [
+   {
+      "name": "CancellableCollector",
+      "reason": "search_cancelled",
+      "time_in_nanos": "304311",
+      "children": [
+        {
+          "name": "SimpleTopScoreDocCollector",
+          "reason": "search_top_hits",
+          "time_in_nanos": "32273"
+        }
+      ]
+   }
+]
+--------------------------------------------------
+// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n"searches": [{\n"query": $body.$_path,\n"rewrite_time": $body.$_path,/]
+// TESTRESPONSE[s/]$/]}], "aggregations": []}]}}/]
+// TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
+
+We see a single collector named `SimpleTopScoreDocCollector` wrapped into `CancellableCollector`. `SimpleTopScoreDocCollector` is the default "scoring and sorting"
+`Collector` used by Elasticsearch.  The `reason` field attempts to give a plain english description of the class name.  The
+`time_in_nanos` is similar to the time in the Query tree: a wall-clock time inclusive of all children.  Similarly, `children` lists
+all sub-collectors. The `CancellableCollector` that wraps `SimpleTopScoreDocCollector` is used by Elasticsearch to detect if the current
+search was cancelled and stop collecting documents as soon as it occurs.
+
+It should be noted that Collector times are **independent** from the Query times.  They are calculated, combined
+and normalized independently!  Due to the nature of Lucene's execution, it is impossible to "merge" the times
+from the Collectors into the Query section, so they are displayed in separate portions.
+
+For reference, the various collector reason's are:
+
+[horizontal]
+`search_sorted`::
+
+    A collector that scores and sorts documents.  This is the most common collector and will be seen in most
+    simple searches
+
+`search_count`::
+
+    A collector that only counts the number of documents that match the query, but does not fetch the source.
+    This is seen when `size: 0` is specified
+
+`search_terminate_after_count`::
+
+    A collector that terminates search execution after `n` matching documents have been found.  This is seen
+    when the `terminate_after_count` query parameter has been specified
+
+`search_min_score`::
+
+    A collector that only returns matching documents that have a score greater than `n`.  This is seen when
+    the top-level parameter `min_score` has been specified.
+
+`search_multi`::
+
+    A collector that wraps several other collectors.  This is seen when combinations of search, aggregations,
+    global aggs and post_filters are combined in a single search.
+
+`search_timeout`::
+
+    A collector that halts execution after a specified period of time.  This is seen when a `timeout` top-level
+    parameter has been specified.
+
+`aggregation`::
+
+    A collector that Elasticsearch uses to run aggregations against the query scope.  A single `aggregation`
+    collector is used to collect documents for *all* aggregations, so you will see a list of aggregations
+    in the name rather.
+
+`global_aggregation`::
+
+    A collector that executes an aggregation against the global query scope, rather than the specified query.
+    Because the global scope is necessarily different from the executed query, it must execute it's own
+    match_all query (which you will see added to the Query section) to collect your entire dataset
+
+
+
+==== `rewrite` Section
+
+All queries in Lucene undergo a "rewriting" process.  A query (and its sub-queries) may be rewritten one or
+more times, and the process continues until the query stops changing.  This process allows Lucene to perform
+optimizations, such as removing redundant clauses, replacing one query for a more efficient execution path,
+etc.  For example a Boolean -> Boolean -> TermQuery can be rewritten to a TermQuery, because all the Booleans
+are unnecessary in this case.
+
+The rewriting process is complex and difficult to display, since queries can change drastically.  Rather than
+showing the intermediate results, the total rewrite time is simply displayed as a value (in nanoseconds).  This
+value is cumulative and contains the total time for all queries being rewritten.
+
+==== A more complex example
+
+
+To demonstrate a slightly more complex query and the associated results, we can profile the following query:
+
+[source,js]
+--------------------------------------------------
+GET /twitter/_search
+{
+  "profile": true,
+  "query": {
+    "term": {
+      "user": {
+        "value": "test"
+      }
+    }
+  },
+  "aggs": {
+    "my_scoped_agg": {
+      "terms": {
+        "field": "likes"
+      }
+    },
+    "my_global_agg": {
+      "global": {},
+      "aggs": {
+        "my_level_agg": {
+          "terms": {
+            "field": "likes"
+          }
+        }
+      }
+    }
+  },
+  "post_filter": {
+    "match": {
+      "message": "some"
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[s/_search/_search\?filter_path=profile.shards.id,profile.shards.searches,profile.shards.aggregations/]
+// TEST[continued]
+
+This example has:
+
+- A query
+- A scoped aggregation
+- A global aggregation
+- A post_filter
+
+And the response:
+
+[source,js]
+--------------------------------------------------
+{
+   ...
+   "profile": {
+         "shards": [
+            {
+               "id": "[P6-vulHtQRWuD4YnubWb7A][test][0]",
+               "searches": [
+                  {
+                     "query": [
+                        {
+                           "type": "TermQuery",
+                           "description": "message:some",
+                           "time_in_nanos": "409456",
+                           "breakdown": {
+                              "score": 0,
+                              "build_scorer_count": 1,
+                              "match_count": 0,
+                              "create_weight": 31584,
+                              "next_doc": 0,
+                              "match": 0,
+                              "create_weight_count": 1,
+                              "next_doc_count": 2,
+                              "score_count": 1,
+                              "build_scorer": 377872,
+                              "advance": 0,
+                              "advance_count": 0
+                           }
+                        },
+                        {
+                           "type": "TermQuery",
+                           "description": "user:test",
+                           "time_in_nanos": "303702",
+                           "breakdown": {
+                              "score": 0,
+                              "build_scorer_count": 1,
+                              "match_count": 0,
+                              "create_weight": 185215,
+                              "next_doc": 5936,
+                              "match": 0,
+                              "create_weight_count": 1,
+                              "next_doc_count": 2,
+                              "score_count": 1,
+                              "build_scorer": 112551,
+                              "advance": 0,
+                              "advance_count": 0
+                           }
+                        }
+                     ],
+                     "rewrite_time": 7208,
+                     "collector": [
+                        {
+                          "name": "CancellableCollector",
+                          "reason": "search_cancelled",
+                          "time_in_nanos": 2390,
+                          "children": [
+                            {
+                              "name": "MultiCollector",
+                              "reason": "search_multi",
+                              "time_in_nanos": 1820,
+                              "children": [
+                                {
+                                  "name": "FilteredCollector",
+                                  "reason": "search_post_filter",
+                                  "time_in_nanos": 7735,
+                                  "children": [
+                                    {
+                                      "name": "SimpleTopScoreDocCollector",
+                                      "reason": "search_top_hits",
+                                      "time_in_nanos": 1328
+                                    }
+                                  ]
+                                },
+                                {
+                                  "name": "BucketCollector: [[my_scoped_agg, my_global_agg]]",
+                                  "reason": "aggregation",
+                                  "time_in_nanos": 8273
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                     ]
+                  }
+               ],
+               "aggregations": [...] <1>
+            }
+         ]
+      }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"aggregations": \[\.\.\.\]/"aggregations": $body.$_path/]
+// TESTRESPONSE[s/\.\.\.//]
+// TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
+// TESTRESPONSE[s/"id": "\[P6-vulHtQRWuD4YnubWb7A\]\[test\]\[0\]"/"id": $body.profile.shards.0.id/]
+<1> The ``"aggregations"` portion has been omitted because it will be covered in the next section
+
+As you can see, the output is significantly verbose from before.  All the major portions of the query are
+represented:
+
+1. The first `TermQuery` (user:test) represents the main `term` query
+2. The second `TermQuery` (message:some) represents the `post_filter` query
+
+The Collector tree is fairly straightforward, showing how a single CancellableCollector wraps a MultiCollector
+ which also wraps a FilteredCollector to execute the post_filter (and in turn wraps the normal scoring SimpleCollector),
+ a BucketCollector to run all scoped aggregations.
+
+==== Understanding MultiTermQuery output
+
+A special note needs to be made about the `MultiTermQuery` class of queries.  This includes wildcards, regex and fuzzy
+queries.  These queries emit very verbose responses, and are not overly structured.
+
+Essentially, these queries rewrite themselves on a per-segment basis.  If you imagine the wildcard query `b*`, it technically
+can match any token that begins with the letter "b".  It would be impossible to enumerate all possible combinations,
+so Lucene rewrites the query in context of the segment being evaluated.  E.g. one segment may contain the tokens
+`[bar, baz]`, so the query rewrites to a BooleanQuery combination of "bar" and "baz".  Another segment may only have the
+token `[bakery]`, so query rewrites to a single TermQuery for "bakery".
+
+Due to this dynamic, per-segment rewriting, the clean tree structure becomes distorted and no longer follows a clean
+"lineage" showing how one query rewrites into the next.  At present time, all we can do is apologize, and suggest you
+collapse the details for that query's children if it is too confusing.  Luckily, all the timing statistics are correct,
+just not the physical layout in the response, so it is sufficient to just analyze the top-level MultiTermQuery and
+ignore its children if you find the details too tricky to interpret.
+
+Hopefully this will be fixed in future iterations, but it is a tricky problem to solve and still in-progress :)
+
+=== Profiling Aggregations
+
+==== `aggregations` Section
+
+
+The `aggregations` section contains detailed timing of the aggregation tree executed by a particular shard.
+The overall structure of this aggregation tree will resemble your original Elasticsearch request.  Let's
+execute the previous query again and look at the aggregation profile this time:
+
+[source,js]
+--------------------------------------------------
+GET /twitter/_search
+{
+  "profile": true,
+  "query": {
+    "term": {
+      "user": {
+        "value": "test"
+      }
+    }
+  },
+  "aggs": {
+    "my_scoped_agg": {
+      "terms": {
+        "field": "likes"
+      }
+    },
+    "my_global_agg": {
+      "global": {},
+      "aggs": {
+        "my_level_agg": {
+          "terms": {
+            "field": "likes"
+          }
+        }
+      }
+    }
+  },
+  "post_filter": {
+    "match": {
+      "message": "some"
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[s/_search/_search\?filter_path=profile.shards.aggregations/]
+// TEST[continued]
+
+Which yields the following aggregation profile output
+
+[source,js]
+--------------------------------------------------
+{
+  "profile" : {
+    "shards" : [
+      {
+        "aggregations" : [
+          {
+            "type" : "LongTermsAggregator",
+            "description" : "my_scoped_agg",
+            "time_in_nanos" : 195386,
+            "breakdown" : {
+              "reduce" : 0,
+              "build_aggregation" : 81171,
+              "build_aggregation_count" : 1,
+              "initialize" : 22753,
+              "initialize_count" : 1,
+              "reduce_count" : 0,
+              "collect" : 91456,
+              "collect_count" : 4
+            }
+          },
+          {
+            "type" : "GlobalAggregator",
+            "description" : "my_global_agg",
+            "time_in_nanos" : 190430,
+            "breakdown" : {
+              "reduce" : 0,
+              "build_aggregation" : 59990,
+              "build_aggregation_count" : 1,
+              "initialize" : 29619,
+              "initialize_count" : 1,
+              "reduce_count" : 0,
+              "collect" : 100815,
+              "collect_count" : 4
+            },
+            "children" : [
+              {
+                "type" : "LongTermsAggregator",
+                "description" : "my_level_agg",
+                "time_in_nanos" : 160329,
+                "breakdown" : {
+                  "reduce" : 0,
+                  "build_aggregation" : 55712,
+                  "build_aggregation_count" : 1,
+                  "initialize" : 10559,
+                  "initialize_count" : 1,
+                  "reduce_count" : 0,
+                  "collect" : 94052,
+                  "collect_count" : 4
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\.//]
+// TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
+// TESTRESPONSE[s/"id": "\[P6-vulHtQRWuD4YnubWb7A\]\[test\]\[0\]"/"id": $body.profile.shards.0.id/]
+
+From the profile structure we can see that the `my_scoped_agg` is internally being run as a `LongTermsAggregator` (because the field it is
+aggregating, `likes`, is a numeric field).  At the same level, we see a `GlobalAggregator` which comes from `my_global_agg`.  That
+aggregation then has a child `LongTermsAggregator` which from the second terms aggregation on `likes`.
+
+The `time_in_nanos` field shows the time executed by each aggregation, and is inclusive of all children.  While the overall time is useful,
+the `breakdown` field will give detailed stats about how the time was spent.
+
+===== Timing Breakdown
+
+The `breakdown` component lists detailed timing statistics about low-level Lucene execution:
+
+[source,js]
+--------------------------------------------------
+"breakdown": {
+  "reduce": 0,
+  "reduce_count": 0,
+  "build_aggregation": 49765,
+  "build_aggregation_count": 300,
+  "initialize": 52785,
+  "initialize_count": 300,
+  "reduce_count": 0,
+  "collect": 3155490036,
+  "collect_count": 1800
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+Timings are listed in wall-clock nanoseconds and are not normalized at all.  All caveats about the overall
+`time` apply here.  The intention of the breakdown is to give you a feel for A) what machinery in Elasticsearch is
+actually eating time, and B) the magnitude of differences in times between the various components.  Like the overall time,
+the breakdown is inclusive of all children times.
+
+The meaning of the stats are as follows:
+
+[float]
+==== All parameters:
+
+[horizontal]
+`initialise`::
+
+    This times how long it takes to create and initialise the aggregation before starting to collect documents.
+
+`collect`::
+
+    This represents the cumulative time spent in the collect phase of the aggregation. This is where matching documents are passed to the aggregation and the state of the aggregator is updated based on the information contained in the documents.
+
+`build_aggregation`::
+
+    This represents the time spent creating the shard level results of the aggregation ready to pass back to the reducing node after the collection of documents is finished.
+
+`reduce`::
+
+    This is not currently used and will always report `0`. Currently aggregation profiling only times the shard level parts of the aggregation execution. Timing of the reduce phase will be added later.
+
+`*_count`::
+    Records the number of invocations of the particular method.  For example, `"collect_count": 2,`
+    means the `collect()` method was called on two different documents.
+
+=== Profiling Considerations
+
+==== Performance Notes
+
+Like any profiler, the Profile API introduces a non-negligible overhead to search execution.  The act of instrumenting
+low-level method calls such as `collect`, `advance` and `next_doc` can be fairly expensive, since these methods are called
+in tight loops.  Therefore, profiling should not be enabled in production settings by default, and should not
+be compared against non-profiled query times.  Profiling is just a diagnostic tool.
+
+There are also cases where special Lucene optimizations are disabled, since they are not amenable to profiling.  This
+could cause some queries to report larger relative times than their non-profiled counterparts, but in general should
+not have a drastic effect compared to other components in the profiled query.
+
+==== Limitations
+
+- Profiling statistics are currently not available for suggestions, highlighting, `dfs_query_then_fetch`
+- Profiling of the reduce phase of aggregation is currently not available
+- The Profiler is still highly experimental. The Profiler is instrumenting parts of Lucene that were
+never designed to be exposed in this manner, and so all results should be viewed as a best effort to provide detailed
+diagnostics.  We hope to improve this over time. If you find obviously wrong numbers, strange query structures or
+other bugs, please report them!

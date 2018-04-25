@@ -1,0 +1,42 @@
+[[analysis-limit-token-count-tokenfilter]]
+=== Limit Token Count Token Filter
+
+Limits the number of tokens that are indexed per document and field.
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Setting |Description
+|`max_token_count` |The maximum number of tokens that should be indexed
+per document and field. The default is `1`
+
+|`consume_all_tokens` |If set to `true` the filter exhaust the stream
+even if `max_token_count` tokens have been consumed already. The default
+is `false`.
+|=======================================================================
+
+Here is an example:
+
+[source,js]
+--------------------------------------------------
+PUT /limit_example
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "limit_example": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": ["lowercase", "five_token_limit"]
+        }
+      },
+      "filter": {
+        "five_token_limit": {
+          "type": "limit",
+          "max_token_count": 5
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE

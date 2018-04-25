@@ -1,0 +1,42 @@
+[[analysis-shingle-tokenfilter]]
+=== Shingle Token Filter
+
+A token filter of type `shingle` that constructs shingles (token
+n-grams) from a token stream. In other words, it creates combinations of
+tokens as a single token. For example, the sentence "please divide this
+sentence into shingles" might be tokenized into shingles "please
+divide", "divide this", "this sentence", "sentence into", and "into
+shingles".
+
+This filter handles position increments > 1 by inserting filler tokens
+(tokens with termtext "_"). It does not handle a position increment of
+0.
+
+The following are settings that can be set for a `shingle` token filter
+type:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Setting |Description
+|`max_shingle_size` |The maximum shingle size. Defaults to `2`.
+
+|`min_shingle_size` |The minimum shingle size. Defaults to `2`.
+
+|`output_unigrams` |If `true` the output will contain the input tokens
+(unigrams) as well as the shingles. Defaults to `true`.
+
+|`output_unigrams_if_no_shingles` |If `output_unigrams` is `false` the
+output will contain the input tokens (unigrams) if no shingles are
+available. Note if `output_unigrams` is set to `true` this setting has
+no effect. Defaults to `false`.
+
+|`token_separator` |The string to use when joining adjacent tokens to
+form a shingle. Defaults to `" "`.
+|`filler_token` | The string to use as a replacement for each position 
+at which there is no actual token in the stream. For instance this string is
+used if the position increment is greater than one when a `stop` filter is used
+together with the `shingle` filter. Defaults to `"_"`
+|=======================================================================
+
+The index level setting `index.max_shingle_diff` controls the maximum allowed
+difference between `max_shingle_size` and `min_shingle_size`.

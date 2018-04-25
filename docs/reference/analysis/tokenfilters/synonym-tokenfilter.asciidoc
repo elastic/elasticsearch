@@ -1,0 +1,122 @@
+[[analysis-synonym-tokenfilter]]
+=== Synonym Token Filter
+
+The `synonym` token filter allows to easily handle synonyms during the
+analysis process. Synonyms are configured using a configuration file.
+Here is an example:
+
+[source,js]
+--------------------------------------------------
+PUT /test_index
+{
+    "settings": {
+        "index" : {
+            "analysis" : {
+                "analyzer" : {
+                    "synonym" : {
+                        "tokenizer" : "whitespace",
+                        "filter" : ["synonym"]
+                    }
+                },
+                "filter" : {
+                    "synonym" : {
+                        "type" : "synonym",
+                        "synonyms_path" : "analysis/synonym.txt"
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+The above configures a `synonym` filter, with a path of
+`analysis/synonym.txt` (relative to the `config` location). The
+`synonym` analyzer is then configured with the filter. Additional
+settings is: `expand` (defaults to `true`).
+
+This filter tokenize synonyms with whatever tokenizer and token filters
+appear before it in the chain.
+
+[float]
+==== `tokenizer` and `ignore_case` are deprecated
+
+The `tokenizer` parameter controls the tokenizers that will be used to
+tokenize the synonym, this parameter is for backwards compatibility for indices that created before 6.0..
+The `ignore_case` parameter works with `tokenizer` parameter only.
+
+Two synonym formats are supported: Solr, WordNet.
+
+[float]
+==== Solr synonyms
+
+The following is a sample format of the file:
+
+[source,synonyms]
+--------------------------------------------------
+include::{es-test-dir}/cluster/config/analysis/synonym.txt[]
+--------------------------------------------------
+
+You can also define synonyms for the filter directly in the
+configuration file (note use of `synonyms` instead of `synonyms_path`):
+
+[source,js]
+--------------------------------------------------
+PUT /test_index
+{
+    "settings": {
+        "index" : {
+            "analysis" : {
+                "filter" : {
+                    "synonym" : {
+                        "type" : "synonym",
+                        "synonyms" : [
+                            "i-pod, i pod => ipod",
+                            "universe, cosmos"
+                        ]
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+However, it is recommended to define large synonyms set in a file using
+`synonyms_path`, because specifying them inline increases cluster size unnecessarily.
+
+[float]
+==== WordNet synonyms
+
+Synonyms based on http://wordnet.princeton.edu/[WordNet] format can be
+declared using `format`:
+
+[source,js]
+--------------------------------------------------
+PUT /test_index
+{
+    "settings": {
+        "index" : {
+            "analysis" : {
+                "filter" : {
+                    "synonym" : {
+                        "type" : "synonym",
+                        "format" : "wordnet",
+                        "synonyms" : [
+                            "s(100000001,1,'abstain',v,1,0).",
+                            "s(100000001,2,'refrain',v,1,0).",
+                            "s(100000001,3,'desist',v,1,0)."
+                        ]
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+Using `synonyms_path` to define WordNet synonyms in a file is supported
+as well.

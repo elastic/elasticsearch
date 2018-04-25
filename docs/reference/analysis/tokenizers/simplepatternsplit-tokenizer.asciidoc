@@ -1,0 +1,106 @@
+[[analysis-simplepatternsplit-tokenizer]]
+=== Simple Pattern Split Tokenizer
+
+experimental[This functionality is marked as experimental in Lucene]
+
+The `simple_pattern_split` tokenizer uses a regular expression to split the
+input into terms at pattern matches. The set of regular expression features it
+supports is more limited than the <<analysis-pattern-tokenizer,`pattern`>>
+tokenizer, but the tokenization is generally faster.
+
+This tokenizer does not produce terms from the matches themselves. To produce
+terms from matches using patterns in the same restricted regular expression
+subset, see the <<analysis-simplepattern-tokenizer,`simple_pattern`>>
+tokenizer.
+
+This tokenizer uses {lucene-core-javadoc}/org/apache/lucene/util/automaton/RegExp.html[Lucene regular expressions].
+For an explanation of the supported features and syntax, see <<regexp-syntax,Regular Expression Syntax>>.
+
+The default pattern is the empty string, which produces one term containing the
+full input. This tokenizer should always be configured with a non-default
+pattern.
+
+[float]
+=== Configuration
+
+The `simple_pattern_split` tokenizer accepts the following parameters:
+
+[horizontal]
+`pattern`::
+    A {lucene-core-javadoc}/org/apache/lucene/util/automaton/RegExp.html[Lucene regular expression], defaults to the empty string.
+
+[float]
+=== Example configuration
+
+This example configures the `simple_pattern_split` tokenizer to split the input
+text on underscores.
+
+[source,js]
+----------------------------
+PUT my_index
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "my_tokenizer"
+        }
+      },
+      "tokenizer": {
+        "my_tokenizer": {
+          "type": "simple_pattern_split",
+          "pattern": "_"
+        }
+      }
+    }
+  }
+}
+
+POST my_index/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "an_underscored_phrase"
+}
+----------------------------
+// CONSOLE
+
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens" : [
+    {
+      "token" : "an",
+      "start_offset" : 0,
+      "end_offset" : 2,
+      "type" : "word",
+      "position" : 0
+    },
+    {
+      "token" : "underscored",
+      "start_offset" : 3,
+      "end_offset" : 14,
+      "type" : "word",
+      "position" : 1
+    },
+    {
+      "token" : "phrase",
+      "start_offset" : 15,
+      "end_offset" : 21,
+      "type" : "word",
+      "position" : 2
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+The above example produces these terms:
+
+[source,text]
+---------------------------
+[ an, underscored, phrase ]
+---------------------------

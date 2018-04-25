@@ -1,0 +1,37 @@
+---
+"cluster health request timeout on waiting for nodes":
+  - do:
+      catch: request_timeout
+      cluster.health:
+        wait_for_nodes: 10
+        timeout: 1ms
+
+  - is_true:   cluster_name
+  - is_true:   timed_out
+  - gte:       { number_of_nodes:         1 }
+  - gte:       { number_of_data_nodes:    1 }
+  - match:     { active_primary_shards:   0 }
+  - match:     { active_shards:           0 }
+  - match:     { relocating_shards:       0 }
+  - match:     { initializing_shards:     0 }
+  - match:     { unassigned_shards:       0 }
+  - gte:       { number_of_pending_tasks: 0 }
+
+---
+"cluster health request timeout waiting for active shards":
+  - do:
+      catch: request_timeout
+      cluster.health:
+        timeout: 1ms
+        wait_for_active_shards: 5
+
+  - is_true:   cluster_name
+  - is_true:   timed_out
+  - gte:       { number_of_nodes:         1 }
+  - gte:       { number_of_data_nodes:    1 }
+  - match:     { active_primary_shards:   0 }
+  - match:     { active_shards:           0 }
+  - match:     { relocating_shards:       0 }
+  - match:     { initializing_shards:     0 }
+  - match:     { unassigned_shards:       0 }
+  - gte:       { number_of_pending_tasks: 0 }

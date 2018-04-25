@@ -1,0 +1,16 @@
+[[delete]]
+== Delete API
+
+The delete API is very similar to the
+// {javaclient}/java-docs-delete.html[]
+Java delete API, here is an
+example:
+
+[source,groovy]
+--------------------------------------------------
+def deleteF = node.client.delete {
+    index "test"
+    type "type1"
+    id "1"
+}
+--------------------------------------------------

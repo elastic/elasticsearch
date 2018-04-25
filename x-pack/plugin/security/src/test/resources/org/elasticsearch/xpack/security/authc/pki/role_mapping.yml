@@ -1,0 +1,4 @@
+# Role mappings for PKI tests
+
+user:
+  - "CN=Elasticsearch Test Node, OU=elasticsearch, O=org"

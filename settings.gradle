@@ -1,0 +1,130 @@
+import org.elasticsearch.gradle.Version
+
+String dirName = rootProject.projectDir.name
+rootProject.name = dirName
+
+List projects = [
+  'build-tools',
+  'rest-api-spec',
+  'docs',
+  'client:rest',
+  'client:rest-high-level',
+  'client:sniffer',
+  'client:transport',
+  'client:test',
+  'client:client-benchmark-noop-api-plugin',
+  'client:benchmark',
+  'benchmarks',
+  'distribution:archives:integ-test-zip',
+  'distribution:archives:oss-zip',
+  'distribution:archives:zip',
+  'distribution:archives:oss-tar',
+  'distribution:archives:tar',
+  'distribution:packages:oss-deb',
+  'distribution:packages:deb',
+  'distribution:packages:oss-rpm',
+  'distribution:packages:rpm',
+  'distribution:bwc:next-minor-snapshot',
+  'distribution:bwc:staged-minor-snapshot',
+  'distribution:bwc:next-bugfix-snapshot',
+  'distribution:bwc:maintenance-bugfix-snapshot',
+  'distribution:tools:launchers',
+  'distribution:tools:plugin-cli',
+  'server',
+  'server:cli',
+  'test:framework',
+  'test:fixtures:example-fixture',
+  'test:fixtures:hdfs-fixture',
+  'test:fixtures:krb5kdc-fixture',
+  'test:fixtures:old-elasticsearch',
+  'test:logger-usage'
+]
+
+/**
+  * Iterates over sub directories, looking for build.gradle, and adds a project if found
+  * for that dir with the given path prefix. Note that this requires each level
+  * of the dir hierarchy to have a build.gradle. Otherwise we would have to iterate
+  * all files/directories in the source tree to find all projects.
+  */
+void addSubProjects(String path, File dir) {
+  if (dir.isDirectory() == false) return;
+  if (dir.name == 'buildSrc') return;
+  if (new File(dir, 'build.gradle').exists() == false) return;
+  if (findProject(dir) != null) return;
+
+  final String projectName = "${path}:${dir.name}"
+  include projectName
+  if (path.isEmpty() || path.startsWith(':example-plugins')) {
+      project(projectName).projectDir = dir
+    }
+    for (File subdir : dir.listFiles()) {
+      addSubProjects(projectName, subdir)
+    }
+  }
+
+
+// include example plugins first, so adding plugin dirs below won't muck with :example-plugins
+File examplePluginsDir = new File(rootProject.projectDir, 'plugins/examples')
+for (File example : examplePluginsDir.listFiles()) {
+  if (example.isDirectory() == false) continue;
+  if (example.name.startsWith('build') || example.name.startsWith('.')) continue;
+  addSubProjects(':example-plugins', example)
+}
+project(':example-plugins').projectDir = new File(rootProject.projectDir, 'plugins/examples')
+
+addSubProjects('', new File(rootProject.projectDir, 'libs'))
+addSubProjects('', new File(rootProject.projectDir, 'modules'))
+addSubProjects('', new File(rootProject.projectDir, 'plugins'))
+addSubProjects('', new File(rootProject.projectDir, 'qa'))
+addSubProjects('', new File(rootProject.projectDir, 'x-pack'))
+
+boolean isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
+if (isEclipse) {
+  // eclipse cannot handle an intermediate dependency between main and test, so we must create separate projects
+  // for server-src and server-tests
+  projects << 'server-tests'
+  projects << 'libs:elasticsearch-core-tests'
+  projects << 'libs:elasticsearch-nio-tests'
+  projects << 'libs:x-content-tests'
+  projects << 'libs:secure-sm-tests'
+  projects << 'libs:grok-tests'
+}
+
+include projects.toArray(new String[0])
+
+project(':build-tools').projectDir = new File(rootProject.projectDir, 'buildSrc')
+
+if (isEclipse) {
+  project(":server").projectDir = new File(rootProject.projectDir, 'server/src/main')
+  project(":server").buildFileName = 'eclipse-build.gradle'
+  project(":server-tests").projectDir = new File(rootProject.projectDir, 'server/src/test')
+  project(":server-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:elasticsearch-core").projectDir = new File(rootProject.projectDir, 'libs/elasticsearch-core/src/main')
+  project(":libs:elasticsearch-core").buildFileName = 'eclipse-build.gradle'
+  project(":libs:elasticsearch-core-tests").projectDir = new File(rootProject.projectDir, 'libs/elasticsearch-core/src/test')
+  project(":libs:elasticsearch-core-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:elasticsearch-nio").projectDir = new File(rootProject.projectDir, 'libs/elasticsearch-nio/src/main')
+  project(":libs:elasticsearch-nio").buildFileName = 'eclipse-build.gradle'
+  project(":libs:elasticsearch-nio-tests").projectDir = new File(rootProject.projectDir, 'libs/elasticsearch-nio/src/test')
+  project(":libs:elasticsearch-nio-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:x-content").projectDir = new File(rootProject.projectDir, 'libs/x-content/src/main')
+  project(":libs:x-content").buildFileName = 'eclipse-build.gradle'
+  project(":libs:x-content-tests").projectDir = new File(rootProject.projectDir, 'libs/x-content/src/test')
+  project(":libs:x-content-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:secure-sm").projectDir = new File(rootProject.projectDir, 'libs/secure-sm/src/main')
+  project(":libs:secure-sm").buildFileName = 'eclipse-build.gradle'
+  project(":libs:secure-sm-tests").projectDir = new File(rootProject.projectDir, 'libs/secure-sm/src/test')
+  project(":libs:secure-sm-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:grok").projectDir = new File(rootProject.projectDir, 'libs/grok/src/main')
+  project(":libs:grok").buildFileName = 'eclipse-build.gradle'
+  project(":libs:grok-tests").projectDir = new File(rootProject.projectDir, 'libs/grok/src/test')
+  project(":libs:grok-tests").buildFileName = 'eclipse-build.gradle'
+}
+
+// look for extra plugins for elasticsearch
+File extraProjects = new File(rootProject.projectDir.parentFile, "${dirName}-extra")
+if (extraProjects.exists()) {
+  for (File extraProjectDir : extraProjects.listFiles()) {
+    addSubProjects('', extraProjectDir)
+  }
+}

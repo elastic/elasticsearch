@@ -1,0 +1,76 @@
+---
+"Source filtering":
+  - do:
+      index:
+        refresh: true
+        index: test_index
+        type: test_type
+        id: test_id_1
+        body: { "foo": "bar", "bar": "foo" }
+
+  - do:
+      index:
+        refresh: true
+        index: test_index
+        type: test_type
+        id: test_id_2
+        body: { "foo": "qux", "bar": "pux" }
+
+  - do:
+      index:
+        refresh: true
+        index: test_index
+        type: test_type
+        id: test_id_3
+        body: { "foo": "corge", "bar": "forge" }
+
+
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          { "update": { "_index": "test_index", "_type": "test_type", "_id": "test_id_1", "_source": true } }
+          { "doc": { "foo": "baz" } }
+          { "update": { "_index": "test_index", "_type": "test_type", "_id": "test_id_2" } }
+          { "_source": true, "doc": { "foo": "quux" } }
+
+  - match: { items.0.update.get._source.foo: baz }
+  - match: { items.1.update.get._source.foo: quux }
+
+  - do:
+      bulk:
+        index: test_index
+        type: test_type
+        _source: true
+        body: |
+          { "update": { "_id": "test_id_3" } }
+          { "doc": { "foo": "garply" } }
+
+  - match: { items.0.update.get._source.foo: garply }
+
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          { "update": { "_index": "test_index", "_type": "test_type", "_id": "test_id_1", "_source": {"includes": "bar"} } }
+          { "doc": { "foo": "baz" } }
+          { "update": { "_index": "test_index", "_type": "test_type", "_id": "test_id_2" } }
+          { "_source": {"includes": "foo"}, "doc": { "foo": "quux" } }
+
+  - match: { items.0.update.get._source.bar: foo }
+  - is_false: items.0.update.get._source.foo
+  - match: { items.1.update.get._source.foo: quux }
+  - is_false: items.1.update.get._source.bar
+
+  - do:
+      bulk:
+        index: test_index
+        type: test_type
+        _source_include: foo
+        body: |
+          { "update": { "_id": "test_id_3" } }
+          { "doc": { "foo": "garply" } }
+
+  - match: { items.0.update.get._source.foo: garply }
+  - is_false: items.0.update.get._source.bar
+

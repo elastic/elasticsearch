@@ -1,0 +1,11 @@
+[[java-query-dsl-span-multi-term-query]]
+==== Span Multi Term Query
+
+See {ref}/query-dsl-span-multi-term-query.html[Span Multi Term Query]
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{query-dsl-test}[span_multi]
+--------------------------------------------------
+<1> Can be any builder extending the `MultiTermQueryBuilder` class. For example: `FuzzyQueryBuilder`,
+`PrefixQueryBuilder`, `RangeQueryBuilder`, `RegexpQueryBuilder` or `WildcardQueryBuilder`.

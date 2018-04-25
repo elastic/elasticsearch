@@ -1,0 +1,131 @@
+[[index-modules-store]]
+== Store
+
+The store module allows you to control how index data is stored and accessed on disk.
+
+[float]
+[[file-system]]
+=== File system storage types
+
+There are different file system implementations or _storage types_. By default,
+Elasticsearch will pick the best implementation based on the operating
+environment.
+
+This can be overridden for all indices by adding this to the
+`config/elasticsearch.yml` file:
+
+[source,yaml]
+---------------------------------
+index.store.type: niofs
+---------------------------------
+
+It is a _static_ setting that can be set on a per-index basis at index
+creation time:
+
+[source,js]
+---------------------------------
+PUT /my_index
+{
+  "settings": {
+    "index.store.type": "niofs"
+  }
+}
+---------------------------------
+// CONSOLE
+
+WARNING: This is an expert-only setting and may be removed in the future.
+
+The following sections lists all the different storage types supported.
+
+`fs`::
+
+Default file system implementation. This will pick the best implementation
+depending on the operating environment, which is currently `mmapfs` on all
+supported systems but is subject to change.
+
+[[simplefs]]`simplefs`::
+
+The Simple FS type is a straightforward implementation of file system
+storage (maps to Lucene `SimpleFsDirectory`) using a random access file.
+This implementation has poor concurrent performance (multiple threads
+will bottleneck). It is usually better to use the `niofs` when you need
+index persistence.
+
+[[niofs]]`niofs`::
+
+The NIO FS type stores the shard index on the file system (maps to
+Lucene `NIOFSDirectory`) using NIO. It allows multiple threads to read
+from the same file concurrently. It is not recommended on Windows
+because of a bug in the SUN Java implementation.
+
+[[mmapfs]]`mmapfs`::
+
+The MMap FS type stores the shard index on the file system (maps to
+Lucene `MMapDirectory`) by mapping a file into memory (mmap). Memory
+mapping uses up a portion of the virtual memory address space in your
+process equal to the size of the file being mapped. Before using this
+class, be sure you have allowed plenty of
+<<vm-max-map-count,virtual address space>>.
+
+[[default_fs]]`default_fs` deprecated[5.0.0, The `default_fs` store type is deprecated - use `fs` instead]::
+
+The `default` type is deprecated and is aliased to `fs` for backward
+compatibility.
+
+=== Pre-loading data into the file system cache
+
+NOTE: This is an expert setting, the details of which may change in the future.
+
+By default, Elasticsearch completely relies on the operating system file system
+cache for caching I/O operations. It is possible to set `index.store.preload`
+in order to tell the operating system to load the content of hot index
+files into memory upon opening. This setting accept a comma-separated list of
+files extensions: all files whose extension is in the list will be pre-loaded
+upon opening. This can be useful to improve search performance of an index,
+especially when the host operating system is restarted, since this causes the
+file system cache to be trashed. However note that this may slow down the
+opening of indices, as they will only become available after data have been
+loaded into physical memory.
+
+This setting is best-effort only and may not work at all depending on the store
+type and host operating system.
+
+The `index.store.preload` is a static setting that can either be set in the
+`config/elasticsearch.yml`:
+
+[source,yaml]
+---------------------------------
+index.store.preload: ["nvd", "dvd"]
+---------------------------------
+
+or in the index settings at index creation time:
+
+[source,js]
+---------------------------------
+PUT /my_index
+{
+  "settings": {
+    "index.store.preload": ["nvd", "dvd"]
+  }
+}
+---------------------------------
+// CONSOLE
+
+The default value is the empty array, which means that nothing will be loaded
+into the file-system cache eagerly. For indices that are actively searched,
+you might want to set it to `["nvd", "dvd"]`, which will cause norms and doc
+values to be loaded eagerly into physical memory. These are the two first
+extensions to look at since Elasticsearch performs random access on them.
+
+A wildcard can be used in order to indicate that all files should be preloaded:
+`index.store.preload: ["*"]`. Note however that it is generally not useful to
+load all files into memory, in particular those for stored fields and term
+vectors, so a better option might be to set it to
+`["nvd", "dvd", "tim", "doc", "dim"]`, which will preload norms, doc values,
+terms dictionaries, postings lists and points, which are the most important
+parts of the index for search and aggregations.
+
+Note that this setting can be dangerous on indices that are larger than the size
+of the main memory of the host, as it would cause the filesystem cache to be
+trashed upon reopens after large merges, which would make indexing and searching
+_slower_.

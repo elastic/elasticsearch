@@ -1,0 +1,14 @@
+---
+"node_info test":
+  - do:
+      cluster.state: {}
+
+  # Get master node id
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+
+  - is_true: nodes
+  - is_true: cluster_name
+  - is_true: nodes.$master.roles

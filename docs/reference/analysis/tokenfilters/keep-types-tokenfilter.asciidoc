@@ -1,0 +1,74 @@
+[[analysis-keep-types-tokenfilter]]
+=== Keep Types Token Filter
+
+A token filter of type `keep_types` that only keeps tokens with a token type
+contained in a predefined set.
+
+
+[float]
+=== Options
+[horizontal]
+types:: a list of types to keep
+
+
+[float]
+=== Settings example
+
+You can set it up like:
+
+[source,js]
+--------------------------------------------------
+PUT /keep_types_example
+{
+    "settings" : {
+        "analysis" : {
+            "analyzer" : {
+                "my_analyzer" : {
+                    "tokenizer" : "standard",
+                    "filter" : ["standard", "lowercase", "extract_numbers"]
+                }
+            },
+            "filter" : {
+                "extract_numbers" : {
+                    "type" : "keep_types",
+                    "types" : [ "<NUM>" ]
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+And test it like:
+
+[source,js]
+--------------------------------------------------
+POST /keep_types_example/_analyze
+{
+  "analyzer" : "my_analyzer",
+  "text" : "this is just 1 a test"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+And it'd respond:
+
+[source,js]
+--------------------------------------------------
+{
+  "tokens": [
+    {
+      "token": "1",
+      "start_offset": 13,
+      "end_offset": 14,
+      "type": "<NUM>",
+      "position": 3
+    }
+  ]
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+Note how only the `<NUM>` token is in the output.

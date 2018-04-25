@@ -1,0 +1,77 @@
+[[search-aggregations-bucket-nested-aggregation]]
+=== Nested Aggregation
+
+A special single bucket aggregation that enables aggregating nested documents.
+
+For example, lets say we have an index of products, and each product holds the list of resellers - each having its own
+price for the product. The mapping could look like:
+
+[source,js]
+--------------------------------------------------
+PUT /index
+{
+  "mappings": {
+    "product" : {
+        "properties" : {
+            "resellers" : { <1>
+                "type" : "nested",
+                "properties" : {
+                    "name" : { "type" : "text" },
+                    "price" : { "type" : "double" }
+                }
+            }
+        }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TESTSETUP
+<1> The `resellers` is an array that holds nested documents under the `product` object.
+
+The following aggregations will return the minimum price products can be purchased in:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query" : {
+        "match" : { "name" : "led tv" }
+    },
+    "aggs" : {
+        "resellers" : {
+            "nested" : {
+                "path" : "resellers"
+            },
+            "aggs" : {
+                "min_price" : { "min" : { "field" : "resellers.price" } }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[s/GET \/_search/GET \/_search\?filter_path=aggregations/]
+// TEST[s/^/PUT index\/product\/0\?refresh\n{"name":"led", "resellers": [{"name": "foo", "price": 350.00}, {"name": "bar", "price": 500.00}]}\n/]
+
+As you can see above, the nested aggregation requires the `path` of the nested documents within the top level documents.
+Then one can define any type of aggregation over these nested documents.
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+  ...
+  "aggregations": {
+    "resellers": {
+      "doc_count": 0,
+      "min_price": {
+        "value": 350
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\.//]
+// TESTRESPONSE[s/: [0-9]+/: $body.$_path/]

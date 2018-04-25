@@ -1,0 +1,58 @@
+---
+setup:
+
+  - do:
+      snapshot.create_repository:
+        repository: test_repo_get_1
+        body:
+          type: fs
+          settings:
+            location: "test_repo_get_1_loc"
+
+  - do:
+      snapshot.create_repository:
+        repository: test_repo_get_2
+        body:
+          type: fs
+          settings:
+            location: "test_repo_get_1_loc"
+
+---
+"Get all repositories":
+  - do:
+      snapshot.get_repository: {}
+
+  - is_true: test_repo_get_1
+  - is_true: test_repo_get_2
+
+---
+"Get repository by name":
+  - do:
+      snapshot.get_repository:
+        repository: test_repo_get_1
+
+  - is_true: test_repo_get_1
+  - is_false: test_repo_get_2
+
+---
+"Get missing repository by name":
+  - do:
+      snapshot.get_repository:
+        repository: test_repo_get_2
+
+---
+"Get all repositories with local flag":
+  - do:
+      snapshot.get_repository:
+        local: true
+
+  - is_true: test_repo_get_1
+  - is_true: test_repo_get_2
+
+---
+"Verify created repository":
+  - do:
+      snapshot.verify_repository:
+        repository: test_repo_get_2
+
+  - is_true: nodes

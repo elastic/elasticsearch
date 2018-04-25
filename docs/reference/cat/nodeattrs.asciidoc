@@ -1,0 +1,70 @@
+[[cat-nodeattrs]]
+== cat nodeattrs
+
+The `nodeattrs` command shows custom node attributes.
+For example:
+
+[source,js]
+--------------------------------------------------
+GET /_cat/nodeattrs?v
+--------------------------------------------------
+// CONSOLE
+
+Could look like:
+
+[source,txt]
+--------------------------------------------------
+node    host      ip        attr     value
+EK_AsJb 127.0.0.1 127.0.0.1 testattr test
+--------------------------------------------------
+// TESTRESPONSE[s/EK_AsJb/.+/ _cat]
+
+The first few columns (`node`, `host`, `ip`) give you basic info per node
+and the `attr` and `value` columns give you the custom node attributes,
+one per line.
+
+[float]
+=== Columns
+
+Below is an exhaustive list of the existing headers that can be
+passed to `nodeattrs?h=` to retrieve the relevant details in ordered
+columns.  If no headers are specified, then those marked to Appear
+by Default will appear. If any header is specified, then the defaults
+are not used.
+
+Aliases can be used in place of the full header name for brevity.
+Columns appear in the order that they are listed below unless a
+different order is specified (e.g., `h=attr,value` versus `h=value,attr`).
+
+When specifying headers, the headers are not placed in the output
+by default.  To have the headers appear in the output, use verbose
+mode (`v`). The header name will match the supplied value (e.g.,
+`pid` versus `p`).  For example:
+
+[source,js]
+--------------------------------------------------
+GET /_cat/nodeattrs?v&h=name,pid,attr,value
+--------------------------------------------------
+// CONSOLE
+
+Might look like:
+
+[source,txt]
+--------------------------------------------------
+name    pid   attr     value
+EK_AsJb 19566 testattr test
+--------------------------------------------------
+// TESTRESPONSE[s/EK_AsJb/.+/ s/19566/\\d*/ _cat]
+
+[cols="<,<,<,<,<",options="header",subs="normal"]
+|=======================================================================
+|Header |Alias |Appear by Default |Description |Example
+|`node`|`name`|Yes|Name of the node|DKDM97B
+|`id` |`nodeId` |No |Unique node ID |k0zy
+|`pid` |`p` |No |Process ID |13061
+|`host` |`h` |Yes |Host name |n1
+|`ip` |`i` |Yes |IP address |127.0.1.1
+|`port` |`po` |No |Bound transport port |9300
+|`attr` | `attr.name` | Yes | Attribute name | rack
+|`value` | `attr.value` | Yes | Attribute value | rack123
+|=======================================================================

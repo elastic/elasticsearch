@@ -1,0 +1,59 @@
+[[cat-alias]]
+== cat aliases
+
+`aliases` shows information about currently configured aliases to indices
+including filter and routing infos.
+
+////
+Hidden setup for example:
+[source,js]
+--------------------------------------------------
+PUT test1
+{
+  "aliases": {
+    "alias1": {},
+    "alias2": {
+      "filter": {
+        "match": {
+          "user": "kimchy"
+        }
+      }
+    },
+    "alias3": {
+      "routing": "1"
+    },
+    "alias4": {
+      "index_routing": "2",
+      "search_routing": "1,2"
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+////
+
+[source,js]
+--------------------------------------------------
+GET /_cat/aliases?v
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Might respond with:
+
+[source,txt]
+--------------------------------------------------
+alias  index filter routing.index routing.search
+alias1 test1 -      -            -
+alias2 test1 *      -            -
+alias3 test1 -      1            1
+alias4 test1 -      2            1,2
+--------------------------------------------------
+// TESTRESPONSE[s/[*]/[*]/ _cat]
+
+The output shows that `alias2` has configured a filter, and specific routing
+configurations in `alias3` and `alias4`.
+
+If you only want to get information about specific aliases, you can specify 
+the aliases in comma-delimited format as a URL parameter, e.g., 
+/_cat/aliases/aliases/alias1,alias2.

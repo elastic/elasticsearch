@@ -1,0 +1,83 @@
+[[java-term-level-queries]]
+=== Term level queries
+
+While the <<java-full-text-queries,full text queries>> will analyze the query
+string before executing, the _term-level queries_ operate on the exact terms
+that are stored in the inverted index.
+
+These queries are usually used for structured data like numbers, dates, and
+enums, rather than full text fields.  Alternatively, they allow you to craft
+low-level queries, foregoing the analysis process.
+
+The queries in this group are:
+
+<<java-query-dsl-term-query,`term` query>>::
+
+    Find documents which contain the exact term specified in the field
+    specified.
+
+<<java-query-dsl-terms-query,`terms` query>>::
+
+    Find documents which contain any of the exact terms specified in the field
+    specified.
+
+<<java-query-dsl-range-query,`range` query>>::
+
+    Find documents where the field specified contains values (dates, numbers,
+    or strings) in the range specified.
+
+<<java-query-dsl-exists-query,`exists` query>>::
+
+    Find documents where the field specified contains any non-null value.
+
+<<java-query-dsl-prefix-query,`prefix` query>>::
+
+    Find documents where the field specified contains terms which being with
+    the exact prefix specified.
+
+<<java-query-dsl-wildcard-query,`wildcard` query>>::
+
+    Find documents where the field specified contains terms which match the
+    pattern specified, where the pattern supports single character wildcards
+    (`?`) and multi-character wildcards (`*`)
+
+<<java-query-dsl-regexp-query,`regexp` query>>::
+
+    Find documents where the field specified contains terms which match the
+    regular expression specified.
+
+<<java-query-dsl-fuzzy-query,`fuzzy` query>>::
+
+    Find documents where the field specified contains terms which are fuzzily
+    similar to the specified term.  Fuzziness is measured as a
+    http://en.wikipedia.org/wiki/Damerau%E2%80%93Levenshtein_distance[Levenshtein edit distance]
+    of 1 or 2.
+
+<<java-query-dsl-type-query,`type` query>>::
+
+    Find documents of the specified type.
+
+<<java-query-dsl-ids-query,`ids` query>>::
+
+    Find documents with the specified type and IDs.
+
+
+include::term-query.asciidoc[]
+
+include::terms-query.asciidoc[]
+
+include::range-query.asciidoc[]
+
+include::exists-query.asciidoc[]
+
+include::prefix-query.asciidoc[]
+
+include::wildcard-query.asciidoc[]
+
+include::regexp-query.asciidoc[]
+
+include::fuzzy-query.asciidoc[]
+
+include::type-query.asciidoc[]
+
+include::ids-query.asciidoc[]

@@ -1,0 +1,40 @@
+[horizontal]
+`JAVA_HOME`::
+
+  Set a custom Java path to be used.
+
+`MAX_OPEN_FILES`::
+
+    Maximum number of open files, defaults to `65536`.
+
+`MAX_LOCKED_MEMORY`::
+
+    Maximum locked memory size. Set to `unlimited` if you use the
+    `bootstrap.memory_lock` option in elasticsearch.yml.
+
+`MAX_MAP_COUNT`::
+
+    Maximum number of memory map areas a process may have. If you use `mmapfs`
+    as index store type, make sure this is set to a high value. For more
+    information, check the
+    https://github.com/torvalds/linux/blob/master/Documentation/sysctl/vm.txt[linux kernel documentation]
+    about `max_map_count`. This is set via `sysctl` before starting
+    Elasticsearch. Defaults to `262144`.
+
+`ES_PATH_CONF`::
+
+    Configuration file directory (which needs to include `elasticsearch.yml`,
+    `jvm.options`, and `log4j2.properties` files); defaults to
+    `/etc/elasticsearch`.
+
+`ES_JAVA_OPTS`::
+
+    Any additional JVM system properties you may want to apply.
+
+`RESTART_ON_UPGRADE`::
+
+    Configure restart on package upgrade, defaults to `false`. This means you
+    will have to restart your Elasticsearch instance after installing a
+    package manually. The reason for this is to ensure, that upgrades in a
+    cluster do not result in a continuous shard reallocation resulting in high
+    network traffic and reducing the response times of your cluster.

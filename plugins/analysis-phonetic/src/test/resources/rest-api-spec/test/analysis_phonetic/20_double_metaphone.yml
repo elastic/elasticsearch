@@ -1,0 +1,31 @@
+# Integration tests for Phonetic analysis components
+#
+
+
+"Double Metaphone":
+    - do:
+        indices.create:
+            index:  phonetic_sample
+            body:
+                settings:
+                    index:
+                        analysis:
+                            analyzer:
+                                my_analyzer:
+                                    tokenizer:  standard
+                                    filter: ["standard", "lowercase", "my_metaphone"]
+                            filter:
+                                my_metaphone:
+                                    type: phonetic
+                                    encoder: double_metaphone
+                                    max_code_len: 6
+    - do:
+        indices.analyze:
+            index: phonetic_sample
+            body:
+                analyzer: my_analyzer
+                text: supercalifragilisticexpialidocious
+
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: SPRKLF }
+

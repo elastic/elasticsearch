@@ -1,0 +1,107 @@
+import org.elasticsearch.gradle.test.AntFixture
+
+import java.security.KeyPair
+import java.security.KeyPairGenerator
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+esplugin {
+  description 'The GCS repository plugin adds Google Cloud Storage support for repositories.'
+  classname 'org.elasticsearch.repositories.gcs.GoogleCloudStoragePlugin'
+}
+
+versions << [
+        'google': '1.23.0',
+]
+
+dependencies {
+  compile "com.google.apis:google-api-services-storage:v1-rev115-${versions.google}"
+  compile "com.google.api-client:google-api-client:${versions.google}"
+  compile "com.google.oauth-client:google-oauth-client:${versions.google}"
+  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  compile "commons-logging:commons-logging:${versions.commonslogging}"
+  compile "commons-codec:commons-codec:${versions.commonscodec}"
+  compile "com.google.http-client:google-http-client:${versions.google}"
+  compile "com.google.http-client:google-http-client-jackson2:${versions.google}"
+}
+
+dependencyLicenses {
+  mapping from: /google-.*/, to: 'google'
+}
+
+thirdPartyAudit.excludes = [
+        // classes are missing
+        'com.google.common.base.Splitter',
+        'com.google.common.collect.Lists',
+        'javax.servlet.ServletContextEvent',
+        'javax.servlet.ServletContextListener',
+        'org.apache.avalon.framework.logger.Logger',
+        'org.apache.log.Hierarchy',
+        'org.apache.log.Logger',
+]
+
+forbiddenApisTest {
+  // we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
+  bundledSignatures -= 'jdk-non-portable'
+  bundledSignatures += 'jdk-internal'
+}
+
+/** A task to start the GoogleCloudStorageFixture which emulates a Google Cloud Storage service **/
+task googleCloudStorageFixture(type: AntFixture) {
+    dependsOn compileTestJava
+    env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
+    executable = new File(project.runtimeJavaHome, 'bin/java')
+    args 'org.elasticsearch.repositories.gcs.GoogleCloudStorageFixture', baseDir, 'bucket_test'
+}
+
+/** A service account file that points to the Google Cloud Storage service emulated by the fixture **/
+File serviceAccountFile = new File(project.buildDir, "generated-resources/service_account_test.json")
+task createServiceAccountFile() {
+  dependsOn googleCloudStorageFixture
+  doLast {
+    KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA")
+    keyPairGenerator.initialize(1024)
+    KeyPair keyPair = keyPairGenerator.generateKeyPair()
+    String encodedKey = Base64.getEncoder().encodeToString(keyPair.private.getEncoded())
+
+    serviceAccountFile.parentFile.mkdirs()
+    serviceAccountFile.setText("{\n" +
+            '  "type": "service_account",\n' +
+            '  "project_id": "integration_test",\n' +
+            '  "private_key_id": "' + UUID.randomUUID().toString() + '",\n' +
+            '  "private_key": "-----BEGIN PRIVATE KEY-----\\n' + encodedKey + '\\n-----END PRIVATE KEY-----\\n",\n' +
+            '  "client_email": "integration_test@appspot.gserviceaccount.com",\n' +
+            '  "client_id": "123456789101112130594",\n' +
+            "  \"auth_uri\": \"http://${googleCloudStorageFixture.addressAndPort}/o/oauth2/auth\",\n" +
+            "  \"token_uri\": \"http://${googleCloudStorageFixture.addressAndPort}/o/oauth2/token\",\n" +
+            '  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",\n' +
+            '  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/integration_test%40appspot.gserviceaccount.com"\n' +
+            '}', 'UTF-8')
+  }
+}
+
+integTestCluster {
+  dependsOn createServiceAccountFile, googleCloudStorageFixture
+  keystoreFile 'gcs.client.integration_test.credentials_file', "${serviceAccountFile.absolutePath}"
+
+  /* Use a closure on the string to delay evaluation until tests are executed */
+  setting 'gcs.client.integration_test.endpoint', "http://${ -> googleCloudStorageFixture.addressAndPort }"
+}

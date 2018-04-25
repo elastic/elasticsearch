@@ -1,0 +1,32 @@
+---
+setup:
+  - do:
+      indices.create:
+        body:
+          settings:
+            index:
+              refresh_interval: 10s
+        index: test-index
+---
+Test reset index settings:
+  - do:
+      indices.get_settings:
+        flat_settings: true
+        index: test-index
+  - match:
+      test-index.settings.index\.refresh_interval: "10s"
+  - do:
+      indices.put_settings:
+        body:
+          refresh_interval: null
+  - do:
+      indices.get_settings:
+        flat_settings: false
+  - is_false: test-index.settings.index\.refresh_interval
+  - do:
+      indices.get_settings:
+        include_defaults: true
+        flat_settings: true
+        index: test-index
+  - match:
+      test-index.defaults.index\.refresh_interval: "1s"

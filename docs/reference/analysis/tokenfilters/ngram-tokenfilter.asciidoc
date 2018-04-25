@@ -1,0 +1,18 @@
+[[analysis-ngram-tokenfilter]]
+=== NGram Token Filter
+
+A token filter of type `nGram`.
+
+The following are settings that can be set for a `nGram` token filter
+type:
+
+[cols="<,<",options="header",]
+|============================
+|Setting |Description
+|`min_gram` |Defaults to `1`.
+|`max_gram` |Defaults to `2`.
+|============================
+
+The index level setting `index.max_ngram_diff` controls the maximum allowed
+difference between `max_gram` and `min_gram`.
+

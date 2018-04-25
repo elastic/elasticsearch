@@ -1,0 +1,78 @@
+[[query-filter-context]]
+== Query and filter context
+
+The behaviour of a query clause depends on whether it is used in _query context_ or
+in _filter context_:
+
+Query context::
++
+--
+A query clause used in query context answers the question ``__How well does this
+document match this query clause?__'' Besides deciding whether or not the
+document matches, the query clause also calculates a `_score` representing how
+well the document matches, relative to other documents.
+
+Query context is in effect whenever a query clause is passed to a `query` parameter,
+such as the `query` parameter in the <<search-request-query,`search`>> API.
+--
+
+Filter context::
++
+--
+In _filter_ context, a query clause answers the question ``__Does this document
+match this query clause?__''  The answer is a simple Yes or No -- no scores are
+calculated.  Filter context is mostly used for filtering structured data, e.g.
+
+*  __Does this +timestamp+ fall into the range 2015 to 2016?__
+*  __Is the +status+  field set to ++"published"++__?
+
+Frequently used filters will be cached automatically by Elasticsearch, to
+speed up performance.
+
+Filter context is in effect whenever a query clause is passed to a `filter`
+parameter, such as the `filter` or `must_not` parameters in the
+<<query-dsl-bool-query,`bool`>> query, the `filter` parameter in the
+<<query-dsl-constant-score-query,`constant_score`>> query, or the
+<<search-aggregations-bucket-filter-aggregation,`filter`>> aggregation.
+--
+
+Below is an example of query clauses being used in query and filter context
+in the `search` API.  This query will match documents where all of the following
+conditions are met:
+
+* The `title` field contains the word `search`.
+* The `content` field contains the word `elasticsearch`.
+* The `status` field contains the exact word `published`.
+* The `publish_date` field contains a date from 1 Jan 2015 onwards.
+
+[source,js]
+------------------------------------
+GET /_search
+{
+  "query": { <1>
+    "bool": { <2>
+      "must": [
+        { "match": { "title":   "Search"        }}, <2>
+        { "match": { "content": "Elasticsearch" }}  <2>
+      ],
+      "filter": [ <3>
+        { "term":  { "status": "published" }}, <4>
+        { "range": { "publish_date": { "gte": "2015-01-01" }}} <4>
+      ]
+    }
+  }
+}
+------------------------------------
+// CONSOLE
+<1> The `query` parameter indicates query context.
+<2> The `bool` and two `match` clauses are used in query context,
+    which means that they are used to score how well each document
+    matches.
+<3> The `filter` parameter indicates filter context.
+<4> The `term` and `range` clauses are used in filter context.
+    They will filter out documents which do not match, but they will
+    not affect the score for matching documents.
+
+TIP: Use query clauses in query context for conditions which should affect the
+score of matching documents (i.e. how well does the document match), and use
+all other query clauses in filter context.

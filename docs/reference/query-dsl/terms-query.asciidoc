@@ -1,0 +1,125 @@
+[[query-dsl-terms-query]]
+=== Terms Query
+
+Filters documents that have fields that match any of the provided terms
+(*not analyzed*). For example:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "terms" : { "user" : ["kimchy", "elasticsearch"]}
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+NOTE: Highlighting `terms` queries is best-effort only, so terms of a `terms`
+query might not be highlighted depending on the highlighter implementation that
+is selected and on the number of terms in the `terms` query.
+
+[float]
+[[query-dsl-terms-lookup]]
+===== Terms lookup mechanism
+
+When it's needed to specify a `terms` filter with a lot of terms it can
+be beneficial to fetch those term values from a document in an index. A
+concrete example would be to filter tweets tweeted by your followers.
+Potentially the amount of user ids specified in the terms filter can be
+a lot. In this scenario it makes sense to use the terms filter's terms
+lookup mechanism.
+
+The terms lookup mechanism supports the following options:
+
+[horizontal]
+`index`::
+    The index to fetch the term values from.
+
+`type`::
+    The type to fetch the term values from.
+
+`id`::
+    The id of the document to fetch the term values from.
+
+`path`::
+    The field specified as path to fetch the actual values for the
+    `terms` filter.
+
+`routing`::
+    A custom routing value to be used when retrieving the
+    external terms doc.
+
+The values for the `terms` filter will be fetched from a field in a
+document with the specified id in the specified type and index.
+Internally a get request is executed to fetch the values from the
+specified path. At the moment for this feature to work the `_source`
+needs to be stored.
+
+Also, consider using an index with a single shard and fully replicated
+across all nodes if the "reference" terms data is not large. The lookup
+terms filter will prefer to execute the get request on a local node if
+possible, reducing the need for networking.
+
+[WARNING]
+Executing a Terms Query request with a lot of terms can be quite slow,
+as each additional term demands extra processing and memory.
+To safeguard against this, the maximum number of terms that can be used
+in a Terms Query both directly or through lookup has been limited to `65536`.
+This default maximum can be changed for a particular index with the index setting
+ `index.max_terms_count`.
+
+[float]
+===== Terms lookup twitter example
+At first we index the information for user with id 2, specifically, its
+followers, then index a tweet from user with id 1. Finally we search on
+all the tweets that match the followers of user 2.
+
+[source,js]
+--------------------------------------------------
+PUT /users/_doc/2
+{
+    "followers" : ["1", "3"]
+}
+
+PUT /tweets/_doc/1
+{
+    "user" : "1"
+}
+
+GET /tweets/_search
+{
+    "query" : {
+        "terms" : {
+            "user" : {
+                "index" : "users",
+                "type" : "_doc",
+                "id" : "2",
+                "path" : "followers"
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+The structure of the external terms document can also include an array of
+inner objects, for example:
+
+[source,js]
+--------------------------------------------------
+PUT /users/_doc/2
+{
+ "followers" : [
+   {
+     "id" : "1"
+   },
+   {
+     "id" : "2"
+   }
+ ]
+}
+--------------------------------------------------
+// CONSOLE
+
+In which case, the lookup path will be `followers.id`.

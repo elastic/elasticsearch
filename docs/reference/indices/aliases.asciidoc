@@ -1,0 +1,499 @@
+[[indices-aliases]]
+== Index Aliases
+
+APIs in Elasticsearch accept an index name when working against a
+specific index, and several indices when applicable. The index aliases
+API allows aliasing an index with a name, with all APIs automatically
+converting the alias name to the actual index name. An alias can also be
+mapped to more than one index, and when specifying it, the alias will
+automatically expand to the aliased indices. An alias can also be
+associated with a filter that will automatically be applied when
+searching, and routing values. An alias cannot have the same name as an index.
+
+Here is a sample of associating the alias `alias1` with index `test1`:
+
+[source,js]
+--------------------------------------------------
+POST /_aliases
+{
+    "actions" : [
+        { "add" : { "index" : "test1", "alias" : "alias1" } }
+    ]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT test1\nPUT test2\n/]
+
+And here is removing that same alias:
+
+[source,js]
+--------------------------------------------------
+POST /_aliases
+{
+    "actions" : [
+        { "remove" : { "index" : "test1", "alias" : "alias1" } }
+    ]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Renaming an alias is a simple `remove` then `add` operation within the
+same API. This operation is atomic, no need to worry about a short
+period of time where the alias does not point to an index:
+
+[source,js]
+--------------------------------------------------
+POST /_aliases
+{
+    "actions" : [
+        { "remove" : { "index" : "test1", "alias" : "alias1" } },
+        { "add" : { "index" : "test2", "alias" : "alias1" } }
+    ]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Associating an alias with more than one index is simply several `add`
+actions:
+
+[source,js]
+--------------------------------------------------
+POST /_aliases
+{
+    "actions" : [
+        { "add" : { "index" : "test1", "alias" : "alias1" } },
+        { "add" : { "index" : "test2", "alias" : "alias1" } }
+    ]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT test1\nPUT test2\n/]
+
+Multiple indices can be specified for an action with the `indices` array syntax:
+
+[source,js]
+--------------------------------------------------
+POST /_aliases
+{
+    "actions" : [
+        { "add" : { "indices" : ["test1", "test2"], "alias" : "alias1" } }
+    ]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT test1\nPUT test2\n/]
+
+To specify multiple aliases in one action, the corresponding `aliases` array
+syntax exists as well.
+
+For the example above, a glob pattern can also be used to associate an alias to
+more than one index that share a common name:
+
+[source,js]
+--------------------------------------------------
+POST /_aliases
+{
+    "actions" : [
+        { "add" : { "index" : "test*", "alias" : "all_test_indices" } }
+    ]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT test1\nPUT test2\n/]
+
+In this case, the alias is a point-in-time alias that will group all
+current indices that match, it will not automatically update as new
+indices that match this pattern are added/removed.
+
+It is an error to index to an alias which points to more than one index.
+
+It is also possible to swap an index with an alias in one operation:
+
+[source,js]
+--------------------------------------------------
+PUT test     <1>
+PUT test_2   <2>
+POST /_aliases
+{
+    "actions" : [
+        { "add":  { "index": "test_2", "alias": "test" } },
+        { "remove_index": { "index": "test" } }  <3>
+    ]
+}
+--------------------------------------------------
+// CONSOLE
+<1> An index we've added by mistake
+<2> The index we should have added
+<3> `remove_index` is just like <<indices-delete-index>>
+
+[float]
+[[filtered]]
+=== Filtered Aliases
+
+Aliases with filters provide an easy way to create different "views" of
+the same index. The filter can be defined using Query DSL and is applied
+to all Search, Count, Delete By Query and More Like This operations with
+this alias.
+
+To create a filtered alias, first we need to ensure that the fields already
+exist in the mapping:
+
+[source,js]
+--------------------------------------------------
+PUT /test1
+{
+  "mappings": {
+    "type1": {
+      "properties": {
+        "user" : {
+          "type": "keyword"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+Now we can create an alias that uses a filter on field `user`:
+
+[source,js]
+--------------------------------------------------
+POST /_aliases
+{
+    "actions" : [
+        {
+            "add" : {
+                 "index" : "test1",
+                 "alias" : "alias2",
+                 "filter" : { "term" : { "user" : "kimchy" } }
+            }
+        }
+    ]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+[float]
+[[aliases-routing]]
+==== Routing
+
+It is possible to associate routing values with aliases. This feature
+can be used together with filtering aliases in order to avoid
+unnecessary shard operations.
+
+The following command creates a new alias `alias1` that points to index
+`test`. After `alias1` is created, all operations with this alias are
+automatically modified to use value `1` for routing:
+
+[source,js]
+--------------------------------------------------
+POST /_aliases
+{
+    "actions" : [
+        {
+            "add" : {
+                 "index" : "test",
+                 "alias" : "alias1",
+                 "routing" : "1"
+            }
+        }
+    ]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT test\n/]
+
+It's also possible to specify different routing values for searching
+and indexing operations:
+
+[source,js]
+--------------------------------------------------
+POST /_aliases
+{
+    "actions" : [
+        {
+            "add" : {
+                 "index" : "test",
+                 "alias" : "alias2",
+                 "search_routing" : "1,2",
+                 "index_routing" : "2"
+            }
+        }
+    ]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT test\n/]
+
+As shown in the example above, search routing may contain several values
+separated by comma. Index routing can contain only a single value.
+
+If a search operation that uses routing alias also has a routing parameter, an
+intersection of both search alias routing and routing specified in the
+parameter is used. For example the following command will use "2" as a
+routing value:
+
+[source,js]
+--------------------------------------------------
+GET /alias2/_search?q=user:kimchy&routing=2,3
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+
+[float]
+[[alias-adding]]
+=== Add a single alias
+
+An alias can also be added with the endpoint
+
+`PUT /{index}/_alias/{name}`
+
+
+where
+
+[horizontal]
+`index`::   The index the alias refers to. Can be any of `* | _all | glob pattern | name1, name2, …`
+`name`::   The name of the alias. This is a required option.
+`routing`:: An optional routing that can be associated with an alias.
+`filter`::  An optional filter that can be associated with an alias.
+
+You can also use the plural `_aliases`.
+
+[float]
+==== Examples:
+
+Adding time based alias::
++
+--
+[source,js]
+--------------------------------------------------
+PUT /logs_201305/_alias/2013
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT logs_201305\n/]
+--
+
+Adding a user alias::
++
+--
+First create the index and add a mapping for the `user_id` field:
+
+[source,js]
+--------------------------------------------------
+PUT /users
+{
+    "mappings" : {
+        "user" : {
+            "properties" : {
+                "user_id" : {"type" : "integer"}
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+Then add the alias for a specific user:
+
+[source,js]
+--------------------------------------------------
+PUT /users/_alias/user_12
+{
+    "routing" : "12",
+    "filter" : {
+        "term" : {
+            "user_id" : 12
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+--
+
+[float]
+[[alias-index-creation]]
+=== Aliases during index creation
+
+Aliases can also be specified during <<create-index-aliases,index creation>>:
+
+[source,js]
+--------------------------------------------------
+PUT /logs_20162801
+{
+    "mappings" : {
+        "type" : {
+            "properties" : {
+                "year" : {"type" : "integer"}
+            }
+        }
+    },
+    "aliases" : {
+        "current_day" : {},
+        "2016" : {
+            "filter" : {
+                "term" : {"year" : 2016 }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+[float]
+[[deleting]]
+=== Delete aliases
+
+
+The rest endpoint is: `/{index}/_alias/{name}`
+
+where
+
+[horizontal]
+`index`::  `* | _all | glob pattern | name1, name2, …`
+`name`::  `* | _all | glob pattern | name1, name2, …`
+
+Alternatively you can use the plural `_aliases`. Example:
+
+[source,js]
+--------------------------------------------------
+DELETE /logs_20162801/_alias/current_day
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+[float]
+[[alias-retrieving]]
+=== Retrieving existing aliases
+
+The get index alias API allows to filter by
+alias name and index name. This api redirects to the master and fetches
+the requested index aliases, if available. This api only serialises the
+found index aliases.
+
+Possible options:
+[horizontal]
+`index`::
+    The index name to get aliases for. Partial names are
+    supported via wildcards, also multiple index names can be specified
+    separated with a comma. Also the alias name for an index can be used.
+
+`alias`::
+    The name of alias to return in the response. Like the index
+    option, this option supports wildcards and the option the specify
+    multiple alias names separated by a comma.
+
+`ignore_unavailable`::
+    What to do if an specified index name doesn't
+    exist. If set to `true` then those indices are ignored.
+
+The rest endpoint is: `/{index}/_alias/{alias}`.
+
+[float]
+==== Examples:
+
+All aliases for the index users:
+
+[source,js]
+--------------------------------------------------
+GET /logs_20162801/_alias/*
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+ "logs_20162801" : {
+   "aliases" : {
+     "2016" : {
+       "filter" : {
+         "term" : {
+           "year" : 2016
+         }
+       }
+     }
+   }
+ }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+All aliases with the name 2016 in any index:
+
+[source,js]
+--------------------------------------------------
+GET /_alias/2016
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+  "logs_20162801" : {
+    "aliases" : {
+      "2016" : {
+        "filter" : {
+          "term" : {
+            "year" : 2016
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+All aliases that start with 20 in any index:
+
+[source,js]
+--------------------------------------------------
+GET /_alias/20*
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+  "logs_20162801" : {
+    "aliases" : {
+      "2016" : {
+        "filter" : {
+          "term" : {
+            "year" : 2016
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+There is also a HEAD variant of the get indices aliases api to check if
+index aliases exist. The indices aliases exists api supports the same
+option as the get indices aliases api. Examples:
+
+[source,js]
+--------------------------------------------------
+HEAD /_alias/2016
+HEAD /_alias/20*
+HEAD /logs_20162801/_alias/*
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]

@@ -1,0 +1,26 @@
+---
+"Source filtering":
+
+  - do:
+      index:
+        index:  test_1
+        type:   test
+        id:     1
+        body:   { "include": { "field1": "v1", "field2": "v2" }, "count": 1 }
+
+  - do:
+      get_source: { index:  test_1, type: test, id: 1, _source_include: include.field1 }
+  - match:  { include.field1: v1 }
+  - is_false: include.field2
+
+  - do:
+      get_source: { index:  test_1, type: test, id: 1, _source_include: "include.field1,include.field2" }
+  - match:  { include.field1: v1 }
+  - match:  { include.field2: v2 }
+  - is_false: count
+
+  - do:
+      get_source: { index:  test_1, type: test, id: 1, _source_include: include, _source_exclude: "*.field2" }
+  - match:  { include.field1: v1 }
+  - is_false: include.field2
+  - is_false: count

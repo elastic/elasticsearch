@@ -1,0 +1,13 @@
+# Integration tests for smoke testing plugins
+#
+"Correct Plugin Count":
+    - do:
+        cluster.state: {}
+
+    # Get master node id
+    - set: { master_node: master }
+
+    - do:
+        nodes.info: {}
+
+    - length:  { nodes.$master.plugins: ${expected.plugins.count}  }

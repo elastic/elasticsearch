@@ -1,0 +1,9 @@
+{
+    "common" : {
+        "dogs" : {
+            "query" : "buck mia tom",
+            "cutoff_frequency" : 1,
+            "minimum_should_match" : 2
+        }
+    }
+}

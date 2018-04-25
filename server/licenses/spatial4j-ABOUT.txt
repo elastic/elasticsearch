@@ -1,0 +1,15 @@
+About This Content
+
+May 22, 2015
+
+License
+
+The Eclipse Foundation makes available all content in this plug-in ("Content"). Unless otherwise indicated below, the
+Content is provided to you under the terms and conditions of the Apache License, Version 2.0.  A copy of the Apache
+License, Version 2.0 is available at http://www.apache.org/licenses/LICENSE-2.0.txt
+
+If you did not receive this Content directly from the Eclipse Foundation, the Content is being redistributed by another
+party ("Redistributor") and different terms and conditions may apply to your use of any object code in the Content.
+Check the Redistributor’s license that was provided with the Content. If no such license exists, contact the
+Redistributor. Unless otherwise indicated below, the terms and conditions of the Apache License, Version 2.0 still apply
+to any source code in the Content and such source code may be obtained at http://www.eclipse.org](http://www.eclipse.org.

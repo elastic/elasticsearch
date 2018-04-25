@@ -1,0 +1,12 @@
+[[java-query-dsl-geo-bounding-box-query]]
+==== Geo Bounding Box Query
+
+See {ref}/query-dsl-geo-bounding-box-query.html[Geo Bounding Box Query]
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{query-dsl-test}[geo_bounding_box]
+--------------------------------------------------
+<1> field
+<2> bounding box top left point
+<3> bounding box bottom right point

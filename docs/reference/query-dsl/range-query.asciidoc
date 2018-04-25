@@ -1,0 +1,135 @@
+[[query-dsl-range-query]]
+=== Range Query
+
+Matches documents with fields that have terms within a certain range.
+The type of the Lucene query depends on the field type, for `string`
+fields, the `TermRangeQuery`, while for number/date fields, the query is
+a `NumericRangeQuery`. The following example returns all documents where
+`age` is between `10` and `20`:
+
+[source,js]
+--------------------------------------------------
+GET _search
+{
+    "query": {
+        "range" : {
+            "age" : {
+                "gte" : 10,
+                "lte" : 20,
+                "boost" : 2.0
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE 
+
+The `range` query accepts the following parameters:
+
+[horizontal]
+`gte`:: 	Greater-than or equal to
+`gt`::  	Greater-than
+`lte`:: 	Less-than or equal to
+`lt`::  	Less-than
+`boost`:: 	Sets the boost value of the query, defaults to `1.0`
+
+
+[[ranges-on-dates]]
+==== Ranges on date fields
+
+When running `range` queries on fields of type <<date,`date`>>, ranges can be
+specified using <<date-math>>:
+
+[source,js]
+--------------------------------------------------
+GET _search
+{
+    "query": {
+        "range" : {
+            "date" : {
+                "gte" : "now-1d/d",
+                "lt" :  "now/d"
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+===== Date math and rounding
+
+When using <<date-math,date math>> to round dates to the nearest day, month,
+hour, etc, the rounded dates depend on whether the ends of the ranges are
+inclusive or exclusive.
+
+Rounding up moves to the last millisecond of the rounding scope, and rounding
+down to the first millisecond of the rounding scope. For example:
+
+[horizontal]
+`gt`::
+
+    Greater than the date rounded up: `2014-11-18||/M` becomes
+    `2014-11-30T23:59:59.999`, ie excluding the entire month.
+
+`gte`::
+
+    Greater than or equal to the date rounded down: `2014-11-18||/M` becomes
+    `2014-11-01`, ie including the entire month.
+
+`lt`::
+
+    Less than the date rounded down: `2014-11-18||/M` becomes `2014-11-01`, ie
+    excluding the entire month.
+
+`lte`::
+
+    Less than or equal to the date rounded up: `2014-11-18||/M` becomes
+    `2014-11-30T23:59:59.999`, ie including the entire month.
+
+===== Date format in range queries
+
+Formatted dates will be parsed using the <<mapping-date-format,`format`>>
+specified on the <<date,`date`>> field by default, but it can be overridden by
+passing the `format` parameter to the `range` query:
+
+[source,js]
+--------------------------------------------------
+GET _search
+{
+    "query": {
+        "range" : {
+            "born" : {
+                "gte": "01/01/2012",
+                "lte": "2013",
+                "format": "dd/MM/yyyy||yyyy"
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE 
+
+===== Time zone in range queries
+
+Dates can be converted from another timezone to UTC either by specifying the
+time zone in the date value itself (if the <<mapping-date-format, `format`>>
+accepts it), or it can be specified as the `time_zone` parameter:
+
+[source,js]
+--------------------------------------------------
+GET _search
+{
+    "query": {
+        "range" : {
+            "timestamp" : {
+                "gte": "2015-01-01 00:00:00", <1>
+                "lte": "now", <2>
+                "time_zone": "+01:00"
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+<1> This date will be converted to `2014-12-31T23:00:00 UTC`.
+<2> `now` is not affected by the `time_zone` parameter (dates must be stored as UTC).

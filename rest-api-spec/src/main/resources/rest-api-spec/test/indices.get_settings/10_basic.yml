@@ -1,0 +1,173 @@
+---
+setup:
+  - do:
+        indices.create:
+          index: test_1
+          body:
+            settings:
+              number_of_shards: 5
+              number_of_replicas: 1
+  - do:
+        indices.create:
+          index: test_2
+          body:
+            settings:
+              number_of_shards: 3
+              number_of_replicas: 0
+
+---
+"Get /_settings":
+
+ - do:
+    indices.get_settings: {}
+
+ - match: { test_1.settings.index.number_of_shards: "5"}
+ - match: { test_1.settings.index.number_of_replicas: "1"}
+ - match: { test_2.settings.index.number_of_shards: "3"}
+ - match: { test_2.settings.index.number_of_replicas: "0"}
+
+---
+"Get /{index}/_settings":
+
+ - do:
+    indices.get_settings:
+        index: test_1
+
+ - match: { test_1.settings.index.number_of_shards: "5"}
+ - match: { test_1.settings.index.number_of_replicas: "1"}
+ - is_false: test_2
+
+
+---
+"Get /{index}/_settings/_all":
+
+ - do:
+    indices.get_settings:
+        index: test_1
+        name:  _all
+
+ - match: { test_1.settings.index.number_of_shards: "5"}
+ - match: { test_1.settings.index.number_of_replicas: "1"}
+ - is_false: test_2
+
+---
+"Get /{index}/_settings/*":
+
+ - do:
+    indices.get_settings:
+        index: test_1
+        name:  '*'
+
+ - match: { test_1.settings.index.number_of_shards: "5"}
+ - match: { test_1.settings.index.number_of_replicas: "1"}
+ - is_false: test_2
+
+---
+"Get /{index}/_settings/{name}":
+
+ - do:
+    indices.get_settings:
+        index: test_1
+        name:  index.number_of_shards
+
+ - match: { test_1.settings.index.number_of_shards: "5"}
+ - is_false: test_1.settings.index.number_of_replicas
+ - is_false: test_2
+
+---
+"Get /{index}/_settings/{name,name}":
+
+ - do:
+    indices.get_settings:
+        index: test_1
+        name:  index.number_of_shards,index.number_of_replicas
+
+ - match: { test_1.settings.index.number_of_shards: "5"}
+ - match: { test_1.settings.index.number_of_replicas: "1"}
+ - is_false: test_2
+
+---
+"Get /{index}/_settings/{name*}":
+
+ - do:
+    indices.get_settings:
+        index: test_1
+        name:  'index.number_of_s*'
+
+ - match: { test_1.settings.index.number_of_shards: "5"}
+ - is_false: test_1.settings.index.number_of_replicas
+ - is_false: test_2
+
+---
+"Get /_settings/{name}":
+
+ - do:
+    indices.get_settings:
+        name: index.number_of_shards
+
+ - match: { test_1.settings.index.number_of_shards: "5"}
+ - match: { test_2.settings.index.number_of_shards: "3"}
+ - is_false: test_1.settings.index.number_of_replicas
+ - is_false: test_2.settings.index.number_of_replicas
+
+---
+"Get /_all/_settings/{name}":
+
+ - do:
+    indices.get_settings:
+        index: _all
+        name: index.number_of_shards
+
+ - match: { test_1.settings.index.number_of_shards: "5"}
+ - match: { test_2.settings.index.number_of_shards: "3"}
+ - is_false: test_1.settings.index.number_of_replicas
+ - is_false: test_2.settings.index.number_of_replicas
+
+
+---
+"Get /*/_settings/{name}":
+
+ - do:
+    indices.get_settings:
+        index: '*'
+        name: index.number_of_shards
+
+ - match: { test_1.settings.index.number_of_shards: "5"}
+ - match: { test_2.settings.index.number_of_shards: "3"}
+ - is_false: test_1.settings.index.number_of_replicas
+ - is_false: test_2.settings.index.number_of_replicas
+
+---
+"Get /index,index/_settings/{name}":
+
+ - do:
+    indices.get_settings:
+        index: test_1,test_2
+        name: index.number_of_shards
+
+ - match: { test_1.settings.index.number_of_shards: "5"}
+ - match: { test_2.settings.index.number_of_shards: "3"}
+ - is_false: test_1.settings.index.number_of_replicas
+ - is_false: test_2.settings.index.number_of_replicas
+
+---
+"Get /index*/_settings/{name}":
+
+ - do:
+    indices.get_settings:
+        index: '*2'
+        name: index.number_of_shards
+
+ - match: { test_2.settings.index.number_of_shards: "3"}
+ - is_false: test_1
+ - is_false: test_2.settings.index.number_of_replicas
+
+---
+"Get /_settings with local flag":
+
+ - do:
+    indices.get_settings:
+        local: true
+
+ - is_true: test_1
+ - is_true: test_2

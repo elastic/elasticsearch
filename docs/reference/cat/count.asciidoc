@@ -1,0 +1,41 @@
+[[cat-count]]
+== cat count
+
+`count` provides quick access to the document count of the entire
+cluster, or individual indices.
+
+[source,js]
+--------------------------------------------------
+GET /_cat/count?v
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:big_twitter]
+// TEST[s/^/POST test\/test\?refresh\n{"test": "test"}\n/]
+
+Looks like:
+
+[source,txt]
+--------------------------------------------------
+epoch      timestamp count
+1475868259 15:24:19  121
+--------------------------------------------------
+// TESTRESPONSE[s/1475868259 15:24:19/\\d+ \\d+:\\d+:\\d+/ _cat]
+
+Or for a single index:
+
+[source,js]
+--------------------------------------------------
+GET /_cat/count/twitter?v
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+[source,txt]
+--------------------------------------------------
+epoch      timestamp count
+1475868259 15:24:20  120
+--------------------------------------------------
+// TESTRESPONSE[s/1475868259 15:24:20/\\d+ \\d+:\\d+:\\d+/ _cat]
+
+
+NOTE: The document count indicates the number of live documents and does not include deleted documents which have not yet been cleaned up by the merge process.

@@ -1,0 +1,35 @@
+[[analysis-snowball-tokenfilter]]
+=== Snowball Token Filter
+
+A filter that stems words using a Snowball-generated stemmer. The
+`language` parameter controls the stemmer with the following available
+values: `Armenian`, `Basque`, `Catalan`, `Danish`, `Dutch`, `English`,
+`Finnish`, `French`, `German`, `German2`, `Hungarian`, `Italian`, `Kp`,
+`Lithuanian`, `Lovins`, `Norwegian`, `Porter`, `Portuguese`, `Romanian`,
+`Russian`, `Spanish`, `Swedish`, `Turkish`.
+
+For example:
+
+[source,js]
+--------------------------------------------------
+PUT /my_index
+{
+    "settings": {
+        "analysis" : {
+            "analyzer" : {
+                "my_analyzer" : {
+                    "tokenizer" : "standard",
+                    "filter" : ["standard", "lowercase", "my_snow"]
+                }
+            },
+            "filter" : {
+                "my_snow" : {
+                    "type" : "snowball",
+                    "language" : "Lovins"
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE

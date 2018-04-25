@@ -1,0 +1,117 @@
+[[analysis-hunspell-tokenfilter]]
+=== Hunspell Token Filter
+
+Basic support for hunspell stemming. Hunspell dictionaries will be
+picked up from a dedicated hunspell directory on the filesystem
+(`<path.conf>/hunspell`). Each dictionary is expected to
+have its own directory named after its associated locale (language).
+This dictionary directory is expected to hold a single `*.aff` and
+one or more `*.dic` files (all of which will automatically be picked up).
+For example, assuming the default hunspell location is used, the
+following directory layout will define the `en_US` dictionary:
+
+[source,txt]
+--------------------------------------------------
+- conf
+    |-- hunspell
+    |    |-- en_US
+    |    |    |-- en_US.dic
+    |    |    |-- en_US.aff
+--------------------------------------------------
+
+Each dictionary can be configured with one setting:
+
+`ignore_case`::
+    If true, dictionary matching will be case insensitive
+    (defaults to `false`)
+
+This setting can be configured globally in `elasticsearch.yml` using
+
+* `indices.analysis.hunspell.dictionary.ignore_case`
+
+or for specific dictionaries:
+
+* `indices.analysis.hunspell.dictionary.en_US.ignore_case`.
+
+It is also possible to add `settings.yml` file under the dictionary
+directory which holds these settings (this will override any other
+settings defined in the `elasticsearch.yml`).
+
+One can use the hunspell stem filter by configuring it the analysis
+settings:
+
+[source,js]
+--------------------------------------------------
+PUT /hunspell_example
+{
+    "settings": {
+        "analysis" : {
+            "analyzer" : {
+                "en" : {
+                    "tokenizer" : "standard",
+                    "filter" : [ "lowercase", "en_US" ]
+                }
+            },
+            "filter" : {
+                "en_US" : {
+                    "type" : "hunspell",
+                    "locale" : "en_US",
+                    "dedup" : true
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+The hunspell token filter accepts four options:
+
+`locale`::
+    A locale for this filter. If this is unset, the `lang` or
+    `language` are used instead - so one of these has to be set.
+
+`dictionary`::
+    The name of a dictionary. The path to your hunspell
+    dictionaries should be configured via
+    `indices.analysis.hunspell.dictionary.location` before.
+
+`dedup`::
+    If only unique terms should be returned, this needs to be
+    set to `true`. Defaults to `true`.
+
+`longest_only`::
+    If only the longest term should be returned, set this to `true`.
+    Defaults to `false`: all possible stems are returned.
+
+NOTE: As opposed to the snowball stemmers (which are algorithm based)
+this is a dictionary lookup based stemmer and therefore the quality of
+the stemming is determined by the quality of the dictionary.
+
+[float]
+==== Dictionary loading
+
+By default, the default Hunspell directory (`config/hunspell/`) is checked
+for dictionaries when the node starts up, and any dictionaries are
+automatically loaded.
+
+Dictionary loading can be deferred until they are actually used by setting
+`indices.analysis.hunspell.dictionary.lazy` to `true` in the config file.
+
+[float]
+==== References
+
+Hunspell is a spell checker and morphological analyzer designed for
+languages with rich morphology and complex word compounding and
+character encoding.
+
+1. Wikipedia, http://en.wikipedia.org/wiki/Hunspell
+
+2. Source code, http://hunspell.sourceforge.net/
+
+3. Open Office Hunspell dictionaries, http://wiki.openoffice.org/wiki/Dictionaries
+
+4.  Mozilla Hunspell dictionaries, https://addons.mozilla.org/en-US/firefox/language-tools/
+
+5. Chromium Hunspell dictionaries,
+   http://src.chromium.org/viewvc/chrome/trunk/deps/third_party/hunspell_dictionaries/

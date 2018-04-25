@@ -1,0 +1,92 @@
+setup:
+
+  - do:
+      indices.create:
+        index: test_close_index
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: test_open_index
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+# close one index, keep other open for later test
+
+  - do:
+      indices.close:
+        index: test_close_index
+
+---
+"Test expand_wildcards parameter on closed, open indices and both":
+
+  - do:
+      cluster.state:
+        metric: [ metadata ]
+        index: test*
+        expand_wildcards: [ closed ]
+
+  - is_false: metadata.indices.test_open_index
+  - match: {metadata.indices.test_close_index.state: "close"}
+
+  - do:
+      cluster.state:
+        metric: [ metadata ]
+        index: test*
+        expand_wildcards: [ open ]
+
+  - match: {metadata.indices.test_open_index.state: "open"}
+  - is_false: metadata.indices.test_close_index
+
+  - do:
+      cluster.state:
+        metric: [ metadata ]
+        index: test*
+        expand_wildcards: [ open,closed ]
+
+  - match: {metadata.indices.test_open_index.state: "open"}
+  - match: {metadata.indices.test_close_index.state: "close"}
+
+---
+"Test ignore_unavailable parameter":
+
+  - do:
+      cluster.state:
+        metric: [ metadata ]
+        index: foobla
+        ignore_unavailable: true
+
+  - match: {metadata.indices: {}}
+
+  - do:
+      catch: missing
+      cluster.state:
+        metric: [ metadata ]
+        index: foobla
+        ignore_unavailable: false
+
+---
+"Test allow_no_indices parameter":
+
+  - do:
+      cluster.state:
+        metric: [ metadata ]
+        index: not_there*
+
+  - match: {metadata.indices: {}}
+
+  - do:
+      catch: missing
+      cluster.state:
+        metric: [ metadata ]
+        index: not_there*
+        allow_no_indices: false

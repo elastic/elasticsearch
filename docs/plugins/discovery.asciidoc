@@ -1,0 +1,42 @@
+[[discovery]]
+== Discovery Plugins
+
+Discovery plugins extend Elasticsearch by adding new discovery mechanisms that
+can be used instead of {ref}/modules-discovery-zen.html[Zen Discovery].
+
+[float]
+==== Core discovery plugins
+
+The core discovery plugins are:
+
+<<discovery-ec2,EC2 discovery>>::
+
+The EC2 discovery plugin uses the https://github.com/aws/aws-sdk-java[AWS API] for unicast discovery.
+
+<<discovery-azure-classic,Azure Classic discovery>>::
+
+The Azure Classic discovery plugin uses the Azure Classic API for unicast discovery.
+
+<<discovery-gce,GCE discovery>>::
+
+The Google Compute Engine discovery plugin uses the GCE API for unicast discovery.
+
+<<discovery-file,File-based discovery>>::
+
+The File-based discovery plugin allows providing the unicast hosts list through a dynamically updatable file.
+
+[float]
+==== Community contributed discovery plugins
+
+A number of discovery plugins have been contributed by our community:
+
+* https://github.com/shikhar/eskka[eskka Discovery Plugin] (by Shikhar Bhushan)
+* https://github.com/fabric8io/elasticsearch-cloud-kubernetes[Kubernetes Discovery Plugin] (by Jimmi Dyson, http://fabric8.io[fabric8])
+
+include::discovery-ec2.asciidoc[]
+
+include::discovery-azure-classic.asciidoc[]
+
+include::discovery-gce.asciidoc[]
+
+include::discovery-file.asciidoc[]

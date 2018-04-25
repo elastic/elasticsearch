@@ -1,0 +1,6 @@
+---
+- include: provision_deps.yml
+- include: install.yml
+- include: configure.yml
+- include: populate.yml
+...

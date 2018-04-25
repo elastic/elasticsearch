@@ -1,0 +1,6 @@
+[[elasticsearch-reference]]
+= Elasticsearchリファレンス
+
+include::../Versions.asciidoc[]
+
+include::getting-started.asciidoc[]

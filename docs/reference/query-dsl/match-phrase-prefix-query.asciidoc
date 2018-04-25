@@ -1,0 +1,64 @@
+[[query-dsl-match-query-phrase-prefix]]
+=== Match Phrase Prefix Query
+
+The `match_phrase_prefix` is the same as `match_phrase`, except that it
+allows for prefix matches on the last term in the text. For example:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "match_phrase_prefix" : {
+            "message" : "quick brown f"
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+It accepts the same parameters as the phrase type. In addition, it also
+accepts a `max_expansions` parameter (default `50`) that can control to how
+many suffixes the last term will be expanded. It is highly recommended to set
+it to an acceptable value to control the execution time of the query. For
+example:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "match_phrase_prefix" : {
+            "message" : {
+                "query" : "quick brown f",
+                "max_expansions" : 10
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+[IMPORTANT]
+===================================================
+
+The `match_phrase_prefix` query is a poor-man's autocomplete.  It is very easy
+to use, which lets you get started quickly with _search-as-you-type_ but its
+results, which usually are good enough,  can sometimes be confusing.
+
+Consider the query string `quick brown f`.  This query works by creating a
+phrase query out of `quick` and `brown` (i.e. the term `quick` must exist and
+must be followed by the term `brown`).  Then it looks at the sorted term
+dictionary to find the first 50 terms that begin with `f`, and
+adds these terms to the phrase query.
+
+The problem is that the first 50 terms may not include the term `fox` so the
+phrase `quick brown fox` will not be found.  This usually isn't a problem as
+the user will continue to type more letters until the word they are looking
+for appears.
+
+For better solutions for _search-as-you-type_ see the
+<<search-suggesters-completion,completion suggester>> and
+{defguide}/_index_time_search_as_you_type.html[Index-Time Search-as-You-Type].
+
+===================================================

@@ -1,0 +1,22 @@
+{
+  "name" : "Crazy Node With Weird Stuff In The Response",
+  "cluster_name" : "distribution_run",
+  "cats": "knock things over",
+  "cake": "is tasty",
+  "version" : {
+    "number" : "5.0.0-alpha3",
+    "build_hash" : "42e092f",
+    "build_date" : "2016-05-26T16:55:45.405Z",
+    "build_snapshot" : true,
+    "lucene_version" : "6.0.0",
+    "blort_version" : "not even a valid version number, what are you going to do about it?"
+  },
+  "tagline" : "You Know, for Search",
+  "extra_object" : {
+    "stuff": "stuff"
+  },
+  "extra_array" : [
+    "stuff",
+    "more stuff"
+  ]
+}

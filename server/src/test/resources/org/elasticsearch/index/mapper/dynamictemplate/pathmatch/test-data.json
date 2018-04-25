@@ -1,0 +1,14 @@
+{
+    "name":"top_level",
+    "obj1":{
+        "name":"obj1_level",
+        "obj2":{
+            "name":"obj2_level"
+        }
+    },
+    "obj3":{
+        "obj4":{
+            "prop1":"prop1_value"
+        }
+    }
+}

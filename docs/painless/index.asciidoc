@@ -1,0 +1,10 @@
+[[painless]]
+= Painless Scripting Language
+
+include::../Versions.asciidoc[]
+
+include::painless-getting-started.asciidoc[]
+
+include::painless-lang-spec.asciidoc[]
+
+include::painless-api-reference.asciidoc[]

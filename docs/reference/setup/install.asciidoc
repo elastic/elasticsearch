@@ -1,0 +1,74 @@
+[[install-elasticsearch]]
+== Installing Elasticsearch
+
+Elasticsearch is provided in the following package formats:
+
+[horizontal]
+`zip`/`tar.gz`::
+
+The `zip` and `tar.gz` packages are suitable for installation on any system
+and are the easiest choice for getting started with Elasticsearch on most systems.
++
+<<zip-targz>> or <<zip-windows>>
+
+`deb`::
+
+The `deb` package is suitable for Debian, Ubuntu, and other Debian-based
+systems.  Debian packages may be downloaded from the Elasticsearch website or
+from our Debian repository.
++
+<<deb>>
+
+`rpm`::
+
+The `rpm` package is suitable for installation on Red Hat, Centos, SLES,
+OpenSuSE and other RPM-based systems.  RPMs may be downloaded from the
+Elasticsearch website or from our RPM repository.
++
+<<rpm>>
+
+`msi`::
+
+The `msi` package is suitable for installation on Windows 64-bit systems with at least
+.NET 4.5 framework installed, and is the easiest choice for getting started with
+Elasticsearch on Windows. MSIs may be downloaded from the Elasticsearch website.
++
+<<windows>>
+
+`docker`::
+
+Images are available for running Elasticsearch as Docker containers. They may be
+downloaded from the Elastic Docker Registry. The default image ships with
+{xpack-ref}/index.html[X-Pack] pre-installed.
++
+{ref}/docker.html[Install {es} with Docker]
+
+[float]
+[[config-mgmt-tools]]
+=== Configuration Management Tools
+
+We also provide the following configuration management tools to help with
+large deployments:
+
+[horizontal]
+Puppet:: https://github.com/elastic/puppet-elasticsearch[puppet-elasticsearch]
+Chef::   https://github.com/elastic/cookbook-elasticsearch[cookbook-elasticsearch]
+Ansible:: https://github.com/elastic/ansible-elasticsearch[ansible-elasticsearch]
+
+
+include::install/zip-targz.asciidoc[]
+
+include::install/zip-windows.asciidoc[]
+
+include::install/deb.asciidoc[]
+
+include::install/rpm.asciidoc[]
+
+include::install/windows.asciidoc[]
+
+ifdef::include-xpack[]
+:edit_url!:
+include::{xes-repo-dir}/setup/docker.asciidoc[]
+
+:edit_url:
+endif::include-xpack[]

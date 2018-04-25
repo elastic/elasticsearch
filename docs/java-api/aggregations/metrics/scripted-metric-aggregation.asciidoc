@@ -1,0 +1,100 @@
+[[java-aggs-metrics-scripted-metric]]
+==== Scripted Metric Aggregation
+
+Here is how you can use
+{ref}/search-aggregations-metrics-scripted-metric-aggregation.html[Scripted Metric Aggregation]
+with Java API.
+
+===== Prepare aggregation request
+
+Here is an example on how to create the aggregation request:
+
+[source,java]
+--------------------------------------------------
+ScriptedMetricAggregationBuilder aggregation = AggregationBuilders
+    .scriptedMetric("agg")
+    .initScript(new Script("params._agg.heights = []"))
+    .mapScript(new Script("params._agg.heights.add(doc.gender.value == 'male' ? doc.height.value : -1.0 * doc.height.value)"));
+--------------------------------------------------
+
+You can also specify a `combine` script which will be executed on each shard:
+
+[source,java]
+--------------------------------------------------
+ScriptedMetricAggregationBuilder aggregation = AggregationBuilders
+    .scriptedMetric("agg")
+    .initScript(new Script("params._agg.heights = []"))
+    .mapScript(new Script("params._agg.heights.add(doc.gender.value == 'male' ? doc.height.value : -1.0 * doc.height.value)"))
+    .combineScript(new Script("double heights_sum = 0.0; for (t in params._agg.heights) { heights_sum += t } return heights_sum"));
+--------------------------------------------------
+
+You can also specify a `reduce` script which will be executed on the node which gets the request:
+
+[source,java]
+--------------------------------------------------
+ScriptedMetricAggregationBuilder aggregation = AggregationBuilders
+    .scriptedMetric("agg")
+    .initScript(new Script("params._agg.heights = []"))
+    .mapScript(new Script("params._agg.heights.add(doc.gender.value == 'male' ? doc.height.value : -1.0 * doc.height.value)"))
+    .combineScript(new Script("double heights_sum = 0.0; for (t in params._agg.heights) { heights_sum += t } return heights_sum"))
+    .reduceScript(new Script("double heights_sum = 0.0; for (a in params._aggs) { heights_sum += a } return heights_sum"));
+--------------------------------------------------
+
+
+===== Use aggregation response
+
+Import Aggregation definition classes:
+
+[source,java]
+--------------------------------------------------
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.metrics.tophits.TopHits;
+--------------------------------------------------
+
+[source,java]
+--------------------------------------------------
+// sr is here your SearchResponse object
+ScriptedMetric agg = sr.getAggregations().get("agg");
+Object scriptedResult = agg.aggregation();
+logger.info("scriptedResult [{}]", scriptedResult);
+--------------------------------------------------
+
+Note that the result depends on the script you built.
+For the first example, this will basically produce:
+
+[source,text]
+--------------------------------------------------
+scriptedResult object [ArrayList]
+scriptedResult [ {
+"heights" : [ 1.122218480146643, -1.8148918111233887, -1.7626731575142909, ... ]
+}, {
+"heights" : [ -0.8046067304119863, -2.0785486707864553, -1.9183567430207953, ... ]
+}, {
+"heights" : [ 2.092635728868694, 1.5697545960886536, 1.8826954461968808, ... ]
+}, {
+"heights" : [ -2.1863201099468403, 1.6328549117346856, -1.7078288405893842, ... ]
+}, {
+"heights" : [ 1.6043904836424177, -2.0736538674414025, 0.9898266674373053, ... ]
+} ]
+--------------------------------------------------
+
+The second example will produce:
+
+[source,text]
+--------------------------------------------------
+scriptedResult object [ArrayList]
+scriptedResult [-41.279615707402876,
+                -60.88007362339038,
+                38.823270659734256,
+                14.840192739445632,
+                11.300902755741326]
+--------------------------------------------------
+
+The last example will produce:
+
+[source,text]
+--------------------------------------------------
+scriptedResult object [Double]
+scriptedResult [2.171917696507009]
+--------------------------------------------------
+

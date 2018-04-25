@@ -1,0 +1,30 @@
+[[query-dsl-boosting-query]]
+=== Boosting Query
+
+The `boosting` query can be used to effectively demote results that
+match a given query. Unlike the "NOT" clause in bool query, this still
+selects documents that contain undesirable terms, but reduces their
+overall score.
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "boosting" : {
+            "positive" : {
+                "term" : {
+                    "field1" : "value1"
+                }
+            },
+            "negative" : {
+                 "term" : {
+                     "field2" : "value2"
+                }
+            },
+            "negative_boost" : 0.2
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE

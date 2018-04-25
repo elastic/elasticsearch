@@ -1,0 +1,25 @@
+{
+  "_scroll_id" : "DnF1ZXJ5VGhlbkZldGNoBQAAAfakescroll",
+  "took" : 6,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 5,
+    "successful" : 5,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : 4,
+    "max_score" : null,
+    "hits" : [ {
+      "_index" : "test",
+      "_type" : "test",
+      "_id" : "AVToMiC250DjIiBO3yJ_",
+      "_version" : 1,
+      "_score" : null,
+      "_source" : {
+        "test" : "test2"
+      },
+      "sort" : [ 0 ]
+    } ]
+  }
+}

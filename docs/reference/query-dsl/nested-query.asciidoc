@@ -1,0 +1,72 @@
+[[query-dsl-nested-query]]
+=== Nested Query
+
+Nested query allows to query nested objects / docs (see
+<<nested,nested mapping>>). The
+query is executed against the nested objects / docs as if they were
+indexed as separate docs (they are, internally) and resulting in the
+root parent doc (or parent nested mapping). Here is a sample mapping we
+will work with:
+
+[source,js]
+--------------------------------------------------
+PUT /my_index
+{
+    "mappings": {
+        "type1" : {
+            "properties" : {
+                "obj1" : {
+                    "type" : "nested"
+                }
+            }
+        }
+    }
+}
+
+--------------------------------------------------
+// CONSOLE
+// TESTSETUP
+
+And here is a sample nested query usage:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "nested" : {
+            "path" : "obj1",
+            "score_mode" : "avg",
+            "query" : {
+                "bool" : {
+                    "must" : [
+                    { "match" : {"obj1.name" : "blue"} },
+                    { "range" : {"obj1.count" : {"gt" : 5}} }
+                    ]
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+The query `path` points to the nested object path, and the `query`
+includes the query that will run on the nested docs matching the
+direct path, and joining with the root parent docs. Note that any
+fields referenced inside the query must use the complete path (fully
+qualified).
+
+The `score_mode` allows to set how inner children matching affects
+scoring of parent. It defaults to `avg`, but can be `sum`, `min`,
+`max` and `none`.
+
+There is also an `ignore_unmapped` option which, when set to `true` will
+ignore an unmapped `path` and will not match any documents for this query.
+This can be useful when querying multiple indexes which might have different
+mappings. When set to `false` (the default value) the query will throw an
+exception if the `path` is not mapped.
+
+Multi level nesting is automatically supported, and detected, resulting
+in an inner nested query to automatically match the relevant nesting
+level (and not root) if it exists within another nested query.

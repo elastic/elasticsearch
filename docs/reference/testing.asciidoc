@@ -1,0 +1,16 @@
+[[testing]]
+= Testing
+
+[partintro]
+--
+This section is about utilizing Elasticsearch as part of your testing infrastructure.
+
+[float]
+[[testing-header]]
+== Testing:
+
+* <<testing-framework>>
+
+--
+
+include::testing/testing-framework.asciidoc[]

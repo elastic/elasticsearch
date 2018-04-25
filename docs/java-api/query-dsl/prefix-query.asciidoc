@@ -1,0 +1,11 @@
+[[java-query-dsl-prefix-query]]
+==== Prefix Query
+
+See {ref}/query-dsl-prefix-query.html[Prefix Query]
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{query-dsl-test}[prefix]
+--------------------------------------------------
+<1> field
+<2> prefix

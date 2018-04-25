@@ -1,0 +1,154 @@
+---
+"Test basic pipeline crud":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.get_pipeline:
+        id: "my_pipeline"
+  - match: { my_pipeline.description: "_description" }
+
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      ingest.get_pipeline:
+        id: "my_pipeline"
+
+---
+"Test Put Versioned Pipeline":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body: >
+          {
+            "version": 10,
+            "processors": [ ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.get_pipeline:
+        id: "my_pipeline"
+  - match: { my_pipeline.version: 10 }
+
+  # Lower version
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body: >
+          {
+            "version": 9,
+            "processors": [ ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.get_pipeline:
+        id: "my_pipeline"
+  - match: { my_pipeline.version: 9 }
+
+  # Higher version
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body: >
+          {
+            "version": 6789,
+            "processors": [ ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.get_pipeline:
+        id: "my_pipeline"
+  - match: { my_pipeline.version: 6789 }
+
+  # No version
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body: >
+          {
+            "processors": [ ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.get_pipeline:
+        id: "my_pipeline"
+  - is_false: my_pipeline.version
+
+  # Coming back with a version
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body: >
+          {
+            "version": 5385,
+            "processors": [ ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.get_pipeline:
+        id: "my_pipeline"
+  - match: { my_pipeline.version: 5385 }
+
+  # Able to delete the versioned pipeline
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      ingest.get_pipeline:
+        id: "my_pipeline"
+---
+"Test Get All Pipelines":
+  - do:
+      ingest.put_pipeline:
+        id: "first_pipeline"
+        body:  >
+          {
+            "description": "first",
+            "processors": []
+          }
+  - do:
+      ingest.put_pipeline:
+        id: "second_pipeline"
+        body:  >
+          {
+            "description": "second",
+            "processors": []
+          }
+
+  - do:
+      ingest.get_pipeline: {}
+  - match: { first_pipeline.description: "first" }
+  - match: { second_pipeline.description: "second" }
+
+---
+"Test invalid config":
+  - do:
+      catch: /parse_exception/
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [],
+            "invalid_field" : {}
+          }

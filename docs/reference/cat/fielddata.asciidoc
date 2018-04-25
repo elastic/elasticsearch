@@ -1,0 +1,98 @@
+[[cat-fielddata]]
+== cat fielddata
+
+`fielddata` shows how much heap memory is currently being used by fielddata
+on every data node in the cluster.
+
+
+////
+Hidden setup snippet to build an index with fielddata so our results are real:
+[source,js]
+--------------------------------------------------
+PUT test
+{
+  "mappings": {
+    "test": {
+      "properties": {
+        "body": {
+          "type": "text",
+          "fielddata":true
+        },
+        "soul": {
+          "type": "text",
+          "fielddata":true
+        }
+      }
+    }
+  }
+}
+POST test/test?refresh
+{
+  "body": "some words so there is a little field data",
+  "soul": "some more words"
+}
+
+# Perform a search to load the field data
+POST test/_search?sort=body,soul
+--------------------------------------------------
+// CONSOLE
+////
+
+[source,js]
+--------------------------------------------------
+GET /_cat/fielddata?v
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Looks like:
+
+[source,txt]
+--------------------------------------------------
+id                     host      ip        node    field   size
+Nqk-6inXQq-OxUfOUI8jNQ 127.0.0.1 127.0.0.1 Nqk-6in body    544b
+Nqk-6inXQq-OxUfOUI8jNQ 127.0.0.1 127.0.0.1 Nqk-6in soul    480b
+--------------------------------------------------
+// TESTRESPONSE[s/544b|480b/\\d+(\\.\\d+)?[tgmk]?b/]
+// TESTRESPONSE[s/Nqk-6in[^ ]*/.+/ s/soul|body/\\w+/ _cat]
+
+Fields can be specified either as a query parameter, or in the URL path:
+
+[source,js]
+--------------------------------------------------
+GET /_cat/fielddata?v&fields=body
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Which looks like:
+
+[source,txt]
+--------------------------------------------------
+id                     host      ip        node    field   size
+Nqk-6inXQq-OxUfOUI8jNQ 127.0.0.1 127.0.0.1 Nqk-6in body    544b
+--------------------------------------------------
+// TESTRESPONSE[s/544b|480b/\\d+(\\.\\d+)?[tgmk]?b/]
+// TESTRESPONSE[s/Nqk-6in[^ ]*/.+/ _cat]
+
+And it accepts a comma delimited list:
+
+[source,js]
+--------------------------------------------------
+GET /_cat/fielddata/body,soul?v
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Which produces the same output as the first snippet:
+
+[source,txt]
+--------------------------------------------------
+id                     host      ip        node    field   size
+Nqk-6inXQq-OxUfOUI8jNQ 127.0.0.1 127.0.0.1 Nqk-6in body    544b
+Nqk-6inXQq-OxUfOUI8jNQ 127.0.0.1 127.0.0.1 Nqk-6in soul    480b
+--------------------------------------------------
+// TESTRESPONSE[s/544b|480b/\\d+(\\.\\d+)?[tgmk]?b/]
+// TESTRESPONSE[s/Nqk-6in[^ ]*/.+/ s/soul|body/\\w+/ _cat]
+
+The output shows the individual fielddata for the `body` and `soul` fields, one row per field per node.

@@ -1,0 +1,14 @@
+{
+    "person":{
+        "dynamic_templates":[
+            {
+                "template_1":{
+                    "match":"*",
+                    "mapping":{
+                        "store":true
+                    }
+                }
+            }
+        ]
+    }
+}

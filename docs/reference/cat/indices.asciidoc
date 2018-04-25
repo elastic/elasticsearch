@@ -1,0 +1,125 @@
+[[cat-indices]]
+== cat indices
+
+The `indices` command provides a cross-section of each index.  This
+information *spans nodes*. For example:
+
+[source,js]
+--------------------------------------------------
+GET /_cat/indices/twi*?v&s=index
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:huge_twitter]
+// TEST[s/^/PUT twitter2\n{"settings": {"number_of_replicas": 0}}\n/]
+
+Might respond with:
+
+[source,txt]
+--------------------------------------------------
+health status index    uuid                   pri rep docs.count docs.deleted store.size pri.store.size
+yellow open   twitter  u8FNjxh8Rfy_awN11oDKYQ   1   1       1200            0     88.1kb         88.1kb
+green  open   twitter2 nYFWZEO7TUiOjLQXBaYJpA   5   0          0            0       260b           260b
+--------------------------------------------------
+// TESTRESPONSE[s/\d+(\.\d+)?[tgmk]?b/\\d+(\\.\\d+)?[tgmk]?b/]
+// TESTRESPONSE[s/u8FNjxh8Rfy_awN11oDKYQ|nYFWZEO7TUiOjLQXBaYJpA/.+/ _cat]
+
+We can tell quickly how many shards make up an index, the number of
+docs, deleted docs, primary store size, and total store size (all shards including replicas).
+All these exposed metrics come directly from Lucene APIs.
+
+*Notes:*
+
+1. As the number of documents and deleted documents shown in this are at the lucene level,
+it includes all the hidden documents (e.g. from nested documents) as well.
+
+2. To get actual count of documents at the Elasticsearch level, the recommended way
+is to use either the <<cat-count>> or the <<search-count>>
+
+[float]
+[[pri-flag]]
+=== Primaries
+
+The index stats by default will show them for all of an index's
+shards, including replicas.  A `pri` flag can be supplied to enable
+the view of relevant stats in the context of only the primaries.
+
+[float]
+[[examples]]
+=== Examples
+
+Which indices are yellow?
+
+[source,js]
+--------------------------------------------------
+GET /_cat/indices?v&health=yellow
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Which looks like:
+
+[source,txt]
+--------------------------------------------------
+health status index    uuid                   pri rep docs.count docs.deleted store.size pri.store.size
+yellow open   twitter  u8FNjxh8Rfy_awN11oDKYQ   1   1       1200            0     88.1kb         88.1kb
+--------------------------------------------------
+// TESTRESPONSE[s/\d+(\.\d+)?[tgmk]?b/\\d+(\\.\\d+)?[tgmk]?b/]
+// TESTRESPONSE[s/u8FNjxh8Rfy_awN11oDKYQ/.+/ _cat]
+
+Which index has the largest number of documents?
+
+[source,js]
+--------------------------------------------------
+GET /_cat/indices?v&s=docs.count:desc
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Which looks like:
+
+[source,txt]
+--------------------------------------------------
+health status index    uuid                   pri rep docs.count docs.deleted store.size pri.store.size
+yellow open   twitter  u8FNjxh8Rfy_awN11oDKYQ   1   1       1200            0     88.1kb         88.1kb
+green  open   twitter2 nYFWZEO7TUiOjLQXBaYJpA   5   0          0            0       260b           260b
+--------------------------------------------------
+// TESTRESPONSE[s/\d+(\.\d+)?[tgmk]?b/\\d+(\\.\\d+)?[tgmk]?b/]
+// TESTRESPONSE[s/u8FNjxh8Rfy_awN11oDKYQ|nYFWZEO7TUiOjLQXBaYJpA/.+/ _cat]
+
+How many merge operations have the shards for the `twitter` completed?
+
+[source,js]
+--------------------------------------------------
+GET /_cat/indices/twitter?pri&v&h=health,index,pri,rep,docs.count,mt
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Might look like:
+
+[source,txt]
+--------------------------------------------------
+health index   pri rep docs.count mt pri.mt
+yellow twitter   1   1 1200       16     16
+--------------------------------------------------
+// TESTRESPONSE[s/16/\\d+/ _cat]
+
+How much memory is used per index?
+
+[source,js]
+--------------------------------------------------
+GET /_cat/indices?v&h=i,tm&s=tm:desc
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Might look like:
+
+[source,txt]
+--------------------------------------------------
+i         tm
+twitter   8.1gb
+twitter2  30.5kb
+--------------------------------------------------
+// TESTRESPONSE[s/\d+(\.\d+)?[tgmk]?b/\\d+(\\.\\d+)?[tgmk]?b/]
+// TESTRESPONSE[_cat]

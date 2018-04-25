@@ -1,0 +1,101 @@
+[[java-rest-high-supported-apis]]
+
+== Document APIs
+
+The Java High Level REST Client supports the following Document APIs:
+
+[[single-doc]]
+Single document APIs::
+* <<java-rest-high-document-index>>
+* <<java-rest-high-document-get>>
+* <<java-rest-high-document-delete>>
+* <<java-rest-high-document-update>>
+
+[[multi-doc]]
+Multi-document APIs::
+* <<java-rest-high-document-bulk>>
+* <<java-rest-high-document-multi-get>>
+
+include::document/index.asciidoc[]
+include::document/get.asciidoc[]
+include::document/exists.asciidoc[]
+include::document/delete.asciidoc[]
+include::document/update.asciidoc[]
+include::document/bulk.asciidoc[]
+include::document/multi-get.asciidoc[]
+
+== Search APIs
+
+The Java High Level REST Client supports the following Search APIs:
+
+* <<java-rest-high-search>>
+* <<java-rest-high-search-scroll>>
+* <<java-rest-high-clear-scroll>>
+* <<java-rest-high-multi-search>>
+* <<java-rest-high-rank-eval>>
+
+include::search/search.asciidoc[]
+include::search/scroll.asciidoc[]
+include::search/multi-search.asciidoc[]
+include::search/rank-eval.asciidoc[]
+
+== Miscellaneous APIs
+
+The Java High Level REST Client supports the following Miscellaneous APIs:
+
+* <<java-rest-high-main>>
+* <<java-rest-high-ping>>
+
+include::miscellaneous/main.asciidoc[]
+include::miscellaneous/ping.asciidoc[]
+
+== Indices APIs
+
+The Java High Level REST Client supports the following Indices APIs:
+
+Index Management::
+* <<java-rest-high-create-index>>
+* <<java-rest-high-delete-index>>
+* <<java-rest-high-indices-exists>>
+* <<java-rest-high-open-index>>
+* <<java-rest-high-close-index>>
+* <<java-rest-high-shrink-index>>
+* <<java-rest-high-split-index>>
+* <<java-rest-high-refresh>>
+* <<java-rest-high-flush>>
+* <<java-rest-high-clear-cache>>
+* <<java-rest-high-force-merge>>
+* <<java-rest-high-rollover-index>>
+* <<java-rest-high-indices-put-settings>>
+
+Mapping Management::
+* <<java-rest-high-put-mapping>>
+
+Alias Management::
+* <<java-rest-high-update-aliases>>
+* <<java-rest-high-exists-alias>>
+
+include::indices/create_index.asciidoc[]
+include::indices/delete_index.asciidoc[]
+include::indices/indices_exists.asciidoc[]
+include::indices/open_index.asciidoc[]
+include::indices/close_index.asciidoc[]
+include::indices/shrink_index.asciidoc[]
+include::indices/split_index.asciidoc[]
+include::indices/refresh.asciidoc[]
+include::indices/flush.asciidoc[]
+include::indices/clear_cache.asciidoc[]
+include::indices/force_merge.asciidoc[]
+include::indices/rollover.asciidoc[]
+include::indices/put_mapping.asciidoc[]
+include::indices/update_aliases.asciidoc[]
+include::indices/exists_alias.asciidoc[]
+include::indices/put_settings.asciidoc[]
+
+== Cluster APIs
+
+The Java High Level REST Client supports the following Cluster APIs:
+
+* <<java-rest-high-cluster-put-settings>>
+
+include::cluster/put_settings.asciidoc[]

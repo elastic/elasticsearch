@@ -1,0 +1,11 @@
+[[java-query-dsl-constant-score-query]]
+==== Constant Score Query
+
+See {ref}/query-dsl-constant-score-query.html[Constant Score Query]
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{query-dsl-test}[constant_score]
+--------------------------------------------------
+<1> your query
+<2> query score

@@ -1,0 +1,217 @@
+---
+"Test cat indices output":
+
+  - do:
+      cat.indices: {}
+
+  - match:
+      $body: |
+               /^$/
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+  - do:
+      cat.indices: {}
+
+  - match:
+      $body: |
+               /^(green  \s+
+                  open   \s+
+                  index1 \s+
+                  ([a-zA-Z0-9=/_+]|[\\\-]){22} \s+
+                  1      \s+
+                  0      \s+
+                  0      \s+
+                  0      \s+
+                  (\d+|\d+[.]\d+)(kb|b) \s+
+                  (\d+|\d+[.]\d+)(kb|b) \s*
+                )
+                $/
+
+  - do:
+      cat.indices:
+        v: false
+        h: i,cd,cds,creation.date,creation.date.string
+  - match:
+      $body: |
+               /^(
+                  index1                                                    \s+
+                  (\d+)                                                     \s+
+                  (\d\d\d\d\-\d\d\-\d\dT\d\d:\d\d:\d\d.\d\d\dZ) \s+
+                  (\d+)                                                     \s+
+                  (\d\d\d\d\-\d\d\-\d\dT\d\d:\d\d:\d\d.\d\d\dZ) \s*
+                )
+                $/
+  - do:
+      indices.close:
+        index: index1
+
+  - do:
+      cat.indices:
+        index: index*
+
+  - match:
+      $body: |
+               /^(       \s+
+                  close  \s+
+                  index1 \s+
+                  ([a-zA-Z0-9=/_+]|[\\\-]){22} \s+
+                         \s+
+                         \s+
+                         \s+
+                         \s+
+                         \s+
+                         \s*
+                )
+                $/
+
+---
+"Test cat indices using health status":
+
+  - do:
+      cluster.health: {}
+
+  - set: { number_of_data_nodes: count }
+
+  - do:
+      indices.create:
+        index: foo
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+  - do:
+      indices.create:
+        index: bar
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: $count
+
+  - do:
+      cat.indices:
+        health: green
+        h: index
+
+  - match:
+      $body: |
+                /^(foo)$/
+
+  - do:
+      cat.indices:
+        health: yellow
+        h: index
+
+  - match:
+      $body: |
+               /^(bar)$/
+
+---
+"Test cat indices using wildcards":
+
+  - do:
+      indices.create:
+        index: foo
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: bar
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: baz
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      cat.indices:
+        index: f*
+        v: false
+        h: i
+
+  - match:
+      $body: |
+               /^(foo \n?)$/
+
+  - do:
+      cat.indices:
+        index: ba*
+        v: false
+        h: i
+
+  - match:
+      $body: |
+               /^(ba(r|z) \n?){2}$/
+
+---
+"Test cat indices sort":
+  - skip:
+      version: " - 5.0.99"
+      reason:  sorting was introduced in 5.1.0
+
+  - do:
+      indices.create:
+        index: foo
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: bar
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: baz
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.close:
+        index: bar
+
+  - do:
+      cat.indices:
+        h: [status, index]
+        s: [status, index]
+
+  - match:
+      $body: |
+            /^ close \s+ bar\n
+               open \s+ baz\n
+               open \s+ foo\n
+            $/
+
+  - do:
+      cat.indices:
+        h: [status, index]
+        s: [status, "index:desc"]
+
+  - match:
+      $body: |
+            /^ close \s+ bar\n
+               open \s+ foo\n
+               open \s+ baz\n
+            $/

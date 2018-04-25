@@ -1,0 +1,76 @@
+[[analysis-analyzers]]
+== Analyzers
+
+Elasticsearch ships with a wide range of built-in analyzers, which can be used
+in any index without further configuration:
+
+<<analysis-standard-analyzer,Standard Analyzer>>::
+
+The `standard` analyzer divides text into terms on word boundaries, as defined
+by the Unicode Text Segmentation algorithm. It removes most punctuation,
+lowercases terms, and supports removing stop words.
+
+<<analysis-simple-analyzer,Simple Analyzer>>::
+
+The `simple` analyzer divides text into terms whenever it encounters a
+character which is not a letter.  It lowercases all terms.
+
+<<analysis-whitespace-analyzer,Whitespace Analyzer>>::
+
+The `whitespace` analyzer divides text into terms whenever it encounters any
+whitespace character.  It does not lowercase terms.
+
+<<analysis-stop-analyzer,Stop Analyzer>>::
+
+The `stop` analyzer is like the `simple` analyzer, but also supports removal
+of stop words.
+
+<<analysis-keyword-analyzer,Keyword Analyzer>>::
+
+The `keyword` analyzer is a ``noop'' analyzer that accepts whatever text it is
+given and outputs the exact same text as a single term.
+
+<<analysis-pattern-analyzer,Pattern Analyzer>>::
+
+The `pattern` analyzer uses a regular expression to split the text into terms.
+It supports lower-casing and stop words.
+
+<<analysis-lang-analyzer,Language Analyzers>>::
+
+Elasticsearch provides many language-specific analyzers like `english` or
+`french`.
+
+<<analysis-fingerprint-analyzer,Fingerprint Analyzer>>::
+
+The `fingerprint` analyzer is a specialist analyzer which creates a
+fingerprint which can be used for duplicate detection.
+
+[float]
+=== Custom analyzers
+
+If you do not find an analyzer suitable for your needs, you can create a
+<<analysis-custom-analyzer,`custom`>> analyzer which combines the appropriate
+<<analysis-charfilters, character filters>>,
+<<analysis-tokenizers,tokenizer>>, and <<analysis-tokenfilters,token filters>>.
+
+
+include::analyzers/configuring.asciidoc[]
+
+include::analyzers/standard-analyzer.asciidoc[]
+
+include::analyzers/simple-analyzer.asciidoc[]
+
+include::analyzers/whitespace-analyzer.asciidoc[]
+
+include::analyzers/stop-analyzer.asciidoc[]
+
+include::analyzers/keyword-analyzer.asciidoc[]
+
+include::analyzers/pattern-analyzer.asciidoc[]
+
+include::analyzers/lang-analyzer.asciidoc[]
+
+include::analyzers/fingerprint-analyzer.asciidoc[]
+
+include::analyzers/custom-analyzer.asciidoc[]
+

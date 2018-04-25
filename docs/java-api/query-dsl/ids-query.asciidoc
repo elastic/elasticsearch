@@ -1,0 +1,11 @@
+[[java-query-dsl-ids-query]]
+==== Ids Query
+
+
+See {ref}/query-dsl-ids-query.html[Ids Query]
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{query-dsl-test}[ids]
+--------------------------------------------------
+<1> type is optional

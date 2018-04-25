@@ -1,0 +1,40 @@
+---
+"Partial document":
+
+  - do:
+      index:
+          index:  test_1
+          type:   test
+          id:     1
+          body:
+              foo:    bar
+              count:  1
+              nested: { one: 1, two: 2 }
+
+  - do:
+      update:
+          index:  test_1
+          type:   test
+          id:     1
+          body:
+            doc:
+                foo:    baz
+                nested:
+                    one:  3
+
+  - match: { _index:   test_1 }
+  - match: { _type:    test   }
+  - match: { _id:      "1"    }
+  - match: { _version: 2      }
+
+  - do:
+      get:
+          index:  test_1
+          type:   test
+          id:     1
+
+  - match: { _source.foo:        baz }
+  - match: { _source.count:      1   }
+  - match: { _source.nested.one: 3   }
+  - match: { _source.nested.two: 2   }
+

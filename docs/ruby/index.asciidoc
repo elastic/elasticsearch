@@ -1,0 +1,11 @@
+= Ruby And Rails Integrations
+
+include::client.asciidoc[]
+
+include::model.asciidoc[]
+
+include::rails.asciidoc[]
+
+include::persistence.asciidoc[]
+
+include::copyright.asciidoc[]

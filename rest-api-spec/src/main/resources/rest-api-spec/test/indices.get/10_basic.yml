@@ -1,0 +1,173 @@
+---
+setup:
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          aliases:
+            test_alias: {}
+            test_blias: {}
+          mappings:
+            type_1: {}
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 1
+
+  - do:
+      indices.create:
+        index: test_index_2
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 2
+          aliases:
+            test_alias: {}
+            test_blias: {}
+
+  - do:
+      indices.create:
+        index: test_index_3
+        body:
+          aliases:
+            test_alias: {}
+            test_blias: {}
+
+  - do:
+      indices.close:
+        index: test_index_3
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+---
+"Get index infos":
+
+  - do:
+      indices.get:
+        index: test_index
+
+  - is_true: test_index.aliases
+  - is_true: test_index.settings
+  - is_true: test_index.mappings
+
+---
+"Get index infos should work for wildcards":
+
+  - do:
+      indices.get:
+        index: test_*
+
+  - is_true: test_index.mappings
+  - is_true: test_index.aliases
+  - is_true: test_index.settings
+  - is_true: test_index_2.settings
+  - is_true: test_index_2.mappings
+  - is_true: test_index_2.aliases
+
+---
+"Get index infos with human settings should return index creation date and version in readable format":
+
+  - do:
+      indices.get:
+        index: test_index
+        human: true
+
+  - is_true: test_index.settings.index.creation_date_string
+  - is_true: test_index.settings.index.version.created_string
+
+---
+"Get index infos by default shouldn't return index creation date and version in readable format":
+
+  - do:
+      indices.get:
+        index: test_index
+
+  - is_false: test_index.settings.index.creation_date_string
+  - is_false: test_index.settings.index.version.created_string
+
+---
+"Missing index should throw an Error":
+
+  - do:
+      catch: missing
+      indices.get:
+        index: test_not_found
+
+---
+"Missing index should return empty object if ignore_unavailable":
+
+  - do:
+      indices.get:
+        index: test_not_found
+        ignore_unavailable: true
+
+  - match: { $body: {} }
+
+---
+"Should return empty object if allow_no_indices":
+
+  - do:
+      indices.get:
+        index: test_not*
+
+  - match: { $body: {} }
+
+---
+"Should throw error if allow_no_indices=false":
+
+  - do:
+      catch: missing
+      indices.get:
+        index: test_not*
+        allow_no_indices: false
+
+---
+"Should return test_index_2 if expand_wildcards=open":
+
+  - do:
+      indices.get:
+        index: test_index_*
+        expand_wildcards: open
+
+  - is_true: test_index_2.settings
+  - is_false: test_index_3.settings
+
+---
+"Should return test_index_3 if expand_wildcards=closed":
+
+  - skip:
+      version:     " - 2.0.0"
+      reason:      Requires fix for issue 7258
+
+  - do:
+      indices.get:
+        index: test_index_*
+        expand_wildcards: closed
+
+  - is_false: test_index_2.settings
+  - is_true: test_index_3.settings
+
+---
+"Should return test_index_2 and test_index_3 if expand_wildcards=open,closed":
+
+  - do:
+      indices.get:
+        index: test_index_*
+        expand_wildcards: open,closed
+
+  - is_true: test_index_2.settings
+  - is_true: test_index_3.settings
+
+---
+"Should return an exception when querying invalid indices":
+ - skip:
+     version: " - 5.99.99"
+     reason: "bad request logic added in 6.0.0"
+
+ - do:
+     catch: bad_request
+     indices.get:
+       index: _foo
+

@@ -1,0 +1,25 @@
+[[cat-allocation]]
+== cat allocation
+
+`allocation` provides a snapshot of how many shards are allocated to each data node
+and how much disk space they are using.
+
+[source,js]
+--------------------------------------------------
+GET /_cat/allocation?v
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT test\n{"settings": {"number_of_replicas": 0}}\n/]
+
+Might respond with:
+
+[source,txt]
+--------------------------------------------------
+shards disk.indices disk.used disk.avail disk.total disk.percent host      ip        node
+     5         260b    47.3gb     43.4gb    100.7gb           46 127.0.0.1 127.0.0.1 CSUXak2
+--------------------------------------------------
+// TESTRESPONSE[s/\d+(\.\d+)?[tgmk]?b/\\d+(\\.\\d+)?[tgmk]?b/ s/46/\\d+/]
+// TESTRESPONSE[s/CSUXak2/.+/ _cat]
+
+Here we can see that each node has been allocated a single shard and
+that they're all using about the same amount of space.

@@ -1,0 +1,46 @@
+
+# intellij files
+.idea/
+*.iml
+*.ipr
+*.iws
+build-idea/
+
+# eclipse files
+.project
+.classpath
+.settings
+build-eclipse/
+
+# netbeans files
+nb-configuration.xml
+nbactions.xml
+
+# gradle stuff
+.gradle/
+build/
+
+# maven stuff (to be removed when trunk becomes 4.x)
+*-execution-hints.log
+target/
+dependency-reduced-pom.xml
+
+# testing stuff
+**/.local*
+.vagrant/
+/logs/
+
+# osx stuff
+.DS_Store
+
+# default folders in which the create_bwc_index.py expects to find old es versions in
+/backwards
+/dev-tools/backwards
+
+# needed in case docs build is run...maybe we can configure doc build to generate files under build?
+html_docs
+
+# random old stuff that we should look at the necessity of...
+/tmp/
+eclipse-build
+

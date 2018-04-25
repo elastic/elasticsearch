@@ -1,0 +1,44 @@
+# Active Directory test data
+
+dn: CN=Builtin,DC=ad,DC=test,DC=elasticsearch,DC=com
+objectclass: top
+objectclass: builtinDomain
+cn: Builtin
+
+dn: CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com
+objectclass: container
+objectclass: top
+cn: Users
+
+dn: CN=Avengers,CN=users,DC=ad,DC=test,DC=elasticsearch,DC=com
+objectclass: group
+objectclass: top
+cn: Avengers
+objectSid: S-1-5-21-3510024162-210737641-214529065-1105
+
+dn: CN=Tony Stark,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com
+objectclass: user
+objectclass: top
+objectclass: inetOrgPerson
+objectclass: organizationalPerson
+objectclass: person
+cn: Tony Stark
+sAMAccountName: ironman
+tokenGroups:: AQUAAAAAAAUVAAAA4rc20emZjwwpdMkMUQQAAA==
+userPrincipalName: ironman@ad.test.elasticsearch.com
+userPrincipalName: CN=ironman@ad.test.elasticsearch.com
+userPassword: password
+sn: Stark
+
+dn: CN=Thor,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com
+objectclass: user
+objectclass: top
+objectclass: inetOrgPerson
+objectclass: organizationalPerson
+objectclass: person
+cn: Thor
+sAMAccountName: CN=Thor
+tokenGroups:: AQUAAAAAAAUVAAAA4rc20emZjwwpdMkMUQQAAA==
+userPrincipalName: Thor@ad.test.elasticsearch.com
+userPassword: password
+sn: Stark

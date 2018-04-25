@@ -1549,7 +1549,7 @@ public class InternalEngineTests extends EngineTestCase {
         Iterator<Engine.Operation> iter2 = opsDoc2.iterator();
         while (iter1.hasNext() && iter2.hasNext()) {
             final Engine.Operation next = randomBoolean() ? iter1.next() : iter2.next();
-                allOps.add(seqNoUpdater.apply(next));
+            allOps.add(seqNoUpdater.apply(next));
         }
         iter1.forEachRemaining(o -> allOps.add(seqNoUpdater.apply(o)));
         iter2.forEachRemaining(o -> allOps.add(seqNoUpdater.apply(o)));

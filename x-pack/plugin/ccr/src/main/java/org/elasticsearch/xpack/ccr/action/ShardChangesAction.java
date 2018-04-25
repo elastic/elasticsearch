@@ -5,6 +5,25 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -20,8 +39,19 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -34,11 +64,8 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-import java.util.PriorityQueue;
-import java.util.Queue;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -227,6 +254,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
             IndexService indexService = indicesService.indexServiceSafe(request.getShard().getIndex());
             IndexShard indexShard = indexService.getShard(request.getShard().id());
 
+            request.maxSeqNo = Math.min(request.maxSeqNo, indexShard.getGlobalCheckpoint());
             return getOperationsBetween(indexShard, request.minSeqNo, request.maxSeqNo, request.maxTranslogsBytes);
         }
 
@@ -257,40 +285,152 @@ public class ShardChangesAction extends Action<ShardChangesAction.Request, Shard
             throw new IndexShardNotStartedException(indexShard.shardId(), indexShard.state());
         }
 
+        // TODO: Somehow this needs to be an internal refresh (SearcherScope.INTERNAL)
+        indexShard.refresh("shard_changes_api");
+        // TODO: Somehow this needs to acquire an internal searcher (SearcherScope.INTERNAL)
+        try (Engine.Searcher searcher = indexShard.acquireSearcher("shard_changes_api")) {
+            List<Translog.Operation> operations = getOperationsBetween(minSeqNo, maxSeqNo, byteLimit,
+                    searcher.getDirectoryReader(), indexShard.mapperService());
+            return new Response(operations.toArray(EMPTY_OPERATIONS_ARRAY));
+        }
+    }
+
+    static List<Translog.Operation> getOperationsBetween(long minSeqNo, long maxSeqNo, long byteLimit,
+                                                         DirectoryReader indexReader, MapperService mapperService) throws IOException {
+        IndexSearcher searcher = new IndexSearcher(new CCRIndexReader(indexReader));
+        searcher.setQueryCache(null);
+
+        MappedFieldType seqNoFieldType = mapperService.fullName(SeqNoFieldMapper.NAME);
+        assert mapperService.types().size() == 1;
+        String type = mapperService.types().iterator().next();
+
+        int size = ((int) (maxSeqNo - minSeqNo)) + 1;
+        Sort sort = new Sort(new SortedNumericSortField(seqNoFieldType.name(), SortField.Type.LONG));
+        Query query;
+        if (mapperService.hasNested()) {
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            builder.add(Queries.newNonNestedFilter(mapperService.getIndexSettings().getIndexVersionCreated()), Occur.FILTER);
+            builder.add(seqNoFieldType.rangeQuery(minSeqNo, maxSeqNo, true, true, null, null, null, null), Occur.FILTER);
+            query = builder.build();
+        } else {
+            query = seqNoFieldType.rangeQuery(minSeqNo, maxSeqNo, true, true, null, null, null, null);
+        }
+        TopDocs topDocs = searcher.search(query, size, sort);
+        if (topDocs.scoreDocs.length != size) {
+            String message = "not all operations between min_seq_no [" + minSeqNo + "] and max_seq_no [" + maxSeqNo + "] found";
+            throw new IllegalStateException(message);
+        }
+
         long seenBytes = 0;
-        long nextExpectedSeqNo = minSeqNo;
-        final Queue<Translog.Operation> orderedOps = new PriorityQueue<>(Comparator.comparingLong(Translog.Operation::seqNo));
-
         final List<Translog.Operation> operations = new ArrayList<>();
-        try (Translog.Snapshot snapshot = indexShard.newTranslogSnapshotBetween(minSeqNo, maxSeqNo)) {
-            for (Translog.Operation unorderedOp = snapshot.next(); unorderedOp != null; unorderedOp = snapshot.next()) {
-                if (unorderedOp.seqNo() < minSeqNo || unorderedOp.seqNo() > maxSeqNo) {
-                    continue;
-                }
+        for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
+            FieldsVisitor fieldsVisitor = new FieldsVisitor(true);
+            searcher.doc(scoreDoc.doc, fieldsVisitor);
+            fieldsVisitor.postProcess(mapperService);
 
-                orderedOps.add(unorderedOp);
-                while (orderedOps.peek() != null && orderedOps.peek().seqNo() == nextExpectedSeqNo) {
-                    Translog.Operation orderedOp = orderedOps.poll();
-                    if (seenBytes < byteLimit) {
-                        nextExpectedSeqNo++;
-                        seenBytes += orderedOp.estimateSize();
-                        operations.add(orderedOp);
-                        if (nextExpectedSeqNo > maxSeqNo) {
-                            return new Response(operations.toArray(EMPTY_OPERATIONS_ARRAY));
-                        }
-                    } else {
-                        return new Response(operations.toArray(EMPTY_OPERATIONS_ARRAY));
+            String id = fieldsVisitor.uid().id();
+            String routing = fieldsVisitor.routing();
+            if (fieldsVisitor.source() == null) {
+                throw new IllegalArgumentException("no source found for document with id [" + id + "]");
+            }
+            byte[] source = fieldsVisitor.source().toBytesRef().bytes;
+
+            // TODO: optimize this so that we fetch doc values data in segment and doc id order (see: DocValueFieldsFetchSubPhase):
+            int leafReaderIndex = ReaderUtil.subIndex(scoreDoc.doc, searcher.getIndexReader().leaves());
+            LeafReaderContext leafReaderContext = searcher.getIndexReader().leaves().get(leafReaderIndex);
+            int segmentDocId = scoreDoc.doc - leafReaderContext.docBase;
+            long version = readNumberDvValue(leafReaderContext, VersionFieldMapper.NAME, segmentDocId);
+            long seqNo = readNumberDvValue(leafReaderContext, SeqNoFieldMapper.NAME, segmentDocId);
+            long primaryTerm = readNumberDvValue(leafReaderContext, SeqNoFieldMapper.PRIMARY_TERM_NAME, segmentDocId);
+
+            // TODO: handle NOOPs
+            // NOTE: versionType can always be INTERNAL,
+            //       because version logic has already been taken care of when indexing into leader shard.
+            final VersionType versionType = VersionType.INTERNAL;
+            final Translog.Operation op;
+            if (isDeleteOperation(leafReaderContext, segmentDocId)) {
+                BytesRef idBytes = Uid.encodeId(id);
+                Term uidForDelete = new Term(IdFieldMapper.NAME, idBytes);
+                op = new Translog.Delete(type, id, uidForDelete, seqNo, primaryTerm, version, versionType);
+            } else {
+                // NOTE: autoGeneratedIdTimestamp can always be -1,
+                //       because auto id generation has already been performed when inxdexing into leader shard.
+                final int autoGeneratedId = -1;
+                op = new Translog.Index(type, id, seqNo, primaryTerm, version, versionType, source, routing, autoGeneratedId);
+            }
+            seenBytes += op.estimateSize();
+            operations.add(op);
+            if (seenBytes > byteLimit) {
+                return operations;
+            }
+        }
+        return operations;
+    }
+
+    private static long readNumberDvValue(LeafReaderContext leafReaderContext, String fieldName, int segmentDocId) throws IOException {
+        NumericDocValues versionDvField = leafReaderContext.reader().getNumericDocValues(fieldName);
+        assert versionDvField != null : fieldName + " field is missing";
+        boolean advanced = versionDvField.advanceExact(segmentDocId);
+        assert advanced;
+        return versionDvField.longValue();
+    }
+
+    private static boolean isDeleteOperation(LeafReaderContext leafReaderContext, int segmentDocId) throws IOException {
+        NumericDocValues softDeleteField = leafReaderContext.reader().getNumericDocValues(Lucene.SOFT_DELETE_FIELD);
+        if (softDeleteField == null) {
+            return false;
+        }
+
+        boolean advanced = softDeleteField.advanceExact(segmentDocId);
+        if (advanced == false) {
+            return false;
+        }
+
+        long value = softDeleteField.longValue();
+        return value == 1L;
+    }
+
+    static final class CCRIndexReader extends FilterDirectoryReader {
+
+        static final class CCRSubReaderWrapper extends SubReaderWrapper {
+            @Override
+            public LeafReader wrap(LeafReader in) {
+                return new FilterLeafReader(in) {
+                    @Override
+                    public CacheHelper getCoreCacheHelper() {
+                        return null;
                     }
-                }
+
+                    @Override
+                    public CacheHelper getReaderCacheHelper() {
+                        return null;
+                    }
+
+                    @Override
+                    public int numDocs() {
+                        return maxDoc();
+                    }
+
+                    @Override
+                    public Bits getLiveDocs() {
+                        return null;
+                    }
+                };
             }
         }
 
-        if (nextExpectedSeqNo >= maxSeqNo) {
-            return new Response(operations.toArray(EMPTY_OPERATIONS_ARRAY));
-        } else {
-            String message = "Not all operations between min_seq_no [" + minSeqNo + "] and max_seq_no [" + maxSeqNo +
-                    "] found, tracker checkpoint [" + nextExpectedSeqNo + "]";
-            throw new IllegalStateException(message);
+        CCRIndexReader(DirectoryReader in) throws IOException {
+            super(in, new CCRSubReaderWrapper());
+        }
+
+        @Override
+        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+            return new CCRIndexReader(in);
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return in.getReaderCacheHelper();
         }
     }
 

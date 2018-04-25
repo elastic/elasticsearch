@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 

@@ -1,23 +1,39 @@
 [[breaking-changes-6.3]]
 == Breaking changes in 6.3
 
+[[breaking_63_api_changes]]
+=== API changes
+
+==== Suggest stats metrics deprecated
+
+The suggest stats were previously folded into the search on the indices stats
+API. As such, the `suggest` metric on the indices stats API has been a synonym
+for the `search` metric. In 6.3.0, the `suggest` metric is deprecated in favor
+of using `search`.
+
+Similarly, the `suggest` index metric on the `indices` metric on the nodes stats
+API has provided a response containing only an empty object since 5.0.0. In
+6.3.0 this metric has been deprecated.
+
 [[breaking_63_plugins_changes]]
 === Plugins changes
 
 ==== GCS Repository plugin
 
-* The repository settings `application_name`, `connect_timeout` and `read_timeout` have been deprecated and
-must now be specified in the client settings instead.
+The repository settings `application_name`, `connect_timeout` and `read_timeout`
+have been deprecated and must now be specified in the client settings instead.
 
 See {plugins}/repository-gcs-client.html#repository-gcs-client[Google Cloud Storage Client Settings].
 
 ==== Ingest Geoip Plugin
 
-* In earlier versions, database files have been stored as gzip compressed files with the extension `.gz` to
-save disk space. As a consequence, database files had to be loaded in memory. Now the default database files
-that are stored uncompressed as `.mmdb` files which allows to memory-map them and save heap memory. Any
-custom database files must also be stored uncompressed. Consequently, the `database_file` property in any
-ingest pipelines that use the Geoip Processor must refer to the uncompressed database files as well.
+In earlier versions, database files have been stored as gzip compressed files
+with the extension `.gz` to save disk space. As a consequence, database files
+had to be loaded in memory. Now the default database files that are stored
+uncompressed as `.mmdb` files which allows to memory-map them and save heap
+memory. Any custom database files must also be stored uncompressed. Consequently,
+the `database_file` property in any ingest pipelines that use the Geoip Processor
+must refer to the uncompressed database files as well.
 
 ==== Using the plugin installer without a TTY
 
@@ -29,6 +45,9 @@ additional security permissions has been removed. Now, a user must deliberately
 accept these permissions either by keeping standard input open and attaching a
 TTY (i.e., using interactive mode to accept the permissions), or by passing the
 `--batch` flag.
+
+[[breaking_63_settings_changes]]
+=== Settings changes
 
 ==== Concurrency level of analyze requests
 

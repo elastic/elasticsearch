@@ -1,0 +1,91 @@
+---
+"Create a token and reuse it across the upgrade":
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      xpack.security.put_user:
+        username: "token_user"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "superuser" ],
+            "full_name" : "Token User"
+          }
+
+  - do:
+      xpack.security.get_token:
+        body:
+          grant_type: "password"
+          username: "token_user"
+          password: "x-pack-test-password"
+
+  - match: { type: "Bearer" }
+  - is_true: access_token
+  - set: { access_token: token }
+  - match: { expires_in: 1200 }
+  - is_false: scope
+
+  - do:
+      headers:
+        Authorization: Bearer ${token}
+      xpack.security.authenticate: {}
+
+  - match: { username: "token_user" }
+  - match: { roles.0:  "superuser" }
+  - match: { full_name: "Token User" }
+
+  - do:
+      indices.create:
+        index: token_index
+        wait_for_active_shards : all
+        body:
+          settings:
+            index:
+              number_of_replicas: 1
+
+  - do:
+      headers:
+        Authorization: Bearer ${token}
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "token_index", "_type": "doc", "_id" : "1"}}'
+          - '{"f1": "v1_old", "f2": 0}'
+          - '{"index": {"_index": "token_index", "_type": "doc", "_id" : "2"}}'
+          - '{"f1": "v2_old", "f2": 1}'
+          - '{"index": {"_index": "token_index", "_type": "doc", "_id" : "3"}}'
+          - '{"f1": "v3_old", "f2": 2}'
+          - '{"index": {"_index": "token_index", "_type": "doc", "_id" : "4"}}'
+          - '{"f1": "v4_old", "f2": 3}'
+          - '{"index": {"_index": "token_index", "_type": "doc", "_id" : "5"}}'
+          - '{"f1": "v5_old", "f2": 4}'
+
+  - do:
+      headers:
+        Authorization: Bearer ${token}
+      indices.flush:
+        index: token_index
+
+  - do:
+      headers:
+        Authorization: Bearer ${token}
+      search:
+        index: token_index
+
+  - match: { hits.total: 5 }
+
+  # we do store the token in the index such that we can reuse it down the road once
+  # the cluster is upgraded
+  - do:
+      headers:
+        Authorization: Bearer ${token}
+      index:
+        index: token_index
+        type: doc
+        id: "6"
+        body: { "token" : "${token}"}

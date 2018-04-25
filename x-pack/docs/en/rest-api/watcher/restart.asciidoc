@@ -1,0 +1,38 @@
+[role="xpack"]
+[[watcher-api-restart]]
+=== Restart API
+
+The `restart` API stops then starts the {watcher} service.
+
+
+[float]
+==== Request
+
+`POST _xpack/watcher/_restart`
+
+
+[float]
+==== Authorization
+
+You must have `manage_watcher` cluster privileges to use this API. For more
+information, see {xpack-ref}/security-privileges.html[Security Privileges].
+
+
+[float]
+==== Examples
+
+[source,js]
+--------------------------------------------------
+POST _xpack/watcher/_restart
+--------------------------------------------------
+// CONSOLE
+
+{watcher} returns the following response if the request is successful:
+
+[source,js]
+--------------------------------------------------
+{
+   "acknowledged": true
+}
+--------------------------------------------------
+// TESTRESPONSE

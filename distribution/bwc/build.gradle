@@ -131,17 +131,20 @@ subprojects {
     }
   }
 
-  String debDir = 'distribution/packages/deb'
-  String rpmDir = 'distribution/packages/rpm'  
-  String zipDir = 'distribution/archives/zip'
-  if (bwcVersion.before('6.3.0')) {
-    debDir = 'distribution/deb'
-    rpmDir = 'distribution/rpm'
-    zipDir = 'distribution/zip'
+  List<File> artifactFiles = []
+  List<String> projectDirs = []
+  for (String project : ['zip', 'deb', 'rpm']) {
+    String baseDir = "distribution"
+    if (bwcVersion.onOrAfter('6.3.0')) {
+      baseDir += project == 'zip' ? '/archives' : '/packages'
+      // add oss variant first
+      projectDirs.add("${baseDir}/oss-${project}")
+      artifactFiles.add(file("${checkoutDir}/${baseDir}/oss-${project}/build/distributions/elasticsearch-oss-${bwcVersion}.${project}"))
+    }
+    projectDirs.add("${baseDir}/${project}")
+    artifactFiles.add(file("${checkoutDir}/${baseDir}/${project}/build/distributions/elasticsearch-${bwcVersion}.${project}"))
   }
-  File bwcDeb = file("${checkoutDir}/${debDir}/build/distributions/elasticsearch-${bwcVersion}.deb")
-  File bwcRpm = file("${checkoutDir}/${rpmDir}/build/distributions/elasticsearch-${bwcVersion}.rpm")
-  File bwcZip = file("${checkoutDir}/${zipDir}/build/distributions/elasticsearch-${bwcVersion}.zip")
+
   task buildBwcVersion(type: Exec) {
     dependsOn checkoutBwcBranch, writeBuildMetadata
     workingDir = checkoutDir
@@ -159,7 +162,10 @@ subprojects {
     } else {
       executable new File(checkoutDir, 'gradlew').toString()
     }
-    args ":${debDir.replace('/', ':')}:assemble", ":${rpmDir.replace('/', ':')}:assemble", ":${zipDir.replace('/', ':')}:assemble", "-Dbuild.snapshot=true"
+    for (String dir : projectDirs) {
+      args ":${dir.replace('/', ':')}:assemble"
+    }
+    args "-Dbuild.snapshot=true"
     final LogLevel logLevel = gradle.startParameter.logLevel
     if ([LogLevel.QUIET, LogLevel.WARN, LogLevel.INFO, LogLevel.DEBUG].contains(logLevel)) {
       args "--${logLevel.name().toLowerCase(Locale.ENGLISH)}"
@@ -172,7 +178,7 @@ subprojects {
       args "--full-stacktrace"
     }
     doLast {
-      List missing = [bwcDeb, bwcRpm, bwcZip].grep { file ->
+      List missing = artifactFiles.grep { file ->
         false == file.exists()
       }
       if (false == missing.empty) {
@@ -183,8 +189,10 @@ subprojects {
   }
 
   artifacts {
-    'default' file: bwcDeb, name: 'elasticsearch', type: 'deb', builtBy: buildBwcVersion
-    'default' file: bwcRpm, name: 'elasticsearch', type: 'rpm', builtBy: buildBwcVersion
-    'default' file: bwcZip, name: 'elasticsearch', type: 'zip', builtBy: buildBwcVersion
+    for (File artifactFile : artifactFiles) {
+      String artifactName = artifactFile.name.contains('oss') ? 'elasticsearch-oss' : 'elasticsearch'
+      String suffix = artifactFile.toString()[-3..-1]
+      'default' file: artifactFile, name: artifactName, type: suffix, builtBy: buildBwcVersion
+    }
   }
 }

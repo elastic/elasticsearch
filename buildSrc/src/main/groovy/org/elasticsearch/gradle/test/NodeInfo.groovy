@@ -323,6 +323,8 @@ class NodeInfo {
             case 'integ-test-zip':
             case 'zip':
             case 'tar':
+            case 'oss-zip':
+            case 'oss-tar':
                 path = "elasticsearch-${nodeVersion}"
                 break
             case 'rpm':
@@ -339,7 +341,9 @@ class NodeInfo {
         switch (distro) {
             case 'integ-test-zip':
             case 'zip':
+            case 'oss-zip':
             case 'tar':
+            case 'oss-tar':
                 return new File(homeDir(baseDir, distro, nodeVersion), 'config')
             case 'rpm':
             case 'deb':

@@ -1,0 +1,83 @@
+---
+"Test Hijack and Block Direct Access to Internal Indices":
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      catch: /not supported/
+      get:
+          index: ".watches"
+          type: "watch"
+          id: "foo"
+
+  - do:
+      catch: /not supported/
+      index:
+          index: ".watches"
+          type: "watch"
+          id: "foo"
+          body: {}
+
+  - do:
+      catch: /not supported/
+      delete:
+          index: ".watches"
+          type: "watch"
+          id: "foo"
+
+  - do:
+      catch: /not supported/
+      indices.delete:
+          index: ".watches"
+
+  - do:
+      catch: /not supported/
+      update:
+          index: ".watches"
+          type: "watch"
+          id: "foo"
+          body: {}
+
+  - do:
+      catch: /not supported/
+      bulk:
+          index: ".watches"
+          type: "watch"
+          body:
+            -  { "index": {}}
+            -  {}
+
+  - do:
+      catch: /not supported/
+      bulk:
+          index: ".watches"
+          body:
+            -  { "index": {}}
+            -  {}
+
+  - do:
+      catch: /not supported/
+      delete_by_query:
+          index: ".watches"
+          body: {}
+
+  - do:
+      catch: /not supported/
+      delete_by_query:
+          index: ".watches"
+          type: "watch"
+          body: {}
+
+  - do:
+      catch: /not supported/
+      update_by_query:
+          index: ".watches"
+          body: {}
+
+  - do:
+      catch: /not supported/
+      update_by_query:
+          index: ".watches"
+          type: "watch"
+          body: {}

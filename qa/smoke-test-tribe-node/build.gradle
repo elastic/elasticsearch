@@ -26,11 +26,13 @@ apply plugin: 'elasticsearch.rest-test'
 
 
 ClusterConfiguration configOne = new ClusterConfiguration(project)
+configOne.distribution = 'oss-zip'
 configOne.clusterName = 'one'
 configOne.setting('node.name', 'one')
 List<NodeInfo> oneNodes = ClusterFormationTasks.setup(project, 'clusterOne', integTestRunner, configOne)
 
 ClusterConfiguration configTwo = new ClusterConfiguration(project)
+configTwo.distribution = 'oss-zip'
 configTwo.clusterName = 'two'
 configTwo.setting('node.name', 'two')
 List<NodeInfo> twoNodes = ClusterFormationTasks.setup(project, 'clusterTwo', integTestRunner, configTwo)

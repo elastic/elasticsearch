@@ -129,7 +129,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
             }
             if (allowMultiBucket == false && aggregation instanceof InternalMultiBucketAggregation) {
                 throw new AggregationExecutionException("[" + aggName + "] is a [" + aggregation.getType()
-                    + "], but only single bucket or numeric aggs are allowed.");
+                    + "], but only number value or a single value numeric metric aggregations are allowed.");
             }
             return aggregation.getProperty(path.subList(1, path.size()), allowMultiBucket);
         }

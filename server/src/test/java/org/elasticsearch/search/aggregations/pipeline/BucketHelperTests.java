@@ -43,6 +43,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggre
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.cumulativesum.CumulativeSumPipelineAggregationBuilder;
 
 import java.io.IOException;
@@ -85,7 +86,7 @@ public class BucketHelperTests extends AggregatorTestCase {
             () -> executeTestCase(query, aggBuilder, histogram -> fail("Should have thrown exception because of multi-bucket agg")));
 
         assertThat(e.getMessage(),
-            equalTo("[histo2] is a [date_histogram], but only single bucket or numeric aggs are allowed."));
+            equalTo("[histo2] is a [date_histogram], but only number value or a single value numeric metric aggregations are allowed."));
     }
 
     public void testCountOnMultiBucket() {
@@ -102,7 +103,7 @@ public class BucketHelperTests extends AggregatorTestCase {
             () -> executeTestCase(query, aggBuilder, histogram -> fail("Should have thrown exception because of multi-bucket agg")));
 
         assertThat(e.getMessage(),
-            equalTo("[histo2] is a [date_histogram], but only single bucket or numeric aggs are allowed."));
+            equalTo("[histo2] is a [date_histogram], but only number value or a single value numeric metric aggregations are allowed."));
     }
 
     public void testPathingThroughSingleBuckets() throws IOException {
@@ -135,7 +136,36 @@ public class BucketHelperTests extends AggregatorTestCase {
             () -> executeTestCase(query, aggBuilder, histogram -> fail("Should have thrown exception because of multi-bucket agg")));
 
         assertThat(e.getMessage(),
-            equalTo("[histo2] is a [date_histogram], but only single bucket or numeric aggs are allowed."));
+            equalTo("[histo2] is a [date_histogram], but only number value or a single value numeric metric aggregations are allowed."));
+    }
+
+    public void testPercentilesWithoutSpecificValue() throws IOException {
+        Query query = new MatchAllDocsQuery();
+
+        DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
+        aggBuilder.dateHistogramInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
+        aggBuilder.subAggregation(new PercentilesAggregationBuilder("the_percentiles").field(VALUE_FIELD));
+        aggBuilder.subAggregation(new CumulativeSumPipelineAggregationBuilder("cusum", "the_percentiles"));
+
+        AggregationExecutionException e = expectThrows(AggregationExecutionException.class,
+            () -> executeTestCase(query, aggBuilder, histogram -> fail("Should have thrown exception because of multi-bucket agg")));
+
+        assertThat(e.getMessage(),
+            equalTo("[the_percentiles] is a [tdigest_percentiles] which contains multiple values, but only number value or a " +
+                "single value numeric metric aggregation.  Please specify which value to return."));
+    }
+
+    public void testPercentilesWithSpecificValue() throws IOException {
+        Query query = new MatchAllDocsQuery();
+
+        DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
+        aggBuilder.dateHistogramInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
+        aggBuilder.subAggregation(new PercentilesAggregationBuilder("the_percentiles").field(VALUE_FIELD));
+        aggBuilder.subAggregation(new CumulativeSumPipelineAggregationBuilder("cusum", "the_percentiles.99"));
+
+        executeTestCase(query, aggBuilder, histogram -> {
+            assertThat(((InternalDateHistogram)histogram).getBuckets().size(), equalTo(10));
+        });
     }
 
     @SuppressWarnings("unchecked")

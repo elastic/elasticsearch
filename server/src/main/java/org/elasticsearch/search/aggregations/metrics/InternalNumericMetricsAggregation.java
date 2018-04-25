@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
@@ -85,6 +86,11 @@ public abstract class InternalNumericMetricsAggregation extends InternalAggregat
         @Override
         public Object getProperty(List<String> path, boolean allowMultiBucket) {
             if (path.isEmpty()) {
+                if (allowMultiBucket == false) {
+                    throw new AggregationExecutionException("[" + getName() + "] is a [" + getType()
+                        + "] which contains multiple values, but only number value or a single value numeric metric aggregation.  Please " +
+                        "specify which value to return.");
+                }
                 return this;
             } else if (path.size() == 1) {
                 return value(path.get(0));

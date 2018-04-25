@@ -71,6 +71,8 @@ public class FieldsVisitor extends StoredFieldVisitor {
             return Status.YES;
         }
         // Always load _ignored to be explicit about ignored fields
+        // This works because _ignored is added as the first metadata mapper,
+        // so its stored fields always appear first in the list.
         if (IgnoredFieldMapper.NAME.equals(fieldInfo.name)) {
             return Status.YES;
         }

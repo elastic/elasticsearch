@@ -16,6 +16,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.AcceptingSelector;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioSocketChannel;
+import org.elasticsearch.nio.ReadConsumer;
 import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.nio.SocketSelector;
@@ -128,7 +129,7 @@ public class SecurityNioTransport extends NioTransport {
                 return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes::close);
             };
 
-            SocketChannelContext.ReadConsumer nioReadConsumer = channelBuffer ->
+            ReadConsumer nioReadConsumer = channelBuffer ->
                 consumeNetworkReads(nioChannel, BytesReference.fromByteBuffers(channelBuffer.sliceBuffersTo(channelBuffer.getIndex())));
             InboundChannelBuffer buffer = new InboundChannelBuffer(pageSupplier);
             Consumer<Exception> exceptionHandler = (e) -> exceptionCaught(nioChannel, e);

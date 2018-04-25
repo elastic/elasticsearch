@@ -41,12 +41,15 @@ public class PkiOptionalClientAuthTests extends SecuritySingleNodeTestCase {
     }
 
     @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
+    }
+
     protected Settings nodeSettings() {
         String randomClientPortRange = randomClientPort + "-" + (randomClientPort+100);
 
         Settings.Builder builder = Settings.builder()
                 .put(super.nodeSettings())
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .put("xpack.security.http.ssl.enabled", true)
                 .put("xpack.security.http.ssl.client_authentication", SSLClientAuth.OPTIONAL)
                 .put("xpack.security.authc.realms.file.type", "file")

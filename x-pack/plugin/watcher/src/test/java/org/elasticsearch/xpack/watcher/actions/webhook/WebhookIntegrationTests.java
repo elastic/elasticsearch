@@ -49,8 +49,8 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
     private MockWebServer webServer = new MockWebServer();
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put("http.enabled", true).build();
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
     }
 
     @Override

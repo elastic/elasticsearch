@@ -52,12 +52,16 @@ import static org.hamcrest.Matchers.is;
 public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
 
     @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
+    }
+
+    @Override
     protected Settings nodeSettings() {
         SSLClientAuth sslClientAuth = randomBoolean() ? SSLClientAuth.REQUIRED : SSLClientAuth.OPTIONAL;
 
         Settings.Builder builder = Settings.builder()
                 .put(super.nodeSettings())
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .put("xpack.security.http.ssl.enabled", true)
                 .put("xpack.security.http.ssl.client_authentication", sslClientAuth)
                 .put("xpack.security.authc.realms.file.type", FileRealmSettings.TYPE)

@@ -73,13 +73,8 @@ public class XPackSettings {
             true, Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling the token service. Defaults to true */
-    public static final Setting<Boolean> TOKEN_SERVICE_ENABLED_SETTING = Setting.boolSetting("xpack.security.authc.token.enabled", (s) -> {
-        if (NetworkModule.HTTP_ENABLED.get(s)) {
-            return XPackSettings.HTTP_SSL_ENABLED.getRaw(s);
-        } else {
-            return Boolean.TRUE.toString();
-        }
-    }, Setting.Property.NodeScope);
+    public static final Setting<Boolean> TOKEN_SERVICE_ENABLED_SETTING = Setting.boolSetting("xpack.security.authc.token.enabled",
+        XPackSettings.HTTP_SSL_ENABLED::getRaw, Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling sql. Defaults to true. */
     public static final Setting<Boolean> SQL_ENABLED = Setting.boolSetting("xpack.sql.enabled", true, Setting.Property.NodeScope);

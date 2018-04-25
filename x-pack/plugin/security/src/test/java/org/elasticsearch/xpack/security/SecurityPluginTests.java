@@ -25,11 +25,8 @@ import static org.hamcrest.Matchers.is;
 public class SecurityPluginTests extends SecurityIntegTestCase {
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("http.enabled", true) //This test requires HTTP
-                .build();
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
     }
 
     public void testThatPluginIsLoaded() throws IOException {

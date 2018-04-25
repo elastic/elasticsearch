@@ -120,10 +120,8 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
             "index_a_role:u13\n";
 
     @Override
-    protected Settings nodeSettings() {
-        return Settings.builder().put(super.nodeSettings())
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .build();
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
     }
 
     @Override

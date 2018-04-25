@@ -50,10 +50,14 @@ public class AuditTrailTests extends SecurityIntegTestCase {
     private static final String ROLES = ROLE_CAN_RUN_AS + ":\n" + "  run_as: [ '" + EXECUTE_USER + "' ]\n";
 
     @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
+    }
+
+    @Override
     public Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .put("xpack.security.audit.enabled", true)
                 .put("xpack.security.audit.outputs", "index")
                 .putList("xpack.security.audit.index.events.include", "access_denied", "authentication_failed", "run_as_denied")

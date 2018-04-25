@@ -47,10 +47,15 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class SslIntegrationTests extends SecurityIntegTestCase {
+
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
+    }
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .put("xpack.security.http.ssl.enabled", true).build();
     }
 

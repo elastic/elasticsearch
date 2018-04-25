@@ -76,7 +76,7 @@ If you use {security} and the built-in token service is enabled, you must
 configure your cluster to use SSL/TLS for the HTTP interface. HTTPS is required
 in order to use the token service.
 
-In particular, if `xpack.security.authc.token.enabled` and `http.enabled` are
+In particular, if `xpack.security.authc.token.enabled` is
 set to `true` in the `elasticsearch.yml` file, you must also set
 `xpack.security.http.ssl.enabled` to `true`. For more information about these
 settings, see <<security-settings>> and <<modules-http>>.

@@ -45,6 +45,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class SSLClientAuthTests extends SecurityIntegTestCase {
+
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
+    }
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
@@ -54,7 +60,6 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
                 .put("xpack.security.http.ssl.enabled", true)
                 .put("xpack.security.http.ssl.client_authentication", SSLClientAuth.REQUIRED)
                 .put("transport.profiles.default.xpack.security.ssl.client_authentication", SSLClientAuth.NONE)
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();
     }
 

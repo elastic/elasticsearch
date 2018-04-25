@@ -27,6 +27,7 @@ import java.lang.management.ThreadMXBean;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -823,5 +824,35 @@ public class CacheTests extends ESTestCase {
 
         cache.refresh();
         assertEquals(500, cache.count());
+    }
+
+    public void testRemoveUsingValuesIterator() {
+        final List<RemovalNotification<Integer, String>> removalNotifications = new ArrayList<>();
+        Cache<Integer, String> cache =
+            CacheBuilder.<Integer, String>builder()
+                .setMaximumWeight(numberOfEntries)
+                .removalListener(removalNotifications::add)
+                .build();
+
+        for (int i = 0; i < numberOfEntries; i++) {
+            cache.put(i, Integer.toString(i));
+        }
+
+        assertThat(removalNotifications.size(), is(0));
+        final List<String> expectedRemovals = new ArrayList<>();
+        Iterator<String> valueIterator = cache.values().iterator();
+        while (valueIterator.hasNext()) {
+            String value = valueIterator.next();
+            if (randomBoolean()) {
+                valueIterator.remove();
+                expectedRemovals.add(value);
+            }
+        }
+
+        assertEquals(expectedRemovals.size(), removalNotifications.size());
+        for (int i = 0; i < expectedRemovals.size(); i++) {
+            assertEquals(expectedRemovals.get(i), removalNotifications.get(i).getValue());
+            assertEquals(RemovalNotification.RemovalReason.INVALIDATED, removalNotifications.get(i).getRemovalReason());
+        }
     }
 }

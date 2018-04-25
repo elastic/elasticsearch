@@ -116,7 +116,7 @@ public class ExecutionService extends AbstractComponent {
         this.currentExecutions.set(new CurrentExecutions());
     }
 
-    public synchronized void unPause() {
+    public void unPause() {
         paused.set(false);
     }
 

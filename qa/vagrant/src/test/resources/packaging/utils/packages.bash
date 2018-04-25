@@ -46,6 +46,7 @@ export_elasticsearch_paths() {
     if is_rpm; then
         export ESENVFILE="/etc/sysconfig/elasticsearch"
     fi
+    export PACKAGE_NAME=${PACKAGE_NAME:-"elasticsearch-oss"}
 }
 
 # Install the rpm or deb package.
@@ -73,9 +74,9 @@ install_package() {
         esac
     done
     if is_rpm; then
-        rpm $rpmCommand elasticsearch-$version.rpm
+        rpm $rpmCommand $PACKAGE_NAME-$version.rpm
     elif is_dpkg; then
-        dpkg $dpkgCommand -i elasticsearch-$version.deb
+        dpkg $dpkgCommand -i $PACKAGE_NAME-$version.deb
     else
         skip "Only rpm or deb supported"
     fi

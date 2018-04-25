@@ -3,6 +3,7 @@ package org.elasticsearch.gradle.vagrant
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.FileContentsTask
 import org.elasticsearch.gradle.LoggedExec
+import org.elasticsearch.gradle.Version
 import org.gradle.api.*
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.execution.TaskExecutionAdapter
@@ -37,7 +38,7 @@ class VagrantTestPlugin implements Plugin<Project> {
     ]
 
     /** All onboarded archives by default, available for Bats tests even if not used **/
-    static List<String> DISTRIBUTION_ARCHIVES = ['tar', 'rpm', 'deb']
+    static List<String> DISTRIBUTION_ARCHIVES = ['tar', 'rpm', 'deb', 'oss-rpm', 'oss-deb']
 
     /** Packages onboarded for upgrade tests **/
     static List<String> UPGRADE_FROM_ARCHIVES = ['rpm', 'deb']
@@ -105,12 +106,15 @@ class VagrantTestPlugin implements Plugin<Project> {
     private static void createPackagingConfiguration(Project project) {
         project.configurations.create(PACKAGING_CONFIGURATION)
 
-        String upgradeFromVersion = System.getProperty("tests.packaging.upgradeVersion")
-        if (upgradeFromVersion == null) {
+        String upgradeFromVersionRaw = System.getProperty("tests.packaging.upgradeVersion");
+        Version upgradeFromVersion
+        if (upgradeFromVersionRaw == null) {
             String firstPartOfSeed = project.rootProject.testSeed.tokenize(':').get(0)
             final long seed = Long.parseUnsignedLong(firstPartOfSeed, 16)
             final def indexCompatVersions = project.bwcVersions.indexCompatible
             upgradeFromVersion = indexCompatVersions[new Random(seed).nextInt(indexCompatVersions.size())]
+        } else {
+            upgradeFromVersion = Version.fromString(upgradeFromVersionRaw)
         }
 
         DISTRIBUTION_ARCHIVES.each {
@@ -128,6 +132,10 @@ class VagrantTestPlugin implements Plugin<Project> {
             // The version of elasticsearch that we upgrade *from*
             project.dependencies.add(PACKAGING_CONFIGURATION,
                     "org.elasticsearch.distribution.${it}:elasticsearch:${upgradeFromVersion}@${it}")
+            if (upgradeFromVersion.onOrAfter('6.3.0')) {
+                project.dependencies.add(PACKAGING_CONFIGURATION,
+                        "org.elasticsearch.distribution.${it}:elasticsearch-oss:${upgradeFromVersion}@${it}")
+            }
         }
 
         project.extensions.esvagrant.upgradeFromVersion = upgradeFromVersion
@@ -173,7 +181,17 @@ class VagrantTestPlugin implements Plugin<Project> {
         Task createUpgradeFromFile = project.tasks.create('createUpgradeFromFile', FileContentsTask) {
             dependsOn copyPackagingArchives
             file "${archivesDir}/upgrade_from_version"
-            contents project.extensions.esvagrant.upgradeFromVersion
+            contents project.extensions.esvagrant.upgradeFromVersion.toString()
+        }
+
+        Task createUpgradeIsOssFile = project.tasks.create('createUpgradeIsOssFile', FileContentsTask) {
+            dependsOn copyPackagingArchives
+            doFirst {
+                project.delete("${archivesDir}/upgrade_is_oss")
+            }
+            onlyIf { project.extensions.esvagrant.upgradeFromVersion.onOrAfter('6.3.0') }
+            file "${archivesDir}/upgrade_is_oss"
+            contents ''
         }
 
         File batsDir = new File(packagingDir, BATS)
@@ -214,7 +232,7 @@ class VagrantTestPlugin implements Plugin<Project> {
 
         Task vagrantSetUpTask = project.tasks.create('setupPackagingTest')
         vagrantSetUpTask.dependsOn 'vagrantCheckVersion'
-        vagrantSetUpTask.dependsOn copyPackagingArchives, createVersionFile, createUpgradeFromFile
+        vagrantSetUpTask.dependsOn copyPackagingArchives, createVersionFile, createUpgradeFromFile, createUpgradeIsOssFile
         vagrantSetUpTask.dependsOn copyBatsTests, copyBatsUtils
     }
 

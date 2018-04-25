@@ -1,0 +1,33 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+---
+"Index monitoring data and search on the old cluster":
+  - skip:
+      version:     "all"
+      reason:      "AwaitsFix'ing, see x-pack-elasticsearch #2948"
+  - do:
+      xpack.monitoring.bulk:
+        system_id:          "kibana"
+        system_api_version: "6"
+        interval:           "123456ms"
+        type:               "old_cluster"
+        body:
+          - '{"index": {}}'
+          - '{"field": "value_1"}'
+          - '{"index": {}}'
+          - '{"field": "value_2"}'
+
+  - is_false: errors
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: .monitoring-kibana-*
+        body: { "query": { "term" : { "type": "old_cluster" } } }
+  - match: { hits.total: 2 }

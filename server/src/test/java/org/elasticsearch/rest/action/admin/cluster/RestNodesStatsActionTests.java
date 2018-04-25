@@ -148,14 +148,4 @@ public class RestNodesStatsActionTests extends ESTestCase {
                 containsString("request [/_nodes/stats] contains index metrics [" + indexMetric + "] but all stats requested")));
     }
 
-    public void testSuggestIsDeprecated() throws IOException {
-        final Map<String, String> params =
-                Stream.of(Tuple.tuple("metric", "indices"), Tuple.tuple("index_metric", "suggest"))
-                        .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
-        final RestRequest request =
-                new FakeRestRequest.Builder(xContentRegistry()).withPath("/_nodes/stats").withParams(params).build();
-        action.prepareRequest(request, mock(NodeClient.class));
-        assertWarnings("the suggest index metric is deprecated on the nodes stats API [/_nodes/stats]" );
-    }
-
 }

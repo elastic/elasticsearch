@@ -168,21 +168,22 @@ directory contains commercial code that is associated with a separate license. I
 to have the IDE automatically insert the appropriate license header depending which part of the project
 contributions are made to.
 
-#### Intellij: Copyright & Scope Profiles
+#### IntelliJ: Copyright & Scope Profiles
 
-To have Intellij insert the correct license, it is necessary to create to copyright profiles.
+To have IntelliJ insert the correct license, it is necessary to create to copyright profiles.
 These may potentially be called `apache2` and `commercial`. These can be created in
 `Preferences/Settings->Editor->Copyright->Copyright Profiles`. To associate these profiles to
 their respective directories, two "Scopes" will need to be created. These can be created in
-`Preferences/Settings->Appearances & Behavior->Scopes`. Likewise, we can create a scope, `apache2` with
+`Preferences/Settings->Appearances & Behavior->Scopes`. When creating scopes, be sure to choose
+the `shared` scope type. Create a scope, `apache2`, with
 the associated pattern of `!file[group:x-pack]:*/`. This pattern will exclude all the files contained in
 the `x-pack` directory. The other scope, `commercial`, will have the inverse pattern of `file[group:x-pack]:*/`.
 The two scopes, together, should account for all the files in the project. To associate the scopes
 with their copyright-profiles, go into `Preferences/Settings->Editor>Copyright` and use the `+` to add
-the associations `apache2:apach2` and `commercial:commercial`.
+the associations `apache2/apache2` and `commercial/commercial`.
 
-Configuring these options in Intellij can be quite buggy, so do not be alarmed if you have to open/close
-the settings window and/or restart Intellij to see your changes take effect.
+Configuring these options in IntelliJ can be quite buggy, so do not be alarmed if you have to open/close
+the settings window and/or restart IntelliJ to see your changes take effect.
 
 ### Creating A Distribution
 

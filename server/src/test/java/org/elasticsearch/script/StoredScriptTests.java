@@ -206,7 +206,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
     }
 
     public void testEmptyTemplateDeprecations() throws IOException {
-        /*try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject().endObject();
 
             StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
@@ -224,7 +224,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
 
             assertThat(parsed, equalTo(source));
             assertWarnings("empty templates should no longer be used");
-        }*/
+        }
 
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject().field("script").startObject().field("lang", "mustache")

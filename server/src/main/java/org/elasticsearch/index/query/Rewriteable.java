@@ -20,7 +20,6 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.XContentParseException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -113,7 +112,7 @@ public interface Rewriteable<T> {
                 }
             }
             rewriteResponse.onResponse(builder);
-        } catch (IOException|XContentParseException|ParsingException ex) {
+        } catch (IOException|IllegalArgumentException|ParsingException ex) {
             rewriteResponse.onFailure(ex);
         }
     }

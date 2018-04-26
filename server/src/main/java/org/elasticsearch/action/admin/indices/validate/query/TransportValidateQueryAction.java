@@ -86,8 +86,6 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
                 listener.onFailure(ex);
             }
             List<QueryExplanation> explanations = new ArrayList<>();
-            // TODO[PCS]: given that we can have multiple indices, what's the best way to include
-            // these in a query explanation?
             explanations.add(new QueryExplanation(null,
                 QueryExplanation.RANDOM_SHARD,
                 false,

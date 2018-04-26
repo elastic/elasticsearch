@@ -37,10 +37,11 @@ class MetaPluginBuildPlugin implements Plugin<Project> {
         project.plugins.apply(RestTestPlugin)
 
         createBundleTask(project)
-        boolean isModule = project.path.startsWith(':modules:')
+        boolean isModule = project.path.startsWith(':modules:') || project.path.startsWith(':x-pack:plugin')
 
         project.integTestCluster {
             dependsOn(project.bundlePlugin)
+            distribution = 'integ-test-zip'
         }
         BuildPlugin.configurePomGeneration(project)
         project.afterEvaluate {
@@ -49,9 +50,9 @@ class MetaPluginBuildPlugin implements Plugin<Project> {
                 if (project.integTestCluster.distribution == 'integ-test-zip') {
                     project.integTestCluster.module(project)
                 }
-             } else {
+            } else {
                 project.integTestCluster.plugin(project.path)
-             }
+            }
         }
 
         RunTask run = project.tasks.create('run', RunTask)

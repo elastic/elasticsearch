@@ -5,27 +5,37 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -46,6 +56,8 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.persistence.JobStorageDeletionTask;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
@@ -59,6 +71,7 @@ import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.utils.ChainTaskExecutor;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashSet;
@@ -67,9 +80,13 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * Allows interactions with jobs. The managed interactions include:
@@ -120,27 +137,37 @@ public class JobManager extends AbstractComponent {
      * Gets the job that matches the given {@code jobId}.
      *
      * @param jobId the jobId
+     * @param jobListener the Job listener state.
      * @return The {@link Job} matching the given {code jobId}
      * @throws ResourceNotFoundException if no job matches {@code jobId}
      */
-    public Job getJobOrThrowIfUnknown(String jobId) {
-        return getJobOrThrowIfUnknown(jobId, clusterService.state());
-    }
+    public void getJobOrThrowIfUnknown(String jobId, ActionListener<Job> jobListener) {
+        GetRequest getRequest = new GetRequest(AnomalyDetectorsIndex.jobConfigIndexName(), ElasticsearchMappings.DOC_TYPE,
+                Job.documentId(jobId));
 
-    /**
-     * Gets the job that matches the given {@code jobId}.
-     *
-     * @param jobId the jobId
-     * @param clusterState the cluster state
-     * @return The {@link Job} matching the given {code jobId}
-     * @throws ResourceNotFoundException if no job matches {@code jobId}
-     */
-    public static Job getJobOrThrowIfUnknown(String jobId, ClusterState clusterState) {
-        Job job = MlMetadata.getMlMetadata(clusterState).getJobs().get(jobId);
-        if (job == null) {
-            throw ExceptionsHelper.missingJobException(jobId);
-        }
-        return job;
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
+            @Override
+            public void onResponse(GetResponse getResponse) {
+                if (getResponse.isExists() == false) {
+                    jobListener.onFailure(ExceptionsHelper.missingJobException(jobId));
+                    return;
+                }
+
+                BytesReference source = getResponse.getSourceAsBytesRef();
+                try (InputStream stream = source.streamInput();
+                     XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                             .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+                    jobListener.onResponse(Job.CONFIG_PARSER.apply(parser, null).build());
+                } catch (IOException e) {
+                    jobListener.onFailure(new ElasticsearchParseException("failed to parse " + getResponse.getType(), e));
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                jobListener.onFailure(e);
+            }
+        });
     }
 
     private Set<String> expandJobIds(String expression, boolean allowNoJobs, ClusterState clusterState) {
@@ -257,10 +284,16 @@ public class JobManager extends AbstractComponent {
     }
 
     public void updateJob(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
-        Job job = getJobOrThrowIfUnknown(request.getJobId());
-        validate(request.getJobUpdate(), job, ActionListener.wrap(
-                nullValue -> internalJobUpdate(request, actionListener),
-                actionListener::onFailure));
+
+
+        getJobOrThrowIfUnknown(request.getJobId(), ActionListener.wrap(
+                job -> {
+                    validate(request.getJobUpdate(), job, ActionListener.wrap(
+                            nullValue -> internalJobUpdate(request, actionListener),
+                            actionListener::onFailure));
+                },
+                actionListener::onFailure
+        ));
     }
 
     private void validate(JobUpdate jobUpdate, Job job, ActionListener<Void> handler) {
@@ -323,52 +356,56 @@ public class JobManager extends AbstractComponent {
     }
 
     private void internalJobUpdate(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
-        if (request.isWaitForAck()) {
-            // Use the ack cluster state update
-            clusterService.submitStateUpdateTask("update-job-" + request.getJobId(),
-                    new AckedClusterStateUpdateTask<PutJobAction.Response>(request, actionListener) {
-                        private AtomicReference<Job> updatedJob = new AtomicReference<>();
 
-                        @Override
-                        protected PutJobAction.Response newResponse(boolean acknowledged) {
-                            return new PutJobAction.Response(updatedJob.get());
-                        }
+        AtomicReference<Boolean> jobHasChanged = new AtomicReference<Boolean>(Boolean.FALSE);
+        ActionListener<Job> updatedJobListener;
 
-                        @Override
-                        public ClusterState execute(ClusterState currentState) {
-                            Job job = getJobOrThrowIfUnknown(request.getJobId(), currentState);
-                            updatedJob.set(request.getJobUpdate().mergeWithJob(job, maxModelMemoryLimit));
-                            return updateClusterState(updatedJob.get(), true, currentState);
+        // Autodetect must be updated if the fields that the C++ uses are changed
+        if (request.getJobUpdate().isAutodetectProcessUpdate()) {
+            updatedJobListener = ActionListener.wrap(
+                    updatedJob -> {
+                        JobUpdate jobUpdate = request.getJobUpdate();
+                        if (jobHasChanged.get() && isJobOpen(clusterService.state(), request.getJobId())) {
+                            updateJobProcessNotifier.submitJobUpdate(UpdateParams.fromJobUpdate(jobUpdate), ActionListener.wrap(
+                                    isUpdated -> {
+                                        if (isUpdated) {
+                                            auditJobUpdatedIfNotInternal(request);
+                                        }
+                                    }, e -> {
+                                        // No need to do anything
+                                    }
+                            ));
                         }
-
-                        @Override
-                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                            afterClusterStateUpdate(newState, request);
-                        }
-                    });
+                        actionListener.onResponse(new PutJobAction.Response(updatedJob));
+                    },
+                    actionListener::onFailure
+            );
         } else {
-            clusterService.submitStateUpdateTask("update-job-" + request.getJobId(), new ClusterStateUpdateTask() {
-                private AtomicReference<Job> updatedJob = new AtomicReference<>();
+            updatedJobListener = ActionListener.wrap(job -> {
+                        logger.debug("[{}] No process update required for job update: {}", () -> request.getJobId(), () -> {
+                            try {
+                                XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
+                                request.getJobUpdate().toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
+                                return Strings.toString(jsonBuilder);
+                            } catch (IOException e) {
+                                return "(unprintable due to " + e.getMessage() + ")";
+                            }
+                        });
 
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    Job job = getJobOrThrowIfUnknown(request.getJobId(), currentState);
-                    updatedJob.set(request.getJobUpdate().mergeWithJob(job, maxModelMemoryLimit));
-                    return updateClusterState(updatedJob.get(), true, currentState);
-                }
-
-                @Override
-                public void onFailure(String source, Exception e) {
-                    actionListener.onFailure(e);
-                }
-
-                @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    afterClusterStateUpdate(newState, request);
-                    actionListener.onResponse(new PutJobAction.Response(updatedJob.get()));
-                }
-            });
+                        auditJobUpdatedIfNotInternal(request);
+                        actionListener.onResponse(new PutJobAction.Response(job));
+                    },
+                    actionListener::onFailure);
         }
+
+        updateJob(request.getJobId(),
+                jobBuilder -> {
+                    Job currentJob = jobBuilder.build();
+                    Job updatedJob = request.getJobUpdate().mergeWithJob(currentJob, maxModelMemoryLimit);
+                    jobHasChanged.set(updatedJob.equals(currentJob) == false);
+                    return updatedJob;
+                },
+                updatedJobListener);
     }
 
     private void afterClusterStateUpdate(ClusterState newState, UpdateJobAction.Request request) {
@@ -412,12 +449,6 @@ public class JobManager extends AbstractComponent {
         PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
         JobState jobState = MlTasks.getJobState(jobId, persistentTasks);
         return jobState == JobState.OPENED;
-    }
-
-    private ClusterState updateClusterState(Job job, boolean overwrite, ClusterState currentState) {
-        MlMetadata.Builder builder = createMlMetadataBuilder(currentState);
-        builder.putJob(job, overwrite);
-        return buildNewClusterState(currentState, builder);
     }
 
     public void notifyFilterChanged(MlFilter filter, Set<String> addedItems, Set<String> removedItems) {
@@ -578,36 +609,78 @@ public class JobManager extends AbstractComponent {
             }
         };
 
-        // Step 1. Do the cluster state update
+        // Step 1. update the job
         // -------
-        Consumer<Long> clusterStateHandler = response -> clusterService.submitStateUpdateTask("revert-snapshot-" + request.getJobId(),
-                new AckedClusterStateUpdateTask<Boolean>(request, ActionListener.wrap(updateHandler, actionListener::onFailure)) {
-
-            @Override
-            protected Boolean newResponse(boolean acknowledged) {
-                if (acknowledged) {
-                    auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_REVERTED, modelSnapshot.getDescription()));
-                    return true;
-                }
-                actionListener.onFailure(new IllegalStateException("Could not revert modelSnapshot on job ["
-                        + request.getJobId() + "], not acknowledged by master."));
-                return false;
-            }
-
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                Job job = getJobOrThrowIfUnknown(request.getJobId(), currentState);
-                Job.Builder builder = new Job.Builder(job);
-                builder.setModelSnapshotId(modelSnapshot.getSnapshotId());
-                builder.setEstablishedModelMemory(response);
-                return updateClusterState(builder.build(), true, currentState);
-            }
-        });
+        Consumer<Long> updateJobHandler = response -> {
+            updateJob(request.getJobId(),
+                    jobBuilder -> {
+                        jobBuilder.setModelSnapshotId(modelSnapshot.getSnapshotId());
+                        jobBuilder.setEstablishedModelMemory(response);
+                        return jobBuilder.build();
+                    },
+                    ActionListener.wrap(job -> {
+                                auditor.info(request.getJobId(),
+                                        Messages.getMessage(Messages.JOB_AUDIT_REVERTED, modelSnapshot.getDescription()));
+                                updateHandler.accept(true);
+                            },
+                            actionListener::onFailure));
+        };
 
         // Step 0. Find the appropriate established model memory for the reverted job
         // -------
-        jobProvider.getEstablishedMemoryUsage(request.getJobId(), modelSizeStats.getTimestamp(), modelSizeStats, clusterStateHandler,
+        jobProvider.getEstablishedMemoryUsage(request.getJobId(), modelSizeStats.getTimestamp(), modelSizeStats, updateJobHandler,
                 actionListener::onFailure);
+    }
+
+    private void updateJob(String jobId, Function<Job.Builder, Job> jobUpdater, ActionListener<Job> updatedJobListener) {
+        client.prepareGet(AnomalyDetectorsIndex.jobConfigIndexName(), ElasticsearchMappings.DOC_TYPE, Job.documentId(jobId))
+                .execute(new ActionListener<GetResponse>() {
+                    @Override
+                    public void onResponse(GetResponse getResponse) {
+                        if (getResponse.isExists() == false) {
+                            updatedJobListener.onFailure(ExceptionsHelper.missingJobException(jobId));
+                            return;
+                        }
+
+                        BytesReference source = getResponse.getSourceAsBytesRef();
+                        long version = getResponse.getVersion();
+                        try (InputStream stream = source.streamInput();
+                             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+                            Job.Builder jobBulder = Job.CONFIG_PARSER.apply(parser, null);
+
+                            Job updatedJob = jobUpdater.apply(jobBulder);
+
+
+                            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                                XContentBuilder updatedSource = updatedJob.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                                IndexRequest indexRequest =  client.prepareIndex(AnomalyDetectorsIndex.jobConfigIndexName(),
+                                        ElasticsearchMappings.DOC_TYPE, Job.documentId(updatedJob.getId()))
+                                        .setSource(updatedSource)
+                                        .setVersion(version)
+                                        .request();
+
+                                executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
+                                        indexResponse -> {
+                                            updatedJobListener.onResponse(updatedJob);
+                                        },
+                                        updatedJobListener::onFailure
+                                ));
+
+                            } catch (IOException e) {
+                                throw new IllegalStateException("Failed to serialise job with id [" + jobId + "]", e);
+                            }
+
+                        } catch (IOException e) {
+                            updatedJobListener.onFailure(new ElasticsearchParseException("failed to parse " + getResponse.getType(), e));
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        updatedJobListener.onFailure(e);
+                    }
+                });
     }
 
     private static MlMetadata.Builder createMlMetadataBuilder(ClusterState currentState) {

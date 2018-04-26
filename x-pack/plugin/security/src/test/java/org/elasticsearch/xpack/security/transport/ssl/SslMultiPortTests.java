@@ -52,10 +52,14 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
         String randomClientPortRange = randomClientPort + "-" + (randomClientPort+100);
         String randomNoClientAuthPortRange = randomNoClientAuthPort + "-" + (randomNoClientAuthPort+100);
 
-        Path store;
+        Path testnodeClientProfileStore;
+        Path testnodeStore;
         try {
-            store = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-client-profile.jks");
-            assertThat(Files.exists(store), is(true));
+            testnodeClientProfileStore =
+                    getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-client-profile.jks");
+            assertThat(Files.exists(testnodeClientProfileStore), is(true));
+            testnodeStore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
+            assertThat(Files.exists(testnodeStore), is(true));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -66,11 +70,15 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
                 .put("transport.profiles.client.port", randomClientPortRange)
                 // make sure this is "localhost", no matter if ipv4 or ipv6, but be consistent
                 .put("transport.profiles.client.bind_host", "localhost")
-                .put("transport.profiles.client.xpack.security.ssl.truststore.path", store.toAbsolutePath())
+                .put("transport.profiles.client.xpack.security.ssl.keystore.path", testnodeStore.toAbsolutePath())
+                .put("transport.profiles.client.xpack.security.ssl.keystore.password", "testnode")
+                .put("transport.profiles.client.xpack.security.ssl.truststore.path", testnodeClientProfileStore.toAbsolutePath())
                 .put("transport.profiles.client.xpack.security.ssl.truststore.password", "testnode-client-profile")
                 .put("transport.profiles.no_client_auth.port", randomNoClientAuthPortRange)
                 .put("transport.profiles.no_client_auth.bind_host", "localhost")
                 .put("transport.profiles.no_client_auth.xpack.security.ssl.client_authentication", SSLClientAuth.NONE)
+                .put("transport.profiles.no_client_auth.xpack.security.ssl.keystore.path", testnodeStore.toAbsolutePath())
+                .put("transport.profiles.no_client_auth.xpack.security.ssl.keystore.password", "testnode")
                 .build();
         logger.info("node {} settings:\n{}", nodeOrdinal, settings);
         return settings;
@@ -83,7 +91,7 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
 
     private TransportClient createTransportClient(Settings additionalSettings) {
         Settings settings = Settings.builder()
-                .put(transportClientSettings().filter(s -> s.startsWith("xpack.ssl") == false))
+                .put(transportClientSettings().filter(s -> s.startsWith("xpack.security.transport.ssl") == false))
                 .put("node.name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())
                 .put("xpack.security.transport.ssl.enabled", true)
@@ -148,7 +156,7 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
         Settings.Builder builder = Settings.builder();
         addSSLSettingsForStore(builder,
                 "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient-client-profile.jks",
-                "testclient-client-profile");
+                "testclient-client-profile", "xpack.security.transport.");
         try (TransportClient transportClient = createTransportClient(builder.build())) {
             transportClient.addTransportAddress(new TransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("client")));
             assertGreenClusterState(transportClient);
@@ -165,7 +173,7 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
         Settings.Builder builder = Settings.builder();
         addSSLSettingsForStore(builder,
                 "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient-client-profile.jks",
-                "testclient-client-profile");
+                "testclient-client-profile", "xpack.security.transport.");
         try (TransportClient transportClient = createTransportClient(builder.build())) {
             transportClient.addTransportAddress(new TransportAddress(InetAddress.getLoopbackAddress(),
                     getProfilePort("no_client_auth")));
@@ -183,7 +191,7 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
         Settings.Builder builder = Settings.builder();
         addSSLSettingsForStore(builder,
                 "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient-client-profile.jks",
-                "testclient-client-profile");
+                "testclient-client-profile", "xpack.security.transport.");
         try (TransportClient transportClient = createTransportClient(builder.build())) {
             TransportAddress transportAddress = randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses());
             transportClient.addTransportAddress(transportAddress);

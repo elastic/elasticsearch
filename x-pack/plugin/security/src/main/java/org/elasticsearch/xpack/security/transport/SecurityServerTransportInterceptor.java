@@ -171,7 +171,7 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
             Settings profileSettings = entry.getValue();
             final Settings profileSslSettings = SecurityNetty4Transport.profileSslSettings(profileSettings);
             final boolean extractClientCert = transportSSLEnabled &&
-                    sslService.isSSLClientAuthEnabled(profileSslSettings, transportSSLSettings);
+                    sslService.isSSLClientAuthEnabled(profileSslSettings);
             String type = TRANSPORT_TYPE_SETTING_TEMPLATE.apply(TRANSPORT_TYPE_SETTING_KEY).get(entry.getValue());
             switch (type) {
                 case "client":

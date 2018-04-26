@@ -10,6 +10,7 @@ import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
+import org.bouncycastle.util.io.Streams;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.Response;
@@ -17,6 +18,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -28,16 +30,18 @@ import org.elasticsearch.xpack.security.LocalStateSecurity;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.TrustManagerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.SecureRandom;
 import java.security.cert.CertPathBuilderException;
+import java.util.HashSet;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
@@ -47,13 +51,41 @@ import static org.hamcrest.Matchers.instanceOf;
 public class SSLClientAuthTests extends SecurityIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+        Settings baseSettings = super.nodeSettings(nodeOrdinal);
+
+        Settings.Builder builder = Settings.builder().put(baseSettings);
+        baseSettings.getByPrefix("xpack.security.transport.ssl.")
+                .keySet()
+                .forEach(k -> {
+                    String httpKey = "xpack.security.http.ssl." + k;
+                    String value = baseSettings.get("xpack.security.transport.ssl." + k);
+                    if (value != null) {
+                        builder.put(httpKey, baseSettings.get("xpack.security.transport.ssl." + k));
+                    }
+                });
+
+        MockSecureSettings secureSettings = (MockSecureSettings) builder.getSecureSettings();
+        for (String key : new HashSet<>(secureSettings.getSettingNames())) {
+            SecureString value = secureSettings.getString(key);
+            if (value == null) {
+                try {
+                    if (key.startsWith("xpack.security.transport.ssl.")) {
+                        byte[] file = Streams.readAll(secureSettings.getFile(key));
+                        secureSettings.setFile(key.replace("xpack.security.transport.ssl.", "xpack.security.http.ssl."), file);
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            } else if (key.startsWith("xpack.security.transport.ssl.")) {
+                secureSettings.setString(key.replace("xpack.security.transport.ssl.", "xpack.security.http.ssl."), value.toString());
+            }
+        }
+
+        return builder
                 // invert the require auth settings
-                .put("xpack.ssl.client_authentication", SSLClientAuth.REQUIRED)
+                .put("xpack.security.transport.ssl.client_authentication", SSLClientAuth.NONE)
                 .put("xpack.security.http.ssl.enabled", true)
                 .put("xpack.security.http.ssl.client_authentication", SSLClientAuth.REQUIRED)
-                .put("transport.profiles.default.xpack.security.ssl.client_authentication", SSLClientAuth.NONE)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();
     }
@@ -94,11 +126,11 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
         }
 
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.keystore.secure_password", "testclient-client-profile");
+        secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testclient-client-profile");
         Settings settings = Settings.builder()
                 .put("xpack.security.transport.ssl.enabled", true)
-                .put("xpack.ssl.client_authentication", SSLClientAuth.NONE)
-                .put("xpack.ssl.keystore.path", store)
+                .put("xpack.security.transport.ssl.client_authentication", SSLClientAuth.NONE)
+                .put("xpack.security.transport.ssl.keystore.path", store)
                 .setSecureSettings(secureSettings)
                 .put("cluster.name", internalCluster().getClusterName())
                 .put(SecurityField.USER_SETTING.getKey(),

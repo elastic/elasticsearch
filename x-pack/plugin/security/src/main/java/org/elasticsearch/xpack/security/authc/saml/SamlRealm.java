@@ -496,7 +496,7 @@ public final class SamlRealm extends Realm implements Releasable {
         HttpClientBuilder builder = HttpClientBuilder.create();
         // ssl setup
         Settings sslSettings = config.settings().getByPrefix(SamlRealmSettings.SSL_PREFIX);
-        boolean isHostnameVerificationEnabled = sslService.getVerificationMode(sslSettings, Settings.EMPTY).isHostnameVerificationEnabled();
+        boolean isHostnameVerificationEnabled = sslService.getVerificationMode(sslSettings).isHostnameVerificationEnabled();
         HostnameVerifier verifier = isHostnameVerificationEnabled ? new DefaultHostnameVerifier() : NoopHostnameVerifier.INSTANCE;
         SSLConnectionSocketFactory factory = new SSLConnectionSocketFactory(sslService.sslSocketFactory(sslSettings), verifier);
         builder.setSSLSocketFactory(factory);

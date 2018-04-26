@@ -13,7 +13,6 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
-import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.core.security.authc.support.CharArrays;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
@@ -24,6 +23,7 @@ import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForStore;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -42,12 +42,15 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
         logger.info("--> use SSL? {}", useSSL);
-        Settings s = Settings.builder()
+        Settings.Builder builder = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .put("xpack.security.http.ssl.enabled", useSSL)
-                .build();
-        return s;
+                .put(NetworkModule.HTTP_ENABLED.getKey(), true);
+        addSSLSettingsForStore(builder, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode",
+                "xpack.security.http.");
+        builder.put("xpack.security.http.ssl.enabled", useSSL);
+        builder.put("xpack.security.http.ssl.client_authentication", "none");
+        builder.put("xpack.security.transport.ssl.enabled", useSSL);
+        return builder.build();
     }
 
     @Override
@@ -71,7 +74,7 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         SecurityClient c = new SecurityClient(client());
         logger.error("--> creating users");
         int numToAdd = randomIntBetween(1,10);
-        Set<String> addedUsers = new HashSet(numToAdd);
+        Set<String> addedUsers = new HashSet<>(numToAdd);
         for (int i = 0; i < numToAdd; i++) {
             String uname = randomAlphaOfLength(5);
             c.preparePutUser(uname, "s3kirt".toCharArray(), "role1", "user").get();
@@ -88,9 +91,10 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
 
         Settings.Builder builder = Settings.builder()
                 .put("path.home", home)
-                .put("path.conf", conf.toString());
-        SecuritySettingsSource.addSSLSettingsForStore(builder,
-            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode");
+                .put("path.conf", conf.toString())
+                .put("xpack.security.http.ssl.client_authentication", "none");
+        addSSLSettingsForStore(builder,
+            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode", "xpack.security.http.");
         Settings settings = builder.build();
         logger.error("--> retrieving users using URL: {}, home: {}", url, home);
 
@@ -130,9 +134,11 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         String password = new String(CharArrays.toUtf8Bytes(nodeClientPassword().getChars()), StandardCharsets.UTF_8);
         String url = getHttpURL();
         ESNativeRealmMigrateTool.MigrateUserOrRoles muor = new ESNativeRealmMigrateTool.MigrateUserOrRoles();
-        Settings.Builder builder = Settings.builder().put("path.home", home);
-        SecuritySettingsSource.addSSLSettingsForStore(builder,
-                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks", "testclient");
+        Settings.Builder builder = Settings.builder()
+                .put("path.home", home)
+                .put("xpack.security.http.ssl.client_authentication", "none");
+        addSSLSettingsForStore(builder,
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks", "testclient", "xpack.security.http.");
         Settings settings = builder.build();
         logger.error("--> retrieving roles using URL: {}, home: {}", url, home);
 

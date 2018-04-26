@@ -45,7 +45,7 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
         this.sslSettings = SSLService.getHttpTransportSSLSettings(settings);
         this.sslService = sslService;
         if (ssl) {
-            this.sslConfiguration = sslService.sslConfiguration(sslSettings, Settings.EMPTY);
+            this.sslConfiguration = sslService.sslConfiguration(sslSettings);
             if (sslService.isConfigurationValidForServerUsage(sslConfiguration) == false) {
                 throw new IllegalArgumentException("a key must be provided to run as a server. the key should be configured using the " +
                         "[xpack.security.http.ssl.key] or [xpack.security.http.ssl.keystore.path] setting");

@@ -41,6 +41,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.file.FileUserPasswdStore;
@@ -67,7 +68,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
 /**
  * This is the command-line tool used for migrating users and roles from the file-based realm into the new native realm using the API for
@@ -148,12 +148,19 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
             HttpURLConnection conn;
             // If using SSL, need a custom service because it's likely a self-signed certificate
             if ("https".equalsIgnoreCase(uri.getScheme())) {
-                Settings sslSettings = settings.getByPrefix(setting("http.ssl."));
+                final Settings sslSettings;
+                if (settings.hasValue("xpack.security.http.ssl.client_authentication") == false) {
+                    sslSettings = Settings.builder().put(settings)
+                            .put("xpack.security.http.ssl.client_authenticatiopn", SSLClientAuth.NONE)
+                            .build();
+                } else {
+                    sslSettings = settings;
+                }
                 final SSLService sslService = new SSLService(settings, env);
                 final HttpsURLConnection httpsConn = (HttpsURLConnection) url.openConnection();
                 AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                     // Requires permission java.lang.RuntimePermission "setFactory";
-                    httpsConn.setSSLSocketFactory(sslService.sslSocketFactory(sslSettings));
+                    httpsConn.setSSLSocketFactory(sslService.sslSocketFactory(sslSettings.getByPrefix("xpack.security.http.ssl.")));
                     return null;
                 });
                 conn = httpsConn;

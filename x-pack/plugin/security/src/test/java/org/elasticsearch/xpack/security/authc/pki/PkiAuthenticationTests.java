@@ -70,6 +70,8 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
 
         SecuritySettingsSource.addSecureSettings(builder, secureSettings ->
                 secureSettings.setString("xpack.security.authc.realms.pki1.truststore.secure_password", "truststore-testnode-only"));
+        addSSLSettingsForStore(builder, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode",
+                "xpack.security.http.");
         return builder.build();
     }
 
@@ -87,7 +89,8 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
 
     public void testTransportClientCanAuthenticateViaPki() {
         Settings.Builder builder = Settings.builder();
-        addSSLSettingsForStore(builder, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode");
+        addSSLSettingsForStore(builder, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode",
+                "xpack.security.transport.");
         try (TransportClient client = createTransportClient(builder.build())) {
             client.addTransportAddress(randomFrom(node().injector().getInstance(Transport.class).boundAddress().boundAddresses()));
             IndexResponse response = client.prepareIndex("foo", "bar").setSource("pki", "auth").get();
@@ -152,8 +155,8 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
 
     private TransportClient createTransportClient(Settings additionalSettings) {
         Settings clientSettings = transportClientSettings();
-        if (additionalSettings.getByPrefix("xpack.ssl.").isEmpty() == false) {
-            clientSettings = clientSettings.filter(k -> k.startsWith("xpack.ssl.") == false);
+        if (additionalSettings.getByPrefix("xpack.security.transport.ssl.").isEmpty() == false) {
+            clientSettings = clientSettings.filter(k -> k.startsWith("xpack.security.transport.ssl.") == false);
         }
 
         Settings.Builder builder = Settings.builder().put(clientSettings, false)

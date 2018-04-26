@@ -141,8 +141,7 @@ public abstract class SessionFactory {
                     sslConfigurationSettings.verificationMode.getKey() +
                     "] may not be used at the same time");
         } else if (verificationModeExists) {
-            VerificationMode verificationMode = sslService.getVerificationMode(realmSSLSettings,
-                    Settings.EMPTY);
+            VerificationMode verificationMode = sslService.getVerificationMode(realmSSLSettings);
             if (verificationMode == VerificationMode.FULL) {
                 options.setSSLSocketVerifier(new HostNameSSLSocketVerifier(true));
             }

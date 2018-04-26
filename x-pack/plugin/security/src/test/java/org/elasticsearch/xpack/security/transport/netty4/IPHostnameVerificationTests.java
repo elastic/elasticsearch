@@ -32,7 +32,7 @@ public class IPHostnameVerificationTests extends SecurityIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings settings = super.nodeSettings(nodeOrdinal);
         Settings.Builder builder = Settings.builder()
-                .put(settings.filter((s) -> s.startsWith("xpack.ssl.") == false), false);
+                .put(settings.filter((s) -> s.startsWith("xpack.security.transport.ssl.") == false), false);
         settings = builder.build();
 
         // The default Unicast test behavior is to use 'localhost' with the port number. For this test we need to use IP
@@ -54,27 +54,28 @@ public class IPHostnameVerificationTests extends SecurityIntegTestCase {
         }
 
         SecuritySettingsSource.addSecureSettings(settingsBuilder, secureSettings -> {
-            secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode-ip-only");
-            secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode-ip-only");
+            secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode-ip-only");
+            secureSettings.setString("xpack.security.transport.ssl.truststore.secure_password", "testnode-ip-only");
         });
-        return settingsBuilder.put("xpack.ssl.keystore.path", keystore.toAbsolutePath()) // settings for client truststore
-                .put("xpack.ssl.truststore.path", keystore.toAbsolutePath()) // settings for client truststore
+        return settingsBuilder
+                .put("xpack.security.transport.ssl.keystore.path", keystore.toAbsolutePath()) // settings for client truststore
+                .put("xpack.security.transport.ssl.truststore.path", keystore.toAbsolutePath()) // settings for client truststore
                 .put(TcpTransport.BIND_HOST.getKey(), "127.0.0.1")
                 .put("network.host", "127.0.0.1")
-                .put("xpack.ssl.client_authentication", SSLClientAuth.NONE)
-                .put("xpack.ssl.verification_mode", "full")
+                .put("xpack.security.transport.ssl.client_authentication", SSLClientAuth.NONE)
+                .put("xpack.security.transport.ssl.verification_mode", "full")
                 .build();
     }
 
     @Override
     protected Settings transportClientSettings() {
         Settings clientSettings = super.transportClientSettings();
-        return Settings.builder().put(clientSettings.filter(k -> k.startsWith("xpack.ssl.") == false))
-                .put("xpack.ssl.verification_mode", "certificate")
-                .put("xpack.ssl.keystore.path", keystore.toAbsolutePath())
-                .put("xpack.ssl.keystore.password", "testnode-ip-only")
-                .put("xpack.ssl.truststore.path", keystore.toAbsolutePath())
-                .put("xpack.ssl.truststore.password", "testnode-ip-only")
+        return Settings.builder().put(clientSettings.filter(k -> k.startsWith("xpack.security.transport.ssl.") == false))
+                .put("xpack.security.transport.ssl.verification_mode", "certificate")
+                .put("xpack.security.transport.ssl.keystore.path", keystore.toAbsolutePath())
+                .put("xpack.security.transport.ssl.keystore.password", "testnode-ip-only")
+                .put("xpack.security.transport.ssl.truststore.path", keystore.toAbsolutePath())
+                .put("xpack.security.transport.ssl.truststore.password", "testnode-ip-only")
                 .build();
     }
 

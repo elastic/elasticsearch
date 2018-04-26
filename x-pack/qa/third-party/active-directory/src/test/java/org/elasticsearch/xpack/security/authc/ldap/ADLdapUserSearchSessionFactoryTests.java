@@ -50,8 +50,8 @@ public class ADLdapUserSearchSessionFactoryTests extends AbstractActiveDirectory
 
         globalSettings = Settings.builder()
                 .put("path.home", createTempDir())
-                .put("xpack.ssl.truststore.path", keystore)
-                .setSecureSettings(newSecureSettings("xpack.ssl.truststore.secure_password", "changeit"))
+                .put("xpack.security.authc.realms.ldap.ssl.truststore.path", keystore)
+                .setSecureSettings(newSecureSettings("xpack.security.authc.realms.ldap.ssl.truststore.secure_password", "changeit"))
                 .build();
         sslService = new SSLService(globalSettings, env);
         threadPool = new TestThreadPool("ADLdapUserSearchSessionFactoryTests");

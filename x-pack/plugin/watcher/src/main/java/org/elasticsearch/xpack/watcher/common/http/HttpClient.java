@@ -79,7 +79,7 @@ public class HttpClient extends AbstractComponent {
 
         // ssl setup
         Settings sslSettings = settings.getByPrefix(SETTINGS_SSL_PREFIX);
-        boolean isHostnameVerificationEnabled = sslService.getVerificationMode(sslSettings, Settings.EMPTY).isHostnameVerificationEnabled();
+        boolean isHostnameVerificationEnabled = sslService.getVerificationMode(sslSettings).isHostnameVerificationEnabled();
         HostnameVerifier verifier = isHostnameVerificationEnabled ? new DefaultHostnameVerifier() : NoopHostnameVerifier.INSTANCE;
         SSLConnectionSocketFactory factory = new SSLConnectionSocketFactory(sslService.sslSocketFactory(sslSettings), verifier);
         clientBuilder.setSSLSocketFactory(factory);

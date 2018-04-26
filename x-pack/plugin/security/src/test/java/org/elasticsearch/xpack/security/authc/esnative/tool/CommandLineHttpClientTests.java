@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
-import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.util.io.Streams;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
@@ -27,12 +26,6 @@ import java.io.InputStream;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
-import java.security.UnrecoverableKeyException;
-import java.security.cert.CertificateException;
-
-import javax.security.auth.DestroyFailedException;
 
 /**
  * This class tests {@link CommandLineHttpClient} For extensive tests related to
@@ -58,19 +51,10 @@ public class CommandLineHttpClientTests extends ESTestCase {
     public void testCommandLineHttpClientCanExecuteAndReturnCorrectResultUsingSSLSettings() throws Exception {
         Path resource = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.jks");
         MockSecureSettings secureSettings = new MockSecureSettings();
-        Settings settings;
-        if (randomBoolean()) {
-            // with http ssl settings
-            secureSettings.setString("xpack.security.http.ssl.truststore.secure_password", "testnode");
-            settings = Settings.builder().put("xpack.security.http.ssl.truststore.path", resource.toString())
-                    .put("xpack.security.http.ssl.verification_mode", VerificationMode.CERTIFICATE).setSecureSettings(secureSettings)
-                    .build();
-        } else {
-            // with global settings
-            secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode");
-            settings = Settings.builder().put("xpack.ssl.truststore.path", resource.toString())
-                    .put("xpack.ssl.verification_mode", VerificationMode.CERTIFICATE).setSecureSettings(secureSettings).build();
-        }
+        secureSettings.setString("xpack.security.http.ssl.truststore.secure_password", "testnode");
+        Settings settings = Settings.builder().put("xpack.security.http.ssl.truststore.path", resource.toString())
+                .put("xpack.security.http.ssl.verification_mode", VerificationMode.CERTIFICATE).setSecureSettings(secureSettings)
+                .build();
         CommandLineHttpClient client = new CommandLineHttpClient(settings, environment);
         HttpResponse httpResponse = client.execute("GET", new URL("https://localhost:" + webServer.getPort() + "/test"), "u1",
                 new SecureString(new char[] { 'p' }), () -> null, is -> responseBuilder(is));
@@ -80,15 +64,16 @@ public class CommandLineHttpClientTests extends ESTestCase {
         assertEquals("Http response body does not match", "complete", httpResponse.getResponseBody().get("test"));
     }
 
-    private MockWebServer createMockWebServer() throws IOException, UnrecoverableKeyException, CertificateException,
-            NoSuchAlgorithmException, KeyStoreException, OperatorCreationException, DestroyFailedException {
+    private MockWebServer createMockWebServer() {
         Path resource = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.jks");
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
-        Settings settings =
-                Settings.builder().put("xpack.ssl.keystore.path", resource.toString()).setSecureSettings(secureSettings).build();
+        secureSettings.setString("xpack.security.http.ssl.keystore.secure_password", "testnode");
+        Settings settings = Settings.builder().put("xpack.security.http.ssl.keystore.path", resource.toString())
+                .put("xpack.security.http.ssl.client_authentication", "none")
+                .setSecureSettings(secureSettings)
+                .build();
         TestsSSLService sslService = new TestsSSLService(settings, environment);
-        return new MockWebServer(sslService.sslContext(), false);
+        return new MockWebServer(sslService.sslContext(settings.getByPrefix("xpack.security.http.ssl.")), false);
     }
 
     private HttpResponseBuilder responseBuilder(final InputStream is) throws IOException {

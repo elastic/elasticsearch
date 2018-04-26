@@ -42,10 +42,10 @@ public class SecurityNetty4ServerTransportTests extends ESTestCase {
     public void createSSLService() throws Exception {
         Path testnodeStore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
+        secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
         Settings settings = Settings.builder()
                 .put("xpack.security.transport.ssl.enabled", true)
-                .put("xpack.ssl.keystore.path", testnodeStore)
+                .put("xpack.security.transport.ssl.keystore.path", testnodeStore)
                 .setSecureSettings(secureSettings)
                 .put("path.home", createTempDir())
                 .build();
@@ -107,7 +107,7 @@ public class SecurityNetty4ServerTransportTests extends ESTestCase {
         String value = randomFrom(SSLClientAuth.NONE.name(), SSLClientAuth.NONE.name().toLowerCase(Locale.ROOT));
         Settings settings = Settings.builder()
                 .put(env.settings())
-                .put("xpack.ssl.client_authentication", value)
+                .put("xpack.security.transport.ssl.client_authentication", value)
                 .build();
         sslService = new SSLService(settings, env);
         SecurityNetty4Transport transport = createTransport(settings);
@@ -121,7 +121,7 @@ public class SecurityNetty4ServerTransportTests extends ESTestCase {
         String value = randomFrom(SSLClientAuth.OPTIONAL.name(), SSLClientAuth.OPTIONAL.name().toLowerCase(Locale.ROOT));
         Settings settings = Settings.builder()
                 .put(env.settings())
-                .put("xpack.ssl.client_authentication", value)
+                .put("xpack.security.transport.ssl.client_authentication", value)
                 .build();
         sslService = new SSLService(settings, env);
         SecurityNetty4Transport transport = createTransport(settings);
@@ -200,7 +200,7 @@ public class SecurityNetty4ServerTransportTests extends ESTestCase {
         assertFalse(engine.getWantClientAuth());
 
         // get the global and verify that it is different in that it requires client auth
-        final SSLEngine globalEngine = sslService.createSSLEngine(Settings.EMPTY, Settings.EMPTY);
+        final SSLEngine globalEngine = sslService.createSSLEngine(Settings.EMPTY);
         assertTrue(globalEngine.getNeedClientAuth());
         assertFalse(globalEngine.getWantClientAuth());
     }

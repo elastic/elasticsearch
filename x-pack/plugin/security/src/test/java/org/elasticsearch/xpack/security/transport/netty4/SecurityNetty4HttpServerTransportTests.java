@@ -47,9 +47,9 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
     public void createSSLService() throws Exception {
         Path testNodeStore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
+        secureSettings.setString("xpack.security.http.ssl.keystore.secure_password", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.ssl.keystore.path", testNodeStore)
+                .put("xpack.security.http.ssl.keystore.path", testNodeStore)
                 .put("path.home", createTempDir())
                 .setSecureSettings(secureSettings)
                 .build();

@@ -103,13 +103,11 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
     protected static final String TESTNODE_KEYSTORE = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks";
     protected static RealmConfig realmConfig;
     protected static List<RoleMappingEntry> roleMappings;
-    protected static boolean useGlobalSSL;
 
     @BeforeClass
     public static void setupRealm() {
         realmConfig = randomFrom(RealmConfig.values());
         roleMappings = realmConfig.selectRoleMappings(ESTestCase::randomBoolean);
-        useGlobalSSL = randomBoolean();
         ESLoggerFactory.getLogger("test").info("running test with realm configuration [{}], with direct group to role mapping [{}]. " +
                 "Settings [{}]", realmConfig, realmConfig.mapGroupsAsRoles, realmConfig.settings);
     }
@@ -211,24 +209,6 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
                 .map(contentFunction)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
-    }
-
-    @Override
-    protected Settings transportClientSettings() {
-        if (useGlobalSSL) {
-            Path store = getDataPath(TESTNODE_KEYSTORE);
-            Settings.Builder builder = Settings.builder()
-                    .put(super.transportClientSettings().filter((s) -> s.startsWith("xpack.ssl.") == false));
-            addSslSettingsForStore(builder, store, "testnode");
-            return builder.build();
-        } else {
-            return super.transportClientSettings();
-        }
-    }
-
-    @Override
-    protected boolean transportSSLEnabled() {
-        return useGlobalSSL;
     }
 
     protected final void configureFileRoleMappings(Settings.Builder builder, List<RoleMappingEntry> mappings) {
@@ -438,11 +418,9 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
                     .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".order", order)
                     .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".hostname_verification", false)
                     .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".unmapped_groups_as_roles", mapGroupsAsRoles)
-                    .put(this.settings);
-            if (useGlobalSSL == false) {
-                builder.put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".ssl.truststore.path", store)
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".ssl.truststore.password", password);
-            }
+                    .put(this.settings)
+                    .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".ssl.truststore.path", store)
+                    .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".ssl.truststore.password", password);
 
             return builder.build();
         }

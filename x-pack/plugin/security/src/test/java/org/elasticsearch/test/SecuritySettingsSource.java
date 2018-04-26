@@ -148,7 +148,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
     public Settings transportClientSettings() {
         Settings superSettings = super.transportClientSettings();
         Settings.Builder builder = Settings.builder().put(superSettings);
-        addClientSSLSettings(builder, "");
+        addClientSSLSettings(builder, "xpack.security.transport.");
         addDefaultSecurityTransportType(builder, superSettings);
 
         if (randomBoolean()) {
@@ -209,7 +209,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
     private void addNodeSSLSettings(Settings.Builder builder) {
         if (sslEnabled) {
             if (usePEM) {
-                addSSLSettingsForPEMFiles(builder, "",
+                addSSLSettingsForPEMFiles(builder, "xpack.security.transport.",
                         "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem", "testnode",
                         "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
                         Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-client-profile.crt",
@@ -217,11 +217,12 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
                                 "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
                                 "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/openldap.crt",
                                 "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"),
-                        sslEnabled, hostnameVerificationEnabled, false);
+                        true, hostnameVerificationEnabled, false);
 
             } else {
-                addSSLSettingsForStore(builder, "", "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks",
-                        "testnode", sslEnabled, hostnameVerificationEnabled, false);
+                addSSLSettingsForStore(builder, "xpack.security.transport.",
+                        "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode",
+                        true, hostnameVerificationEnabled, false);
             }
         } else if (randomBoolean()) {
             builder.put(XPackSettings.TRANSPORT_SSL_ENABLED.getKey(), false);
@@ -248,8 +249,8 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
      * @param resourcePathToStore the location of the keystore or truststore
      * @param password the password
      */
-    public static void addSSLSettingsForStore(Settings.Builder builder, String resourcePathToStore, String password) {
-        addSSLSettingsForStore(builder, "", resourcePathToStore, password, true, true, true);
+    public static void addSSLSettingsForStore(Settings.Builder builder, String resourcePathToStore, String password, String prefix) {
+        addSSLSettingsForStore(builder, prefix, resourcePathToStore, password, true, true, true);
     }
 
     private static void addSSLSettingsForStore(Settings.Builder builder, String prefix, String resourcePathToStore, String password,
@@ -258,28 +259,30 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
         Path store = resolveResourcePath(resourcePathToStore);
 
         if (transportClient == false) {
-            builder.put(prefix + "xpack.security.http.ssl.enabled", false);
+            builder.put("xpack.security.http.ssl.enabled", false);
         }
         builder.put(XPackSettings.TRANSPORT_SSL_ENABLED.getKey(), sslEnabled);
 
-        builder.put(prefix + "xpack.ssl.verification_mode", hostnameVerificationEnabled ? "full" : "certificate");
-        builder.put(prefix + "xpack.ssl.keystore.path", store);
+        builder.put(prefix + "ssl.verification_mode", hostnameVerificationEnabled ? "full" : "certificate");
+        builder.put(prefix + "ssl.keystore.path", store);
         if (transportClient) {
             // continue using insecure settings for clients until we figure out what to do there...
-            builder.put(prefix + "xpack.ssl.keystore.password", password);
+            builder.put(prefix + "ssl.keystore.password", password);
         } else {
+            final String finalPrefix = prefix;
             addSecureSettings(builder, secureSettings ->
-                secureSettings.setString(prefix + "xpack.ssl.keystore.secure_password", password));
+                secureSettings.setString(finalPrefix + "ssl.keystore.secure_password", password));
         }
 
         if (randomBoolean()) {
-            builder.put(prefix + "xpack.ssl.truststore.path", store);
+            builder.put(prefix + "ssl.truststore.path", store);
             if (transportClient) {
                 // continue using insecure settings for clients until we figure out what to do there...
-                builder.put(prefix + "xpack.ssl.truststore.password", password);
+                builder.put(prefix + "ssl.truststore.password", password);
             } else {
+                final String finalPrefix = prefix;
                 addSecureSettings(builder, secureSettings ->
-                    secureSettings.setString(prefix + "xpack.ssl.truststore.secure_password", password));
+                    secureSettings.setString(finalPrefix + "ssl.truststore.secure_password", password));
             }
         }
     }
@@ -289,23 +292,27 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
                                                   boolean hostnameVerificationEnabled, boolean transportClient) {
 
         if (transportClient == false) {
-            builder.put(prefix + "xpack.security.http.ssl.enabled", false);
+            builder.put("xpack.security.http.ssl.enabled", false);
         }
         builder.put(XPackSettings.TRANSPORT_SSL_ENABLED.getKey(), sslEnabled);
 
-        builder.put(prefix + "xpack.ssl.verification_mode", hostnameVerificationEnabled ? "full" : "certificate");
-        builder.put(prefix + "xpack.ssl.key", resolveResourcePath(keyPath))
-                .put(prefix + "xpack.ssl.certificate", resolveResourcePath(certificatePath));
+        if (prefix.equals("")) {
+            prefix = "xpack.";
+        }
+        builder.put(prefix + "ssl.verification_mode", hostnameVerificationEnabled ? "full" : "certificate");
+        builder.put(prefix + "ssl.key", resolveResourcePath(keyPath))
+                .put(prefix + "ssl.certificate", resolveResourcePath(certificatePath));
         if (transportClient) {
             // continue using insecure settings for clients until we figure out what to do there...
-            builder.put(prefix + "xpack.ssl.key_passphrase", password);
+            builder.put(prefix + "ssl.key_passphrase", password);
         } else {
+            final String finalPrefix = prefix;
             addSecureSettings(builder, secureSettings ->
-                secureSettings.setString(prefix + "xpack.ssl.secure_key_passphrase", password));
+                secureSettings.setString(finalPrefix + "ssl.secure_key_passphrase", password));
         }
 
         if (trustedCertificates.isEmpty() == false) {
-            builder.put(prefix + "xpack.ssl.certificate_authorities",
+            builder.put(prefix + "ssl.certificate_authorities",
                     Strings.arrayToCommaDelimitedString(resolvePathsToString(trustedCertificates)));
         }
     }

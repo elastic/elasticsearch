@@ -47,11 +47,9 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
 
     protected SSLService sslService;
     protected Settings globalSettings;
-    protected boolean useGlobalSSL;
 
     @Before
     public void initializeSslSocketFactory() throws Exception {
-        useGlobalSSL = randomBoolean();
         Path truststore = getDataPath("../ldap/support/ADtrust.jks");
         /*
          * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
@@ -59,23 +57,13 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
          * verification tests since a re-established connection does not perform hostname verification.
          */
         Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
-        if (useGlobalSSL) {
-            builder.put("xpack.ssl.truststore.path", truststore)
-                    .put("xpack.ssl.truststore.password", "changeit");
-
-            // fake realm to load config with certificate verification mode
-            builder.put("xpack.security.authc.realms.bar.ssl.truststore.path", truststore);
-            builder.put("xpack.security.authc.realms.bar.ssl.truststore.password", "changeit");
-            builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
-        } else {
-            // fake realms so ssl will get loaded
-            builder.put("xpack.security.authc.realms.foo.ssl.truststore.path", truststore);
-            builder.put("xpack.security.authc.realms.foo.ssl.truststore.password", "changeit");
-            builder.put("xpack.security.authc.realms.foo.ssl.verification_mode", VerificationMode.FULL);
-            builder.put("xpack.security.authc.realms.bar.ssl.truststore.path", truststore);
-            builder.put("xpack.security.authc.realms.bar.ssl.truststore.password", "changeit");
-            builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
-        }
+        // fake realms so ssl will get loaded
+        builder.put("xpack.security.authc.realms.foo.ssl.truststore.path", truststore);
+        builder.put("xpack.security.authc.realms.foo.ssl.truststore.password", "changeit");
+        builder.put("xpack.security.authc.realms.foo.ssl.verification_mode", VerificationMode.FULL);
+        builder.put("xpack.security.authc.realms.bar.ssl.truststore.path", truststore);
+        builder.put("xpack.security.authc.realms.bar.ssl.truststore.password", "changeit");
+        builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
         globalSettings = builder.build();
         Environment environment = TestEnvironment.newEnvironment(globalSettings);
         sslService = new SSLService(globalSettings, environment);
@@ -92,15 +80,13 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
                 .put(ActiveDirectorySessionFactorySettings.AD_LDAPS_PORT_SETTING.getKey(), AD_LDAPS_PORT)
                 .put(ActiveDirectorySessionFactorySettings.AD_GC_LDAP_PORT_SETTING.getKey(), AD_GC_LDAP_PORT)
                 .put(ActiveDirectorySessionFactorySettings.AD_GC_LDAPS_PORT_SETTING.getKey(), AD_GC_LDAPS_PORT)
-                .put("follow_referrals", FOLLOW_REFERRALS);
+                .put("follow_referrals", FOLLOW_REFERRALS)
+                .put("ssl.truststore.path", getDataPath("../ldap/support/ADtrust.jks"))
+                .put("ssl.truststore.password", "changeit");
         if (randomBoolean()) {
             builder.put("ssl.verification_mode", hostnameVerification ? VerificationMode.FULL : VerificationMode.CERTIFICATE);
         } else {
             builder.put(SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING, hostnameVerification);
-        }
-        if (useGlobalSSL == false) {
-            builder.put("ssl.truststore.path", getDataPath("../ldap/support/ADtrust.jks"))
-                    .put("ssl.truststore.password", "changeit");
         }
         return builder.build();
     }

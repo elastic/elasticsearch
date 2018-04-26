@@ -53,10 +53,10 @@ public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
          * If we re-use a SSLContext, previously connected sessions can get re-established which breaks hostname
          * verification tests since a re-established connection does not perform hostname verification.
          */
-        globalSecureSettings = newSecureSettings("xpack.ssl.truststore.secure_password", "changeit");
+        globalSecureSettings = newSecureSettings("xpack.security.authc.realms.ldap.ssl.truststore.secure_password", "changeit");
         globalSettings = Settings.builder()
                 .put("path.home", createTempDir())
-                .put("xpack.ssl.truststore.path", keystore)
+                .put("xpack.security.authc.realms.ldap.ssl.truststore.path", keystore)
                 .setSecureSettings(globalSecureSettings)
                 .build();
         threadPool = new TestThreadPool("LdapUserSearchSessionFactoryTests");

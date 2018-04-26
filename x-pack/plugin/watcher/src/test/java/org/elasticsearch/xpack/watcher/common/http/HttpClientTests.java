@@ -75,7 +75,7 @@ public class HttpClientTests extends ESTestCase {
     }
 
     @After
-    public void shutdown() throws Exception {
+    public void shutdown() {
         webServer.close();
     }
 
@@ -170,79 +170,59 @@ public class HttpClientTests extends ESTestCase {
     public void testHttps() throws Exception {
         Path resource = getDataPath("/org/elasticsearch/xpack/security/keystore/truststore-testnode-only.jks");
         MockSecureSettings secureSettings = new MockSecureSettings();
-        Settings settings;
-        if (randomBoolean()) {
-            secureSettings.setString("xpack.http.ssl.truststore.secure_password", "truststore-testnode-only");
-            settings = Settings.builder()
-                    .put("xpack.http.ssl.truststore.path", resource.toString())
-                    .setSecureSettings(secureSettings)
-                    .build();
-        } else {
-            secureSettings.setString("xpack.ssl.truststore.secure_password", "truststore-testnode-only");
-            settings = Settings.builder()
-                    .put("xpack.ssl.truststore.path", resource.toString())
-                    .setSecureSettings(secureSettings)
-                    .build();
-        }
+        secureSettings.setString("xpack.http.ssl.truststore.secure_password", "truststore-testnode-only");
+        Settings settings = Settings.builder()
+                .put("xpack.http.ssl.truststore.path", resource.toString())
+                .setSecureSettings(secureSettings)
+                .build();
         httpClient = new HttpClient(settings, authRegistry, new SSLService(settings, environment));
         secureSettings = new MockSecureSettings();
         // We can't use the client created above for the server since it is only a truststore
-        secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
+        secureSettings.setString("xpack.http.ssl.keystore.secure_password", "testnode");
         Settings settings2 = Settings.builder()
-                .put("xpack.ssl.keystore.path", getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.jks"))
+                .put("xpack.http.ssl.keystore.path", getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.jks"))
                 .setSecureSettings(secureSettings)
                 .build();
 
         TestsSSLService sslService = new TestsSSLService(settings2, environment);
-        testSslMockWebserver(sslService.sslContext(), false);
+        testSslMockWebserver(sslService.sslContext(settings2.getByPrefix("xpack.http.ssl.")), false);
     }
 
     public void testHttpsDisableHostnameVerification() throws Exception {
         Path resource = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-no-subjaltname.jks");
-        Settings settings;
-        if (randomBoolean()) {
-            MockSecureSettings secureSettings = new MockSecureSettings();
-            secureSettings.setString("xpack.http.ssl.truststore.secure_password", "testnode-no-subjaltname");
-            settings = Settings.builder()
-                    .put("xpack.http.ssl.truststore.path", resource.toString())
-                    .put("xpack.http.ssl.verification_mode", randomFrom(VerificationMode.NONE, VerificationMode.CERTIFICATE))
-                    .setSecureSettings(secureSettings)
-                    .build();
-        } else {
-            MockSecureSettings secureSettings = new MockSecureSettings();
-            secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode-no-subjaltname");
-            settings = Settings.builder()
-                    .put("xpack.ssl.truststore.path", resource.toString())
-                    .put("xpack.ssl.verification_mode", randomFrom(VerificationMode.NONE, VerificationMode.CERTIFICATE))
-                    .setSecureSettings(secureSettings)
-                    .build();
-        }
+        MockSecureSettings serverSecureSettings = new MockSecureSettings();
+        serverSecureSettings.setString("xpack.http.ssl.truststore.secure_password", "testnode-no-subjaltname");
+        final Settings settings = Settings.builder()
+                .put("xpack.http.ssl.truststore.path", resource.toString())
+                .put("xpack.http.ssl.verification_mode", randomFrom(VerificationMode.NONE, VerificationMode.CERTIFICATE))
+                .setSecureSettings(serverSecureSettings)
+                .build();
         httpClient = new HttpClient(settings, authRegistry, new SSLService(settings, environment));
         MockSecureSettings secureSettings = new MockSecureSettings();
         // We can't use the client created above for the server since it only defines a truststore
-        secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode-no-subjaltname");
+        secureSettings.setString("xpack.http.ssl.keystore.secure_password", "testnode-no-subjaltname");
         Settings settings2 = Settings.builder()
-                .put("xpack.ssl.keystore.path",
+                .put("xpack.http.ssl.keystore.path",
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-no-subjaltname.jks"))
                 .setSecureSettings(secureSettings)
                 .build();
 
         TestsSSLService sslService = new TestsSSLService(settings2, environment);
-        testSslMockWebserver(sslService.sslContext(), false);
+        testSslMockWebserver(sslService.sslContext(settings2.getByPrefix("xpack.http.ssl.")), false);
     }
 
     public void testHttpsClientAuth() throws Exception {
         Path resource = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.jks");
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
+        secureSettings.setString("xpack.http.ssl.keystore.secure_password", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.ssl.keystore.path", resource.toString())
+                .put("xpack.http.ssl.keystore.path", resource.toString())
                 .setSecureSettings(secureSettings)
                 .build();
 
         TestsSSLService sslService = new TestsSSLService(settings, environment);
         httpClient = new HttpClient(settings, authRegistry, sslService);
-        testSslMockWebserver(sslService.sslContext(), true);
+        testSslMockWebserver(sslService.sslContext(settings.getByPrefix("xpack.http.ssl.")), true);
     }
 
     private void testSslMockWebserver(SSLContext sslContext, boolean needClientAuth) throws IOException {
@@ -364,14 +344,14 @@ public class HttpClientTests extends ESTestCase {
         // on top of that the proxy request is HTTPS but the real request is HTTP only
         MockSecureSettings serverSecureSettings = new MockSecureSettings();
         // We can't use the client created above for the server since it is only a truststore
-        serverSecureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
+        serverSecureSettings.setString("xpack.http.ssl.keystore.secure_password", "testnode");
         Settings serverSettings = Settings.builder()
-                .put("xpack.ssl.keystore.path", getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.jks"))
+                .put("xpack.http.ssl.keystore.path", getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.jks"))
                 .setSecureSettings(serverSecureSettings)
                 .build();
         TestsSSLService sslService = new TestsSSLService(serverSettings, environment);
 
-        try (MockWebServer proxyServer = new MockWebServer(sslService.sslContext(), false)) {
+        try (MockWebServer proxyServer = new MockWebServer(sslService.sslContext(serverSettings.getByPrefix("xpack.http.ssl.")), false)) {
             proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody("fullProxiedContent"));
             proxyServer.start();
 

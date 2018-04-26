@@ -67,19 +67,29 @@ public class SecurityNioTransport extends NioTransport {
         this.sslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
         final Settings transportSSLSettings = settings.getByPrefix(setting("transport.ssl."));
         if (sslEnabled) {
-            this.sslConfiguration = sslService.sslConfiguration(transportSSLSettings, Settings.EMPTY);
+            this.sslConfiguration = sslService.sslConfiguration(transportSSLSettings);
             Map<String, Settings> profileSettingsMap = settings.getGroups("transport.profiles.", true);
             Map<String, SSLConfiguration> profileConfiguration = new HashMap<>(profileSettingsMap.size() + 1);
             for (Map.Entry<String, Settings> entry : profileSettingsMap.entrySet()) {
                 Settings profileSettings = entry.getValue();
                 final Settings profileSslSettings = SecurityNetty4Transport.profileSslSettings(profileSettings);
-                SSLConfiguration configuration =  sslService.sslConfiguration(profileSslSettings, transportSSLSettings);
+                if (entry.getKey().equals(TcpTransport.DEFAULT_PROFILE)) {
+                    // don't attempt to parse ssl settings from the profile;
+                    // profiles need to be killed with fire
+                    if (profileSslSettings.isEmpty()) {
+                        continue;
+                    } else {
+                        throw new IllegalArgumentException("SSL settings should not be configured for the default profile. " +
+                                "Use the [xpack.security.transport.ssl] settings instead.");
+                    }
+                }
+
+                SSLConfiguration configuration = sslService.sslConfiguration(profileSslSettings);
                 profileConfiguration.put(entry.getKey(), configuration);
             }
 
-            if (profileConfiguration.containsKey(TcpTransport.DEFAULT_PROFILE) == false) {
-                profileConfiguration.put(TcpTransport.DEFAULT_PROFILE, sslConfiguration);
-            }
+            assert profileConfiguration.containsKey(TcpTransport.DEFAULT_PROFILE) == false;
+            profileConfiguration.put(TcpTransport.DEFAULT_PROFILE, sslConfiguration);
 
             this.profileConfiguration = Collections.unmodifiableMap(profileConfiguration);
         } else {

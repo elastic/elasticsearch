@@ -97,7 +97,7 @@ public class DNSOnlyHostnameVerificationTests extends SecurityIntegTestCase {
     public Settings nodeSettings(int nodeOrdinal) {
         Settings defaultSettings = super.nodeSettings(nodeOrdinal);
         Settings.Builder builder = Settings.builder()
-                .put(defaultSettings.filter((s) -> s.startsWith("xpack.ssl.") == false), false)
+                .put(defaultSettings.filter((s) -> s.startsWith("xpack.security.transport.ssl.") == false), false)
                 .put("transport.host", hostName);
         Path keystorePath = nodeConfigPath(nodeOrdinal).resolve("keystore.jks");
         try (OutputStream os = Files.newOutputStream(keystorePath)) {
@@ -108,11 +108,11 @@ public class DNSOnlyHostnameVerificationTests extends SecurityIntegTestCase {
             throw new ElasticsearchException("unable to write keystore for node", e);
         }
         SecuritySettingsSource.addSecureSettings(builder, secureSettings -> {
-            secureSettings.setString("xpack.ssl.keystore.secure_password", SecuritySettingsSourceField.TEST_PASSWORD);
-            secureSettings.setString("xpack.ssl.truststore.secure_password", SecuritySettingsSourceField.TEST_PASSWORD);
+            secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", SecuritySettingsSourceField.TEST_PASSWORD);
+            secureSettings.setString("xpack.security.transport.ssl.truststore.secure_password", SecuritySettingsSourceField.TEST_PASSWORD);
         });
-        builder.put("xpack.ssl.keystore.path", keystorePath.toAbsolutePath())
-               .put("xpack.ssl.truststore.path", keystorePath.toAbsolutePath());
+        builder.put("xpack.security.transport.ssl.keystore.path", keystorePath.toAbsolutePath())
+               .put("xpack.security.transport.ssl.truststore.path", keystorePath.toAbsolutePath());
         List<String> unicastHosts = defaultSettings.getAsList("discovery.zen.ping.unicast.hosts").stream()
                 .map((s) -> {
                     String port = s.substring(s.lastIndexOf(':'), s.length());
@@ -127,7 +127,7 @@ public class DNSOnlyHostnameVerificationTests extends SecurityIntegTestCase {
     public Settings transportClientSettings() {
         Settings defaultSettings = super.transportClientSettings();
         Settings.Builder builder = Settings.builder()
-                .put(defaultSettings.filter((s) -> s.startsWith("xpack.ssl.") == false));
+                .put(defaultSettings.filter((s) -> s.startsWith("xpack.security.transport.ssl.") == false));
         Path path = createTempDir().resolve("keystore.jks");
         try (OutputStream os = Files.newOutputStream(path)) {
             keystore.store(os, SecuritySettingsSourceField.TEST_PASSWORD.toCharArray());
@@ -137,11 +137,11 @@ public class DNSOnlyHostnameVerificationTests extends SecurityIntegTestCase {
             throw new ElasticsearchException("unable to write keystore for node", e);
         }
         SecuritySettingsSource.addSecureSettings(builder, secureSettings -> {
-            secureSettings.setString("xpack.ssl.keystore.secure_password", SecuritySettingsSourceField.TEST_PASSWORD);
-            secureSettings.setString("xpack.ssl.truststore.secure_password", SecuritySettingsSourceField.TEST_PASSWORD);
+            secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", SecuritySettingsSourceField.TEST_PASSWORD);
+            secureSettings.setString("xpack.security.transport.ssl.truststore.secure_password", SecuritySettingsSourceField.TEST_PASSWORD);
         });
-        builder.put("xpack.ssl.keystore.path", path.toAbsolutePath())
-               .put("xpack.ssl.truststore.path", path.toAbsolutePath());
+        builder.put("xpack.security.transport.ssl.keystore.path", path.toAbsolutePath())
+               .put("xpack.security.transport.ssl.truststore.path", path.toAbsolutePath());
         return builder.build();
     }
 

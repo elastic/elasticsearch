@@ -56,13 +56,12 @@ public class OpenLdapTests extends ESTestCase {
     public static final String LDAPTRUST_PATH = "/idptrust.jks";
     private static final SecureString PASSWORD_SECURE_STRING = new SecureString(PASSWORD.toCharArray());
 
-    private boolean useGlobalSSL;
     private SSLService sslService;
     private ThreadPool threadPool;
     private Settings globalSettings;
 
     @Before
-    public void init() throws Exception {
+    public void init() {
         threadPool = new TestThreadPool("OpenLdapTests thread pool");
     }
 
@@ -84,26 +83,15 @@ public class OpenLdapTests extends ESTestCase {
          * If we re-use a SSLContext, previously connected sessions can get re-established which breaks hostname
          * verification tests since a re-established connection does not perform hostname verification.
          */
-        useGlobalSSL = randomBoolean();
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
         Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
-        if (useGlobalSSL) {
-            builder.put("xpack.ssl.truststore.path", truststore);
-            mockSecureSettings.setString("xpack.ssl.truststore.secure_password", "changeit");
-
-            // fake realm to load config with certificate verification mode
-            builder.put("xpack.security.authc.realms.bar.ssl.truststore.path", truststore);
-            mockSecureSettings.setString("xpack.security.authc.realms.bar.ssl.truststore.secure_password", "changeit");
-            builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
-        } else {
-            // fake realms so ssl will get loaded
-            builder.put("xpack.security.authc.realms.foo.ssl.truststore.path", truststore);
-            mockSecureSettings.setString("xpack.security.authc.realms.foo.ssl.truststore.secure_password", "changeit");
-            builder.put("xpack.security.authc.realms.foo.ssl.verification_mode", VerificationMode.FULL);
-            builder.put("xpack.security.authc.realms.bar.ssl.truststore.path", truststore);
-            mockSecureSettings.setString("xpack.security.authc.realms.bar.ssl.truststore.secure_password", "changeit");
-            builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
-        }
+        // fake realms so ssl will get loaded
+        builder.put("xpack.security.authc.realms.foo.ssl.truststore.path", truststore);
+        mockSecureSettings.setString("xpack.security.authc.realms.foo.ssl.truststore.secure_password", "changeit");
+        builder.put("xpack.security.authc.realms.foo.ssl.verification_mode", VerificationMode.FULL);
+        builder.put("xpack.security.authc.realms.bar.ssl.truststore.path", truststore);
+        mockSecureSettings.setString("xpack.security.authc.realms.bar.ssl.truststore.secure_password", "changeit");
+        builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
         globalSettings = builder.setSecureSettings(mockSecureSettings).build();
         Environment environment = TestEnvironment.newEnvironment(globalSettings);
         sslService = new SSLService(globalSettings, environment);
@@ -256,9 +244,6 @@ public class OpenLdapTests extends ESTestCase {
         Settings.Builder builder = Settings.builder()
             .put(LdapTestCase.buildLdapSettings(ldapUrl, userTemplate, groupSearchBase, scope));
         builder.put("group_search.user_attribute", "uid");
-        if (useGlobalSSL) {
-            return builder.build();
-        }
         return builder
                 .put("ssl.truststore.path", getDataPath(LDAPTRUST_PATH))
                 .put("ssl.truststore.password", "changeit")

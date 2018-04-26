@@ -111,15 +111,16 @@ public class SamlRealmTests extends SamlTestCase {
         final Path path = getDataPath("idp1.xml");
         final String body = new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
         final MockSecureSettings mockSecureSettings = new MockSecureSettings();
-        mockSecureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
+        mockSecureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
         final Settings settings = Settings.builder()
-                .put("xpack.ssl.keystore.path",
+                .put("xpack.security.transport.ssl.keystore.path",
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"))
                 .put("path.home", createTempDir())
                 .setSecureSettings(mockSecureSettings)
                 .build();
         TestsSSLService sslService = new TestsSSLService(settings, TestEnvironment.newEnvironment(settings));
-        try (MockWebServer proxyServer = new MockWebServer(sslService.sslContext(Settings.EMPTY), false)) {
+        try (MockWebServer proxyServer =
+                     new MockWebServer(sslService.sslContext(settings.getByPrefix("xpack.security.transport.ssl.")), false)) {
             proxyServer.start();
             proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody(body).addHeader("Content-Type", "application/xml"));
             proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody(body).addHeader("Content-Type", "application/xml"));

@@ -73,18 +73,19 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
         }
         Settings settings = super.nodeSettings(nodeOrdinal);
         Settings.Builder builder = Settings.builder()
-                .put(settings.filter((s) -> s.startsWith("xpack.ssl.") == false));
+                .put(settings.filter((s) -> s.startsWith("xpack.security.transport.ssl.") == false));
 
 
         SecuritySettingsSource.addSSLSettingsForStore(builder,
-            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode");
+            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode", "xpack.security.transport.");
         builder.put("resource.reload.interval.high", "1s")
-                .put("xpack.ssl.keystore.path", nodeStorePath);
+                .put("xpack.security.transport.ssl.keystore.path", nodeStorePath);
 
-        if (builder.get("xpack.ssl.truststore.path") != null) {
-            builder.put("xpack.ssl.truststore.path", nodeStorePath);
+        if (builder.get("xpack.security.transport.ssl.truststore.path") != null) {
+            builder.put("xpack.security.transport.ssl.truststore.path", nodeStorePath);
         }
 
+        builder.put("xpack.security.transport.ssl.enabled", true);
         return builder.build();
     }
 
@@ -105,17 +106,17 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
             keyStore.store(out, SecuritySettingsSourceField.TEST_PASSWORD.toCharArray());
         }
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.keystore.secure_password", SecuritySettingsSourceField.TEST_PASSWORD);
-        secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode");
+        secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", SecuritySettingsSourceField.TEST_PASSWORD);
+        secureSettings.setString("xpack.security.transport.ssl.truststore.secure_password", "testnode");
         Settings settings = Settings.builder()
                 .put("path.home", createTempDir())
-                .put("xpack.ssl.keystore.path", keystorePath)
-                .put("xpack.ssl.truststore.path", nodeStorePath)
+                .put("xpack.security.transport.ssl.keystore.path", keystorePath)
+                .put("xpack.security.transport.ssl.truststore.path", nodeStorePath)
                 .setSecureSettings(secureSettings)
                 .build();
         String node = randomFrom(internalCluster().getNodeNames());
         SSLService sslService = new SSLService(settings, TestEnvironment.newEnvironment(settings));
-        SSLSocketFactory sslSocketFactory = sslService.sslSocketFactory(settings);
+        SSLSocketFactory sslSocketFactory = sslService.sslSocketFactory(settings.getByPrefix("xpack.security.transport.ssl."));
         TransportAddress address = internalCluster()
                 .getInstance(Transport.class, node).boundAddress().publishAddress();
         try (SSLSocket socket = (SSLSocket) sslSocketFactory.createSocket(address.getAddress(), address.getPort())) {

@@ -54,13 +54,8 @@ import static org.hamcrest.Matchers.instanceOf;
 public class SimpleSecurityNioTransportTests extends AbstractSimpleTransportTestCase {
 
     private SSLService createSSLService() {
-        Path testnodeStore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
-        MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.security.transport.ssl.enabled", true)
-                .put("xpack.ssl.keystore.path", testnodeStore)
-                .setSecureSettings(secureSettings)
+                .put(getSSLSettings())
                 .put("path.home", createTempDir())
                 .build();
         try {
@@ -70,13 +65,25 @@ public class SimpleSecurityNioTransportTests extends AbstractSimpleTransportTest
         }
     }
 
+    private Settings getSSLSettings() {
+        Path testnodeStore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
+        return Settings.builder()
+                .put("xpack.security.transport.ssl.enabled", true)
+                .put("xpack.security.transport.ssl.keystore.path", testnodeStore)
+                .setSecureSettings(secureSettings)
+                .build();
+    }
+
     public MockTransportService nioFromThreadPool(Settings settings, ThreadPool threadPool, final Version version,
                                                   ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         NetworkService networkService = new NetworkService(Collections.emptyList());
         Settings settings1 = Settings.builder()
                 .put(settings)
-                .put("xpack.security.transport.ssl.enabled", true).build();
+                .put(getSSLSettings())
+                .build();
         Transport transport = new SecurityNioTransport(settings1, threadPool,
                 networkService, BigArrays.NON_RECYCLING_INSTANCE, new MockPageCacheRecycler(settings), namedWriteableRegistry,
                 new NoneCircuitBreakerService(), createSSLService()) {
@@ -159,7 +166,7 @@ public class SimpleSecurityNioTransportTests extends AbstractSimpleTransportTest
     @SuppressForbidden(reason = "Need to open socket connection")
     public void testRenegotiation() throws Exception {
         SSLService sslService = createSSLService();
-        SocketFactory factory = sslService.sslSocketFactory(Settings.EMPTY);
+        SocketFactory factory = sslService.sslSocketFactory(getSSLSettings().getByPrefix("xpack.security.transport.ssl."));
         try (SSLSocket socket = (SSLSocket) factory.createSocket()) {
             SocketAccess.doPrivileged(() -> socket.connect(serviceA.boundAddress().publishAddress().address()));
 
@@ -176,10 +183,10 @@ public class SimpleSecurityNioTransportTests extends AbstractSimpleTransportTest
             stream.writeInt(-1);
             stream.flush();
 
-            socket.startHandshake();
             CountDownLatch renegotiationLatch = new CountDownLatch(1);
             HandshakeCompletedListener secondListener = event -> renegotiationLatch.countDown();
             socket.addHandshakeCompletedListener(secondListener);
+            socket.startHandshake();
 
             AtomicReference<Exception> error = new AtomicReference<>();
             CountDownLatch catchReadErrorsLatch = new CountDownLatch(1);

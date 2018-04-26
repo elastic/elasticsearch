@@ -38,15 +38,9 @@ public class PkiRealmBootstrapCheckTests extends ESTestCase {
                 .build();
         assertFalse(runCheck(settings, env).isFailure());
 
-        // disable client auth default
-        settings = Settings.builder().put(settings)
-                .put("xpack.ssl.client_authentication", "none")
-                .build();
-        env = TestEnvironment.newEnvironment(settings);
-        assertTrue(runCheck(settings, env).isFailure());
-
         // enable ssl for http
         settings = Settings.builder().put(settings)
+                .put("xpack.security.transport.ssl.enabled", false)
                 .put("xpack.security.http.ssl.enabled", true)
                 .build();
         env = TestEnvironment.newEnvironment(settings);
@@ -75,6 +69,7 @@ public class PkiRealmBootstrapCheckTests extends ESTestCase {
 
         // test with transport profile
         settings = Settings.builder().put(settings)
+                .put("xpack.security.transport.ssl.enabled", true)
                 .put("xpack.security.transport.client_authentication", "none")
                 .put("transport.profiles.foo.xpack.security.ssl.client_authentication", randomFrom("required", "optional"))
                 .build();

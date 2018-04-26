@@ -49,9 +49,12 @@ import static org.hamcrest.Matchers.instanceOf;
 public class SslIntegrationTests extends SecurityIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .put("xpack.security.http.ssl.enabled", true).build();
+        final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+        addSSLSettingsForStore(builder, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks",
+                "testnode", "xpack.security.http.");
+        return builder.put(NetworkModule.HTTP_ENABLED.getKey(), true)
+                .put("xpack.security.http.ssl.enabled", true)
+                .build();
     }
 
     @Override
@@ -65,7 +68,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
                 .put(transportClientSettings())
                 .put("node.name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())
-                .putList("xpack.ssl.cipher_suites", "TLS_ECDH_anon_WITH_RC4_128_SHA", "SSL_RSA_WITH_3DES_EDE_CBC_SHA")
+                .putList("xpack.security.transport.ssl.cipher_suites", "TLS_ECDH_anon_WITH_RC4_128_SHA", "SSL_RSA_WITH_3DES_EDE_CBC_SHA")
                 .build(), LocalStateSecurity.class)) {
 
             TransportAddress transportAddress = randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses());
@@ -84,7 +87,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
                 .put(transportClientSettings())
                 .put("node.name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())
-                .putList("xpack.ssl.supported_protocols", new String[]{"SSLv3"})
+                .putList("xpack.security.transport.ssl.supported_protocols", new String[]{"SSLv3"})
                 .build(), LocalStateSecurity.class)) {
 
             TransportAddress transportAddress = randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses());
@@ -99,14 +102,16 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
 
     public void testThatConnectionToHTTPWorks() throws Exception {
         Settings.Builder builder = Settings.builder();
-        addSSLSettingsForStore(builder, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks", "testclient");
-        SSLService service = new SSLService(builder.build(), null);
+        addSSLSettingsForStore(builder, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks", "testclient",
+                "xpack.http.");
+        final Settings settings = builder.build();
+        SSLService service = new SSLService(settings, null);
 
         CredentialsProvider provider = new BasicCredentialsProvider();
         provider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(nodeClientUsername(),
                 new String(nodeClientPassword().getChars())));
         try (CloseableHttpClient client = HttpClients.custom()
-                .setSSLSocketFactory(new SSLConnectionSocketFactory(service.sslSocketFactory(Settings.EMPTY),
+                .setSSLSocketFactory(new SSLConnectionSocketFactory(service.sslSocketFactory(settings.getByPrefix("xpack.http.ssl.")),
                         SSLConnectionSocketFactory.getDefaultHostnameVerifier()))
                 .setDefaultCredentialsProvider(provider).build();
              CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(new HttpGet(getNodeUrl())))) {

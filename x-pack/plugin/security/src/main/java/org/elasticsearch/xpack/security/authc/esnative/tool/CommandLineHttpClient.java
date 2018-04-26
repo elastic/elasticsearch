@@ -89,8 +89,7 @@ public class CommandLineHttpClient {
                 final Settings sslSettings = SSLService.getHttpTransportSSLSettings(settings);
                 // Requires permission java.lang.RuntimePermission "setFactory";
                 httpsConn.setSSLSocketFactory(sslService.sslSocketFactory(sslSettings));
-                final boolean isHostnameVerificationEnabled =
-                        sslService.getVerificationMode(sslSettings, Settings.EMPTY).isHostnameVerificationEnabled();
+                final boolean isHostnameVerificationEnabled = sslService.getVerificationMode(sslSettings).isHostnameVerificationEnabled();
                 if (isHostnameVerificationEnabled == false) {
                     httpsConn.setHostnameVerifier((hostname, session) -> true);
                 }

@@ -49,6 +49,9 @@ public class PkiOptionalClientAuthTests extends SecuritySingleNodeTestCase {
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .put("xpack.security.http.ssl.enabled", true)
                 .put("xpack.security.http.ssl.client_authentication", SSLClientAuth.OPTIONAL)
+                .put("xpack.security.http.ssl.keystore.path",
+                        getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"))
+                .put("xpack.security.http.ssl.keystore.password", "testnode")
                 .put("xpack.security.authc.realms.file.type", "file")
                 .put("xpack.security.authc.realms.file.order", "0")
                 .put("xpack.security.authc.realms.pki1.type", "pki")
@@ -58,6 +61,9 @@ public class PkiOptionalClientAuthTests extends SecuritySingleNodeTestCase {
                 .put("xpack.security.authc.realms.pki1.files.role_mapping", getDataPath("role_mapping.yml"))
                 .put("transport.profiles.want_client_auth.port", randomClientPortRange)
                 .put("transport.profiles.want_client_auth.bind_host", "localhost")
+                .put("transport.profiles.want_client_auth.xpack.security.ssl.keystore.path",
+                        getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"))
+                .put("transport.profiles.want_client_auth.xpack.security.ssl.keystore.password", "testnode")
                 .put("transport.profiles.want_client_auth.xpack.security.ssl.client_authentication", SSLClientAuth.OPTIONAL);
 
         SecuritySettingsSource.addSecureSettings(builder, secureSettings ->

@@ -201,8 +201,7 @@ subprojects {
       }
       final List<String> licenseLines = Files.readAllLines(rootDir.toPath().resolve("licenses/" + licenseFilename))
       final Path licensePath = archiveExtractionDir.toPath().resolve("elasticsearch-${VersionProperties.elasticsearch}/LICENSE.txt")
-      final List<String> actualLines = Files.readAllLines(licensePath)
-      assertLinesInFile(licensePath, actualLines, licenseLines)
+      assertLinesInFile(licensePath, licenseLines)
     }
   }
   check.dependsOn checkLicense
@@ -213,8 +212,7 @@ subprojects {
     doLast {
       final List<String> noticeLines = Arrays.asList("Elasticsearch", "Copyright 2009-2018 Elasticsearch")
       final Path noticePath = archiveExtractionDir.toPath().resolve("elasticsearch-${VersionProperties.elasticsearch}/NOTICE.txt")
-      final List<String> actualLines = Files.readAllLines(noticePath)
-      assertLinesInFile(noticePath, actualLines, noticeLines)
+      assertLinesInFile(noticePath, noticeLines)
     }
   }
   check.dependsOn checkNotice
@@ -304,4 +302,3 @@ configure(subprojects.findAll { it.name.contains('zip') }) {
     }
   }
 }
-

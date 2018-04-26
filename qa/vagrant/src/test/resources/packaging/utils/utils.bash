@@ -249,6 +249,7 @@ clean_before_test() {
                             "/etc/sysconfig/elasticsearch"  \
                             "/var/run/elasticsearch"  \
                             "/usr/share/doc/elasticsearch" \
+                            "/usr/share/doc/elasticsearch-oss" \
                             "/tmp/elasticsearch" \
                             "/usr/lib/systemd/system/elasticsearch.conf" \
                             "/usr/lib/tmpfiles.d/elasticsearch.conf" \

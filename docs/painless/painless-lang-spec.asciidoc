@@ -23,6 +23,8 @@ include::painless-keywords.asciidoc[]
 
 include::painless-literals.asciidoc[]
 
+include::painless-identifiers.asciidoc[]
+
 include::painless-variables.asciidoc[]
 
 include::painless-types.asciidoc[]

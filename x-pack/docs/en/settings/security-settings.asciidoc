@@ -188,7 +188,7 @@ all possible values. Defaults to `ssha256`.
 ===== LDAP realm settings
 
 The `type` setting must be set to `ldap`. In addition to the 
-<<all-realm-settings>>, you can specify the following settings: 
+<<ref-realm-settings>>, you can specify the following settings: 
 
 `url`:: Specifies one or more LDAP URLs in the format  
 `ldap[s]://<server>:<port>`. Multiple URLs can be defined using a comma 

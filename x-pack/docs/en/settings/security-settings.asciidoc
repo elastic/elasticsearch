@@ -168,6 +168,10 @@ in-memory cached user credentials. For possible values, see
 [float]
 ===== File realm settings
 
+The `type` setting must be set to `file`. In addition to the 
+<<ref-realm-settings,settings that are valid for all realms>>, you can specify  
+the following settings: 
+
 `cache.ttl`::
 The time-to-live for cached user entries. A user and a hash of its credentials 
 are cached for this configured period of time. Defaults to `20m`. Specify values 

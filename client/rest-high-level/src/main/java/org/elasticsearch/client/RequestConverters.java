@@ -364,7 +364,7 @@ final class RequestConverters {
     }
 
     private static Request getStyleRequest(String method, GetRequest getRequest) {
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint(getRequest.index(), getRequest.type(), getRequest.id()));
+        Request request = new Request(method, endpoint(getRequest.index(), getRequest.type(), getRequest.id()));
 
         Params parameters = new Params(request);
         parameters.withPreference(getRequest.preference());

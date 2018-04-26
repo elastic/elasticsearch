@@ -150,7 +150,7 @@ public class IndexLifecycleService extends AbstractComponent
         clusterState.metaData().indices().valuesIt().forEachRemaining((idxMeta) -> {
             String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
             if (Strings.isNullOrEmpty(policyName) == false) {
-                lifecycleRunner.runPolicy(policyName, idxMeta, idxMeta.getSettings(), fromClusterStateChange);
+                lifecycleRunner.runPolicy(policyName, idxMeta, clusterState, fromClusterStateChange);
             }
         });
     }

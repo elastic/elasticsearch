@@ -629,7 +629,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 logger.warn("Error loading the template for the " + MlMetaIndex.INDEX_NAME + " index", e);
             }
 
-            try (XContentBuilder configMapping = ElasticsearchMappings.jobConfigMapping()) {
+            try (XContentBuilder configMapping = ElasticsearchMappings.configMapping()) {
                 IndexTemplateMetaData configTemplate = IndexTemplateMetaData.builder(AnomalyDetectorsIndex.jobConfigIndexName())
                         .patterns(Collections.singletonList(AnomalyDetectorsIndex.jobConfigIndexName()))
                         .settings(Settings.builder()
@@ -661,7 +661,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 logger.error("Error loading the template for the " + AnomalyDetectorsIndex.jobStateIndexName() + " index", e);
             }
 
-            try (XContentBuilder docMapping = ElasticsearchMappings.docMapping()) {
+            try (XContentBuilder docMapping = ElasticsearchMappings.resultsMapping()) {
                 IndexTemplateMetaData jobResultsTemplate = IndexTemplateMetaData.builder(AnomalyDetectorsIndex.jobResultsIndexPrefix())
                         .patterns(Collections.singletonList(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*"))
                         .settings(Settings.builder()

@@ -13,6 +13,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
@@ -28,25 +31,28 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 
 public class ElasticsearchMappingsTests extends ESTestCase {
 
-    public void testReservedFields() throws Exception {
-        Set<String> overridden = new HashSet<>();
+    // These are not reserved because they're Elasticsearch keywords, not
+    // field names
+    private static List<String> KEYWORDS = Arrays.asList(
+            ElasticsearchMappings.ANALYZER,
+            ElasticsearchMappings.COPY_TO,
+            ElasticsearchMappings.DYNAMIC,
+            ElasticsearchMappings.ENABLED,
+            ElasticsearchMappings.NESTED,
+            ElasticsearchMappings.PROPERTIES,
+            ElasticsearchMappings.TYPE,
+            ElasticsearchMappings.WHITESPACE
+    );
 
-        // These are not reserved because they're Elasticsearch keywords, not
-        // field names
-        overridden.add(ElasticsearchMappings.ANALYZER);
-        overridden.add(ElasticsearchMappings.COPY_TO);
-        overridden.add(ElasticsearchMappings.DYNAMIC);
-        overridden.add(ElasticsearchMappings.ENABLED);
-        overridden.add(ElasticsearchMappings.NESTED);
-        overridden.add(ElasticsearchMappings.PROPERTIES);
-        overridden.add(ElasticsearchMappings.TYPE);
-        overridden.add(ElasticsearchMappings.WHITESPACE);
+    public void testResultsMapppingReservedFields() throws Exception {
+        Set<String> overridden = new HashSet<>(KEYWORDS);
 
         // These are not reserved because they're data types, not field names
         overridden.add(Result.TYPE.getPreferredName());
@@ -57,25 +63,44 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         overridden.add(Quantiles.TYPE.getPreferredName());
 
         Set<String> expected = collectResultsDocFieldNames();
-
         expected.removeAll(overridden);
 
-        if (ReservedFieldNames.RESERVED_FIELD_NAMES.size() != expected.size()) {
-            Set<String> diff = new HashSet<>(ReservedFieldNames.RESERVED_FIELD_NAMES);
+        compareFields(expected, ReservedFieldNames.RESERVED_RESULT_FIELD_NAMES);
+    }
+
+    public void testConfigMapppingReservedFields() throws Exception {
+        Set<String> overridden = new HashSet<>(KEYWORDS);
+
+        // These are not reserved because they're data types, not field names
+        overridden.add(Job.TYPE);
+        overridden.add(DatafeedConfig.TYPE);
+        // ModelPlotConfig has an 'enabled' the same as one of the keywords
+        overridden.remove(ModelPlotConfig.ENABLED_FIELD.getPreferredName());
+
+        Set<String> expected = collectConfigDocFieldNames();
+        expected.removeAll(overridden);
+
+        compareFields(expected, ReservedFieldNames.RESERVED_CONFIG_FIELD_NAMES);
+    }
+
+
+    private void compareFields(Set<String> expected, Set<String> reserved) {
+        if (reserved.size() != expected.size()) {
+            Set<String> diff = new HashSet<>(reserved);
             diff.removeAll(expected);
             StringBuilder errorMessage = new StringBuilder("Fields in ReservedFieldNames but not in expected: ").append(diff);
 
             diff = new HashSet<>(expected);
-            diff.removeAll(ReservedFieldNames.RESERVED_FIELD_NAMES);
+            diff.removeAll(reserved);
             errorMessage.append("\nFields in expected but not in ReservedFieldNames: ").append(diff);
             fail(errorMessage.toString());
         }
-        assertEquals(ReservedFieldNames.RESERVED_FIELD_NAMES.size(), expected.size());
+        assertEquals(reserved.size(), expected.size());
 
         for (String s : expected) {
             // By comparing like this the failure messages say which string is missing
-            String reserved = ReservedFieldNames.RESERVED_FIELD_NAMES.contains(s) ? s : null;
-            assertEquals(s, reserved);
+            String reservedField = reserved.contains(s) ? s : null;
+            assertEquals(s, reservedField);
         }
     }
 
@@ -105,10 +130,17 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
     private Set<String> collectResultsDocFieldNames() throws IOException {
         // Only the mappings for the results index should be added below.  Do NOT add mappings for other indexes here.
+        return collectFieldNames(ElasticsearchMappings.resultsMapping());
+    }
 
-        XContentBuilder builder = ElasticsearchMappings.docMapping();
+    private Set<String> collectConfigDocFieldNames() throws IOException {
+        // Only the mappings for the config index should be added below.  Do NOT add mappings for other indexes here.
+        return collectFieldNames(ElasticsearchMappings.configMapping());
+    }
+
+    private Set<String> collectFieldNames(XContentBuilder mapping) throws IOException {
         BufferedInputStream inputStream =
-                new BufferedInputStream(new ByteArrayInputStream(Strings.toString(builder).getBytes(StandardCharsets.UTF_8)));
+                new BufferedInputStream(new ByteArrayInputStream(Strings.toString(mapping).getBytes(StandardCharsets.UTF_8)));
         JsonParser parser = new JsonFactory().createParser(inputStream);
         Set<String> fieldNames = new HashSet<>();
         boolean isAfterPropertiesStart = false;

@@ -304,7 +304,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/3369")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29840")
     public void testHandlingLdapReferralErrors() throws Exception {
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userTemplate = "CN={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";

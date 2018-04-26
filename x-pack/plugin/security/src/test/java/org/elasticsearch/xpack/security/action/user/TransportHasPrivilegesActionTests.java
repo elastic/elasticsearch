@@ -91,10 +91,10 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
         Mockito.doAnswer(inv -> {
             assertThat(inv.getArguments(), arrayWithSize(3));
             ActionListener<List<ApplicationPrivilege>> listener = (ActionListener<List<ApplicationPrivilege>>) inv.getArguments()[2];
+            logger.info("Privileges for ({}) are {}", Arrays.toString(inv.getArguments()), applicationPrivileges);
             listener.onResponse(applicationPrivileges);
             return null;
         }).when(privilegeStore).getPrivileges(any(Collection.class), any(Collection.class), any(ActionListener.class));
-
 
         action = new TransportHasPrivilegesAction(settings, threadPool, transportService,
                 mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), authorizationService, privilegeStore);

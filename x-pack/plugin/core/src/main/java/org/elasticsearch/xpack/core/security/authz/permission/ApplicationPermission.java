@@ -44,13 +44,14 @@ public final class ApplicationPermission {
         }));
     }
 
-    public boolean check(ApplicationPrivilege other, String resource) {
+    public boolean grants(ApplicationPrivilege other, String resource) {
         Automaton resourceAutomaton = Automatons.patterns(resource);
-        logger.debug("Checking permission [{}] against [{} , {}]", this, other, resource);
-        return privileges.entrySet().stream()
-                .anyMatch(entry -> Objects.equals(other.getApplication(), entry.getKey().getApplication())
-                        && Operations.subsetOf(other.getAutomaton(), entry.getKey().getAutomaton())
-                        && Operations.subsetOf(resourceAutomaton, entry.getValue()));
+        final boolean matched = privileges.entrySet().stream()
+            .anyMatch(entry -> Objects.equals(other.getApplication(), entry.getKey().getApplication())
+                && Operations.subsetOf(other.getAutomaton(), entry.getKey().getAutomaton())
+                && Operations.subsetOf(resourceAutomaton, entry.getValue()));
+        logger.debug("Permission [{}] {} grant [{} , {}]", this, matched ? "does" : "does not", other, resource);
+        return matched;
     }
 
     @Override

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,7 +30,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -47,7 +47,7 @@ public final class ApplicationPrivilege extends Privilege implements ToXContentO
     public static final String DOC_TYPE_VALUE = "application-privilege";
 
     private static final ConstructingObjectParser<ApplicationPrivilege, Boolean> PARSER = new ConstructingObjectParser<>(DOC_TYPE_VALUE,
-            arr -> new ApplicationPrivilege((String) arr[0], (String) arr[1], (List<String>) arr[2], (Map<String, Object>) arr[3])
+        arr -> new ApplicationPrivilege((String) arr[0], (String) arr[1], (List<String>) arr[2], (Map<String, Object>) arr[3])
     );
 
     static {
@@ -69,7 +69,6 @@ public final class ApplicationPrivilege extends Privilege implements ToXContentO
 
     private static final Pattern VALID_APPLICATION = Pattern.compile("^[a-z][A-Za-z0-9_-]{2,}$");
     private static final Pattern VALID_NAME = Pattern.compile("^[a-z][a-zA-Z0-9_.-]*$");
-    private static final ConcurrentHashMap<Tuple<String, Set<String>>, ApplicationPrivilege> CACHE = new ConcurrentHashMap<>();
 
     public static final Function<String, ApplicationPrivilege> NONE = app -> new ApplicationPrivilege(app, "none", new String[0]);
 
@@ -110,19 +109,19 @@ public final class ApplicationPrivilege extends Privilege implements ToXContentO
     private void validate(boolean validateNames) {
         if (VALID_APPLICATION.matcher(application).matches() == false) {
             throw new IllegalArgumentException("Application names must match /"
-                    + VALID_APPLICATION.pattern() + "/ (but was '" + application + "')");
+                + VALID_APPLICATION.pattern() + "/ (but was '" + application + "')");
         }
 
         for (String name : super.name()) {
             if (validateNames && isPrivilegeName(name) == false) {
                 throw new IllegalArgumentException("Application privilege names must match the pattern /" + VALID_NAME.pattern()
-                        + "/ (found '" + name + "')");
+                    + "/ (found '" + name + "')");
             }
         }
         for (String pattern : patterns) {
             if (pattern.indexOf('/') == -1 && pattern.indexOf('*') == -1 && pattern.indexOf(':') == -1) {
                 throw new IllegalArgumentException(
-                        "The application privilege pattern [" + pattern + "] must contain one of [ '/' , '*' , ':' ]");
+                    "The application privilege pattern [" + pattern + "] must contain one of [ '/' , '*' , ':' ]");
             }
         }
     }
@@ -132,18 +131,15 @@ public final class ApplicationPrivilege extends Privilege implements ToXContentO
     }
 
     public static ApplicationPrivilege get(String application, Set<String> name, Collection<ApplicationPrivilege> stored) {
-        Tuple<String, Set<String>> key = new Tuple<>(application, name);
-        return CACHE.computeIfAbsent(key, (ignore) -> {
-            if (name.isEmpty()) {
-                return NONE.apply(application);
-            } else {
-                Map<String, ApplicationPrivilege> lookup = stored.stream()
-                        .filter(cp -> cp.application.equals(application))
-                        .filter(cp -> cp.name.size() == 1)
-                        .collect(Collectors.toMap(cp -> Iterables.get(cp.name, 0), Function.identity()));
-                return resolve(application, name, lookup);
-            }
-        });
+        if (name.isEmpty()) {
+            return NONE.apply(application);
+        } else {
+            Map<String, ApplicationPrivilege> lookup = stored.stream()
+                .filter(cp -> cp.application.equals(application))
+                .filter(cp -> cp.name.size() == 1)
+                .collect(Collectors.toMap(cp -> Iterables.get(cp.name, 0), Function.identity()));
+            return resolve(application, name, lookup);
+        }
     }
 
     private static ApplicationPrivilege resolve(String application, Set<String> names, Map<String, ApplicationPrivilege> lookup) {
@@ -180,7 +176,7 @@ public final class ApplicationPrivilege extends Privilege implements ToXContentO
 
     @Override
     public String toString() {
-        return application + ":" + super.toString();
+        return application + ":" + super.toString() + "(" + Strings.arrayToCommaDelimitedString(patterns) + ")";
     }
 
     @Override
@@ -208,10 +204,10 @@ public final class ApplicationPrivilege extends Privilege implements ToXContentO
         assert name.size() == 1;
 
         builder.startObject()
-                .field(Fields.APPLICATION.getPreferredName(), application)
-                .field(Fields.NAME.getPreferredName(), Iterables.get(name, 0))
-                .array(Fields.ACTIONS.getPreferredName(), this.patterns)
-                .field(Fields.METADATA.getPreferredName(), this.metadata);
+            .field(Fields.APPLICATION.getPreferredName(), application)
+            .field(Fields.NAME.getPreferredName(), Iterables.get(name, 0))
+            .array(Fields.ACTIONS.getPreferredName(), this.patterns)
+            .field(Fields.METADATA.getPreferredName(), this.metadata);
 
         if (includeType) {
             builder.field(Fields.TYPE.getPreferredName(), DOC_TYPE_VALUE);

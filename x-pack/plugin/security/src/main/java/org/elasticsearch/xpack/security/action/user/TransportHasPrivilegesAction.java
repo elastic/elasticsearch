@@ -58,7 +58,7 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                         AuthorizationService authorizationService, NativePrivilegeStore privilegeStore) {
         super(settings, HasPrivilegesAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                HasPrivilegesRequest::new);
+            HasPrivilegesRequest::new);
         this.authorizationService = authorizationService;
         this.privilegeStore = privilegeStore;
     }
@@ -74,10 +74,10 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
         }
 
         authorizationService.roles(user, ActionListener.wrap(
-                role -> resolveApplicationPrivileges(request, ActionListener.wrap(
-                        applicationPrivilegeLookup -> checkPrivileges(request, role, applicationPrivilegeLookup, listener),
-                        listener::onFailure)),
-                listener::onFailure));
+            role -> resolveApplicationPrivileges(request, ActionListener.wrap(
+                applicationPrivilegeLookup -> checkPrivileges(request, role, applicationPrivilegeLookup, listener),
+                listener::onFailure)),
+            listener::onFailure));
     }
 
     private void resolveApplicationPrivileges(HasPrivilegesRequest request, ActionListener<Collection<ApplicationPrivilege>> listener) {
@@ -87,18 +87,18 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
 
     private Set<String> getApplicationNames(HasPrivilegesRequest request) {
         return Arrays.stream(request.applicationPrivileges())
-                .map(RoleDescriptor.ApplicationResourcePrivileges::getApplication)
-                .distinct()
-                .collect(Collectors.toSet());
+            .map(RoleDescriptor.ApplicationResourcePrivileges::getApplication)
+            .distinct()
+            .collect(Collectors.toSet());
     }
 
     private void checkPrivileges(HasPrivilegesRequest request, Role userRole, Collection<ApplicationPrivilege> applicationPrivileges,
                                  ActionListener<HasPrivilegesResponse> listener) {
         logger.debug(() -> new ParameterizedMessage("Check whether role [{}] has privileges cluster=[{}] index=[{}] application=[{}]",
-                Strings.arrayToCommaDelimitedString(userRole.names()),
-                Strings.arrayToCommaDelimitedString(request.clusterPrivileges()),
-                Strings.arrayToCommaDelimitedString(request.indexPrivileges()),
-                Strings.arrayToCommaDelimitedString(request.applicationPrivileges())
+            Strings.arrayToCommaDelimitedString(userRole.names()),
+            Strings.arrayToCommaDelimitedString(request.clusterPrivileges()),
+            Strings.arrayToCommaDelimitedString(request.indexPrivileges()),
+            Strings.arrayToCommaDelimitedString(request.applicationPrivileges())
         ));
 
         Map<String, Boolean> cluster = new HashMap<>();
@@ -122,11 +122,11 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
                 for (String privilege : check.getPrivileges()) {
                     if (testIndexMatch(index, privilege, userRole, predicateCache)) {
                         logger.debug(() -> new ParameterizedMessage("Role [{}] has [{}] on index [{}]",
-                                Strings.arrayToCommaDelimitedString(userRole.names()), privilege, index));
+                            Strings.arrayToCommaDelimitedString(userRole.names()), privilege, index));
                         privileges.put(privilege, true);
                     } else {
                         logger.debug(() -> new ParameterizedMessage("Role [{}] does not have [{}] on index [{}]",
-                                Strings.arrayToCommaDelimitedString(userRole.names()), privilege, index));
+                            Strings.arrayToCommaDelimitedString(userRole.names()), privilege, index));
                         privileges.put(privilege, false);
                         allMatch = false;
                     }
@@ -150,11 +150,11 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
                         for (String privilege : p.getPrivileges()) {
                             if (testResourceMatch(applicationName, resource, privilege, userRole, applicationPrivileges)) {
                                 logger.debug(() -> new ParameterizedMessage("Role [{}] has [{} {}] on resource [{}]",
-                                        Strings.arrayToCommaDelimitedString(userRole.names()), applicationName, privilege, resource));
+                                    Strings.arrayToCommaDelimitedString(userRole.names()), applicationName, privilege, resource));
                                 privileges.put(privilege, true);
                             } else {
                                 logger.debug(() -> new ParameterizedMessage("Role [{}] does not have [{} {}] on resource [{}]",
-                                        Strings.arrayToCommaDelimitedString(userRole.names()), applicationName, privilege, resource));
+                                    Strings.arrayToCommaDelimitedString(userRole.names()), applicationName, privilege, resource));
                                 privileges.put(privilege, false);
                                 allMatch = false;
                             }
@@ -201,7 +201,12 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
                                       Collection<ApplicationPrivilege> privileges) {
         final Set<String> nameSet = Collections.singleton(checkPrivilegeName);
         final ApplicationPrivilege checkPrivilege = ApplicationPrivilege.get(application, nameSet, privileges);
-        return userRole.application().check(checkPrivilege, checkResource);
+        assert checkPrivilege.getApplication().equals(application)
+            : "Privilege " + checkPrivilege + " should have application " + application;
+        assert checkPrivilege.name().equals(nameSet)
+            : "Privilege " + checkPrivilege + " should have name " + nameSet;
+
+        return userRole.application().grants(checkPrivilege, checkResource);
     }
 
 }

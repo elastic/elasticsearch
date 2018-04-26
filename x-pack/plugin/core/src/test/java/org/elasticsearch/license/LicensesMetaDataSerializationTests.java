@@ -64,7 +64,7 @@ public class LicensesMetaDataSerializationTests extends ESTestCase {
         License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(2));
         LicensesMetaData licensesMetaData = new LicensesMetaData(license, Version.CURRENT);
         RepositoryMetaData repositoryMetaData = new RepositoryMetaData("repo", "fs", Settings.EMPTY);
-        RepositoriesMetaData repositoriesMetaData = new RepositoriesMetaData(repositoryMetaData);
+        RepositoriesMetaData repositoriesMetaData = new RepositoriesMetaData(Collections.singletonList(repositoryMetaData));
         final MetaData.Builder metaDataBuilder = MetaData.builder();
         if (randomBoolean()) { // random order of insertion
             metaDataBuilder.putCustom(licensesMetaData.getWriteableName(), licensesMetaData);

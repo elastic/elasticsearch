@@ -32,9 +32,6 @@
 
 ---
 "Create index":
-  - skip:
-      version: " - 5.5.99"
-      reason: create index response contains index name since 5.6.0
 
   - do:
       indices.create:

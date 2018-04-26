@@ -7,10 +7,6 @@
 
 ---
 "get cluster state returns cluster state size with human readable format":
-  - skip:
-      version:  " - 5.99.99"
-      reason:   "cluster state size is only available in v6.0.0 and higher"
-
   - do:
       cluster.state:
         human: true

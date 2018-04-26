@@ -39,10 +39,6 @@ teardown:
         ignore: 404
 ---
 "Get simple field caps from remote cluster":
-  - skip:
-      version: " - 5.4.99"
-      reason:  this uses a new API that has been added in 5.5.0
-
   - do:
         indices.create:
           index: field_caps_index_2

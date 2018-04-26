@@ -1,8 +1,4 @@
 "Ensure that we fetch the document only once":
-  - skip:
-      version: " - 5.99.99"
-      reason:  this was added in 6.0.0
-
   - do:
       indices.create:
           index: search_index

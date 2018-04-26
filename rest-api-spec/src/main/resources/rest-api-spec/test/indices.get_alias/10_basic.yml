@@ -42,10 +42,6 @@ setup:
 
 ---
 "Get aliases via /_all/_alias/":
-  - skip:
-      version: " - 5.99.99"
-      reason:  only requested indices are included in 6.x
-
   - do:
       indices.create:
         index: myindex
@@ -62,10 +58,6 @@ setup:
 
 ---
 "Get aliases via /*/_alias/":
-  - skip:
-      version: " - 5.99.99"
-      reason:  only requested indices are included in 6.x
-
   - do:
       indices.create:
         index: myindex
@@ -82,10 +74,6 @@ setup:
 
 ---
 "Get and index with no aliases via /{index}/_alias/":
-  - skip:
-      version: " - 5.99.99"
-      reason:  only requested indices are included in 6.x
-
   - do:
       indices.create:
         index: myindex
@@ -222,10 +210,6 @@ setup:
 
 ---
 "Non-existent alias on an existing index returns 404":
-  - skip:
-      version: " - 5.4.99"
-      reason: Previous versions did not 404 on missing aliases
-
   - do:
       catch: missing
       indices.get_alias:
@@ -237,10 +221,6 @@ setup:
 
 ---
 "Existent and non-existent alias returns 404 and the existing alias":
-  - skip:
-      version: " - 5.4.99"
-      reason: Previous versions did not 404 on missing aliases
-
   - do:
       catch: missing
       indices.get_alias:
@@ -253,10 +233,6 @@ setup:
 
 ---
 "Existent and non-existent aliases returns 404 and the existing alias":
-  - skip:
-      version: " - 5.4.99"
-      reason: Previous versions did not 404 on missing aliases
-
   - do:
       catch: missing
       indices.get_alias:

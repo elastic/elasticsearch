@@ -75,9 +75,6 @@ setup:
 
 ---
 "Get simple field caps":
-  - skip:
-      version: " - 5.3.99"
-      reason:  this uses a new API that has been added in 5.4.0
 
   - do:
       field_caps:
@@ -116,9 +113,6 @@ setup:
   - is_false: fields.geo.keyword.on_aggregatable_indices
 ---
 "Get nested field caps":
-  - skip:
-      version: " - 5.3.99"
-      reason:  this uses a new API that has been added in 5.4.0
 
   - do:
       field_caps:
@@ -147,9 +141,6 @@ setup:
   - is_false: fields.object\.nested2.keyword.non_searchable_indices
 ---
 "Get prefix field caps":
-  - skip:
-      version: " - 5.3.99"
-      reason:  this uses a new API that has been added in 5.4.0
 
   - do:
       field_caps:
@@ -168,9 +159,6 @@ setup:
 
 ---
 "Mix in non-existing field field caps":
-  - skip:
-      version: " - 5.4.0"
-      reason:  "#24504 fixed a bug in this API in 5.4.1"
 
   - do:
       field_caps:

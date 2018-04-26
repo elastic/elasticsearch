@@ -8,10 +8,6 @@
 ---
 "no query fails":
 
-  - skip:
-      version: " - 5.99.99"
-      reason: explicit query is required since 6.0.0
-
   - do:
       catch: /query is missing/
       delete_by_query:

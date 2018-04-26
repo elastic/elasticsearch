@@ -127,6 +127,7 @@ The valid settings vary depending on the realm type. For more
 information, see {xpack-ref}/setting-up-authentication.html[Setting Up Authentication].
 
 [float]
+[[ref-realm-settings]]
 ===== Settings Valid for All Realms
 
 `type`::
@@ -140,6 +141,27 @@ recommended when you configure multiple realms. Defaults to `Integer.MAX_VALUE`.
 `enabled`::
 Indicates whether a realm is enabled. You can use this setting to disable a
 realm without removing its configuration information. Defaults to `true`.
+
+[[ref-native-settings]]
+[float]
+===== Native Realm Settings
+
+For a native realm, the `type` must be set to `native`. In addition to the 
+<<ref-realm-settings,settings that are valid for all realms>>, you can specify  
+the following optional settings: 
+
+`cache.ttl`:: The time-to-live for cached user entries. User credentials are 
+cached for this period of time. Specify the time period using the standard 
+{es} <<time-units,time units>>. Defaults to `20m`.
+
+`cache.max_users`:: The maximum number of user entries that can live in the 
+cache at any given time. Defaults to 100,000.
+
+`cache.hash_algo`:: (Expert Setting) The hashing algorithm that is used for the 
+in-memory cached user credentials. For possible values, see 
+{xpack-ref}/controlling-user-cache.html[Cache hash algorithms]. Defaults to 
+`ssha256`.
+
 
 [[ref-users-settings]]
 

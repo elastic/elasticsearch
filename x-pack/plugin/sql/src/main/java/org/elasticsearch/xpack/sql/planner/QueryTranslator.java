@@ -606,7 +606,8 @@ abstract class QueryTranslator {
                 return new TermQuery(loc, name, value);
             }
 
-            throw new SqlIllegalArgumentException("Don't know how to translate binary comparison [{}] in [{}]", bc.right().nodeString(), bc);
+            throw new SqlIllegalArgumentException("Don't know how to translate binary comparison [{}] in [{}]", bc.right().nodeString(),
+                    bc);
         }
     }
 

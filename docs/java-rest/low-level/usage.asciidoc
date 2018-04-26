@@ -221,8 +221,9 @@ http://hc.apache.org/httpcomponents-asyncclient-dev/httpasyncclient/apidocs/org/
 Once the `RestClient` has been created, requests can be sent by calling either
 `performRequest` or `performRequestAsync`. `performRequest` is synchronous and
 will block the calling thread and return the `Response` when the request is
-complete. `performRequestAsync` is asynchronous and accepts a `ResponseListener`
-argument that it will call with the request is complete or fails.
+successful or throw an exception if it fails. `performRequestAsync` is
+asynchronous and accepts a `ResponseListener` argument that it calls with a
+`Response` when the request is successful or with an `Exception` if it4 fails.
 
 This is synchronous:
 
@@ -270,7 +271,10 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-headers]
 --------------------------------------------------
 
 You can also customize the response consumer used to buffer the asynchronous
-responses:
+responses. The default consumer will buffer up to 100MB of response on the
+JVM heap. If the response is larger then the request will fail. You could,
+for example, lower the maximum size which might be useful if you are running
+in a heap constrained environment:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

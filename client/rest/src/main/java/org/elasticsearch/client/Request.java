@@ -28,7 +28,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Request to Elasticsearch.
+ * HTTP Request to Elasticsearch.
  */
 public final class Request {
     private static final Header[] NO_HEADERS = new Header[0];

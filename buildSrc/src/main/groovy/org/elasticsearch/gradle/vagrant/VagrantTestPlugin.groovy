@@ -37,8 +37,15 @@ class VagrantTestPlugin implements Plugin<Project> {
             'ubuntu-1404',
     ]
 
-    /** All onboarded archives by default, available for Bats tests even if not used **/
-    static List<String> DISTRIBUTION_ARCHIVES = ['tar', 'rpm', 'deb', 'oss-rpm', 'oss-deb']
+    /** All distributions to bring into test VM, whether or not they are used **/
+    static List<String> DISTRIBUTIONS = [
+            'archives:tar',
+            'archives:oss-tar',
+            'packages:rpm',
+            'packages:oss-rpm',
+            'packages:deb',
+            'packages:oss-deb'
+    ]
 
     /** Packages onboarded for upgrade tests **/
     static List<String> UPGRADE_FROM_ARCHIVES = ['rpm', 'deb']
@@ -117,13 +124,8 @@ class VagrantTestPlugin implements Plugin<Project> {
             upgradeFromVersion = Version.fromString(upgradeFromVersionRaw)
         }
 
-        DISTRIBUTION_ARCHIVES.each {
+        DISTRIBUTIONS.each {
             // Adds a dependency for the current version
-            if (it == 'tar') {
-                it = 'archives:tar'
-            } else {
-                it = "packages:${it}"
-            }
             project.dependencies.add(PACKAGING_CONFIGURATION,
                     project.dependencies.project(path: ":distribution:${it}", configuration: 'default'))
         }

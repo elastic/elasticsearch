@@ -16,9 +16,13 @@ List projects = [
   'client:benchmark',
   'benchmarks',
   'distribution:archives:integ-test-zip',
+  'distribution:archives:oss-zip',
   'distribution:archives:zip',
+  'distribution:archives:oss-tar',
   'distribution:archives:tar',
+  'distribution:packages:oss-deb',
   'distribution:packages:deb',
+  'distribution:packages:oss-rpm',
   'distribution:packages:rpm',
   'distribution:bwc:next-minor-snapshot',
   'distribution:bwc:staged-minor-snapshot',
@@ -72,6 +76,7 @@ addSubProjects('', new File(rootProject.projectDir, 'libs'))
 addSubProjects('', new File(rootProject.projectDir, 'modules'))
 addSubProjects('', new File(rootProject.projectDir, 'plugins'))
 addSubProjects('', new File(rootProject.projectDir, 'qa'))
+addSubProjects('', new File(rootProject.projectDir, 'x-pack'))
 
 boolean isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
 if (isEclipse) {

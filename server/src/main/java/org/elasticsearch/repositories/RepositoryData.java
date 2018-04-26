@@ -423,17 +423,16 @@ public final class RepositoryData {
                                         // since we already have the name/uuid combo in the snapshots array
                                         uuid = parser.text();
                                     }
-                                    if (uuid != null) {
-                                        SnapshotId snapshotId = snapshots.get(uuid);
-                                        if (snapshotId != null) {
-                                            snapshotIds.add(snapshotId);
-                                        } else {
-                                            // A snapshotted index references a snapshot which does not exist in
-                                            // the list of snapshots. This can happen when multiple clusters in
-                                            // different versions create or delete snapshot in the same repository.
-                                            throw new ElasticsearchParseException("Unknown snapshot uuid [" + uuid
-                                                + "] for index " + indexId);
-                                        }
+
+                                    SnapshotId snapshotId = snapshots.get(uuid);
+                                    if (snapshotId != null) {
+                                        snapshotIds.add(snapshotId);
+                                    } else {
+                                        // A snapshotted index references a snapshot which does not exist in
+                                        // the list of snapshots. This can happen when multiple clusters in
+                                        // different versions create or delete snapshot in the same repository.
+                                        throw new ElasticsearchParseException("Detected a corrupted repository, index " + indexId
+                                            + " references an unknown snapshot uuid [" + uuid + "]");
                                     }
                                 }
                             }

@@ -42,7 +42,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.emptySet;
+import static java.util.Collections.singleton;
 import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -160,7 +163,7 @@ public class RepositoryDataTests extends ESTestCase {
         assertNull(repositoryData.getSnapshotState(new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID())));
     }
 
-    public void testUnknownSnapshot() throws IOException {
+    public void testIndexThatReferencesAnUnknownSnapshot() throws IOException {
         final XContent xContent = randomFrom(XContentType.values()).xContent();
         final RepositoryData repositoryData = generateRandomRepoData();
 
@@ -197,7 +200,42 @@ public class RepositoryDataTests extends ESTestCase {
 
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () ->
             RepositoryData.snapshotsFromXContent(createParser(corruptedBuilder), corruptedRepositoryData.getGenId()));
-        assertThat(e.getMessage(), equalTo("Unknown snapshot uuid [_does_not_exist] for index " + corruptedIndexId));
+        assertThat(e.getMessage(), equalTo("Detected a corrupted repository, index " + corruptedIndexId + " references an unknown " +
+            "snapshot uuid [_does_not_exist]"));
+    }
+
+    public void testIndexThatReferenceANullSnapshot() throws IOException {
+        final XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.JSON).xContent());
+        builder.startObject();
+        {
+            builder.startArray("snapshots");
+            builder.value(new SnapshotId("_name", "_uuid"));
+            builder.endArray();
+
+            builder.startObject("indices");
+            {
+                builder.startObject("docs");
+                {
+                    builder.field("id", "_id");
+                    builder.startArray("snapshots");
+                    {
+                        builder.startObject();
+                        if (randomBoolean()) {
+                            builder.field("name", "_name");
+                        }
+                        builder.endObject();
+                    }
+                    builder.endArray();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+        }
+        builder.endObject();
+
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () ->
+            RepositoryData.snapshotsFromXContent(createParser(builder), randomNonNegativeLong()));
+        assertThat(e.getMessage(), equalTo("Detected a corrupted repository, index [docs/_id] references an unknown snapshot uuid [null]"));
     }
 
     public static RepositoryData generateRandomRepoData() {

@@ -71,7 +71,7 @@ Example response:
          "description" : "Index lifecycle management for the Elastic Stack",
          "available" : true,
          "enabled" : true
-      }
+      },
       "logstash" : {
          "description" : "Logstash management component for X-Pack",
          "available" : true,

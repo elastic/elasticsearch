@@ -21,6 +21,7 @@ package org.elasticsearch.client;
 
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
+import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 
 import java.util.Arrays;
 import java.util.Collections;

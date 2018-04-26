@@ -89,10 +89,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
 
-final class HighLevelRequests {
+final class RequestConverters {
     static final XContentType REQUEST_BODY_CONTENT_TYPE = XContentType.JSON;
 
-    private HighLevelRequests() {
+    private RequestConverters() {
         // Contains only status utility methods
     }
 

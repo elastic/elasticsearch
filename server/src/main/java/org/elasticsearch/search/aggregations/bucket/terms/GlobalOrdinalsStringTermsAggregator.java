@@ -184,8 +184,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         long otherDocCount = 0;
         BucketPriorityQueue<OrdBucket> ordered = new BucketPriorityQueue<>(size, order.comparator(this));
         OrdBucket spare = new OrdBucket(-1, 0, null, showTermDocCountError, 0);
-        boolean needsFullScan = bucketOrds == null || bucketCountThresholds.getMinDocCount() == 0;
-        long maxId = needsFullScan ? valueCount : bucketOrds.size();
+        final boolean needsFullScan = bucketOrds == null || bucketCountThresholds.getMinDocCount() == 0;
+        final long maxId = needsFullScan ? valueCount : bucketOrds.size();
         for (long ord = 0; ord < maxId; ord++) {
             final long globalOrd;
             final long bucketOrd;

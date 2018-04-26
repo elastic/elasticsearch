@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.core.ml.job.persistence;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.calendars.Calendar;
+import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
@@ -93,6 +95,19 @@ public class ElasticsearchMappings {
     static final String RAW = "raw";
 
     private ElasticsearchMappings() {
+    }
+
+    public static XContentBuilder jobConfigMapping() throws IOException {
+        XContentBuilder builder = jsonBuilder();
+        builder.startObject();
+            builder.startObject(TYPE);
+            ElasticsearchMappings.addDefaultMapping(builder);
+                builder.startObject(ElasticsearchMappings.PROPERTIES)
+
+                .endObject()
+            .endObject()
+        .endObject();
+        return builder;
     }
 
     /**

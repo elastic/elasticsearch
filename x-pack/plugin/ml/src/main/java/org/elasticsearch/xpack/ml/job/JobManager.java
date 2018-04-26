@@ -216,19 +216,18 @@ public class JobManager extends AbstractComponent {
             @Override
             public void onResponse(Boolean indicesCreated) {
 
-                clusterService.submitStateUpdateTask("put-job-" + job.getId(),
-                        new AckedClusterStateUpdateTask<PutJobAction.Response>(request, actionListener) {
-                            @Override
-                            protected PutJobAction.Response newResponse(boolean acknowledged) {
-                                auditor.info(job.getId(), Messages.getMessage(Messages.JOB_AUDIT_CREATED));
-                                return new PutJobAction.Response(job);
-                            }
+                jobProvider.indexJob(job, new ActionListener<IndexResponse>() {
+                    @Override
+                    public void onResponse(IndexResponse indexResponse) {
+                        auditor.info(job.getId(), Messages.getMessage(Messages.JOB_AUDIT_CREATED));
+                        actionListener.onResponse(new PutJobAction.Response(job));
+                    }
 
-                            @Override
-                            public ClusterState execute(ClusterState currentState) {
-                                return updateClusterState(job, false, currentState);
-                            }
-                        });
+                    @Override
+                    public void onFailure(Exception e) {
+                        actionListener.onFailure(e);
+                    }
+                });
             }
 
             @Override

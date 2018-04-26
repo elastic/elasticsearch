@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -21,8 +22,12 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -48,6 +53,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -72,6 +78,7 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
+import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetCategoriesAction;
 import org.elasticsearch.xpack.core.ml.action.GetInfluencersAction;
@@ -143,6 +150,60 @@ public class JobProvider {
         this.client = Objects.requireNonNull(client);
         this.settings = settings;
     }
+
+    public void indexJob(Job job, ActionListener<IndexResponse> listener) {
+
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            XContentBuilder source = job.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            IndexRequest indexRequest =  client.prepareIndex(AnomalyDetectorsIndex.jobConfigIndexName(),
+                    ElasticsearchMappings.DOC_TYPE, Job.documentId(job.getId()))
+                    .setSource(source)
+                    .request();
+
+            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, listener);
+
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to serialise job with id [" + job.getId() + "]", e);
+        }
+    }
+
+    public Job.Builder getJob(String jobId) {
+        GetResponse getResponse = client.prepareGet(AnomalyDetectorsIndex.jobConfigIndexName(),
+                ElasticsearchMappings.DOC_TYPE, Job.documentId(jobId))
+                .get();
+
+        if (getResponse.isExists() == false) {
+            throw ExceptionsHelper.missingJobException(jobId);
+        }
+
+        BytesReference source = getResponse.getSourceAsBytesRef();
+
+        try (InputStream stream = source.streamInput();
+             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+            return Job.CONFIG_PARSER.apply(parser, null);
+        } catch (IOException e) {
+            LOGGER.error(new ElasticsearchParseException("failed to parse " + getResponse.getType(), e));
+            return null;
+        }
+    }
+
+    public void deleteJob(String jobId,  ActionListener<DeleteJobAction.Response> actionListener) {
+        client.prepareDelete(AnomalyDetectorsIndex.jobConfigIndexName(),
+                ElasticsearchMappings.DOC_TYPE, Job.documentId(jobId))
+                .execute(new ActionListener<DeleteResponse>() {
+                    @Override
+                    public void onResponse(DeleteResponse deleteResponse) {
+                        deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        actionListener.onFailure(e);
+                    }
+                });
+    }
+
 
     /**
      * Check that a previously deleted job with the same Id has not left any result

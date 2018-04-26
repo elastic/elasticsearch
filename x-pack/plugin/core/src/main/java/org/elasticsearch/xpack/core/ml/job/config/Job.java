@@ -672,6 +672,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         return compatibleTypes;
     }
 
+    public static String documentId(String jobId) {
+        return "config-" + jobId;
+    }
+
     public static class Builder implements Writeable, ToXContentObject {
 
         private String id;

@@ -354,12 +354,14 @@ final class RequestConverters {
     }
 
     static Request exists(GetRequest getRequest) {
-        Request get = get(getRequest);
-        Request exists = new Request(HttpHead.METHOD_NAME, get.getEndpoint());
-        return exists;
+        return getStyleRequest(HttpHead.METHOD_NAME, getRequest);
     }
 
     static Request get(GetRequest getRequest) {
+        return getStyleRequest(HttpGet.METHOD_NAME, getRequest);
+    }
+
+    private static Request getStyleRequest(String method, GetRequest getRequest) {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint(getRequest.index(), getRequest.type(), getRequest.id()));
 
         Params parameters = new Params(request);
@@ -662,7 +664,6 @@ final class RequestConverters {
     public static ContentType createContentType(final XContentType xContentType) {
         return ContentType.create(xContentType.mediaTypeWithoutParameters(), (Charset) null);
     }
-
 
     /**
      * Utility class to help with common parameter names and patterns. Wraps

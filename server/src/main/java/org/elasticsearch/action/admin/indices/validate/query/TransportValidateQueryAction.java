@@ -88,7 +88,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
             List<QueryExplanation> explanations = new ArrayList<>();
             // TODO[PCS]: given that we can have multiple indices, what's the best way to include
             // these in a query explanation?
-            explanations.add(new QueryExplanation("",
+            explanations.add(new QueryExplanation(null,
                 QueryExplanation.RANDOM_SHARD,
                 false,
                 null,
@@ -97,8 +97,8 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
                 new ValidateQueryResponse(
                     false,
                     explanations,
-                    // TODO[PCS]: is it correct to have 0 for total shards if the request is invalidated before
-                    // it makes it to the shards? I think the answer is probably no?
+                    // totalShards is documented as "the total shards this request ran against",
+                    // which is 0 since the failure is happening on the coordinating node.
                     0,
                     0 ,
                     0,

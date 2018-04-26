@@ -5,10 +5,6 @@
  */
 package org.elasticsearch.xpack.security.rest.action.user;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -18,6 +14,10 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.security.rest.action.user.RestHasPrivilegesAction.HasPrivilegesRestResponseBuilder;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -30,13 +30,13 @@ public class HasPrivilegesRestResponseTests extends ESTestCase {
         final HasPrivilegesResponse actionResponse = new HasPrivilegesResponse(false,
                 Collections.singletonMap("manage", true),
                 Arrays.asList(
-                        new HasPrivilegesResponse.IndexPrivileges("staff",
+                        new HasPrivilegesResponse.ResourcePrivileges("staff",
                                 MapBuilder.<String, Boolean>newMapBuilder(new LinkedHashMap<>())
                                         .put("read", true).put("index", true).put("delete", false).put("manage", false).map()),
-                        new HasPrivilegesResponse.IndexPrivileges("customers",
+                        new HasPrivilegesResponse.ResourcePrivileges("customers",
                                 MapBuilder.<String, Boolean>newMapBuilder(new LinkedHashMap<>())
                                         .put("read", true).put("index", true).put("delete", true).put("manage", false).map())
-                ));
+                ), Collections.emptyMap());
         final XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
         final RestResponse rest = response.buildResponse(actionResponse, builder);
 
@@ -50,6 +50,8 @@ public class HasPrivilegesRestResponseTests extends ESTestCase {
                 "\"index\":{" +
                 "\"staff\":{\"read\":true,\"index\":true,\"delete\":false,\"manage\":false}," +
                 "\"customers\":{\"read\":true,\"index\":true,\"delete\":true,\"manage\":false}" +
-                "}}"));
+                "}," +
+                "\"application\":{}" +
+                "}"));
     }
 }

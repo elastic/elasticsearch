@@ -106,8 +106,8 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         } else {
             XContentBuilder builder = JsonXContent.contentBuilder();
             builder.startObject();
-            for (HasPrivilegesResponse.IndexPrivileges index : response.getIndexPrivileges()) {
-                builder.field(index.getIndex());
+            for (HasPrivilegesResponse.ResourcePrivileges index : response.getIndexPrivileges()) {
+                builder.field(index.getResource());
                 builder.map(index.getPrivileges());
             }
             builder.endObject();

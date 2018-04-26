@@ -8,10 +8,12 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 
@@ -29,12 +31,14 @@ public final class Role {
     private final String[] names;
     private final ClusterPermission cluster;
     private final IndicesPermission indices;
+    private final ApplicationPermission application;
     private final RunAsPermission runAs;
 
-    Role(String[] names, ClusterPermission cluster, IndicesPermission indices, RunAsPermission runAs) {
+    Role(String[] names, ClusterPermission cluster, IndicesPermission indices, ApplicationPermission application, RunAsPermission runAs) {
         this.names = names;
         this.cluster = Objects.requireNonNull(cluster);
         this.indices = Objects.requireNonNull(indices);
+        this.application = Objects.requireNonNull(application);
         this.runAs = Objects.requireNonNull(runAs);
     }
 
@@ -48,6 +52,10 @@ public final class Role {
 
     public IndicesPermission indices() {
         return indices;
+    }
+
+    public ApplicationPermission application() {
+        return application;
     }
 
     public RunAsPermission runAs() {
@@ -95,6 +103,7 @@ public final class Role {
         private RunAsPermission runAs = RunAsPermission.NONE;
         private List<IndicesPermission.Group> groups = new ArrayList<>();
         private FieldPermissionsCache fieldPermissionsCache = null;
+        private List<Tuple<ApplicationPrivilege, Set<String>>> applicationPrivs = new ArrayList<>();
 
         private Builder(String[] names, FieldPermissionsCache fieldPermissionsCache) {
             this.names = names;
@@ -136,10 +145,17 @@ public final class Role {
             return this;
         }
 
+        public Builder addApplicationPrivilege(ApplicationPrivilege privilege, Set<String> resources) {
+            applicationPrivs.add(new Tuple<>(privilege, resources));
+            return this;
+        }
+
         public Role build() {
             IndicesPermission indices = groups.isEmpty() ? IndicesPermission.NONE :
                     new IndicesPermission(groups.toArray(new IndicesPermission.Group[groups.size()]));
-            return new Role(names, cluster, indices, runAs);
+            final ApplicationPermission applicationPermission
+                    = applicationPrivs.isEmpty() ? ApplicationPermission.NONE : new ApplicationPermission(applicationPrivs);
+            return new Role(names, cluster, indices, applicationPermission, runAs);
         }
 
         static List<IndicesPermission.Group> convertFromIndicesPrivileges(RoleDescriptor.IndicesPrivileges[] indicesPrivileges,

@@ -91,6 +91,23 @@
             }
           }
         },
+        "applications": {
+          "type": "object",
+          "properties": {
+            "application": {
+              "type": "keyword"
+            },
+            "privileges": {
+              "type": "keyword"
+            },
+            "resources": {
+              "type": "keyword"
+            }
+          }
+        },
+        "application" : {
+          "type" : "keyword"
+        },
         "name" : {
           "type" : "keyword"
         },
@@ -101,6 +118,9 @@
           "type" : "keyword"
         },
         "type" : {
+          "type" : "keyword"
+        },
+        "actions" : {
           "type" : "keyword"
         },
         "expiration_time" : {

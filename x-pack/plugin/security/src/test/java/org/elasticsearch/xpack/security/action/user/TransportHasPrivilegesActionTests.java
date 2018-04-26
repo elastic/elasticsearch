@@ -16,27 +16,35 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse.IndexPrivileges;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
+import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -46,11 +54,14 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@TestLogging("org.elasticsearch.xpack.security.action.user.TransportHasPrivilegesAction:TRACE," +
+        "org.elasticsearch.xpack.core.security.authz.permission.ApplicationPermission:DEBUG")
 public class TransportHasPrivilegesActionTests extends ESTestCase {
 
     private User user;
     private Role role;
     private TransportHasPrivilegesAction action;
+    private List<ApplicationPrivilege> applicationPrivileges;
 
     @Before
     public void setup() {
@@ -75,8 +86,18 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
             return null;
         }).when(authorizationService).roles(eq(user), any(ActionListener.class));
 
+        applicationPrivileges = Collections.emptyList();
+        NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
+        Mockito.doAnswer(inv -> {
+            assertThat(inv.getArguments(), arrayWithSize(3));
+            ActionListener<List<ApplicationPrivilege>> listener = (ActionListener<List<ApplicationPrivilege>>) inv.getArguments()[2];
+            listener.onResponse(applicationPrivileges);
+            return null;
+        }).when(privilegeStore).getPrivileges(any(Collection.class), any(Collection.class), any(ActionListener.class));
+
+
         action = new TransportHasPrivilegesAction(settings, threadPool, transportService,
-                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), authorizationService);
+                mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), authorizationService, privilegeStore);
     }
 
     /**
@@ -93,6 +114,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
                 .indices("academy")
                 .privileges(DeleteAction.NAME, IndexAction.NAME)
                 .build());
+        request.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
         final PlainActionFuture<HasPrivilegesResponse> future = new PlainActionFuture();
         action.doExecute(request, future);
 
@@ -104,8 +126,8 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
         assertThat(response.getClusterPrivileges().get(ClusterHealthAction.NAME), equalTo(true));
 
         assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(1));
-        final IndexPrivileges result = response.getIndexPrivileges().get(0);
-        assertThat(result.getIndex(), equalTo("academy"));
+        final ResourcePrivileges result = response.getIndexPrivileges().get(0);
+        assertThat(result.getResource(), equalTo("academy"));
         assertThat(result.getPrivileges().size(), equalTo(2));
         assertThat(result.getPrivileges().get(DeleteAction.NAME), equalTo(true));
         assertThat(result.getPrivileges().get(IndexAction.NAME), equalTo(true));
@@ -129,6 +151,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
                 .indices("academy", "initiative", "school")
                 .privileges("delete", "index", "manage")
                 .build());
+        request.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
         final PlainActionFuture<HasPrivilegesResponse> future = new PlainActionFuture();
         action.doExecute(request, future);
 
@@ -140,23 +163,23 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
         assertThat(response.getClusterPrivileges().get("manage"), equalTo(false));
         assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(3));
 
-        final IndexPrivileges academy = response.getIndexPrivileges().get(0);
-        final IndexPrivileges initiative = response.getIndexPrivileges().get(1);
-        final IndexPrivileges school = response.getIndexPrivileges().get(2);
+        final ResourcePrivileges academy = response.getIndexPrivileges().get(0);
+        final ResourcePrivileges initiative = response.getIndexPrivileges().get(1);
+        final ResourcePrivileges school = response.getIndexPrivileges().get(2);
 
-        assertThat(academy.getIndex(), equalTo("academy"));
+        assertThat(academy.getResource(), equalTo("academy"));
         assertThat(academy.getPrivileges().size(), equalTo(3));
         assertThat(academy.getPrivileges().get("index"), equalTo(true)); // explicit
         assertThat(academy.getPrivileges().get("delete"), equalTo(false));
         assertThat(academy.getPrivileges().get("manage"), equalTo(false));
 
-        assertThat(initiative.getIndex(), equalTo("initiative"));
+        assertThat(initiative.getResource(), equalTo("initiative"));
         assertThat(initiative.getPrivileges().size(), equalTo(3));
         assertThat(initiative.getPrivileges().get("index"), equalTo(true)); // implied by write
         assertThat(initiative.getPrivileges().get("delete"), equalTo(true)); // implied by write
         assertThat(initiative.getPrivileges().get("manage"), equalTo(false));
 
-        assertThat(school.getIndex(), equalTo("school"));
+        assertThat(school.getResource(), equalTo("school"));
         assertThat(school.getPrivileges().size(), equalTo(3));
         assertThat(school.getPrivileges().get("index"), equalTo(false));
         assertThat(school.getPrivileges().get("delete"), equalTo(false));
@@ -178,8 +201,8 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
                 .build(), Strings.EMPTY_ARRAY);
         assertThat(response.isCompleteMatch(), is(false));
         assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(1));
-        final IndexPrivileges result = response.getIndexPrivileges().get(0);
-        assertThat(result.getIndex(), equalTo("academy"));
+        final ResourcePrivileges result = response.getIndexPrivileges().get(0);
+        assertThat(result.getResource(), equalTo("academy"));
         assertThat(result.getPrivileges().size(), equalTo(2));
         assertThat(result.getPrivileges().get("read"), equalTo(false));
         assertThat(result.getPrivileges().get("write"), equalTo(false));
@@ -192,10 +215,26 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
      * <em>does the user have ___ privilege on a wildcard that covers (is a superset of) this pattern?</em>
      */
     public void testWildcardHandling() throws Exception {
+        final ApplicationPrivilege kibanaRead = new ApplicationPrivilege("kibana", "read",
+                "data:read/*", "action:login", "action:view/dashboard");
+        final ApplicationPrivilege kibanaWrite = new ApplicationPrivilege("kibana", "write",
+                "data:write/*", "action:login", "action:view/dashboard");
+        final ApplicationPrivilege kibanaAdmin = new ApplicationPrivilege("kibana", "admin",
+                "action:login", "action:manage/*");
+        final ApplicationPrivilege kibanaViewSpace = new ApplicationPrivilege("kibana", "view-space",
+                "action:login", "space:view/*");
+        applicationPrivileges = Arrays.asList(
+                kibanaRead,
+                kibanaWrite,
+                kibanaAdmin,
+                kibanaViewSpace
+        );
         role = Role.builder("test3")
                 .add(IndexPrivilege.ALL, "logstash-*", "foo?")
                 .add(IndexPrivilege.READ, "abc*")
                 .add(IndexPrivilege.WRITE, "*xyz")
+                .addApplicationPrivilege(kibanaRead, Collections.singleton("*"))
+                .addApplicationPrivilege(kibanaViewSpace, Sets.newHashSet("space/engineering/*", "space/builds"))
                 .build();
 
         final HasPrivilegesRequest request = new HasPrivilegesRequest();
@@ -231,6 +270,20 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
                         .privileges("read", "write", "manage") // read = No, write = Yes (WRITE, "*xyz"), manage = No
                         .build()
         );
+
+        request.applicationPrivileges(
+                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                        .resources("*")
+                        .application("kibana")
+                        .privileges(Sets.union(kibanaRead.name(), kibanaWrite.name())) // read = Yes, write = No
+                        .build(),
+                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                        .resources("space/engineering/project-*", "space/*") // project-* = Yes, space/* = Not
+                        .application("kibana")
+                        .privileges("space:view/dashboard")
+                        .build()
+        );
+
         final PlainActionFuture<HasPrivilegesResponse> future = new PlainActionFuture();
         action.doExecute(request, future);
 
@@ -239,14 +292,22 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
         assertThat(response.isCompleteMatch(), is(false));
         assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(8));
         assertThat(response.getIndexPrivileges(), containsInAnyOrder(
-                new IndexPrivileges("logstash-2016-*", Collections.singletonMap("write", true)),
-                new IndexPrivileges("logstash-*", Collections.singletonMap("read", true)),
-                new IndexPrivileges("log*", Collections.singletonMap("manage", false)),
-                new IndexPrivileges("foo?", Collections.singletonMap("read", true)),
-                new IndexPrivileges("foo*", Collections.singletonMap("read", false)),
-                new IndexPrivileges("abcd*", mapBuilder().put("read", true).put("write", false).map()),
-                new IndexPrivileges("abc*xyz", mapBuilder().put("read", true).put("write", true).put("manage", false).map()),
-                new IndexPrivileges("a*xyz", mapBuilder().put("read", false).put("write", true).put("manage", false).map())
+                new ResourcePrivileges("logstash-2016-*", Collections.singletonMap("write", true)),
+                new ResourcePrivileges("logstash-*", Collections.singletonMap("read", true)),
+                new ResourcePrivileges("log*", Collections.singletonMap("manage", false)),
+                new ResourcePrivileges("foo?", Collections.singletonMap("read", true)),
+                new ResourcePrivileges("foo*", Collections.singletonMap("read", false)),
+                new ResourcePrivileges("abcd*", mapBuilder().put("read", true).put("write", false).map()),
+                new ResourcePrivileges("abc*xyz", mapBuilder().put("read", true).put("write", true).put("manage", false).map()),
+                new ResourcePrivileges("a*xyz", mapBuilder().put("read", false).put("write", true).put("manage", false).map())
+        ));
+        assertThat(response.getApplicationPrivileges().entrySet(), Matchers.iterableWithSize(1));
+        final List<ResourcePrivileges> kibanaPrivileges = response.getApplicationPrivileges().get("kibana");
+        assertThat(kibanaPrivileges, Matchers.iterableWithSize(3));
+        assertThat(Strings.collectionToCommaDelimitedString(kibanaPrivileges), kibanaPrivileges, containsInAnyOrder(
+                new ResourcePrivileges("*", mapBuilder().put("read", true).put("write", false).map()),
+                new ResourcePrivileges("space/engineering/project-*", Collections.singletonMap("space:view/dashboard", true)),
+                new ResourcePrivileges("space/*", Collections.singletonMap("space:view/dashboard", false))
         ));
     }
 
@@ -263,27 +324,118 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
         assertThat(response.isCompleteMatch(), is(false));
         assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(2));
         assertThat(response.getIndexPrivileges(), containsInAnyOrder(
-                new IndexPrivileges("apache-2016-12",
+                new ResourcePrivileges("apache-2016-12",
                         MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
                                 .put("index", true).put("delete", true).map()),
-                new IndexPrivileges("apache-2017-01",
+                new ResourcePrivileges("apache-2017-01",
                         MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
                                 .put("index", true).put("delete", false).map()
                 )
         ));
     }
 
+    public void testCheckingApplicationPrivilegesOnDifferentApplicationsAndResources() throws Exception {
+        final ApplicationPrivilege app1Read = new ApplicationPrivilege("app1", "read", "data:read/*");
+        final ApplicationPrivilege app1Write = new ApplicationPrivilege("app1", "write", "data:write/*");
+        final ApplicationPrivilege app1All = new ApplicationPrivilege("app1", "all", "*");
+        final ApplicationPrivilege app2Read = new ApplicationPrivilege("app2", "read", "data:read/*");
+        final ApplicationPrivilege app2Write = new ApplicationPrivilege("app2", "write", "data:write/*");
+        final ApplicationPrivilege app2All = new ApplicationPrivilege("app2", "all", "*");
+        applicationPrivileges = Arrays.asList(app1Read, app1Write, app1All, app2Read, app2Write, app2All);
+
+        role = Role.builder("test-role")
+                .addApplicationPrivilege(app1Read, Collections.singleton("foo/*"))
+                .addApplicationPrivilege(app1All, Collections.singleton("foo/bar/baz"))
+                .addApplicationPrivilege(app2Read, Collections.singleton("foo/bar/*"))
+                .addApplicationPrivilege(app2Write, Collections.singleton("*/bar/*"))
+                .build();
+
+        final HasPrivilegesResponse response = hasPrivileges(new RoleDescriptor.IndicesPrivileges[0],
+                new RoleDescriptor.ApplicationResourcePrivileges[]{
+                        RoleDescriptor.ApplicationResourcePrivileges.builder()
+                                .application("app1")
+                                .resources("foo/1", "foo/bar/2", "foo/bar/baz", "baz/bar/foo")
+                                .privileges("read", "write", "all")
+                                .build(),
+                        RoleDescriptor.ApplicationResourcePrivileges.builder()
+                                .application("app2")
+                                .resources("foo/1", "foo/bar/2", "foo/bar/baz", "baz/bar/foo")
+                                .privileges("read", "write", "all")
+                                .build()
+                }, Strings.EMPTY_ARRAY);
+
+        assertThat(response.isCompleteMatch(), is(false));
+        assertThat(response.getIndexPrivileges(), Matchers.emptyIterable());
+        assertThat(response.getApplicationPrivileges().entrySet(), Matchers.iterableWithSize(2));
+        final List<ResourcePrivileges> app1 = response.getApplicationPrivileges().get("app1");
+        assertThat(app1, Matchers.iterableWithSize(4));
+        assertThat(Strings.collectionToCommaDelimitedString(app1), app1, containsInAnyOrder(
+                new ResourcePrivileges("foo/1", MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                        .put("read", true).put("write", false).put("all", false).map()),
+                new ResourcePrivileges("foo/bar/2", MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                        .put("read", true).put("write", false).put("all", false).map()),
+                new ResourcePrivileges("foo/bar/baz", MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                        .put("read", true).put("write", true).put("all", true).map()),
+                new ResourcePrivileges("baz/bar/foo", MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                        .put("read", false).put("write", false).put("all", false).map())
+        ));
+        final List<ResourcePrivileges> app2 = response.getApplicationPrivileges().get("app2");
+        assertThat(app2, Matchers.iterableWithSize(4));
+        assertThat(Strings.collectionToCommaDelimitedString(app2), app2, containsInAnyOrder(
+                new ResourcePrivileges("foo/1", MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                        .put("read", false).put("write", false).put("all", false).map()),
+                new ResourcePrivileges("foo/bar/2", MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                        .put("read", true).put("write", true).put("all", false).map()),
+                new ResourcePrivileges("foo/bar/baz", MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                        .put("read", true).put("write", true).put("all", false).map()),
+                new ResourcePrivileges("baz/bar/foo", MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                        .put("read", false).put("write", true).put("all", false).map())
+        ));
+    }
+
     public void testIsCompleteMatch() throws Exception {
+        final ApplicationPrivilege kibanaRead = new ApplicationPrivilege("kibana", "read", "data:read/*");
+        final ApplicationPrivilege kibanaWrite = new ApplicationPrivilege("kibana", "write", "data:write/*");
+        this.applicationPrivileges = Arrays.asList(kibanaRead, kibanaWrite);
         role = Role.builder("test-write")
                 .cluster(ClusterPrivilege.MONITOR)
                 .add(IndexPrivilege.READ, "read-*")
                 .add(IndexPrivilege.ALL, "all-*")
+                .addApplicationPrivilege(kibanaRead, Collections.singleton("*"))
                 .build();
 
         assertThat(hasPrivileges(indexPrivileges("read", "read-123", "read-456", "all-999"), "monitor").isCompleteMatch(), is(true));
         assertThat(hasPrivileges(indexPrivileges("read", "read-123", "read-456", "all-999"), "manage").isCompleteMatch(), is(false));
         assertThat(hasPrivileges(indexPrivileges("write", "read-123", "read-456", "all-999"), "monitor").isCompleteMatch(), is(false));
         assertThat(hasPrivileges(indexPrivileges("write", "read-123", "read-456", "all-999"), "manage").isCompleteMatch(), is(false));
+        assertThat(hasPrivileges(
+                new RoleDescriptor.IndicesPrivileges[]{
+                        RoleDescriptor.IndicesPrivileges.builder()
+                                .indices("read-a")
+                                .privileges("read")
+                                .build(),
+                        RoleDescriptor.IndicesPrivileges.builder()
+                                .indices("all-b")
+                                .privileges("read", "write")
+                                .build()
+                },
+                new RoleDescriptor.ApplicationResourcePrivileges[]{
+                        RoleDescriptor.ApplicationResourcePrivileges.builder()
+                                .application("kibana")
+                                .resources("*")
+                                .privileges("read")
+                                .build()
+                },
+                "monitor").isCompleteMatch(), is(true));
+        assertThat(hasPrivileges(
+                new RoleDescriptor.IndicesPrivileges[]{indexPrivileges("read", "read-123", "read-456", "all-999")},
+                new RoleDescriptor.ApplicationResourcePrivileges[]{
+                        RoleDescriptor.ApplicationResourcePrivileges.builder()
+                                .application("kibana").resources("*").privileges("read").build(),
+                        RoleDescriptor.ApplicationResourcePrivileges.builder()
+                                .application("kibana").resources("*").privileges("write").build()
+                },
+                "monitor").isCompleteMatch(), is(false));
     }
 
     private RoleDescriptor.IndicesPrivileges indexPrivileges(String priv, String... indices) {
@@ -295,10 +447,21 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
 
     private HasPrivilegesResponse hasPrivileges(RoleDescriptor.IndicesPrivileges indicesPrivileges, String... clusterPrivileges)
             throws Exception {
+        return hasPrivileges(
+                new RoleDescriptor.IndicesPrivileges[]{indicesPrivileges},
+                new RoleDescriptor.ApplicationResourcePrivileges[0],
+                clusterPrivileges
+        );
+    }
+
+    private HasPrivilegesResponse hasPrivileges(RoleDescriptor.IndicesPrivileges[] indicesPrivileges,
+                                                RoleDescriptor.ApplicationResourcePrivileges[] appPrivileges,
+                                                String... clusterPrivileges) throws Exception {
         final HasPrivilegesRequest request = new HasPrivilegesRequest();
         request.username(user.principal());
         request.clusterPrivileges(clusterPrivileges);
         request.indexPrivileges(indicesPrivileges);
+        request.applicationPrivileges(appPrivileges);
         final PlainActionFuture<HasPrivilegesResponse> future = new PlainActionFuture();
         action.doExecute(request, future);
         final HasPrivilegesResponse response = future.get();

@@ -24,6 +24,8 @@ import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -84,15 +86,27 @@ public class RestHasPrivilegesAction extends SecurityBaseRestHandler {
             builder.field("cluster");
             builder.map(response.getClusterPrivileges());
 
-            builder.startObject("index");
-            for (HasPrivilegesResponse.IndexPrivileges index : response.getIndexPrivileges()) {
-                builder.field(index.getIndex());
-                builder.map(index.getPrivileges());
+            appendResources(builder, "index", response.getIndexPrivileges());
+
+            builder.startObject("application");
+            final Map<String, List<HasPrivilegesResponse.ResourcePrivileges>> appPrivileges = response.getApplicationPrivileges();
+            for (String app : appPrivileges.keySet()) {
+                appendResources(builder, app, appPrivileges.get(app));
             }
             builder.endObject();
 
             builder.endObject();
             return new BytesRestResponse(RestStatus.OK, builder);
+        }
+
+        private void appendResources(XContentBuilder builder, String field, List<HasPrivilegesResponse.ResourcePrivileges> privileges)
+                throws IOException {
+            builder.startObject(field);
+            for (HasPrivilegesResponse.ResourcePrivileges privilege : privileges) {
+                builder.field(privilege.getResource());
+                builder.map(privilege.getPrivileges());
+            }
+            builder.endObject();
         }
 
     }

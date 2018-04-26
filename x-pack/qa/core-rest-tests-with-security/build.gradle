@@ -1,0 +1,42 @@
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
+}
+
+integTest {
+  includePackaged = true
+}
+
+integTestRunner {
+  systemProperty 'tests.rest.blacklist',
+    ['cat.aliases/10_basic/Empty cluster',
+     'index/10_with_id/Index with ID',
+     'indices.get_alias/10_basic/Get alias against closed indices',
+     'cat.templates/10_basic/No templates',
+     'cat.templates/10_basic/Sort templates',
+     'cat.templates/10_basic/Multiple template',
+    ].join(',')
+}
+
+integTestCluster {
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.watcher.enabled', 'false'
+  setting 'xpack.monitoring.enabled', 'false'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setupCommand 'setupDummyUser',
+               'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
+  waitCondition = { node, ant ->
+    File tmpFile = new File(node.cwd, 'wait.success')
+    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
+            dest: tmpFile.toString(),
+            username: 'test_user',
+            password: 'x-pack-test-password',
+            ignoreerrors: true,
+            retries: 10)
+    return tmpFile.exists()
+  }
+}

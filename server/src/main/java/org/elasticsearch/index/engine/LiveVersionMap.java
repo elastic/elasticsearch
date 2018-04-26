@@ -268,7 +268,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
     }
 
     private VersionValue getUnderLock(final BytesRef uid, Maps currentMaps) {
-        assert keyedLock.isHeldByCurrentThread(uid);
+        assert assertKeyedLockHeldByCurrentThread(uid);
         // First try to get the "live" value:
         VersionValue value = currentMaps.current.get(uid);
         if (value != null) {
@@ -306,44 +306,40 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
     /**
      * Adds this uid/version to the pending adds map iff the map needs safe access.
      */
-    void maybePutUnderLock(BytesRef uid, VersionValue version) {
-        assert keyedLock.isHeldByCurrentThread(uid);
+    void maybePutIndexUnderLock(BytesRef uid, IndexVersionValue version) {
+        assert assertKeyedLockHeldByCurrentThread(uid);
         Maps maps = this.maps;
         if (maps.isSafeAccessMode()) {
-            putUnderLock(uid, version, maps);
+            putIndexUnderLock(uid, version);
         } else {
+            // Even though we don't store a record of the indexing operation (and mark as unsafe),
+            // we should still remove any previous delete for this uuid (avoid accidental accesses).
+            // Not this should not hurt performance because the tombstone is small (or empty) when unsafe is relevant.
+            removeTombstoneUnderLock(uid);
             maps.current.markAsUnsafe();
             assert putAssertionMap(uid, version);
         }
     }
 
-    private boolean putAssertionMap(BytesRef uid, VersionValue version) {
-        putUnderLock(uid, version, unsafeKeysMap);
+    void putIndexUnderLock(BytesRef uid, IndexVersionValue version) {
+        assert assertKeyedLockHeldByCurrentThread(uid);
+        assert uid.bytes.length == uid.length : "Oversized _uid! UID length: " + uid.length + ", bytes length: " + uid.bytes.length;
+        maps.put(uid, version);
+        removeTombstoneUnderLock(uid);
+    }
+
+    private boolean putAssertionMap(BytesRef uid, IndexVersionValue version) {
+        assert assertKeyedLockHeldByCurrentThread(uid);
+        assert uid.bytes.length == uid.length : "Oversized _uid! UID length: " + uid.length + ", bytes length: " + uid.bytes.length;
+        unsafeKeysMap.put(uid, version);
         return true;
     }
 
-    /**
-     * Adds this uid/version to the pending adds map.
-     */
-    void putUnderLock(BytesRef uid, VersionValue version) {
-        Maps maps = this.maps;
-        putUnderLock(uid, version, maps);
-    }
-
-    /**
-     * Adds this uid/version to the pending adds map.
-     */
-    private void putUnderLock(BytesRef uid, VersionValue version, Maps maps) {
-        assert keyedLock.isHeldByCurrentThread(uid);
+    void putDeleteUnderLock(BytesRef uid, DeleteVersionValue version) {
+        assert assertKeyedLockHeldByCurrentThread(uid);
         assert uid.bytes.length == uid.length : "Oversized _uid! UID length: " + uid.length + ", bytes length: " + uid.bytes.length;
-        if (version.isDelete() == false) {
-            maps.put(uid, version);
-            removeTombstoneUnderLock(uid);
-        } else {
-            DeleteVersionValue versionValue = (DeleteVersionValue) version;
-            putTombstone(uid, versionValue);
-            maps.remove(uid, versionValue);
-        }
+        putTombstone(uid, version);
+        maps.remove(uid, version);
     }
 
     private void putTombstone(BytesRef uid, DeleteVersionValue version) {
@@ -365,7 +361,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
      * Removes this uid from the pending deletes map.
      */
     void removeTombstoneUnderLock(BytesRef uid) {
-        assert keyedLock.isHeldByCurrentThread(uid);
+        assert assertKeyedLockHeldByCurrentThread(uid);
         long uidRAMBytesUsed = BASE_BYTES_PER_BYTESREF + uid.bytes.length;
         final VersionValue prev = tombstones.remove(uid);
         if (prev != null) {
@@ -464,5 +460,10 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
      */
     Releasable acquireLock(BytesRef uid) {
         return keyedLock.acquire(uid);
+    }
+
+    private boolean assertKeyedLockHeldByCurrentThread(BytesRef uid) {
+        assert keyedLock.isHeldByCurrentThread(uid) : "Thread [" + Thread.currentThread().getName() + "], uid [" + uid.utf8ToString() + "]";
+        return true;
     }
 }

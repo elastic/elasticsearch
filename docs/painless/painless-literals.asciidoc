@@ -24,18 +24,18 @@ HEX:     '-'? '0' [xX] [0-9a-fA-F]+ [lL]?;
 
 *Examples*
 
-Integer literals.
-
+* Integer literals.
++
 [source,Painless]
 ----
-0     <1>
-0D    <2>
-1234L <3>
--90f  <4>
--022  <5>
-0xF2A <6>
+<1> 0
+<2> 0D
+<3> 1234L
+<4> -90f
+<5> -022
+<6> 0xF2A
 ----
-
++
 <1> `int 0`
 <2> `double 0.0`
 <3> `long 1234`
@@ -61,17 +61,17 @@ EXPONENT: ( [eE] [+\-]? [0-9]+ );
 
 *Examples*
 
-Floating point literals.
-
+* Floating point literals.
++
 [source,Painless]
 ----
-0.0      <1>
-1E6      <2>
-0.977777 <3>
--126.34  <4>
-89.9F    <5>
+<1> 0.0
+<2> 1E6
+<3> 0.977777
+<4> -126.34
+<5> 89.9F
 ----
-
++
 <1> `double 0.0`
 <2> `double 1000000.0` in exponent notation
 <3> `double 0.977777`
@@ -81,12 +81,11 @@ Floating point literals.
 [[strings]]
 ==== Strings
 
-Use string literals to specify string values of the
-<<string-type, String type>> with either single-quotes or double-quotes.
-Use a `\"` token to include a double-quote as part of a double-quoted string
-literal. Use a `\'` token to include a single-quote as part of a single-quoted
-string literal.  Use a `\\` token to include a backslash as part of any string
-literal.
+Use string literals to specify <<string-type, String>> values with
+either single-quotes or double-quotes. Use a `\"` token to include a
+double-quote as part of a double-quoted string literal. Use a `\'` token to
+include a single-quote as part of a single-quoted string literal.  Use a `\\`
+token to include a backslash as part of any string literal.
 
 *Grammar*
 [source,ANTLR4]
@@ -97,22 +96,22 @@ STRING: ( '"'  ( '\\"'  | '\\\\' | ~[\\"] )*? '"'  )
 
 *Examples*
 
-String literals using single-quotes.
-
+* String literals using single-quotes.
++
 [source,Painless]
 ----
 'single-quoted string literal'
-'\'single-quoted string with escaped single-quotes\' and backslash \\'
-'single-quoted string with non-escaped "double-quotes"'
+'\'single-quoted with escaped single-quotes\' and backslash \\'
+'single-quoted with non-escaped "double-quotes"'
 ----
-
-String literals using double-quotes.
-
++
+* String literals using double-quotes.
++
 [source,Painless]
 ----
 "double-quoted string literal"
-"\"double-quoted string with escaped double-quotes\" and backslash: \\"
-"double-quoted string with non-escaped 'single-quotes'"
+"\"double-quoted with escaped double-quotes\" and backslash: \\"
+"double-quoted with non-escaped 'single-quotes'"
 ----
 
 [[characters]]
@@ -126,16 +125,16 @@ or an error will occur.
 
 *Examples*
 
-Casting string literals into <<primitive-types, char>> values.
-
+* Casting string literals into <<primitive-types, char>> values.
++
 [source,Painless]
 ----
 (char)"C"
 (char)'c'
 ----
-
-Casting a <<string-type, String>> value into a <<primitive-types, char>> value.
-
++
+* Casting a <<string-type, String>> value into a <<primitive-types, char>> value.
++
 [source,Painless]
 ----
 String s = "s";

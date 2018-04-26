@@ -19,7 +19,9 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
@@ -80,7 +82,7 @@ public class FieldCapabilitiesRequestTests extends ESTestCase {
 
     }
 
-    public void testFieldCapsRequestSerialization() throws IOException {
+    public void testSerialization() throws IOException {
         for (int i = 0; i < 20; i++) {
             FieldCapabilitiesRequest request = randomRequest();
             BytesStreamOutput output = new BytesStreamOutput();
@@ -92,5 +94,12 @@ public class FieldCapabilitiesRequestTests extends ESTestCase {
             assertEquals(deserialized, request);
             assertEquals(deserialized.hashCode(), request.hashCode());
         }
+    }
+
+    public void testValidation() {
+        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest()
+            .indices("index2");
+        ActionRequestValidationException exception = request.validate();
+        assertNotNull(exception);
     }
 }

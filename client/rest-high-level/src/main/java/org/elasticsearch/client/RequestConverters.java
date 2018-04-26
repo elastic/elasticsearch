@@ -525,13 +525,12 @@ final class RequestConverters {
     }
 
     static Request fieldCaps(FieldCapabilitiesRequest fieldCapabilitiesRequest) {
-        Params params = Params.builder();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint(fieldCapabilitiesRequest.indices(), "_field_caps"));
+
+        Params params = new Params(request);
         params.withFields(fieldCapabilitiesRequest.fields());
         params.withIndicesOptions(fieldCapabilitiesRequest.indicesOptions());
-
-        String[] indices = fieldCapabilitiesRequest.indices();
-        String endpoint = endpoint(indices, "_field_caps");
-        return new Request(HttpGet.METHOD_NAME, endpoint, params.getParams(), null);
+        return request;
     }
 
     static Request rankEval(RankEvalRequest rankEvalRequest) throws IOException {

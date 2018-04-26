@@ -519,7 +519,7 @@ public class RestHighLevelClient implements Closeable {
      */
     public final FieldCapabilitiesResponse fieldCaps(FieldCapabilitiesRequest fieldCapabilitiesRequest,
                                                      Header... headers) throws IOException {
-        return performRequestAndParseEntity(fieldCapabilitiesRequest, Request::fieldCaps,
+        return performRequestAndParseEntity(fieldCapabilitiesRequest, RequestConverters::fieldCaps,
             FieldCapabilitiesResponse::fromXContent, emptySet(), headers);
     }
 
@@ -532,7 +532,7 @@ public class RestHighLevelClient implements Closeable {
     public final void fieldCapsAsync(FieldCapabilitiesRequest fieldCapabilitiesRequest,
                                      ActionListener<FieldCapabilitiesResponse> listener,
                                      Header... headers) {
-        performRequestAsyncAndParseEntity(fieldCapabilitiesRequest, Request::fieldCaps,
+        performRequestAsyncAndParseEntity(fieldCapabilitiesRequest, RequestConverters::fieldCaps,
             FieldCapabilitiesResponse::fromXContent, listener, emptySet(), headers);
     }
 

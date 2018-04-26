@@ -1207,7 +1207,7 @@ public class RequestConvertersTests extends ESTestCase {
             fieldCapabilitiesRequest::indicesOptions,
             indicesOptionsParams);
 
-        Request request = Request.fieldCaps(fieldCapabilitiesRequest);
+        Request request = RequestConverters.fieldCaps(fieldCapabilitiesRequest);
 
         // Verify that the resulting REST request looks as expected.
         StringJoiner endpoint = new StringJoiner("/", "/", "");

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.http.Header;
@@ -27,7 +28,6 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHeader;
 
-import static java.util.Collections.singletonMap;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -56,21 +56,42 @@ public class RequestTests extends RestClientTestCase {
         assertEquals(endpoint, request.getEndpoint());
     }
 
-    public void testSetParameters() {
+    public void testAddParameters() {
         final String method = randomFrom(new String[] {"GET", "PUT", "POST", "HEAD", "DELETE"});
         final String endpoint = randomAsciiLettersOfLengthBetween(1, 10);
-        final Map<String, String> parameters = singletonMap(randomAsciiLettersOfLength(5), randomAsciiLettersOfLength(5));
-
+        int parametersCount = between(1, 3);
+        final Map<String, String> parameters = new HashMap<>(parametersCount);
+        while (parameters.size() < parametersCount) {
+            parameters.put(randomAsciiLettersOfLength(5), randomAsciiLettersOfLength(5));
+        }
         Request request = new Request(method, endpoint);
+
         try {
-            request.setParameters(null);
+            request.addParameter(null, "value");
             fail("expected failure");
         } catch (NullPointerException e) {
-            assertEquals("parameters cannot be null", e.getMessage());
+            assertEquals("url parameter name cannot be null", e.getMessage());
+        }
+        try {
+            request.addParameter("name", null);
+            fail("expected failure");
+        } catch (NullPointerException e) {
+            assertEquals("url parameter value cannot be null", e.getMessage());
         }
 
-        request.setParameters(parameters);
+        for (Map.Entry<String, String> entry : parameters.entrySet()) {
+            request.addParameter(entry.getKey(), entry.getValue());
+        }
         assertEquals(parameters, request.getParameters());
+
+        // Test that adding a duplicate parameter fails
+        request.addParameter("name", "first_value");
+        try {
+            request.addParameter("name", "second_value");
+            fail("expected failure");
+        } catch (IllegalArgumentException e) {
+            assertEquals("url parameter [name] has already been set to [first_value]", e.getMessage());
+        }
     }
 
     public void testSetEntity() {

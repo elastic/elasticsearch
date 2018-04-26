@@ -1343,34 +1343,6 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(expectedBytes, new BytesArray(EntityUtils.toByteArray(actualEntity)));
     }
 
-    public void testParams() {
-        final int nbParams = randomIntBetween(0, 10);
-        Params params = Params.builder();
-        Map<String, String> expectedParams = new HashMap<>();
-        for (int i = 0; i < nbParams; i++) {
-            String paramName = "p_" + i;
-            String paramValue = randomAlphaOfLength(5);
-            params.putParam(paramName, paramValue);
-            expectedParams.put(paramName, paramValue);
-        }
-
-        Map<String, String> requestParams = params.getParams();
-        assertEquals(nbParams, requestParams.size());
-        assertEquals(expectedParams, requestParams);
-    }
-
-    public void testParamsNoDuplicates() {
-        Params params = Params.builder();
-        params.putParam("test", "1");
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> params.putParam("test", "2"));
-        assertEquals("Request parameter [test] is already registered", e.getMessage());
-
-        Map<String, String> requestParams = params.getParams();
-        assertEquals(1L, requestParams.size());
-        assertEquals("1", requestParams.values().iterator().next());
-    }
-
     public void testEndpointBuilder() {
         {
             EndpointBuilder endpointBuilder = new EndpointBuilder();

@@ -62,6 +62,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -337,7 +338,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
      * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testSetParameters()}.
      */
     @Deprecated
-    public void testPerformRequestNullParams() throws IOException {
+    public void testPerformRequestOldStyleWithNullParams() throws IOException {
         String method = randomHttpMethod(getRandom());
         int statusCode = randomStatusCode(getRandom());
         try {
@@ -379,15 +380,13 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         String uriAsString = "/" + randomStatusCode(getRandom());
         Request request = new Request(method, uriAsString);
         URIBuilder uriBuilder = new URIBuilder(uriAsString);
-        Map<String, String> params = new HashMap<>();
-        boolean hasParams = randomBoolean();
-        if (hasParams) {
+        if (randomBoolean()) {
             int numParams = randomIntBetween(1, 3);
             for (int i = 0; i < numParams; i++) {
-                String paramKey = "param-" + i;
-                String paramValue = randomAsciiAlphanumOfLengthBetween(3, 10);
-                params.put(paramKey, paramValue);
-                uriBuilder.addParameter(paramKey, paramValue);
+                String name = "param-" + i;
+                String value = randomAsciiAlphanumOfLengthBetween(3, 10);
+                request.addParameter(name, value);
+                uriBuilder.addParameter(name, value);
             }
         }
         if (randomBoolean()) {
@@ -396,9 +395,8 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             if (randomBoolean()) {
                 ignore += "," + Integer.toString(randomFrom(RestClientTestUtil.getAllErrorStatusCodes()));
             }
-            params.put("ignore", ignore);
+            request.addParameter("ignore", ignore);
         }
-        request.setParameters(params);
         URI uri = uriBuilder.build();
 
         HttpUriRequest expectedRequest;

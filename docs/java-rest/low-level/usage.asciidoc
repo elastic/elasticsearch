@@ -245,7 +245,7 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-async]
 <3> Handle the response
 <4> Handle the failure
 
-You can set the request parameters on the request object:
+You can add request parameters to the request object:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

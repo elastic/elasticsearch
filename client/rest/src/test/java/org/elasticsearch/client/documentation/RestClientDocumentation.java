@@ -165,8 +165,7 @@ public class RestClientDocumentation {
         {
             Request request = new Request("GET", "/");
             //tag::rest-client-parameters
-            request.setParameters(
-                    Collections.singletonMap("pretty", "true"));
+            request.addParameter("pretty", "true");
             //end::rest-client-parameters
             //tag::rest-client-body
             request.setEntity(new StringEntity(

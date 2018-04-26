@@ -24,9 +24,11 @@ import org.apache.http.HttpEntity;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 
 import java.util.Arrays;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * HTTP Request to Elasticsearch.
@@ -35,8 +37,8 @@ public final class Request {
     private static final Header[] NO_HEADERS = new Header[0];
     private final String method;
     private final String endpoint;
+    private final Map<String, String> parameters = new HashMap<>();
 
-    private Map<String, String> parameters = Collections.<String, String>emptyMap();
     private HttpEntity entity;
     private Header[] headers = NO_HEADERS;
     private HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory =
@@ -67,18 +69,28 @@ public final class Request {
     }
 
     /**
-     * Set the query string parameters. Polite users will not manipulate the
-     * Map after setting it.
+     * Add a query string parameter.
+     * @throws IllegalArgumentException if a parameter with that name has already been set
      */
-    public void setParameters(Map<String, String> parameters) {
-        this.parameters = Objects.requireNonNull(parameters, "parameters cannot be null");;
+    public void addParameter(String name, String value) {
+        Objects.requireNonNull(name, "url parameter name cannot be null");
+        Objects.requireNonNull(value, "url parameter value cannot be null");
+        // .putIfAbsent(name, value) except we are in Java 7 which doesn't have that.
+        String oldValue = parameters.get(name);
+        if (oldValue == null) {
+            parameters.put(name, value);
+        } else {
+            throw new IllegalArgumentException("url parameter [" + name + "] has already been set to [" + oldValue + "]");
+        }
     }
 
     /**
-     * Query string parameters.
+     * Query string parameters. The returned map cannot be modifed but calls
+     * to {@link #addParameter(String, String)} are viewable live in the map
+     * but changes are not synchronized.
      */
     public Map<String, String> getParameters() {
-        return parameters;
+        return unmodifiableMap(parameters);
     }
 
     /**

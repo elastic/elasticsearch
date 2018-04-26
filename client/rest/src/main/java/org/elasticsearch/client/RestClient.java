@@ -236,7 +236,7 @@ public class RestClient implements Closeable {
     @Deprecated
     public Response performRequest(String method, String endpoint, Map<String, String> params, Header... headers) throws IOException {
         Request request = new Request(method, endpoint);
-        request.setParameters(params);
+        addParameters(request, params);
         request.setHeaders(headers);
         return performRequest(request);
     }
@@ -262,7 +262,7 @@ public class RestClient implements Closeable {
     public Response performRequest(String method, String endpoint, Map<String, String> params,
                                    HttpEntity entity, Header... headers) throws IOException {
         Request request = new Request(method, endpoint);
-        request.setParameters(params);
+        addParameters(request, params);
         request.setEntity(entity);
         request.setHeaders(headers);
         return performRequest(request);
@@ -302,7 +302,7 @@ public class RestClient implements Closeable {
                                    HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
                                    Header... headers) throws IOException {
         Request request = new Request(method, endpoint);
-        request.setParameters(params);
+        addParameters(request, params);
         request.setEntity(entity);
         request.setHttpAsyncResponseConsumerFactory(httpAsyncResponseConsumerFactory);
         request.setHeaders(headers);
@@ -351,7 +351,7 @@ public class RestClient implements Closeable {
         Request request;
         try {
             request = new Request(method, endpoint);
-            request.setParameters(params);
+            addParameters(request, params);
             request.setHeaders(headers);
         } catch (Exception e) {
             responseListener.onFailure(e);
@@ -381,7 +381,7 @@ public class RestClient implements Closeable {
         Request request;
         try {
             request = new Request(method, endpoint);
-            request.setParameters(params);
+            addParameters(request, params);
             request.setEntity(entity);
             request.setHeaders(headers);
         } catch (Exception e) {
@@ -417,7 +417,7 @@ public class RestClient implements Closeable {
         Request request;
         try {
             request = new Request(method, endpoint);
-            request.setParameters(params);
+            addParameters(request, params);
             request.setEntity(entity);
             request.setHttpAsyncResponseConsumerFactory(httpAsyncResponseConsumerFactory);
             request.setHeaders(headers);
@@ -429,7 +429,6 @@ public class RestClient implements Closeable {
     }
 
     void performRequestAsyncNoCatch(Request request, ResponseListener listener) {
-        Objects.requireNonNull(request.getParameters(), "params must not be null");
         Map<String, String> requestParams = new HashMap<>(request.getParameters());
         //ignore is a special parameter supported by the clients, shouldn't be sent to es
         String ignoreString = requestParams.remove("ignore");
@@ -875,6 +874,17 @@ public class RestClient implements Closeable {
         HostTuple(final T hosts, final AuthCache authCache) {
             this.hosts = hosts;
             this.authCache = authCache;
+        }
+    }
+
+    /**
+     * Add all parameters from a map to a {@link Request}. This only exists
+     * to support methods that exist for backwards compatibility.
+     */
+    private void addParameters(Request request, Map<String, String> parameters) {
+        Objects.requireNonNull(parameters, "parameters cannot be null");
+        for (Map.Entry<String, String> entry : parameters.entrySet()) {
+            request.addParameter(entry.getKey(), entry.getValue());
         }
     }
 }

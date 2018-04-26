@@ -61,14 +61,18 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
 
     /**
      * Returns <code>true</code> iff the results should be merged.
+     *
+     * Note that when using the high-level REST client, results are always merged (this flag is always considered 'true').
      */
     boolean isMergeResults() {
         return mergeResults;
     }
 
     /**
-     * if set to <code>true</code> the response will contain only a merged view of the per index field capabilities. Otherwise only
-     * unmerged per index field capabilities are returned.
+     * If set to <code>true</code> the response will contain only a merged view of the per index field capabilities.
+     * Otherwise only unmerged per index field capabilities are returned.
+     *
+     * Note that when using the high-level REST client, results are always merged (this flag is always considered 'true').
      */
     void setMergeResults(boolean mergeResults) {
         this.mergeResults = mergeResults;

@@ -26,8 +26,10 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Counter;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -93,6 +95,7 @@ final class DefaultSearchContext extends SearchContext {
     private final Engine.Searcher engineSearcher;
     private final BigArrays bigArrays;
     private final IndexShard indexShard;
+    private final ClusterService clusterService;
     private final IndexService indexService;
     private final ContextIndexSearcher searcher;
     private final DfsSearchResult dfsResult;
@@ -122,6 +125,7 @@ final class DefaultSearchContext extends SearchContext {
     // filter for sliced scroll
     private SliceBuilder sliceBuilder;
     private SearchTask task;
+    private final Version minNodeVersion;
 
 
     /**
@@ -154,9 +158,10 @@ final class DefaultSearchContext extends SearchContext {
     private final QueryShardContext queryShardContext;
     private FetchPhase fetchPhase;
 
-    DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget, Engine.Searcher engineSearcher,
-                         IndexService indexService, IndexShard indexShard, BigArrays bigArrays, Counter timeEstimateCounter,
-                         TimeValue timeout, FetchPhase fetchPhase, String clusterAlias) {
+    DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
+                         Engine.Searcher engineSearcher, ClusterService clusterService, IndexService indexService,
+                         IndexShard indexShard, BigArrays bigArrays, Counter timeEstimateCounter, TimeValue timeout,
+                         FetchPhase fetchPhase, String clusterAlias, Version minNodeVersion) {
         this.id = id;
         this.request = request;
         this.fetchPhase = fetchPhase;
@@ -170,9 +175,11 @@ final class DefaultSearchContext extends SearchContext {
         this.fetchResult = new FetchSearchResult(id, shardTarget);
         this.indexShard = indexShard;
         this.indexService = indexService;
+        this.clusterService = clusterService;
         this.searcher = new ContextIndexSearcher(engineSearcher, indexService.cache().query(), indexShard.getQueryCachingPolicy());
         this.timeEstimateCounter = timeEstimateCounter;
         this.timeout = timeout;
+        this.minNodeVersion = minNodeVersion;
         queryShardContext = indexService.newQueryShardContext(request.shardId().id(), searcher.getIndexReader(), request::nowInMillis,
             clusterAlias);
         queryShardContext.setTypes(request.types());
@@ -281,8 +288,7 @@ final class DefaultSearchContext extends SearchContext {
         }
 
         if (sliceBuilder != null) {
-            filters.add(sliceBuilder.toFilter(queryShardContext, shardTarget().getShardId().getId(),
-                    queryShardContext.getIndexSettings().getNumberOfShards()));
+            filters.add(sliceBuilder.toFilter(clusterService, request, queryShardContext, minNodeVersion));
         }
 
         if (filters.isEmpty()) {

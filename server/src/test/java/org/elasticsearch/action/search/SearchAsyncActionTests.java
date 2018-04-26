@@ -106,6 +106,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                     return lookup.get(node); },
                 aliasFilters,
                 Collections.emptyMap(),
+                Collections.emptyMap(),
                 null,
                 request,
                 responseListener,
@@ -197,6 +198,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                     assert cluster == null : "cluster was not null: " + cluster;
                     return lookup.get(node); },
                 aliasFilters,
+                Collections.emptyMap(),
                 Collections.emptyMap(),
                 null,
                 request,
@@ -302,6 +304,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                             assert cluster == null : "cluster was not null: " + cluster;
                             return lookup.get(node); },
                         aliasFilters,
+                        Collections.emptyMap(),
                         Collections.emptyMap(),
                         executor,
                         request,

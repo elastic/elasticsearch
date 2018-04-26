@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.LessThan;
 import org.elasticsearch.xpack.sql.expression.predicate.LessThanOrEqual;
 import org.elasticsearch.xpack.sql.expression.predicate.Not;
 import org.elasticsearch.xpack.sql.expression.predicate.Or;
+import org.elasticsearch.xpack.sql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
@@ -60,6 +61,7 @@ import org.elasticsearch.xpack.sql.rule.Rule;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
 import org.elasticsearch.xpack.sql.session.SingletonExecutable;
+import org.elasticsearch.xpack.sql.util.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -121,9 +123,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new ConstantFolding(),
                 // boolean
                 new BooleanSimplification(),
-                new BinaryComparisonSimplification(),
                 new BooleanLiteralsOnTheRight(),
-                new CombineComparisonsIntoRange(),
+                new BinaryComparisonSimplification(),
+                // needs to occur before BinaryComparison combinations (see class)
+                new PropagateEquals(),
+                new CombineBinaryComparisons(),
                 // prune/elimination
                 new PruneFilters(),
                 new PruneOrderBy(),
@@ -1231,7 +1235,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     static class BinaryComparisonSimplification extends OptimizerExpressionRule {
 
         BinaryComparisonSimplification() {
-            super(TransformDirection.UP);
+            super(TransformDirection.DOWN);
         }
 
         @Override
@@ -1277,47 +1281,352 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    static class CombineComparisonsIntoRange extends OptimizerExpressionRule {
+    /**
+     * Propagate Equals to eliminate conjuncted Ranges.
+     * When encountering a different Equals or exclusive {@link Range}, the conjunction becomes false.
+     * This rule doesn't perform any promotion of {@link BinaryComparison}s, that is handled by
+     * {@link CombineBinaryComparisons} on purpose as the resulting Range might be foldable
+     * (which is picked by the folding rule on the next run).
+     */
+    static class PropagateEquals extends OptimizerExpressionRule {
 
-        CombineComparisonsIntoRange() {
-            super(TransformDirection.UP);
+        PropagateEquals() {
+            super(TransformDirection.DOWN);
         }
 
         @Override
         protected Expression rule(Expression e) {
-            return e instanceof And ? combine((And) e) : e;
+            if (e instanceof And) {
+                return propagate((And) e);
+            }
+            return e;
         }
 
-        private Expression combine(And and) {
-            Expression l = and.left();
-            Expression r = and.right();
+        // combine conjunction
+        private Expression propagate(And and) {
+            List<Range> ranges = new ArrayList<>();
+            List<Equals> equals = new ArrayList<>();
+            List<Expression> exps = new ArrayList<>();
 
-            if (l instanceof BinaryComparison && r instanceof BinaryComparison) {
-                // if the same operator is used
-                BinaryComparison lb = (BinaryComparison) l;
-                BinaryComparison rb = (BinaryComparison) r;
+            boolean changed = false;
 
-
-                if (lb.left().equals(((BinaryComparison) r).left()) && lb.right() instanceof Literal && rb.right() instanceof Literal) {
-                    // >/>= AND </<=
-                    if ((l instanceof GreaterThan || l instanceof GreaterThanOrEqual)
-                            && (r instanceof LessThan || r instanceof LessThanOrEqual)) {
-                        return new Range(and.location(), lb.left(), lb.right(), l instanceof GreaterThanOrEqual, rb.right(),
-                                r instanceof LessThanOrEqual);
+            for (Expression ex : Predicates.splitAnd(and)) {
+                if (ex instanceof Range) {
+                    ranges.add((Range) ex);
+                } else if (ex instanceof Equals) {
+                    Equals equ = (Equals) ex;
+                    // equals on different values evaluate to FALSE
+                    if (equ.right().foldable()) {
+                        for (Equals eq : equals) {
+                            // cannot evaluate equals so skip it
+                            if (!eq.right().foldable()) {
+                                continue;
+                            }
+                            if (equ.left().semanticEquals(eq.left())) {
+                                if (eq.right().foldable() && equ.right().foldable()) {
+                                    Integer comp = BinaryComparison.compare(eq.right().fold(), equ.right().fold());
+                                    if (comp != null) {
+                                        // var cannot be equal to two different values at the same time
+                                        if (comp != 0) {
+                                            return FALSE;
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
-                    // </<= AND >/>=
-                    else if ((r instanceof GreaterThan || r instanceof GreaterThanOrEqual)
-                            && (l instanceof LessThan || l instanceof LessThanOrEqual)) {
-                        return new Range(and.location(), rb.left(), rb.right(), r instanceof GreaterThanOrEqual, lb.right(),
-                                l instanceof LessThanOrEqual);
-                    }
+                    equals.add(equ);
+                } else {
+                    exps.add(ex);
                 }
             }
 
-            return and;
+            // check
+            for (Equals eq : equals) {
+                // cannot evaluate equals so skip it
+                if (!eq.right().foldable()) {
+                    continue;
+                }
+                Object eqValue = eq.right().fold();
+                
+                for (int i = 0; i < ranges.size(); i++) {
+                    Range range = ranges.get(i);
+
+                    if (range.value().semanticEquals(eq.left())) {
+                        // if equals is outside the interval, evaluate the whole expression to FALSE
+                        if (range.lower() != null && range.lower().foldable()) {
+                            Integer compare = BinaryComparison.compare(range.lower().fold(), eqValue);
+                            if (compare != null && (
+                                 // eq outside the lower boundary
+                                 compare > 0 ||
+                                 // eq matches the boundary but should not be included
+                                 (compare == 0 && !range.includeLower()))
+                                ) {
+                                return FALSE;
+                            }
+                        }
+                        if (range.upper() != null && range.upper().foldable()) {
+                            Integer compare = BinaryComparison.compare(range.upper().fold(), eqValue);
+                            if (compare != null && (
+                                 // eq outside the upper boundary
+                                 compare < 0 ||
+                                 // eq matches the boundary but should not be included
+                                 (compare == 0 && !range.includeUpper()))
+                                ) {
+                                return FALSE;
+                            }
+                        }
+                        
+                        // it's in the range and thus, remove it
+                        ranges.remove(i);
+                        changed = true;
+                    }
+                }
+            }
+            
+            return changed ? Predicates.combineAnd(CollectionUtils.combine(exps, equals, ranges)) : and;
         }
     }
 
+    static class CombineBinaryComparisons extends OptimizerExpressionRule {
+
+        CombineBinaryComparisons() {
+            super(TransformDirection.DOWN);
+        }
+
+        @Override
+        protected Expression rule(Expression e) {
+            if (e instanceof And) {
+                return combine((And) e);
+            } else if (e instanceof Or) {
+                return combine((Or) e);
+            }
+            return e;
+        }
+        
+        // combine conjunction
+        private Expression combine(And and) {
+            List<Range> ranges = new ArrayList<>();
+            List<Expression> exps = new ArrayList<>();
+
+            boolean changed = false;
+
+            for (Expression ex : Predicates.splitAnd(and)) {
+                if (ex instanceof Range) {
+                    changed |= combine((Range) ex, ranges);
+                } else if (ex instanceof BinaryComparison && !(ex instanceof Equals)) {
+                    Range r = promoteToRange((BinaryComparison) ex);
+                    combine(r, ranges);
+                    changed = true;
+                } else {
+                    exps.add(ex);
+                }
+            }
+            
+            return changed ? Predicates.combineAnd(CollectionUtils.combine(exps, ranges)) : and;
+        }
+
+        private boolean combine(Range r, List<Range> ranges) {
+            for (int i = 0; i < ranges.size(); i++) {
+                Range range = ranges.get(i);
+
+                if (r.value().semanticEquals(range.value())) {
+                    boolean lower = false;
+                    boolean upper = false;
+
+                    // combine limits
+                    
+                    // if the lower is higher or if equal but is gt instead of gte or if a boundary is set where there was none
+                    Integer low = null;
+                    if (r.lower() != null && r.lower().foldable() && range.lower() != null && range.lower().foldable()) {
+                        low = BinaryComparison.compare(r.lower().fold(), range.lower().fold());
+                    }
+                    lower = low != null && (low > 0 || (low == 0 && !r.includeLower() && range.includeLower()))
+                            || low == null && range.lower() == null && r.lower() != null;
+
+                    // or the upper is lower or, if equal but is lt instead of lte or if a boundary is set where there was none
+                    Integer up = null;
+                    if (r.upper() != null && r.upper().foldable() && range.upper() != null && range.upper().foldable()) {
+                        up = BinaryComparison.compare(r.upper().fold(), range.upper().fold());
+                    }
+                    upper = up != null && (up < 0 || (up == 0 && !r.includeUpper() && range.includeUpper()))
+                            || up == null && range.upper() == null && r.upper() != null;
+
+                    // if there's a difference, update the range in place
+                    if (lower || upper) {
+                        ranges.remove(i);
+                        ranges.add(i, new Range(r.location(), r.value(),
+                                lower ? r.lower() : range.lower(),
+                                lower ? r.includeLower() : range.includeLower(),
+                                upper ? r.upper() : range.upper(),
+                                upper ? r.includeUpper() : range.includeUpper()));
+                    }
+                    return true;
+                }
+            }
+            ranges.add(r);
+            return false;
+        }
+
+        // promote comparison to Range as a common form
+        private static Range promoteToRange(BinaryComparison bc) {
+            Range promotedRange = null;
+
+            if (bc instanceof GreaterThan) {
+                GreaterThan gt = (GreaterThan) bc;
+                promotedRange = new Range(gt.location(), gt.left(), gt.right(), false, null, false);
+            } else if (bc instanceof GreaterThanOrEqual) {
+                GreaterThanOrEqual gte = (GreaterThanOrEqual) bc;
+                promotedRange = new Range(gte.location(), gte.left(), gte.right(), true, null, false);
+            } else if (bc instanceof LessThan) {
+                LessThan lt = (LessThan) bc;
+                promotedRange = new Range(lt.location(), lt.left(), null, false, lt.right(), false);
+            } else if (bc instanceof LessThanOrEqual) {
+                LessThanOrEqual lte = (LessThanOrEqual) bc;
+                promotedRange = new Range(lte.location(), lte.left(), null, false, lte.right(), true);
+            }
+
+            return promotedRange;
+        }
+
+
+        // combine disjunction
+        private Expression combine(Or or) {
+            List<BinaryComparison> bcs = new ArrayList<>();
+            List<Range> ranges = new ArrayList<>();
+            List<Expression> exps = new ArrayList<>();
+
+            for (Expression ex : Predicates.splitOr(or)) {
+                if (ex instanceof BinaryComparison) {
+                    BinaryComparison bc = (BinaryComparison) ex;
+                    // skip if cannot evaluate
+                    if (bc.right() == null || !bc.right().foldable()) {
+                        continue;
+                    }
+                    
+                    if (!findExistingComparison(bc, bcs)) {
+                        bcs.add(bc);
+                    }
+                } else if (ex instanceof Range) {
+                    Range r = (Range) ex;
+                    
+                    if (!findExistingRange(r, ranges)) {
+                        ranges.add(r);
+                    }
+                } else {
+                    exps.add(ex);
+                }
+            }
+            
+            return Predicates.combineOr(CollectionUtils.combine(exps, bcs, ranges));
+        }
+    
+        private static boolean findExistingComparison(BinaryComparison bc, List<BinaryComparison> bcs) {
+            Object value = bc.right().fold();
+            for (int i = 0; i < bcs.size(); i++) {
+                BinaryComparison c = bcs.get(i);
+                // skip if cannot evaluate
+                if (c.right() == null || !c.right().foldable()) {
+                    continue;
+                }
+                // if bc is a lower value or gte vs gt, use it instead
+                if ((c instanceof GreaterThan || c instanceof GreaterThanOrEqual) &&
+                   (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual)) {
+                    
+                    if (bc.left().semanticEquals(c.left())) {
+                        Integer compare = BinaryComparison.compare(value, c.right().fold());
+                        if (compare != null &&
+                            (compare < 0 || (compare == 0 && bc instanceof GreaterThanOrEqual && c instanceof GreaterThan))) {
+                            bcs.remove(i);
+                            bcs.add(i, bc);
+                        }
+
+                        return true;
+                    }
+                }
+                // if bc is a higher value or lte vs lt, use it instead
+                else if ((c instanceof LessThan || c instanceof LessThanOrEqual) &&
+                        (bc instanceof LessThan || bc instanceof LessThanOrEqual)) {
+                    
+                    if (bc.left().semanticEquals(c.left())) {
+                        Integer compare = BinaryComparison.compare(value, c.right().fold());
+
+                        if (compare != null &&
+                            (compare > 0 || (compare == 0 && bc instanceof LessThanOrEqual && c instanceof LessThan))) {
+                            bcs.remove(i);
+                            bcs.add(i, bc);
+                       }
+
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+        
+        private static boolean findExistingRange(Range r, List<Range> ranges) {
+            if ((r.lower() == null || !r.lower().foldable()) && (r.upper() == null || !r.upper().foldable())) {
+                return false;
+            }
+            
+            for (int i = 0; i < ranges.size(); i++) {
+                Range other = ranges.get(i);
+
+                if (r.value().semanticEquals(other.value())) {
+                    
+                    boolean lower = false;
+                    boolean upper = false;
+                    // boundary equality (useful to differentiate whether a range is included or not)
+                    // and thus whether it should be preserved or ignored
+                    boolean lowerEq = false;
+                    boolean upperEq = false;
+                    
+                    // evaluate lower
+                    if (r.lower() != null && other.lower() != null && r.lower().foldable() && other.lower().foldable()) {
+                        Integer comp = BinaryComparison.compare(r.lower().fold(), other.lower().fold());
+                        // values are compareable
+                        if (comp != null) {
+                            // boundary equality
+                            lowerEq = comp == 0 && r.includeLower() == other.includeLower();
+                            lower = comp < 0 || (comp == 0 && r.includeLower() && !other.includeLower()) || lowerEq;
+                        }
+                    } else {
+                        lowerEq = r.lower() == null && other.lower() == null;
+                        lower = lowerEq;
+                    }
+                    // evaluate upper
+                    if (r.upper() != null && other.upper() != null && r.upper().foldable() && other.upper().foldable()) {
+                        Integer comp = BinaryComparison.compare(r.upper().fold(), other.upper().fold());
+                        // values are compareable
+                        if (comp != null) {
+                            // if higher or equal (but at least includes it or is the same)
+                            upperEq = comp == 0 && r.includeUpper() == other.includeUpper();
+                            upper = comp > 0 || (comp == 0 && r.includeUpper() && !other.includeUpper()) || upperEq;
+                        }
+                    } else {
+                        upperEq = r.upper() == null && other.upper() == null;
+                        upper = upperEq;
+                    }
+                    
+                    // can loosen range
+                    if (lower && upper) {
+                        ranges.remove(i);
+                        ranges.add(i,
+                           new Range(r.location(), r.value(),
+                                lower ? r.lower() : other.lower(),
+                                lower ? r.includeLower() : other.includeLower(),
+                                upper ? r.upper() : other.upper(),
+                                upper ? r.includeUpper() : other.includeUpper()));
+                        return true;
+                    }
+
+                    // if the range in included, no need to add it
+                    return !((lower && !lowerEq) || (upper && !upperEq));
+                }
+            }
+            return false;
+        }
+    }
 
     static class SkipQueryOnLimitZero extends OptimizerRule<Limit> {
         @Override

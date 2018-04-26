@@ -9,7 +9,6 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import java.util.Arrays;
 import java.util.List;
@@ -66,17 +65,32 @@ public class Range extends Expression {
 
     @Override
     public boolean foldable() {
-        return value.foldable() && lower.foldable() && upper.foldable();
+        if (lower.foldable() && upper.foldable()) {
+            return (excludingBoundaries() || value.foldable());
+        }
+
+        return false;
     }
 
     @Override
     public Object fold() {
+        if (excludingBoundaries()) {
+            return Boolean.FALSE;
+        }
+
         Object val = value.fold();
         Integer lowerCompare = BinaryComparison.compare(lower.fold(), val);
         Integer upperCompare = BinaryComparison.compare(val, upper().fold());
         boolean lowerComparsion = lowerCompare == null ? false : (includeLower ? lowerCompare <= 0 : lowerCompare < 0);
         boolean upperComparsion = upperCompare == null ? false : (includeUpper ? upperCompare <= 0 : upperCompare < 0);
         return lowerComparsion && upperComparsion;
+    }
+
+    private boolean excludingBoundaries() {
+        // if the boundaries exclude each other, the value doesn't need to be evaluated
+        Integer compare = BinaryComparison.compare(lower.fold(), upper.fold());
+        // upper < lower OR upper == lower and the range doesn't contain any equals
+        return compare != null && (compare > 0 || (compare == 0 && (!includeLower || !includeUpper)));
     }
 
     @Override

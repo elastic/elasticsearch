@@ -46,11 +46,13 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -88,6 +90,7 @@ import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
+import org.elasticsearch.rest.action.RestFieldCapabilitiesAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -107,11 +110,14 @@ import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.StringJoiner;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -127,6 +133,8 @@ import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomAl
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.nullValue;
 
 public class RequestTests extends ESTestCase {
@@ -271,7 +279,6 @@ public class RequestTests extends ESTestCase {
         Map<String, String> expectedParams = new HashMap<>();
         setRandomIndicesOptions(getIndexRequest::indicesOptions, getIndexRequest::indicesOptions, expectedParams);
         setRandomLocal(getIndexRequest, expectedParams);
-        setRandomFlatSettings(getIndexRequest::flatSettings, expectedParams);
         setRandomHumanReadable(getIndexRequest, expectedParams);
         setRandomIncludeDefaults(getIndexRequest, expectedParams);
 
@@ -1213,6 +1220,47 @@ public class RequestTests extends ESTestCase {
         }
     }
 
+    public void testFieldCaps() {
+        // Create a random request.
+        String[] indices = randomIndicesNames(0, 5);
+        String[] fields = generateRandomStringArray(5, 10, false, false);
+
+        FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest()
+            .indices(indices)
+            .fields(fields);
+
+        Map<String, String> indicesOptionsParams = new HashMap<>();
+        setRandomIndicesOptions(fieldCapabilitiesRequest::indicesOptions,
+            fieldCapabilitiesRequest::indicesOptions,
+            indicesOptionsParams);
+
+        Request request = Request.fieldCaps(fieldCapabilitiesRequest);
+
+        // Verify that the resulting REST request looks as expected.
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        String joinedIndices = String.join(",", indices);
+        if (!joinedIndices.isEmpty()) {
+            endpoint.add(joinedIndices);
+        }
+        endpoint.add("_field_caps");
+
+        assertEquals(endpoint.toString(), request.getEndpoint());
+        assertEquals(4, request.getParameters().size());
+
+        // Note that we don't check the field param value explicitly, as field names are passed through
+        // a hash set before being added to the request, and can appear in a non-deterministic order.
+        assertThat(request.getParameters(), hasKey("fields"));
+        String[] requestFields = Strings.splitStringByCommaToArray(request.getParameters().get("fields"));
+        assertEquals(new HashSet<>(Arrays.asList(fields)),
+            new HashSet<>(Arrays.asList(requestFields)));
+
+        for (Map.Entry<String, String> param : indicesOptionsParams.entrySet()) {
+            assertThat(request.getParameters(), hasEntry(param.getKey(), param.getValue()));
+        }
+
+        assertNull(request.getEntity());
+    }
+
     public void testRankEval() throws Exception {
         RankEvalSpec spec = new RankEvalSpec(
                 Collections.singletonList(new RatedRequest("queryId", Collections.emptyList(), new SearchSourceBuilder())),
@@ -1233,7 +1281,6 @@ public class RequestTests extends ESTestCase {
         assertEquals(3, request.getParameters().size());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(spec, request.getEntity());
-
     }
 
     public void testSplit() throws IOException {
@@ -1291,7 +1338,6 @@ public class RequestTests extends ESTestCase {
     public void testClusterPutSettings() throws IOException {
         ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
         Map<String, String> expectedParams = new HashMap<>();
-        setRandomFlatSettings(request::flatSettings, expectedParams);
         setRandomMasterTimeout(request, expectedParams);
         setRandomTimeout(request::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
 
@@ -1336,6 +1382,32 @@ public class RequestTests extends ESTestCase {
         }
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertToXContentBody(rolloverRequest, request.getEntity());
+        assertEquals(expectedParams, request.getParameters());
+    }
+
+    public void testIndexPutSettings() throws IOException {
+        String[] indices = randomBoolean() ? null : randomIndicesNames(0, 2);
+        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indices);
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(updateSettingsRequest, expectedParams);
+        setRandomTimeout(updateSettingsRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        setRandomIndicesOptions(updateSettingsRequest::indicesOptions, updateSettingsRequest::indicesOptions, expectedParams);
+        if (randomBoolean()) {
+            updateSettingsRequest.setPreserveExisting(randomBoolean());
+            if (updateSettingsRequest.isPreserveExisting()) {
+                expectedParams.put("preserve_existing", "true");
+            }
+        }
+
+        Request request = Request.indexPutSettings(updateSettingsRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        if (indices != null && indices.length > 0) {
+            endpoint.add(String.join(",", indices));
+        }
+        endpoint.add("_settings");
+        assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertToXContentBody(updateSettingsRequest, request.getEntity());
         assertEquals(expectedParams, request.getParameters());
     }
 
@@ -1596,16 +1668,6 @@ public class RequestTests extends ESTestCase {
             expectedParams.put("timeout", timeout);
         } else {
             expectedParams.put("timeout", defaultTimeout.getStringRep());
-        }
-    }
-
-    private static void setRandomFlatSettings(Consumer<Boolean> setter, Map<String, String> expectedParams) {
-        if (randomBoolean()) {
-            boolean flatSettings = randomBoolean();
-            setter.accept(flatSettings);
-            if (flatSettings) {
-                expectedParams.put("flat_settings", String.valueOf(flatSettings));
-            }
         }
     }
 

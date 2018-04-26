@@ -131,7 +131,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         if (shardsIts.size() > 0) {
             int maxConcurrentShardRequests = Math.min(this.maxConcurrentShardRequests, shardsIts.size());
             final boolean success = shardExecutionIndex.compareAndSet(0, maxConcurrentShardRequests);
-            assert success;            
+            assert success;
             assert request.allowPartialSearchResults() != null : "SearchRequest missing setting for allowPartialSearchResults";
             if (request.allowPartialSearchResults() == false) {
                 final StringBuilder missingShards = new StringBuilder();
@@ -140,7 +140,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
                     final SearchShardIterator shardRoutings = shardsIts.get(index);
                     if (shardRoutings.size() == 0) {
                         if(missingShards.length() >0 ){
-                            missingShards.append(", ");                            
+                            missingShards.append(", ");
                         }
                         missingShards.append(shardRoutings.shardId());
                     }

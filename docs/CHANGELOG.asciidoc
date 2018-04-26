@@ -23,6 +23,33 @@
 === Enhancements
 
 === Bug Fixes
+<<cusum-pipeline-npe, Fix NPE when CumulativeSum agg encounters null value/empty bucket>> ({pull}29641[#29641])
+
+=== Regressions
+
+=== Known Issues
+
+== Elasticsearch version 6.4.0
+
+=== New Features
+
+=== Enhancements
+
+=== Bug Fixes
+<<cusum-pipeline-npe, Fix NPE when CumulativeSum agg encounters null value/empty bucket>> ({pull}29641[#29641])
+
+=== Regressions
+
+=== Known Issues
+
+== Elasticsearch version 6.3.1
+
+=== New Features
+
+=== Enhancements
+
+=== Bug Fixes
+<<cusum-pipeline-npe, Fix NPE when CumulativeSum agg encounters null value/empty bucket>> ({pull}29641[#29641])
 
 === Regressions
 

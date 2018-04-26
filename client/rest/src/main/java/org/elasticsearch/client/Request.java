@@ -70,17 +70,19 @@ public final class Request {
 
     /**
      * Add a query string parameter.
-     * @throws IllegalArgumentException if a parameter with that name has already been set
+     * @param name the name of the url parameter. Must not be null.
+     * @param value the value of the url url parameter. If {@code null} then
+     *      the parameter is sent as {@code name} rather than {@code name=value}
+     * @throws IllegalArgumentException if a parameter with that name has
+     *      already been set
      */
     public void addParameter(String name, String value) {
         Objects.requireNonNull(name, "url parameter name cannot be null");
-        Objects.requireNonNull(value, "url parameter value cannot be null");
         // .putIfAbsent(name, value) except we are in Java 7 which doesn't have that.
-        String oldValue = parameters.get(name);
-        if (oldValue == null) {
-            parameters.put(name, value);
+        if (parameters.containsKey(name)) {
+            throw new IllegalArgumentException("url parameter [" + name + "] has already been set to [" + parameters.get(name) + "]");
         } else {
-            throw new IllegalArgumentException("url parameter [" + name + "] has already been set to [" + oldValue + "]");
+            parameters.put(name, value);
         }
     }
 

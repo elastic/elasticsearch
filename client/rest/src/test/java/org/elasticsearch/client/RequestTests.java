@@ -72,25 +72,25 @@ public class RequestTests extends RestClientTestCase {
         } catch (NullPointerException e) {
             assertEquals("url parameter name cannot be null", e.getMessage());
         }
-        try {
-            request.addParameter("name", null);
-            fail("expected failure");
-        } catch (NullPointerException e) {
-            assertEquals("url parameter value cannot be null", e.getMessage());
-        }
 
         for (Map.Entry<String, String> entry : parameters.entrySet()) {
             request.addParameter(entry.getKey(), entry.getValue());
         }
         assertEquals(parameters, request.getParameters());
 
+        // Test that adding parameters with a null value is ok.
+        request.addParameter("is_null", null);
+        parameters.put("is_null", null);
+        assertEquals(parameters, request.getParameters());
+
         // Test that adding a duplicate parameter fails
-        request.addParameter("name", "first_value");
+        String firstValue = randomBoolean() ? null : "value";
+        request.addParameter("name", firstValue);
         try {
-            request.addParameter("name", "second_value");
+            request.addParameter("name", randomBoolean() ? firstValue : "second_value");
             fail("expected failure");
         } catch (IllegalArgumentException e) {
-            assertEquals("url parameter [name] has already been set to [first_value]", e.getMessage());
+            assertEquals("url parameter [name] has already been set to [" + firstValue + "]", e.getMessage());
         }
     }
 

@@ -79,7 +79,11 @@ final class RemoteRequestBuilders {
         }
         params.put("size", Integer.toString(searchRequest.source().size()));
         if (searchRequest.source().version() == null || searchRequest.source().version() == true) {
-            // false is the only value that makes it false. Null defaults to true....
+            /*
+             * Passing `null` here just add the `version` request parameter
+             * without any value. This way of requesting the version works
+             * for all supported versions of Elasticsearch.
+             */
             params.put("version", null);
         }
         if (searchRequest.source().sorts() != null) {

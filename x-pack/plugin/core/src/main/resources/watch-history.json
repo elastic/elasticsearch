@@ -507,6 +507,13 @@
                               "properties" : {
                                 "color" : {
                                   "type" : "keyword"
+                                },
+                                "fields" : {
+                                  "properties" : {
+                                    "value" : {
+                                      "type" : "text"
+                                    }
+                                  }
                                 }
                               }
                             }

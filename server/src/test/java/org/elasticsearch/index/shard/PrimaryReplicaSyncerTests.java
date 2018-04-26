@@ -23,6 +23,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.resync.ResyncReplicationResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -192,7 +193,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         PrimaryReplicaSyncer.ResyncTask.Status status = task.getStatus();
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         status.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
-        String jsonString = jsonBuilder.string();
+        String jsonString = Strings.toString(jsonBuilder);
         assertThat(jsonString, containsString("\"phase\":\"" + task.getPhase() + "\""));
         assertThat(jsonString, containsString("\"totalOperations\":" + task.getTotalOperations()));
         assertThat(jsonString, containsString("\"resyncedOperations\":" + task.getResyncedOperations()));

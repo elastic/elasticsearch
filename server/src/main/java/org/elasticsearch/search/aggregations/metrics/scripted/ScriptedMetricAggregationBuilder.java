@@ -37,6 +37,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
@@ -198,20 +199,34 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
             Builder subfactoriesBuilder) throws IOException {
 
         QueryShardContext queryShardContext = context.getQueryShardContext();
+
+        // Extract params from scripts and pass them along to ScriptedMetricAggregatorFactory, since it won't have
+        // access to them for the scripts it's given precompiled.
+
         ExecutableScript.Factory executableInitScript;
+        Map<String, Object> initScriptParams;
         if (initScript != null) {
             executableInitScript = queryShardContext.getScriptService().compile(initScript, ExecutableScript.AGGS_CONTEXT);
+            initScriptParams = initScript.getParams();
         } else {
             executableInitScript = p -> null;
+            initScriptParams = Collections.emptyMap();
         }
+
         SearchScript.Factory searchMapScript = queryShardContext.getScriptService().compile(mapScript, SearchScript.AGGS_CONTEXT);
+        Map<String, Object> mapScriptParams = mapScript.getParams();
+
         ExecutableScript.Factory executableCombineScript;
+        Map<String, Object> combineScriptParams;
         if (combineScript != null) {
-            executableCombineScript =queryShardContext.getScriptService().compile(combineScript, ExecutableScript.AGGS_CONTEXT);
+            executableCombineScript = queryShardContext.getScriptService().compile(combineScript, ExecutableScript.AGGS_CONTEXT);
+            combineScriptParams = combineScript.getParams();
         } else {
             executableCombineScript = p -> null;
+            combineScriptParams = Collections.emptyMap();
         }
-        return new ScriptedMetricAggregatorFactory(name, searchMapScript, executableInitScript, executableCombineScript, reduceScript,
+        return new ScriptedMetricAggregatorFactory(name, searchMapScript, mapScriptParams, executableInitScript, initScriptParams,
+                executableCombineScript, combineScriptParams, reduceScript,
                 params, queryShardContext.lookup(), context, parent, subfactoriesBuilder, metaData);
     }
 

@@ -44,6 +44,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -377,7 +378,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             try {
                 XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
                 builder.map(filter);
-                this.filter = builder.string();
+                this.filter = Strings.toString(builder);
                 return this;
             } catch (IOException e) {
                 throw new ElasticsearchGenerationException("Failed to generate [" + filter + "]", e);
@@ -393,7 +394,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 XContentBuilder builder = XContentFactory.jsonBuilder();
                 filter.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 builder.close();
-                this.filter = builder.string();
+                this.filter = Strings.toString(builder);
                 return this;
             } catch (IOException e) {
                 throw new ElasticsearchGenerationException("Failed to build json for alias request", e);
@@ -432,7 +433,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 builder.array(ALIASES.getPreferredName(), aliases);
             }
             if (false == Strings.isEmpty(filter)) {
-                builder.rawField(FILTER.getPreferredName(), new BytesArray(filter), XContentType.JSON);
+                try (InputStream stream = new BytesArray(filter).streamInput()) {
+                    builder.rawField(FILTER.getPreferredName(), stream, XContentType.JSON);
+                }
             }
             if (false == Strings.isEmpty(routing)) {
                 builder.field(ROUTING.getPreferredName(), routing);

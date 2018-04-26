@@ -20,6 +20,7 @@
 package org.elasticsearch.common.lucene.uid;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.Term;
@@ -97,12 +98,14 @@ public final class VersionsAndSeqNoResolver {
     public static class DocIdAndVersion {
         public final int docId;
         public final long version;
-        public final LeafReaderContext context;
+        public final LeafReader reader;
+        public final int docBase;
 
-        DocIdAndVersion(int docId, long version, LeafReaderContext context) {
+        public DocIdAndVersion(int docId, long version, LeafReader reader, int docBase) {
             this.docId = docId;
             this.version = version;
-            this.context = context;
+            this.reader = reader;
+            this.docBase = docBase;
         }
     }
 

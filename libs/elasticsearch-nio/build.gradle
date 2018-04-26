@@ -19,7 +19,6 @@
 
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 
-apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
 
@@ -39,7 +38,7 @@ dependencies {
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testCompile "junit:junit:${versions.junit}"
   testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
-  
+
   if (isEclipse == false || project.path == ":libs:elasticsearch-nio-tests") {
       testCompile("org.elasticsearch.test:framework:${version}") {
         exclude group: 'org.elasticsearch', module: 'elasticsearch-nio'

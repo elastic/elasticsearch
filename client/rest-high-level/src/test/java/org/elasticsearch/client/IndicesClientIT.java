@@ -28,25 +28,38 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
+import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -54,6 +67,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -63,6 +77,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
@@ -381,6 +396,111 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertEquals(RestStatus.NOT_FOUND, exception.status());
     }
 
+    public void testRefresh() throws IOException {
+        {
+            String index = "index";
+            Settings settings = Settings.builder()
+                .put("number_of_shards", 1)
+                .put("number_of_replicas", 0)
+                .build();
+            createIndex(index, settings);
+            RefreshRequest refreshRequest = new RefreshRequest(index);
+            RefreshResponse refreshResponse =
+                execute(refreshRequest, highLevelClient().indices()::refresh, highLevelClient().indices()::refreshAsync);
+            assertThat(refreshResponse.getTotalShards(), equalTo(1));
+            assertThat(refreshResponse.getSuccessfulShards(), equalTo(1));
+            assertThat(refreshResponse.getFailedShards(), equalTo(0));
+            assertThat(refreshResponse.getShardFailures(), equalTo(BroadcastResponse.EMPTY));
+        }
+        {
+            String nonExistentIndex = "non_existent_index";
+            assertFalse(indexExists(nonExistentIndex));
+            RefreshRequest refreshRequest = new RefreshRequest(nonExistentIndex);
+            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+                () -> execute(refreshRequest, highLevelClient().indices()::refresh, highLevelClient().indices()::refreshAsync));
+            assertEquals(RestStatus.NOT_FOUND, exception.status());
+        }
+    }
+
+    public void testFlush() throws IOException {
+        {
+            String index = "index";
+            Settings settings = Settings.builder()
+                    .put("number_of_shards", 1)
+                    .put("number_of_replicas", 0)
+                    .build();
+            createIndex(index, settings);
+            FlushRequest flushRequest = new FlushRequest(index);
+            FlushResponse flushResponse =
+                    execute(flushRequest, highLevelClient().indices()::flush, highLevelClient().indices()::flushAsync);
+            assertThat(flushResponse.getTotalShards(), equalTo(1));
+            assertThat(flushResponse.getSuccessfulShards(), equalTo(1));
+            assertThat(flushResponse.getFailedShards(), equalTo(0));
+            assertThat(flushResponse.getShardFailures(), equalTo(BroadcastResponse.EMPTY));
+        }
+        {
+            String nonExistentIndex = "non_existent_index";
+            assertFalse(indexExists(nonExistentIndex));
+            FlushRequest flushRequest = new FlushRequest(nonExistentIndex);
+            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+                    () -> execute(flushRequest, highLevelClient().indices()::flush, highLevelClient().indices()::flushAsync));
+            assertEquals(RestStatus.NOT_FOUND, exception.status());
+        }
+    }
+
+    public void testClearCache() throws IOException {
+        {
+            String index = "index";
+            Settings settings = Settings.builder()
+                    .put("number_of_shards", 1)
+                    .put("number_of_replicas", 0)
+                    .build();
+            createIndex(index, settings);
+            ClearIndicesCacheRequest clearCacheRequest = new ClearIndicesCacheRequest(index);
+            ClearIndicesCacheResponse clearCacheResponse =
+                    execute(clearCacheRequest, highLevelClient().indices()::clearCache, highLevelClient().indices()::clearCacheAsync);
+            assertThat(clearCacheResponse.getTotalShards(), equalTo(1));
+            assertThat(clearCacheResponse.getSuccessfulShards(), equalTo(1));
+            assertThat(clearCacheResponse.getFailedShards(), equalTo(0));
+            assertThat(clearCacheResponse.getShardFailures(), equalTo(BroadcastResponse.EMPTY));
+        }
+        {
+            String nonExistentIndex = "non_existent_index";
+            assertFalse(indexExists(nonExistentIndex));
+            ClearIndicesCacheRequest clearCacheRequest = new ClearIndicesCacheRequest(nonExistentIndex);
+            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+                    () -> execute(clearCacheRequest, highLevelClient().indices()::clearCache,
+                            highLevelClient().indices()::clearCacheAsync));
+            assertEquals(RestStatus.NOT_FOUND, exception.status());
+        }
+    }
+
+    public void testForceMerge() throws IOException {
+        {
+            String index = "index";
+            Settings settings = Settings.builder()
+                .put("number_of_shards", 1)
+                .put("number_of_replicas", 0)
+                .build();
+            createIndex(index, settings);
+            ForceMergeRequest forceMergeRequest = new ForceMergeRequest(index);
+            ForceMergeResponse forceMergeResponse =
+                execute(forceMergeRequest, highLevelClient().indices()::forceMerge, highLevelClient().indices()::forceMergeAsync);
+            assertThat(forceMergeResponse.getTotalShards(), equalTo(1));
+            assertThat(forceMergeResponse.getSuccessfulShards(), equalTo(1));
+            assertThat(forceMergeResponse.getFailedShards(), equalTo(0));
+            assertThat(forceMergeResponse.getShardFailures(), equalTo(BroadcastResponse.EMPTY));
+        }
+        {
+            String nonExistentIndex = "non_existent_index";
+            assertFalse(indexExists(nonExistentIndex));
+            ForceMergeRequest forceMergeRequest = new ForceMergeRequest(nonExistentIndex);
+            ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+                () -> execute(forceMergeRequest, highLevelClient().indices()::forceMerge, highLevelClient().indices()::forceMergeAsync));
+            assertEquals(RestStatus.NOT_FOUND, exception.status());
+        }
+    }
+
     public void testExistsAlias() throws IOException {
         GetAliasesRequest getAliasesRequest = new GetAliasesRequest("alias");
         assertFalse(execute(getAliasesRequest, highLevelClient().indices()::existsAlias, highLevelClient().indices()::existsAliasAsync));
@@ -495,4 +615,97 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             assertEquals("test_new", rolloverResponse.getNewIndex());
         }
     }
+
+    public void testIndexPutSettings() throws IOException {
+
+        final Setting<Integer> dynamicSetting = IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING;
+        final String dynamicSettingKey = IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+        final int dynamicSettingValue = 0;
+
+        final Setting<String> staticSetting = IndexSettings.INDEX_CHECK_ON_STARTUP;
+        final String staticSettingKey = IndexSettings.INDEX_CHECK_ON_STARTUP.getKey();
+        final String staticSettingValue = "true";
+
+        final Setting<Integer> unmodifiableSetting = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING;
+        final String unmodifiableSettingKey = IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+        final int unmodifiableSettingValue = 3;
+
+        String index = "index";
+        createIndex(index, Settings.EMPTY);
+
+        assertThat(dynamicSetting.getDefault(Settings.EMPTY), not(dynamicSettingValue));
+        UpdateSettingsRequest dynamicSettingRequest = new UpdateSettingsRequest();
+        dynamicSettingRequest.settings(Settings.builder().put(dynamicSettingKey, dynamicSettingValue).build());
+        UpdateSettingsResponse response = execute(dynamicSettingRequest, highLevelClient().indices()::putSettings,
+                highLevelClient().indices()::putSettingsAsync);
+
+        assertTrue(response.isAcknowledged());
+        Map<String, Object> indexSettingsAsMap = getIndexSettingsAsMap(index);
+        assertThat(indexSettingsAsMap.get(dynamicSettingKey), equalTo(String.valueOf(dynamicSettingValue)));
+
+        assertThat(staticSetting.getDefault(Settings.EMPTY), not(staticSettingValue));
+        UpdateSettingsRequest staticSettingRequest = new UpdateSettingsRequest();
+        staticSettingRequest.settings(Settings.builder().put(staticSettingKey, staticSettingValue).build());
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> execute(staticSettingRequest,
+                highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));
+        assertThat(exception.getMessage(),
+                startsWith("Elasticsearch exception [type=illegal_argument_exception, "
+                        + "reason=Can't update non dynamic settings [[index.shard.check_on_startup]] for open indices [[index/"));
+
+        indexSettingsAsMap = getIndexSettingsAsMap(index);
+        assertNull(indexSettingsAsMap.get(staticSettingKey));
+
+        closeIndex(index);
+        response = execute(staticSettingRequest, highLevelClient().indices()::putSettings,
+                highLevelClient().indices()::putSettingsAsync);
+        assertTrue(response.isAcknowledged());
+        openIndex(index);
+        indexSettingsAsMap = getIndexSettingsAsMap(index);
+        assertThat(indexSettingsAsMap.get(staticSettingKey), equalTo(staticSettingValue));
+
+        assertThat(unmodifiableSetting.getDefault(Settings.EMPTY), not(unmodifiableSettingValue));
+        UpdateSettingsRequest unmodifiableSettingRequest = new UpdateSettingsRequest();
+        unmodifiableSettingRequest.settings(Settings.builder().put(unmodifiableSettingKey, unmodifiableSettingValue).build());
+        exception = expectThrows(ElasticsearchException.class, () -> execute(unmodifiableSettingRequest,
+                highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));
+        assertThat(exception.getMessage(), startsWith(
+                "Elasticsearch exception [type=illegal_argument_exception, "
+                + "reason=Can't update non dynamic settings [[index.number_of_shards]] for open indices [[index/"));
+        closeIndex(index);
+        exception = expectThrows(ElasticsearchException.class, () -> execute(unmodifiableSettingRequest,
+                highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));
+        assertThat(exception.getMessage(), startsWith(
+                "Elasticsearch exception [type=illegal_argument_exception, "
+                + "reason=final index setting [index.number_of_shards], not updateable"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> getIndexSettingsAsMap(String index) throws IOException {
+        Map<String, Object> indexSettings = getIndexSettings(index);
+        return (Map<String, Object>)((Map<String, Object>) indexSettings.get(index)).get("settings");
+    }
+
+    public void testIndexPutSettingNonExistent() throws IOException {
+
+        String index = "index";
+        UpdateSettingsRequest indexUpdateSettingsRequest = new UpdateSettingsRequest(index);
+        String setting = "no_idea_what_you_are_talking_about";
+        int value = 10;
+        indexUpdateSettingsRequest.settings(Settings.builder().put(setting, value).build());
+
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> execute(indexUpdateSettingsRequest,
+                highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));
+        assertEquals(RestStatus.NOT_FOUND, exception.status());
+        assertThat(exception.getMessage(), equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
+
+        createIndex(index, Settings.EMPTY);
+        exception = expectThrows(ElasticsearchException.class, () -> execute(indexUpdateSettingsRequest,
+                highLevelClient().indices()::putSettings, highLevelClient().indices()::putSettingsAsync));
+        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), equalTo(
+                "Elasticsearch exception [type=illegal_argument_exception, "
+                + "reason=unknown setting [index.no_idea_what_you_are_talking_about] please check that any required plugins are installed, "
+                + "or check the breaking changes documentation for removed settings]"));
+    }
+
 }

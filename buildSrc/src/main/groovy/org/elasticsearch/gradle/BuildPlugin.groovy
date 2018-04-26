@@ -38,6 +38,7 @@ import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
+import org.gradle.api.execution.TaskExecutionGraph
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
@@ -58,7 +59,7 @@ import java.time.ZonedDateTime
 class BuildPlugin implements Plugin<Project> {
 
     static final JavaVersion minimumRuntimeVersion = JavaVersion.VERSION_1_8
-    static final JavaVersion minimumCompilerVersion = JavaVersion.VERSION_1_9
+    static final JavaVersion minimumCompilerVersion = JavaVersion.VERSION_1_10
 
     @Override
     void apply(Project project) {
@@ -97,6 +98,12 @@ class BuildPlugin implements Plugin<Project> {
             String compilerJavaHome = findCompilerJavaHome()
             String runtimeJavaHome = findRuntimeJavaHome(compilerJavaHome)
             File gradleJavaHome = Jvm.current().javaHome
+
+            final Map<Integer, String> javaVersions = [:]
+            for (int version = 7; version <= Integer.parseInt(minimumCompilerVersion.majorVersion); version++) {
+                javaVersions.put(version, findJavaHome(version));
+            }
+
             String javaVendor = System.getProperty('java.vendor')
             String javaVersion = System.getProperty('java.version')
             String gradleJavaVersionDetails = "${javaVendor} ${javaVersion}" +
@@ -140,22 +147,50 @@ class BuildPlugin implements Plugin<Project> {
 
             final GradleVersion minGradle = GradleVersion.version('4.3')
             if (currentGradleVersion < minGradle) {
-                throw new GradleException("${minGradle} or above is required to build elasticsearch")
+                throw new GradleException("${minGradle} or above is required to build Elasticsearch")
             }
 
             // enforce Java version
             if (compilerJavaVersionEnum < minimumCompilerVersion) {
-                throw new GradleException("Java ${minimumCompilerVersion} or above is required to build Elasticsearch")
+                final String message =
+                        "the environment variable JAVA_HOME must be set to a JDK installation directory for Java ${minimumCompilerVersion}" +
+                                " but is [${compilerJavaHome}] corresponding to [${compilerJavaVersionEnum}]"
+                throw new GradleException(message)
             }
 
             if (runtimeJavaVersionEnum < minimumRuntimeVersion) {
-                throw new GradleException("Java ${minimumRuntimeVersion} or above is required to run Elasticsearch")
+                final String message =
+                        "the environment variable RUNTIME_JAVA_HOME must be set to a JDK installation directory for Java ${minimumRuntimeVersion}" +
+                                " but is [${runtimeJavaHome}] corresponding to [${runtimeJavaVersionEnum}]"
+                throw new GradleException(message)
+            }
+
+            for (final Map.Entry<Integer, String> javaVersionEntry : javaVersions.entrySet()) {
+                final String javaHome = javaVersionEntry.getValue()
+                if (javaHome == null) {
+                    continue
+                }
+                JavaVersion javaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, javaHome))
+                final JavaVersion expectedJavaVersionEnum
+                final int version = javaVersionEntry.getKey()
+                if (version < 9) {
+                    expectedJavaVersionEnum = JavaVersion.toVersion("1." + version)
+                } else {
+                    expectedJavaVersionEnum = JavaVersion.toVersion(Integer.toString(version))
+                }
+                if (javaVersionEnum != expectedJavaVersionEnum) {
+                    final String message =
+                            "the environment variable JAVA" + version + "_HOME must be set to a JDK installation directory for Java" +
+                                    " ${expectedJavaVersionEnum} but is [${javaHome}] corresponding to [${javaVersionEnum}]"
+                    throw new GradleException(message)
+                }
             }
 
             project.rootProject.ext.compilerJavaHome = compilerJavaHome
             project.rootProject.ext.runtimeJavaHome = runtimeJavaHome
             project.rootProject.ext.compilerJavaVersion = compilerJavaVersionEnum
             project.rootProject.ext.runtimeJavaVersion = runtimeJavaVersionEnum
+            project.rootProject.ext.javaVersions = javaVersions
             project.rootProject.ext.buildChecksDone = true
         }
 
@@ -167,6 +202,7 @@ class BuildPlugin implements Plugin<Project> {
         project.ext.runtimeJavaHome = project.rootProject.ext.runtimeJavaHome
         project.ext.compilerJavaVersion = project.rootProject.ext.compilerJavaVersion
         project.ext.runtimeJavaVersion = project.rootProject.ext.runtimeJavaVersion
+        project.ext.javaVersions = project.rootProject.ext.javaVersions
     }
 
     private static String findCompilerJavaHome() {
@@ -180,6 +216,40 @@ class BuildPlugin implements Plugin<Project> {
             }
         }
         return javaHome
+    }
+
+    private static String findJavaHome(int version) {
+        return System.getenv('JAVA' + version + '_HOME')
+    }
+
+    /** Add a check before gradle execution phase which ensures java home for the given java version is set. */
+    static void requireJavaHome(Task task, int version) {
+        Project rootProject = task.project.rootProject // use root project for global accounting
+        if (rootProject.hasProperty('requiredJavaVersions') == false) {
+            rootProject.rootProject.ext.requiredJavaVersions = [:].withDefault{key -> return []}
+            rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
+                List<String> messages = []
+                for (entry in rootProject.requiredJavaVersions) {
+                    if (rootProject.javaVersions.get(entry.key) != null) {
+                        continue
+                    }
+                    List<String> tasks = entry.value.findAll { taskGraph.hasTask(it) }.collect { "  ${it.path}" }
+                    if (tasks.isEmpty() == false) {
+                        messages.add("JAVA${entry.key}_HOME required to run tasks:\n${tasks.join('\n')}")
+                    }
+                }
+                if (messages.isEmpty() == false) {
+                    throw new GradleException(messages.join('\n'))
+                }
+            }
+        }
+        rootProject.requiredJavaVersions.get(version).add(task)
+    }
+
+    /** A convenience method for getting java home for a version of java and requiring that version for the given task to execute */
+    static String getJavaHome(final Task task, final int version) {
+        requireJavaHome(task, version)
+        return task.project.javaVersions.get(version)
     }
 
     private static String findRuntimeJavaHome(final String compilerJavaHome) {
@@ -305,8 +375,8 @@ class BuildPlugin implements Plugin<Project> {
     /** Adds repositories used by ES dependencies */
     static void configureRepositories(Project project) {
         RepositoryHandler repos = project.repositories
-        if (System.getProperty("repos.mavenlocal") != null) {
-            // with -Drepos.mavenlocal=true we can force checking the local .m2 repo which is
+        if (System.getProperty("repos.mavenLocal") != null) {
+            // with -Drepos.mavenLocal=true we can force checking the local .m2 repo which is
             // useful for development ie. bwc tests where we install stuff in the local repository
             // such that we don't have to pass hardcoded files to gradle
             repos.mavenLocal()
@@ -469,14 +539,18 @@ class BuildPlugin implements Plugin<Project> {
     }
 
     static void configureJavadoc(Project project) {
-        project.tasks.withType(Javadoc) {
-            executable = new File(project.compilerJavaHome, 'bin/javadoc')
+        // remove compiled classes from the Javadoc classpath: http://mail.openjdk.java.net/pipermail/javadoc-dev/2018-January/000400.html
+        final List<File> classes = new ArrayList<>()
+        project.tasks.withType(JavaCompile) { javaCompile ->
+            classes.add(javaCompile.destinationDir)
+        }
+        project.tasks.withType(Javadoc) { javadoc ->
+            javadoc.executable = new File(project.compilerJavaHome, 'bin/javadoc')
+            javadoc.classpath = javadoc.getClasspath().filter { f ->
+                return classes.contains(f) == false
+            }
         }
         configureJavadocJar(project)
-        if (project.compilerJavaVersion == JavaVersion.VERSION_1_10) {
-            project.tasks.withType(Javadoc) { it.enabled = false }
-            project.tasks.getByName('javadocJar').each { it.enabled = false }
-        }
     }
 
     /** Adds a javadocJar task to generate a jar containing javadocs. */
@@ -507,17 +581,18 @@ class BuildPlugin implements Plugin<Project> {
             jarTask.destinationDir = new File(project.buildDir, 'distributions')
             // fixup the jar manifest
             jarTask.doFirst {
-                boolean isSnapshot = VersionProperties.elasticsearch.endsWith("-SNAPSHOT");
-                String version = VersionProperties.elasticsearch;
-                if (isSnapshot) {
-                    version = version.substring(0, version.length() - 9)
-                }
+                final Version versionWithoutSnapshot = new Version(
+                        VersionProperties.elasticsearch.major,
+                        VersionProperties.elasticsearch.minor,
+                        VersionProperties.elasticsearch.revision,
+                        VersionProperties.elasticsearch.suffix,
+                        false)
                 // this doFirst is added before the info plugin, therefore it will run
                 // after the doFirst added by the info plugin, and we can override attributes
                 jarTask.manifest.attributes(
-                        'X-Compile-Elasticsearch-Version': version,
+                        'X-Compile-Elasticsearch-Version': versionWithoutSnapshot,
                         'X-Compile-Lucene-Version': VersionProperties.lucene,
-                        'X-Compile-Elasticsearch-Snapshot': isSnapshot,
+                        'X-Compile-Elasticsearch-Snapshot': VersionProperties.elasticsearch.isSnapshot(),
                         'Build-Date': ZonedDateTime.now(ZoneOffset.UTC),
                         'Build-Java-Version': project.compilerJavaVersion)
                 if (jarTask.manifest.attributes.containsKey('Change') == false) {
@@ -541,9 +616,10 @@ class BuildPlugin implements Plugin<Project> {
                 if (project.licenseFile == null || project.noticeFile == null) {
                     throw new GradleException("Must specify license and notice file for project ${project.path}")
                 }
-                jarTask.into('META-INF') {
+                jarTask.metaInf {
                     from(project.licenseFile.parent) {
                         include project.licenseFile.name
+                        rename { 'LICENSE.txt' }
                     }
                     from(project.noticeFile.parent) {
                         include project.noticeFile.name
@@ -558,7 +634,7 @@ class BuildPlugin implements Plugin<Project> {
         return {
             jvm "${project.runtimeJavaHome}/bin/java"
             parallelism System.getProperty('tests.jvms', 'auto')
-            ifNoTests 'fail'
+            ifNoTests System.getProperty('tests.ifNoTests', 'fail')
             onNonEmptyWorkDirectory 'wipe'
             leaveTemporary true
 
@@ -582,8 +658,6 @@ class BuildPlugin implements Plugin<Project> {
             systemProperty 'tests.task', path
             systemProperty 'tests.security.manager', 'true'
             systemProperty 'jna.nosys', 'true'
-            // default test sysprop values
-            systemProperty 'tests.ifNoTests', 'fail'
             // TODO: remove setting logging level via system property
             systemProperty 'tests.logger.level', 'WARN'
             for (Map.Entry<String, String> property : System.properties.entrySet()) {

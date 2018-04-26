@@ -42,7 +42,7 @@ import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -66,6 +66,7 @@ import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfN
 import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
 import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQuery;
 import static org.elasticsearch.index.search.QueryParserHelper.resolveMappingField;
+import static org.elasticsearch.index.search.QueryParserHelper.resolveMappingFields;
 
 /**
  * A {@link XQueryParser} that uses the {@link MapperService} in order to build smarter
@@ -147,6 +148,7 @@ public class QueryStringQueryParser extends XQueryParser {
         this.context = context;
         this.fieldsAndWeights = Collections.unmodifiableMap(fieldsAndWeights);
         this.queryBuilder = new MultiMatchQuery(context);
+        queryBuilder.setZeroTermsQuery(MatchQuery.ZeroTermsQuery.NULL);
         queryBuilder.setLenient(lenient);
         this.lenient = lenient;
     }
@@ -263,6 +265,8 @@ public class QueryStringQueryParser extends XQueryParser {
             // Filters unsupported fields if a pattern is requested
             // Filters metadata fields if all fields are requested
             return resolveMappingField(context, field, 1.0f, !allFields, !multiFields, quoted ? quoteFieldSuffix : null);
+        } else if (quoted && quoteFieldSuffix != null) {
+            return resolveMappingFields(context, fieldsAndWeights, quoteFieldSuffix);
         } else {
             return fieldsAndWeights;
         }
@@ -343,7 +347,6 @@ public class QueryStringQueryParser extends XQueryParser {
         if (fields.isEmpty()) {
             return newUnmappedFieldQuery(field);
         }
-        final Query query;
         Analyzer oldAnalyzer = queryBuilder.analyzer;
         int oldSlop = queryBuilder.phraseSlop;
         try {
@@ -353,7 +356,7 @@ public class QueryStringQueryParser extends XQueryParser {
                 queryBuilder.setAnalyzer(forceAnalyzer);
             }
             queryBuilder.setPhraseSlop(slop);
-            query = queryBuilder.parse(MultiMatchQueryBuilder.Type.PHRASE, fields, queryText, null);
+            Query query = queryBuilder.parse(MultiMatchQueryBuilder.Type.PHRASE, fields, queryText, null);
             return applySlop(query, slop);
         } catch (IOException e) {
             throw new ParseException(e.getMessage());
@@ -555,7 +558,7 @@ public class QueryStringQueryParser extends XQueryParser {
         }
 
         if (tlist.size() == 0) {
-            return new MatchNoDocsQuery("analysis was empty for " + field + ":" + termStr);
+            return super.getPrefixQuery(field, termStr);
         }
 
         if (tlist.size() == 1 && tlist.get(0).size() == 1) {
@@ -763,7 +766,7 @@ public class QueryStringQueryParser extends XQueryParser {
     @Override
     public Query parse(String query) throws ParseException {
         if (query.trim().isEmpty()) {
-            return queryBuilder.zeroTermsQuery();
+            return Queries.newMatchNoDocsQuery("Matching no documents because no terms present");
         }
         return super.parse(query);
     }

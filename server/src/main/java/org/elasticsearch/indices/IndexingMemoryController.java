@@ -20,7 +20,6 @@
 package org.elasticsearch.indices;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
@@ -90,7 +89,7 @@ public class IndexingMemoryController extends AbstractComponent implements Index
     private final Cancellable scheduler;
 
     private static final EnumSet<IndexShardState> CAN_WRITE_INDEX_BUFFER_STATES = EnumSet.of(
-            IndexShardState.RECOVERING, IndexShardState.POST_RECOVERY, IndexShardState.STARTED, IndexShardState.RELOCATED);
+            IndexShardState.RECOVERING, IndexShardState.POST_RECOVERY, IndexShardState.STARTED);
 
     private final ShardsIndicesStatusChecker statusChecker;
 
@@ -179,7 +178,7 @@ public class IndexingMemoryController extends AbstractComponent implements Index
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to write indexing buffer for shard [{}]; ignoring", shard.shardId()), e);
+                logger.warn(() -> new ParameterizedMessage("failed to write indexing buffer for shard [{}]; ignoring", shard.shardId()), e);
             }
         });
     }
@@ -384,7 +383,7 @@ public class IndexingMemoryController extends AbstractComponent implements Index
         try {
             shard.checkIdle(inactiveTimeNS);
         } catch (AlreadyClosedException e) {
-            logger.trace((Supplier<?>) () -> new ParameterizedMessage("ignore exception while checking if shard {} is inactive", shard.shardId()), e);
+            logger.trace(() -> new ParameterizedMessage("ignore exception while checking if shard {} is inactive", shard.shardId()), e);
         }
     }
 }

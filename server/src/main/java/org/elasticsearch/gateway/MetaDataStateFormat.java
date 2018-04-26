@@ -20,7 +20,6 @@ package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -30,7 +29,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
@@ -323,8 +322,7 @@ public abstract class MetaDataStateFormat<T> {
                 return state;
             } catch (Exception e) {
                 exceptions.add(new IOException("failed to read " + pathAndStateId.toString(), e));
-                logger.debug(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                logger.debug(() -> new ParameterizedMessage(
                         "{}: failed to read [{}], ignoring...", pathAndStateId.file.toAbsolutePath(), prefix), e);
             }
         }

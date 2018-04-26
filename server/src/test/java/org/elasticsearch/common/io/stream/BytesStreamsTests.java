@@ -26,6 +26,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
@@ -41,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -812,4 +814,30 @@ public class BytesStreamsTests extends ESTestCase {
         }
         assertEquals(0, input.available());
     }
+
+    private void assertEqualityAfterSerialize(TimeValue value, int expectedSize) throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeTimeValue(value);
+        assertEquals(expectedSize, out.size());
+
+        StreamInput in = out.bytes().streamInput();
+        TimeValue inValue = in.readTimeValue();
+
+        assertThat(inValue, equalTo(value));
+        assertThat(inValue.duration(), equalTo(value.duration()));
+        assertThat(inValue.timeUnit(), equalTo(value.timeUnit()));
+    }
+
+    public void testTimeValueSerialize() throws Exception {
+        assertEqualityAfterSerialize(new TimeValue(100, TimeUnit.DAYS), 3);
+        assertEqualityAfterSerialize(TimeValue.timeValueNanos(-1), 2);
+        assertEqualityAfterSerialize(TimeValue.timeValueNanos(1), 2);
+        assertEqualityAfterSerialize(TimeValue.timeValueSeconds(30), 2);
+
+        final TimeValue timeValue = new TimeValue(randomIntBetween(0, 1024), randomFrom(TimeUnit.values()));
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeZLong(timeValue.duration());
+        assertEqualityAfterSerialize(timeValue, 1 + out.bytes().length());
+    }
+
 }

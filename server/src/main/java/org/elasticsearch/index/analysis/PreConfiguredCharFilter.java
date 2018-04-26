@@ -41,6 +41,15 @@ public class PreConfiguredCharFilter extends PreConfiguredAnalysisComponent<Char
     }
 
     /**
+     * Create a pre-configured char filter that may not vary at all, provide access to the elasticsearch verison
+     */
+    public static PreConfiguredCharFilter singletonWithVersion(String name, boolean useFilterForMultitermQueries,
+            BiFunction<Reader, org.elasticsearch.Version, Reader> create) {
+        return new PreConfiguredCharFilter(name, CachingStrategy.ONE, useFilterForMultitermQueries,
+                (reader, version) -> create.apply(reader, version));
+    }
+
+    /**
      * Create a pre-configured token filter that may vary based on the Lucene version.
      */
     public static PreConfiguredCharFilter luceneVersion(String name, boolean useFilterForMultitermQueries,

@@ -76,11 +76,7 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
             public void onFailure(String source, Exception e) {
                 latch.countDown();
                 ackListener.onNodeAck(transportService.getLocalNode(), e);
-                logger.warn(
-                    (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
-                        "failed while applying cluster state locally [{}]",
-                        event.source()),
-                    e);
+                logger.warn(() -> new ParameterizedMessage("failed while applying cluster state locally [{}]", event.source()), e);
             }
         };
         clusterApplier.onNewClusterState("apply-locally-on-node[" + event.source() + "]", () -> clusterState, listener);

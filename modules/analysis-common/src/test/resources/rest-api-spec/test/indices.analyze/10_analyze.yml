@@ -17,3 +17,56 @@
     - match: { error.type: illegal_argument_exception }
     - match: { error.reason: "Custom normalizer may not use filter [word_delimiter]" }
 
+---
+"htmlStrip_deprecated":
+    - skip:
+        version: " - 6.2.99"
+        reason: deprecated in 6.3
+        features: "warnings"
+
+    - do:
+        indices.create:
+          index: test_deprecated_htmlstrip
+          body:
+            settings:
+              index:
+                analysis:
+                  analyzer:
+                    my_htmlStripWithCharfilter:
+                      tokenizer: keyword
+                      char_filter: ["htmlStrip"]
+            mappings:
+              type:
+                properties:
+                  name:
+                    type: text
+                    analyzer: my_htmlStripWithCharfilter
+
+    - do:
+        warnings:
+          - 'The [htmpStrip] char filter name is deprecated and will be removed in a future version. Please change the filter name to [html_strip] instead.'
+        index:
+          index:   test_deprecated_htmlstrip
+          type:    type
+          id:      1
+          body:    { "name": "foo bar" }
+
+    - do:
+        warnings:
+          - 'The [htmpStrip] char filter name is deprecated and will be removed in a future version. Please change the filter name to [html_strip] instead.'
+        index:
+          index:   test_deprecated_htmlstrip
+          type:    type
+          id:      2
+          body:    { "name": "foo baz" }
+
+    - do:
+        warnings:
+          - 'The [htmpStrip] char filter name is deprecated and will be removed in a future version. Please change the filter name to [html_strip] instead.'
+        indices.analyze:
+          index: test_deprecated_htmlstrip
+          body:
+            analyzer: "my_htmlStripWithCharfilter"
+            text: "<html>foo</html>"
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: "\nfoo\n" }

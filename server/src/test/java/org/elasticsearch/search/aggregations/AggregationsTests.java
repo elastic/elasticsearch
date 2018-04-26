@@ -252,7 +252,7 @@ public class AggregationsTests extends ESTestCase {
             builder.endObject();
         }
         builder.endObject();
-        BytesReference originalBytes = builder.bytes();
+        BytesReference originalBytes = BytesReference.bytes(builder);
         try (XContentParser parser = createParser(builder.contentType().xContent(), originalBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             ParsingException ex = expectThrows(ParsingException.class, () -> Aggregations.fromXContent(parser));

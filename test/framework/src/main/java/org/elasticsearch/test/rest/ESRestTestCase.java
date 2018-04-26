@@ -30,8 +30,9 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContexts;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -145,9 +146,11 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     @After
     public final void cleanUpCluster() throws Exception {
-        wipeCluster();
-        waitForClusterStateUpdatesToFinish();
-        logIfThereAreRunningTasks();
+        if (preserveClusterUponCompletion() == false) {
+            wipeCluster();
+            waitForClusterStateUpdatesToFinish();
+            logIfThereAreRunningTasks();
+        }
     }
 
     @AfterClass
@@ -173,6 +176,17 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     protected static RestClient adminClient() {
         return adminClient;
+    }
+
+    /**
+     * Returns whether to preserve the state of the cluster upon completion of this test. Defaults to false. If true, overrides the value of
+     * {@link #preserveIndicesUponCompletion()}, {@link #preserveTemplatesUponCompletion()}, {@link #preserveReposUponCompletion()}, and
+     * {@link #preserveSnapshotsUponCompletion()}.
+     *
+     * @return true if the state of the cluster should be preserved
+     */
+    protected boolean preserveClusterUponCompletion() {
+        return false;
     }
 
     /**
@@ -290,7 +304,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         if (mustClear) {
             adminClient().performRequest("PUT", "/_cluster/settings", emptyMap(), new StringEntity(
-                clearCommand.string(), ContentType.APPLICATION_JSON));
+                Strings.toString(clearCommand), ContentType.APPLICATION_JSON));
         }
     }
 
@@ -478,6 +492,16 @@ public abstract class ESRestTestCase extends ESTestCase {
             new StringEntity(Strings.toString(settings), ContentType.APPLICATION_JSON)));
     }
 
+    protected static Map<String, Object> getIndexSettings(String index) throws IOException {
+        Map<String, String> params = new HashMap<>();
+        params.put("flat_settings", "true");
+        Response response = client().performRequest(HttpGet.METHOD_NAME, index + "/_settings", params);
+        assertOK(response);
+        try (InputStream is = response.getEntity().getContent()) {
+            return XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+        }
+    }
+
     protected static boolean indexExists(String index) throws IOException {
         Response response = client().performRequest(HttpHead.METHOD_NAME, index);
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
@@ -485,6 +509,11 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected static void closeIndex(String index) throws IOException {
         Response response = client().performRequest(HttpPost.METHOD_NAME, index + "/_close");
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+    }
+
+    protected static void openIndex(String index) throws IOException {
+        Response response = client().performRequest(HttpPost.METHOD_NAME, index + "/_open");
         assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
     }
 

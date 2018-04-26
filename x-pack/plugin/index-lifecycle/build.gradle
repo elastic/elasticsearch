@@ -35,7 +35,7 @@ task internalClusterTest(type: RandomizedTestingTask,
 }
 
 
-check { dependsOn = [internalClusterTest, 'qa:integTest'] }
+check.dependsOn internalClusterTest, 'qa:integTest'
 internalClusterTest.mustRunAfter test
 
 run {

@@ -1,26 +1,19 @@
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
+assemble.enabled = false
+
 dependencies {
     testCompile project(path: xpackModule('core'), configuration: 'runtime')
 }
 
 integTestCluster {
     numNodes = 2
-    clusterName = 'ilm-multi-node'
-    plugin xpackProject('plugin').path
+    clusterName = 'index-lifecycle'
     setting 'xpack.security.enabled', 'false'
     setting 'xpack.watcher.enabled', 'false'
     setting 'xpack.monitoring.enabled', 'false'
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.index_lifecycle.enabled', 'true'
     setting 'indices.lifecycle.poll_interval', '500ms'
-    waitCondition = { node, ant ->
-        File tmpFile = new File(node.cwd, 'wait.success')
-        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
-                dest: tmpFile.toString(),
-                ignoreerrors: true,
-                retries: 10)
-        return tmpFile.exists()
-    }
 }

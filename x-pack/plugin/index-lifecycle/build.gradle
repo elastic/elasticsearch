@@ -1,3 +1,6 @@
+import com.carrotsearch.gradle.junit4.RandomizedTestingTask
+import org.elasticsearch.gradle.BuildPlugin
+
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
@@ -11,15 +14,29 @@ esplugin {
 }
 archivesBaseName = 'x-pack-index-lifecycle'
 
-// TODO: enable this once we have tests
-licenseHeaders.enabled = false
-
-integTest.enabled = false
-
 dependencies {
     compileOnly "org.elasticsearch.plugin:x-pack-core:${version}"
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
+
+integTest.enabled = false
+
+// Instead we create a separate task to run the
+// tests based on ESIntegTestCase
+task internalClusterTest(type: RandomizedTestingTask,
+        group: JavaBasePlugin.VERIFICATION_GROUP,
+        description: 'real cluster integration tests',
+        dependsOn: test.dependsOn) {
+    configure(BuildPlugin.commonTestConfig(project))
+    classpath = project.test.classpath
+    testClassesDir = project.test.testClassesDir
+    include '**/*IT.class'
+    systemProperty 'es.set.netty.runtime.available.processors', 'false'
+}
+
+
+check { dependsOn = [internalClusterTest, 'qa:integTest'] }
+internalClusterTest.mustRunAfter test
 
 run {
     plugin xpackModule('core')

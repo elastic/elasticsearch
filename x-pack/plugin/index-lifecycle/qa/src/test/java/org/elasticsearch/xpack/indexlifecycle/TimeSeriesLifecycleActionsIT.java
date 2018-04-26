@@ -48,7 +48,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class TimeseriesLifecycleActionsIT extends ESRestTestCase {
+public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     private String index;
     private String policy;
 
@@ -142,8 +142,8 @@ public class TimeseriesLifecycleActionsIT extends ESRestTestCase {
 
     private void createNewSingletonPolicy(String phaseName, LifecycleAction action) throws IOException {
         Phase phase = new Phase(phaseName, TimeValue.ZERO, singletonMap(action.getWriteableName(), action));
-        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, policy,
-            singletonMap(phase.getName(), phase));
+        LifecyclePolicy lifecyclePolicy =
+            new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, policy, singletonMap(phase.getName(), phase));
         XContentBuilder builder = jsonBuilder();
         lifecyclePolicy.toXContent(builder, null);
         final StringEntity entity = new StringEntity(
@@ -161,8 +161,7 @@ public class TimeseriesLifecycleActionsIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> getOnlyIndexSettings(String index) throws IOException {
-        return (Map<String, Object>) ((Map<String, Object>) getIndexSettings(index).get(index))
-            .get("settings");
+        return (Map<String, Object>) ((Map<String, Object>) getIndexSettings(index).get(index)).get("settings");
     }
 
     private StepKey getStepKey(Map<String, Object> settings) {

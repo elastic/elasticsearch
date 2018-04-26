@@ -83,6 +83,13 @@ public class ParsedDocument {
         this.seqID.primaryTerm.setLongValue(primaryTerm);
     }
 
+    ParsedDocument toTombstone() {
+        assert docs().size() == 1 : "Tombstone should have a single doc [" + docs() + "]";
+        this.seqID.tombstoneField.setLongValue(1);
+        rootDoc().add(this.seqID.tombstoneField);
+        return this;
+    }
+
     public String routing() {
         return this.routing;
     }

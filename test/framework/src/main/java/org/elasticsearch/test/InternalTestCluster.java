@@ -75,6 +75,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
@@ -1167,6 +1168,22 @@ public final class InternalTestCluster extends TestCluster {
                 }
             }
         });
+    }
+
+    /**
+     * Asserts that the document history in Lucene index is consistent with Translog's on every index shard of the cluster.
+     * This assertion might be expensive, thus we prefer not to execute on every test but only interesting tests.
+     */
+    public void assertConsistentHistoryBetweenTranslogAndLuceneIndex() throws IOException {
+        final Collection<NodeAndClient> nodesAndClients = nodes.values();
+        for (NodeAndClient nodeAndClient : nodesAndClients) {
+            IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
+            for (IndexService indexService : indexServices) {
+                for (IndexShard indexShard : indexService) {
+                    IndexShardTestCase.assertConsistentHistoryBetweenTranslogAndLucene(indexShard);
+                }
+            }
+        }
     }
 
     private void randomlyResetClients() throws IOException {

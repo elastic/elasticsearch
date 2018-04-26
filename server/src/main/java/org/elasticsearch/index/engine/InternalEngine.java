@@ -784,7 +784,9 @@ public class InternalEngine extends Engine {
                         location = translog.add(new Translog.Index(index, indexResult));
                     } else if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                         // if we have document failure, record it as a no-op in the translog with the generated seq_no
-                        location = translog.add(new Translog.NoOp(indexResult.getSeqNo(), index.primaryTerm(), indexResult.getFailure().getMessage()));
+                        final NoOp noOp = new NoOp(indexResult.getSeqNo(), index.primaryTerm(), index.origin(),
+                            index.startTime(), indexResult.getFailure().getMessage());
+                        location = innerNoOp(noOp).getTranslogLocation();
                     } else {
                         location = null;
                     }
@@ -1226,7 +1228,7 @@ public class InternalEngine extends Engine {
         throws IOException {
         try {
             if (softDeleteEnabled) {
-                final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newTombstoneDoc(delete.type(), delete.id());
+                final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newDeleteTombstoneDoc(delete.type(), delete.id());
                 assert tombstone.docs().size() == 1 : "Tombstone doc should have single doc [" + tombstone + "]";
                 tombstone.updateSeqID(plan.seqNoOfDeletion, delete.primaryTerm());
                 tombstone.version().setLongValue(plan.versionOfDeletion);
@@ -1334,7 +1336,21 @@ public class InternalEngine extends Engine {
         assert noOp.seqNo() > SequenceNumbers.NO_OPS_PERFORMED;
         final long seqNo = noOp.seqNo();
         try {
-            final NoOpResult noOpResult = new NoOpResult(noOp.seqNo());
+            Exception failure = null;
+            if (softDeleteEnabled) {
+                try {
+                    final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newNoopTombstoneDoc();
+                    tombstone.updateSeqID(noOp.seqNo(), noOp.primaryTerm());
+                    assert tombstone.docs().size() == 1 : "Tombstone should have a single doc [" + tombstone + "]";
+                    addStaleDocs(tombstone.docs(), indexWriter);
+                } catch (Exception ex) {
+                    if (indexWriter.getTragicException() != null) {
+                        throw ex;
+                    }
+                    failure = ex;
+                }
+            }
+            final NoOpResult noOpResult = new NoOpResult(noOp.seqNo(), failure);
             if (noOp.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
                 final Translog.Location location = translog.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
                 noOpResult.setTranslogLocation(location);

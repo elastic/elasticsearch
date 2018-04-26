@@ -372,9 +372,16 @@ public final class EngineConfig {
      * A supplier supplies tombstone documents which will be used in soft-update methods.
      * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.
      */
-    @FunctionalInterface
     public interface TombstoneDocSupplier {
-        ParsedDocument newTombstoneDoc(String type, String id);
+        /**
+         * Creates a tombstone document for a delete operation.
+         */
+        ParsedDocument newDeleteTombstoneDoc(String type, String id);
+
+        /**
+         * Creates a tombstone document for a noop operation.
+         */
+        ParsedDocument newNoopTombstoneDoc();
     }
 
     public TombstoneDocSupplier getTombstoneDocSupplier() {

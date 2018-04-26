@@ -52,12 +52,22 @@ GET my_index/_search
 <1>  The values of the `first_name` and `last_name` fields are copied to the
      `full_name` field.
 
-<2>  The `first_name` and `last_name` fields can still be queried for the
-     first name and last name respectively, but the `full_name` field can be
-     queried for both first and last names.
+<2>  The `first_name` and `last_name` fields can still be queried for the first
+name and last name respectively, but the `full_name` field can be queried for
+both first and last names.
 
 Some important points:
 
-* It is the field _value_ which is copied, not the terms (which result from the analysis process).
-* The original <<mapping-source-field,`_source`>> field will not be modified to show the copied values.
-* The same value can be copied to multiple fields, with `"copy_to": [ "field_1", "field_2" ]`
+* It is the field _value_ that is copied, not the terms (which result from the
+analysis process).
+* The original <<mapping-source-field,`_source`>> field is not modified to show
+the copied values.
+* The same value can be copied to multiple fields using `"copy_to": [
+"field_1", "field_2" ]`
+
+NOTE: When necessary, you can use `copy_to`
+ to replicate the functionality of the deprecated `_all` field. While this can
+be useful when getting started with a new dataset, it is not recommended in
+production due to the increased storage overhead. To replicate the
+functionality of `_all`, copy all of the fields in the document type to the
+custom field.

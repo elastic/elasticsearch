@@ -103,11 +103,22 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
 
         BucketSignificancePriorityQueue<SignificantStringTerms.Bucket> ordered = new BucketSignificancePriorityQueue<>(size);
         SignificantStringTerms.Bucket spare = null;
-        for (long globalTermOrd = 0; globalTermOrd < valueCount; ++globalTermOrd) {
-            if (includeExclude != null && !acceptedGlobalOrdinals.get(globalTermOrd)) {
+        boolean needsFullSan = bucketOrds == null || bucketCountThresholds.getMinDocCount() == 0;
+        long maxId = needsFullSan ? valueCount : bucketOrds.size();
+        for (long ord = 0; ord < maxId; ord++) {
+            final long globalOrd;
+            final long bucketOrd;
+            if (needsFullSan) {
+                bucketOrd = bucketOrds == null ? ord : bucketOrds.find(ord);
+                globalOrd = ord;
+            } else {
+                assert bucketOrds != null;
+                bucketOrd = ord;
+                globalOrd = bucketOrds.get(ord);
+            }
+            if (includeExclude != null && !acceptedGlobalOrdinals.get(globalOrd)) {
                 continue;
             }
-            final long bucketOrd = getBucketOrd(globalTermOrd);
             final int bucketDocCount = bucketOrd < 0 ? 0 : bucketDocCount(bucketOrd);
             if (bucketCountThresholds.getMinDocCount() > 0 && bucketDocCount == 0) {
                 continue;
@@ -120,7 +131,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
                 spare = new SignificantStringTerms.Bucket(new BytesRef(), 0, 0, 0, 0, null, format);
             }
             spare.bucketOrd = bucketOrd;
-            copy(lookupGlobalOrd.apply(globalTermOrd), spare.termBytes);
+            copy(lookupGlobalOrd.apply(globalOrd), spare.termBytes);
             spare.subsetDf = bucketDocCount;
             spare.subsetSize = subsetSize;
             spare.supersetDf = termsAggFactory.getBackgroundFrequency(spare.termBytes);

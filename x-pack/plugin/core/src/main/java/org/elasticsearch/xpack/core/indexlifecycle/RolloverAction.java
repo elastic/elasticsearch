@@ -10,6 +10,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -28,15 +29,16 @@ import java.util.Objects;
  */
 public class RolloverAction implements LifecycleAction {
     public static final String NAME = "rollover";
-    public static final ParseField ALIAS_FIELD = new ParseField("alias");
     public static final ParseField MAX_SIZE_FIELD = new ParseField("max_size");
     public static final ParseField MAX_DOCS_FIELD = new ParseField("max_docs");
     public static final ParseField MAX_AGE_FIELD = new ParseField("max_age");
+    public static final String LIFECYCLE_ROLLOVER_ALIAS = "index.lifecycle.rollover_alias";
+    public static final Setting<String> LIFECYCLE_ROLLOVER_ALIAS_SETTING = Setting.simpleString(LIFECYCLE_ROLLOVER_ALIAS,
+        Setting.Property.Dynamic, Setting.Property.IndexScope);
 
     private static final ConstructingObjectParser<RolloverAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
-            a -> new RolloverAction((String) a[0], (ByteSizeValue) a[1], (TimeValue) a[2], (Long) a[3]));
+            a -> new RolloverAction((ByteSizeValue) a[0], (TimeValue) a[1], (Long) a[2]));
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), ALIAS_FIELD);
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
                 (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_SIZE_FIELD.getPreferredName()), MAX_SIZE_FIELD, ValueType.VALUE);
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
@@ -44,7 +46,6 @@ public class RolloverAction implements LifecycleAction {
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), MAX_DOCS_FIELD);
     }
 
-    private final String alias;
     private final ByteSizeValue maxSize;
     private final Long maxDocs;
     private final TimeValue maxAge;
@@ -53,21 +54,16 @@ public class RolloverAction implements LifecycleAction {
         return PARSER.apply(parser, null);
     }
 
-    public RolloverAction(String alias, ByteSizeValue maxSize, TimeValue maxAge, Long maxDocs) {
-        if (alias == null) {
-            throw new IllegalArgumentException(ALIAS_FIELD.getPreferredName() + " must be not be null");
-        }
+    public RolloverAction(ByteSizeValue maxSize, TimeValue maxAge, Long maxDocs) {
         if (maxSize == null && maxAge == null && maxDocs == null) {
             throw new IllegalArgumentException("At least one rollover condition must be set.");
         }
-        this.alias = alias;
         this.maxSize = maxSize;
         this.maxAge = maxAge;
         this.maxDocs = maxDocs;
     }
 
     public RolloverAction(StreamInput in) throws IOException {
-        alias = in.readString();
         if (in.readBoolean()) {
             maxSize = new ByteSizeValue(in);
         } else {
@@ -83,7 +79,6 @@ public class RolloverAction implements LifecycleAction {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(alias);
         boolean hasMaxSize = maxSize != null;
         out.writeBoolean(hasMaxSize);
         if (hasMaxSize) {
@@ -102,10 +97,6 @@ public class RolloverAction implements LifecycleAction {
         return NAME;
     }
 
-    public String getAlias() {
-        return alias;
-    }
-
     public ByteSizeValue getMaxSize() {
         return maxSize;
     }
@@ -121,7 +112,6 @@ public class RolloverAction implements LifecycleAction {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(ALIAS_FIELD.getPreferredName(), alias);
         if (maxSize != null) {
             builder.field(MAX_SIZE_FIELD.getPreferredName(), maxSize.getStringRep());
         }
@@ -138,12 +128,12 @@ public class RolloverAction implements LifecycleAction {
     @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
         return Collections.singletonList(
-                new RolloverStep(new StepKey(phase, NAME, RolloverStep.NAME), nextStepKey, client, alias, maxSize, maxAge, maxDocs));
+                new RolloverStep(new StepKey(phase, NAME, RolloverStep.NAME), nextStepKey, client, maxSize, maxAge, maxDocs));
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(alias, maxSize, maxAge, maxDocs);
+        return Objects.hash(maxSize, maxAge, maxDocs);
     }
 
     @Override
@@ -155,8 +145,7 @@ public class RolloverAction implements LifecycleAction {
             return false;
         }
         RolloverAction other = (RolloverAction) obj;
-        return Objects.equals(alias, other.alias) &&
-                Objects.equals(maxSize, other.maxSize) &&
+        return Objects.equals(maxSize, other.maxSize) &&
                 Objects.equals(maxAge, other.maxAge) &&
                 Objects.equals(maxDocs, other.maxDocs);
     }

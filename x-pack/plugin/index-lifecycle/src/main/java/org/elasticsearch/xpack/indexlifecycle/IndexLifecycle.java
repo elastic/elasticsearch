@@ -33,6 +33,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
+import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
@@ -95,7 +96,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING,
             LifecycleSettings.LIFECYCLE_ACTION_SETTING,
             LifecycleSettings.LIFECYCLE_STEP_TIME_SETTING,
-            LifecycleSettings.LIFECYCLE_STEP_SETTING);
+            LifecycleSettings.LIFECYCLE_STEP_SETTING,
+            RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING);
     }
 
     @Override

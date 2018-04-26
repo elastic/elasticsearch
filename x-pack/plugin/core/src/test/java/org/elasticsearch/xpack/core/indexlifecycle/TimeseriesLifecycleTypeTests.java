@@ -33,7 +33,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     private static final DeleteAction TEST_DELETE_ACTION = new DeleteAction();
     private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction(1, true);
     private static final ReplicasAction TEST_REPLICAS_ACTION = new ReplicasAction(1);
-    private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction("", new ByteSizeValue(1), null, null);
+    private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction(new ByteSizeValue(1), null, null);
     private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction(1);
     private static final ReadOnlyAction TEST_READ_ONLY_ACTION = new ReadOnlyAction();
 

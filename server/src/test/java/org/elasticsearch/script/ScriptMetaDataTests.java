@@ -22,6 +22,8 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -128,6 +130,45 @@ public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaD
 
         ScriptMetaData result = builder.build();
         assertEquals("1 + 1", result.getStoredScript("_id").getSource());
+    }
+
+    public void testLoadEmptyScripts() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject().field("mustache#empty", "").endObject();
+        XContentParser parser = XContentType.JSON.xContent()
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                BytesReference.bytes(builder).streamInput());
+        ScriptMetaData.fromXContent(parser);
+        assertWarnings("empty templates should no longer be used");
+
+        builder = XContentFactory.jsonBuilder();
+        builder.startObject().field("lang#empty", "").endObject();
+        parser = XContentType.JSON.xContent()
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                BytesReference.bytes(builder).streamInput());
+        ScriptMetaData.fromXContent(parser);
+        assertWarnings("empty scripts should no longer be used");
+
+        builder = XContentFactory.jsonBuilder();
+        builder.startObject().startObject("script").field("lang", "lang").field("source", "").endObject().endObject();
+        parser = XContentType.JSON.xContent()
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                BytesReference.bytes(builder).streamInput());
+        ScriptMetaData.fromXContent(parser);
+        assertWarnings("empty scripts should no longer be used");
+
+        builder = XContentFactory.jsonBuilder();
+        builder.startObject().startObject("script").field("lang", "mustache").field("source", "").endObject().endObject();
+        parser = XContentType.JSON.xContent()
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                BytesReference.bytes(builder).streamInput());
+        ScriptMetaData.fromXContent(parser);
+        assertWarnings("empty templates should no longer be used");
+    }
+
+    @Override
+    protected boolean enableWarningsCheck() {
+        return true;
     }
 
     private ScriptMetaData randomScriptMetaData(XContentType sourceContentType, int minNumberScripts) throws IOException {

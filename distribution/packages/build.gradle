@@ -415,8 +415,7 @@ subprojects {
                 "License: " + expectedLicense)
         final List<String> licenseLines = Files.readAllLines(rootDir.toPath().resolve("licenses/" + licenseFilename))
         final List<String> expectedLines = header + licenseLines.collect { " " + it }
-        final List<String> actualLines = Files.readAllLines(copyrightPath)
-        assertLinesInFile(copyrightPath, actualLines, expectedLines)
+        assertLinesInFile(copyrightPath, expectedLines)
       }
     }
   } else {
@@ -432,8 +431,7 @@ subprojects {
         }
         final List<String> licenseLines = Files.readAllLines(rootDir.toPath().resolve("licenses/" + licenseFilename))
         final Path licensePath = packageExtractionDir.toPath().resolve("usr/share/elasticsearch/LICENSE.txt")
-        final List<String> actualLines = Files.readAllLines(licensePath)
-        assertLinesInFile(licensePath, actualLines, licenseLines)
+        assertLinesInFile(licensePath, licenseLines)
       }
     }
   }
@@ -444,8 +442,7 @@ subprojects {
     doLast {
       final List<String> noticeLines = Arrays.asList("Elasticsearch", "Copyright 2009-2018 Elasticsearch")
       final Path noticePath = packageExtractionDir.toPath().resolve("usr/share/elasticsearch/NOTICE.txt")
-      final List<String> actualLines = Files.readAllLines(noticePath)
-      assertLinesInFile(noticePath, actualLines, noticeLines)
+      assertLinesInFile(noticePath, noticeLines)
     }
   }
   check.dependsOn checkNotice

@@ -12,7 +12,14 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 
+import java.util.Collection;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 public final class MlTasks {
+
+    public static final String JOB_TASK_PREFIX = "job-";
+    public static final String DATAFEED_TASK_PREFIX = "datafeed-";
 
     private MlTasks() {
     }
@@ -22,7 +29,7 @@ public final class MlTasks {
      * A datafeed id can be used as a job id, because they are stored separately in cluster state.
      */
     public static String jobTaskId(String jobId) {
-        return "job-" + jobId;
+        return JOB_TASK_PREFIX + jobId;
     }
 
     /**
@@ -30,7 +37,7 @@ public final class MlTasks {
      * A job id can be used as a datafeed id, because they are stored separately in cluster state.
      */
     public static String datafeedTaskId(String datafeedId) {
-        return "datafeed-" + datafeedId;
+        return DATAFEED_TASK_PREFIX + datafeedId;
     }
 
     @Nullable
@@ -66,5 +73,18 @@ public final class MlTasks {
             // which is the same as if the datafeed was't started
             return DatafeedState.STOPPED;
         }
+    }
+
+    /**
+     * The job Ids of anomaly detector job tasks
+     * @param tasks Active tasks
+     * @return The job Ids of anomaly detector job tasks
+     */
+    public static Set<String> openJobIds(PersistentTasksCustomMetaData tasks) {
+        Collection<PersistentTasksCustomMetaData.PersistentTask<?>> activeTasks = tasks.tasks();
+
+        return activeTasks.stream().filter(t -> t.getId().startsWith(JOB_TASK_PREFIX))
+                .map(t -> t.getId().substring(JOB_TASK_PREFIX.length()))
+                .collect(Collectors.toSet());
     }
 }

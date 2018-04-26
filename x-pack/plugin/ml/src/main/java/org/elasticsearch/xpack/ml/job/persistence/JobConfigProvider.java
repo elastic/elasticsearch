@@ -42,6 +42,7 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -107,7 +108,7 @@ public class JobConfigProvider extends AbstractComponent {
         GetRequest getRequest = new GetRequest(AnomalyDetectorsIndex.configIndexName(),
                 ElasticsearchMappings.DOC_TYPE, Job.documentId(jobId));
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, getRequest, new ActionListener<GetResponse>() {
             @Override
             public void onResponse(GetResponse getResponse) {
                 if (getResponse.isExists() == false) {
@@ -123,7 +124,7 @@ public class JobConfigProvider extends AbstractComponent {
             public void onFailure(Exception e) {
                 jobListener.onFailure(e);
             }
-        });
+        }, client::get);
     }
 
     /**
@@ -156,7 +157,7 @@ public class JobConfigProvider extends AbstractComponent {
     }
 
     /**
-     * Get the job and update it by applying {@code jobUpdater} then index the changed job
+     * Get the job and update it by applying {@code update} then index the changed job
      * setting the version in the request. Applying the update may cause a validation error
      * which is returned via {@code updatedJobListener}
      *
@@ -197,31 +198,135 @@ public class JobConfigProvider extends AbstractComponent {
                     return;
                 }
 
-                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                    XContentBuilder updatedSource = updatedJob.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                    IndexRequest indexRequest = client.prepareIndex(AnomalyDetectorsIndex.configIndexName(),
-                            ElasticsearchMappings.DOC_TYPE, Job.documentId(updatedJob.getId()))
-                            .setSource(updatedSource)
-                            .setVersion(version)
-                            .request();
-
-                    executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
-                            indexResponse -> {
-                                assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
-                                updatedJobListener.onResponse(updatedJob);
-                            },
-                            updatedJobListener::onFailure
-                    ));
-
-                } catch (IOException e) {
-                    updatedJobListener.onFailure(
-                            new ElasticsearchParseException("Failed to serialise job with id [" + jobId + "]", e));
-                }
+                indexUpdatedJob(updatedJob, version, updatedJobListener);
             }
 
             @Override
             public void onFailure(Exception e) {
                 updatedJobListener.onFailure(e);
+            }
+        });
+    }
+
+    /**
+     * Job update validation function.
+     * {@code updatedListener} must be called by implementations reporting
+     * either an validation error or success.
+     */
+    @FunctionalInterface
+    public interface UpdateValidator {
+        void validate(Job job, JobUpdate update, ActionListener<Void> updatedListener);
+    }
+
+    /**
+     * Similar to {@link #updateJob(String, JobUpdate, ByteSizeValue, ActionListener)} but
+     * with an extra validation step which is called before the updated is applied.
+     *
+     * @param jobId The Id of the job to update
+     * @param update The job update
+     * @param maxModelMemoryLimit The maximum model memory allowed
+     * @param validator The job update validator
+     * @param updatedJobListener Updated job listener
+     */
+    public void updateJobWithValidation(String jobId, JobUpdate update, ByteSizeValue maxModelMemoryLimit,
+                                        UpdateValidator validator, ActionListener<Job> updatedJobListener) {
+        GetRequest getRequest = new GetRequest(AnomalyDetectorsIndex.configIndexName(),
+                ElasticsearchMappings.DOC_TYPE, Job.documentId(jobId));
+
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
+            @Override
+            public void onResponse(GetResponse getResponse) {
+                if (getResponse.isExists() == false) {
+                    updatedJobListener.onFailure(ExceptionsHelper.missingJobException(jobId));
+                    return;
+                }
+
+                long version = getResponse.getVersion();
+                BytesReference source = getResponse.getSourceAsBytesRef();
+                Job originalJob;
+                try {
+                    originalJob = parseJobLenientlyFromSource(source).build();
+                } catch (Exception e) {
+                    updatedJobListener.onFailure(
+                            new ElasticsearchParseException("Failed to parse job configuration [" + jobId + "]", e));
+                    return;
+                }
+
+                validator.validate(originalJob, update, ActionListener.wrap(
+                        validated  -> {
+                            Job updatedJob;
+                            try {
+                                // Applying the update may result in a validation error
+                                updatedJob = update.mergeWithJob(originalJob, maxModelMemoryLimit);
+                            } catch (Exception e) {
+                                updatedJobListener.onFailure(e);
+                                return;
+                            }
+
+                            indexUpdatedJob(updatedJob, version, updatedJobListener);
+                        },
+                        updatedJobListener::onFailure
+                ));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                updatedJobListener.onFailure(e);
+            }
+        });
+    }
+
+    private void indexUpdatedJob(Job updatedJob, long version, ActionListener<Job> updatedJobListener) {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            XContentBuilder updatedSource = updatedJob.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            IndexRequest indexRequest = client.prepareIndex(AnomalyDetectorsIndex.configIndexName(),
+                    ElasticsearchMappings.DOC_TYPE, Job.documentId(updatedJob.getId()))
+                    .setSource(updatedSource)
+                    .setVersion(version)
+                    .request();
+
+            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
+                    indexResponse -> {
+                        assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
+                        updatedJobListener.onResponse(updatedJob);
+                    },
+                    updatedJobListener::onFailure
+            ));
+
+        } catch (IOException e) {
+            updatedJobListener.onFailure(
+                    new ElasticsearchParseException("Failed to serialise job with id [" + updatedJob.getId() + "]", e));
+        }
+    }
+
+
+    /**
+     * Check a job exists. A job exists if it has a configuration document.
+     *
+     * If the job does not exist a ResourceNotFoundException is returned to the listener,
+     * FALSE will never be returned only TRUE or ResourceNotFoundException
+     *
+     * @param jobId     The jobId to check
+     * @param listener  Exists listener
+     */
+    public void checkJobExists(String jobId, ActionListener<Boolean> listener) {
+        GetRequest getRequest = new GetRequest(AnomalyDetectorsIndex.configIndexName(),
+                ElasticsearchMappings.DOC_TYPE, Job.documentId(jobId));
+        getRequest.fetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE);
+
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
+            @Override
+            public void onResponse(GetResponse getResponse) {
+                if (getResponse.isExists() == false) {
+                    listener.onFailure(ExceptionsHelper.missingJobException(jobId));
+                } else {
+                    listener.onResponse(Boolean.TRUE);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
             }
         });
     }
@@ -349,6 +454,39 @@ public class JobConfigProvider extends AbstractComponent {
                         listener::onFailure)
                 , client::search);
 
+    }
+
+    /**
+     * Expands the list of job group Ids to the set of jobs which are members of the groups.
+     * Wildcard expansion of group Ids is not supported.
+     *
+     * @param groupIds Group Ids to expand
+     * @param listener Expanded job Ids listener
+     */
+    public void expandGroupIds(List<String> groupIds,  ActionListener<Set<String>> listener) {
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
+                .query(new TermsQueryBuilder(Job.GROUPS.getPreferredName(), groupIds));
+        sourceBuilder.sort(Job.ID.getPreferredName());
+        String [] includes = new String[] {Job.ID.getPreferredName()};
+        sourceBuilder.fetchSource(includes, null);
+
+        SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .setSource(sourceBuilder).request();
+
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
+                ActionListener.<SearchResponse>wrap(
+                        response -> {
+                            Set<String> jobIds = new HashSet<>();
+                            SearchHit[] hits = response.getHits().getHits();
+                            for (SearchHit hit : hits) {
+                                jobIds.add((String)hit.getSourceAsMap().get(Job.ID.getPreferredName()));
+                            }
+
+                            listener.onResponse(jobIds);
+                        },
+                        listener::onFailure)
+                , client::search);
     }
 
     private void parseJobLenientlyFromSource(BytesReference source, ActionListener<Job.Builder> jobListener)  {

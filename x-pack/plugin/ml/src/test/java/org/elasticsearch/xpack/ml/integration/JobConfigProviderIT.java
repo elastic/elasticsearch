@@ -36,6 +36,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
@@ -58,6 +59,29 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         assertNull(jobHolder.get());
         assertNotNull(exceptionHolder.get());
         assertThat(exceptionHolder.get(), instanceOf(ResourceNotFoundException.class));
+    }
+
+    public void testCheckJobExists() throws InterruptedException {
+        AtomicReference<Boolean> jobExistsHolder = new AtomicReference<>();
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+
+        blockingCall(actionListener -> jobConfigProvider.checkJobExists("missing", actionListener), jobExistsHolder, exceptionHolder);
+
+        assertNull(jobExistsHolder.get());
+        assertNotNull(exceptionHolder.get());
+        assertThat(exceptionHolder.get(), instanceOf(ResourceNotFoundException.class));
+
+        AtomicReference<IndexResponse> indexResponseHolder = new AtomicReference<>();
+
+        // Create job
+        Job job = createJob("existing-job", null).build(new Date());
+        blockingCall(actionListener -> jobConfigProvider.putJob(job, actionListener), indexResponseHolder, exceptionHolder);
+
+        exceptionHolder.set(null);
+        blockingCall(actionListener -> jobConfigProvider.checkJobExists("existing-job", actionListener), jobExistsHolder, exceptionHolder);
+        assertNull(exceptionHolder.get());
+        assertNotNull(jobExistsHolder.get());
+        assertTrue(jobExistsHolder.get());
     }
 
     public void testOverwriteNotAllowed() throws InterruptedException {
@@ -161,6 +185,46 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         assertNotNull(exceptionHolder.get());
         assertThat(exceptionHolder.get(), instanceOf(ElasticsearchStatusException.class));
         assertThat(exceptionHolder.get().getMessage(), containsString("Invalid detector rule:"));
+    }
+
+    public void testUpdateWithValidator() throws Exception {
+        final String jobId = "job-update-with-validator";
+
+        // Create job
+        Job newJob = createJob(jobId, null).build(new Date());
+        this.<IndexResponse>blockingCall(actionListener -> jobConfigProvider.putJob(newJob, actionListener));
+
+        JobUpdate jobUpdate = new JobUpdate.Builder(jobId).setDescription("This job has been updated").build();
+
+        JobConfigProvider.UpdateValidator validator = (job, update, listener) -> {
+            listener.onResponse(null);
+        };
+
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        AtomicReference<Job> updateJobResponseHolder = new AtomicReference<>();
+        // update with the no-op validator
+        blockingCall(actionListener ->
+                        jobConfigProvider.updateJobWithValidation(jobId, jobUpdate, new ByteSizeValue(32), validator, actionListener),
+                updateJobResponseHolder, exceptionHolder);
+
+        assertNull(exceptionHolder.get());
+        assertNotNull(updateJobResponseHolder.get());
+        assertEquals("This job has been updated", updateJobResponseHolder.get().getDescription());
+
+        JobConfigProvider.UpdateValidator validatorWithAnError = (job, update, listener) -> {
+            listener.onFailure(new IllegalStateException("I don't like this update"));
+        };
+
+        updateJobResponseHolder.set(null);
+        // Update with a validator that errors
+        blockingCall(actionListener -> jobConfigProvider.updateJobWithValidation(jobId, jobUpdate, new ByteSizeValue(32),
+                validatorWithAnError, actionListener),
+                updateJobResponseHolder, exceptionHolder);
+
+        assertNull(updateJobResponseHolder.get());
+        assertNotNull(exceptionHolder.get());
+        assertThat(exceptionHolder.get(), instanceOf(IllegalStateException.class));
+        assertThat(exceptionHolder.get().getMessage(), containsString("I don't like this update"));
     }
 
     public void testAllowNoJobs() throws InterruptedException {
@@ -295,6 +359,33 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         expandedJobsBuilders = blockingCall(actionListener -> jobConfigProvider.expandJobs("b*r-1", true, actionListener));
         expandedJobs = expandedJobsBuilders.stream().map(Job.Builder::build).collect(Collectors.toList());
         assertThat(expandedJobs, containsInAnyOrder(bar1));
+    }
+
+    public void testExpandGroups() throws Exception {
+        putJob(createJob("apples", Collections.singletonList("fruit")));
+        putJob(createJob("pears", Collections.singletonList("fruit")));
+        putJob(createJob("broccoli", Collections.singletonList("veg")));
+        putJob(createJob("potato", Collections.singletonList("veg")));
+        putJob(createJob("tomato", Arrays.asList("fruit", "veg")));
+        putJob(createJob("unrelated", Collections.emptyList()));
+
+        client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
+
+        Set<String> expandedIds = blockingCall(actionListener ->
+                jobConfigProvider.expandGroupIds(Collections.singletonList("fruit"), actionListener));
+        assertThat(expandedIds, containsInAnyOrder("apples", "pears", "tomato"));
+
+        expandedIds = blockingCall(actionListener ->
+                jobConfigProvider.expandGroupIds(Collections.singletonList("veg"), actionListener));
+        assertThat(expandedIds, containsInAnyOrder("broccoli", "potato", "tomato"));
+
+        expandedIds = blockingCall(actionListener ->
+                jobConfigProvider.expandGroupIds(Arrays.asList("fruit", "veg"), actionListener));
+        assertThat(expandedIds, containsInAnyOrder("apples", "pears", "broccoli", "potato", "tomato"));
+
+        expandedIds = blockingCall(actionListener ->
+                jobConfigProvider.expandGroupIds(Collections.singletonList("unknown-group"), actionListener));
+        assertThat(expandedIds, empty());
     }
 
     private Job.Builder createJob(String jobId, List<String> groups) {

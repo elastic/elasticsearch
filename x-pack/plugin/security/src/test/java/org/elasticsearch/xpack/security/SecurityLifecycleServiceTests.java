@@ -157,7 +157,7 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
     private ClusterState.Builder createClusterStateWithMapping(String securityTemplateString) throws IOException {
         final ClusterState clusterState = createClusterStateWithIndex(securityTemplateString).build();
         final String indexName = clusterState.metaData().getAliasAndIndexLookup()
-            .get(SECURITY_INDEX_NAME).getIndices().get(0).getIndex().getName();
+            .get(SECURITY_INDEX_NAME).getIndices().iterator().next().getIndex().getName();
         return ClusterState.builder(clusterState).routingTable(SecurityTestUtils.buildIndexRoutingTable(indexName));
     }
 

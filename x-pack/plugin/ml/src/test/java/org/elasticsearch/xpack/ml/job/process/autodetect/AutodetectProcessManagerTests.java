@@ -219,7 +219,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.newDirectExecutorService());
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
         when(autodetectProcess.isProcessAlive()).thenReturn(true);
-        when(autodetectProcess.readAutodetectResults()).thenReturn(Collections.emptyIterator());
+        when(autodetectProcess.readResults()).thenReturn(Collections.emptyIterator());
         AutodetectProcessFactory autodetectProcessFactory =
                 (j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
         Settings.Builder settings = Settings.builder();
@@ -580,7 +580,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         JobTask jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("my_id");
         expectThrows(EsRejectedExecutionException.class,
-                () -> manager.create(jobTask, buildAutodetectParams(), e -> {}));
+                () -> manager.createAutodetect(jobTask, buildAutodetectParams(), e -> {}));
         verify(autodetectProcess, times(1)).close();
     }
 
@@ -590,7 +590,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
         JobTask jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("foo");
-        manager.create(jobTask, buildAutodetectParams(), e -> {});
+        manager.createAutodetect(jobTask, buildAutodetectParams(), e -> {});
 
         String expectedNotification = "Loading model snapshot [N/A], job latest_record_timestamp [N/A]";
         verify(auditor).info("foo", expectedNotification);
@@ -606,7 +606,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
         JobTask jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("foo");
-        manager.create(jobTask, buildAutodetectParams(), e -> {});
+        manager.createAutodetect(jobTask, buildAutodetectParams(), e -> {});
 
         String expectedNotification = "Loading model snapshot [snapshot-1] with " +
                 "latest_record_timestamp [1970-01-01T00:00:00.000Z], " +
@@ -625,7 +625,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
         JobTask jobTask = mock(JobTask.class);
         when(jobTask.getJobId()).thenReturn("foo");
-        manager.create(jobTask, buildAutodetectParams(), e -> {});
+        manager.createAutodetect(jobTask, buildAutodetectParams(), e -> {});
 
         String expectedNotification = "Loading model snapshot [N/A], " +
                 "job latest_record_timestamp [1970-01-01T00:00:00.000Z]";
@@ -676,7 +676,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                 autodetectProcessFactory, normalizerFactory,
                 new NamedXContentRegistry(Collections.emptyList()), auditor);
         manager = spy(manager);
-        doReturn(communicator).when(manager).create(any(), eq(buildAutodetectParams()), any());
+        doReturn(communicator).when(manager).createAutodetect(any(), eq(buildAutodetectParams()), any());
         return manager;
     }
 

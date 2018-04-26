@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
+package org.elasticsearch.xpack.ml.job.process.writer;
 
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 
@@ -11,8 +11,8 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.ml.job.process.autodetect.writer.WriterConstants.EQUALS;
-import static org.elasticsearch.xpack.ml.job.process.autodetect.writer.WriterConstants.NEW_LINE;
+import static org.elasticsearch.xpack.ml.job.process.writer.WriterConstants.EQUALS;
+import static org.elasticsearch.xpack.ml.job.process.writer.WriterConstants.NEW_LINE;
 
 public class MlFilterWriter {
 

@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
+package org.elasticsearch.xpack.ml.job.process.writer;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.logging.log4j.Logger;

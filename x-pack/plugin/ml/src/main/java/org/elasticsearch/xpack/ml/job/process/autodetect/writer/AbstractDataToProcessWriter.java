@@ -3,15 +3,15 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
+package org.elasticsearch.xpack.ml.job.process.writer;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
-import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
+import org.elasticsearch.xpack.ml.job.process.MlProcess;
 import org.supercsv.encoder.CsvEncoder;
 import org.supercsv.encoder.DefaultCsvEncoder;
 import org.supercsv.prefs.CsvPreference;
@@ -39,7 +39,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
     private final boolean includeControlField;
     private final boolean includeTokensField;
 
-    protected final AutodetectProcess autodetectProcess;
+    protected final MlProcess process;
     protected final DataDescription dataDescription;
     protected final AnalysisConfig analysisConfig;
     protected final DataCountsReporter dataCountsReporter;
@@ -55,12 +55,12 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
     private long latestEpochMs;
     private long latestEpochMsThisUpload;
 
-    protected AbstractDataToProcessWriter(boolean includeControlField, boolean includeTokensField, AutodetectProcess autodetectProcess,
+    protected AbstractDataToProcessWriter(boolean includeControlField, boolean includeTokensField, MlProcess process,
                                           DataDescription dataDescription, AnalysisConfig analysisConfig,
                                           DataCountsReporter dataCountsReporter, Logger logger) {
         this.includeControlField = includeControlField;
         this.includeTokensField = includeTokensField;
-        this.autodetectProcess = Objects.requireNonNull(autodetectProcess);
+        this.process = Objects.requireNonNull(process);
         this.dataDescription = Objects.requireNonNull(dataDescription);
         this.analysisConfig = Objects.requireNonNull(analysisConfig);
         this.dataCountsReporter = Objects.requireNonNull(dataCountsReporter);
@@ -116,7 +116,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
         }
 
         // Write the header
-        autodetectProcess.writeRecord(record);
+        process.writeRecord(record);
     }
 
     /**
@@ -193,7 +193,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
         latestEpochMs = Math.max(latestEpochMs, epochMs);
         latestEpochMsThisUpload = latestEpochMs;
 
-        autodetectProcess.writeRecord(record);
+        process.writeRecord(record);
         dataCountsReporter.reportRecordWritten(numberOfFieldsRead, epochMs);
 
         return true;
@@ -201,7 +201,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
 
     @Override
     public void flushStream() throws IOException {
-        autodetectProcess.flushStream();
+        process.flushStream();
     }
 
     /**

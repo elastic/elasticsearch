@@ -3,49 +3,37 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.job.process.autodetect;
+package org.elasticsearch.xpack.ml.job.process.categorize;
 
 import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
-import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
-import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
-import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
-import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
-import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.time.ZonedDateTime;
-import java.util.Date;
 import java.util.Iterator;
-import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 
 /**
- * A placeholder class simulating the actions of the native Autodetect process.
+ * A placeholder class simulating the actions of the native categorize process.
  * Most methods consume data without performing any action however, after a call to
  * {@link #flushJob(FlushJobParams)} a {@link FlushAcknowledgement}
- * message is expected on the {@link #readResults()} ()} stream. This class writes the flush
+ * message is expected on the {@link #readResults()} stream. This class writes the flush
  * acknowledgement immediately.
  */
-public class BlackHoleAutodetectProcess implements AutodetectProcess {
+public class BlackHoleCategorizeProcess implements CategorizeProcess {
 
     private static final String FLUSH_ID = "flush-1";
 
-    private final String jobId;
     private final ZonedDateTime startTime;
     private final BlockingQueue<AutodetectResult> results = new LinkedBlockingDeque<>();
     private volatile boolean open = true;
 
-    public BlackHoleAutodetectProcess(String jobId) {
-        this.jobId = jobId;
+    public BlackHoleCategorizeProcess() {
         startTime = ZonedDateTime.now();
     }
 
@@ -59,27 +47,7 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     }
 
     @Override
-    public void writeRecord(String[] record) {
-    }
-
-    @Override
-    public void writeResetBucketsControlMessage(DataLoadParams params) {
-    }
-
-    @Override
-    public void writeUpdateModelPlotMessage(ModelPlotConfig modelPlotConfig) {
-    }
-
-    @Override
-    public void writeUpdateDetectorRulesMessage(int detectorIndex, List<DetectionRule> rules) {
-    }
-
-    @Override
-    public void writeUpdateFiltersMessage(List<MlFilter> filters) {
-    }
-
-    @Override
-    public void writeUpdateScheduledEventsMessage(List<ScheduledEvent> events, TimeValue bucketSpan) {
+    public void writeRecord(String[] record) throws IOException {
     }
 
     /**
@@ -96,18 +64,13 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     }
 
     @Override
-    public void persistJob() {
-    }
-
-    @Override
     public void flushStream() {
     }
 
     @Override
     public void close() {
         if (open) {
-            Quantiles quantiles = new Quantiles(jobId, new Date(), "black hole quantiles");
-            AutodetectResult result = new AutodetectResult(null, null, null, quantiles, null, null, null, null, null, null, null);
+            AutodetectResult result = new AutodetectResult(null, null, null, null, null, null, null, null, null, null, null);
             results.add(result);
             open = false;
         }
@@ -172,9 +135,5 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     @Override
     public String readError() {
         return "";
-    }
-
-    @Override
-    public void forecastJob(ForecastParams params) {
     }
 }

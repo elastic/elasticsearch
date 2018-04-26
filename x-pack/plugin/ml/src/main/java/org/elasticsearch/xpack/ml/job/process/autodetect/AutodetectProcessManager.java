@@ -374,7 +374,7 @@ public class AutodetectProcessManager extends AbstractComponent {
         // but the actual process is hanging alive.
         processContext.tryLock();
         try {
-            AutodetectCommunicator communicator = create(processContext.getJobTask(), params, handler);
+            AutodetectCommunicator communicator = createAutodetect(processContext.getJobTask(), params, handler);
             processContext.setRunning(communicator);
         } finally {
             // Now that the process is running and we have updated its state we can unlock.
@@ -384,8 +384,8 @@ public class AutodetectProcessManager extends AbstractComponent {
         }
     }
 
-    AutodetectCommunicator create(JobTask jobTask, AutodetectParams autodetectParams, Consumer<Exception> handler) {
-        // Closing jobs can still be using some or all threads in MachineLearning.AUTODETECT_THREAD_POOL_NAME
+    AutodetectCommunicator createAutodetect(JobTask jobTask, AutodetectParams autodetectParams, Consumer<Exception> handler) {
+        // Closing jobs can still be using some or all threads in MachineLearning.JOB_PROCESS_THREAD_POOL_NAME
         // that an open job uses, so include them too when considering if enough threads are available.
         int currentRunningJobs = processByAllocation.size();
         if (currentRunningJobs > maxAllowedRunningJobs) {
@@ -411,7 +411,7 @@ public class AutodetectProcessManager extends AbstractComponent {
 
         Job job = jobManager.getJobOrThrowIfUnknown(jobId);
         // A TP with no queue, so that we fail immediately if there are no threads available
-        ExecutorService autoDetectExecutorService = threadPool.executor(MachineLearning.AUTODETECT_THREAD_POOL_NAME);
+        ExecutorService autoDetectExecutorService = threadPool.executor(MachineLearning.JOB_PROCESS_THREAD_POOL_NAME);
         DataCountsReporter dataCountsReporter = new DataCountsReporter(settings, job, autodetectParams.dataCounts(),
                 jobDataCountsPersister);
         ScoresUpdater scoresUpdater = new ScoresUpdater(job, jobProvider,

@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
+package org.elasticsearch.xpack.ml.job.process.writer;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
-import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
+import org.elasticsearch.xpack.ml.job.process.MlProcess;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 
 import java.io.IOException;
@@ -40,10 +40,10 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
     private static final Logger LOGGER = Loggers.getLogger(JsonDataToProcessWriter.class);
     private NamedXContentRegistry xContentRegistry;
 
-    JsonDataToProcessWriter(boolean includeControlField, boolean includeTokensField, AutodetectProcess autodetectProcess,
+    JsonDataToProcessWriter(boolean includeControlField, boolean includeTokensField, MlProcess process,
                             DataDescription dataDescription, AnalysisConfig analysisConfig,
                             DataCountsReporter dataCountsReporter, NamedXContentRegistry xContentRegistry) {
-        super(includeControlField, includeTokensField, autodetectProcess, dataDescription, analysisConfig,
+        super(includeControlField, includeTokensField, process, dataDescription, analysisConfig,
                 dataCountsReporter, LOGGER);
         this.xContentRegistry = xContentRegistry;
     }

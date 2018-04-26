@@ -3,9 +3,8 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
+package org.elasticsearch.xpack.ml.job.process.writer;
 
-import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -29,7 +28,7 @@ import java.util.Map;
 import static org.mockito.Mockito.mock;
 
 public class XContentRecordReaderTests extends ESTestCase {
-    public void testRead() throws JsonParseException, IOException {
+    public void testRead() throws IOException {
         String data = "{\"a\":10, \"b\":20, \"c\":30}\n{\"b\":21, \"a\":11, \"c\":31}\n";
         XContentParser parser = createParser(data);
         Map<String, Integer> fieldMap = createFieldMap();
@@ -54,7 +53,7 @@ public class XContentRecordReaderTests extends ESTestCase {
     }
 
 
-    public void testRead_GivenNestedField() throws JsonParseException, IOException {
+    public void testRead_GivenNestedField() throws IOException {
         String data = "{\"a\":10, \"b\":20, \"c\":{\"d\":30, \"e\":40}}";
         XContentParser parser = createParser(data);
         Map<String, Integer> fieldMap = new HashMap<>();
@@ -77,7 +76,7 @@ public class XContentRecordReaderTests extends ESTestCase {
     }
 
 
-    public void testRead_GivenSingleValueArrays() throws JsonParseException, IOException {
+    public void testRead_GivenSingleValueArrays() throws IOException {
         String data = "{\"a\":[10], \"b\":20, \"c\":{\"d\":30, \"e\":[40]}}";
         XContentParser parser = createParser(data);
         Map<String, Integer> fieldMap = new HashMap<>();
@@ -100,7 +99,7 @@ public class XContentRecordReaderTests extends ESTestCase {
     }
 
 
-    public void testRead_GivenMultiValueArrays() throws JsonParseException, IOException {
+    public void testRead_GivenMultiValueArrays() throws IOException {
         String data = "{\"a\":[10, 11], \"b\":20, \"c\":{\"d\":30, \"e\":[40, 50]}, "
                 + "\"f\":[\"a\", \"a\", \"a\", \"a\"], \"g\":20}";
         XContentParser parser = createParser(data);
@@ -129,7 +128,7 @@ public class XContentRecordReaderTests extends ESTestCase {
      * invalid json. This means we miss the next record after a bad one.
      */
 
-    public void testRead_RecoverFromBadJson() throws JsonParseException, IOException {
+    public void testRead_RecoverFromBadJson() throws IOException {
         // no opening '{'
         String data = "\"a\":10, \"b\":20, \"c\":30}\n{\"b\":21, \"a\":11, \"c\":31}\n"
                 + "{\"c\":32, \"b\":22, \"a\":12}";
@@ -152,7 +151,7 @@ public class XContentRecordReaderTests extends ESTestCase {
     }
 
 
-    public void testRead_RecoverFromBadNestedJson() throws JsonParseException, IOException {
+    public void testRead_RecoverFromBadNestedJson() throws IOException {
         // nested object 'd' is missing a ','
         String data = "{\"a\":10, \"b\":20, \"c\":30}\n"
                 + "{\"b\":21, \"d\" : {\"ee\": 1 \"ff\":0}, \"a\":11, \"c\":31}";
@@ -177,7 +176,7 @@ public class XContentRecordReaderTests extends ESTestCase {
     }
 
 
-    public void testRead_HitParseErrorsLimit() throws JsonParseException, IOException {
+    public void testRead_HitParseErrorsLimit() throws IOException {
         // missing a ':'
         String format = "{\"a\":1%1$d, \"b\"2%1$d, \"c\":3%1$d}\n";
         StringBuilder builder = new StringBuilder();
@@ -223,7 +222,7 @@ public class XContentRecordReaderTests extends ESTestCase {
         assertEquals(3, reader.read(record, gotFields));
     }
 
-    private XContentParser createParser(String input) throws JsonParseException, IOException {
+    private XContentParser createParser(String input) throws IOException {
         ByteArrayInputStream inputStream = new ByteArrayInputStream(
                 input.getBytes(StandardCharsets.UTF_8));
         InputStream inputStream2 = new CountingInputStream(inputStream,

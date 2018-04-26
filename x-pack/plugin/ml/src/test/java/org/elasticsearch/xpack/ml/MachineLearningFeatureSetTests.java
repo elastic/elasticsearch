@@ -68,7 +68,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     public void init() throws Exception {
         commonSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-                .put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false)
+                .put(MachineLearningField.USE_NATIVE_PROCESSES.getKey(), false)
                 .build();
         clusterService = mock(ClusterService.class);
         client = mock(Client.class);

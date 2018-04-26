@@ -26,9 +26,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.core.ml.MLMetadataField;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -46,6 +44,8 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.junit.After;
 import org.junit.Before;
 
@@ -77,7 +77,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
-        settings.put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false);
+        settings.put(MachineLearningField.USE_NATIVE_PROCESSES.getKey(), false);
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
         settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         settings.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");

@@ -9,15 +9,14 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
-import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.ml.job.process.AbstractNativeProcessBuilder;
 import org.elasticsearch.xpack.ml.job.process.NativeController;
 import org.elasticsearch.xpack.ml.job.process.ProcessCtrl;
 import org.elasticsearch.xpack.ml.job.process.ProcessPipes;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
-import org.elasticsearch.xpack.ml.job.process.autodetect.writer.AnalysisLimitsWriter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.FieldConfigWriter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.ModelPlotConfigWriter;
 
@@ -29,28 +28,18 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 
 /**
  * The autodetect process builder.
  */
-public class AutodetectBuilder {
-    private static final String CONF_EXTENSION = ".conf";
-    private static final String LIMIT_CONFIG_ARG = "--limitconfig=";
+public class AutodetectBuilder extends AbstractNativeProcessBuilder {
     private static final String MODEL_PLOT_CONFIG_ARG = "--modelplotconfig=";
     private static final String FIELD_CONFIG_ARG = "--fieldconfig=";
 
-    private Job job;
-    private List<Path> filesToDelete;
-    private Logger logger;
     private Set<MlFilter> referencedFilters;
     private List<ScheduledEvent> scheduledEvents;
     private Quantiles quantiles;
-    private Environment env;
-    private Settings settings;
-    private NativeController controller;
-    private ProcessPipes processPipes;
 
     /**
      * Constructs an autodetect process builder
@@ -62,13 +51,7 @@ public class AutodetectBuilder {
      */
     public AutodetectBuilder(Job job, List<Path> filesToDelete, Logger logger, Environment env, Settings settings,
                              NativeController controller, ProcessPipes processPipes) {
-        this.env = env;
-        this.settings = settings;
-        this.controller = controller;
-        this.processPipes = processPipes;
-        this.job = Objects.requireNonNull(job);
-        this.filesToDelete = Objects.requireNonNull(filesToDelete);
-        this.logger = Objects.requireNonNull(logger);
+        super(job, filesToDelete, logger, env, settings, controller, processPipes);
         referencedFilters = new HashSet<>();
         scheduledEvents = Collections.emptyList();
     }
@@ -109,26 +92,6 @@ public class AutodetectBuilder {
         controller.startProcess(command);
     }
 
-    private void buildLimits(List<String> command) throws IOException {
-        if (job.getAnalysisLimits() != null) {
-            Path limitConfigFile = Files.createTempFile(env.tmpFile(), "limitconfig", CONF_EXTENSION);
-            filesToDelete.add(limitConfigFile);
-            writeLimits(job.getAnalysisLimits(), limitConfigFile);
-            String limits = LIMIT_CONFIG_ARG + limitConfigFile.toString();
-            command.add(limits);
-        }
-    }
-
-    /**
-     * Write the Ml autodetect model options to <code>emptyConfFile</code>.
-     */
-    private static void writeLimits(AnalysisLimits options, Path emptyConfFile) throws IOException {
-
-        try (OutputStreamWriter osw = new OutputStreamWriter(Files.newOutputStream(emptyConfFile), StandardCharsets.UTF_8)) {
-            new AnalysisLimitsWriter(options, osw).write();
-        }
-    }
-
     private void buildModelPlotConfig(List<String> command) throws IOException {
         if (job.getModelPlotConfig() != null) {
             Path modelPlotConfigFile = Files.createTempFile(env.tmpFile(), "modelplotconfig", CONF_EXTENSION);
@@ -139,8 +102,7 @@ public class AutodetectBuilder {
         }
     }
 
-    private static void writeModelPlotConfig(ModelPlotConfig config, Path emptyConfFile)
-            throws IOException {
+    private static void writeModelPlotConfig(ModelPlotConfig config, Path emptyConfFile) throws IOException {
         try (OutputStreamWriter osw = new OutputStreamWriter(
                 Files.newOutputStream(emptyConfFile),
                 StandardCharsets.UTF_8)) {

@@ -112,4 +112,34 @@ public class ProcessCtrlTests extends ESTestCase {
         assertTrue(command.contains(ProcessCtrl.LENGTH_ENCODED_INPUT_ARG));
         assertTrue(command.contains(ProcessCtrl.PER_PARTITION_NORMALIZATION));
     }
+
+    public void testBuildCategorizeCommand() {
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        Job.Builder job = buildJobBuilder("unit-test-job");
+
+        // TODO: Tidy this up once the config side of multiple job types is resolved
+        // Clearly a detector shouldn't be required here
+        Detector.Builder detectorBuilder = new Detector.Builder("count", null);
+        detectorBuilder.setByFieldName("mlcategory");
+        AnalysisConfig.Builder acBuilder = new AnalysisConfig.Builder(Collections.singletonList(detectorBuilder.build()));
+        acBuilder.setCategorizationFieldName("categorizationField");
+        job.setAnalysisConfig(acBuilder);
+
+        DataDescription.Builder dd = new DataDescription.Builder();
+        dd.setFormat(DataDescription.DataFormat.XCONTENT);
+        job.setDataDescription(dd);
+
+        List<String> command = ProcessCtrl.buildCategorizeCommand(env, settings, job.build(), logger);
+        assertEquals(5, command.size());
+        assertTrue(command.contains(ProcessCtrl.CATEGORIZE_PATH));
+        assertTrue(command.contains(ProcessCtrl.CATEGORIZATION_FIELD_ARG + "categorizationField"));
+
+        assertTrue(command.contains(ProcessCtrl.LENGTH_ENCODED_INPUT_ARG));
+
+        assertTrue(command.contains(ProcessCtrl.JOB_ID_ARG + "unit-test-job"));
+
+        int expectedPersistInterval = 10800 + ProcessCtrl.calculateStaggeringInterval(job.getId());
+        assertTrue(command.contains(ProcessCtrl.PERSIST_INTERVAL_ARG + expectedPersistInterval));
+    }
 }

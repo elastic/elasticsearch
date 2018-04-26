@@ -10,13 +10,12 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 
 public final class MachineLearningField {
-    public static final Setting<Boolean> AUTODETECT_PROCESS =
-            Setting.boolSetting("xpack.ml.autodetect_process", true, Setting.Property.NodeScope);
+    public static final Setting<Boolean> USE_NATIVE_PROCESSES =
+            Setting.boolSetting("xpack.ml.use_native_processes", true, Setting.Property.NodeScope);
     public static final Setting<ByteSizeValue> MAX_MODEL_MEMORY_LIMIT =
             Setting.memorySizeSetting("xpack.ml.max_model_memory_limit", new ByteSizeValue(0),
                     Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final TimeValue STATE_PERSIST_RESTORE_TIMEOUT = TimeValue.timeValueMinutes(30);
 
     private MachineLearningField() {}
-
 }

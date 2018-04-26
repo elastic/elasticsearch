@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
+package org.elasticsearch.xpack.ml.job.process.writer;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
+import org.elasticsearch.xpack.ml.job.process.autodetect.writer.ModelPlotConfigWriter;
+import org.elasticsearch.xpack.ml.job.process.autodetect.writer.ScheduledEventsWriter;
 
 import java.io.IOException;
 import java.io.OutputStream;

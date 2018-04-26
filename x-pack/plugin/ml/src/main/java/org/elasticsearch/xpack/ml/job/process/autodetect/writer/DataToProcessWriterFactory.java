@@ -3,13 +3,13 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
+package org.elasticsearch.xpack.ml.job.process.writer;
 
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
-import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
+import org.elasticsearch.xpack.ml.job.process.MlProcess;
 
 /**
  * Factory for creating the suitable writer depending on whether the data format
@@ -28,15 +28,15 @@ public final class DataToProcessWriterFactory {
      *         otherwise a {@link CsvDataToProcessWriter}
      */
     public static DataToProcessWriter create(boolean includeControlField, boolean includeTokensField,
-            AutodetectProcess autodetectProcess, DataDescription dataDescription,
+            MlProcess process, DataDescription dataDescription,
             AnalysisConfig analysisConfig, DataCountsReporter dataCountsReporter,
             NamedXContentRegistry xContentRegistry) {
         switch (dataDescription.getFormat()) {
         case XCONTENT:
-            return new JsonDataToProcessWriter(includeControlField, includeTokensField, autodetectProcess,
+            return new JsonDataToProcessWriter(includeControlField, includeTokensField, process,
                     dataDescription, analysisConfig, dataCountsReporter, xContentRegistry);
         case DELIMITED:
-            return new CsvDataToProcessWriter(includeControlField, includeTokensField, autodetectProcess,
+            return new CsvDataToProcessWriter(includeControlField, includeTokensField, process,
                     dataDescription, analysisConfig, dataCountsReporter);
         default:
             throw new IllegalArgumentException();

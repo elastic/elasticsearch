@@ -35,10 +35,16 @@ import java.util.stream.Collectors;
 public class ProcessCtrl {
 
     /**
-     * Autodetect API native program name - always loaded from the same directory as the controller process
+     * Autodetect native program name - always loaded from the same directory as the controller process
      */
     public static final String AUTODETECT = "autodetect";
     static final String AUTODETECT_PATH = "./" + AUTODETECT;
+
+    /**
+     * Categorize native program name - always loaded from the same directory as the controller process
+     */
+    public static final String CATEGORIZE = "categorize";
+    static final String CATEGORIZE_PATH = "./" + CATEGORIZE;
 
     /**
      * The normalization native program name - always loaded from the same directory as the controller process
@@ -78,15 +84,24 @@ public class ProcessCtrl {
     static final String PER_PARTITION_NORMALIZATION = "--perPartitionNormalization";
 
     /*
+     * Arguments used by both autodetect and categorize
+     */
+    static final String PERSIST_INTERVAL_ARG = "--persistInterval=";
+
+    /*
      * Arguments used by autodetect
      */
     static final String LATENCY_ARG = "--latency=";
     static final String RESULT_FINALIZATION_WINDOW_ARG = "--resultFinalizationWindow=";
     static final String MULTIVARIATE_BY_FIELDS_ARG = "--multivariateByFields";
-    static final String PERSIST_INTERVAL_ARG = "--persistInterval=";
     static final String MAX_QUANTILE_INTERVAL_ARG = "--maxQuantileInterval=";
     static final String SUMMARY_COUNT_FIELD_ARG = "--summarycountfield=";
     static final String TIME_FIELD_ARG = "--timefield=";
+
+    /*
+     * Arguments used by categorize
+     */
+    static final String CATEGORIZATION_FIELD_ARG = "--categorizationfield=";
 
     private static final int SECONDS_IN_HOUR = 3600;
 
@@ -153,10 +168,8 @@ public class ProcessCtrl {
         if (analysisConfig != null) {
             addIfNotNull(analysisConfig.getBucketSpan(), BUCKET_SPAN_ARG, command);
             addIfNotNull(analysisConfig.getLatency(), LATENCY_ARG, command);
-            addIfNotNull(analysisConfig.getSummaryCountFieldName(),
-                    SUMMARY_COUNT_FIELD_ARG, command);
-            addIfNotNull(analysisConfig.getMultipleBucketSpans(),
-                    MULTIPLE_BUCKET_SPANS_ARG, command);
+            addIfNotNull(analysisConfig.getSummaryCountFieldName(), SUMMARY_COUNT_FIELD_ARG, command);
+            addIfNotNull(analysisConfig.getMultipleBucketSpans(), MULTIPLE_BUCKET_SPANS_ARG, command);
             if (Boolean.TRUE.equals(analysisConfig.getOverlappingBuckets())) {
                 Long window = analysisConfig.getResultFinalizationWindow();
                 if (window == null) {
@@ -193,9 +206,8 @@ public class ProcessCtrl {
         } else {
             // Persist model state every few hours even if the job isn't closed
             long persistInterval = (job.getBackgroundPersistInterval() == null) ?
-                    (DEFAULT_BASE_PERSIST_INTERVAL + intervalStagger) :
-                        job.getBackgroundPersistInterval().getSeconds();
-                    command.add(PERSIST_INTERVAL_ARG + persistInterval);
+                    (DEFAULT_BASE_PERSIST_INTERVAL + intervalStagger) : job.getBackgroundPersistInterval().getSeconds();
+            command.add(PERSIST_INTERVAL_ARG + persistInterval);
         }
 
         int maxQuantileInterval = BASE_MAX_QUANTILE_INTERVAL + intervalStagger;
@@ -204,6 +216,38 @@ public class ProcessCtrl {
         if (modelConfigFilePresent(env)) {
             String modelConfigFile = XPackPlugin.resolveConfigFile(env, ML_MODEL_CONF).toString();
             command.add(MODEL_CONFIG_ARG + modelConfigFile);
+        }
+
+        return command;
+    }
+
+    public static List<String> buildCategorizeCommand(Environment env, Settings settings, Job job, Logger logger) {
+        List<String> command = new ArrayList<>();
+        command.add(CATEGORIZE_PATH);
+
+        String jobId = JOB_ID_ARG + job.getId();
+        command.add(jobId);
+
+        AnalysisConfig analysisConfig = job.getAnalysisConfig();
+        if (analysisConfig != null) {
+            addIfNotNull(analysisConfig.getCategorizationFieldName(), CATEGORIZATION_FIELD_ARG, command);
+        }
+
+        // Input is always length encoded
+        command.add(LENGTH_ENCODED_INPUT_ARG);
+
+        int intervalStagger = calculateStaggeringInterval(job.getId());
+        logger.debug("Periodic operations staggered by " + intervalStagger +" seconds for job '" + job.getId() + "'");
+
+        // Supply a URL for persisting/restoring model state unless model
+        // persistence has been explicitly disabled.
+        if (DONT_PERSIST_MODEL_STATE_SETTING.get(settings)) {
+            logger.info("Will not persist model state - "  + DONT_PERSIST_MODEL_STATE_SETTING + " setting was set");
+        } else {
+            // Persist model state every few hours even if the job isn't closed
+            long persistInterval = (job.getBackgroundPersistInterval() == null) ?
+                    (DEFAULT_BASE_PERSIST_INTERVAL + intervalStagger) : job.getBackgroundPersistInterval().getSeconds();
+            command.add(PERSIST_INTERVAL_ARG + persistInterval);
         }
 
         return command;

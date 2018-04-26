@@ -15,8 +15,8 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.ml.job.process.autodetect.writer.WriterConstants.EQUALS;
-import static org.elasticsearch.xpack.ml.job.process.autodetect.writer.WriterConstants.NEW_LINE;
+import static org.elasticsearch.xpack.ml.job.process.writer.WriterConstants.EQUALS;
+import static org.elasticsearch.xpack.ml.job.process.writer.WriterConstants.NEW_LINE;
 
 public class ScheduledEventsWriter {
 

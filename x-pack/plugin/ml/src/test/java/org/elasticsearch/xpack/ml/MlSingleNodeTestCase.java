@@ -18,8 +18,8 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
     @Override
     protected Settings nodeSettings() {
         Settings.Builder newSettings = Settings.builder();
-        // Disable native ML autodetect_process as the c++ controller won't be available
-        newSettings.put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false);
+        // Disable native ML processes as the c++ controller won't be available
+        newSettings.put(MachineLearningField.USE_NATIVE_PROCESSES.getKey(), false);
         newSettings.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         return newSettings.build();
     }

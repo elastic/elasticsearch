@@ -54,8 +54,8 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
                 .put(MonitoringService.INTERVAL.getKey(), MonitoringService.MIN_INTERVAL)
 //                .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
 //                .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
-                // Disable native ML autodetect_process as the c++ controller won't be available
-//                .put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false)
+                // Disable native ML processes as the c++ controller won't be available
+//                .put(MachineLearningField.USE_NATIVE_PROCESSES.getKey(), false)
 //                .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
                 // we do this by default in core, but for monitoring this isn't needed and only adds noise.
                 .put("index.store.mock.check_index_on_close", false);

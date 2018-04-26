@@ -10,7 +10,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DefaultDetectorDescription;
@@ -18,6 +17,8 @@ import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
+import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.process.writer.MlFilterWriter;
 
 import java.io.IOException;
 import java.io.OutputStreamWriter;
@@ -26,7 +27,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.ml.job.process.autodetect.writer.WriterConstants.EQUALS;
+import static org.elasticsearch.xpack.ml.job.process.writer.WriterConstants.EQUALS;
 
 public class FieldConfigWriter {
     private static final String DETECTOR_PREFIX = "detector.";

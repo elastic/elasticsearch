@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.output.StateProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
-import org.elasticsearch.xpack.ml.job.process.autodetect.writer.ControlMsgToProcessWriter;
+import org.elasticsearch.xpack.ml.job.process.writer.ControlMsgToProcessWriter;
 import org.junit.Assert;
 import org.junit.Before;
 

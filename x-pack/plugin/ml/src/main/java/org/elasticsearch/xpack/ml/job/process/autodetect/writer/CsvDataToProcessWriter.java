@@ -3,18 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
+package org.elasticsearch.xpack.ml.job.process.writer;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
-import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
-import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
+import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
+import org.elasticsearch.xpack.ml.job.process.MlProcess;
 import org.supercsv.io.CsvListReader;
 import org.supercsv.prefs.CsvPreference;
 
@@ -56,10 +56,10 @@ class CsvDataToProcessWriter extends AbstractDataToProcessWriter {
      */
     private static final int MAX_LINES_PER_RECORD = 10000;
 
-    CsvDataToProcessWriter(boolean includeControlField, boolean includeTokensField, AutodetectProcess autodetectProcess,
+    CsvDataToProcessWriter(boolean includeControlField, boolean includeTokensField, MlProcess process,
                            DataDescription dataDescription, AnalysisConfig analysisConfig,
                            DataCountsReporter dataCountsReporter) {
-        super(includeControlField, includeTokensField, autodetectProcess, dataDescription, analysisConfig, dataCountsReporter, LOGGER);
+        super(includeControlField, includeTokensField, process, dataDescription, analysisConfig, dataCountsReporter, LOGGER);
     }
 
     /**

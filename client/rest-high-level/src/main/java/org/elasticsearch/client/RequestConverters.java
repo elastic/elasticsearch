@@ -47,13 +47,14 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -535,6 +536,17 @@ final class RequestConverters {
         return request;
     }
 
+    static Request fieldCaps(FieldCapabilitiesRequest fieldCapabilitiesRequest) {
+        String[] indices = fieldCapabilitiesRequest.indices();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint(indices, "_field_caps"));
+
+        Params params = new Params(request);
+        params.withFields(fieldCapabilitiesRequest.fields());
+        params.withIndicesOptions(fieldCapabilitiesRequest.indicesOptions());
+
+        return request;
+    }
+
     static Request rankEval(RankEvalRequest rankEvalRequest) throws IOException {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint(rankEvalRequest.indices(), Strings.EMPTY_ARRAY, "_rank_eval"));
 
@@ -802,6 +814,13 @@ final class RequestConverters {
                 if (fetchSourceContext.excludes() != null && fetchSourceContext.excludes().length > 0) {
                     putParam("_source_exclude", String.join(",", fetchSourceContext.excludes()));
                 }
+            }
+            return this;
+        }
+
+        Params withFields(String[] fields) {
+            if (fields != null && fields.length > 0) {
+                return putParam("fields", String.join(",", fields));
             }
             return this;
         }

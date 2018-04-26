@@ -30,6 +30,8 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
@@ -499,6 +501,31 @@ public class RestHighLevelClient implements Closeable {
     public final void rankEvalAsync(RankEvalRequest rankEvalRequest, ActionListener<RankEvalResponse> listener, Header... headers) {
         performRequestAsyncAndParseEntity(rankEvalRequest, Request::rankEval, RankEvalResponse::fromXContent, listener, emptySet(),
                 headers);
+    }
+
+    /**
+     * Executes a request using the Field Capabilities API.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-field-caps.html">Field Capabilities API
+     * on elastic.co</a>.
+     */
+    public final FieldCapabilitiesResponse fieldCaps(FieldCapabilitiesRequest fieldCapabilitiesRequest,
+                                                     Header... headers) throws IOException {
+        return performRequestAndParseEntity(fieldCapabilitiesRequest, Request::fieldCaps,
+            FieldCapabilitiesResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously executes a request using the Field Capabilities API.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-field-caps.html">Field Capabilities API
+     * on elastic.co</a>.
+     */
+    public final void fieldCapsAsync(FieldCapabilitiesRequest fieldCapabilitiesRequest,
+                                     ActionListener<FieldCapabilitiesResponse> listener,
+                                     Header... headers) {
+        performRequestAsyncAndParseEntity(fieldCapabilitiesRequest, Request::fieldCaps,
+            FieldCapabilitiesResponse::fromXContent, listener, emptySet(), headers);
     }
 
     protected final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,

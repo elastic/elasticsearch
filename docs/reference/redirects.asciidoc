@@ -489,7 +489,7 @@ Using `_index` in scripts has been replaced with writing `ScriptEngine` backends
 === Painless Syntax
 
 See the
-{painless}/painless-specification.html[Painless Language Specification]
+{painless}/painless-lang-spec.html[Painless Language Specification]
 in the guide to the {painless}/index.html[Painless Scripting Language].
 
 [role="exclude",id="modules-scripting-painless-debugging"]

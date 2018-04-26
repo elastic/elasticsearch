@@ -1,0 +1,14 @@
+# Integration tests for smoke testing plugins
+#
+"Plugins are actually installed":
+    - do:
+        cluster.state: {}
+
+    # Get master node id
+    - set: { master_node: master }
+
+    - do:
+        nodes.info: {}
+
+    - length:  { nodes.$master.plugins: ${expected.plugins.count}  }
+    # TODO: check that every plugin is installed

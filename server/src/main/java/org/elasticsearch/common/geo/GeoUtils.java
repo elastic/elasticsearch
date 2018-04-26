@@ -24,9 +24,14 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.GeoPointValues;
@@ -36,6 +41,7 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 
 import java.io.IOException;
+import java.io.InputStream;
 
 public class GeoUtils {
 
@@ -349,6 +355,36 @@ public class GeoUtils {
 
     public static GeoPoint parseGeoPoint(XContentParser parser, GeoPoint point) throws IOException, ElasticsearchParseException {
         return parseGeoPoint(parser, point, false);
+    }
+
+    /**
+     * Parses the value as a geopoint. The following types of values are supported:
+     * <p>
+     * Object: has to contain either lat and lon or geohash fields
+     * <p>
+     * String: expected to be in "latitude, longitude" format or a geohash
+     * <p>
+     * Array: two or more elements, the first element is longitude, the second is latitude, the rest is ignored if ignoreZValue is true
+     */
+    public static GeoPoint parseGeoPoint(Object value, final boolean ignoreZValue) throws ElasticsearchParseException {
+        try {
+            XContentBuilder content = JsonXContent.contentBuilder();
+            content.startObject();
+            content.field("null_value", value);
+            content.endObject();
+
+            try (InputStream stream = BytesReference.bytes(content).streamInput();
+                 XContentParser parser = JsonXContent.jsonXContent.createParser(
+                     NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+                parser.nextToken(); // start object
+                parser.nextToken(); // field name
+                parser.nextToken(); // field value
+                return parseGeoPoint(parser, new GeoPoint(), ignoreZValue);
+            }
+
+        } catch (IOException ex) {
+            throw new ElasticsearchParseException("error parsing geopoint", ex);
+        }
     }
 
     /**

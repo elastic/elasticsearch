@@ -101,12 +101,12 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
 
         BucketSignificancePriorityQueue<SignificantStringTerms.Bucket> ordered = new BucketSignificancePriorityQueue<>(size);
         SignificantStringTerms.Bucket spare = null;
-        boolean needsFullSan = bucketOrds == null || bucketCountThresholds.getMinDocCount() == 0;
-        long maxId = needsFullSan ? valueCount : bucketOrds.size();
+        boolean needsFullScan = bucketOrds == null || bucketCountThresholds.getMinDocCount() == 0;
+        long maxId = needsFullScan ? valueCount : bucketOrds.size();
         for (long ord = 0; ord < maxId; ord++) {
             final long globalOrd;
             final long bucketOrd;
-            if (needsFullSan) {
+            if (needsFullScan) {
                 bucketOrd = bucketOrds == null ? ord : bucketOrds.find(ord);
                 globalOrd = ord;
             } else {

@@ -1,4 +1,6 @@
 import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.plugin.MetaPluginBuildPlugin
+import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
@@ -9,9 +11,11 @@ dependencies {
 
 ext.pluginsCount = 0
 project.rootProject.subprojects.findAll { it.path.startsWith(':plugins:') }.each { subproj ->
-  // need to get a non-decorated project object, so must re-lookup the project by path
-  integTestCluster.plugin(subproj.path)
-  pluginsCount += 1
+  if (subproj.plugins.hasPlugin(PluginBuildPlugin) || subproj.plugins.hasPlugin(MetaPluginBuildPlugin)) {
+    // need to get a non-decorated project object, so must re-lookup the project by path
+    integTestCluster.plugin(subproj.path)
+    pluginsCount += 1
+  }
 }
 
 integTestCluster {

@@ -114,7 +114,7 @@ subprojects {
     approvedLicenses << 'Apache'
   }
 
-  String outputDir = "generated-resources/${project.name}"
+  String outputDir = "${buildDir}/generated-resources/${project.name}"
 
   // This is a top level task which we will add dependencies to below.
   // It is a single task that can be used to backcompat tests against all versions.
@@ -123,7 +123,7 @@ subprojects {
     group = 'verification'
   }
 
-  String output = "generated-resources/${project.name}"
+  String output = "${buildDir}/generated-resources/${project.name}"
   task copyTestNodeKeystore(type: Copy) {
     from project(xpackModule('core'))
             .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')

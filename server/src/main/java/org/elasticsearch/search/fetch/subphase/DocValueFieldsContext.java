@@ -50,7 +50,7 @@ public class DocValueFieldsContext {
                 a -> new FieldAndFormat((String) a[0], (String) a[1]));
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("field"));
-            PARSER.declareStringOrNull(ConstructingObjectParser.constructorArg(), new ParseField("format"));
+            PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField("format"));
         }
 
         /**

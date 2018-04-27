@@ -13,3 +13,6 @@ Core::
 Cross-Cluster-Search::
 * `http_addresses` has been removed from the <<cluster-remote-info>> API
   because it is expensive to fetch and no longer needed by Kibana.
+
+Rest API::
+* The Clear Cache API only supports `POST` as HTTP method

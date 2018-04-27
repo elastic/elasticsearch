@@ -103,8 +103,8 @@ PUT /arabic_example
             "lowercase",
             "decimal_digit",
             "arabic_stop",
-            "arabic_keywords",
             "arabic_normalization",
+            "arabic_keywords",
             "arabic_stemmer"
           ]
         }
@@ -114,7 +114,7 @@ PUT /arabic_example
 }
 ----------------------------------------------------
 // CONSOLE
-// TEST[s/"arabic_normalization",//]
+// TEST[s/"arabic_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: arabic_example, first: arabic, second: rebuilt_arabic}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
     or `stopwords_path` parameters.

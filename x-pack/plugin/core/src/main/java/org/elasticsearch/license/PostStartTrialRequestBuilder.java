@@ -14,4 +14,9 @@ class PostStartTrialRequestBuilder extends ActionRequestBuilder<PostStartTrialRe
     PostStartTrialRequestBuilder(ElasticsearchClient client, PostStartTrialAction action) {
         super(client, action, new PostStartTrialRequest());
     }
+
+    public PostStartTrialRequestBuilder setAcknowledge(boolean acknowledge) {
+        request.acknowledge(acknowledge);
+        return this;
+    }
 }

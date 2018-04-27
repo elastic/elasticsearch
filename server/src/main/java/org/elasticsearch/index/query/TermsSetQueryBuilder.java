@@ -18,9 +18,7 @@
  */
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanQuery;
@@ -86,6 +84,11 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
         out.writeOptionalWriteable(minimumShouldMatchScript);
     }
 
+    // package protected for testing purpose
+    String getFieldName() {
+        return fieldName;
+    }
+
     public List<?> getValues() {
         return values;
     }
@@ -116,9 +119,10 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
 
     @Override
     protected boolean doEquals(TermsSetQueryBuilder other) {
-        return Objects.equals(fieldName, this.fieldName) && Objects.equals(values, this.values) &&
-                Objects.equals(minimumShouldMatchField, this.minimumShouldMatchField) &&
-                Objects.equals(minimumShouldMatchScript, this.minimumShouldMatchScript);
+        return Objects.equals(fieldName, other.fieldName)
+            && Objects.equals(values, other.values)
+            && Objects.equals(minimumShouldMatchField, other.minimumShouldMatchField)
+            && Objects.equals(minimumShouldMatchScript, other.minimumShouldMatchScript);
     }
 
     @Override

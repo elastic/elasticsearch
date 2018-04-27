@@ -150,9 +150,9 @@ For a native realm, the `type` must be set to `native`. In addition to the
 <<ref-realm-settings,settings that are valid for all realms>>, you can specify  
 the following optional settings: 
 
-`cache.ttl`:: The time-to-live for cached user entries. User credentials are 
-cached for this period of time. Specify the time period using the standard 
-{es} <<time-units,time units>>. Defaults to `20m`.
+`cache.ttl`:: The time-to-live for cached user entries. A user and a hash of its 
+credentials are cached for this period of time. Specify the time period using 
+the standard {es} <<time-units,time units>>. Defaults to `20m`.
 
 `cache.max_users`:: The maximum number of user entries that can live in the 
 cache at any given time. Defaults to 100,000.
@@ -169,9 +169,9 @@ in-memory cached user credentials. For possible values, see
 ===== File realm settings
 
 `cache.ttl`::
-The time-to-live for cached user entries--user credentials are cached for
-this configured period of time. Defaults to `20m`. Specify values using the
-standard Elasticsearch {ref}/common-options.html#time-units[time units].
+The time-to-live for cached user entries. A user and a hash of its credentials 
+are cached for this configured period of time. Defaults to `20m`. Specify values 
+using the standard {es} {ref}/common-options.html#time-units[time units].
 Defaults to `20m`.
 
 `cache.max_users`::
@@ -261,9 +261,7 @@ an entry with the username provided by the user. Defaults to `(uid={0})`.
 
 `user_search.attribute`::
 deprecated[5.6] Use `user_search.filter` instead.
-The attribute to match with the username presented to. 
-//TBD: Is this incomplete? Presented to what?
-Defaults to `uid`.
+The attribute to match with the username sent with the request. Defaults to `uid`.
 
 `user_search.pool.enabled`::
 Enables or disables connection pooling for user search. If set to `false`, a new 
@@ -305,14 +303,15 @@ Specifies whether the group search should be `sub_tree`, `one_level` or
 `base` specifies that the `base_dn` is a group object, and that it is the
 only group considered. Defaults to  `sub_tree`.
 
-`group_search.filter`:: Specifies a filter to use to look up a group. 
+`group_search.filter`:: 
+Specifies a filter to use to look up a group. 
 When not set, the realm searches for `group`, `groupOfNames`, `groupOfUniqueNames`,
 or `posixGroup` with the attributes `member`, `memberOf`, or `memberUid`.  Any
 instance of `{0}` in the filter is replaced by the user attribute defined in
 `group_search.user_attribute`.
 
 `group_search.user_attribute`::
-Specifies the user attribute is fetched and provided as a parameter to
+Specifies the user attribute that is fetched and provided as a parameter to
 the filter.  If not set, the user DN is passed into the filter. Defaults to Empty.
 
 `unmapped_groups_as_roles`::
@@ -425,8 +424,8 @@ Java Cryptography Architecture documentation]. Defaults to the value of
 `xpack.ssl.cipher_suites`.
 
 `cache.ttl`::
-Specifies the time-to-live for cached user entries. A user and its credentials
-are cached for this period of time. Use the standard {es}
+Specifies the time-to-live for cached user entries. A user and a hash of its 
+credentials are cached for this period of time. Use the standard {es}
 <<time-units,time units>>. Defaults to  `20m`.
 
 `cache.max_users`::
@@ -637,8 +636,8 @@ Java Cryptography Architecture documentation]. Defaults to the value of
 `xpack.ssl.cipher_suites`.
 
 `cache.ttl`::
-Specifies the time-to-live for cached user entries (user
-credentials are cached for this configured period of time). Use the
+Specifies the time-to-live for cached user entries. A user and a hash of its 
+credentials are cached for this configured period of time. Use the
 standard Elasticsearch {ref}/common-options.html#time-units[time units]).
 Defaults to `20m`.
 
@@ -688,8 +687,9 @@ Specifies the {xpack-ref}/security-files.html[location] of the
 Defaults to `CONFIG_DIR/x-pack/role_mapping.yml`.
 
 `cache.ttl`::
-Specifies the time-to-live for cached user entries. Use the
-standard Elasticsearch {ref}/common-options.html#time-units[time units]).
+Specifies the time-to-live for cached user entries. A user and a hash of its 
+credentials are cached for this period of time. Use the
+standard {es} {ref}/common-options.html#time-units[time units]).
 Defaults to `20m`.
 
 `cache.max_users`::

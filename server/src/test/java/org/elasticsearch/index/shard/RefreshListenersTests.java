@@ -133,7 +133,7 @@ public class RefreshListenersTests extends ESTestCase {
             (e, s) -> 0, new NoneCircuitBreakerService(), () -> SequenceNumbers.NO_OPS_PERFORMED, () -> primaryTerm);
         engine = new InternalEngine(config);
         engine.recoverFromTranslog();
-        listeners.setTranslog(engine.getTranslog());
+        listeners.setCurrentRefreshLocationSupplier(engine::getTranslogLastWriteLocation);
     }
 
     @After

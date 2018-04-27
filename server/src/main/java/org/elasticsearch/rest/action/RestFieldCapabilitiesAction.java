@@ -57,11 +57,16 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request,
                                               final NodeClient client) throws IOException {
-        if (request.hasContentOrSourceParam() && request.hasParam("fields")) {
-            throw new IllegalArgumentException("can't specify a request body and [fields]" +
-                " request parameter, either specify a request body or the" +
-                " [fields] request parameter");
+        if (request.hasContentOrSourceParam()) {
+            deprecationLogger.deprecated("Specifying a request body is deprecated -- the" +
+                " [fields] request parameter should be used instead.");
+            if (request.hasParam("fields")) {
+                throw new IllegalArgumentException("can't specify a request body and [fields]" +
+                    " request parameter, either specify a request body or the" +
+                    " [fields] request parameter");
+            }
         }
+
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final FieldCapabilitiesRequest fieldRequest;
         if (request.hasContentOrSourceParam()) {
@@ -76,17 +81,6 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
         fieldRequest.indicesOptions(
             IndicesOptions.fromRequest(request, fieldRequest.indicesOptions())
         );
-        return channel -> client.fieldCaps(fieldRequest,
-            new RestBuilderListener<FieldCapabilitiesResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(FieldCapabilitiesResponse response,
-                                              XContentBuilder builder) throws Exception {
-                RestStatus status = OK;
-                builder.startObject();
-                response.toXContent(builder, request);
-                builder.endObject();
-                return new BytesRestResponse(status, builder);
-            }
-        });
+        return channel -> client.fieldCaps(fieldRequest, new RestToXContentListener<>(channel));
     }
 }

@@ -122,6 +122,11 @@ The following parameters are accepted by `geo_point` fields:
     ignored. If `false`, geo-points containing any more than latitude and longitude
     (two dimensions) values throw an exception and reject the whole document.
 
+<<null-value,`null_value`>>::
+
+    Accepts an geopoint value which is substituted for any explicit `null` values.
+    Defaults to `null`, which means the field is treated as missing.
+
 ==== Using geo-points in scripts
 
 When accessing the value of a geo-point in a script, the value is returned as

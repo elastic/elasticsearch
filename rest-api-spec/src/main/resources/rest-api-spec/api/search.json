@@ -16,6 +16,10 @@
         }
       },
       "params": {
+        "include_type_name": {
+          "type" : "string",
+          "description" : "Whether to add the type name to the response"
+        },
         "analyzer": {
           "type" : "string",
           "description" : "The analyzer to use for the query string"

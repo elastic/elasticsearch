@@ -55,6 +55,7 @@ import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
@@ -66,6 +67,7 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
@@ -641,6 +643,10 @@ public abstract class IndexShardTestCase extends ESTestCase {
      */
     public static Engine getEngine(IndexShard indexShard) {
         return indexShard.getEngine();
+    }
+
+    public static Translog getTranslog(IndexShard shard) {
+        return EngineTestCase.getTranslog(getEngine(shard));
     }
 
     public static ReplicationTracker getReplicationTracker(IndexShard indexShard) {

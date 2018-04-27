@@ -20,6 +20,7 @@
 
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
+import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionCollection
 import org.elasticsearch.gradle.VersionProperties
@@ -30,6 +31,7 @@ import org.gradle.api.tasks.wrapper.Wrapper.DistributionType
 import org.gradle.util.GradleVersion
 import org.gradle.util.DistributionLocator
 
+import java.nio.file.Files
 import java.nio.file.Path
 import java.security.MessageDigest
 
@@ -40,10 +42,9 @@ subprojects {
   description = "Elasticsearch subproject ${project.path}"
 }
 
-Path rootPath = rootDir.toPath()
-// setup pom license info, but only for artifacts that are part of elasticsearch
-configure(subprojects.findAll { it.projectDir.toPath().startsWith(rootPath) }) {
-
+subprojects {
+  project.ext.licenseName = 'The Apache Software License, Version 2.0'
+  project.ext.licenseUrl = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
   // we only use maven publish to add tasks for pom generation
   plugins.withType(MavenPublishPlugin).whenPluginAdded {
     publishing {
@@ -55,8 +56,8 @@ configure(subprojects.findAll { it.projectDir.toPath().startsWith(rootPath) }) {
             node.appendNode('inceptionYear', '2009')
 
             Node license = node.appendNode('licenses').appendNode('license')
-            license.appendNode('name', 'The Apache Software License, Version 2.0')
-            license.appendNode('url', 'http://www.apache.org/licenses/LICENSE-2.0.txt')
+            license.appendNode('name', project.licenseName)
+            license.appendNode('url', project.licenseUrl)
             license.appendNode('distribution', 'repo')
 
             Node developer = node.appendNode('developers').appendNode('developer')
@@ -68,7 +69,7 @@ configure(subprojects.findAll { it.projectDir.toPath().startsWith(rootPath) }) {
     }
   }
   plugins.withType(BuildPlugin).whenPluginAdded {
-    project.licenseFile = project.rootProject.file('LICENSE.txt')
+    project.licenseFile = project.rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
     project.noticeFile = project.rootProject.file('NOTICE.txt')
   }
 }
@@ -206,9 +207,13 @@ subprojects {
     "org.elasticsearch.test:framework:${version}": ':test:framework',
     "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:archives:integ-test-zip',
     "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:archives:zip',
+    "org.elasticsearch.distribution.zip:elasticsearch-oss:${version}": ':distribution:archives:oss-zip',
     "org.elasticsearch.distribution.tar:elasticsearch:${version}": ':distribution:archives:tar',
+    "org.elasticsearch.distribution.tar:elasticsearch-oss:${version}": ':distribution:archives:oss-tar',
     "org.elasticsearch.distribution.rpm:elasticsearch:${version}": ':distribution:packages:rpm',
+    "org.elasticsearch.distribution.rpm:elasticsearch-oss:${version}": ':distribution:packages:oss-rpm',
     "org.elasticsearch.distribution.deb:elasticsearch:${version}": ':distribution:packages:deb',
+    "org.elasticsearch.distribution.deb:elasticsearch-oss:${version}": ':distribution:packages:oss-deb',
     "org.elasticsearch.test:logger-usage:${version}": ':test:logger-usage',
     // for transport client
     "org.elasticsearch.plugin:transport-netty4-client:${version}": ':modules:transport-netty4',
@@ -228,6 +233,11 @@ subprojects {
       ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${snapshot}"] = snapshotProject
       ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${snapshot}"] = snapshotProject
       ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${snapshot}"] = snapshotProject
+      if (snapshot.onOrAfter('6.3.0')) {
+        ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch-oss:${snapshot}"] = snapshotProject
+        ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch-oss:${snapshot}"] = snapshotProject
+        ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch-oss:${snapshot}"] = snapshotProject
+      }
     }
   }
 
@@ -449,6 +459,59 @@ gradle.projectsEvaluated {
     }
   }
 
+}
+
+static void assertLinesInFile(final Path path, final List<String> expectedLines) {
+  final List<String> actualLines = Files.readAllLines(path)
+  int line = 0
+  for (final String expectedLine : expectedLines) {
+    final String actualLine = actualLines.get(line)
+    if (expectedLine != actualLine) {
+      throw new GradleException("expected line [${line + 1}] in [${path}] to be [${expectedLine}] but was [${actualLine}]")
+    }
+    line++
+  }
+}
+
+/*
+ * Check that all generated JARs have our NOTICE.txt and an appropriate
+ * LICENSE.txt in them. We configurate this in gradle but we'd like to
+ * be extra paranoid.
+ */
+subprojects { project ->
+  project.tasks.withType(Jar).whenTaskAdded { jarTask ->
+    final Task extract = project.task("extract${jarTask.name.capitalize()}", type: LoggedExec) {
+      dependsOn jarTask
+      ext.destination = project.buildDir.toPath().resolve("jar-extracted/${jarTask.name}")
+      commandLine "${->new File(rootProject.compilerJavaHome, 'bin/jar')}",
+          'xf', "${-> jarTask.outputs.files.singleFile}", 'META-INF/LICENSE.txt', 'META-INF/NOTICE.txt'
+      workingDir destination
+      doFirst {
+        project.delete(destination)
+        Files.createDirectories(destination)
+      }
+    }
+
+    final Task checkNotice = project.task("verify${jarTask.name.capitalize()}Notice") {
+      dependsOn extract
+      doLast {
+        final List<String> noticeLines = Files.readAllLines(project.noticeFile.toPath())
+        final Path noticePath = extract.destination.resolve('META-INF/NOTICE.txt')
+        assertLinesInFile(noticePath, noticeLines)
+      }
+    }
+    project.check.dependsOn checkNotice
+
+    final Task checkLicense = project.task("verify${jarTask.name.capitalize()}License") {
+      dependsOn extract
+      doLast {
+        final List<String> licenseLines = Files.readAllLines(project.licenseFile.toPath())
+        final Path licensePath = extract.destination.resolve('META-INF/LICENSE.txt')
+        assertLinesInFile(licensePath, licenseLines)
+      }
+    }
+    project.check.dependsOn checkLicense
+  }
 }
 
 /* Remove assemble on all qa projects because we don't need to publish

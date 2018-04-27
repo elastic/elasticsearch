@@ -54,7 +54,7 @@ public class VersionUtils {
 
         Version last = versions.remove(versions.size() - 1);
         assert last.equals(current) : "The highest version must be the current one "
-            + "but was [" + versions.get(versions.size() - 1) + "] and current was [" + current + "]";
+            + "but was [" + last + "] and current was [" + current + "]";
 
         if (current.revision != 0) {
             /* If we are in a stable branch there should be no unreleased version constants

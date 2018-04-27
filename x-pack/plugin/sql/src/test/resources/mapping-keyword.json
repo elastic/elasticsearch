@@ -1,0 +1,8 @@
+{
+    "properties" : {
+        "full_name" : {
+            "type" : "keyword",
+            "ignore_above" : 256
+        }
+    }
+}

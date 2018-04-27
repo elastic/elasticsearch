@@ -66,6 +66,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogStats;
 
 import java.io.Closeable;
 import java.io.FileNotFoundException;
@@ -510,8 +511,18 @@ public abstract class Engine implements Closeable {
         EXTERNAL, INTERNAL
     }
 
-    /** returns the translog for this engine */
-    public abstract Translog getTranslog();
+    /**
+     * Returns the translog associated with this engine.
+     * Prefer to keep the translog package-private, so that an engine can control all accesses to the translog.
+     */
+    abstract Translog getTranslog();
+
+    /**
+     * Checks if the underlying storage sync is required.
+     */
+    public boolean isTranslogSyncNeeded() {
+        return getTranslog().syncNeeded();
+    }
 
     /**
      * Ensures that all locations in the given stream have been written to the underlying storage.
@@ -519,6 +530,36 @@ public abstract class Engine implements Closeable {
     public abstract boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException;
 
     public abstract void syncTranslog() throws IOException;
+
+    public Closeable acquireTranslogRetentionLock() {
+        return getTranslog().acquireRetentionLock();
+    }
+
+    /**
+     * Creates a new translog snapshot from this engine for reading translog operations whose seq# at least the provided seq#.
+     * The caller has to close the returned snapshot after finishing the reading.
+     */
+    public Translog.Snapshot newTranslogSnapshotFromMinSeqNo(long minSeqNo) throws IOException {
+        return getTranslog().newSnapshotFromMinSeqNo(minSeqNo);
+    }
+
+    /**
+     * Returns the estimated number of translog operations in this engine whose seq# at least the provided seq#.
+     */
+    public int estimateTranslogOperationsFromMinSeq(long minSeqNo) {
+        return getTranslog().estimateTotalOperationsFromMinSeq(minSeqNo);
+    }
+
+    public TranslogStats getTranslogStats() {
+        return getTranslog().stats();
+    }
+
+    /**
+     * Returns the last location that the translog of this engine has written into.
+     */
+    public Translog.Location getTranslogLastWriteLocation() {
+        return getTranslog().getLastWriteLocation();
+    }
 
     protected final void ensureOpen(Exception suppressed) {
         if (isClosed.get()) {
@@ -545,6 +586,13 @@ public abstract class Engine implements Closeable {
      * @return the sequence number service
      */
     public abstract LocalCheckpointTracker getLocalCheckpointTracker();
+
+    /**
+     * Returns the latest global checkpoint value that has been persisted in the underlying storage (i.e. translog's checkpoint)
+     */
+    public long getLastSyncedGlobalCheckpoint() {
+        return getTranslog().getLastSyncedGlobalCheckpoint();
+    }
 
     /**
      * Global stats on segments.
@@ -809,6 +857,16 @@ public abstract class Engine implements Closeable {
      * {@link org.elasticsearch.index.translog.TranslogDeletionPolicy} for details
      */
     public abstract void trimTranslog() throws EngineException;
+
+    /**
+     * Tests whether or not the translog generation should be rolled to a new generation.
+     * This test is based on the size of the current generation compared to the configured generation threshold size.
+     *
+     * @return {@code true} if the current generation should be rolled to a new generation
+     */
+    public boolean shouldRollTranslogGeneration() {
+        return getTranslog().shouldRollGeneration();
+    }
 
     /**
      * Rolls the translog generation and cleans unneeded.

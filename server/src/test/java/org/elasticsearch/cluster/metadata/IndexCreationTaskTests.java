@@ -433,7 +433,7 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         when(docMapper.routingFieldMapper()).thenReturn(routingMapper);
 
-        when(mapper.docMappers(anyBoolean())).thenReturn(Collections.singletonList(docMapper));
+        when(mapper.documentMapper()).thenReturn(docMapper);
 
         final Index index = new Index("target", "tgt1234");
         final Supplier<Sort> supplier = mock(Supplier.class);

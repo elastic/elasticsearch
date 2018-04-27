@@ -34,6 +34,7 @@ subprojects {
                 Project depProject = dependencyToProject(dep)
                 if (depProject != null
                         && false == depProject.path.equals(':libs:elasticsearch-core')
+                        && false == isEclipse 
                         && depProject.path.startsWith(':libs')) {
                     throw new InvalidUserDataException("projects in :libs "
                             + "may not depend on other projects libs except "

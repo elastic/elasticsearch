@@ -145,9 +145,6 @@ public class RecoverySourceHandler {
         }, shardId + " validating recovery target ["+ request.targetAllocationId() + "] registered ");
 
         try (Closeable ignored = shard.acquireTranslogRetentionLock()) {
-
-            final Translog translog = shard.getTranslog();
-
             final long startingSeqNo;
             final long requiredSeqNoRangeStart;
             final boolean isSequenceNumberBasedRecovery = request.startingSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO &&
@@ -170,7 +167,7 @@ public class RecoverySourceHandler {
                 requiredSeqNoRangeStart =
                     Long.parseLong(phase1Snapshot.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1;
                 try {
-                    phase1(phase1Snapshot.getIndexCommit(), translog::totalOperations);
+                    phase1(phase1Snapshot.getIndexCommit(), () -> shard.estimateTranslogOperationsFromMinSeq(startingSeqNo));
                 } catch (final Exception e) {
                     throw new RecoveryEngineException(shard.shardId(), 1, "phase1 failed", e);
                 } finally {
@@ -187,7 +184,7 @@ public class RecoverySourceHandler {
 
             try {
                 // For a sequence based recovery, the target can keep its local translog
-                prepareTargetForTranslog(isSequenceNumberBasedRecovery == false, translog.estimateTotalOperationsFromMinSeq(startingSeqNo));
+                prepareTargetForTranslog(isSequenceNumberBasedRecovery == false, shard.estimateTranslogOperationsFromMinSeq(startingSeqNo));
             } catch (final Exception e) {
                 throw new RecoveryEngineException(shard.shardId(), 1, "prepare target for translog failed", e);
             }
@@ -210,9 +207,9 @@ public class RecoverySourceHandler {
 
             logger.trace("all operations up to [{}] completed, which will be used as an ending sequence number", endingSeqNo);
 
-            logger.trace("snapshot translog for recovery; current size is [{}]", translog.estimateTotalOperationsFromMinSeq(startingSeqNo));
+            logger.trace("snapshot translog for recovery; current size is [{}]", shard.estimateTranslogOperationsFromMinSeq(startingSeqNo));
             final long targetLocalCheckpoint;
-            try(Translog.Snapshot snapshot = translog.newSnapshotFromMinSeqNo(startingSeqNo)) {
+            try(Translog.Snapshot snapshot = shard.newTranslogSnapshotFromMinSeqNo(startingSeqNo)) {
                 targetLocalCheckpoint = phase2(startingSeqNo, requiredSeqNoRangeStart, endingSeqNo, snapshot);
             } catch (Exception e) {
                 throw new RecoveryEngineException(shard.shardId(), 2, "phase2 failed", e);
@@ -261,7 +258,7 @@ public class RecoverySourceHandler {
         // the start recovery request is initialized with the starting sequence number set to the target shard's local checkpoint plus one
         if (startingSeqNo - 1 <= localCheckpoint) {
             final LocalCheckpointTracker tracker = new LocalCheckpointTracker(startingSeqNo, startingSeqNo - 1);
-            try (Translog.Snapshot snapshot = shard.getTranslog().newSnapshotFromMinSeqNo(startingSeqNo)) {
+            try (Translog.Snapshot snapshot = shard.newTranslogSnapshotFromMinSeqNo(startingSeqNo)) {
                 Translog.Operation operation;
                 while ((operation = snapshot.next()) != null) {
                     if (operation.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {

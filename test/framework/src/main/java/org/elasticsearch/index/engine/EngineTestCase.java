@@ -28,18 +28,22 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -53,6 +57,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -88,7 +93,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
@@ -551,6 +558,7 @@ public abstract class EngineTestCase extends ESTestCase {
         } else {
             startWithSeqNo = 0;
         }
+        final int seqNoGap = randomBoolean() ? 1 : 2;
         final String valuePrefix = forReplica ? "r_" : "p_";
         final boolean incrementTermWhenIntroducingSeqNo = randomBoolean();
         for (int i = 0; i < numOfOps; i++) {
@@ -574,7 +582,7 @@ public abstract class EngineTestCase extends ESTestCase {
             }
             if (randomBoolean()) {
                 op = new Engine.Index(id, testParsedDocument("1", null, testDocumentWithTextField(valuePrefix + i), B_1, null),
-                        forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbers.UNASSIGNED_SEQ_NO,
+                        forReplica && i >= startWithSeqNo ? i * seqNoGap : SequenceNumbers.UNASSIGNED_SEQ_NO,
                         forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? primaryTerm + 1 : primaryTerm,
                         version,
                         forReplica ? versionType.versionTypeForReplicationAndRecovery() : versionType,
@@ -583,7 +591,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 );
             } else {
                 op = new Engine.Delete("test", "1", id,
-                        forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbers.UNASSIGNED_SEQ_NO,
+                        forReplica && i >= startWithSeqNo ? i * seqNoGap : SequenceNumbers.UNASSIGNED_SEQ_NO,
                         forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? primaryTerm + 1 : primaryTerm,
                         version,
                         forReplica ? versionType.versionTypeForReplicationAndRecovery() : versionType,
@@ -662,6 +670,33 @@ public abstract class EngineTestCase extends ESTestCase {
                 assertThat(collector.getTotalHits(), equalTo(1));
             }
         }
+    }
+
+    /**
+     * Returns a list of sequence numbers of all existing documents including soft-deleted documents in Lucene.
+     */
+    public static Set<Long> getOperationSeqNoInLucene(Engine engine) throws IOException {
+        engine.refresh("test");
+        final Set<Long> seqNos = new HashSet<>();
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+            IndexSearcher indexSearcher = new IndexSearcher(Lucene.wrapAllDocsLive(searcher.getDirectoryReader()));
+            List<LeafReaderContext> leaves = indexSearcher.getIndexReader().leaves();
+            NumericDocValues[] seqNoDocValues = new NumericDocValues[leaves.size()];
+            for (int i = 0; i < leaves.size(); i++) {
+                seqNoDocValues[i] = leaves.get(i).reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+            }
+            TopDocs allDocs = indexSearcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
+            for (ScoreDoc scoreDoc : allDocs.scoreDocs) {
+                int leafIndex = ReaderUtil.subIndex(scoreDoc.doc, leaves);
+                int segmentDocId = scoreDoc.doc - leaves.get(leafIndex).docBase;
+                if (seqNoDocValues[leafIndex] != null && seqNoDocValues[leafIndex].advanceExact(segmentDocId)) {
+                    seqNos.add(seqNoDocValues[leafIndex].longValue());
+                } else {
+                    throw new AssertionError("Segment without seqno DocValues");
+                }
+            }
+        }
+        return seqNos;
     }
 
     /**

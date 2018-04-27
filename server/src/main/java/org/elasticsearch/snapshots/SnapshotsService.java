@@ -592,11 +592,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @return map of shard id to snapshot status
      */
     public Map<ShardId, IndexShardSnapshotStatus> snapshotShards(final String repositoryName,
+                                                                 final RepositoryData repositoryData,
                                                                  final SnapshotInfo snapshotInfo) throws IOException {
-        Map<ShardId, IndexShardSnapshotStatus> shardStatus = new HashMap<>();
-        Repository repository = repositoriesService.repository(repositoryName);
-        RepositoryData repositoryData = repository.getRepositoryData();
-        MetaData metaData = repository.getSnapshotMetaData(snapshotInfo, repositoryData.resolveIndices(snapshotInfo.indices()));
+        final Repository repository = repositoriesService.repository(repositoryName);
+        final Map<ShardId, IndexShardSnapshotStatus> shardStatus = new HashMap<>();
+        final MetaData metaData = repository.getSnapshotMetaData(snapshotInfo, repositoryData.resolveIndices(snapshotInfo.indices()));
+
         for (String index : snapshotInfo.indices()) {
             IndexId indexId = repositoryData.resolveIndexId(index);
             IndexMetaData indexMetaData = metaData.indices().get(index);

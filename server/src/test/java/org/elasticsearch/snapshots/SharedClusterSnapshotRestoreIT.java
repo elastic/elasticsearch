@@ -113,6 +113,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -1433,13 +1434,15 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             .setWaitForCompletion(true).setIndices("test-idx-*").get();
 
         logger.info("--> deleting shard level index file");
-        Files.list(repo.resolve("indices")).forEach(indexPath -> {
-            try {
-                Files.delete(indexPath.resolve("0").resolve("index-0"));
-            } catch (IOException e) {
-                throw new RuntimeException("Failed to delete expected file", e);
-            }
-        });
+        try (Stream<Path> files = Files.list(repo.resolve("indices"))) {
+            files.forEach(indexPath -> {
+                try {
+                    Files.delete(indexPath.resolve("0").resolve("index-0"));
+                } catch (IOException e) {
+                    throw new RuntimeException("Failed to delete expected file", e);
+                }
+            });
+        }
 
         logger.info("--> creating another snapshot");
         CreateSnapshotResponse createSnapshotResponse =

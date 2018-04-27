@@ -26,6 +26,5 @@ import org.elasticsearch.cluster.ack.IndicesClusterStateUpdateRequest;
 public class FreezeIndexClusterStateUpdateRequest extends IndicesClusterStateUpdateRequest<FreezeIndexClusterStateUpdateRequest> {
 
     FreezeIndexClusterStateUpdateRequest() {
-
     }
 }

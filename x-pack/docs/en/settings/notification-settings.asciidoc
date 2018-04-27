@@ -63,21 +63,6 @@ request is aborted.
 Specifies the maximum size a HTTP response is allowed to have, defaults to
 `10mb`, the maximum configurable value is `50mb`.
 
-`xpack.http.apache.evict_idle_connections`::
-A setting to configure if the internal HTTP client used in watcher should
-evict connections with a background thread. Defaults to `true`.
-
-`xpack.http.apache.evict_idle_connections_timeout`::
-If connections should be evicted, this specifies the possible timeout.
-Defaults to `2m`.
-
-`xpack.http.apache.max_conn_total`::
-The number of total open connections in parallel. Defaults to `100`.
-
-`xpack.http.apache.max_conn_total_per_route`::
-The number of open connections per the same route in parallel. Defaults
-to the `xpack.http.apache.max_conn_total` setting.
-
 [[ssl-notification-settings]]
 :ssl-prefix:             xpack.http
 :component:              {watcher}

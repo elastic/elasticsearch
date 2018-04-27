@@ -549,6 +549,29 @@ class BuildPlugin implements Plugin<Project> {
             javadoc.classpath = javadoc.getClasspath().filter { f ->
                 return classes.contains(f) == false
             }
+            /*
+             * At some point the JDK will switch the default from html4 to
+             * html5, dragging us into the future, kicking and screaming.
+             * We should probably switch before they do. We should
+             * absolutely declare *something* to silence an annoying warning
+             * about the default changing soon. And declaring the future seems
+             * better than declaring the past.
+             *
+             * But not all of our javadoc is actually valid html5. So we
+             * have to become valid incrementally. We only set html5 on the
+             * projects we have converted so that we still get the annoying
+             * warning on the unconverted ones. That will give us an
+             * incentive to convert them....
+             */
+            List html4Projects = [
+                ':server',
+                ':libs:elasticsearch-core',
+                ':test:framework',
+                ':x-pack:plugin:core',
+            ]
+            if (false == html4Projects.contains(project.path)) {
+                javadoc.options.addBooleanOption('html5', true)
+            }
         }
         configureJavadocJar(project)
     }

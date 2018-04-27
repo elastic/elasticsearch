@@ -41,11 +41,11 @@ public class LicensingClient {
         client.execute(DeleteLicenseAction.INSTANCE, request, listener);
     }
 
-    public PostStartTrialRequestBuilder preparePostUpgradeToTrial() {
+    public PostStartTrialRequestBuilder preparePostStartTrial() {
         return new PostStartTrialRequestBuilder(client, PostStartTrialAction.INSTANCE);
     }
 
-    public GetTrialStatusRequestBuilder prepareGetUpgradeToTrial() {
+    public GetTrialStatusRequestBuilder prepareGetStartTrial() {
         return new GetTrialStatusRequestBuilder(client, GetTrialStatusAction.INSTANCE);
     }
 

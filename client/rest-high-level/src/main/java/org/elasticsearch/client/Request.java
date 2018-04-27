@@ -48,6 +48,7 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -75,6 +76,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
+import org.elasticsearch.rest.action.RestFieldCapabilitiesAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
@@ -536,6 +538,16 @@ public final class Request {
         return new Request(HttpHead.METHOD_NAME, endpoint, params.getParams(), null);
     }
 
+    static Request fieldCaps(FieldCapabilitiesRequest fieldCapabilitiesRequest) {
+        Params params = Params.builder();
+        params.withFields(fieldCapabilitiesRequest.fields());
+        params.withIndicesOptions(fieldCapabilitiesRequest.indicesOptions());
+
+        String[] indices = fieldCapabilitiesRequest.indices();
+        String endpoint = endpoint(indices, "_field_caps");
+        return new Request(HttpGet.METHOD_NAME, endpoint, params.getParams(), null);
+    }
+
     static Request rankEval(RankEvalRequest rankEvalRequest) throws IOException {
         String endpoint = endpoint(rankEvalRequest.indices(), Strings.EMPTY_ARRAY, "_rank_eval");
         Params params = Params.builder();
@@ -708,6 +720,13 @@ public final class Request {
                 if (fetchSourceContext.excludes() != null && fetchSourceContext.excludes().length > 0) {
                     putParam("_source_exclude", String.join(",", fetchSourceContext.excludes()));
                 }
+            }
+            return this;
+        }
+
+        Params withFields(String[] fields) {
+            if (fields != null && fields.length > 0) {
+                return putParam("fields", String.join(",", fields));
             }
             return this;
         }

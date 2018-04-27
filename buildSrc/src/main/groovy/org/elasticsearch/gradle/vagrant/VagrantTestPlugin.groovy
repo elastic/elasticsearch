@@ -185,8 +185,7 @@ class VagrantTestPlugin implements Plugin<Project> {
         Task createTestRunnerScript = project.tasks.create('createTestRunnerScript', FileContentsTask) {
             dependsOn copyPackagingTests
             file "${testsDir}/run-tests.sh"
-            contents "java -cp \"*\" org.junit.runner.JUnitCore ${-> project.extensions.esvagrant.testClass}"
-            executable true
+            contents "java -cp \"\$PACKAGING_TESTS/*\" org.junit.runner.JUnitCore ${-> project.extensions.esvagrant.testClass}"
         }
 
         Task createVersionFile = project.tasks.create('createVersionFile', FileContentsTask) {
@@ -415,7 +414,7 @@ class VagrantTestPlugin implements Plugin<Project> {
                 environmentVars vagrantEnvVars
                 dependsOn up, setupPackagingTest
                 finalizedBy halt
-                args '--command', "cd \$PACKAGING_TESTS && ./run-tests.sh"
+                args '--command', "bash \"\$PACKAGING_TESTS/run-tests.sh\""
             }
 
             // todo remove this onlyIf after all packaging tests are consolidated

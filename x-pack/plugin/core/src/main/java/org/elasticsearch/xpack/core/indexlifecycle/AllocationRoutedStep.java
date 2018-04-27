@@ -22,6 +22,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 public class AllocationRoutedStep extends ClusterStateWaitStep {
     public static final String NAME = "check-allocation";
@@ -31,8 +32,15 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
     private static final AllocationDeciders ALLOCATION_DECIDERS = new AllocationDeciders(Settings.EMPTY, Collections.singletonList(
             new FilterAllocationDecider(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))));
 
-    AllocationRoutedStep(StepKey key, StepKey nextStepKey) {
+    private boolean waitOnAllShardCopies;
+
+    AllocationRoutedStep(StepKey key, StepKey nextStepKey, boolean waitOnAllShardCopies) {
         super(key, nextStepKey);
+        this.waitOnAllShardCopies = waitOnAllShardCopies;
+    }
+
+    public boolean getWaitOnAllShardCopies() {
+        return waitOnAllShardCopies;
     }
 
     @Override
@@ -54,11 +62,14 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
         int allocationPendingShards = 0;
         List<ShardRouting> allShards = clusterState.getRoutingTable().allShards(index.getName());
         for (ShardRouting shardRouting : allShards) {
-            String currentNodeId = shardRouting.currentNodeId();
-            boolean canRemainOnCurrentNode = ALLOCATION_DECIDERS
-                    .canRemain(shardRouting, clusterState.getRoutingNodes().node(currentNodeId), allocation).type() == Decision.Type.YES;
-            if (canRemainOnCurrentNode == false) {
-                allocationPendingShards++;
+            if (waitOnAllShardCopies || shardRouting.primary()) {
+                String currentNodeId = shardRouting.currentNodeId();
+                boolean canRemainOnCurrentNode = ALLOCATION_DECIDERS
+                        .canRemain(shardRouting, clusterState.getRoutingNodes().node(currentNodeId), allocation)
+                        .type() == Decision.Type.YES;
+                if (canRemainOnCurrentNode == false) {
+                    allocationPendingShards++;
+                }
             }
         }
         if (allocationPendingShards > 0) {
@@ -70,5 +81,23 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
             logger.debug("[{}] lifecycle action for index [{}] complete", getKey().getAction(), index);
             return true;
         }
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), waitOnAllShardCopies);
+    }
+    
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        AllocationRoutedStep other = (AllocationRoutedStep) obj;
+        return super.equals(obj) && 
+                Objects.equals(waitOnAllShardCopies, other.waitOnAllShardCopies);
     }
 }

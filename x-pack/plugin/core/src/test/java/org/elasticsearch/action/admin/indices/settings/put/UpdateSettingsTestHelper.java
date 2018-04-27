@@ -8,9 +8,15 @@ package org.elasticsearch.action.admin.indices.settings.put;
 
     import org.elasticsearch.common.settings.Settings;
 
-    import static org.junit.Assert.assertArrayEquals;
-    import static org.junit.Assert.assertEquals;
-    import static org.junit.Assert.assertNotNull;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThat;
 
 public final class UpdateSettingsTestHelper {
 
@@ -21,6 +27,16 @@ public final class UpdateSettingsTestHelper {
         assertNotNull(request);
         assertArrayEquals(expectedIndices, request.indices());
         assertEquals(expectedSettings, request.settings());
+    }
+
+    public static void assertSettingsRequestContainsValueFrom(UpdateSettingsRequest request, String settingsKey,
+            Set<String> acceptableValues, boolean assertOnlyKeyInSettings, String... expectedIndices) {
+        assertNotNull(request);
+        assertArrayEquals(expectedIndices, request.indices());
+        assertThat(request.settings().get(settingsKey), anyOf(acceptableValues.stream().map(e -> equalTo(e)).collect(Collectors.toList())));
+        if (assertOnlyKeyInSettings) {
+            assertEquals(1, request.settings().size());
+        }
     }
 
     // NORELEASE this isn't nice but it's currently the only way to create an

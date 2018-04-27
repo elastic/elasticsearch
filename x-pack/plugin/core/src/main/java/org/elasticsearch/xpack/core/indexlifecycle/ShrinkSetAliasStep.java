@@ -42,6 +42,11 @@ public class ShrinkSetAliasStep extends AsyncActionStep {
     }
 
     @Override
+    public boolean indexSurvives() {
+        return false;
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), shrunkIndexPrefix);
     }

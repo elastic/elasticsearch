@@ -31,7 +31,7 @@ public class WatchStoreUtils {
             throw new IllegalStateException("Alias [" + name + "] points to more than one index");
         }
 
-        return aliasOrIndex.getIndices().get(0);
+        return aliasOrIndex.getIndices().iterator().next();
     }
 
 }

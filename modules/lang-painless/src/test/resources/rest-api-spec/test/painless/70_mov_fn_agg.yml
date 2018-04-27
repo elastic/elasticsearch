@@ -59,7 +59,7 @@ setup:
         index: [test]
 
 ---
-"Basic test":
+"windowMax":
 
   - do:
       search:
@@ -88,6 +88,200 @@ setup:
   - match: { aggregations.the_histo.buckets.3.the_mov_fn.value: 3.0 }
   - match: { aggregations.the_histo.buckets.4.the_mov_fn.value: 4.0 }
   - match: { aggregations.the_histo.buckets.5.the_mov_fn.value: 5.0 }
+
+---
+"windowMin":
+
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            the_histo:
+              date_histogram:
+                field: "date"
+                interval: "1d"
+              aggs:
+                the_avg:
+                  avg:
+                    field: "value_field"
+                the_mov_fn:
+                  moving_fn:
+                    buckets_path: "the_avg"
+                    window: 3
+                    script: "MovingFunctions.windowMin(values)"
+
+  - match: { hits.total: 6 }
+  - length: { hits.hits: 0 }
+  - is_false: aggregations.the_histo.buckets.0.the_mov_fn.value
+  - match: { aggregations.the_histo.buckets.1.the_mov_fn.value: 1.0 }
+  - match: { aggregations.the_histo.buckets.2.the_mov_fn.value: 1.0 }
+  - match: { aggregations.the_histo.buckets.3.the_mov_fn.value: 1.0 }
+  - match: { aggregations.the_histo.buckets.4.the_mov_fn.value: 2.0 }
+  - match: { aggregations.the_histo.buckets.5.the_mov_fn.value: 3.0 }
+
+---
+"windowSum":
+
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            the_histo:
+              date_histogram:
+                field: "date"
+                interval: "1d"
+              aggs:
+                the_avg:
+                  avg:
+                    field: "value_field"
+                the_mov_fn:
+                  moving_fn:
+                    buckets_path: "the_avg"
+                    window: 3
+                    script: "MovingFunctions.windowSum(values)"
+
+  - match: { hits.total: 6 }
+  - length: { hits.hits: 0 }
+  - match: { aggregations.the_histo.buckets.0.the_mov_fn.value: 0.0 }
+  - match: { aggregations.the_histo.buckets.1.the_mov_fn.value: 1.0 }
+  - match: { aggregations.the_histo.buckets.2.the_mov_fn.value: 3.0 }
+  - match: { aggregations.the_histo.buckets.3.the_mov_fn.value: 6.0 }
+  - match: { aggregations.the_histo.buckets.4.the_mov_fn.value: 9.0 }
+  - match: { aggregations.the_histo.buckets.5.the_mov_fn.value: 12.0 }
+
+---
+"simpleMovAvg":
+
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            the_histo:
+              date_histogram:
+                field: "date"
+                interval: "1d"
+              aggs:
+                the_avg:
+                  avg:
+                    field: "value_field"
+                the_mov_fn:
+                  moving_fn:
+                    buckets_path: "the_avg"
+                    window: 3
+                    script: "MovingFunctions.simpleMovAvg(values)"
+
+  - match: { hits.total: 6 }
+  - length: { hits.hits: 0 }
+
+
+---
+"linearMovAvg":
+
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            the_histo:
+              date_histogram:
+                field: "date"
+                interval: "1d"
+              aggs:
+                the_avg:
+                  avg:
+                    field: "value_field"
+                the_mov_fn:
+                  moving_fn:
+                    buckets_path: "the_avg"
+                    window: 3
+                    script: "MovingFunctions.linearMovAvg(values)"
+
+  - match: { hits.total: 6 }
+  - length: { hits.hits: 0 }
+
+
+---
+"ewmaMovAvg":
+
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            the_histo:
+              date_histogram:
+                field: "date"
+                interval: "1d"
+              aggs:
+                the_avg:
+                  avg:
+                    field: "value_field"
+                the_mov_fn:
+                  moving_fn:
+                    buckets_path: "the_avg"
+                    window: 3
+                    script: "MovingFunctions.ewmaMovAvg(values, 0.1)"
+
+  - match: { hits.total: 6 }
+  - length: { hits.hits: 0 }
+
+
+---
+"holtMovAvg":
+
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            the_histo:
+              date_histogram:
+                field: "date"
+                interval: "1d"
+              aggs:
+                the_avg:
+                  avg:
+                    field: "value_field"
+                the_mov_fn:
+                  moving_fn:
+                    buckets_path: "the_avg"
+                    window: 3
+                    script: "MovingFunctions.holtMovAvg(values, 0.1, 0.1)"
+
+  - match: { hits.total: 6 }
+  - length: { hits.hits: 0 }
+
+
+---
+"holtWintersMovAvg":
+
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            the_histo:
+              date_histogram:
+                field: "date"
+                interval: "1d"
+              aggs:
+                the_avg:
+                  avg:
+                    field: "value_field"
+                the_mov_fn:
+                  moving_fn:
+                    buckets_path: "the_avg"
+                    window: 1
+                    script: "if (values.size() > 1) { MovingFunctions.holtWintersMovAvg(values, 0.1, 0.1, 0.1, 1, true)}"
+
+  - match: { hits.total: 6 }
+  - length: { hits.hits: 0 }
+
+
+
 
 
 

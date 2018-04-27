@@ -165,7 +165,7 @@ public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggreg
                 } else if (BUCKETS_PATH.match(currentFieldName, parser.getDeprecationHandler())) {
                     bucketsPaths = new String[] { parser.text() };
                 } else if (GAP_POLICY.match(currentFieldName, parser.getDeprecationHandler())) {
-                    gapPolicy = GapPolicy.parse(parser.text());
+                    gapPolicy = GapPolicy.parse(parser.text(), parser.getTokenLocation());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                             "Unknown key for a " + token + " in [" + reducerName + "]: [" + currentFieldName + "].");

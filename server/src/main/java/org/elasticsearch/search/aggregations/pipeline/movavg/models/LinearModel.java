@@ -86,7 +86,16 @@ public class LinearModel extends MovAvgModel {
 
     @Override
     public double next(Collection<Double> values) {
-        return MovingFunctions.linearMovAvg(values);
+        double avg = 0;
+        long totalWeight = 1;
+        long current = 1;
+
+        for (Double v : values) {
+            avg += v * current;
+            totalWeight += current;
+            current += 1;
+        }
+        return avg / totalWeight;
     }
 
     @Override

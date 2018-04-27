@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.pipeline.movfn;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.function.ToDoubleFunction;
 
 /**
  * Provides a collection of static utility methods that can be referenced from MovingFunction script contexts
@@ -28,7 +29,8 @@ import java.util.Collection;
 public class MovingFunctions {
 
     /**
-     * Find the maximum value in a window of values
+     * Find the maximum value in a window of values.
+     * If all values are missing/null/NaN, the return value will be NaN
      */
     public static double windowMax(Collection<Double> values) {
         return values.stream().max(Double::compareTo).orElse(Double.NaN);
@@ -36,6 +38,7 @@ public class MovingFunctions {
 
     /**
      * Find the minimum value in a window of values
+     * If all values are missing/null/NaN, the return value will be NaN
      */
     public static double windowMin(Collection<Double> values) {
         return values.stream().min(Double::compareTo).orElse(Double.NaN);
@@ -43,25 +46,44 @@ public class MovingFunctions {
 
     /**
      * Find the sum of a window of values
+     * If all values are missing/null/NaN, the return value will be 0.0
      */
     public static double windowSum(Collection<Double> values) {
-        return values.stream().mapToDouble(Double::doubleValue).sum();
+        if (values.size() == 0) {
+            return 0.0;
+        }
+        return values.stream().mapToDouble(value -> {
+            if (value != null && value.isNaN() == false) {
+                return value;
+            }
+            return 0.0;
+        }).sum();
     }
 
     /**
-     * Calculate a simple unweighted (arithmetic) moving average
+     * Calculate a simple unweighted (arithmetic) moving average.
+     *
+     * Only finite values are averaged.  NaN or null are ignored.
+     * If all values are missing/null/NaN, the return value will be NaN
      */
     public static double simpleMovAvg(Collection<Double> values) {
-        double avg = 0;
+        double avg = 0.0;
+        long count = 0;
         for (Double v : values) {
-            avg += v;
+            if (v != null && v.isNaN() == false) {
+                avg += v;
+                count += 1;
+            }
         }
-        return avg / values.size();
+        return count == 0 ? Double.NaN : avg / count;
     }
 
     /**
      * Calculate a linearly weighted moving average, such that older values are
      * linearly less important.  "Time" is determined by position in collection
+     *
+     * Only finite values are averaged.  NaN or null are ignored.
+     * If all values are missing/null/NaN, the return value will be NaN
      */
     public static double linearMovAvg(Collection<Double> values) {
         double avg = 0;
@@ -69,11 +91,13 @@ public class MovingFunctions {
         long current = 1;
 
         for (Double v : values) {
-            avg += v * current;
-            totalWeight += current;
-            current += 1;
+            if (v != null && v.isNaN() == false) {
+                avg += v * current;
+                totalWeight += current;
+                current += 1;
+            }
         }
-        return avg / totalWeight;
+        return totalWeight == 1 ? Double.NaN : avg / totalWeight;
     }
 
     /**
@@ -84,18 +108,23 @@ public class MovingFunctions {
      * (e.g. a random walk), while alpha = 0 retains infinite memory of past values (e.g.
      * the series mean).  Useful values are somewhere in between.  Defaults to 0.5.
      *
+     * Only finite values are averaged.  NaN or null are ignored.
+     * If all values are missing/null/NaN, the return value will be NaN
+     *
      * @param alpha A double between 0-1 inclusive, controls data smoothing
      */
     public static double ewmaMovAvg(Collection<Double> values, double alpha) {
-        double avg = 0;
+        double avg = Double.NaN;
         boolean first = true;
 
         for (Double v : values) {
-            if (first) {
-                avg = v;
-                first = false;
-            } else {
-                avg = (v * alpha) + (avg * (1 - alpha));
+            if (v != null && v.isNaN() == false) {
+                if (first) {
+                    avg = v;
+                    first = false;
+                } else {
+                    avg = (v * alpha) + (avg * (1 - alpha));
+                }
             }
         }
         return avg;
@@ -109,6 +138,9 @@ public class MovingFunctions {
      * the series mean).  Useful values are somewhere in between.  Defaults to 0.5.
      *
      * Beta is equivalent to alpha, but controls the smoothing of the trend instead of the data
+     *
+     * Only finite values are averaged.  NaN or null are ignored.
+     * If all values are missing/null/NaN, the return value will be NaN
      *
      * @param alpha A double between 0-1 inclusive, controls data smoothing
      * @param beta a double between 0-1 inclusive, controls trend smoothing
@@ -139,18 +171,24 @@ public class MovingFunctions {
 
         Double last;
         for (Double v : values) {
-            last = v;
-            if (counter == 1) {
-                s = v;
-                b = v - last;
-            } else {
-                s = alpha * v + (1.0d - alpha) * (last_s + last_b);
-                b = beta * (s - last_s) + (1 - beta) * last_b;
-            }
+            if (v != null && v.isNaN() == false) {
+                last = v;
+                if (counter == 0) {
+                    s = v;
+                    b = v - last;
+                } else {
+                    s = alpha * v + (1.0d - alpha) * (last_s + last_b);
+                    b = beta * (s - last_s) + (1 - beta) * last_b;
+                }
 
-            counter += 1;
-            last_s = s;
-            last_b = b;
+                counter += 1;
+                last_s = s;
+                last_b = b;
+            }
+        }
+
+        if (counter == 0) {
+            return emptyPredictions(numForecasts);
         }
 
         double[] forecastValues = new double[numForecasts];
@@ -170,6 +208,9 @@ public class MovingFunctions {
      *
      * Beta is equivalent to alpha, but controls the smoothing of the trend instead of the data.
      * Gamma is equivalent to alpha, but controls the smoothing of the seasonality instead of the data
+     *
+     * Only finite values are averaged.  NaN or null are ignored.
+     * If all values are missing/null/NaN, the return value will be NaN
      *
      * @param alpha A double between 0-1 inclusive, controls data smoothing
      * @param beta a double between 0-1 inclusive, controls trend smoothing
@@ -215,8 +256,14 @@ public class MovingFunctions {
         int counter = 0;
         double[] vs = new double[values.size()];
         for (Double v : values) {
-            vs[counter] = v + padding;
-            counter += 1;
+            if (v != null && v.isNaN() == false) {
+                vs[counter] = v + padding;
+                counter += 1;
+            }
+        }
+
+        if (counter == 0) {
+            return emptyPredictions(numForecasts);
         }
 
         // Initial level value is average of first season
@@ -271,5 +318,15 @@ public class MovingFunctions {
         }
 
         return forecastValues;
+    }
+
+    /**
+     * Returns an empty set of predictions, filled with NaNs
+     * @param numPredictions Number of empty predictions to generate
+     */
+    private static double[] emptyPredictions(int numPredictions) {
+        double[] predictions = new double[numPredictions];
+        Arrays.fill(predictions, Double.NaN);
+        return predictions;
     }
 }

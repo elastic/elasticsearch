@@ -40,6 +40,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -73,8 +74,12 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
         parser.declareInt(ConstructingObjectParser.constructorArg(), WINDOW);
 
         parser.declareString(MovFnPipelineAggregationBuilder::format, FORMAT);
-        parser.declareString((movFnPipelineAggregationBuilder, s)
-            -> movFnPipelineAggregationBuilder.gapPolicy(GapPolicy.parse(s)), GAP_POLICY);
+        parser.declareField(MovFnPipelineAggregationBuilder::gapPolicy, p -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                return GapPolicy.parse(p.text().toLowerCase(Locale.ROOT), p.getTokenLocation());
+            }
+            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+        }, GAP_POLICY, ObjectParser.ValueType.STRING);
 
         return parser;
     };

@@ -84,7 +84,11 @@ public class SimpleModel extends MovAvgModel {
 
     @Override
     public double next(Collection<Double> values) {
-        return MovingFunctions.simpleMovAvg(values);
+        double avg = 0;
+        for (Double v : values) {
+            avg += v;
+        }
+        return avg / values.size();
     }
 
     @Override

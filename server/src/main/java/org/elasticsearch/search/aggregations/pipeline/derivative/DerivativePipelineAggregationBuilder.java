@@ -211,7 +211,7 @@ public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggreg
                 } else if (BUCKETS_PATH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     bucketsPaths = new String[] { parser.text() };
                 } else if (GAP_POLICY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    gapPolicy = GapPolicy.parse(parser.text());
+                    gapPolicy = GapPolicy.parse(parser.text(), parser.getTokenLocation());
                 } else if (UNIT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     units = parser.text();
                 } else {

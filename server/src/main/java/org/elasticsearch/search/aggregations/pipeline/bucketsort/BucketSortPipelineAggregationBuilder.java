@@ -80,7 +80,7 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
         PARSER.declareInt(BucketSortPipelineAggregationBuilder::size, SIZE);
         PARSER.declareField(BucketSortPipelineAggregationBuilder::gapPolicy, p -> {
             if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return GapPolicy.parse(p.text().toLowerCase(Locale.ROOT));
+                return GapPolicy.parse(p.text().toLowerCase(Locale.ROOT), p.getTokenLocation());
             }
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
         }, GAP_POLICY, ObjectParser.ValueType.STRING);

@@ -44,12 +44,12 @@ If you register same snapshot repository with multiple clusters, only
 one cluster should have write access to the repository. All other clusters
 connected to that repository should set the repository to `readonly` mode.
 
-NOTE: The snapshot format can change across major versions, so if you have
-clusters on different major versions trying to write the same repository,
-new snapshots written by one version will not be visible to the other. While
-setting the repository to `readonly` on all but one of the clusters should work
-with multiple clusters differing by one major version, it is not a supported
-configuration.
+IMPORTANT: The snapshot format can change across major versions, so if you have
+clusters on different versions trying to write the same repository, snapshots
+written by one version may not be visible to the other and the repository could
+be corrupted. While setting the repository to `readonly` on all but one of the
+clusters should work with multiple clusters differing by one major version, it
+is not a supported configuration.
 
 [source,js]
 -----------------------------------

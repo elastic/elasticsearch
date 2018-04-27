@@ -17,25 +17,21 @@
  * under the License.
  */
 
-apply plugin: 'elasticsearch.vagrantsupport'
-apply plugin: 'elasticsearch.vagrant'
+package org.elasticsearch.repositories.s3;
 
-List<String> plugins = []
-for (Project subproj : project.rootProject.subprojects) {
-  if (subproj.parent.path == ':plugins' || subproj.path.equals(':example-plugins:custom-settings')) {
-    // add plugin as a dep
-    dependencies {
-      packaging project(path: "${subproj.path}", configuration: 'zip')
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+
+public class AmazonS3RepositoryClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+
+    public AmazonS3RepositoryClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+        super(testCandidate);
     }
-    plugins.add(subproj.name)
-  }
-}
-plugins = plugins.toSorted()
 
-setupPackagingTest {
-  doFirst {
-    File expectedPlugins = file('build/plugins/expected')
-    expectedPlugins.parentFile.mkdirs()
-    expectedPlugins.setText(plugins.join('\n'), 'UTF-8')
-  }
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        return ESClientYamlSuiteTestCase.createParameters();
+    }
 }

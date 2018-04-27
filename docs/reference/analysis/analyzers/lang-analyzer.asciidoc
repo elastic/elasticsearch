@@ -1080,7 +1080,7 @@ PUT /irish_example
         "irish_hyphenation": {
           "type":       "stop",
           "stopwords":  [ "h", "n", "t" ]
-        }
+        },
         "irish_elision": {
           "type":       "elision",
           "articles":   [ "d", "m", "b" ]

@@ -100,7 +100,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
         assertAllocateStatus(index, 1, 0, step, existingSettings, node1Settings, node2Settings, indexRoutingTable, true);
     }
 
-    public void testConditionMetPrimariesOnly() {
+    public void testConditionMetOnlyOneCopyAllocated() {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         Map<String, String> includes = AllocateActionTests.randomMap(1, 5);
         Map<String, String> excludes = AllocateActionTests.randomMap(1, 5);
@@ -124,10 +124,11 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
             expectedSettings.put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
             node1Settings.put(Node.NODE_ATTRIBUTES.getKey() + k, v);
         });
-
+        boolean primaryOnNode1 = randomBoolean();
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
-                .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.STARTED))
-                .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", false, ShardRoutingState.STARTED));
+                .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", primaryOnNode1, ShardRoutingState.STARTED))
+                .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", primaryOnNode1 == false,
+                        ShardRoutingState.STARTED));
 
         AllocationRoutedStep step = new AllocationRoutedStep(randomStepKey(), randomStepKey(), false);
         assertAllocateStatus(index, 1, 0, step, existingSettings, node1Settings, node2Settings, indexRoutingTable, true);
@@ -166,7 +167,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
         assertAllocateStatus(index, 2, 0, step, existingSettings, node1Settings, node2Settings, indexRoutingTable, false);
     }
 
-    public void testExecuteAllocateNotCompletePrimariesOnly() throws Exception {
+    public void testExecuteAllocateNotCompleteOnlyOneCopyAllocated() throws Exception {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         Map<String, String> includes = AllocateActionTests.randomMap(1, 5);
         Map<String, String> excludes = AllocateActionTests.randomMap(1, 5);
@@ -191,9 +192,11 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
             node1Settings.put(Node.NODE_ATTRIBUTES.getKey() + k, v);
         });
 
+        boolean primaryOnNode1 = randomBoolean();
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
-                .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.STARTED))
-                .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", false, ShardRoutingState.STARTED));
+                .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", primaryOnNode1, ShardRoutingState.STARTED))
+                .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", primaryOnNode1 == false,
+                        ShardRoutingState.STARTED));
 
         AllocationRoutedStep step = new AllocationRoutedStep(randomStepKey(), randomStepKey(), true);
         assertAllocateStatus(index, 2, 0, step, existingSettings, node1Settings, node2Settings, indexRoutingTable, false);

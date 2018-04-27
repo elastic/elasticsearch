@@ -5,15 +5,19 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -21,7 +25,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.Objects;
 
 public class AllocationRoutedStep extends ClusterStateWaitStep {
@@ -59,23 +62,32 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
         // if the allocation has happened
         RoutingAllocation allocation = new RoutingAllocation(ALLOCATION_DECIDERS, clusterState.getRoutingNodes(), clusterState, null,
                 System.nanoTime());
-        int allocationPendingShards = 0;
-        List<ShardRouting> allShards = clusterState.getRoutingTable().allShards(index.getName());
-        for (ShardRouting shardRouting : allShards) {
-            if (waitOnAllShardCopies || shardRouting.primary()) {
+        int allocationPendingAllShards = 0;
+
+        ImmutableOpenIntMap<IndexShardRoutingTable> allShards = clusterState.getRoutingTable().index(index).getShards();
+        for (ObjectCursor<IndexShardRoutingTable> shardRoutingTable : allShards.values()) {
+            int allocationPendingThisShard = 0;
+            int shardCopiesThisShard = shardRoutingTable.value.size();
+            for (ShardRouting shardRouting : shardRoutingTable.value.shards()) {
                 String currentNodeId = shardRouting.currentNodeId();
                 boolean canRemainOnCurrentNode = ALLOCATION_DECIDERS
                         .canRemain(shardRouting, clusterState.getRoutingNodes().node(currentNodeId), allocation)
                         .type() == Decision.Type.YES;
                 if (canRemainOnCurrentNode == false) {
-                    allocationPendingShards++;
+                    allocationPendingThisShard++;
                 }
             }
+
+            if (waitOnAllShardCopies) {
+                allocationPendingAllShards += allocationPendingThisShard;
+            } else if (shardCopiesThisShard - allocationPendingThisShard == 0) {
+                allocationPendingAllShards++;
+            }
         }
-        if (allocationPendingShards > 0) {
+        if (allocationPendingAllShards > 0) {
             logger.debug(
                     "[{}] lifecycle action for index [{}] waiting for [{}] shards " + "to be allocated to nodes matching the given filters",
-                    getKey().getAction(), index, allocationPendingShards);
+                    getKey().getAction(), index, allocationPendingAllShards);
             return false;
         } else {
             logger.debug("[{}] lifecycle action for index [{}] complete", getKey().getAction(), index);

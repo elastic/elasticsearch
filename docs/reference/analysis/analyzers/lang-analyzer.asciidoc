@@ -432,7 +432,7 @@ PUT /cjk_example
         "english_stop": {
           "type":       "stop",
           "stopwords":  [ <1>
-            "a", "and", "are", "as", "at", "be", "but", "by", "for"
+            "a", "and", "are", "as", "at", "be", "but", "by", "for",
             "if", "in", "into", "is", "it", "no", "not", "of", "on",
             "or", "s", "such", "t", "that", "the", "their", "then",
             "there", "these", "they", "this", "to", "was", "will"

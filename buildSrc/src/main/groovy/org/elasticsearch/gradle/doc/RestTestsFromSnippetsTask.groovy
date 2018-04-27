@@ -144,10 +144,10 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             String badBody = /GET|PUT|POST|HEAD|OPTIONS|DELETE|startyaml|#/
             String body = /(?<body>(?:\n(?!$badBody)[^\n]+)+)/
             String rawRequest = /(?:$method\s+$pathAndQuery$body?)/
-            String yamlRequest = /(?:startyaml(?<yaml>.+?)endyaml)/
+            String yamlRequest = /(?:startyaml(?s)(?<yaml>.+?)(?-s)endyaml)/
             String nonComment = /(?:$rawRequest|$yamlRequest)/
             String comment = /(?<comment>#.+)/
-            /(?s)(?:$comment|$nonComment)\n+/
+            /(?:$comment|$nonComment)\n+/
         }()
 
         /**

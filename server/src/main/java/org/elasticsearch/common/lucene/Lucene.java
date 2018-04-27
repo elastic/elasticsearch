@@ -836,7 +836,7 @@ public class Lucene {
 
     /**
      * Wraps a directory reader to include all live docs.
-     * The wrapped reader can be used to query documents which are soft-deleted.
+     * The wrapped reader can be used to query all documents.
      *
      * @param in the input directory reader
      * @return the wrapped reader

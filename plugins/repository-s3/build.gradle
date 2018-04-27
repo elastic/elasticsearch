@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.test.AntFixture
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -66,28 +64,14 @@ test {
   exclude '**/*CredentialsTests.class'
 }
 
-forbiddenApisTest {
-  // we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
-  bundledSignatures -= 'jdk-non-portable'
-  bundledSignatures += 'jdk-internal'
-}
-
-/** A task to start the AmazonS3Fixture which emulates a S3 service **/
-task s3Fixture(type: AntFixture) {
-  dependsOn compileTestJava
-  env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
-  executable = new File(project.runtimeJavaHome, 'bin/java')
-  args 'org.elasticsearch.repositories.s3.AmazonS3Fixture', baseDir, 'bucket_test'
+check {
+  // also execute the QA tests when testing the plugin
+  dependsOn 'qa:amazon-s3:check'
 }
 
 integTestCluster {
-  dependsOn s3Fixture
-
   keystoreSetting 's3.client.integration_test.access_key', "s3_integration_test_access_key"
   keystoreSetting 's3.client.integration_test.secret_key', "s3_integration_test_secret_key"
-
-  /* Use a closure on the string to delay evaluation until tests are executed */
-  setting 's3.client.integration_test.endpoint', "http://${ -> s3Fixture.addressAndPort }"
 }
 
 thirdPartyAudit.excludes = [

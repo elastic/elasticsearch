@@ -9,3 +9,10 @@ The changes listed below have been released for the first time in Elasticsearch 
 
 Core::
 * Tribe node has been removed in favor of Cross-Cluster-Search
+
+Cross-Cluster-Search::
+* `http_addresses` has been removed from the <<cluster-remote-info>> API
+  because it is expensive to fetch and no longer needed by Kibana.
+
+Rest API::
+* The Clear Cache API only supports `POST` as HTTP method

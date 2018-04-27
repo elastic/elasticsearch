@@ -31,7 +31,7 @@ written to by an older Elasticsearch after writing to it with a newer Elasticsea
 
 === Known Issues
 
-== Elasticsearch version 6.3.0
+== Elasticsearch version 6.4.0
 
 === New Features
 

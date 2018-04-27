@@ -550,12 +550,8 @@ class BuildPlugin implements Plugin<Project> {
                 return classes.contains(f) == false
             }
             /*
-             * At some point the JDK will switch the default from html4 to
-             * html5, dragging us into the future, kicking and screaming.
-             * We should probably switch before they do. We should
-             * absolutely declare *something* to silence an annoying warning
-             * about the default changing soon. And declaring the future seems
-             * better than declaring the past.
+             * Force html5 on projects that support it to silence the warning
+             * that `javadoc` will change its defaults in the future.
              *
              * But not all of our javadoc is actually valid html5. So we
              * have to become valid incrementally. We only set html5 on the

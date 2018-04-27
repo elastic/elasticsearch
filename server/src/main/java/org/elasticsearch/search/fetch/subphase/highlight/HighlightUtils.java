@@ -70,8 +70,8 @@ public final class HighlightUtils {
         return textsToHighlight;
     }
 
-    static class Encoders {
-        static final Encoder DEFAULT = new DefaultEncoder();
-        static final Encoder HTML = new SimpleHTMLEncoder();
+    public static class Encoders {
+        public static final Encoder DEFAULT = new DefaultEncoder();
+        public static final Encoder HTML = new SimpleHTMLEncoder();
     }
 }

@@ -266,6 +266,10 @@ fi
     install_and_check_plugin mapper murmur3
 }
 
+@test "[$GROUP] install annotated-text mapper plugin" {
+    install_and_check_plugin mapper annotated-text
+}
+
 @test "[$GROUP] check reindex module" {
     check_module reindex
 }
@@ -378,6 +382,10 @@ fi
 
 @test "[$GROUP] remove murmur3 mapper plugin" {
     remove_plugin mapper-murmur3
+}
+
+@test "[$GROUP] remove annotated-text mapper plugin" {
+    remove_plugin mapper-annotated-text
 }
 
 @test "[$GROUP] remove size mapper plugin" {

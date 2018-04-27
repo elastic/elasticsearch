@@ -31,6 +31,20 @@ configurations {
 task testJar(type: Jar) {
   appendix 'test'
   from sourceSets.test.output
+  /*
+   * Stick the license and notice file in the jar. This isn't strictly
+   * needed because we don't publish it but it makes our super-paranoid
+   * tests happy.
+   */
+  metaInf {
+    from(project.licenseFile.parent) {
+      include project.licenseFile.name
+      rename { 'LICENSE.txt' }
+    }
+    from(project.noticeFile.parent) {
+      include project.noticeFile.name
+    }
+  }
 }
 artifacts {
   testArtifacts testJar

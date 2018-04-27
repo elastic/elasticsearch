@@ -110,7 +110,7 @@ public class IPFilterTests extends ESTestCase {
     @Network // requires network for name resolution
     public void testThatHostnamesCanBeProcessed() throws Exception {
         Settings settings = Settings.builder()
-                .put("xpack.ml.autodetect_process", false)
+                .put("xpack.ml.use_native_processes", false)
                 .put("xpack.security.transport.filter.allow", "127.0.0.1")
                 .put("xpack.security.transport.filter.deny", "*.google.com")
                 .build();

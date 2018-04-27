@@ -5,21 +5,21 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
-import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.time.ZonedDateTime;
 import java.util.Date;
 import java.util.Iterator;
@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit;
  * A placeholder class simulating the actions of the native Autodetect process.
  * Most methods consume data without performing any action however, after a call to
  * {@link #flushJob(FlushJobParams)} a {@link FlushAcknowledgement}
- * message is expected on the {@link #readAutodetectResults()} ()} stream. This class writes the flush
+ * message is expected on the {@link #readResults()} ()} stream. This class writes the flush
  * acknowledgement immediately.
  */
 public class BlackHoleAutodetectProcess implements AutodetectProcess {
@@ -50,7 +50,7 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     }
 
     @Override
-    public void restoreState(StateStreamer stateStreamer, ModelSnapshot modelSnapshot) {
+    public void restoreState(CheckedConsumer<OutputStream, IOException> restorer) {
     }
 
     @Override
@@ -59,36 +59,36 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     }
 
     @Override
-    public void writeRecord(String[] record) throws IOException {
+    public void writeRecord(String[] record) {
     }
 
     @Override
-    public void writeResetBucketsControlMessage(DataLoadParams params) throws IOException {
+    public void writeResetBucketsControlMessage(DataLoadParams params) {
     }
 
     @Override
-    public void writeUpdateModelPlotMessage(ModelPlotConfig modelPlotConfig) throws IOException {
+    public void writeUpdateModelPlotMessage(ModelPlotConfig modelPlotConfig) {
     }
 
     @Override
-    public void writeUpdateDetectorRulesMessage(int detectorIndex, List<DetectionRule> rules) throws IOException {
+    public void writeUpdateDetectorRulesMessage(int detectorIndex, List<DetectionRule> rules) {
     }
 
     @Override
-    public void writeUpdateFiltersMessage(List<MlFilter> filters) throws IOException {
+    public void writeUpdateFiltersMessage(List<MlFilter> filters) {
     }
 
     @Override
-    public void writeUpdateScheduledEventsMessage(List<ScheduledEvent> events, TimeValue bucketSpan) throws IOException {
+    public void writeUpdateScheduledEventsMessage(List<ScheduledEvent> events, TimeValue bucketSpan) {
     }
 
     /**
-     * Accept the request do nothing with it but write the flush acknowledgement to {@link #readAutodetectResults()}
+     * Accept the request do nothing with it but write the flush acknowledgement to {@link #readResults()}
      * @param params Should interim results be generated
      * @return {@link #FLUSH_ID}
      */
     @Override
-    public String flushJob(FlushJobParams params) throws IOException {
+    public String flushJob(FlushJobParams params) {
         FlushAcknowledgement flushAcknowledgement = new FlushAcknowledgement(FLUSH_ID, null);
         AutodetectResult result = new AutodetectResult(null, null, null, null, null, null, null, null, null, null, flushAcknowledgement);
         results.add(result);
@@ -104,7 +104,7 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         if (open) {
             Quantiles quantiles = new Quantiles(jobId, new Date(), "black hole quantiles");
             AutodetectResult result = new AutodetectResult(null, null, null, quantiles, null, null, null, null, null, null, null);
@@ -114,12 +114,12 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     }
 
     @Override
-    public void kill() throws IOException {
+    public void kill() {
         open = false;
     }
 
     @Override
-    public Iterator<AutodetectResult> readAutodetectResults() {
+    public Iterator<AutodetectResult> readResults() {
         // Create a custom iterator here, because LinkedBlockingDeque iterator and stream are not blocking when empty:
         return new Iterator<AutodetectResult>() {
 
@@ -175,6 +175,6 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     }
 
     @Override
-    public void forecastJob(ForecastParams params) throws IOException {
+    public void forecastJob(ForecastParams params) {
     }
 }

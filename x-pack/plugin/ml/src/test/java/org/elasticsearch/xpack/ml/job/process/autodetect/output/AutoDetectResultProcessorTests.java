@@ -97,7 +97,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         when(iterator.hasNext()).thenReturn(true).thenReturn(false);
         when(iterator.next()).thenReturn(autodetectResult);
         AutodetectProcess process = mock(AutodetectProcess.class);
-        when(process.readAutodetectResults()).thenReturn(iterator);
+        when(process.readResults()).thenReturn(iterator);
         processorUnderTest.process(process);
         processorUnderTest.awaitCompletion();
         verify(renormalizer, times(1)).waitUntilIdle();
@@ -418,7 +418,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         when(iterator.hasNext()).thenReturn(true).thenReturn(false);
         when(iterator.next()).thenReturn(autodetectResult);
         AutodetectProcess process = mock(AutodetectProcess.class);
-        when(process.readAutodetectResults()).thenReturn(iterator);
+        when(process.readResults()).thenReturn(iterator);
         processorUnderTest.process(process);
 
         processorUnderTest.awaitCompletion();
@@ -440,7 +440,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         AutodetectProcess process = mock(AutodetectProcess.class);
         when(process.isProcessAlive()).thenReturn(true);
         when(process.isProcessAliveAfterWaiting()).thenReturn(true);
-        when(process.readAutodetectResults()).thenReturn(iterator);
+        when(process.readResults()).thenReturn(iterator);
 
         doThrow(new ElasticsearchException("this test throws")).when(persister).persistModelSnapshot(any(), any());
 
@@ -453,7 +453,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         Iterator<AutodetectResult> iterator = mock(Iterator.class);
         when(iterator.hasNext()).thenThrow(new ElasticsearchParseException("this test throws"));
         AutodetectProcess process = mock(AutodetectProcess.class);
-        when(process.readAutodetectResults()).thenReturn(iterator);
+        when(process.readResults()).thenReturn(iterator);
 
         assertFalse(processorUnderTest.isFailed());
         processorUnderTest.process(process);
@@ -472,7 +472,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         when(iterator.hasNext()).thenReturn(true).thenReturn(false);
         when(iterator.next()).thenReturn(autodetectResult);
         AutodetectProcess process = mock(AutodetectProcess.class);
-        when(process.readAutodetectResults()).thenReturn(iterator);
+        when(process.readResults()).thenReturn(iterator);
         processorUnderTest.setProcessKilled();
         processorUnderTest.process(process);
 

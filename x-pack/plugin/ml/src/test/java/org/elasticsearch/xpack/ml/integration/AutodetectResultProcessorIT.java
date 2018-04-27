@@ -425,7 +425,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         AutodetectProcess buildTestProcess() {
             AutodetectResult[] results = this.results.toArray(new AutodetectResult[0]);
             AutodetectProcess process = mock(AutodetectProcess.class);
-            when(process.readAutodetectResults()).thenReturn(Arrays.asList(results).iterator());
+            when(process.readResults()).thenReturn(Arrays.asList(results).iterator());
             return process;
         }
     }

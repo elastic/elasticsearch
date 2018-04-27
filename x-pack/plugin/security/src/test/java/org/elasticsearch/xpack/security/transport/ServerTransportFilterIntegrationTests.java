@@ -117,7 +117,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(Node.NODE_MASTER_SETTING.getKey(), false)
                 .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false);
-                //.put("xpack.ml.autodetect_process", false);
+                //.put("xpack.ml.use_native_processes", false);
         addSSLSettingsForStore(nodeSettings, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode");
         try (Node node = new MockNode(nodeSettings.build(), Arrays.asList(LocalStateSecurity.class, TestZenDiscovery.TestPlugin.class))) {
             node.start();
@@ -155,7 +155,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 .put("path.home", home)
                 .put(Node.NODE_MASTER_SETTING.getKey(), false)
                 .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false);
-                //.put("xpack.ml.autodetect_process", false);
+                //.put("xpack.ml.use_native_processes", false);
         addSSLSettingsForStore(nodeSettings, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode");
         try (Node node = new MockNode(nodeSettings.build(), Arrays.asList(LocalStateSecurity.class, TestZenDiscovery.TestPlugin.class))) {
             node.start();

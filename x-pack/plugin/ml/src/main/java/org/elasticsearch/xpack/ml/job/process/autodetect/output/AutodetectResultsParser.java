@@ -22,8 +22,11 @@ import java.util.Iterator;
 
 /**
  * Parses the JSON output of the autodetect program.
- * <p>
- * Expects an array of buckets so the first element will always be the
+ *
+ * Because categorize results are a subset of autodetect results the same parser
+ * is also used for categorize results.
+ *
+ * Expects an array of result documents so the first element will always be the
  * start array symbol and the data must be terminated with the end array symbol.
  */
 public class AutodetectResultsParser extends AbstractComponent {

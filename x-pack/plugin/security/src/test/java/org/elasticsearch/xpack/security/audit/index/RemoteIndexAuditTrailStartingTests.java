@@ -100,8 +100,8 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
             public Settings nodeSettings(int nodeOrdinal) {
                 Settings.Builder builder = Settings.builder()
                         .put(super.nodeSettings(nodeOrdinal))
-                        // Disable native ML autodetect_process as the c++ controller won't be available
-//                        .put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false)
+                        // Disable native ML processes as the c++ controller won't be available
+//                        .put(MachineLearningField.USE_NATIVE_PROCESSES.getKey(), false)
                         .put("xpack.security.audit.enabled", true)
                         .put("xpack.security.audit.outputs", randomFrom("index", "index,logfile"))
                         .putList("xpack.security.audit.index.client.hosts", addresses.toArray(new String[addresses.size()]))

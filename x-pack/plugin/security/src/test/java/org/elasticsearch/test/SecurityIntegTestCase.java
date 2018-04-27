@@ -224,8 +224,8 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
-        // Disable native ML autodetect_process as the c++ controller won't be available
-//        builder.put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false);
+        // Disable native ML processes as the c++ controller won't be available
+//        builder.put(MachineLearningField.USE_NATIVE_PROCESSES.getKey(), false);
         Settings customSettings = customSecuritySettingsSource.nodeSettings(nodeOrdinal);
         builder.put(customSettings, false); // handle secure settings separately
         builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");

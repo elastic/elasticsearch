@@ -14,10 +14,10 @@ import java.util.Iterator;
 
 public class BlackHoleAutodetectProcessTests extends ESTestCase {
 
-    public void testFlushJob_writesAck() throws Exception {
+    public void testFlushJob_writesAck() {
         try (BlackHoleAutodetectProcess process = new BlackHoleAutodetectProcess("foo")) {
             String flushId = process.flushJob(FlushJobParams.builder().build());
-            Iterator<AutodetectResult> iterator = process.readAutodetectResults();
+            Iterator<AutodetectResult> iterator = process.readResults();
             iterator.hasNext();
             AutodetectResult result = iterator.next();
             FlushAcknowledgement ack = result.getFlushAcknowledgement();

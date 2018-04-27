@@ -28,13 +28,13 @@ public class NativeControllerHolder {
      *
      * The NativeController is created lazily to allow time for the C++ process to be started before connection is attempted.
      *
-     * <code>null</code> is returned to tests where xpack.ml.autodetect_process=false.
+     * <code>null</code> is returned to tests where xpack.ml.use_native_processes=false.
      *
      * Calls may throw an exception if initial connection to the C++ process fails.
      */
     public static NativeController getNativeController(Environment environment) throws IOException {
 
-        if (MachineLearningField.AUTODETECT_PROCESS.get(environment.settings())) {
+        if (MachineLearningField.USE_NATIVE_PROCESSES.get(environment.settings())) {
             synchronized (lock) {
                 if (nativeController == null) {
                     nativeController = new NativeController(environment, new NamedPipeHelper());

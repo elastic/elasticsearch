@@ -176,8 +176,8 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
                         .put(super.nodeSettings(nodeOrdinal))
                         .put("xpack.security.audit.index.settings.index.number_of_shards", numShards)
                         .put("xpack.security.audit.index.settings.index.number_of_replicas", numReplicas)
-                        // Disable native ML autodetect_process as the c++ controller won't be available
-//                        .put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false)
+                        // Disable native ML processes as the c++ controller won't be available
+//                        .put(MachineLearningField.USE_NATIVE_PROCESSES.getKey(), false)
                         .put(XPackSettings.SECURITY_ENABLED.getKey(), useSecurity);
                 if (useSecurity == false && builder.get(NetworkModule.TRANSPORT_TYPE_KEY) == null) {
                     builder.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());

@@ -120,7 +120,7 @@ public class AutoDetectResultProcessor {
         // trying to write its output.
         try {
             bucketCount = 0;
-            Iterator<AutodetectResult> iterator = process.readAutodetectResults();
+            Iterator<AutodetectResult> iterator = process.readResults();
             while (iterator.hasNext()) {
                 try {
                     AutodetectResult result = iterator.next();

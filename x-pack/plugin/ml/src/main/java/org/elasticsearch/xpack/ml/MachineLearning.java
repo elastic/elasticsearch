@@ -170,6 +170,9 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessFactor
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.BlackHoleAutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.autodetect.NativeAutodetectProcessFactory;
+import org.elasticsearch.xpack.ml.job.process.categorize.BlackHoleCategorizeProcess;
+import org.elasticsearch.xpack.ml.job.process.categorize.CategorizeProcessFactory;
+import org.elasticsearch.xpack.ml.job.process.categorize.NativeCategorizeProcessFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.MultiplyingNormalizerProcess;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NativeNormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
@@ -237,7 +240,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     public static final String NAME = "ml";
     public static final String BASE_PATH = "/_xpack/ml/";
     public static final String DATAFEED_THREAD_POOL_NAME = NAME + "_datafeed";
-    public static final String AUTODETECT_THREAD_POOL_NAME = NAME + "_autodetect";
+    public static final String JOB_PROCESS_THREAD_POOL_NAME = NAME + "_job_process";
     public static final String UTILITY_THREAD_POOL_NAME = NAME + "_utility";
 
     // This is for performance testing.  It's not exposed to the end user.
@@ -276,7 +279,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
     public List<Setting<?>> getSettings() {
         return Collections.unmodifiableList(
-                Arrays.asList(MachineLearningField.AUTODETECT_PROCESS,
+                Arrays.asList(MachineLearningField.USE_NATIVE_PROCESSES,
                         ML_ENABLED,
                         CONCURRENT_JOB_ALLOCATIONS,
                         MachineLearningField.MAX_MODEL_MEMORY_LIMIT,
@@ -365,8 +368,9 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         JobResultsPersister jobResultsPersister = new JobResultsPersister(settings, client);
 
         AutodetectProcessFactory autodetectProcessFactory;
+        CategorizeProcessFactory categorizeProcessFactory;
         NormalizerProcessFactory normalizerProcessFactory;
-        if (MachineLearningField.AUTODETECT_PROCESS.get(settings) && MachineLearningFeatureSet.isRunningOnMlPlatform(true)) {
+        if (MachineLearningField.USE_NATIVE_PROCESSES.get(settings) && MachineLearningFeatureSet.isRunningOnMlPlatform(true)) {
             try {
                 NativeController nativeController = NativeControllerHolder.getNativeController(environment);
                 if (nativeController == null) {
@@ -374,6 +378,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                     throw new ElasticsearchException("Failed to create native process controller for Machine Learning");
                 }
                 autodetectProcessFactory = new NativeAutodetectProcessFactory(environment, settings, nativeController, client);
+                categorizeProcessFactory = new NativeCategorizeProcessFactory(environment, settings, nativeController, client);
                 normalizerProcessFactory = new NativeNormalizerProcessFactory(environment, settings, nativeController);
             } catch (IOException e) {
                 // This also should not happen in production, as the MachineLearningFeatureSet should have
@@ -383,6 +388,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         } else {
             autodetectProcessFactory = (job, autodetectParams, executorService, onProcessCrash) ->
                     new BlackHoleAutodetectProcess(job.getId());
+            categorizeProcessFactory = (job, haveState, executorService, onProcessCrash) -> new BlackHoleCategorizeProcess();
             // factor of 1.0 makes renormalization a no-op
             normalizerProcessFactory = (jobId, quantilesState, bucketSpan, perPartitionNormalization,
                                         executorService) -> new MultiplyingNormalizerProcess(settings, 1.0);
@@ -558,7 +564,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         int maxNumberOfJobs = AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(settings);
         // 4 threads per job: for cpp logging, result processing, state processing and
         // AutodetectProcessManager worker thread:
-        FixedExecutorBuilder autoDetect = new FixedExecutorBuilder(settings, AUTODETECT_THREAD_POOL_NAME,
+        FixedExecutorBuilder autoDetect = new FixedExecutorBuilder(settings, JOB_PROCESS_THREAD_POOL_NAME,
                 maxNumberOfJobs * 4, maxNumberOfJobs * 4, "xpack.ml.autodetect_thread_pool");
 
         // 4 threads per job: processing logging, result and state of the renormalization process.
@@ -584,7 +590,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         return templates -> {
             final TimeValue delayedNodeTimeOutSetting;
             // Whether we are using native process is a good way to detect whether we are in dev / test mode:
-            if (MachineLearningField.AUTODETECT_PROCESS.get(settings)) {
+            if (MachineLearningField.USE_NATIVE_PROCESSES.get(settings)) {
                 delayedNodeTimeOutSetting = UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(settings);
             } else {
                 delayedNodeTimeOutSetting = TimeValue.timeValueNanos(0);

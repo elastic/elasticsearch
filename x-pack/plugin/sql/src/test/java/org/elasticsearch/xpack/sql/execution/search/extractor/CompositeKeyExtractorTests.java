@@ -15,6 +15,7 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.util.TimeZone;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
@@ -24,7 +25,7 @@ import static java.util.Collections.singletonMap;
 public class CompositeKeyExtractorTests extends AbstractWireSerializingTestCase<CompositeKeyExtractor> {
 
     public static CompositeKeyExtractor randomCompositeKeyExtractor() {
-        return new CompositeKeyExtractor(randomAlphaOfLength(16), randomFrom(asList(Property.values())), randomTimeZone());
+        return new CompositeKeyExtractor(randomAlphaOfLength(16), randomFrom(asList(Property.values())), randomSafeTimeZone());
     }
 
     @Override
@@ -58,7 +59,7 @@ public class CompositeKeyExtractorTests extends AbstractWireSerializingTestCase<
     }
 
     public void testExtractDate() {
-        CompositeKeyExtractor extractor = new CompositeKeyExtractor(randomAlphaOfLength(16), Property.VALUE, randomTimeZone());
+        CompositeKeyExtractor extractor = new CompositeKeyExtractor(randomAlphaOfLength(16), Property.VALUE, randomSafeTimeZone());
 
         long millis = System.currentTimeMillis();
         Bucket bucket = new TestBucket(singletonMap(extractor.key(), millis), randomLong(), new Aggregations(emptyList()));
@@ -72,5 +73,14 @@ public class CompositeKeyExtractorTests extends AbstractWireSerializingTestCase<
         Bucket bucket = new TestBucket(singletonMap(extractor.key(), value), randomLong(), new Aggregations(emptyList()));
         SqlIllegalArgumentException exception = expectThrows(SqlIllegalArgumentException.class, () -> extractor.extract(bucket));
         assertEquals("Invalid date key returned: " + value, exception.getMessage());
+    }
+
+    /**
+     * We need to exclude SystemV/* time zones because they cannot be converted
+     * back to DateTimeZone which we currently still need to do internally,
+     * e.g. in bwc serialization and in the extract() method
+     */
+    private static TimeZone randomSafeTimeZone() {
+        return randomValueOtherThanMany(tz -> tz.getID().startsWith("SystemV"), () -> randomTimeZone());
     }
 }

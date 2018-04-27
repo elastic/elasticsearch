@@ -170,7 +170,7 @@ public class AliasRoutingIT extends ESIntegTestCase {
             assertThat(client().prepareSearch("alias1").setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits(), equalTo(1L));
         }
 
-        logger.info("--> search with 0,1 routings , should find two");
+        logger.info("--> search with 0,1 indexRoutings , should find two");
         for (int i = 0; i < 5; i++) {
             assertThat(client().prepareSearch().setRouting("0", "1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits(), equalTo(2L));
             assertThat(client().prepareSearch().setSize(0).setRouting("0", "1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits(), equalTo(2L));

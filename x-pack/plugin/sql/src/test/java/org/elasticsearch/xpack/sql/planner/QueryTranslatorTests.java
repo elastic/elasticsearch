@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
@@ -18,9 +19,11 @@ import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.planner.QueryTranslator.QueryTranslation;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
+import org.elasticsearch.xpack.sql.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
+import org.joda.time.DateTime;
 
 import java.util.Map;
 import java.util.TimeZone;
@@ -83,5 +86,57 @@ public class QueryTranslatorTests extends ESTestCase {
         TermQuery tq = (TermQuery) query;
         assertEquals("int", tq.term());
         assertEquals(5, tq.value());
+    }
+
+    public void testComparisonAgainstColumns() {
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date > int");
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+        SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
+        assertEquals("Line 1:43: Comparisons against variables are not (currently) supported; offender [int] in [>]", ex.getMessage());
+    }
+
+    public void testDateRange() {
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date > 1969-05-13");
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        Query query = translation.query;
+        assertTrue(query instanceof RangeQuery);
+        RangeQuery rq = (RangeQuery) query;
+        assertEquals("date", rq.field());
+        assertEquals(1951, rq.lower());
+    }
+
+    public void testDateRangeLiteral() {
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date > '1969-05-13'");
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        Query query = translation.query;
+        assertTrue(query instanceof RangeQuery);
+        RangeQuery rq = (RangeQuery) query;
+        assertEquals("date", rq.field());
+        assertEquals("1969-05-13", rq.lower());
+    }
+
+    public void testDateRangeCast() {
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE date > CAST('1969-05-13T12:34:56Z' AS DATE)");
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        Query query = translation.query;
+        assertTrue(query instanceof RangeQuery);
+        RangeQuery rq = (RangeQuery) query;
+        assertEquals("date", rq.field());
+        assertEquals(DateTime.parse("1969-05-13T12:34:56Z"), rq.lower());
     }
 }

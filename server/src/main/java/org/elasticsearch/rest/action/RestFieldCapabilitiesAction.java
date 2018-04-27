@@ -57,11 +57,16 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request,
                                               final NodeClient client) throws IOException {
-        if (request.hasContentOrSourceParam() && request.hasParam("fields")) {
-            throw new IllegalArgumentException("can't specify a request body and [fields]" +
-                " request parameter, either specify a request body or the" +
-                " [fields] request parameter");
+        if (request.hasContentOrSourceParam()) {
+            deprecationLogger.deprecated("Specifying a request body is deprecated -- the" +
+                " [fields] request parameter should be used instead.");
+            if (request.hasParam("fields")) {
+                throw new IllegalArgumentException("can't specify a request body and [fields]" +
+                    " request parameter, either specify a request body or the" +
+                    " [fields] request parameter");
+            }
         }
+
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final FieldCapabilitiesRequest fieldRequest;
         if (request.hasContentOrSourceParam()) {

@@ -19,7 +19,9 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.CheckedFunction;
@@ -28,8 +30,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AliasFilterParsingException;
@@ -68,10 +68,20 @@ public interface ShardSearchRequest {
     long nowInMillis();
 
     Boolean requestCache();
-    
+
     Boolean allowPartialSearchResults();
 
     Scroll scroll();
+
+    /**
+     * Returns the routing values resolved by the coordinating node for the index pointed by {@link #shardId()}.
+     */
+    String[] indexRoutings();
+
+    /**
+     * Returns the preference of the original {@link SearchRequest#preference()}.
+     */
+    String preference();
 
     /**
      * Sets if this shard search needs to be profiled or not

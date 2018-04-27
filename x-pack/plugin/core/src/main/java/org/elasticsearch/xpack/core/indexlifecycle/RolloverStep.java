@@ -36,8 +36,9 @@ public class RolloverStep extends AsyncActionStep {
         String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetaData.getSettings());
 
         if (Strings.isNullOrEmpty(rolloverAlias)) {
-            listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT, "setting [%s] for index [%s] is empty or not defined",
-                RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, indexMetaData.getIndex().getName())));
+            listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT,
+                "setting [%s] for index [%s] is empty or not defined", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS,
+                indexMetaData.getIndex().getName())));
             return;
         }
 
@@ -54,24 +55,24 @@ public class RolloverStep extends AsyncActionStep {
         getClient().admin().indices().rolloverIndex(rolloverRequest,
                 ActionListener.wrap(response -> listener.onResponse(response.isRolledOver()), listener::onFailure));
     }
-    
+
     ByteSizeValue getMaxSize() {
         return maxSize;
     }
-    
+
     TimeValue getMaxAge() {
         return maxAge;
     }
-    
+
     Long getMaxDocs() {
         return maxDocs;
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), maxSize, maxAge, maxDocs);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (obj == null) {

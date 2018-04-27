@@ -435,7 +435,7 @@ PUT /cjk_example
             "a", "and", "are", "as", "at", "be", "but", "by", "for",
             "if", "in", "into", "is", "it", "no", "not", "of", "on",
             "or", "s", "such", "t", "that", "the", "their", "then",
-            "there", "these", "they", "this", "to", "was", "will"
+            "there", "these", "they", "this", "to", "was", "will",
             "with", "www"
           ]
         }

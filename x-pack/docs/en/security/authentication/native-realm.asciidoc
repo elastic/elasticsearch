@@ -1,5 +1,5 @@
 [[native-realm]]
-=== Native User Authentication
+=== Native user authentication
 
 The easiest way to manage and authenticate users is with the internal `native`
 realm. You can use the REST APIs or Kibana to add and remove users, assign user roles, and
@@ -7,7 +7,7 @@ manage user passwords.
 
 [[native-realm-configuration]]
 [float]
-==== Configuring a Native Realm
+==== Configuring a native realm
 
 The native realm is added to the realm chain by default. You don't need to
 explicitly configure a native realm to manage users through the REST APIs.
@@ -47,12 +47,12 @@ xpack:
 . Restart Elasticsearch.
 
 [[native-settings]]
-==== Native Realm Settings
+==== Native realm settings
 
 See {ref}/ref-native-settings.html[Native Realm Settings]. 
 
 [[managing-native-users]]
-==== Managing Native Users
+==== Managing native users
 
 {security} enables you to easily manage users in {kib} on the 
 *Management / Security / Users* page. 

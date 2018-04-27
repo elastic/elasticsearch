@@ -616,8 +616,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Engine.Searcher engineSearcher = indexShard.acquireSearcher("search");
 
         final DefaultSearchContext searchContext = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget,
-            engineSearcher, indexService, indexShard, bigArrays, threadPool.estimatedTimeInMillisCounter(), timeout, fetchPhase,
-            request.getClusterAlias());
+            engineSearcher, clusterService, indexService, indexShard, bigArrays, threadPool.estimatedTimeInMillisCounter(), timeout,
+            fetchPhase, request.getClusterAlias(), clusterService.state().nodes().getMinNodeVersion());
         boolean success = false;
         try {
             // we clone the query shard context here just for rewriting otherwise we

@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.BinaryExpression;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.ExpressionId;
+import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
@@ -159,7 +160,7 @@ abstract class QueryTranslator {
             }
         }
 
-        throw new UnsupportedOperationException(format(Locale.ROOT, "Don't know how to translate %s %s", e.nodeName(), e));
+        throw new SqlIllegalArgumentException("Don't know how to translate {} {}", e.nodeName(), e);
     }
 
     static LeafAgg toAgg(String id, Function f) {
@@ -171,7 +172,7 @@ abstract class QueryTranslator {
             }
         }
 
-        throw new UnsupportedOperationException(format(Locale.ROOT, "Don't know how to translate %s %s", f.nodeName(), f));
+        throw new SqlIllegalArgumentException("Don't know how to translate {} {}", f.nodeName(), f);
     }
 
     static class GroupingContext {
@@ -395,8 +396,8 @@ abstract class QueryTranslator {
         if (arg instanceof Literal) {
             return String.valueOf(((Literal) arg).value());
         }
-        throw new SqlIllegalArgumentException("Does not know how to convert argument " + arg.nodeString()
-                + " for function " + af.nodeString());
+        throw new SqlIllegalArgumentException("Does not know how to convert argument {} for function {}", arg.nodeString(),
+                af.nodeString());
     }
 
     // TODO: need to optimize on ngram
@@ -505,9 +506,9 @@ abstract class QueryTranslator {
         @Override
         protected QueryTranslation asQuery(BinaryComparison bc, boolean onAggs) {
             Check.isTrue(bc.right().foldable(),
-                    "Line %d:%d - Comparisons against variables are not (currently) supported; offender %s in %s",
+                    "Line {}:{}: Comparisons against variables are not (currently) supported; offender [{}] in [{}]",
                     bc.right().location().getLineNumber(), bc.right().location().getColumnNumber(),
-                    bc.right().nodeName(), bc.nodeName());
+                    Expressions.name(bc.right()), bc.symbol());
 
             if (bc.left() instanceof NamedExpression) {
                 NamedExpression ne = (NamedExpression) bc.left();
@@ -605,8 +606,8 @@ abstract class QueryTranslator {
                 return new TermQuery(loc, name, value);
             }
 
-            Check.isTrue(false, "don't know how to translate binary comparison [{}] in [{}]", bc.right().nodeString(), bc);
-            return null;
+            throw new SqlIllegalArgumentException("Don't know how to translate binary comparison [{}] in [{}]", bc.right().nodeString(),
+                    bc);
         }
     }
 
@@ -700,9 +701,8 @@ abstract class QueryTranslator {
                 return new QueryTranslation(query, aggFilter);
             }
             else {
-                throw new UnsupportedOperationException("No idea how to translate " + e);
+                throw new SqlIllegalArgumentException("No idea how to translate " + e);
             }
-
         }
     }
 

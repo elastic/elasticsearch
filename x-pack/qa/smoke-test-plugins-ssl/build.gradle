@@ -162,12 +162,10 @@ integTestCluster.dependsOn(importClientCertificateInNodeKeyStore, importNodeCert
 
 
 ext.pluginsCount = 0
-project.rootProject.subprojects.findAll { it.path.startsWith(':plugins:') }.each { subproj ->
-  if (subproj.plugins.hasPlugin(PluginBuildPlugin) || subproj.plugins.hasPlugin(MetaPluginBuildPlugin)) {
-    // need to get a non-decorated project object, so must re-lookup the project by path
-    integTestCluster.plugin(subproj.path)
-    pluginsCount += 1
-  }
+project(':plugins').getChildProjects().each { pluginName, pluginProject ->
+  // need to get a non-decorated project object, so must re-lookup the project by path
+  integTestCluster.plugin(pluginProject.path)
+  pluginsCount += 1
 }
 
 integTestCluster {

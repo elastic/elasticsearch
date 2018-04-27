@@ -235,7 +235,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
             allowPartialSearchResults = in.readOptionalBoolean();
         }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
             indexRoutings = in.readStringArray();
             preference = in.readOptionalString();
         } else {
@@ -268,7 +268,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
             out.writeOptionalBoolean(allowPartialSearchResults);
         }
         if (asKey == false) {
-            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
                 out.writeStringArray(indexRoutings);
                 out.writeOptionalString(preference);
             }

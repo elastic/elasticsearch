@@ -80,6 +80,6 @@ with the <<mapping-roles-api, role mapping API>> or in
 <<templating-role-query, templated role queries>>.
 
 [[ldap-ssl]]
-==== Setting up SSL Between Elasticsearch and LDAP
+===== Setting up SSL Between Elasticsearch and LDAP
 
 See {ref}/tls-ldap.html[Encrypting Communications Between {es} and LDAP]. 

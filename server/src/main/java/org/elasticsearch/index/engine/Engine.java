@@ -71,6 +71,7 @@ import org.elasticsearch.index.translog.TranslogStats;
 import java.io.Closeable;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
 import java.util.Base64;
@@ -577,8 +578,11 @@ public abstract class Engine implements Closeable {
 
     /** get commits stats for the last commit */
     public CommitStats commitStats() {
-        try (Engine.Searcher searcher = acquireSearcher("commit_stats", Engine.SearcherScope.INTERNAL)) {
-            return new CommitStats(getLastCommittedSegmentInfos(), searcher.reader().numDocs());
+        try (IndexCommitRef commitRef = acquireLastIndexCommit(false)) {
+            final SegmentInfos commitInfos = Lucene.readSegmentInfos(commitRef.indexCommit);
+            return new CommitStats(commitInfos, Lucene.getNumDocs(store.directory(), commitInfos));
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
         }
     }
 

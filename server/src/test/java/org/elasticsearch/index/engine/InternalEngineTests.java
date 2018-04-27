@@ -626,6 +626,38 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    public void testCommitStatsNumDocs() throws Exception {
+        final MergePolicy keepSoftDeleteDocsMP = new SoftDeletesRetentionMergePolicy(
+            Lucene.SOFT_DELETE_FIELD, () -> new MatchAllDocsQuery(), engine.config().getMergePolicy());
+        try (Store store = createStore();
+             Engine engine = createEngine(config(defaultSettings, store, createTempDir(), keepSoftDeleteDocsMP, null))) {
+            final Set<String> pendingDocs = new HashSet<>();
+            int flushedDocs = 0;
+            final int iters = scaledRandomIntBetween(10, 100);
+            for (int i = 0; i < iters; i++) {
+                ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocumentWithTextField(), SOURCE, null);
+                engine.index(indexForDoc(doc));
+                pendingDocs.add(doc.id());
+                if (randomBoolean()) {
+                    engine.delete(new Engine.Delete(doc.type(), doc.id(), newUid(doc.id()), primaryTerm.get()));
+                    pendingDocs.remove(doc.id());
+                }
+                if (randomBoolean()) {
+                    engine.index(indexForDoc(doc));
+                    pendingDocs.add(doc.id());
+                }
+                if (randomBoolean()) {
+                    engine.flush();
+                    flushedDocs = pendingDocs.size();
+                }
+                if (randomBoolean()) {
+                    engine.refresh("test");
+                }
+                assertThat(engine.commitStats().getNumDocs(), equalTo(flushedDocs));
+            }
+        }
+    }
+
     public void testIndexSearcherWrapper() throws Exception {
         final AtomicInteger counter = new AtomicInteger();
         IndexSearcherWrapper wrapper = new IndexSearcherWrapper() {

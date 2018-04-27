@@ -44,6 +44,8 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
+import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FieldDoc;
@@ -139,14 +141,12 @@ public class Lucene {
     }
 
     /**
-     * Returns the number of documents in the index referenced by this {@link SegmentInfos}
+     * Returns the number of live documents in the index referenced by this {@link SegmentInfos}
      */
-    public static int getNumDocs(SegmentInfos info) {
-        int numDocs = 0;
-        for (SegmentCommitInfo si : info) {
-            numDocs += si.info.maxDoc() - si.getDelCount();
+    public static int getNumDocs(Directory directory, SegmentInfos sis) throws IOException {
+        try (DirectoryReader reader = StandardDirectoryReader.open(directory, sis, Collections.emptyList())) {
+            return new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETE_FIELD).numDocs();
         }
-        return numDocs;
     }
 
     /**

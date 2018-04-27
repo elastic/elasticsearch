@@ -56,6 +56,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -694,8 +695,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             throw new IllegalStateException("unknown resize type is " + type);
         }
 
-        final Predicate<String> sourceSettingsPredicate = (s) -> s.startsWith("index.similarity.")
-            || s.startsWith("index.analysis.") || s.startsWith("index.sort.");
+        final Predicate<String> sourceSettingsPredicate =
+                (s) -> (s.startsWith("index.similarity.") || s.startsWith("index.analysis.") || s.startsWith("index.sort."))
+                        && indexSettingsBuilder.keys().contains(s) == false;
         indexSettingsBuilder
             // now copy all similarity / analysis / sort settings - this overrides all settings from the user unless they
             // wanna add extra settings

@@ -28,16 +28,20 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TotalHitCountCollector;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -89,7 +93,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
@@ -536,9 +542,14 @@ public abstract class EngineTestCase extends ESTestCase {
         }
     }
 
-    public static List<Engine.Operation> generateSingleDocHistory(boolean forReplica, VersionType versionType,
-                                                                  boolean partialOldPrimary, long primaryTerm,
-                                                                  int minOpCount, int maxOpCount, String docId) {
+    public static List<Engine.Operation> generateSingleDocHistory(
+            final boolean forReplica,
+            final VersionType versionType,
+            final boolean partialOldPrimary,
+            final long primaryTerm,
+            final int minOpCount,
+            final int maxOpCount,
+            final String docId) {
         final int numOfOps = randomIntBetween(minOpCount, maxOpCount);
         final List<Engine.Operation> ops = new ArrayList<>();
         final Term id = newUid(docId);
@@ -659,6 +670,33 @@ public abstract class EngineTestCase extends ESTestCase {
                 assertThat(collector.getTotalHits(), equalTo(1));
             }
         }
+    }
+
+    /**
+     * Returns a list of sequence numbers of all existing documents including soft-deleted documents in Lucene.
+     */
+    public static Set<Long> getOperationSeqNoInLucene(Engine engine) throws IOException {
+        engine.refresh("test");
+        final Set<Long> seqNos = new HashSet<>();
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+            IndexSearcher indexSearcher = new IndexSearcher(Lucene.wrapAllDocsLive(searcher.getDirectoryReader()));
+            List<LeafReaderContext> leaves = indexSearcher.getIndexReader().leaves();
+            NumericDocValues[] seqNoDocValues = new NumericDocValues[leaves.size()];
+            for (int i = 0; i < leaves.size(); i++) {
+                seqNoDocValues[i] = leaves.get(i).reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+            }
+            TopDocs allDocs = indexSearcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
+            for (ScoreDoc scoreDoc : allDocs.scoreDocs) {
+                int leafIndex = ReaderUtil.subIndex(scoreDoc.doc, leaves);
+                int segmentDocId = scoreDoc.doc - leaves.get(leafIndex).docBase;
+                if (seqNoDocValues[leafIndex] != null && seqNoDocValues[leafIndex].advanceExact(segmentDocId)) {
+                    seqNos.add(seqNoDocValues[leafIndex].longValue());
+                } else {
+                    throw new AssertionError("Segment without seqno DocValues");
+                }
+            }
+        }
+        return seqNos;
     }
 
     /**

@@ -81,17 +81,6 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
         fieldRequest.indicesOptions(
             IndicesOptions.fromRequest(request, fieldRequest.indicesOptions())
         );
-        return channel -> client.fieldCaps(fieldRequest,
-            new RestBuilderListener<FieldCapabilitiesResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(FieldCapabilitiesResponse response,
-                                              XContentBuilder builder) throws Exception {
-                RestStatus status = OK;
-                builder.startObject();
-                response.toXContent(builder, request);
-                builder.endObject();
-                return new BytesRestResponse(status, builder);
-            }
-        });
+        return channel -> client.fieldCaps(fieldRequest, new RestToXContentListener<>(channel));
     }
 }

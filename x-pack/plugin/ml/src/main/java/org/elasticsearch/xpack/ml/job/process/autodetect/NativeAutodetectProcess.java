@@ -24,19 +24,23 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
+import java.util.Iterator;
 import java.util.List;
 
 /**
  * Autodetect process using native code.
  */
-class NativeAutodetectProcess extends AbstractNativeProcess<AutodetectResult> implements AutodetectProcess {
+class NativeAutodetectProcess extends AbstractNativeProcess implements AutodetectProcess {
     private static final Logger LOGGER = Loggers.getLogger(NativeAutodetectProcess.class);
+
+    private final AutodetectResultsParser resultsParser;
 
     NativeAutodetectProcess(String jobId, InputStream logStream, OutputStream processInStream, InputStream processOutStream,
                             OutputStream processRestoreStream, int numberOfFields, List<Path> filesToDelete,
                             AutodetectResultsParser resultsParser, Runnable onProcessCrash) {
         super(ProcessCtrl.AUTODETECT, LOGGER, jobId, logStream, processInStream, processOutStream, processRestoreStream, numberOfFields,
-                filesToDelete, resultsParser, onProcessCrash);
+                filesToDelete, onProcessCrash);
+        this.resultsParser = resultsParser;
     }
 
     @Override
@@ -79,5 +83,10 @@ class NativeAutodetectProcess extends AbstractNativeProcess<AutodetectResult> im
     public void persistJob() throws IOException {
         ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(recordWriter, numberOfFields);
         writer.writeStartBackgroundPersistMessage();
+    }
+
+    @Override
+    public Iterator<AutodetectResult> readResults() {
+        return resultsParser.parseResults(processOutStream);
     }
 }

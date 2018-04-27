@@ -13,7 +13,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.ml.job.process.MlResultsParser;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 
 import java.io.IOException;
@@ -23,17 +22,19 @@ import java.util.Iterator;
 
 /**
  * Parses the JSON output of the autodetect program.
- * <p>
- * Expects an array of buckets so the first element will always be the
+ *
+ * Because categorize results are a subset of autodetect results the same parser
+ * is also used for categorize results.
+ *
+ * Expects an array of result documents so the first element will always be the
  * start array symbol and the data must be terminated with the end array symbol.
  */
-public class AutodetectResultsParser extends AbstractComponent implements MlResultsParser<AutodetectResult> {
+public class AutodetectResultsParser extends AbstractComponent {
 
     public AutodetectResultsParser(Settings settings) {
         super(settings);
     }
 
-    @Override
     public Iterator<AutodetectResult> parseResults(InputStream in) throws ElasticsearchParseException {
         try {
             XContentParser parser = XContentFactory.xContent(XContentType.JSON)

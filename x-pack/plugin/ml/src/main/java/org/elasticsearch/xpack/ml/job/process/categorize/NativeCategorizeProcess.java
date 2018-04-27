@@ -15,15 +15,24 @@ import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
+import java.util.Iterator;
 import java.util.List;
 
-class NativeCategorizeProcess extends AbstractNativeProcess<AutodetectResult> implements CategorizeProcess {
+class NativeCategorizeProcess extends AbstractNativeProcess implements CategorizeProcess {
     private static final Logger LOGGER = Loggers.getLogger(NativeCategorizeProcess.class);
+
+    private final AutodetectResultsParser resultsParser;
 
     NativeCategorizeProcess(String jobId, InputStream logStream, OutputStream processInStream, InputStream processOutStream,
                             OutputStream processRestoreStream, int numberOfFields, List<Path> filesToDelete,
                             AutodetectResultsParser resultsParser, Runnable onProcessCrash) {
         super(ProcessCtrl.CATEGORIZE, LOGGER, jobId, logStream, processInStream, processOutStream, processRestoreStream, numberOfFields,
-                filesToDelete, resultsParser, onProcessCrash);
+                filesToDelete, onProcessCrash);
+        this.resultsParser = resultsParser;
+    }
+
+    @Override
+    public Iterator<AutodetectResult> readResults() {
+        return resultsParser.parseResults(processOutStream);
     }
 }

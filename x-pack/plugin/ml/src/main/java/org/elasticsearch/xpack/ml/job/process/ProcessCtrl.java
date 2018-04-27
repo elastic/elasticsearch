@@ -239,7 +239,7 @@ public class ProcessCtrl {
         int intervalStagger = calculateStaggeringInterval(job.getId());
         logger.debug("Periodic operations staggered by " + intervalStagger +" seconds for job '" + job.getId() + "'");
 
-        // Supply a URL for persisting/restoring model state unless model
+        // Supply an interval for background persisting state unless model
         // persistence has been explicitly disabled.
         if (DONT_PERSIST_MODEL_STATE_SETTING.get(settings)) {
             logger.info("Will not persist model state - "  + DONT_PERSIST_MODEL_STATE_SETTING + " setting was set");

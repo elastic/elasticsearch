@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
+package org.elasticsearch.xpack.ml.job.process.writer;
 
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 
@@ -32,7 +32,7 @@ public class ModelPlotConfigWriter {
 
         contents.append("boundspercentile")
                 .append(EQUALS)
-                .append(modelPlotConfig.isEnabled() ? 
+                .append(modelPlotConfig.isEnabled() ?
                         BOUNDS_PERCENTILE_DEFAULT : BOUNDS_PERCENTILE_DISABLE_VALUE)
                 .append(NEW_LINE);
 

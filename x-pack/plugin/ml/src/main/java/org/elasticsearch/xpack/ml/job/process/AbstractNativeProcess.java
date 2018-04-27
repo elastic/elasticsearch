@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.job.process;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.StateProcessor;
@@ -25,7 +24,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.ZonedDateTime;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
@@ -34,7 +32,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-public class AbstractNativeProcess<Result extends ToXContent> implements MlProcess {
+public abstract class AbstractNativeProcess implements MlProcess {
 
     private static final Duration WAIT_FOR_KILL_TIMEOUT = Duration.ofMillis(1000);
 
@@ -43,7 +41,7 @@ public class AbstractNativeProcess<Result extends ToXContent> implements MlProce
     protected final String jobId;
     private final CppLogMessageHandler cppLogHandler;
     private final OutputStream processInStream;
-    private final InputStream processOutStream;
+    protected final InputStream processOutStream;
     private final OutputStream processRestoreStream;
     protected final LengthEncodedWriter recordWriter;
     protected final ZonedDateTime startTime;
@@ -55,11 +53,10 @@ public class AbstractNativeProcess<Result extends ToXContent> implements MlProce
     private volatile boolean processCloseInitiated;
     private volatile boolean processKilled;
     private volatile boolean isReady;
-    private final MlResultsParser<Result> resultsParser;
 
     protected AbstractNativeProcess(String processName, Logger logger, String jobId, InputStream logStream, OutputStream processInStream,
                                     InputStream processOutStream, OutputStream processRestoreStream, int numberOfFields,
-                                    List<Path> filesToDelete, MlResultsParser<Result> resultsParser, Runnable onProcessCrash) {
+                                    List<Path> filesToDelete, Runnable onProcessCrash) {
         this.processName = processName;
         this.logger = logger;
         this.jobId = jobId;
@@ -71,7 +68,6 @@ public class AbstractNativeProcess<Result extends ToXContent> implements MlProce
         startTime = ZonedDateTime.now();
         this.numberOfFields = numberOfFields;
         this.filesToDelete = filesToDelete;
-        this.resultsParser = resultsParser;
         this.onProcessCrash = Objects.requireNonNull(onProcessCrash);
     }
 
@@ -220,10 +216,6 @@ public class AbstractNativeProcess<Result extends ToXContent> implements MlProce
         }
 
         filesToDelete.clear();
-    }
-
-    public Iterator<Result> readResults() {
-        return resultsParser.parseResults(processOutStream);
     }
 
     @Override

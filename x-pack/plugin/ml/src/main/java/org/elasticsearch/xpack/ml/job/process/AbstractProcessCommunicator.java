@@ -57,7 +57,7 @@ public abstract class AbstractProcessCommunicator implements Closeable {
     protected final MlProcess process;
     protected final StateStreamer stateStreamer;
     private final DataCountsReporter dataCountsReporter;
-    private final AutoDetectResultProcessor autoDetectResultProcessor;
+    private final AutoDetectResultProcessor resultProcessor;
     private final Consumer<Exception> onFinishHandler;
     private final ExecutorService executorService;
     private final NamedXContentRegistry xContentRegistry;
@@ -66,7 +66,7 @@ public abstract class AbstractProcessCommunicator implements Closeable {
     private volatile boolean processKilled;
 
     protected AbstractProcessCommunicator(Logger logger, Job job, Environment environment, MlProcess process, StateStreamer stateStreamer,
-                                          DataCountsReporter dataCountsReporter, AutoDetectResultProcessor autoDetectResultProcessor,
+                                          DataCountsReporter dataCountsReporter, AutoDetectResultProcessor resultProcessor,
                                           Consumer<Exception> onFinishHandler, NamedXContentRegistry xContentRegistry,
                                           ExecutorService executorService) {
         this.logger = logger;
@@ -75,7 +75,7 @@ public abstract class AbstractProcessCommunicator implements Closeable {
         this.process = process;
         this.stateStreamer = stateStreamer;
         this.dataCountsReporter = dataCountsReporter;
-        this.autoDetectResultProcessor = autoDetectResultProcessor;
+        this.resultProcessor = resultProcessor;
         this.onFinishHandler = onFinishHandler;
         this.xContentRegistry = xContentRegistry;
         this.executorService = executorService;
@@ -145,7 +145,7 @@ public abstract class AbstractProcessCommunicator implements Closeable {
                     killProcess(false, false);
                     stateStreamer.cancel();
                 }
-                autoDetectResultProcessor.awaitCompletion();
+                resultProcessor.awaitCompletion();
             } finally {
                 onFinishHandler.accept(restart ? new ElasticsearchException(reason) : null);
             }
@@ -172,13 +172,13 @@ public abstract class AbstractProcessCommunicator implements Closeable {
     public void killProcess(boolean awaitCompletion, boolean finish) throws IOException {
         try {
             processKilled = true;
-            autoDetectResultProcessor.setProcessKilled();
+            resultProcessor.setProcessKilled();
             executorService.shutdown();
             process.kill();
 
             if (awaitCompletion) {
                 try {
-                    autoDetectResultProcessor.awaitCompletion();
+                    resultProcessor.awaitCompletion();
                 } catch (TimeoutException e) {
                     logger.warn(new ParameterizedMessage("[{}] Timed out waiting for killed job", job.getId()), e);
                 }
@@ -204,20 +204,20 @@ public abstract class AbstractProcessCommunicator implements Closeable {
 
         FlushAcknowledgement flushAcknowledgement;
         try {
-            flushAcknowledgement = autoDetectResultProcessor.waitForFlushAcknowledgement(flushId, FLUSH_PROCESS_CHECK_FREQUENCY);
+            flushAcknowledgement = resultProcessor.waitForFlushAcknowledgement(flushId, FLUSH_PROCESS_CHECK_FREQUENCY);
             while (flushAcknowledgement == null) {
                 checkProcessIsAlive();
                 checkResultsProcessorIsAlive();
-                flushAcknowledgement = autoDetectResultProcessor.waitForFlushAcknowledgement(flushId, FLUSH_PROCESS_CHECK_FREQUENCY);
+                flushAcknowledgement = resultProcessor.waitForFlushAcknowledgement(flushId, FLUSH_PROCESS_CHECK_FREQUENCY);
             }
         } finally {
-            autoDetectResultProcessor.clearAwaitingFlush(flushId);
+            resultProcessor.clearAwaitingFlush(flushId);
         }
 
         if (processKilled == false) {
             // We also have to wait for the normalizer to become idle so that we block
             // clients from querying results in the middle of normalization.
-            autoDetectResultProcessor.waitUntilRenormalizerIsIdle();
+            resultProcessor.waitUntilRenormalizerIsIdle();
 
             logger.debug("[{}] Flush completed", job.getId());
         }
@@ -236,7 +236,7 @@ public abstract class AbstractProcessCommunicator implements Closeable {
     }
 
     protected void checkResultsProcessorIsAlive() {
-        if (autoDetectResultProcessor.isFailed()) {
+        if (resultProcessor.isFailed()) {
             // Don't log here - it just causes double logging when the exception gets logged
             throw new ElasticsearchException("[{}] Unexpected death of the result processor", job.getId());
         }
@@ -247,7 +247,7 @@ public abstract class AbstractProcessCommunicator implements Closeable {
     }
 
     public ModelSizeStats getModelSizeStats() {
-        return autoDetectResultProcessor.modelSizeStats();
+        return resultProcessor.modelSizeStats();
     }
 
     public DataCounts getDataCounts() {

@@ -54,7 +54,7 @@ public class NativeCategorizeProcessFactory implements CategorizeProcessFactory 
                                                      ExecutorService executorService,
                                                      Runnable onProcessCrash) {
         List<Path> filesToDelete = new ArrayList<>();
-        ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, ProcessCtrl.AUTODETECT, job.getId(),
+        ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, ProcessCtrl.CATEGORIZE, job.getId(),
                 true, false, true, true, haveState, !ProcessCtrl.DONT_PERSIST_MODEL_STATE_SETTING.get(settings));
         createNativeProcess(job, processPipes, filesToDelete);
         boolean includeTokensField = MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA

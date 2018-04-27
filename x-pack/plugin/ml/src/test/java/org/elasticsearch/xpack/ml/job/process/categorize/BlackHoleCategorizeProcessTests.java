@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.job.process.autodetect;
+package org.elasticsearch.xpack.ml.job.process.categorize;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
@@ -12,10 +12,10 @@ import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 
 import java.util.Iterator;
 
-public class BlackHoleAutodetectProcessTests extends ESTestCase {
+public class BlackHoleCategorizeProcessTests extends ESTestCase {
 
     public void testFlushJob_writesAck() {
-        try (BlackHoleAutodetectProcess process = new BlackHoleAutodetectProcess("foo")) {
+        try (BlackHoleCategorizeProcess process = new BlackHoleCategorizeProcess()) {
             String flushId = process.flushJob(FlushJobParams.builder().build());
             Iterator<AutodetectResult> iterator = process.readResults();
             iterator.hasNext();

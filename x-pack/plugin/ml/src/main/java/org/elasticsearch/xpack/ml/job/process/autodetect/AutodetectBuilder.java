@@ -17,8 +17,8 @@ import org.elasticsearch.xpack.ml.job.process.AbstractNativeProcessBuilder;
 import org.elasticsearch.xpack.ml.job.process.NativeController;
 import org.elasticsearch.xpack.ml.job.process.ProcessCtrl;
 import org.elasticsearch.xpack.ml.job.process.ProcessPipes;
-import org.elasticsearch.xpack.ml.job.process.autodetect.writer.FieldConfigWriter;
-import org.elasticsearch.xpack.ml.job.process.autodetect.writer.ModelPlotConfigWriter;
+import org.elasticsearch.xpack.ml.job.process.writer.FieldConfigWriter;
+import org.elasticsearch.xpack.ml.job.process.writer.ModelPlotConfigWriter;
 
 import java.io.IOException;
 import java.io.OutputStreamWriter;

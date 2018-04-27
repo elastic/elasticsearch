@@ -79,6 +79,10 @@ public final class PipelineAggregatorBuilders {
         return new PercentilesBucketPipelineAggregationBuilder(name, bucketsPath);
     }
 
+    /**
+     * @deprecated use {@link #movingFunction(String, Script, String, int)} instead
+     */
+    @Deprecated
     public static MovAvgPipelineAggregationBuilder movingAvg(String name, String bucketsPath) {
         return new MovAvgPipelineAggregationBuilder(name, bucketsPath);
     }

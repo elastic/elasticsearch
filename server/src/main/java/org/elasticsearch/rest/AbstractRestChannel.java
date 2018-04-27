@@ -48,6 +48,13 @@ public abstract class AbstractRestChannel implements RestChannel {
 
     private BytesStreamOutput bytesOut;
 
+    /**
+     * Construct a channel for handling the request.
+     *
+     * @param request               the request
+     * @param detailedErrorsEnabled if detailed errors should be reported to the channel
+     * @throws IllegalArgumentException if parsing the pretty or human parameters fails
+     */
     protected AbstractRestChannel(RestRequest request, boolean detailedErrorsEnabled) {
         this.request = request;
         this.detailedErrorsEnabled = detailedErrorsEnabled;

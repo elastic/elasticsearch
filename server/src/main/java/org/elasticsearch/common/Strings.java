@@ -756,6 +756,14 @@ public class Strings {
     }
 
     /**
+     * Returns a string representation of the builder (only applicable for text based xcontent).
+     * @param xContentBuilder builder containing an object to converted to a string
+     */
+    public static String toString(XContentBuilder xContentBuilder) {
+        return BytesReference.bytes(xContentBuilder).utf8ToString();
+    }
+
+    /**
      * Return a {@link String} that is the json representation of the provided {@link ToXContent}.
      * Wraps the output into an anonymous object if needed. Allows to control whether the outputted
      * json needs to be pretty printed and human readable.
@@ -771,7 +779,7 @@ public class Strings {
             if (toXContent.isFragment()) {
                 builder.endObject();
             }
-            return builder.string();
+            return toString(builder);
         } catch (IOException e) {
             try {
                 XContentBuilder builder = createBuilder(pretty, human);
@@ -779,7 +787,7 @@ public class Strings {
                 builder.field("error", "error building toString out of XContent: " + e.getMessage());
                 builder.field("stack_trace", ExceptionsHelper.stackTrace(e));
                 builder.endObject();
-                return builder.string();
+                return toString(builder);
             } catch (IOException e2) {
                 throw new ElasticsearchException("cannot generate error message for deserialization", e);
             }
@@ -845,5 +853,4 @@ public class Strings {
             return sb.toString();
         }
     }
-
 }

@@ -76,7 +76,7 @@ final class DocumentParser {
             throw new IllegalStateException("found leftover path elements: " + remainingPath);
         }
 
-        reverseOrder(context);
+        context.postParse();
 
         return parsedDocument(source, context, createDynamicUpdate(mapping, docMapper, context.getDynamicMappers()));
     }
@@ -141,12 +141,6 @@ final class DocumentParser {
         return false;
     }
 
-    private static void reverseOrder(ParseContext.InternalParseContext context) {
-        // reverse the order of docs for nested docs support, parent should be last
-        if (context.docs().size() > 1) {
-            Collections.reverse(context.docs());
-        }
-    }
 
     private static ParsedDocument parsedDocument(SourceToParse source, ParseContext.InternalParseContext context, Mapping update) {
         return new ParsedDocument(
@@ -159,7 +153,7 @@ final class DocumentParser {
             context.sourceToParse().source(),
             context.sourceToParse().getXContentType(),
             update
-        ).parent(source.parent());
+        );
     }
 
 
@@ -423,7 +417,7 @@ final class DocumentParser {
 
     private static void addFields(ParseContext.Document nestedDoc, ParseContext.Document rootDoc) {
         for (IndexableField field : nestedDoc.getFields()) {
-            if (!field.name().equals(UidFieldMapper.NAME) && !field.name().equals(TypeFieldMapper.NAME)) {
+            if (!field.name().equals(TypeFieldMapper.NAME)) {
                 rootDoc.add(field);
             }
         }
@@ -440,30 +434,19 @@ final class DocumentParser {
         // documents inside the Lucene index (document blocks) will be incorrect, as nested documents of different root
         // documents are then aligned with other root documents. This will lead tothe nested query, sorting, aggregations
         // and inner hits to fail or yield incorrect results.
-        if (context.mapperService().getIndexSettings().isSingleType()) {
-            IndexableField idField = parentDoc.getField(IdFieldMapper.NAME);
-            if (idField != null) {
-                // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
-                // delete it when the root document is deleted too.
-                if (idField.stringValue() != null) {
-                    // backward compat with 5.x
-                    // TODO: Remove on 7.0
-                    nestedDoc.add(new Field(IdFieldMapper.NAME, idField.stringValue(), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
-                } else {
-                    nestedDoc.add(new Field(IdFieldMapper.NAME, idField.binaryValue(), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
-                }
+        IndexableField idField = parentDoc.getField(IdFieldMapper.NAME);
+        if (idField != null) {
+            // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
+            // delete it when the root document is deleted too.
+            if (idField.stringValue() != null) {
+                // backward compat with 5.x
+                // TODO: Remove on 7.0
+                nestedDoc.add(new Field(IdFieldMapper.NAME, idField.stringValue(), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
             } else {
-                throw new IllegalStateException("The root document of a nested document should have an id field");
+                nestedDoc.add(new Field(IdFieldMapper.NAME, idField.binaryValue(), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
             }
         } else {
-            IndexableField uidField = parentDoc.getField(UidFieldMapper.NAME);
-            if (uidField != null) {
-                /// We just need to store the uid as indexed field, so that IndexWriter#deleteDocuments(term) can then
-                // delete it when the root document is deleted too.
-                nestedDoc.add(new Field(UidFieldMapper.NAME, uidField.stringValue(), UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
-            } else {
-                throw new IllegalStateException("The root document of a nested document should have an uid field");
-            }
+            throw new IllegalStateException("The root document of a nested document should have an _id field");
         }
 
         // the type of the nested doc starts with __, so we can identify that its a nested one in filters
@@ -625,9 +608,7 @@ final class DocumentParser {
 
     private static Mapper.Builder<?,?> createBuilderFromFieldType(final ParseContext context, MappedFieldType fieldType, String currentFieldName) {
         Mapper.Builder builder = null;
-        if (fieldType instanceof StringFieldType) {
-            builder = context.root().findTemplateBuilder(context, currentFieldName, "string", XContentFieldType.STRING);
-        } else if (fieldType instanceof TextFieldType) {
+        if (fieldType instanceof TextFieldType) {
             builder = context.root().findTemplateBuilder(context, currentFieldName, "text", XContentFieldType.STRING);
             if (builder == null) {
                 builder = new TextFieldMapper.Builder(currentFieldName)

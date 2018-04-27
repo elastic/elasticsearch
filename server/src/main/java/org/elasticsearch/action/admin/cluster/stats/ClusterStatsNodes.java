@@ -488,7 +488,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params)
                 throws IOException {
-            builder.timeValueField(Fields.MAX_UPTIME_IN_MILLIS, Fields.MAX_UPTIME, maxUptime);
+            builder.humanReadableField(Fields.MAX_UPTIME_IN_MILLIS, Fields.MAX_UPTIME, new TimeValue(maxUptime));
             builder.startArray(Fields.VERSIONS);
             for (ObjectIntCursor<JvmVersion> v : versions) {
                 builder.startObject();
@@ -501,8 +501,8 @@ public class ClusterStatsNodes implements ToXContentFragment {
             }
             builder.endArray();
             builder.startObject(Fields.MEM);
-            builder.byteSizeField(Fields.HEAP_USED_IN_BYTES, Fields.HEAP_USED, heapUsed);
-            builder.byteSizeField(Fields.HEAP_MAX_IN_BYTES, Fields.HEAP_MAX, heapMax);
+            builder.humanReadableField(Fields.HEAP_USED_IN_BYTES, Fields.HEAP_USED, getHeapUsed());
+            builder.humanReadableField(Fields.HEAP_MAX_IN_BYTES, Fields.HEAP_MAX, getHeapMax());
             builder.endObject();
 
             builder.field(Fields.THREADS, threads);

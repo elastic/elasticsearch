@@ -252,7 +252,9 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(_INDEX, index);
-        builder.field(_TYPE, type);
+        if (params.paramAsBoolean("include_type_name", true)) {
+            builder.field(_TYPE, type);
+        }
         builder.field(_ID, id);
         if (isExists()) {
             if (version != -1) {
@@ -304,7 +306,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
                         //the original document gets slightly modified: whitespaces or pretty printing are not preserved,
                         //it all depends on the current builder settings
                         builder.copyCurrentStructure(parser);
-                        source = builder.bytes();
+                        source = BytesReference.bytes(builder);
                     }
                 } else if (FIELDS.equals(currentFieldName)) {
                     while(parser.nextToken() != XContentParser.Token.END_OBJECT) {

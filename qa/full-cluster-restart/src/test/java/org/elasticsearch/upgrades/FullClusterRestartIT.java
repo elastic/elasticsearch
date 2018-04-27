@@ -29,6 +29,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -140,7 +141,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
             }
             mappingsAndSettings.endObject();
             client().performRequest("PUT", "/" + index, Collections.emptyMap(),
-                new StringEntity(mappingsAndSettings.string(), ContentType.APPLICATION_JSON));
+                new StringEntity(Strings.toString(mappingsAndSettings), ContentType.APPLICATION_JSON));
 
             count = randomIntBetween(2000, 3000);
             byte[] randomByteArray = new byte[16];
@@ -203,7 +204,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
             }
             mappingsAndSettings.endObject();
             client().performRequest("PUT", "/" + index, Collections.emptyMap(),
-                new StringEntity(mappingsAndSettings.string(), ContentType.APPLICATION_JSON));
+                new StringEntity(Strings.toString(mappingsAndSettings), ContentType.APPLICATION_JSON));
 
             int numDocs = randomIntBetween(2000, 3000);
             indexRandomDocuments(numDocs, true, false, i -> {
@@ -280,7 +281,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
             }
             mappingsAndSettings.endObject();
             client().performRequest("PUT", "/" + index, Collections.emptyMap(),
-                new StringEntity(mappingsAndSettings.string(), ContentType.APPLICATION_JSON));
+                new StringEntity(Strings.toString(mappingsAndSettings), ContentType.APPLICATION_JSON));
 
             String aliasName = "%23" + index; // %23 == #
             client().performRequest("PUT", "/" + index + "/_alias/" + aliasName);
@@ -328,7 +329,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
             }
             mappingsAndSettings.endObject();
             client().performRequest("PUT", "/_template/template_1", Collections.emptyMap(),
-                new StringEntity(mappingsAndSettings.string(), ContentType.APPLICATION_JSON));
+                new StringEntity(Strings.toString(mappingsAndSettings), ContentType.APPLICATION_JSON));
             client().performRequest("PUT", "/" + index);
         }
 
@@ -379,7 +380,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
             }
             mappingsAndSettings.endObject();
             client().performRequest("PUT", "/" + index, Collections.emptyMap(),
-                new StringEntity(mappingsAndSettings.string(), ContentType.APPLICATION_JSON));
+                new StringEntity(Strings.toString(mappingsAndSettings), ContentType.APPLICATION_JSON));
 
             numDocs = randomIntBetween(512, 1024);
             indexRandomDocuments(numDocs, true, true, i -> {
@@ -446,7 +447,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
             }
             mappingsAndSettings.endObject();
             client().performRequest("PUT", "/" + index, Collections.emptyMap(),
-                new StringEntity(mappingsAndSettings.string(), ContentType.APPLICATION_JSON));
+                new StringEntity(Strings.toString(mappingsAndSettings), ContentType.APPLICATION_JSON));
 
             numDocs = randomIntBetween(512, 1024);
             indexRandomDocuments(numDocs, true, true, i -> {
@@ -686,7 +687,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
      * Tests recovery of an index with or without a translog and the
      * statistics we gather about that.
      */
-    public void testRecovery() throws IOException {
+    public void testRecovery() throws Exception {
         int count;
         boolean shouldHaveTranslog;
         if (runningAgainstOldCluster) {
@@ -697,6 +698,9 @@ public class FullClusterRestartIT extends ESRestTestCase {
             shouldHaveTranslog = randomBoolean();
 
             indexRandomDocuments(count, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
+
+            // make sure all recoveries are done
+            ensureGreen(index);
             // Explicitly flush so we're sure to have a bunch of documents in the Lucene index
             client().performRequest("POST", "/_flush");
             if (shouldHaveTranslog) {
@@ -836,7 +840,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         }
         templateBuilder.endObject().endObject();
         client().performRequest("PUT", "/_template/test_template", emptyMap(),
-                new StringEntity(templateBuilder.string(), ContentType.APPLICATION_JSON));
+                new StringEntity(Strings.toString(templateBuilder), ContentType.APPLICATION_JSON));
 
         if (runningAgainstOldCluster) {
             // Create the repo
@@ -850,7 +854,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
             }
             repoConfig.endObject();
             client().performRequest("PUT", "/_snapshot/repo", emptyMap(),
-                    new StringEntity(repoConfig.string(), ContentType.APPLICATION_JSON));
+                    new StringEntity(Strings.toString(repoConfig), ContentType.APPLICATION_JSON));
         }
 
         client().performRequest("PUT", "/_snapshot/repo/" + (runningAgainstOldCluster ? "old_snap" : "new_snap"),
@@ -875,7 +879,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
             }
             mappingsAndSettings.endObject();
             client().performRequest("PUT", "/" + index, Collections.emptyMap(),
-                new StringEntity(mappingsAndSettings.string(), ContentType.APPLICATION_JSON));
+                new StringEntity(Strings.toString(mappingsAndSettings), ContentType.APPLICATION_JSON));
         } else {
             Response response = client().performRequest("GET", index + "/_stats", singletonMap("level", "shards"));
             List<Object> shardStats = ObjectPath.createFromResponse(response).evaluate("indices." + index + ".shards.0");
@@ -919,7 +923,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         restoreCommand.field("rename_replacement", "restored_" + index);
         restoreCommand.endObject();
         client().performRequest("POST", "/_snapshot/repo/" + snapshotName + "/_restore", singletonMap("wait_for_completion", "true"),
-                new StringEntity(restoreCommand.string(), ContentType.APPLICATION_JSON));
+                new StringEntity(Strings.toString(restoreCommand), ContentType.APPLICATION_JSON));
 
         // Make sure search finds all documents
         String countResponse = toStr(client().performRequest("GET", "/restored_" + index + "/_search", singletonMap("size", "0")));
@@ -997,7 +1001,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         for (int i = 0; i < count; i++) {
             logger.debug("Indexing document [{}]", i);
             client().performRequest("POST", "/" + index + "/doc/" + i, emptyMap(),
-                    new StringEntity(docSupplier.apply(i).string(), ContentType.APPLICATION_JSON));
+                    new StringEntity(Strings.toString(docSupplier.apply(i)), ContentType.APPLICATION_JSON));
             if (rarely()) {
                 refresh();
             }
@@ -1022,7 +1026,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         // Only create the first version so we know how many documents are created when the index is first created
         Map<String, String> params = singletonMap("op_type", "create");
         client().performRequest("PUT", "/info/doc/" + index + "_" + type, params,
-                new StringEntity(infoDoc.string(), ContentType.APPLICATION_JSON));
+                new StringEntity(Strings.toString(infoDoc), ContentType.APPLICATION_JSON));
     }
 
     private String loadInfoDocument(String type) throws IOException {

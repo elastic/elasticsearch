@@ -37,8 +37,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -345,7 +345,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
                      XContentBuilder builder = XContentBuilder.builder(mainRequestXContentType.xContent())) {
                     parser.nextToken();
                     builder.copyCurrentStructure(parser);
-                    index.source(builder.bytes(), builder.contentType());
+                    index.source(BytesReference.bytes(builder), builder.contentType());
                 } catch (IOException e) {
                     throw new UncheckedIOException("failed to convert hit from " + sourceXContentType + " to "
                         + mainRequestXContentType, e);
@@ -359,7 +359,6 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
              * here on out operates on the index request rather than the template.
              */
             index.routing(mainRequest.getDestination().routing());
-            index.parent(mainRequest.getDestination().parent());
             index.setPipeline(mainRequest.getDestination().getPipeline());
             // OpType is synthesized from version so it is handled when we copy version above.
 
@@ -430,14 +429,6 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
                 } else {
                     request.setVersion(asLong(to, VersionFieldMapper.NAME));
                 }
-            }
-
-            @Override
-            protected void scriptChangedParent(RequestWrapper<?> request, Object to) {
-                // Have to override routing with parent just in case its changed
-                String routing = Objects.toString(to, null);
-                request.setParent(routing);
-                request.setRouting(routing);
             }
 
             @Override

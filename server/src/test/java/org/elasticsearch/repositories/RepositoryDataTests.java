@@ -20,6 +20,7 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -57,7 +58,7 @@ public class RepositoryDataTests extends ESTestCase {
         RepositoryData repositoryData = generateRandomRepoData();
         XContentBuilder builder = JsonXContent.contentBuilder();
         repositoryData.snapshotsToXContent(builder, ToXContent.EMPTY_PARAMS);
-        XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         long gen = (long) randomIntBetween(0, 500);
         RepositoryData fromXContent = RepositoryData.snapshotsFromXContent(parser, gen);
         assertEquals(repositoryData, fromXContent);

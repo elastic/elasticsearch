@@ -21,7 +21,9 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -159,7 +161,7 @@ public final class Script implements ToXContentObject, Writeable {
                 if (parser.currentToken() == Token.START_OBJECT) {
                     //this is really for search templates, that need to be converted to json format
                     XContentBuilder builder = XContentFactory.jsonBuilder();
-                    idOrCode = builder.copyCurrentStructure(parser).string();
+                    idOrCode = Strings.toString(builder.copyCurrentStructure(parser));
                     options.put(CONTENT_TYPE_OPTION, XContentType.JSON.mediaType());
                 } else {
                     idOrCode = parser.text();
@@ -283,7 +285,7 @@ public final class Script implements ToXContentObject, Writeable {
             builder.startObject();
             settings.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            try (InputStream stream = builder.bytes().streamInput();
+            try (InputStream stream = BytesReference.bytes(builder).streamInput();
                  XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
                      LoggingDeprecationHandler.INSTANCE, stream)) {
                 return parse(parser);
@@ -639,7 +641,9 @@ public final class Script implements ToXContentObject, Writeable {
 
         if (type == ScriptType.INLINE) {
             if (contentType != null && builder.contentType().mediaType().equals(contentType)) {
-                builder.rawField(SOURCE_PARSE_FIELD.getPreferredName(), new BytesArray(idOrCode));
+                try (InputStream stream = new BytesArray(idOrCode).streamInput()) {
+                    builder.rawField(SOURCE_PARSE_FIELD.getPreferredName(), stream);
+                }
             } else {
                 builder.field(SOURCE_PARSE_FIELD.getPreferredName(), idOrCode);
             }

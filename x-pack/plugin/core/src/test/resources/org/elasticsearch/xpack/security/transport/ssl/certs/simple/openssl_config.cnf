@@ -1,0 +1,35 @@
+[ req ]
+default_bits = 2048 # Size of keys
+default_keyfile = key.pem # name of generated keys
+default_md = sha256 # message digest algorithm
+string_mask = nombstr # permitted characters
+distinguished_name = req_distinguished_name
+req_extensions = v3_req
+
+[ req_distinguished_name ]
+0.organizationName = Organization Name (company)
+organizationalUnitName = Organizational Unit Name (department, division)
+emailAddress = Email Address
+emailAddress_max = 40
+localityName = Locality Name (city, district)
+stateOrProvinceName = State or Province Name (full name)
+countryName = Country Name (2 letter code)
+countryName_min = 2
+countryName_max = 2
+commonName = Common Name (hostname, IP, or your name)
+commonName_max = 64
+
+[ v3_req ]
+basicConstraints = CA:FALSE
+subjectKeyIdentifier = hash
+subjectAltName = @alt_names
+
+[ alt_names ]
+DNS.1 = localhost
+DNS.2 = localhost.localdomain
+DNS.3 = localhost4
+DNS.4 = localhost4.localdomain4
+DNS.5 = localhost6
+DNS.6 = localhost6.localdomain6
+IP.1 = 127.0.0.1
+IP.2 = ::1

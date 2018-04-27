@@ -41,40 +41,74 @@ public final class IOUtils {
     }
 
     /**
-     * Closes all given <tt>Closeable</tt>s. Some of the <tt>Closeable</tt>s may be null; they are ignored. After everything is closed, the
-     * method either throws the first exception it hit while closing, or completes normally if there were no exceptions.
+     * Closes all given <tt>Closeable</tt>s. Some of the <tt>Closeable</tt>s may be null; they are
+     * ignored. After everything is closed, the method either throws the first exception it hit
+     * while closing with other exceptions added as suppressed, or completes normally if there were
+     * no exceptions.
      *
      * @param objects objects to close
      */
     public static void close(final Closeable... objects) throws IOException {
-        close(Arrays.asList(objects));
+        close(null, Arrays.asList(objects));
     }
 
     /**
-     * Closes all given {@link Closeable}s.
+     * Closes all given <tt>Closeable</tt>s. Some of the <tt>Closeable</tt>s may be null; they are
+     * ignored. After everything is closed, the method adds any exceptions as suppressed to the
+     * original exception, or throws the first exception it hit if {@code Exception} is null. If
+     * no exceptions are encountered and the passed in exception is null, it completes normally.
      *
+     * @param objects objects to close
+     */
+    public static void close(final Exception e, final Closeable... objects) throws IOException {
+        close(e, Arrays.asList(objects));
+    }
+
+    /**
+     * Closes all given <tt>Closeable</tt>s. Some of the <tt>Closeable</tt>s may be null; they are
+     * ignored. After everything is closed, the method either throws the first exception it hit
+     * while closing with other exceptions added as suppressed, or completes normally if there were
+     * no exceptions.
+     *
+     * @param objects objects to close
+     */
+    public static void close(final Iterable<? extends Closeable> objects) throws IOException {
+        close(null, objects);
+    }
+
+    /**
+     * Closes all given {@link Closeable}s. If a non-null exception is passed in, or closing a
+     * stream causes an exception, throws the exception with other {@link RuntimeException} or
+     * {@link IOException} exceptions added as suppressed.
+     *
+     * @param ex existing Exception to add exceptions occurring during close to
      * @param objects objects to close
      *
      * @see #close(Closeable...)
      */
-    public static void close(final Iterable<? extends Closeable> objects) throws IOException {
-        Throwable th = null;
-
+    public static void close(final Exception ex, final Iterable<? extends Closeable> objects) throws IOException {
+        Exception firstException = ex;
         for (final Closeable object : objects) {
             try {
                 if (object != null) {
                     object.close();
                 }
-            } catch (final Throwable t) {
-                addSuppressed(th, t);
-                if (th == null) {
-                    th = t;
+            } catch (final IOException | RuntimeException e) {
+                if (firstException == null) {
+                    firstException = e;
+                } else {
+                    firstException.addSuppressed(e);
                 }
             }
         }
 
-        if (th != null) {
-            throw rethrowAlways(th);
+        if (firstException != null) {
+            if (firstException instanceof IOException) {
+                throw (IOException) firstException;
+            } else {
+                // since we only assigned an IOException or a RuntimeException to ex above, in this case ex must be a RuntimeException
+                throw (RuntimeException) firstException;
+            }
         }
     }
 
@@ -101,63 +135,10 @@ public final class IOUtils {
                 if (object != null) {
                     object.close();
                 }
-            } catch (final Throwable t) {
+            } catch (final IOException | RuntimeException e) {
 
             }
         }
-    }
-
-    /**
-     * Adds a {@link Throwable} to the list of suppressed {@link Exception}s of the first {@link Throwable}.
-     *
-     * @param exception  the exception to add a suppression to, if non-null
-     * @param suppressed the exception to suppress
-     */
-    private static void addSuppressed(final Throwable exception, final Throwable suppressed) {
-        if (exception != null && suppressed != null) {
-            exception.addSuppressed(suppressed);
-        }
-    }
-
-    /**
-     * This utility method takes a previously caught (non-null) {@link Throwable} and rethrows either the original argument if it was a
-     * subclass of the {@link IOException} or an {@link RuntimeException} with the cause set to the argument.
-     * <p>
-     * This method <strong>never returns any value</strong>, even though it declares a return value of type {@link Error}. The return
-     * value declaration is very useful to let the compiler know that the code path following the invocation of this method is unreachable.
-     * So in most cases the invocation of this method will be guarded by an {@code if} and used together with a {@code throw} statement, as
-     * in:
-     * <p>
-     * <pre>{@code
-     *   if (t != null) throw IOUtils.rethrowAlways(t)
-     * }
-     * </pre>
-     *
-     * @param th the throwable to rethrow; <strong>must not be null</strong>
-     * @return this method always results in an exception, it never returns any value; see method documentation for details and usage
-     * example
-     * @throws IOException      if the argument was an instance of {@link IOException}
-     * @throws RuntimeException with the {@link RuntimeException#getCause()} set to the argument, if it was not an instance of
-     *                          {@link IOException}
-     */
-    private static Error rethrowAlways(final Throwable th) throws IOException, RuntimeException {
-        if (th == null) {
-            throw new AssertionError("rethrow argument must not be null.");
-        }
-
-        if (th instanceof IOException) {
-            throw (IOException) th;
-        }
-
-        if (th instanceof RuntimeException) {
-            throw (RuntimeException) th;
-        }
-
-        if (th instanceof Error) {
-            throw (Error) th;
-        }
-
-        throw new RuntimeException(th);
     }
 
     /**
@@ -180,7 +161,7 @@ public final class IOUtils {
                 // noinspection EmptyCatchBlock
                 try {
                     Files.delete(name);
-                } catch (final Throwable ignored) {
+                } catch (final IOException ignored) {
 
                 }
             }

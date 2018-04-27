@@ -121,7 +121,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
                 ContentType.APPLICATION_JSON)));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/2074")
+    @AwaitsFix(bugUrl = "Unclear status, https://github.com/elastic/x-pack-elasticsearch/issues/2074")
     public void testTimeZone() throws IOException {
         String mode = randomMode();
         index("{\"test\":\"2017-07-27 00:00:00\"}",

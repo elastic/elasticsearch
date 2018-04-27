@@ -1079,11 +1079,13 @@ PUT /irish_example
       "filter": {
         "irish_hyphenation": {
           "type":       "stop",
-          "stopwords":  [ "h", "n", "t" ]
+          "stopwords":  [ "h", "n", "t" ],
+          "ignore_case": true
         },
         "irish_elision": {
           "type":       "elision",
-          "articles":   [ "d", "m", "b" ]
+          "articles":   [ "d", "m", "b" ],
+          "articles_case": true
         },
         "irish_stop": {
           "type":       "stop",

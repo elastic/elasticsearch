@@ -431,7 +431,13 @@ PUT /cjk_example
       "filter": {
         "english_stop": {
           "type":       "stop",
-          "stopwords":  "_english_" <1>
+          "stopwords":  [ <1>
+            "a", "and", "are", "as", "at", "be", "but", "by", "for"
+            "if", "in", "into", "is", "it", "no", "not", "of", "on",
+            "or", "s", "such", "t", "that", "the", "their", "then",
+            "there", "these", "they", "this", "to", "was", "will",
+            "with", "www"
+          ]
         }
       },
       "analyzer": {
@@ -453,7 +459,9 @@ PUT /cjk_example
 // TEST[s/"cjk_keywords",//]
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: cjk_example, first: cjk, second: rebuilt_cjk}\nendyaml\n/]
 <1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
+    or `stopwords_path` parameters. The default stop words are
+    *almost* the same as the `_english_` set, but not exactly
+    the same.
 
 [[czech-analyzer]]
 ===== `czech` analyzer

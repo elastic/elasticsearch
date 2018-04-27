@@ -31,7 +31,7 @@ dependencies {
   compile "org.hamcrest:hamcrest-core:${versions.hamcrest}"
 
   // needs to be on the classpath for JarHell
-  runtime project(':libs:elasticsearch-core')
+  testRuntime project(':libs:elasticsearch-core')
 
   // pulls in the jar built by this project and its dependencies
   packagingTest project(path: project.path, configuration: 'runtime')

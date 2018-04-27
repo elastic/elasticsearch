@@ -207,12 +207,13 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
 
         public Response() {
             super(null, null);
+            lastFinalizedBucketEnd = new Date(0);
         }
 
         public Response(boolean flushed, @Nullable Date lastFinalizedBucketEnd) {
             super(null, null);
             this.flushed = flushed;
-            this.lastFinalizedBucketEnd = lastFinalizedBucketEnd;
+            this.lastFinalizedBucketEnd = (lastFinalizedBucketEnd != null) ? lastFinalizedBucketEnd : new Date(0);
         }
 
         public boolean isFlushed() {
@@ -229,6 +230,8 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
             flushed = in.readBoolean();
             if (in.getVersion().after(Version.V_5_5_0)) {
                 lastFinalizedBucketEnd = new Date(in.readVLong());
+            } else {
+                lastFinalizedBucketEnd = new Date(0);
             }
         }
 
@@ -245,7 +248,8 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("flushed", flushed);
-            if (lastFinalizedBucketEnd != null) {
+            // Job types that don't have buckets will report lastFinalizedBucketEnd as 0, so omit this from the response
+            if (lastFinalizedBucketEnd.getTime() > 0) {
                 builder.timeField(FlushAcknowledgement.LAST_FINALIZED_BUCKET_END.getPreferredName(),
                         FlushAcknowledgement.LAST_FINALIZED_BUCKET_END.getPreferredName() + "_string", lastFinalizedBucketEnd.getTime());
             }

@@ -61,7 +61,7 @@ public class TransportFlushJobAction extends TransportJobTaskAction<FlushJobActi
         paramsBuilder.forTimeRange(timeRangeBuilder.build());
         processManager.flushJob(task, paramsBuilder.build(), ActionListener.wrap(
                 flushAcknowledgement -> {
-                    listener.onResponse(new FlushJobAction.Response(true,
+                    listener.onResponse(new FlushJobAction.Response(flushAcknowledgement != null,
                             flushAcknowledgement == null ? null : flushAcknowledgement.getLastFinalizedBucketEnd()));
                 }, listener::onFailure
         ));

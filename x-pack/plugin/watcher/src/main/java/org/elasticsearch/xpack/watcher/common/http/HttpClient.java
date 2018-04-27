@@ -56,11 +56,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 public class HttpClient extends AbstractComponent implements Closeable {
 
     private static final String SETTINGS_SSL_PREFIX = "xpack.http.ssl.";
+    // picking a reasonable high value here to allow for setups with lots of watch executions or many http inputs/actions
+    // this is also used as the value per route, if you are connecting to the same endpoint a lot, which is likely, when
+    // you are querying a remote Elasticsearch cluster
+    private static final int MAX_CONNECTIONS = 500;
 
     private final HttpAuthRegistry httpAuthRegistry;
     private final CloseableHttpClient client;
@@ -86,15 +89,9 @@ public class HttpClient extends AbstractComponent implements Closeable {
         SSLConnectionSocketFactory factory = new SSLConnectionSocketFactory(sslService.sslSocketFactory(sslSettings), verifier);
         clientBuilder.setSSLSocketFactory(factory);
 
-        if (HttpSettings.APACHE_HTTP_CLIENT_EVICT_IDLE_CONNECTIONS.get(settings)) {
-            clientBuilder.evictExpiredConnections();
-            TimeValue timeout = HttpSettings.APACHE_HTTP_CLIENT_EVICT_IDLE_CONNECTIONS_TIMEOUT.get(settings);
-            clientBuilder.evictIdleConnections(timeout.millis(), TimeUnit.MILLISECONDS);
-        }
-        int maxConnectionsPerRoute = HttpSettings.APACHE_HTTP_CLIENT_MAX_CONN_PER_ROUTE.get(settings);
-        clientBuilder.setMaxConnPerRoute(maxConnectionsPerRoute );
-        int maxConnectionsTotal = HttpSettings.APACHE_HTTP_CLIENT_MAX_CONN_TOTAL.get(settings);
-        clientBuilder.setMaxConnTotal(maxConnectionsTotal);
+        clientBuilder.evictExpiredConnections();
+        clientBuilder.setMaxConnPerRoute(MAX_CONNECTIONS);
+        clientBuilder.setMaxConnTotal(MAX_CONNECTIONS);
 
         client = clientBuilder.build();
     }

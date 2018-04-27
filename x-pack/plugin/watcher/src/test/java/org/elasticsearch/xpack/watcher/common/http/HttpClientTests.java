@@ -71,21 +71,7 @@ public class HttpClientTests extends ESTestCase {
     public void init() throws Exception {
         authRegistry = new HttpAuthRegistry(singletonMap(BasicAuth.TYPE, new BasicAuthFactory(null)));
         webServer.start();
-        Settings.Builder settingsBuilder = Settings.builder();
-        if (randomBoolean()) {
-            settingsBuilder.put(HttpSettings.APACHE_HTTP_CLIENT_EVICT_IDLE_CONNECTIONS.getKey(), randomBoolean());
-        }
-        if (randomBoolean()) {
-            settingsBuilder.put(HttpSettings.APACHE_HTTP_CLIENT_MAX_CONN_TOTAL.getKey(), randomIntBetween(1, 100));
-        }
-        if (randomBoolean()) {
-            settingsBuilder.put(HttpSettings.APACHE_HTTP_CLIENT_MAX_CONN_PER_ROUTE.getKey(), randomIntBetween(1, 100));
-        }
-        if (randomBoolean()) {
-            settingsBuilder.put(HttpSettings.APACHE_HTTP_CLIENT_EVICT_IDLE_CONNECTIONS_TIMEOUT.getKey(),
-                TimeValue.timeValueSeconds(randomIntBetween(5, 10)));
-        }
-        httpClient = new HttpClient(settingsBuilder.build(), authRegistry, new SSLService(environment.settings(), environment));
+        httpClient = new HttpClient(Settings.EMPTY, authRegistry, new SSLService(environment.settings(), environment));
     }
 
     @After

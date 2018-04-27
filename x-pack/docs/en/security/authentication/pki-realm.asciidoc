@@ -128,10 +128,7 @@ The `certificate_authorities` option may be used as an alternative to the
 [[pki-settings]]
 ===== PKI Realm Settings
 
-See
-{ref}/security-settings.html#_settings_valid_for_all_realms[Security Settings for All Realms]
-and
-{ref}/security-settings.html#ref-pki-settings[PKI Realm Settings].
+See {ref}/security-settings.html#ref-pki-settings[PKI Realm Settings].
 
 [[assigning-roles-pki]]
 ==== Mapping Roles for PKI Users

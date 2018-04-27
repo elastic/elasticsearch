@@ -49,7 +49,7 @@ xpack:
 [[native-settings]]
 ==== Native realm settings
 
-See {ref}/ref-native-settings.html[Native Realm Settings]. 
+See {ref}/security-settings.html#ref-native-settings[Native Realm Settings]. 
 
 [[managing-native-users]]
 ==== Managing native users

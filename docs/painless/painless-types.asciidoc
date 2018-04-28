@@ -69,7 +69,7 @@ The following primitive types are available:
 * reference type: `Double`
 
 `boolean`::
-logical quanity with two possible values of `true` and `false`
+logical quantity with two possible values of `true` and `false`
 * default value: `false`
 * reference type: `Boolean`
 
@@ -307,6 +307,9 @@ primarily used to indicate a function will return no value.
 
 [[array-type]]
 ==== Array Type
+
+Array types are a specialized reference type that contain a series of elements
+
 
 Arrays contain a series of elements of the same type that can be allocated
 simultaneously. Painless supports both single and multi-dimensional arrays for

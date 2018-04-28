@@ -118,6 +118,9 @@ public class FetchPhase implements SearchPhase {
                         if (context.getObjectMapper(fieldName) != null) {
                             throw new IllegalArgumentException("field [" + fieldName + "] isn't a leaf field");
                         }
+                    } else {
+                        // fieldType might be an alias...get real index field name.
+                        fieldName = fieldType.nameForIndex();
                     }
                     if (fieldNames == null) {
                         fieldNames = new HashSet<>();

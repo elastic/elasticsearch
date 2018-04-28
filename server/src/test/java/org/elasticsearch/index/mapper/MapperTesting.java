@@ -18,27 +18,16 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
+public final class MapperTesting {
 
-public class GeoPointFieldTypeTests extends FieldTypeTestCase {
-
-    protected static final String GEOPOINTFIELD = "textField1";
-
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new GeoPointFieldType();
+    public static MappedFieldType aliasFieldType(final RootObjectMapper rootObjectMapper,
+                                                 final String name,
+                                                 final String pathTo,
+                                                 final MappedFieldType aliased) {
+        return new AliasFieldMapper.AliasFieldType(rootObjectMapper, name, pathTo, aliased);
     }
 
-    @Override
-    protected String fieldTypeName() {
-        return GEOPOINTFIELD;
-    }
-
-    String fieldInQuery() {
-        return GEOPOINTFIELD;
-    }
-
-    String fieldInMessage() {
-        return MappedFieldType.nameInMessage(GEOPOINTFIELD);
+    private MapperTesting() {
+        throw new UnsupportedOperationException();
     }
 }

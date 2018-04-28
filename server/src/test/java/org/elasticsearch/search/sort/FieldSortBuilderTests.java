@@ -32,6 +32,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperTesting;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -55,8 +56,11 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
 
     /**
      * {@link #provideMappedFieldType(String)} will return a
+     * Also the target of {@link #ALIAS_FIELDNAME}
      */
     private static String MAPPED_STRING_FIELDNAME = "_stringField";
+
+    private static String ALIAS_FIELDNAME = "alias";
 
     @Override
     protected FieldSortBuilder createTestItem() {
@@ -300,6 +304,15 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         assertThat(sortField, instanceOf(SortedNumericSortField.class));
     }
 
+    public void testAliasedSort() throws IOException {
+        QueryShardContext shardContextMock = createMockShardContext();
+
+        FieldSortBuilder sortBuilder = new FieldSortBuilder(ALIAS_FIELDNAME);
+
+        SortField sortField = sortBuilder.build(shardContextMock).field;
+        assertEquals("sorting should be alias target=" + sortField, MAPPED_STRING_FIELDNAME, sortField.getField());
+    }
+
     public void testUnknownOptionFails() throws IOException {
         String json = "{ \"post_date\" : {\"reverse\" : true} },\n";
 
@@ -315,6 +328,12 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
 
     @Override
     protected MappedFieldType provideMappedFieldType(String name) {
+        if (name.equals(ALIAS_FIELDNAME)) {
+            return MapperTesting.aliasFieldType(null,
+                ALIAS_FIELDNAME,
+                MAPPED_STRING_FIELDNAME,
+                this.provideMappedFieldType(MAPPED_STRING_FIELDNAME));
+        }
         if (name.equals(MAPPED_STRING_FIELDNAME)) {
             KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
             fieldType.setName(name);

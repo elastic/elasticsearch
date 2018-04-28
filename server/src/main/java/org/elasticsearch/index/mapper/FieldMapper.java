@@ -74,6 +74,29 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             multiFieldsBuilder = new MultiFields.Builder();
         }
 
+        /**
+         * This ctor is only intended to be called by {@link AliasFieldMapper.Builder} and exists only
+         * because the other ctor above makes calls such as {@link MappedFieldType#indexOptions()} that will fail
+         * because the alias target is not yet set.
+         * @param name
+         * @param fieldType
+         * @param defaultFieldType
+         * @param defaultOptions
+         * @param docValuesSet
+         */
+        protected Builder(final String name,
+                          final MappedFieldType fieldType,
+                          final MappedFieldType defaultFieldType,
+                          final IndexOptions defaultOptions,
+                          final boolean docValuesSet) {
+            super(name);
+            this.fieldType = fieldType.clone();
+            this.defaultFieldType = defaultFieldType.clone();
+            this.defaultOptions = defaultOptions;
+            this.docValuesSet = docValuesSet;
+            multiFieldsBuilder = new MultiFields.Builder();
+        }
+
         public MappedFieldType fieldType() {
             return fieldType;
         }
@@ -245,6 +268,18 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         this.defaultFieldType = defaultFieldType;
         this.multiFields = multiFields;
         this.copyTo = Objects.requireNonNull(copyTo);
+    }
+
+    protected FieldMapper(String simpleName) {
+        super(simpleName);
+        if (simpleName.isEmpty()) {
+            throw new IllegalArgumentException("name cannot be empty string");
+        }
+        this.indexCreatedVersion = null;
+        this.fieldType = null;
+        this.defaultFieldType = null;
+        this.multiFields = null;
+        this.copyTo = null;
     }
 
     @Override

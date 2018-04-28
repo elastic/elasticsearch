@@ -305,11 +305,10 @@ public class IpFieldMapper extends FieldMapper {
         @Override
         public DocValueFormat docValueFormat(@Nullable String format, DateTimeZone timeZone) {
             if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom formats");
+                this.failUnsupportedFeature("custom formats");
             }
             if (timeZone != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName()
-                    + "] does not support custom time zones");
+                this.failUnsupportedFeature("custom time zones");
             }
             return DocValueFormat.IP;
         }

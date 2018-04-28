@@ -36,6 +36,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
@@ -196,6 +197,7 @@ public class RootObjectMapper extends ObjectMapper {
     private Explicit<Boolean> dateDetection;
     private Explicit<Boolean> numericDetection;
     private Explicit<DynamicTemplate[]> dynamicTemplates;
+    private final Map<String, Mapper> pathToMapper;
 
     RootObjectMapper(String name, boolean enabled, Dynamic dynamic, Map<String, Mapper> mappers,
                      Explicit<FormatDateTimeFormatter[]> dynamicDateTimeFormatters, Explicit<DynamicTemplate[]> dynamicTemplates,
@@ -205,6 +207,30 @@ public class RootObjectMapper extends ObjectMapper {
         this.dynamicDateTimeFormatters = dynamicDateTimeFormatters;
         this.dateDetection = dateDetection;
         this.numericDetection = numericDetection;
+
+        this.pathToMapper = new HashMap<>();
+        this.collect(mappers.values().iterator(), "");
+        this.pathToMapper.values()
+            .stream()
+            .forEach(m -> m.rootObjectMapper(this));
+    }
+
+    /**
+     * Builds a map holding the full path of all fields and the mapper handling each particular field.
+     * Note this method is called recursively due to the tree structure.
+     * @param mappers Iterator of mappers.
+     * @param pathPrefix The prefix to be added before all found mappers.
+     */
+    private void collect(final Iterator<Mapper> mappers, final String pathPrefix) {
+        while(mappers.hasNext()){
+            final Mapper m = mappers.next();
+            final String path = pathPrefix + m.simpleName();
+            this.pathToMapper.put(path, m);
+            if(m instanceof ObjectMapper){
+                final ObjectMapper o = (ObjectMapper)m;
+                collect(o.iterator(), path + ".");
+            }
+        }
     }
 
     @Override
@@ -323,5 +349,15 @@ public class RootObjectMapper extends ObjectMapper {
         if (numericDetection.explicit() || includeDefaults) {
             builder.field("numeric_detection", numericDetection.value());
         }
+    }
+
+    /**
+     * Returns a view of all full field paths to mappers
+     *
+     * @param path The path.
+     * @return The {@link Mapper} or null if none was found.
+     */
+    public Mapper mapperForPath(final String path) {
+        return this.pathToMapper.get(path);
     }
 }

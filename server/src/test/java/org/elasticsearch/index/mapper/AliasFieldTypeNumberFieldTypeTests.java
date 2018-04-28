@@ -18,27 +18,29 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
+public class AliasFieldTypeNumberFieldTypeTests extends NumberFieldTypeTests {
 
-public class GeoPointFieldTypeTests extends FieldTypeTestCase {
-
-    protected static final String GEOPOINTFIELD = "textField1";
-
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new GeoPointFieldType();
-    }
+    private static final String ALIASFIELD = "alias2";
+    private final String PATHTO = NUMBERFIELD;
 
     @Override
-    protected String fieldTypeName() {
-        return GEOPOINTFIELD;
+    protected AliasFieldMapper.AliasFieldType createDefaultFieldType() {
+        return new AliasFieldMapper.AliasFieldType(null,
+            null,
+            PATHTO,
+            new NumberFieldMapper.NumberFieldType(this.type));
     }
 
-    String fieldInQuery() {
-        return GEOPOINTFIELD;
+    @Override
+    MappedFieldType createNamedDefaultFieldType() {
+        final AliasFieldMapper.AliasFieldType fieldType = this.createDefaultFieldType();
+        fieldType.setName(ALIASFIELD);
+        fieldType.aliasTarget().setName(this.fieldTypeName());
+        return fieldType;
     }
 
+    @Override
     String fieldInMessage() {
-        return MappedFieldType.nameInMessage(GEOPOINTFIELD);
+        return AliasFieldMapper.AliasFieldType.nameInMessage(ALIASFIELD, PATHTO);
     }
 }

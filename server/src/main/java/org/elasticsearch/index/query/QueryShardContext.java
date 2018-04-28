@@ -59,6 +59,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
@@ -162,7 +163,9 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-        return (IFD) indexFieldDataService.apply(fieldType, fullyQualifiedIndexName);
+        Objects.requireNonNull(fieldType, "fieldType is null");
+
+        return (IFD) indexFieldDataService.apply(fieldType.fieldTypeForIndex(), fullyQualifiedIndexName);
     }
 
     public void addNamedQuery(String name, Query query) {

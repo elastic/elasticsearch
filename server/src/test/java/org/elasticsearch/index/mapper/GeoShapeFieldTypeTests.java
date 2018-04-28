@@ -26,47 +26,45 @@ import org.junit.Before;
 import java.io.IOException;
 
 public class GeoShapeFieldTypeTests extends FieldTypeTestCase {
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new GeoShapeFieldMapper.GeoShapeFieldType();
-    }
+
+    protected static final String GEOSHAPEFIELD = "geoShapeField1";
 
     @Before
     public void setupProperties() {
         addModifier(new Modifier("tree", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldMapper.GeoShapeFieldType)ft).setTree("quadtree");
+                toGeoShapeFieldType(ft).setTree("quadtree");
             }
         });
         addModifier(new Modifier("strategy", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldMapper.GeoShapeFieldType)ft).setStrategyName("term");
+                toGeoShapeFieldType(ft).setStrategyName("term");
             }
         });
         addModifier(new Modifier("tree_levels", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldMapper.GeoShapeFieldType)ft).setTreeLevels(10);
+                toGeoShapeFieldType(ft).setTreeLevels(10);
             }
         });
         addModifier(new Modifier("precision", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldMapper.GeoShapeFieldType)ft).setPrecisionInMeters(20);
+                toGeoShapeFieldType(ft).setPrecisionInMeters(20);
             }
         });
         addModifier(new Modifier("distance_error_pct", true) {
             @Override
             public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldMapper.GeoShapeFieldType)ft).setDefaultDistanceErrorPct(0.5);
+                toGeoShapeFieldType(ft).setDefaultDistanceErrorPct(0.5);
             }
         });
         addModifier(new Modifier("orientation", true) {
             @Override
             public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldMapper.GeoShapeFieldType)ft).setOrientation(ShapeBuilder.Orientation.LEFT);
+                toGeoShapeFieldType(ft).setOrientation(ShapeBuilder.Orientation.LEFT);
             }
         });
     }
@@ -76,11 +74,33 @@ public class GeoShapeFieldTypeTests extends FieldTypeTestCase {
      * gets set as a side effect when using SpatialStrategy.TERM
      */
     public void testSetStrategyName() throws IOException {
-        GeoShapeFieldType fieldType = new GeoShapeFieldMapper.GeoShapeFieldType();
+        GeoShapeFieldType fieldType = toGeoShapeFieldType(this.createNamedDefaultFieldType());
         assertFalse(fieldType.pointsOnly());
         fieldType.setStrategyName(SpatialStrategy.RECURSIVE.getStrategyName());
         assertFalse(fieldType.pointsOnly());
         fieldType.setStrategyName(SpatialStrategy.TERM.getStrategyName());
         assertTrue(fieldType.pointsOnly());
+    }
+
+    @Override
+    protected MappedFieldType createDefaultFieldType() {
+        return new GeoShapeFieldMapper.GeoShapeFieldType();
+    }
+
+    @Override
+    protected String fieldTypeName() {
+        return GEOSHAPEFIELD;
+    }
+
+    String fieldInQuery() {
+        return GEOSHAPEFIELD;
+    }
+
+    String fieldInMessage() {
+        return GEOSHAPEFIELD;
+    }
+
+    GeoShapeFieldMapper.GeoShapeFieldType toGeoShapeFieldType(final MappedFieldType fieldType) {
+        return (GeoShapeFieldMapper.GeoShapeFieldType) fieldType;
     }
 }

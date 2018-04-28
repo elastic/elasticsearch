@@ -1,0 +1,145 @@
+[[alias]]
+=== Alias datatype
+
+An alias is an alternate name to an existing single field of any type. It is not possible
+to perform any sort of computation or reference or combination in anyway involving
+multiple fields in any way. Aliases are simply a mechanism to provide an alternate
+or shorthand name for any number of reasons. Queries and similar operations will yield
+the same results using either the alias or target field name. The value specifically
+for the field will be identical for both the alias or target.
+
+Aliases cannot be used to update the index or target field, any such attempts will result in
+an error and the operation will be aborted.
+
+Below is an example of a mapping for an alias field pointing to a alias field:
+
+[source,js]
+--------------------------------
+PUT my_index
+{
+  "mappings": {
+    "simpledocument": {
+      "properties": {
+        "textField1": {
+          "type": "text"
+        },
+        "aliasToTextField2": {
+          "path": "textField1"
+        }
+      }
+    }
+  }
+}
+--------------------------------
+// CONSOLE
+
+The example below includes an alias in the root of the document, which points to a field
+in a nested object and longer path. Queries and other similar supported operations,may thus
+use the `place` field name or the longer `country.cityOrTown.name` with identical values
+in the outcomes.
+
+[source,js]
+--------------------------------------------------
+PUT my_index2
+{
+  "mappings": {
+    "documenttype": {
+      "properties": {
+        "country": {
+          "properties": {
+            "name":  {
+              "type":
+              "text"
+            },
+            "cityOrTown": {
+              "properties": {
+                "name": { "type": "text" }, <1>
+                "population":  { "type": "integer" }
+              }
+            }
+          }
+        }
+        "place": {
+          "type": "alias"
+          "path" "country.cityOrTown.name" <2>
+        },
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+<1> The target of the alias. This is used for index and similar operations.
+<2> The alias `path` shorthand for `country.cityOrTown.name`
+
+[[text-params]]
+==== Parameters for alias fields
+
+The following parameter(s) are accepted by `alias` fields:
+
+[horizontal]
+
+<<path,`path`>>::
+
+    A path to another existing non alias field. Note `.` must be used to
+    denote a field nested with one or more objects.
+
+Paths limitations
+
+* cannot point to another alias.
+* cannot point to an object
+* target field must exist at the time of the mapping declaration.
+
+
+No other fields are supported.
+
+[[indexing]]
+==== Indexing
+
+Aliases are not a means of defining an index field or data to be index and as such do
+not support any index or index store like fields. Any such attempts will fail with
+an error message with details of the operation.
+
+[[supported-operations]]
+==== Supported operations
+
+Aliases may be performed in only the following features, most of which have a
+`field` parameter. The results will use the alias field name in the reply rather
+than the target.
+
+- queries
+- aggregations
+  - field `field`
+  - filter `field`
+  - missing `field`
+  - range `field`
+- filters
+- highlighting fields references
+- docvalue_fields field references
+- stored_field field references
+- suggestions
+
+The results and values using either the alias or the target field, will receive
+in the response the value. It is possible to request (eg docvalues) both the
+alias and target and the response will contain both fields with the same value.
+
+
+[[unsupported-operations]]
+==== Unsupported operations
+
+The following features which take or support fields references do not honour alias
+target references. Attempts to use the alias in place of a valid field will be equivalent
+to referencing an unknown or non existing field.
+
+- index document additions
+- index document updates.
+- alias to a dynamic field, only fields present at the original mapping definition may
+  be aliased.
+- scripts
+- fielddata_fields (which are deprecated)
+- Source filtering
+- _source field holding the original index document remains untouched and since aliases
+  never actually in the indexed document never contains (mentions) the alias.
+- wildcard queries hoping to match aliases.
+
+It is not possible to use an alias to perform a search against 2 fields.

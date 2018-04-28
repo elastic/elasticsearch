@@ -56,6 +56,10 @@ import java.util.Objects;
  */
 public abstract class MappedFieldType extends FieldType {
 
+    public static String nameInMessage(final String name) {
+        return "[" + name + "]";
+    }
+
     private String name;
     private float boost;
     // TODO: remove this docvalues flag and use docValuesType
@@ -83,6 +87,12 @@ public abstract class MappedFieldType extends FieldType {
     }
 
     public MappedFieldType() {
+        this.init();
+    }
+
+    // intended to only be overridden by AliasFieldMapper
+    void init()
+    {
         setTokenized(true);
         setStored(false);
         setStoreTermVectors(false);
@@ -144,7 +154,7 @@ public abstract class MappedFieldType extends FieldType {
     public abstract String typeName();
 
     /** Checks this type is the same type as other. Adds a conflict if they are different. */
-    private void checkTypeName(MappedFieldType other) {
+    protected final void checkTypeName(MappedFieldType other) {
         if (typeName().equals(other.typeName()) == false) {
             throw new IllegalArgumentException("mapper [" + name + "] cannot be changed from type [" + typeName() + "] to [" + other.typeName() + "]");
         } else if (getClass() != other.getClass()) {
@@ -211,6 +221,35 @@ public abstract class MappedFieldType extends FieldType {
     public void setName(String name) {
         checkIfFrozen();
         this.name = name;
+    }
+
+    public boolean isAlias() {
+        return false;
+    }
+
+    private AliasFieldMapper.AliasFieldType alias;
+
+    public AliasFieldMapper.AliasFieldType alias() {
+        return alias;
+    }
+
+    public void setAlias(AliasFieldMapper.AliasFieldType alias) {
+        // unfortunately aliases are set rather late after the type has been frozen!
+        this.alias = alias;
+        alias.aliasTarget = this;
+    }
+
+    public String nameForIndex() {
+        return this.name();
+    }
+
+    public String nameForMessages() {
+        final AliasFieldMapper.AliasFieldType aliased = this.alias;
+        return null != aliased ? aliased.nameForMessages() : MappedFieldType.nameInMessage(this.name());
+    }
+
+    public MappedFieldType fieldTypeForIndex() {
+        return this;
     }
 
     public float boost() {
@@ -336,19 +375,23 @@ public abstract class MappedFieldType extends FieldType {
             boolean includeLower, boolean includeUpper,
             ShapeRelation relation, DateTimeZone timeZone, DateMathParser parser,
             QueryShardContext context) {
-        throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] does not support range queries");
+        return this.failUnsupportedFeature("range queries");
     }
 
     public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-        throw new IllegalArgumentException("Can only use fuzzy queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
+        throw new IllegalArgumentException(this.invalidQuery("fuzzy"));
     }
 
     public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-        throw new QueryShardException(context, "Can only use prefix queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
+        throw new QueryShardException(context, this.invalidQuery("prefix"));
     }
 
     public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-        throw new QueryShardException(context, "Can only use regexp queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
+        throw new QueryShardException(context, this.invalidQuery("regexp"));
+    }
+
+    private String invalidQuery(final String queryType) {
+        return "Can only use " + queryType + " queries on keyword and text fields - not on " + this.nameForMessages() + " which is of type [" + typeName() + "]";
     }
 
     public Query nullValueQuery() {
@@ -394,8 +437,8 @@ public abstract class MappedFieldType extends FieldType {
      **/
     protected final void failIfNoDocValues() {
         if (hasDocValues() == false) {
-            throw new IllegalArgumentException("Can't load fielddata on [" + name()
-                + "] because fielddata is unsupported on fields of type ["
+            throw new IllegalArgumentException("Can't load fielddata on " + this.nameForMessages()
+                + " because fielddata is unsupported on fields of type ["
                 + typeName() + "]. Use doc values instead.");
         }
     }
@@ -403,7 +446,7 @@ public abstract class MappedFieldType extends FieldType {
     protected final void failIfNotIndexed() {
         if (indexOptions() == IndexOptions.NONE && pointDimensionCount() == 0) {
             // we throw an IAE rather than an ISE so that it translates to a 4xx code rather than 5xx code on the http layer
-            throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is not indexed.");
+            throw new IllegalArgumentException("Cannot search on field " + this.nameForMessages() + " since it is not indexed.");
         }
     }
 
@@ -421,10 +464,10 @@ public abstract class MappedFieldType extends FieldType {
      *  The default implementation returns a {@link DocValueFormat#RAW}. */
     public DocValueFormat docValueFormat(@Nullable String format, DateTimeZone timeZone) {
         if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom formats");
+            this.failUnsupportedFeature("custom formats");
         }
         if (timeZone != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom time zones");
+            this.failUnsupportedFeature("custom time zones");
         }
         return DocValueFormat.RAW;
     }
@@ -456,5 +499,16 @@ public abstract class MappedFieldType extends FieldType {
                     + termQuery.getClass() + ": " + termQuery);
         }
         return ((TermQuery) termQuery).getTerm();
+    }
+
+    /**
+     * This method builds a message that is typically meant to be read by the user and reports something like an invalid
+     * query attempt. If this field is aliased, then the alias name will be used instead.
+     * @param feature A short string holding the feature
+     * @param <T> Anything.
+     * @return Never happens because this always throws {@link IllegalArgumentException}
+     */
+    protected final <T> T failUnsupportedFeature(final String feature) {
+        throw new IllegalArgumentException("Field " + this.nameForMessages() + " of type [" + typeName() + "] does not support " + feature);
     }
 }

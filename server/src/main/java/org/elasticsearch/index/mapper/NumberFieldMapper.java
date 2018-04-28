@@ -927,9 +927,7 @@ public class NumberFieldMapper extends FieldMapper {
         @Override
         public DocValueFormat docValueFormat(String format, DateTimeZone timeZone) {
             if (timeZone != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName()
-                    + "] does not support custom time zones");
-            }
+                this.failUnsupportedFeature("custom time zones");            }
             if (format == null) {
                 return DocValueFormat.RAW;
             } else {

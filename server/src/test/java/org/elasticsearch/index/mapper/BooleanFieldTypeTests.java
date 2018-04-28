@@ -24,6 +24,9 @@ import org.apache.lucene.search.TermQuery;
 import org.junit.Before;
 
 public class BooleanFieldTypeTests extends FieldTypeTestCase {
+
+    protected static final String BOOLEANFIELD = "booleanField1";
+
     @Override
     protected MappedFieldType createDefaultFieldType() {
         return new BooleanFieldMapper.BooleanFieldType();
@@ -41,7 +44,7 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testValueForSearch() {
-        MappedFieldType ft = createDefaultFieldType();
+        MappedFieldType ft = createNamedDefaultFieldType();
         assertEquals(true, ft.valueForDisplay("T"));
         assertEquals(false, ft.valueForDisplay("F"));
         expectThrows(IllegalArgumentException.class, () -> ft.valueForDisplay(0));
@@ -50,15 +53,27 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermQuery() {
-        MappedFieldType ft = createDefaultFieldType();
-        ft.setName("field");
+        MappedFieldType ft = createNamedDefaultFieldType();
         ft.setIndexOptions(IndexOptions.DOCS);
-        assertEquals(new TermQuery(new Term("field", "T")), ft.termQuery("true", null));
-        assertEquals(new TermQuery(new Term("field", "F")), ft.termQuery("false", null));
+        assertEquals(new TermQuery(new Term(this.fieldInQuery(), "T")), ft.termQuery("true", null));
+        assertEquals(new TermQuery(new Term(this.fieldInQuery(), "F")), ft.termQuery("false", null));
 
         ft.setIndexOptions(IndexOptions.NONE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> ft.termQuery("true", null));
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        assertEquals("Cannot search on field " + this.fieldInMessage() + " since it is not indexed.", e.getMessage());
+    }
+
+    @Override
+    protected String fieldTypeName() {
+        return BOOLEANFIELD;
+    }
+
+    String fieldInQuery() {
+        return BOOLEANFIELD;
+    }
+
+    String fieldInMessage() {
+        return MappedFieldType.nameInMessage(BOOLEANFIELD);
     }
 }

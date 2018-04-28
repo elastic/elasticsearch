@@ -265,8 +265,7 @@ public class DateFieldMapper extends FieldMapper {
                 @Nullable DateTimeZone timeZone, @Nullable DateMathParser forcedDateParser, QueryShardContext context) {
             failIfNotIndexed();
             if (relation == ShapeRelation.DISJOINT) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
-                        "] does not support DISJOINT ranges");
+                this.failUnsupportedFeature("DISJOINT ranges");
             }
             DateMathParser parser = forcedDateParser == null
                     ? dateMathParser

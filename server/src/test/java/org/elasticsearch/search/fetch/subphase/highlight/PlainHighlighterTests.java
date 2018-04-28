@@ -38,4 +38,9 @@ public class PlainHighlighterTests extends LuceneTestCase {
         String[] frags = highlighter.getBestFragments(new MockAnalyzer(random()), "field", "bar foo bar foo", 10);
         assertArrayEquals(new String[] {"bar <B>foo</B> <B>bar</B> foo"}, frags);
     }
+
+    public void testField() throws Exception {
+        //public HighlightField highlight(HighlighterContext highlighterContext) {
+
+    }
 }

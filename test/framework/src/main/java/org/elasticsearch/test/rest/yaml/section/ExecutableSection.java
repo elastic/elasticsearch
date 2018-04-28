@@ -37,7 +37,7 @@ public interface ExecutableSection {
     /**
      * Default list of {@link ExecutableSection}s available for tests.
      */
-    public List<NamedXContentRegistry.Entry> DEFAULT_EXECUTABLE_CONTEXTS = unmodifiableList(Arrays.asList(
+    List<NamedXContentRegistry.Entry> DEFAULT_EXECUTABLE_CONTEXTS = unmodifiableList(Arrays.asList(
             new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("do"), DoSection::parse),
             new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("set"), SetSection::parse),
             new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("match"), MatchAssertion::parse),

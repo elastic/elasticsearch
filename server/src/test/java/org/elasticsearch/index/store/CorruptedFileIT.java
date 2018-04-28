@@ -685,7 +685,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
     }
 
     public List<Path> listShardFiles(ShardRouting routing) throws IOException {
-        NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(routing.currentNodeId()).setFs(true).get();
+        NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(routing.currentNodeId())
+            .clear().setIndices(false).setFs(true).get();
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         final Index test = state.metaData().index("test").getIndex();
         assertThat(routing.toString(), nodeStatses.getNodes().size(), equalTo(1));

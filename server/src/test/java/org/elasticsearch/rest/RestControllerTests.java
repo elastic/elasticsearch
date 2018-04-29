@@ -313,26 +313,18 @@ public class RestControllerTests extends ESTestCase {
 
     public void testDispatchFailsWithPlainText() {
         String content = randomAlphaOfLengthBetween(1, BREAKER_LIMIT.bytesAsInt());
-        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
+        FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
             .withContent(new BytesArray(content), null).withPath("/foo")
-            .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList("text/plain"))).build();
-        AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.NOT_ACCEPTABLE);
-        restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
-            @Override
-            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
-            }
-        });
-
-        assertFalse(channel.getSendResponseCalled());
-        restController.dispatchRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY));
-        assertTrue(channel.getSendResponseCalled());
+            .withHeaders(contentTypeHeader("text/plain"))
+            .build();
+        registerHandlerThenMakeRequestAndCheckHandled(request,  RestStatus.NOT_ACCEPTABLE, "/foo");
     }
 
     public void testDispatchUnsupportedContentType() {
         FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
             .withContent(new BytesArray("{}"), null).withPath("/")
-            .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList("application/x-www-form-urlencoded"))).build();
+            .withHeaders(contentTypeHeader("application/x-www-form-urlencoded"))
+            .build();
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.NOT_ACCEPTABLE);
 
         assertFalse(channel.getSendResponseCalled());
@@ -343,101 +335,75 @@ public class RestControllerTests extends ESTestCase {
     public void testDispatchWorksWithNewlineDelimitedJson() {
         final String mimeType = "application/x-ndjson";
         String content = randomAlphaOfLengthBetween(1, BREAKER_LIMIT.bytesAsInt());
-        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
+        FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
             .withContent(new BytesArray(content), null).withPath("/foo")
-            .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList(mimeType))).build();
-        AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
-        restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
-            @Override
-            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
-            }
-
-            @Override
-            public boolean supportsContentStream() {
-                return true;
-            }
-        });
-
-        assertFalse(channel.getSendResponseCalled());
-        restController.dispatchRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY));
-        assertTrue(channel.getSendResponseCalled());
+            .withHeaders(contentTypeHeader(mimeType))
+            .build();
+        registerHandlerThenMakeRequestAndCheckHandled(request, RestStatus.OK, "/foo");
     }
 
     public void testDispatchWithContentStream() {
         final String mimeType = randomFrom("application/json", "application/smile");
         String content = randomAlphaOfLengthBetween(1, BREAKER_LIMIT.bytesAsInt());
         final List<String> contentTypeHeader = Collections.singletonList(mimeType);
-        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
+        FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
             .withContent(new BytesArray(content), RestRequest.parseContentType(contentTypeHeader)).withPath("/foo")
-            .withHeaders(Collections.singletonMap("Content-Type", contentTypeHeader)).build();
-        AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
-        restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
-            @Override
-            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
-            }
+            .withHeaders(contentTypeHeader(mimeType))
+            .build();
 
-            @Override
-            public boolean supportsContentStream() {
-                return true;
-            }
-        });
-
-        assertFalse(channel.getSendResponseCalled());
-        restController.dispatchRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY));
-        assertTrue(channel.getSendResponseCalled());
+        registerHandlerThenMakeRequestAndCheckHandled(request, RestStatus.OK, "/foo");
     }
 
     public void testDispatchWithContentStreamNoContentType() {
-        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
+        FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
             .withContent(new BytesArray("{}"), null).withPath("/foo").build();
-        AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.NOT_ACCEPTABLE);
-        restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
-            @Override
-            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
-            }
-
-            @Override
-            public boolean supportsContentStream() {
-                return true;
-            }
-        });
-
-        assertFalse(channel.getSendResponseCalled());
-        restController.dispatchRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY));
-        assertTrue(channel.getSendResponseCalled());
+        registerHandlerThenMakeRequestAndCheckHandled(request, RestStatus.NOT_ACCEPTABLE, "/foo");
     }
 
     public void testNonStreamingXContentCausesErrorResponse() throws IOException {
-        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
+        FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
                 .withContent(BytesReference.bytes(YamlXContent.contentBuilder().startObject().endObject()),
                         XContentType.YAML).withPath("/foo").build();
-        AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.NOT_ACCEPTABLE);
-        restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
-            @Override
-            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
-            }
-
-            @Override
-            public boolean supportsContentStream() {
-                return true;
-            }
-        });
-        assertFalse(channel.getSendResponseCalled());
-        restController.dispatchRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY));
-        assertTrue(channel.getSendResponseCalled());
+        registerHandlerThenMakeRequestAndCheckHandled(request, RestStatus.NOT_ACCEPTABLE, "/foo");
     }
 
     public void testUnknownContentWithContentStream() {
-        FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
+        FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
             .withContent(new BytesArray("aaaabbbbb"), null).withPath("/foo")
-            .withHeaders(Collections.singletonMap("Content-Type", Collections.singletonList("foo/bar")))
+            .withHeaders(contentTypeHeader("foo/bar"))
             .build();
-        AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.NOT_ACCEPTABLE);
-        restController.registerHandler(RestRequest.Method.GET, "/foo", new RestHandler() {
+        registerHandlerThenMakeRequestAndCheckHandled(request, RestStatus.NOT_ACCEPTABLE, "/foo");
+    }
+
+    // https://github.com/elastic/elasticsearch/issues/5341
+    public void testDispatchPathIncludesPlus_issue5341() {
+        final String path = "/before+after";
+
+        String content = randomAlphaOfLengthBetween(1, BREAKER_LIMIT.bytesAsInt());
+        FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
+            .withContent(new BytesArray(content), null).withPath(path)
+            .withHeaders(contentTypeHeader("text/plain"))
+            .build();
+        registerHandlerThenMakeRequestAndCheckHandled(request,  RestStatus.NOT_ACCEPTABLE, path);
+    }
+
+    public void testDispatchPathEncoded_issue5341() {
+        // in this test we register the handler with a unencoded path, but the request contains
+        // the equivalent path but in encoded form.
+
+        String content = randomAlphaOfLengthBetween(1, BREAKER_LIMIT.bytesAsInt());
+        FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
+            .withContent(new BytesArray(content), null).withPath("/before%5Fafter")
+            .withHeaders(contentTypeHeader("text/plain"))
+            .build();
+        registerHandlerThenMakeRequestAndCheckHandled(request,  RestStatus.NOT_ACCEPTABLE,  "/before_after");
+    }
+
+    private void registerHandlerThenMakeRequestAndCheckHandled(final FakeRestRequest request,
+                                                               final RestStatus status,
+                                                               final String handlerPath) {
+        AssertingChannel channel = new AssertingChannel(request, true, status);
+        restController.registerHandler(RestRequest.Method.GET, handlerPath, new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
                 channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
@@ -449,7 +415,7 @@ public class RestControllerTests extends ESTestCase {
             }
         });
         assertFalse(channel.getSendResponseCalled());
-        restController.dispatchRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY));
+        restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
         assertTrue(channel.getSendResponseCalled());
     }
 
@@ -471,6 +437,10 @@ public class RestControllerTests extends ESTestCase {
         restController.dispatchBadRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY), null);
         assertTrue(channel.getSendResponseCalled());
         assertThat(channel.getRestResponse().content().utf8ToString(), containsString("unknown cause"));
+    }
+
+    private Map<String, List<String>> contentTypeHeader(final String value) {
+        return Collections.singletonMap("Content-Type", Collections.singletonList(value));
     }
 
     private static final class TestHttpServerTransport extends AbstractLifecycleComponent implements

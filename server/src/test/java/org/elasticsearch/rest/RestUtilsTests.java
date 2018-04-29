@@ -20,6 +20,7 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Assert;
 
 import java.util.HashMap;
 import java.util.Locale;
@@ -34,6 +35,50 @@ public class RestUtilsTests extends ESTestCase {
 
     static char randomDelimiter() {
         return randomBoolean() ? '&' : ';';
+    }
+
+    public void testDecodeComponentPathPlain() {
+        decodePathComponentAndCheck("abc");
+    }
+
+    public void testDecodeComponentPathSlash() {
+        // path components shouldnt have slashes but if they did let it thru
+        decodePathComponentAndCheck("/abc");
+    }
+
+    public void testDecodeComponentPathEncoded() {
+        decodePathComponentAndCheck("abc%2Bxyz", "abc+xyz");
+    }
+
+    public void testDecodeComponentPathEncoded2() {
+        decodePathComponentAndCheck("abc%31xyz", "abc1xyz");
+    }
+
+    public void testDecodeComponentPathEncoded3() {
+        decodePathComponentAndCheck("abc%41xyz", "abcAxyz");
+    }
+
+    public void testDecodeComponentPathIncompleteHex() {
+        decodePathComponentAndCheck("abc%5xyz");
+    }
+
+    public void testDecodeComponentPathInvalidHex() {
+        decodePathComponentAndCheck("abc%Qxyz");
+    }
+
+    // https://github.com/elastic/elasticsearch/issues/5341
+    public void testDecodeComponentPathPlus() {
+        decodePathComponentAndCheck("/abc+xyz");
+    }
+
+    private void decodePathComponentAndCheck(final String in) {
+        decodePathComponentAndCheck(in, in);
+    }
+
+    private void decodePathComponentAndCheck(final String in, final String expected) {
+        Assert.assertEquals("RestUtils.decodePathComponent \"" + in + "\"",
+            expected,
+            RestUtils.decodePathComponent(in));
     }
 
     public void testDecodeQueryString() {

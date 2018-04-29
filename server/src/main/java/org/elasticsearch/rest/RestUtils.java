@@ -33,9 +33,60 @@ public class RestUtils {
     public static final PathTrie.Decoder REST_DECODER = new PathTrie.Decoder() {
         @Override
         public String decode(String value) {
-            return RestUtils.decodeComponent(value);
+            return decodePathComponent(value);
         }
     };
+
+    /**
+     * Assumes a path component that is in its encoded form, that is percent and two hex digits need to be
+     * decoded.
+     * @param raw the raw component
+     * @return The decoded raw component.
+     */
+    // https://tools.ietf.org/html/rfc3986#section-3.3
+    public static String decodePathComponent(final String raw) {
+        final StringBuilder b = new StringBuilder();
+
+        int hex = -1;
+        DecodePathComponentMode mode = DecodePathComponentMode.CHARACTER;
+
+        for(char c : raw.toCharArray()) {
+            switch(mode){
+                case CHARACTER:
+                    if('%' == c ){
+                        hex = 0;
+                        mode = DecodePathComponentMode.FIRST_HEX_DIGIT;
+                    }
+                    break;
+                case FIRST_HEX_DIGIT:
+                    final int hi = Character.digit(c, 16);
+                    if(hi >= 0) {
+                        hex = hi;
+                        mode = DecodePathComponentMode.SECOND_HEX_DIGIT;
+                    }
+                    break;
+                case SECOND_HEX_DIGIT:
+                    final int lo = Character.digit(c, 16);
+                    if(lo >= 0) {
+                        c = (char)(hex * 16 + lo);
+                        b.setLength(b.length() - 2);
+                    }
+                    mode = DecodePathComponentMode.CHARACTER;
+                    break;
+                default:
+                    throw new UnsupportedOperationException("Unknown mode=" + mode);
+            }
+            b.append(c);
+        }
+
+        return b.toString();
+    }
+
+    private enum DecodePathComponentMode {
+        CHARACTER,
+        FIRST_HEX_DIGIT,
+        SECOND_HEX_DIGIT;
+    }
 
     public static void decodeQueryString(String s, int fromIndex, Map<String, String> params) {
         if (fromIndex < 0) {

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.path;
 
+import org.elasticsearch.rest.RestUtils;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
@@ -209,7 +211,7 @@ public class PathTrie<T> {
             if (index >= path.length)
                 return null;
 
-            String token = path[index];
+            String token = RestUtils.decodePathComponent(path[index]);
             TrieNode node = children.get(token);
             boolean usedWildcard;
 

@@ -30,6 +30,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.PERSISTENT_TASK_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ROLLUP_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.CCR_ORIGIN;
 
 public final class AuthorizationUtils {
 
@@ -111,6 +112,7 @@ public final class AuthorizationUtils {
             case DEPRECATION_ORIGIN:
             case PERSISTENT_TASK_ORIGIN:
             case ROLLUP_ORIGIN:
+            case CCR_ORIGIN:
                 securityContext.executeAsUser(XPackUser.INSTANCE, consumer, Version.CURRENT);
                 break;
             default:

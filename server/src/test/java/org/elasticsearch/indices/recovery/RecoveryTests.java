@@ -244,12 +244,11 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
 
     public void testPeerRecoverySendSafeCommitInFileBased() throws Exception {
         IndexShard primaryShard = newStartedShard(true);
-        updateMappings(primaryShard, buildIndexMetaData(0));
         int numDocs = between(1, 100);
         long globalCheckpoint = 0;
         for (int i = 0; i < numDocs; i++) {
             Engine.IndexResult result = primaryShard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
-                SourceToParse.source(primaryShard.shardId().getIndexName(), "type", Integer.toString(i), new BytesArray("{}"),
+                SourceToParse.source(primaryShard.shardId().getIndexName(), "_doc", Integer.toString(i), new BytesArray("{}"),
                     XContentType.JSON),
                 IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
             assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));

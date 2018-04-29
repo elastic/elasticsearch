@@ -286,7 +286,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    public void testExecuteBulkIndexRequestWithConflictingMappings() throws Exception {
+    public void testExecuteBulkIndexRequestWithErrorWhileUpdatingMapping() throws Exception {
         IndexMetaData metaData = indexMetaData();
         IndexShard shard = newStartedShard(true);
 
@@ -300,8 +300,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         Translog.Location location = new Translog.Location(0, 0, 0);
         UpdateHelper updateHelper = null;
 
-        // Return a mapping conflict (IAE) when trying to update the mapping
-        RuntimeException err = new IllegalArgumentException("mapping conflict");
+        // Return an exception when trying to update the mapping
+        RuntimeException err = new RuntimeException("some kind of exception");
 
         Translog.Location newLocation = TransportShardBulkAction.executeBulkItemRequest(metaData,
                 shard, bulkShardRequest, location, 0, updateHelper,
@@ -318,13 +318,12 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertThat(primaryResponse.getId(), equalTo("id"));
         assertThat(primaryResponse.getOpType(), equalTo(DocWriteRequest.OpType.INDEX));
         assertTrue(primaryResponse.isFailed());
-        assertThat(primaryResponse.getFailureMessage(), containsString("mapping conflict"));
+        assertThat(primaryResponse.getFailureMessage(), containsString("some kind of exception"));
         BulkItemResponse.Failure failure = primaryResponse.getFailure();
         assertThat(failure.getIndex(), equalTo("index"));
         assertThat(failure.getType(), equalTo("type"));
         assertThat(failure.getId(), equalTo("id"));
         assertThat(failure.getCause(), equalTo(err));
-        assertThat(failure.getStatus(), equalTo(RestStatus.BAD_REQUEST));
 
         closeShards(shard);
     }
@@ -615,27 +614,17 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         final AtomicInteger updateCalled = new AtomicInteger(0);
         final AtomicInteger verifyCalled = new AtomicInteger(0);
         TransportShardBulkAction.executeIndexRequestOnPrimary(request, shard,
-                new MappingUpdatePerformer() {
-                    @Override
-                    public void updateMappings(Mapping update, ShardId shardId, String type) {
-                        // There should indeed be a mapping update
-                        assertNotNull(update);
-                        updateCalled.incrementAndGet();
-                    }
-
-                    @Override
-                    public void verifyMappings(Mapping update, ShardId shardId) {
-                        // No-op, will be called
-                        logger.info("--> verifying mappings noop");
-                        verifyCalled.incrementAndGet();
-                    }
-        });
+            (update, shardId, type) -> {
+                // There should indeed be a mapping update
+                assertNotNull(update);
+                updateCalled.incrementAndGet();
+            });
 
         assertThat("mappings were \"updated\" once", updateCalled.get(), equalTo(1));
         assertThat("mappings were \"verified\" once", verifyCalled.get(), equalTo(1));
 
         // Verify that the shard "executed" the operation twice
-        verify(shard, times(2)).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyBoolean(), any());
+        verify(shard, times(2)).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyBoolean());
 
         // Update the mapping, so the next mapping updater doesn't do anything
         final MapperService mapperService = shard.mapperService();
@@ -643,21 +632,11 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         mapperService.updateMapping(metaData);
 
         TransportShardBulkAction.executeIndexRequestOnPrimary(request, shard,
-                new MappingUpdatePerformer() {
-                    @Override
-                    public void updateMappings(Mapping update, ShardId shardId, String type) {
-                        fail("should not have had to update the mappings");
-                    }
-
-                    @Override
-                    public void verifyMappings(Mapping update, ShardId shardId) {
-                        fail("should not have had to update the mappings");
-                    }
-        });
+            (update, shardId, type) -> fail("should not have had to update the mappings"));
 
         // Verify that the shard "executed" the operation only once (2 for previous invocations plus
         // 1 for this execution)
-        verify(shard, times(3)).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyBoolean(), any());
+        verify(shard, times(3)).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyBoolean());
 
         closeShards(shard);
     }
@@ -812,7 +791,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertNotNull(holder.replicaRequest);
 
         Engine.IndexResult opResult = (Engine.IndexResult) holder.operationResult;
-        assertTrue(opResult.hasFailure());
+        assertThat(opResult.getResultType(), equalTo(Engine.Result.Type.FAILURE));
         assertFalse(opResult.isCreated());
         Exception e = opResult.getFailure();
         assertThat(e.getMessage(), containsString("I failed to do something!"));

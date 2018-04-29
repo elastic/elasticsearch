@@ -48,7 +48,6 @@ public class AzureRepositorySettingsTests extends ESTestCase {
             TestEnvironment.newEnvironment(internalSettings), NamedXContentRegistry.EMPTY, mock(AzureStorageService.class));
     }
 
-
     public void testReadonlyDefault() throws StorageException, IOException, URISyntaxException {
         assertThat(azureRepository(Settings.EMPTY).isReadOnly(), is(false));
     }

@@ -383,24 +383,22 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         client().admin().indices().preparePutTemplate("template_with_aliases")
                 .setPatterns(Collections.singletonList("te*"))
-                .addMapping("type1", "{\"type1\" : {\"properties\" : {\"value\" : {\"type\" : \"text\"}}}}", XContentType.JSON)
+                .addMapping("_doc", "type", "type=keyword", "field", "type=text")
                 .addAlias(new Alias("simple_alias"))
                 .addAlias(new Alias("templated_alias-{index}"))
-                .addAlias(new Alias("filtered_alias").filter("{\"type\":{\"value\":\"type2\"}}"))
+                .addAlias(new Alias("filtered_alias").filter("{\"term\":{\"type\":\"type2\"}}"))
                 .addAlias(new Alias("complex_filtered_alias")
-                        .filter(QueryBuilders.termsQuery("_type",  "typeX", "typeY", "typeZ")))
+                        .filter(QueryBuilders.termsQuery("type",  "typeX", "typeY", "typeZ")))
                 .get();
 
-        assertAcked(prepareCreate("test_index")
-                .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id)) // allow for multiple version
-                .addMapping("type1").addMapping("type2").addMapping("typeX").addMapping("typeY").addMapping("typeZ"));
+        assertAcked(prepareCreate("test_index"));
         ensureGreen();
 
-        client().prepareIndex("test_index", "type1", "1").setSource("field", "A value").get();
-        client().prepareIndex("test_index", "type2", "2").setSource("field", "B value").get();
-        client().prepareIndex("test_index", "typeX", "3").setSource("field", "C value").get();
-        client().prepareIndex("test_index", "typeY", "4").setSource("field", "D value").get();
-        client().prepareIndex("test_index", "typeZ", "5").setSource("field", "E value").get();
+        client().prepareIndex("test_index", "_doc", "1").setSource("type", "type1", "field", "A value").get();
+        client().prepareIndex("test_index", "_doc", "2").setSource("type", "type2", "field", "B value").get();
+        client().prepareIndex("test_index", "_doc", "3").setSource("type", "typeX", "field", "C value").get();
+        client().prepareIndex("test_index", "_doc", "4").setSource("type", "typeY", "field", "D value").get();
+        client().prepareIndex("test_index", "_doc", "5").setSource("type", "typeZ", "field", "E value").get();
 
         GetAliasesResponse getAliasesResponse = client().admin().indices().prepareGetAliases().setIndices("test_index").get();
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
@@ -419,7 +417,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         searchResponse = client().prepareSearch("filtered_alias").get();
         assertHitCount(searchResponse, 1L);
-        assertThat(searchResponse.getHits().getAt(0).getType(), equalTo("type2"));
+        assertThat(searchResponse.getHits().getAt(0).getSourceAsMap().get("type"), equalTo("type2"));
 
         // Search the complex filter alias
         searchResponse = client().prepareSearch("complex_filtered_alias").get();
@@ -427,7 +425,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         Set<String> types = new HashSet<>();
         for (SearchHit searchHit : searchResponse.getHits().getHits()) {
-            types.add(searchHit.getType());
+            types.add(searchHit.getSourceAsMap().get("type").toString());
         }
         assertThat(types.size(), equalTo(3));
         assertThat(types, containsInAnyOrder("typeX", "typeY", "typeZ"));

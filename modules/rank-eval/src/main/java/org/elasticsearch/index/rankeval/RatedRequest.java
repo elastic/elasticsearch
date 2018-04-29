@@ -223,7 +223,7 @@ public class RatedRequest implements Writeable, ToXContentObject {
             return RatedDocument.fromXContent(p);
         }, RATINGS_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) ->
-                SearchSourceBuilder.fromXContent(p), REQUEST_FIELD);
+                SearchSourceBuilder.fromXContent(p, false), REQUEST_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), PARAMS_FIELD);
         PARSER.declareStringArray(RatedRequest::addSummaryFields, FIELDS_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TEMPLATE_ID_FIELD);

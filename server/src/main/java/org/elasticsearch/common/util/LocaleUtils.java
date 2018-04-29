@@ -75,16 +75,6 @@ public class LocaleUtils {
         return locale;
     }
 
-    /**
-     * Parse the string describing a locale into a {@link Locale} object
-     * for 5.x indices.
-     */
-    @Deprecated
-    public static Locale parse5x(String localeStr) {
-        final String[] parts = localeStr.split("_", -1);
-        return parseParts(parts);
-    }
-
     private static Locale parseParts(String[] parts) {
         switch (parts.length) {
         case 3:

@@ -47,7 +47,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.indices.IndicesService;
@@ -433,9 +432,8 @@ public class IndexCreationTaskTests extends ESTestCase {
         when(routingMapper.required()).thenReturn(false);
 
         when(docMapper.routingFieldMapper()).thenReturn(routingMapper);
-        when(docMapper.parentFieldMapper()).thenReturn(mock(ParentFieldMapper.class));
 
-        when(mapper.docMappers(anyBoolean())).thenReturn(Collections.singletonList(docMapper));
+        when(mapper.documentMapper()).thenReturn(docMapper);
 
         final Index index = new Index("target", "tgt1234");
         final Supplier<Sort> supplier = mock(Supplier.class);

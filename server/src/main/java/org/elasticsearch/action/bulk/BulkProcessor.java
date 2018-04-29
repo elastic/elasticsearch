@@ -299,7 +299,7 @@ public class BulkProcessor implements Closeable {
      */
     public synchronized BulkProcessor add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType,
                                           @Nullable String defaultPipeline, @Nullable Object payload, XContentType xContentType) throws Exception {
-        bulkRequest.add(data, defaultIndex, defaultType, null, null, null, defaultPipeline, payload, true, xContentType);
+        bulkRequest.add(data, defaultIndex, defaultType, null, null, defaultPipeline, payload, true, xContentType);
         executeIfNeeded();
         return this;
     }

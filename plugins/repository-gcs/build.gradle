@@ -100,9 +100,7 @@ task createServiceAccountFile() {
 
 integTestCluster {
   dependsOn createServiceAccountFile, googleCloudStorageFixture
-  setupCommand 'create-elasticsearch-keystore', 'bin/elasticsearch-keystore', 'create'
-  setupCommand 'add-credentials-to-elasticsearch-keystore',
-          'bin/elasticsearch-keystore', 'add-file', 'gcs.client.integration_test.credentials_file', "${serviceAccountFile.absolutePath}"
+  keystoreFile 'gcs.client.integration_test.credentials_file', "${serviceAccountFile.absolutePath}"
 
   /* Use a closure on the string to delay evaluation until tests are executed */
   setting 'gcs.client.integration_test.endpoint', "http://${ -> googleCloudStorageFixture.addressAndPort }"

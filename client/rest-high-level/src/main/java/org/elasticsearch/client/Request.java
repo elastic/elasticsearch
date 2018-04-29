@@ -43,10 +43,12 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -74,6 +76,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
+import org.elasticsearch.rest.action.RestFieldCapabilitiesAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
@@ -136,7 +139,6 @@ public final class Request {
 
         Params parameters = Params.builder();
         parameters.withRouting(deleteRequest.routing());
-        parameters.withParent(deleteRequest.parent());
         parameters.withTimeout(deleteRequest.timeout());
         parameters.withVersion(deleteRequest.version());
         parameters.withVersionType(deleteRequest.versionType());
@@ -315,9 +317,6 @@ public final class Request {
                     if (Strings.hasLength(request.routing())) {
                         metadata.field("routing", request.routing());
                     }
-                    if (Strings.hasLength(request.parent())) {
-                        metadata.field("parent", request.parent());
-                    }
                     if (request.version() != Versions.MATCH_ANY) {
                         metadata.field("version", request.version());
                     }
@@ -394,7 +393,6 @@ public final class Request {
         Params parameters = Params.builder();
         parameters.withPreference(getRequest.preference());
         parameters.withRouting(getRequest.routing());
-        parameters.withParent(getRequest.parent());
         parameters.withRefresh(getRequest.refresh());
         parameters.withRealtime(getRequest.realtime());
         parameters.withStoredFields(getRequest.storedFields());
@@ -422,7 +420,6 @@ public final class Request {
 
         Params parameters = Params.builder();
         parameters.withRouting(indexRequest.routing());
-        parameters.withParent(indexRequest.parent());
         parameters.withTimeout(indexRequest.timeout());
         parameters.withVersion(indexRequest.version());
         parameters.withVersionType(indexRequest.versionType());
@@ -446,7 +443,6 @@ public final class Request {
 
         Params parameters = Params.builder();
         parameters.withRouting(updateRequest.routing());
-        parameters.withParent(updateRequest.parent());
         parameters.withTimeout(updateRequest.timeout());
         parameters.withRefreshPolicy(updateRequest.getRefreshPolicy());
         parameters.withWaitForActiveShards(updateRequest.waitForActiveShards());
@@ -542,10 +538,22 @@ public final class Request {
         return new Request(HttpHead.METHOD_NAME, endpoint, params.getParams(), null);
     }
 
+    static Request fieldCaps(FieldCapabilitiesRequest fieldCapabilitiesRequest) {
+        Params params = Params.builder();
+        params.withFields(fieldCapabilitiesRequest.fields());
+        params.withIndicesOptions(fieldCapabilitiesRequest.indicesOptions());
+
+        String[] indices = fieldCapabilitiesRequest.indices();
+        String endpoint = endpoint(indices, "_field_caps");
+        return new Request(HttpGet.METHOD_NAME, endpoint, params.getParams(), null);
+    }
+
     static Request rankEval(RankEvalRequest rankEvalRequest) throws IOException {
         String endpoint = endpoint(rankEvalRequest.indices(), Strings.EMPTY_ARRAY, "_rank_eval");
+        Params params = Params.builder();
+        params.withIndicesOptions(rankEvalRequest.indicesOptions());
         HttpEntity entity = createEntity(rankEvalRequest.getRankEvalSpec(), REQUEST_BODY_CONTENT_TYPE);
-        return new Request(HttpGet.METHOD_NAME, endpoint, Collections.emptyMap(), entity);
+        return new Request(HttpGet.METHOD_NAME, endpoint, params.getParams(), entity);
     }
 
     static Request split(ResizeRequest resizeRequest) throws IOException {
@@ -576,7 +584,6 @@ public final class Request {
 
     static Request clusterPutSettings(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest) throws IOException {
         Params parameters = Params.builder();
-        parameters.withFlatSettings(clusterUpdateSettingsRequest.flatSettings());
         parameters.withTimeout(clusterUpdateSettingsRequest.timeout());
         parameters.withMasterTimeout(clusterUpdateSettingsRequest.masterNodeTimeout());
         HttpEntity entity = createEntity(clusterUpdateSettingsRequest, REQUEST_BODY_CONTENT_TYPE);
@@ -598,7 +605,7 @@ public final class Request {
     }
 
     static Request indicesExist(GetIndexRequest request) {
-        //this can be called with no indices as argument by transport client, not via REST though
+        // this can be called with no indices as argument by transport client, not via REST though
         if (request.indices() == null || request.indices().length == 0) {
             throw new IllegalArgumentException("indices are mandatory");
         }
@@ -607,9 +614,21 @@ public final class Request {
         params.withLocal(request.local());
         params.withHuman(request.humanReadable());
         params.withIndicesOptions(request.indicesOptions());
-        params.withFlatSettings(request.flatSettings());
         params.withIncludeDefaults(request.includeDefaults());
         return new Request(HttpHead.METHOD_NAME, endpoint, params.getParams(), null);
+    }
+
+    static Request indexPutSettings(UpdateSettingsRequest updateSettingsRequest) throws IOException {
+        Params parameters = Params.builder();
+        parameters.withTimeout(updateSettingsRequest.timeout());
+        parameters.withMasterTimeout(updateSettingsRequest.masterNodeTimeout());
+        parameters.withIndicesOptions(updateSettingsRequest.indicesOptions());
+        parameters.withPreserveExisting(updateSettingsRequest.isPreserveExisting());
+
+        String[] indices = updateSettingsRequest.indices() == null ? Strings.EMPTY_ARRAY : updateSettingsRequest.indices();
+        String endpoint = endpoint(indices, "_settings");
+        HttpEntity entity = createEntity(updateSettingsRequest, REQUEST_BODY_CONTENT_TYPE);
+        return new Request(HttpPut.METHOD_NAME, endpoint, parameters.getParams(), entity);
     }
 
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
@@ -705,12 +724,15 @@ public final class Request {
             return this;
         }
 
-        Params withMasterTimeout(TimeValue masterTimeout) {
-            return putParam("master_timeout", masterTimeout);
+        Params withFields(String[] fields) {
+            if (fields != null && fields.length > 0) {
+                return putParam("fields", String.join(",", fields));
+            }
+            return this;
         }
 
-        Params withParent(String parent) {
-            return putParam("parent", parent);
+        Params withMasterTimeout(TimeValue masterTimeout) {
+            return putParam("master_timeout", masterTimeout);
         }
 
         Params withPipeline(String pipeline) {
@@ -829,6 +851,13 @@ public final class Request {
         Params withIncludeDefaults(boolean includeDefaults) {
             if (includeDefaults) {
                 return putParam("include_defaults", Boolean.TRUE.toString());
+            }
+            return this;
+        }
+
+        Params withPreserveExisting(boolean preserveExisting) {
+            if (preserveExisting) {
+                return putParam("preserve_existing", Boolean.TRUE.toString());
             }
             return this;
         }

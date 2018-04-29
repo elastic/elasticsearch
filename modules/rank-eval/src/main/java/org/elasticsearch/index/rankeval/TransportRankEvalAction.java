@@ -107,7 +107,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
                 String resolvedRequest = templateScript.newInstance(params).execute();
                 try (XContentParser subParser = createParser(namedXContentRegistry,
                     LoggingDeprecationHandler.INSTANCE, new BytesArray(resolvedRequest), XContentType.JSON)) {
-                    ratedSearchSource = SearchSourceBuilder.fromXContent(subParser);
+                    ratedSearchSource = SearchSourceBuilder.fromXContent(subParser, false);
                 } catch (IOException e) {
                     // if we fail parsing, put the exception into the errors map and continue
                     errors.put(ratedRequest.getId(), e);
@@ -126,7 +126,9 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             } else {
                 ratedSearchSource.fetchSource(summaryFields.toArray(new String[summaryFields.size()]), new String[0]);
             }
-            msearchRequest.add(new SearchRequest(request.indices(), ratedSearchSource));
+            SearchRequest searchRequest = new SearchRequest(request.indices(), ratedSearchSource);
+            searchRequest.indicesOptions(request.indicesOptions());
+            msearchRequest.add(searchRequest);
         }
         assert ratedRequestsInSearch.size() == msearchRequest.requests().size();
         client.multiSearch(msearchRequest, new RankEvalActionListener(listener, metric,

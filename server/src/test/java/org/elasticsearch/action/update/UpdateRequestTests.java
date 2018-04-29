@@ -61,7 +61,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.script.MockScriptEngine.mockInlineScript;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
-import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -277,17 +276,26 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(((Map) doc.get("compound")).get("field2").toString(), equalTo("value2"));
     }
 
-    // Related to issue 15338
-    public void testFieldsParsing() throws Exception {
-        UpdateRequest request = new UpdateRequest("test", "type1", "1").fromXContent(
-                createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"field1\": \"value1\"}, \"fields\": \"_source\"}")));
-        assertThat(request.doc().sourceAsMap().get("field1").toString(), equalTo("value1"));
-        assertThat(request.fields(), arrayContaining("_source"));
+    public void testUnknownFieldParsing() throws Exception {
+        UpdateRequest request = new UpdateRequest("test", "type", "1");
+        XContentParser contentParser = createParser(XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("unknown_field", "test")
+                .endObject());
 
-        request = new UpdateRequest("test", "type2", "2").fromXContent(createParser(JsonXContent.jsonXContent,
-                new BytesArray("{\"doc\": {\"field2\": \"value2\"}, \"fields\": [\"field1\", \"field2\"]}")));
-        assertThat(request.doc().sourceAsMap().get("field2").toString(), equalTo("value2"));
-        assertThat(request.fields(), arrayContaining("field1", "field2"));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> request.fromXContent(contentParser));
+        assertEquals("[UpdateRequest] unknown field [unknown_field], parser not found", ex.getMessage());
+
+        UpdateRequest request2 = new UpdateRequest("test", "type", "1");
+        XContentParser unknownObject = createParser(XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("script", "ctx.op = ctx._source.views == params.count ? 'delete' : 'none'")
+                    .startObject("params")
+                        .field("count", 1)
+                    .endObject()
+                .endObject());
+        ex = expectThrows(IllegalArgumentException.class, () -> request2.fromXContent(unknownObject));
+        assertEquals("[UpdateRequest] unknown field [params], parser not found", ex.getMessage());
     }
 
     public void testFetchSourceParsing() throws Exception {
@@ -445,13 +453,6 @@ public class UpdateRequestTests extends ESTestCase {
             updateRequest.upsert(new IndexRequest().source(source, xContentType));
         }
         if (randomBoolean()) {
-            String[] fields = new String[randomIntBetween(0, 5)];
-            for (int i = 0; i < fields.length; i++) {
-                fields[i] = randomAlphaOfLength(5);
-            }
-            updateRequest.fields(fields);
-        }
-        if (randomBoolean()) {
             if (randomBoolean()) {
                 updateRequest.fetchSource(randomBoolean());
             } else {
@@ -487,10 +488,8 @@ public class UpdateRequestTests extends ESTestCase {
 
         assertEquals(updateRequest.detectNoop(), parsedUpdateRequest.detectNoop());
         assertEquals(updateRequest.docAsUpsert(), parsedUpdateRequest.docAsUpsert());
-        assertEquals(updateRequest.docAsUpsert(), parsedUpdateRequest.docAsUpsert());
         assertEquals(updateRequest.script(), parsedUpdateRequest.script());
         assertEquals(updateRequest.scriptedUpsert(), parsedUpdateRequest.scriptedUpsert());
-        assertArrayEquals(updateRequest.fields(), parsedUpdateRequest.fields());
         assertEquals(updateRequest.fetchSource(), parsedUpdateRequest.fetchSource());
 
         BytesReference finalBytes = toXContent(parsedUpdateRequest, xContentType, humanReadable);
@@ -512,27 +511,23 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(updateRequest.validate().validationErrors(), contains("can't provide version in upsert request"));
     }
 
-    public void testParentAndRoutingExtraction() throws Exception {
+    public void testRoutingExtraction() throws Exception {
         GetResult getResult = new GetResult("test", "type", "1", 0, false, null, null);
         IndexRequest indexRequest = new IndexRequest("test", "type", "1");
 
         // There is no routing and parent because the document doesn't exist
         assertNull(UpdateHelper.calculateRouting(getResult, null));
-        assertNull(UpdateHelper.calculateParent(getResult, null));
 
         // There is no routing and parent the indexing request
         assertNull(UpdateHelper.calculateRouting(getResult, indexRequest));
-        assertNull(UpdateHelper.calculateParent(getResult, indexRequest));
 
         // Doc exists but has no source or fields
         getResult = new GetResult("test", "type", "1", 0, true, null, null);
 
         // There is no routing and parent on either request
         assertNull(UpdateHelper.calculateRouting(getResult, indexRequest));
-        assertNull(UpdateHelper.calculateParent(getResult, indexRequest));
 
         Map<String, DocumentField> fields = new HashMap<>();
-        fields.put("_parent", new DocumentField("_parent", Collections.singletonList("parent1")));
         fields.put("_routing", new DocumentField("_routing", Collections.singletonList("routing1")));
 
         // Doc exists and has the parent and routing fields
@@ -540,14 +535,6 @@ public class UpdateRequestTests extends ESTestCase {
 
         // Use the get result parent and routing
         assertThat(UpdateHelper.calculateRouting(getResult, indexRequest), equalTo("routing1"));
-        assertThat(UpdateHelper.calculateParent(getResult, indexRequest), equalTo("parent1"));
-
-        // Index request has overriding parent and routing values
-        indexRequest = new IndexRequest("test", "type", "1").parent("parent2").routing("routing2");
-
-        // Use the request's parent and routing
-        assertThat(UpdateHelper.calculateRouting(getResult, indexRequest), equalTo("routing2"));
-        assertThat(UpdateHelper.calculateParent(getResult, indexRequest), equalTo("parent2"));
     }
 
     @SuppressWarnings("deprecated") // VersionType.FORCE is deprecated

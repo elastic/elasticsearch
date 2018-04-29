@@ -59,7 +59,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                 }
                 flushShard(replica);
                 replica.updateGlobalCheckpointOnReplica(initDocs - 1, "test");
-                replica.getTranslog().sync();
+                replica.sync();
                 final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null, null);
                 assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget), equalTo(initDocs));
                 recoveryTarget.decRef();
@@ -81,7 +81,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             // Advances the global checkpoint, a safe commit also advances
             {
                 replica.updateGlobalCheckpointOnReplica(initDocs + moreDocs - 1, "test");
-                replica.getTranslog().sync();
+                replica.sync();
                 final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null, null);
                 assertThat(PeerRecoveryTargetService.getStartingSeqNo(logger, recoveryTarget), equalTo(initDocs + moreDocs));
                 recoveryTarget.decRef();

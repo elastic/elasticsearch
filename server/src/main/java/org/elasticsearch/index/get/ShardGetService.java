@@ -41,13 +41,11 @@ import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.search.fetch.subphase.ParentFieldSubFetchPhase;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -98,7 +96,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     }
 
     public GetResult getForUpdate(String type, String id, long version, VersionType versionType) {
-        return get(type, id, new String[]{RoutingFieldMapper.NAME, ParentFieldMapper.NAME}, true, version, versionType,
+        return get(type, id, new String[]{RoutingFieldMapper.NAME}, true, version, versionType,
             FetchSourceContext.FETCH_SOURCE, true);
     }
 
@@ -208,13 +206,6 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
 
         DocumentMapper docMapper = mapperService.documentMapper(type);
-        if (docMapper.parentFieldMapper().active()) {
-            String parentId = ParentFieldSubFetchPhase.getParentId(docMapper.parentFieldMapper(), docIdAndVersion.reader, docIdAndVersion.docId);
-            if (fields == null) {
-                fields = new HashMap<>(1);
-            }
-            fields.put(ParentFieldMapper.NAME, new DocumentField(ParentFieldMapper.NAME, Collections.singletonList(parentId)));
-        }
 
         if (gFields != null && gFields.length > 0) {
             for (String field : gFields) {

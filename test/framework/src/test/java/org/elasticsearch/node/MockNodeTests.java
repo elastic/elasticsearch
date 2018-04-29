@@ -19,6 +19,8 @@
 
 package org.elasticsearch.node;
 
+import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -67,5 +69,6 @@ public class MockNodeTests extends ESTestCase {
                 assertSame(searchService.getClass(), SearchService.class);
             }
         }
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
     }
 }

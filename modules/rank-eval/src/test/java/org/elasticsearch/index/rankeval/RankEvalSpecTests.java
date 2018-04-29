@@ -51,7 +51,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.containsString;
 
 public class RankEvalSpecTests extends ESTestCase {
 
@@ -133,7 +133,7 @@ public class RankEvalSpecTests extends ESTestCase {
         BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, null, random());
         try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
             Exception exception = expectThrows(Exception.class, () -> RankEvalSpec.parse(parser));
-            assertThat(exception.getMessage(), startsWith("[rank_eval] failed to parse field"));
+            assertThat(exception.getMessage(), containsString("[rank_eval] failed to parse field"));
         }
     }
 

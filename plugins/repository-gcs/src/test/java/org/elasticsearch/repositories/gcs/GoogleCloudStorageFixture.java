@@ -22,7 +22,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.repositories.gcs.GoogleCloudStorageTestServer.Response;
 

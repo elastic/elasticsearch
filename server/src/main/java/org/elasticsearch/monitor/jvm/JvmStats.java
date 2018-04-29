@@ -82,10 +82,8 @@ public class JvmStats implements Writeable, ToXContentFragment {
                         peakUsage.getUsed() < 0 ? 0 : peakUsage.getUsed(),
                         peakUsage.getMax() < 0 ? 0 : peakUsage.getMax()
                 ));
-            } catch (Exception ex) {
-                /* ignore some JVMs might barf here with:
-                 * java.lang.InternalError: Memory Pool not found
-                 * we just omit the pool in that case!*/
+            } catch (final Exception ignored) {
+
             }
         }
         Mem mem = new Mem(heapCommitted, heapUsed, heapMax, nonHeapCommitted, nonHeapUsed, Collections.unmodifiableList(pools));

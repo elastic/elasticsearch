@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.delete;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
@@ -51,8 +52,6 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest> impleme
     private String id;
     @Nullable
     private String routing;
-    @Nullable
-    private String parent;
     private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
 
@@ -131,22 +130,6 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest> impleme
     }
 
     /**
-     * @return The parent for this request.
-     */
-    @Override
-    public String parent() {
-        return parent;
-    }
-
-    /**
-     * Sets the parent id of this document.
-     */
-    public DeleteRequest parent(String parent) {
-        this.parent = parent;
-        return this;
-    }
-
-    /**
      * Controls the shard routing of the request. Using this value to hash the shard
      * and not the id.
      */
@@ -202,7 +185,9 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest> impleme
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
-        parent = in.readOptionalString();
+        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+            in.readOptionalString(); // _parent
+        }
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
     }
@@ -213,7 +198,9 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest> impleme
         out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing());
-        out.writeOptionalString(parent());
+        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+            out.writeOptionalString(null); // _parent
+        }
         out.writeLong(version);
         out.writeByte(versionType.getValue());
     }

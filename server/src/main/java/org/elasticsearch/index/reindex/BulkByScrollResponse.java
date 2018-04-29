@@ -152,7 +152,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        took.writeTo(out);
+        out.writeTimeValue(took);
         status.writeTo(out);
         out.writeList(bulkFailures);
         out.writeList(searchFailures);
@@ -162,7 +162,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        took = new TimeValue(in);
+        took = in.readTimeValue();
         status = new BulkByScrollTask.Status(in);
         bulkFailures = in.readList(Failure::new);
         searchFailures = in.readList(ScrollableHitSource.SearchFailure::new);

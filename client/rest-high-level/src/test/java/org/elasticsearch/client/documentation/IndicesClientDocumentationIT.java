@@ -48,6 +48,8 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
@@ -111,8 +113,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.local(false); // <1>
             request.humanReadable(true); // <2>
             request.includeDefaults(false); // <3>
-            request.flatSettings(false); // <4>
-            request.indicesOptions(indicesOptions); // <5>
+            request.indicesOptions(indicesOptions); // <4>
             // end::indices-exists-request-optionals
 
             // tag::indices-exists-response
@@ -394,6 +395,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::create-index-execute-listener
             ActionListener<CreateIndexResponse> listener =
                     new ActionListener<CreateIndexResponse>() {
+
                 @Override
                 public void onResponse(CreateIndexResponse createIndexResponse) {
                     // <1>
@@ -1378,4 +1380,107 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
+
+    public void testIndexPutSettings() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index"));
+            assertTrue(createIndexResponse.isAcknowledged());
+        }
+
+        // tag::put-settings-request
+        UpdateSettingsRequest request = new UpdateSettingsRequest("index1"); // <1>
+        UpdateSettingsRequest requestMultiple =
+                new UpdateSettingsRequest("index1", "index2"); // <2>
+        UpdateSettingsRequest requestAll = new UpdateSettingsRequest(); // <3>
+        // end::put-settings-request
+
+        // tag::put-settings-create-settings
+        String settingKey = "index.number_of_replicas";
+        int settingValue = 0;
+        Settings settings =
+                Settings.builder()
+                .put(settingKey, settingValue)
+                .build(); // <1>
+        // end::put-settings-create-settings
+        // tag::put-settings-request-index-settings
+        request.settings(settings);
+        // end::put-settings-request-index-settings
+
+        {
+            // tag::put-settings-settings-builder
+            Settings.Builder settingsBuilder =
+                    Settings.builder()
+                    .put(settingKey, settingValue);
+            request.settings(settingsBuilder); // <1>
+            // end::put-settings-settings-builder
+        }
+        {
+            // tag::put-settings-settings-map
+            Map<String, Object> map = new HashMap<>();
+            map.put(settingKey, settingValue);
+            request.settings(map); // <1>
+            // end::put-settings-settings-map
+        }
+        {
+            // tag::put-settings-settings-source
+            request.settings(
+                    "{\"index.number_of_replicas\": \"2\"}"
+                    , XContentType.JSON); // <1>
+            // end::put-settings-settings-source
+        }
+
+        // tag::put-settings-request-preserveExisting
+        request.setPreserveExisting(false); // <1>
+        // end::put-settings-request-preserveExisting
+        // tag::put-settings-request-timeout
+        request.timeout(TimeValue.timeValueMinutes(2)); // <1>
+        request.timeout("2m"); // <2>
+        // end::put-settings-request-timeout
+        // tag::put-settings-request-masterTimeout
+        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.masterNodeTimeout("1m"); // <2>
+        // end::put-settings-request-masterTimeout
+        // tag::put-settings-request-indicesOptions
+        request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+        // end::put-settings-request-indicesOptions
+
+        // tag::put-settings-execute
+        UpdateSettingsResponse updateSettingsResponse =
+                client.indices().putSettings(request);
+        // end::put-settings-execute
+
+        // tag::put-settings-response
+        boolean acknowledged = updateSettingsResponse.isAcknowledged(); // <1>
+        // end::put-settings-response
+        assertTrue(acknowledged);
+
+        // tag::put-settings-execute-listener
+        ActionListener<UpdateSettingsResponse> listener =
+                new ActionListener<UpdateSettingsResponse>() {
+
+            @Override
+            public void onResponse(UpdateSettingsResponse updateSettingsResponse) {
+                // <1>
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::put-settings-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::put-settings-execute-async
+        client.indices().putSettingsAsync(request,listener); // <1>
+        // end::put-settings-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
 }

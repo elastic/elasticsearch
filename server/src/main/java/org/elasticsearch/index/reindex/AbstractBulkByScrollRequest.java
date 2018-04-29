@@ -420,9 +420,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         abortOnVersionConflict = in.readBoolean();
         size = in.readVInt();
         refresh = in.readBoolean();
-        timeout = new TimeValue(in);
+        timeout = in.readTimeValue();
         activeShardCount = ActiveShardCount.readFrom(in);
-        retryBackoffInitialTime = new TimeValue(in);
+        retryBackoffInitialTime = in.readTimeValue();
         maxRetries = in.readVInt();
         requestsPerSecond = in.readFloat();
         slices = in.readVInt();
@@ -435,9 +435,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         out.writeBoolean(abortOnVersionConflict);
         out.writeVInt(size);
         out.writeBoolean(refresh);
-        timeout.writeTo(out);
+        out.writeTimeValue(timeout);
         activeShardCount.writeTo(out);
-        retryBackoffInitialTime.writeTo(out);
+        out.writeTimeValue(retryBackoffInitialTime);
         out.writeVInt(maxRetries);
         out.writeFloat(requestsPerSecond);
         if (out.getVersion().before(Version.V_6_1_0) && slices == AUTO_SLICES) {

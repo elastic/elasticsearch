@@ -1,0 +1,25 @@
+---
+"Execute with defaults":
+  - do:
+      scripts_painless_execute:
+        body:
+          script:
+            source: "params.count / params.total"
+            params:
+              count: 100.0
+              total: 1000.0
+  - match: { result: "0.1" }
+
+---
+"Execute with execute_api_script context":
+  - do:
+      scripts_painless_execute:
+        body:
+          script:
+            source: "params.var1 - params.var2"
+            params:
+              var1: 10
+              var2: 100
+          context:
+            painless_test: {}
+  - match: { result: "-90" }

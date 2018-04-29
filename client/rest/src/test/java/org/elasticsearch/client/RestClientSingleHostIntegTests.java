@@ -33,7 +33,6 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.util.EntityUtils;
-import org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -58,13 +57,12 @@ import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  * Integration test to check interaction between {@link RestClient} and {@link org.apache.http.client.HttpClient}.
  * Works against a real http server, one single host.
  */
-//animal-sniffer doesn't like our usage of com.sun.net.httpserver.* classes
-@IgnoreJRERequirement
 public class RestClientSingleHostIntegTests extends RestClientTestCase {
 
     private static HttpServer httpServer;
@@ -90,8 +88,6 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
         return httpServer;
     }
 
-    //animal-sniffer doesn't like our usage of com.sun.net.httpserver.* classes
-    @IgnoreJRERequirement
     private static class ResponseHandler implements HttpHandler {
         private final int statusCode;
 
@@ -135,8 +131,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
         final RestClientBuilder restClientBuilder = RestClient.builder(
             new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort())).setDefaultHeaders(defaultHeaders);
         if (pathPrefix.length() > 0) {
-            // sometimes cut off the leading slash
-            restClientBuilder.setPathPrefix(randomBoolean() ? pathPrefix.substring(1) : pathPrefix);
+            restClientBuilder.setPathPrefix(pathPrefix);
         }
 
         if (useAuth) {
@@ -277,6 +272,33 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
                 final Response response = bodyTest(restClient, method);
 
                 assertThat(response.getHeader("Authorization"), nullValue());
+            }
+        }
+    }
+
+    public void testUrlWithoutLeadingSlash() throws Exception {
+        if (pathPrefix.length() == 0) {
+            try {
+                restClient.performRequest("GET", "200");
+                fail("request should have failed");
+            } catch(ResponseException e) {
+                assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
+            }
+        } else {
+            {
+                Response response = restClient.performRequest("GET", "200");
+                //a trailing slash gets automatically added if a pathPrefix is configured
+                assertEquals(200, response.getStatusLine().getStatusCode());
+            }
+            {
+                //pathPrefix is not required to start with '/', will be added automatically
+                try (RestClient restClient = RestClient.builder(
+                        new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort()))
+                        .setPathPrefix(pathPrefix.substring(1)).build()) {
+                    Response response = restClient.performRequest("GET", "200");
+                    //a trailing slash gets automatically added if a pathPrefix is configured
+                    assertEquals(200, response.getStatusLine().getStatusCode());
+                }
             }
         }
     }

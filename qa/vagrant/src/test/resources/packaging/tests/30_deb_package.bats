@@ -191,8 +191,8 @@ setup() {
 
     assert_file_not_exist "/usr/share/elasticsearch"
 
-    assert_file_not_exist "/usr/share/doc/elasticsearch"
-    assert_file_not_exist "/usr/share/doc/elasticsearch/copyright"
+    assert_file_not_exist "/usr/share/doc/elasticsearch-oss"
+    assert_file_not_exist "/usr/share/doc/elasticsearch-oss/copyright"
 }
 
 @test "[DEB] package has been completly removed" {

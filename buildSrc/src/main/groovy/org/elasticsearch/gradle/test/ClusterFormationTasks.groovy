@@ -563,16 +563,17 @@ class ClusterFormationTasks {
 
     /** Adds a task to execute a command to help setup the cluster */
     static Task configureExecTask(String name, Project project, Task setup, NodeInfo node, Object[] execArgs) {
-        return project.tasks.create(name: name, type: LoggedExec, dependsOn: setup) {
-            workingDir node.cwd
+        return project.tasks.create(name: name, type: LoggedExec, dependsOn: setup) { Exec exec ->
+            exec.workingDir node.cwd
+            exec.environment 'JAVA_HOME', node.getJavaHome()
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-                executable 'cmd'
-                args '/C', 'call'
+                exec.executable 'cmd'
+                exec.args '/C', 'call'
                 // On Windows the comma character is considered a parameter separator:
                 // argument are wrapped in an ExecArgWrapper that escapes commas
-                args execArgs.collect { a -> new EscapeCommaWrapper(arg: a) }
+                exec.args execArgs.collect { a -> new EscapeCommaWrapper(arg: a) }
             } else {
-                commandLine execArgs
+                exec.commandLine execArgs
             }
         }
     }

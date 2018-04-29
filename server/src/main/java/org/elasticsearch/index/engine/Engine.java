@@ -578,27 +578,10 @@ public abstract class Engine implements Closeable {
 
     /** get commits stats for the last commit */
     public CommitStats commitStats() {
-        try (IndexCommitRef commitRef = acquireLastIndexCommit(false)) { // Need to retain the commit as we might open it.
+        // Need to retain the commit as we will open it.
+        try (IndexCommitRef commitRef = acquireLastIndexCommit(false)) {
             final SegmentInfos sis = Lucene.readSegmentInfos(commitRef.getIndexCommit());
-            boolean hasSoftDeletes = false;
-            try (Searcher searcher = acquireSearcher("commit_stats", SearcherScope.INTERNAL)) {
-                for (LeafReaderContext leaf : searcher.reader().leaves()) {
-                    if (leaf.reader().getNumericDocValues(Lucene.SOFT_DELETE_FIELD) != null) {
-                        hasSoftDeletes = true;
-                        break;
-                    }
-                }
-            }
-            if (hasSoftDeletes) {
-                return new CommitStats(sis, Lucene.getNumDocs(store.directory(), sis));
-            } else {
-                // We can use static counters if there is no soft-deletes.
-                int numDocs = 0;
-                for (SegmentCommitInfo si : sis) {
-                    numDocs += (si.info.maxDoc() - si.getDelCount());
-                }
-                return new CommitStats(sis, numDocs);
-            }
+            return new CommitStats(sis, Lucene.getNumDocs(store.directory(), sis));
         } catch (IOException ex) {
             maybeFailEngine("commit_stats", ex);
             throw new UncheckedIOException(ex);

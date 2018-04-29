@@ -89,11 +89,16 @@ public class S3RepositoryTests extends ESTestCase {
         final Settings s3 = bufferAndChunkSettings(5, 5);
         new S3Repository(getRepositoryMetaData(s3), Settings.EMPTY, NamedXContentRegistry.EMPTY, new DummyS3Service()).close();
         // buffer < 5mb should fail
-        assertInvalidBuffer(4, 10, IllegalArgumentException.class,
-                "failed to parse value [4mb] for setting [buffer_size], must be >= [5mb]");
-        // chunk > 5tb should fail
-        assertInvalidBuffer(5, 6000000, IllegalArgumentException.class,
-                "failed to parse value [6000000mb] for setting [chunk_size], must be <= [5tb]");
+        final Settings s4 = bufferAndChunkSettings(4, 10);
+        final IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class,
+                () -> new S3Repository(getRepositoryMetaData(s4), Settings.EMPTY, NamedXContentRegistry.EMPTY, new DummyS3Service())
+                        .close());
+        assertThat(e2.getMessage(), containsString("failed to parse value [4mb] for setting [buffer_size], must be >= [5mb]"));
+        final Settings s5 = bufferAndChunkSettings(5, 6000000);
+        final IllegalArgumentException e3 = expectThrows(IllegalArgumentException.class,
+                () -> new S3Repository(getRepositoryMetaData(s5), Settings.EMPTY, NamedXContentRegistry.EMPTY, new DummyS3Service())
+                        .close());
+        assertThat(e3.getMessage(), containsString("failed to parse value [6000000mb] for setting [chunk_size], must be <= [5tb]"));
     }
 
     private Settings bufferAndChunkSettings(long buffer, long chunk) {

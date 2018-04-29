@@ -115,7 +115,15 @@ public class S3BlobStoreTests extends ESBlobStoreTestCase {
             storageClass = randomValueOtherThan(StorageClass.Glacier, () -> randomFrom(StorageClass.values())).toString();
         }
 
-        AmazonS3 client = new MockAmazonS3(new ConcurrentHashMap<>(), bucket, serverSideEncryption, cannedACL, storageClass);
-        return new S3BlobStore(Settings.EMPTY, client, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass);
+        final String theClientName = randomAlphaOfLength(4);
+        final AmazonS3 client = new MockAmazonS3(new ConcurrentHashMap<>(), bucket, serverSideEncryption, cannedACL, storageClass);
+        final AwsS3Service service = new InternalAwsS3Service(Settings.EMPTY) {
+            @Override
+            public synchronized AmazonS3Reference client(String clientName) {
+                assert theClientName.equals(clientName);
+                return new AmazonS3Reference(client);
+            }
+        };
+        return new S3BlobStore(Settings.EMPTY, service, theClientName, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass);
     }
 }

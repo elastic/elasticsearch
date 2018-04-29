@@ -20,13 +20,13 @@
 package org.elasticsearch.repositories.blobstore;
 
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.IndexShard;
@@ -72,7 +72,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
             final int numDocs = scaledRandomIntBetween(1, 500);
             recoverShardFromStore(shard);
             for (int i = 0; i < numDocs; i++) {
-                indexDoc(shard, "doc", Integer.toString(i));
+                indexDoc(shard, "_doc", Integer.toString(i));
                 if (rarely()) {
                     flushShard(shard, false);
                 }
@@ -138,7 +138,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
             final int numDocs = scaledRandomIntBetween(1, 500);
             recoverShardFromStore(shard);
             for (int i = 0; i < numDocs; i++) {
-                indexDoc(shard, "doc", Integer.toString(i));
+                indexDoc(shard, "_doc", Integer.toString(i));
                 if (rarely()) {
                     flushShard(shard, false);
                 }

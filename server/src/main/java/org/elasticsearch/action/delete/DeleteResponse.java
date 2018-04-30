@@ -44,7 +44,12 @@ public class DeleteResponse extends DocWriteResponse {
     }
 
     private DeleteResponse(ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, Result result) {
-        super(shardId, type, id, seqNo, primaryTerm, version, result);
+        super(shardId, type, id, seqNo, primaryTerm, version, assertDeletedOrNotFound(result));
+    }
+
+    private static Result assertDeletedOrNotFound(Result result) {
+        assert result == Result.DELETED || result == Result.NOT_FOUND;
+        return result;
     }
 
     @Override

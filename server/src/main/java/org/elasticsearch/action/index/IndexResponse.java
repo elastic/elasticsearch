@@ -45,7 +45,12 @@ public class IndexResponse extends DocWriteResponse {
     }
 
     private IndexResponse(ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, Result result) {
-        super(shardId, type, id, seqNo, primaryTerm, version, result);
+        super(shardId, type, id, seqNo, primaryTerm, version, assertCreatedOrUpdated(result));
+    }
+
+    private static Result assertCreatedOrUpdated(Result result) {
+        assert result == Result.CREATED || result == Result.UPDATED;
+        return result;
     }
 
     @Override

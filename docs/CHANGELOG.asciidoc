@@ -14,9 +14,6 @@ This section summarizes the changes in each release.
 [[release-notes-7.0.0]]
 == {es} 7.0.0
 
-Test
-
-////
 // Use these for links to issue and pulls. Note issues and pulls redirect one to
 // each other on Github, so don't worry too much on using the right prefix.
 :issue: https://github.com/elastic/elasticsearch/issues/
@@ -26,6 +23,7 @@ Test
 
 == Elasticsearch 7.0.0
 
+[float]
 === Breaking Changes
 
 <<write-thread-pool-fallback, Removed `thread_pool.bulk.*` settings and
@@ -35,41 +33,38 @@ Test
 
 <<remove-field-caps-body, In field capabilities APIs, removed support for providing fields in the request body>> ({pull}30185[#30185])
 
-=== Breaking Java Changes
+//=== Breaking Java Changes
 
-=== Deprecations
+//=== Deprecations
 
-=== New Features
+//=== New Features
 
-=== Enhancements
+//=== Enhancements
 
+[float]
 === Bug Fixes
 
 Fail snapshot operations early when creating or deleting a snapshot on a repository that has been
 written to by an older Elasticsearch after writing to it with a newer Elasticsearch version. ({pull}30140[#30140])
 
-=== Regressions
+//=== Regressions
 
-=== Known Issues
-////
+//=== Known Issues
 
 [[release-notes-6.4.0]]
 == {es} 6.4.0
 
-Test
-////
-=== New Features
+//=== New Features
 
-=== Enhancements
+//=== Enhancements
 
 <<copy-source-settings-on-resize, Allow copying source settings on index resize operations>> ({pull}30255[#30255])
 
+[float]
 === Bug Fixes
 
 Do not ignore request analysis/similarity settings on index resize operations when the source index already contains such settings ({pull}30216[#30216])
 
-=== Regressions
+//=== Regressions
 
-=== Known Issues
-
-////
+//=== Known Issues

@@ -14,6 +14,8 @@
 
 <<remove-suggest-metric, Removed `suggest` metric on stats APIs>> ({pull}29635[#29635])
 
+<<remove-field-caps-body, In field capabilities APIs, removed support for providing fields in the request body>> ({pull}30185[#30185])
+
 === Breaking Java Changes
 
 === Deprecations
@@ -51,17 +53,22 @@
 === Bug Fixes
 <<cusum-pipeline-npe, Fix NPE when CumulativeSum agg encounters null value/empty bucket>> ({pull}29641[#29641])
 
+Fail snapshot operations early when creating or deleting a snapshot on a repository that has been
+written to by an older Elasticsearch after writing to it with a newer Elasticsearch version. ({pull}30140[#30140])
+
 === Regressions
 
 === Known Issues
 
-== Elasticsearch version 6.3.0
+== Elasticsearch version 6.4.0
 
 === New Features
 
 === Enhancements
 
 === Bug Fixes
+
+Do not ignore request analysis/similarity settings on index resize operations when the source index already contains such settings ({pull}30216[#30216])
 
 === Regressions
 

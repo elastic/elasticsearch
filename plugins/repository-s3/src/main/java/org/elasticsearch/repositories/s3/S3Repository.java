@@ -156,7 +156,7 @@ class S3Repository extends BlobStoreRepository {
 
         String bucket = BUCKET_SETTING.get(metadata.settings());
         if (bucket == null) {
-            throw new RepositoryException(metadata.name(), "No bucket defined for s3 gateway");
+            throw new RepositoryException(metadata.name(), "No bucket defined for s3 repository");
         }
 
         boolean serverSideEncryption = SERVER_SIDE_ENCRYPTION_SETTING.get(metadata.settings());

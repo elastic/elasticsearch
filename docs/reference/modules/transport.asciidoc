@@ -41,7 +41,7 @@ addressable from the outside. Defaults to the actual port assigned via
 |`transport.tcp.connect_timeout` |The socket connect timeout setting (in
 time setting format). Defaults to `30s`.
 
-|`transport.tcp.compress` |Set to `true` to enable compression (LZF)
+|`transport.tcp.compress` |Set to `true` to enable compression (`DEFLATE`)
 between all nodes. Defaults to `false`.
 
 |`transport.ping_schedule` | Schedule a regular ping message to ensure that connections are kept alive. Defaults to `5s` in the transport client and `-1` (disabled) elsewhere.

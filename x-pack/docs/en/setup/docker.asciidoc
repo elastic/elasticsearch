@@ -3,8 +3,7 @@
 === Install {es} with Docker
 
 {es} is also available as Docker images.
-The images use https://hub.docker.com/_/centos/[centos:7] as the base image and
-are available with {xpack-ref}/xpack-introduction.html[X-Pack].
+The images use https://hub.docker.com/_/centos/[centos:7] as the base image.
 
 A list of all published Docker images and tags can be found in
 https://www.docker.elastic.co[www.docker.elastic.co]. The source code can be found
@@ -12,28 +11,19 @@ on https://github.com/elastic/elasticsearch-docker/tree/{branch}[GitHub].
 
 ==== Image types
 
-The images are available in three different configurations or "flavors". The
-`basic` flavor, which is the default, ships with {xpack} Basic features
-pre-installed and automatically activated with a free licence. The `platinum`
-flavor features all {xpack} functionally under a 30-day trial licence. The `oss`
-flavor does not include {xpack}, and contains only open-source {es}.
+These images are free to use under the Elastic license. They contain open source 
+and free commercial features and access to paid commercial features.  
+{xpack-ref}/license-management.html[Start a 30-day trial] to try out all of the 
+paid commercial features. See the 
+https://www.elastic.co/subscriptions[Subscriptions] page for information about 
+Elastic license levels.
 
-NOTE: {xpack-ref}/xpack-security.html[X-Pack Security] is enabled in the `platinum`
-image. To access your cluster, it's necessary to set an initial password for the
-`elastic` user. The initial password can be set at start up time via the
-`ELASTIC_PASSWORD` environment variable:
+Alternatively, you can download `-oss` images, which contain only features that 
+are available under the Apache 2.0 license.
 
-["source","txt",subs="attributes"]
---------------------------------------------
-docker run -e ELASTIC_PASSWORD=MagicWord {docker-repo}-platinum:{version}
---------------------------------------------
+==== Pulling the image
 
-NOTE: The `platinum` image includes a trial license for 30 days. After that, you
-can obtain one of the https://www.elastic.co/subscriptions[available
-subscriptions] or revert to a Basic licence. The Basic license is free and
-includes a selection of {xpack} features.
-
-Obtaining {Es} for Docker is as simple as issuing a +docker pull+ command
+Obtaining {es} for Docker is as simple as issuing a +docker pull+ command
 against the Elastic Docker registry.
 
 ifeval::["{release-state}"=="unreleased"]

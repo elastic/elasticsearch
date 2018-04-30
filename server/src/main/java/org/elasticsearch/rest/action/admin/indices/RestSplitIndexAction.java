@@ -45,12 +45,12 @@ public class RestSplitIndexAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        ResizeRequest shrinkIndexRequest = new ResizeRequest(request.param("target"), request.param("index"));
-        shrinkIndexRequest.setResizeType(ResizeType.SPLIT);
-        request.applyContentParser(shrinkIndexRequest::fromXContent);
-        shrinkIndexRequest.timeout(request.paramAsTime("timeout", shrinkIndexRequest.timeout()));
-        shrinkIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", shrinkIndexRequest.masterNodeTimeout()));
-        shrinkIndexRequest.setWaitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
-        return channel -> client.admin().indices().resizeIndex(shrinkIndexRequest, new RestToXContentListener<>(channel));
+        final ResizeRequest resizeRequest = new ResizeRequest(request.param("target"), request.param("index"));
+        resizeRequest.setResizeType(ResizeType.SPLIT);
+        request.applyContentParser(resizeRequest::fromXContent);
+        resizeRequest.timeout(request.paramAsTime("timeout", resizeRequest.timeout()));
+        resizeRequest.masterNodeTimeout(request.paramAsTime("master_timeout", resizeRequest.masterNodeTimeout()));
+        resizeRequest.setWaitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
+        return channel -> client.admin().indices().resizeIndex(resizeRequest, new RestToXContentListener<>(channel));
     }
 }

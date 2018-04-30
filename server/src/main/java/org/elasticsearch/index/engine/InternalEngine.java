@@ -1269,8 +1269,10 @@ public class InternalEngine extends Engine {
         final long seqNo = noOp.seqNo();
         try {
             final NoOpResult noOpResult = new NoOpResult(noOp.seqNo());
-            final Translog.Location location = translog.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
-            noOpResult.setTranslogLocation(location);
+            if (noOp.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
+                final Translog.Location location = translog.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
+                noOpResult.setTranslogLocation(location);
+            }
             noOpResult.setTook(System.nanoTime() - noOp.startTime());
             noOpResult.freeze();
             return noOpResult;

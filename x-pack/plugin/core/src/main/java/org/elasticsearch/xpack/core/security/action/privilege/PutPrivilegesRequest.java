@@ -39,13 +39,18 @@ public class PutPrivilegesRequest extends ActionRequest implements WriteRequest<
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         for (ApplicationPrivilege privilege : privileges) {
+            try {
+                ApplicationPrivilege.validateApplicationName(privilege.getApplication());
+            } catch (IllegalArgumentException e) {
+                validationException = addValidationError(e.getMessage(), validationException);
+            }
             if (privilege.name().size() != 1) {
                 validationException = addValidationError("application privileges must have a single name (found " +
-                        privilege.name() + ")", validationException);
+                    privilege.name() + ")", validationException);
             }
             if (MetadataUtils.containsReservedMetadata(privilege.getMetadata())) {
                 validationException = addValidationError("metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX
-                        + "] (in privilege " + privilege.name() + ")", validationException);
+                    + "] (in privilege " + privilege.name() + ")", validationException);
             }
         }
         return validationException;
@@ -77,7 +82,7 @@ public class PutPrivilegesRequest extends ActionRequest implements WriteRequest<
     @Override
     public String toString() {
         return getClass().getSimpleName() + "{[" + privileges.stream().map(Strings::toString).collect(Collectors.joining(","))
-                + "];" + refreshPolicy + "}";
+            + "];" + refreshPolicy + "}";
     }
 
     @Override

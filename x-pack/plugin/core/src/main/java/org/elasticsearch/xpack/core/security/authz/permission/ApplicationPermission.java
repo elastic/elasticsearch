@@ -13,13 +13,14 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * A permission that is based on privileges for application (non elasticsearch) capabilities
@@ -29,33 +30,54 @@ public final class ApplicationPermission {
     public static final ApplicationPermission NONE = new ApplicationPermission(Collections.emptyList());
 
     private final Logger logger;
-    private final Map<ApplicationPrivilege, Automaton> privileges;
+    private final List<PermissionEntry> permissions;
 
     public ApplicationPermission(List<Tuple<ApplicationPrivilege, Set<String>>> tuples) {
         this.logger = Loggers.getLogger(getClass());
-        this.privileges = new HashMap<>();
-        tuples.forEach(tup -> privileges.compute(tup.v1(), (k, existing) -> {
+        Map<ApplicationPrivilege, PermissionEntry> permissionsByPrivilege = new HashMap<>();
+        tuples.forEach(tup -> permissionsByPrivilege.compute(tup.v1(), (k, existing) -> {
             final Automaton patterns = Automatons.patterns(tup.v2());
             if (existing == null) {
-                return patterns;
+                return new PermissionEntry(k, patterns);
             } else {
-                return Automatons.unionAndMinimize(Arrays.asList(existing, patterns));
+                return new PermissionEntry(k, Automatons.unionAndMinimize(Arrays.asList(existing.resources, patterns)));
             }
         }));
+        this.permissions = new ArrayList<>(permissionsByPrivilege.values());
     }
 
     public boolean grants(ApplicationPrivilege other, String resource) {
         Automaton resourceAutomaton = Automatons.patterns(resource);
-        final boolean matched = privileges.entrySet().stream()
-            .anyMatch(entry -> Objects.equals(other.getApplication(), entry.getKey().getApplication())
-                && Operations.subsetOf(other.getAutomaton(), entry.getKey().getAutomaton())
-                && Operations.subsetOf(resourceAutomaton, entry.getValue()));
+        final boolean matched = permissions.stream().anyMatch(e -> e.grants(other, resourceAutomaton));
         logger.debug("Permission [{}] {} grant [{} , {}]", this, matched ? "does" : "does not", other, resource);
         return matched;
     }
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "{privileges=" + privileges.keySet() + "}";
+        return getClass().getSimpleName() + "{privileges=" + permissions + "}";
+    }
+
+    private static class PermissionEntry {
+        private final ApplicationPrivilege privilege;
+        private final Predicate<String> application;
+        private final Automaton resources;
+
+        private PermissionEntry(ApplicationPrivilege privilege, Automaton resources) {
+            this.privilege = privilege;
+            this.application = Automatons.predicate(privilege.getApplication());
+            this.resources = resources;
+        }
+
+        public boolean grants(ApplicationPrivilege other, Automaton resource) {
+            return this.application.test(other.getApplication())
+                && Operations.subsetOf(other.getAutomaton(), privilege.getAutomaton())
+                && Operations.subsetOf(resource, this.resources);
+        }
+
+        @Override
+        public String toString() {
+            return privilege.toString();
+        }
     }
 }

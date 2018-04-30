@@ -7,10 +7,10 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -67,8 +67,8 @@ public final class ApplicationPrivilege extends Privilege implements ToXContentO
         }, Fields.TYPE, ObjectParser.ValueType.STRING);
     }
 
-    private static final Pattern VALID_APPLICATION = Pattern.compile("^[a-z][A-Za-z0-9_-]{2,}$");
-    private static final Pattern VALID_NAME = Pattern.compile("^[a-z][a-zA-Z0-9_.-]*$");
+    public static final Pattern VALID_APPLICATION = Pattern.compile("^[a-z][A-Za-z0-9_-]{2,}$");
+    public static final Pattern VALID_NAME = Pattern.compile("^[a-z][a-zA-Z0-9_.-]*$");
 
     public static final Function<String, ApplicationPrivilege> NONE = app -> new ApplicationPrivilege(app, "none", new String[0]);
 
@@ -107,13 +107,12 @@ public final class ApplicationPrivilege extends Privilege implements ToXContentO
     }
 
     private void validate(boolean validateNames) {
-        if (VALID_APPLICATION.matcher(application).matches() == false) {
-            throw new IllegalArgumentException("Application names must match /"
-                + VALID_APPLICATION.pattern() + "/ (but was '" + application + "')");
+        if (Regex.isSimpleMatchPattern(application) == false) {
+            validateApplicationName(application);
         }
 
         for (String name : super.name()) {
-            if (validateNames && isPrivilegeName(name) == false) {
+            if (validateNames && isValidPrivilegeName(name) == false) {
                 throw new IllegalArgumentException("Application privilege names must match the pattern /" + VALID_NAME.pattern()
                     + "/ (found '" + name + "')");
             }
@@ -126,7 +125,18 @@ public final class ApplicationPrivilege extends Privilege implements ToXContentO
         }
     }
 
-    public static boolean isPrivilegeName(String name) {
+    /**
+     * Validate that the provided application name is valid, and throws an exception otherwise
+     * @thorw IllegalArgumentException if the name is not valid
+     */
+    public static void validateApplicationName(String application) {
+        if (VALID_APPLICATION.matcher(application).matches() == false) {
+            throw new IllegalArgumentException("Application names must match /"
+                + VALID_APPLICATION.pattern() + "/ (but was '" + application + "')");
+        }
+    }
+
+    public static boolean isValidPrivilegeName(String name) {
         return VALID_NAME.matcher(name).matches();
     }
 
@@ -152,7 +162,7 @@ public final class ApplicationPrivilege extends Privilege implements ToXContentO
         Set<String> patterns = new HashSet<>();
         for (String name : names) {
             name = name.toLowerCase(Locale.ROOT);
-            if (isPrivilegeName(name) != false) {
+            if (isValidPrivilegeName(name) != false) {
                 ApplicationPrivilege privilege = lookup.get(name);
                 if (privilege != null && size == 1) {
                     return privilege;

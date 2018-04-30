@@ -806,7 +806,9 @@ public class RoleDescriptor implements ToXContentObject {
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder(getClass().getSimpleName())
-                    .append("[resources=")
+                    .append("[application=")
+                    .append(application)
+                    .append("resources=")
                     .append(Strings.arrayToCommaDelimitedString(resources))
                     .append("], privileges=[")
                     .append(Strings.arrayToCommaDelimitedString(privileges))

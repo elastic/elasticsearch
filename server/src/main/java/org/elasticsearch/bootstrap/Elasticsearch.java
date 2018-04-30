@@ -38,6 +38,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.security.Permission;
 import java.util.Arrays;
+import java.util.Locale;
 
 /**
  * This class starts elasticsearch.
@@ -98,9 +99,16 @@ class Elasticsearch extends EnvironmentAwareCommand {
             throw new UserException(ExitCodes.USAGE, "Positional arguments not allowed, found " + options.nonOptionArguments());
         }
         if (options.has(versionOption)) {
-            terminal.println("Version: " + Version.displayVersion(Version.CURRENT, Build.CURRENT.isSnapshot())
-                    + ", Build: " + Build.CURRENT.shortHash() + "/" + Build.CURRENT.date()
-                    + ", JVM: " + JvmInfo.jvmInfo().version());
+            final String versionOutput = String.format(
+                    Locale.ROOT,
+                    "Version: %s, Build: %s/%s/%s/%s, JVM: %s",
+                    Version.displayVersion(Version.CURRENT, Build.CURRENT.isSnapshot()),
+                    Build.CURRENT.flavor().displayName(),
+                    Build.CURRENT.type().displayName(),
+                    Build.CURRENT.shortHash(),
+                    Build.CURRENT.date(),
+                    JvmInfo.jvmInfo().version());
+            terminal.println(versionOutput);
             return;
         }
 

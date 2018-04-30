@@ -1661,6 +1661,16 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShardTestCase.updateRoutingEntry(newShard, newShard.routingEntry().moveToStarted());
         assertDocCount(newShard, 1);
         assertDocCount(shard, 2);
+
+        for (int i = 0; i < 2; i++) {
+            newShard = reinitShard(newShard, ShardRoutingHelper.initWithSameId(primaryShardRouting,
+                RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE));
+            newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
+            assertTrue(newShard.recoverFromStore());
+            try (Translog.Snapshot snapshot = getTranslog(newShard).newSnapshot()) {
+                assertThat(snapshot.totalOperations(), equalTo(2));
+            }
+        }
         closeShards(newShard, shard);
     }
 

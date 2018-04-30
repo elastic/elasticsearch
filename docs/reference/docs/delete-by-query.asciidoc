@@ -284,9 +284,12 @@ executed again in order to conform to `requests_per_second`.
 
 `failures`::
 
-Array of all indexing failures. If this is non-empty then the request aborted
-because of those failures. See `conflicts` for how to prevent version conflicts
-from aborting the operation.
+Array of failures if there were any unrecoverable errors during the process. If
+this is non-empty then the request aborted because of those failures.
+Delete-by-query is implemented using batches and any failure causes the entire
+process to abort but all failures in the current batch are collected into the
+array. You can use the `conflicts` option to prevent reindex from aborting on
+version conflicts.
 
 
 [float]

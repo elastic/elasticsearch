@@ -1,0 +1,209 @@
+---
+"Put job on the old cluster and post some data":
+
+  - do:
+      xpack.ml.put_job:
+        job_id: old-cluster-job
+        body:  >
+          {
+            "description":"Cluster upgrade",
+            "analysis_config" : {
+                "bucket_span": "60s",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "50mb"
+            },
+            "data_description" : {
+                "format":"xcontent",
+                "time_field":"time",
+                "time_format":"epoch"
+            }
+          }
+  - match: { job_id: old-cluster-job }
+
+  - do:
+      xpack.ml.open_job:
+        job_id: old-cluster-job
+
+  - do:
+      xpack.ml.post_data:
+        job_id: old-cluster-job
+        body:
+          - airline: AAL
+            responsetime: 132.2046
+            sourcetype: post-data-job
+            time: 1403481600
+          - airline: JZA
+            responsetime: 990.4628
+            sourcetype: post-data-job
+            time: 1403481700
+  - match: { processed_record_count: 2 }
+
+  - do:
+      xpack.ml.close_job:
+        job_id: old-cluster-job
+
+  - do:
+      xpack.ml.get_buckets:
+        job_id: old-cluster-job
+  - match: { count: 1 }
+
+---
+"Put job on the old cluster with the default model memory limit and post some data":
+  - do:
+      xpack.ml.put_job:
+        job_id: no-model-memory-limit-job
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "60s",
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {
+                "time_field":"time",
+                "time_format":"epoch"
+            }
+          }
+  - match: { job_id: no-model-memory-limit-job }
+
+  - do:
+      xpack.ml.open_job:
+        job_id: no-model-memory-limit-job
+
+  - do:
+      xpack.ml.post_data:
+        job_id: no-model-memory-limit-job
+        body:
+          - sourcetype: post-data-job
+            time: 1403481600
+          - sourcetype: post-data-job
+            time: 1403484700
+          - sourcetype: post-data-job
+            time: 1403487700
+          - sourcetype: post-data-job
+            time: 1403490700
+          - sourcetype: post-data-job
+            time: 1403493700
+  - match: { processed_record_count: 5 }
+
+  - do:
+      xpack.ml.close_job:
+        job_id: no-model-memory-limit-job
+
+  - do:
+      xpack.ml.get_buckets:
+        job_id: no-model-memory-limit-job
+  - match: { count: 201 }
+
+---
+"Put job with empty strings in the configuration":
+  - do:
+      xpack.ml.put_job:
+        job_id: old-cluster-job-empty-fields
+        body:  >
+          {
+            "description": "Cluster upgrade bad config",
+            "analysis_config" : {
+                "influencers": "",
+                "bucket_span": "60s",
+                "detectors" :[{"function":"count","field_name":""}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "50mb"
+            },
+            "data_description" : {
+                "format":"xcontent",
+                "time_field":"time",
+                "time_format":"epoch"
+            }
+          }
+
+---
+"Test job with pre 6.2 rules":
+
+  - skip:
+      version:  "6.2.0 - "
+      reason:   "Rules fields were renamed on 6.2.0"
+
+  - do:
+      xpack.ml.put_job:
+        job_id: old-cluster-job-with-rules
+        body:  >
+          {
+            "analysis_config": {
+              "detectors": [
+                {
+                  "function": "count",
+                  "by_field_name": "country",
+                  "detector_rules": [
+                    {
+                      "rule_action": "filter_results",
+                      "rule_conditions": [
+                        {
+                          "condition_type":"numerical_actual",
+                          "field_name":"country",
+                          "field_value": "uk",
+                          "condition": {"operator":"lt","value":"33.3"}
+                        },
+                        {"condition_type":"categorical", "field_name":"country", "value_filter": "foo"}
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "data_description" : {}
+          }
+
+---
+"Test job with post 6.2 rules":
+
+  - skip:
+      version:  " - 6.1.99"
+      reason:   "Rules fields were renamed on 6.2.0"
+
+  - do:
+      xpack.ml.put_job:
+        job_id: old-cluster-job-with-rules
+        body:  >
+          {
+            "analysis_config": {
+              "detectors": [
+                {
+                  "function": "count",
+                  "by_field_name": "country",
+                  "rules": [
+                    {
+                      "actions": ["filter_results"],
+                      "conditions": [
+                        {
+                          "type":"numerical_actual",
+                          "field_name":"country",
+                          "field_value": "uk",
+                          "condition": {"operator":"lt","value":"33.3"}
+                        },
+                        {"type":"categorical", "field_name":"country", "filter_id": "foo"}
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "data_description" : {}
+          }
+
+---
+"Test function shortcut expansion":
+  - do:
+      xpack.ml.put_job:
+        job_id: old-cluster-function-shortcut-expansion
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"nzc","by_field_name":"airline"}]
+            },
+            "data_description" : {}
+          }
+  - match: { job_id: "old-cluster-function-shortcut-expansion" }

@@ -1239,6 +1239,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         throw new IllegalArgumentException("unexpected mapping update: " + result.getRequiredMappingUpdate());
                     case SUCCESS:
                         break;
+                    default:
+                        throw new AssertionError("Unknown result type [" + result.getResultType() + "]");
                 }
 
                 opsRecovered++;
@@ -1247,10 +1249,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 if (ExceptionsHelper.status(e) == RestStatus.BAD_REQUEST) {
                     // mainly for MapperParsingException and Failure to detect xcontent
                     logger.info("ignoring recovery of a corrupt translog entry", e);
-                } else if (e instanceof RuntimeException) {
-                    throw (RuntimeException) e;
                 } else {
-                    throw new RuntimeException(e);
+                    throw ExceptionsHelper.convertToRuntime(e);
                 }
             }
         }

@@ -66,7 +66,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
 
     @Override
     public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
-        if (!operation.origin().isRecovery()) {
+        if (operation.origin().isRecovery() == false) {
             totalStats.indexCurrent.inc();
             typeStats(operation.type()).indexCurrent.inc();
         }
@@ -77,7 +77,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
     public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {
         switch (result.getResultType()) {
             case SUCCESS:
-                if (!index.origin().isRecovery()) {
+                if (index.origin().isRecovery() == false) {
                     long took = result.getTook();
                     totalStats.indexMetric.inc(took);
                     totalStats.indexCurrent.dec();

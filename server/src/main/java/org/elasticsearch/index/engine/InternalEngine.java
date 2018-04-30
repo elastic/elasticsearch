@@ -1344,7 +1344,7 @@ public class InternalEngine extends Engine {
                     assert tombstone.docs().size() == 1 : "Tombstone should have a single doc [" + tombstone + "]";
                     addStaleDocs(tombstone.docs(), indexWriter);
                 } catch (Exception ex) {
-                    if (indexWriter.getTragicException() != null) {
+                    if (maybeFailEngine("noop", ex)) {
                         throw ex;
                     }
                     failure = ex;

@@ -447,7 +447,7 @@ the following settings:
 
 `url`::
 An LDAP URL of the form `ldap[s]://<server>:<port>`. {security} attempts to 
-authenticate against this URL. If the URL is note specified, it is derived from 
+authenticate against this URL. If the URL is not specified, it is derived from 
 the `domain_name` setting and assumes an unencrypted connection to port 389. 
 Defaults to `ldap://<domain_name>:389`. This setting is required when connecting 
 using SSL/TLS or when using a custom port.
@@ -549,9 +549,8 @@ Defaults to `true`.
 
 `user_search.pool.health_check.dn`::
 The distinguished name to be retrieved as part of the health check.
-Defaults to the value of `bind_dn` if it is a distinguished name.
-//TBD: The https://www.elastic.co/guide/en/x-pack/master/active-directory-realm.html#ad-settings said:  
-//Defaults to the value of bind_dn if present, and if not falls back to user_search.base_dn. 
+Defaults to the value of `bind_dn` if that setting is present. Otherwise, it 
+defaults to the value of the `user_search.base_dn` setting. 
 
 `user_search.pool.health_check.interval`::
 The interval to perform background checks of connections in the pool.

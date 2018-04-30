@@ -49,6 +49,7 @@ public class GetSettingsRequestTests extends ESTestCase {
         GetSettingsRequest deserialized = new GetSettingsRequest(si);
         assertEquals(TEST_700_REQUEST, deserialized);
     }
+
     public void testSerializeBackwardsCompatibility() throws IOException {
         BytesStreamOutput bso = new BytesStreamOutput();
         bso.setVersion(Version.V_6_2_2);
@@ -57,11 +58,11 @@ public class GetSettingsRequestTests extends ESTestCase {
         byte[] responseBytes = BytesReference.toBytes(bso.bytes());
         assertEquals(TEST_622_REQUEST_BYTES, Base64.getEncoder().encodeToString(responseBytes));
     }
+
     public void testDeserializeBackwardsCompatibility() throws IOException {
         StreamInput si = StreamInput.wrap(Base64.getDecoder().decode(TEST_622_REQUEST_BYTES));
         si.setVersion(Version.V_6_2_2);
         GetSettingsRequest deserialized = new GetSettingsRequest(si);
         assertEquals(TEST_622_REQUEST, deserialized);
     }
-
 }

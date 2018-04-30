@@ -788,7 +788,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         // tag::get-settings-request
         GetSettingsRequest request = new GetSettingsRequest().indices("index");
-        // tag::get-settings-request
+        // end::get-settings-request
 
         // tag::get-settings-request-names
         request.names("index.number_of_shards"); // <1>

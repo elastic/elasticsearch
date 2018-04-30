@@ -39,7 +39,7 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true);
     private String[] names = Strings.EMPTY_ARRAY;
     private boolean humanReadable = false;
-    private boolean includeDefaults = false; //only used by high-level rest client
+    private boolean includeDefaults = false;
 
     @Override
     public GetSettingsRequest indices(String... indices) {
@@ -148,7 +148,6 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
 
     @Override
     public int hashCode() {
-
         int result = Objects.hash(indicesOptions, humanReadable, includeDefaults);
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(names);

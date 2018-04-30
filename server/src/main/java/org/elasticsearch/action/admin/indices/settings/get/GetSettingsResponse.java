@@ -194,13 +194,11 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
         ImmutableOpenMap<String, Settings> defaultSettingsMap =
             ImmutableOpenMap.<String, Settings>builder().putAll(indexToDefaultSettings).build();
 
-
         return new GetSettingsResponse(settingsMap, defaultSettingsMap);
     }
 
     @Override
     public String toString() {
-
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             XContentBuilder builder = new XContentBuilder(JsonXContent.jsonXContent, baos);

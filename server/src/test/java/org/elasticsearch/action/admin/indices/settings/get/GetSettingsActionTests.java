@@ -52,7 +52,6 @@ public class GetSettingsActionTests extends ESTestCase {
     private SettingsFilter settingsFilter;
     private final String indexName = "test_index";
 
-
     private TestTransportGetSettingsAction getSettingsAction;
 
     class TestTransportGetSettingsAction extends TransportGetSettingsAction {
@@ -67,6 +66,7 @@ public class GetSettingsActionTests extends ESTestCase {
             super.masterOperation(request, stateWithIndex, listener);
         }
     }
+
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -90,6 +90,7 @@ public class GetSettingsActionTests extends ESTestCase {
         clusterService.close();
         super.tearDown();
     }
+
     public void testIncludeDefaults() {
         GetSettingsRequest noDefaultsRequest = new GetSettingsRequest().indices(indexName);
         getSettingsAction.execute(null, noDefaultsRequest, ActionListener.wrap(noDefaultsResponse -> {
@@ -109,6 +110,7 @@ public class GetSettingsActionTests extends ESTestCase {
         }));
 
     }
+
     public void testIncludeDefaultsWithFiltering() {
         GetSettingsRequest defaultsRequest = new GetSettingsRequest().indices(indexName).includeDefaults(true)
             .names("index.refresh_interval");

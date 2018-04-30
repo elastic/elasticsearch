@@ -65,6 +65,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.LongSupplier;
 
 /** Performs shard-level bulk (index, delete or update) operations */
@@ -609,11 +610,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     class ConcreteMappingUpdatePerformer implements MappingUpdatePerformer {
 
         public void updateMappings(final Mapping update, final ShardId shardId, final String type) {
-            if (update != null) {
-                // can throw timeout exception when updating mappings or ISE for attempting to
-                // update default mappings which are bubbled up
-                mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), type, update);
-            }
+            Objects.requireNonNull(update);
+            // can throw timeout exception when updating mappings or ISE for attempting to
+            // update default mappings which are bubbled up
+            mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), type, update);
         }
     }
 }

@@ -364,11 +364,6 @@ public class DiskThresholdDecider extends AllocationDecider {
     }
 
     private Decision earlyTerminate(RoutingAllocation allocation, ImmutableOpenMap<String, DiskUsage> usages) {
-        // Always allow allocation if the decider is disabled
-        if (diskThresholdSettings.isEnabled() == false) {
-            return allocation.decision(Decision.YES, NAME, "the disk threshold decider is disabled");
-        }
-
         // Allow allocation regardless if only a single data node is available
         if (allocation.nodes().getDataNodes().size() <= 1) {
             if (logger.isTraceEnabled()) {

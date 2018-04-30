@@ -16,6 +16,8 @@
 
 <<remove-field-caps-body, In field capabilities APIs, removed support for providing fields in the request body>> ({pull}30185[#30185])
 
+<<breaking_70_settings_changes, Removed deprecated `cluster.routing.allocation.disk.threshold_enabled` setting>> ({pull}30256[#30256])
+
 === Breaking Java Changes
 
 === Deprecations

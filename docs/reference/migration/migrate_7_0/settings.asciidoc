@@ -25,3 +25,11 @@
   the system property `es.thread_pool.write.use_bulk_as_display_name` was
   available to keep the display output in APIs as `bulk` instead of `write`.
   These fallback settings and this system property have been removed.
+
+==== Shard allocation
+
+* The disk-based shard allocator's deprecated
+  `cluster.routing.allocation.disk.threshold_enabled` setting has been removed.
+  Although it is not recommended to run Elasticsearch with the disk-based shard
+  allocator disabled, it is still possible to do so by setting all three
+  watermarks to `100%`.

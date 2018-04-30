@@ -30,11 +30,8 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -49,7 +46,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -82,7 +78,6 @@ public class InternalClusterInfoService extends AbstractComponent
     private volatile ImmutableOpenMap<ShardRouting, String> shardRoutingToDataPath;
     private volatile ImmutableOpenMap<String, Long> shardSizes;
     private volatile boolean isMaster = false;
-    private volatile boolean enabled;
     private volatile TimeValue fetchTimeout;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
@@ -101,21 +96,15 @@ public class InternalClusterInfoService extends AbstractComponent
         this.client = client;
         this.updateFrequency = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings);
         this.fetchTimeout = INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.get(settings);
-        this.enabled = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING, this::setFetchTimeout);
         clusterSettings.addSettingsUpdateConsumer(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING, this::setUpdateFrequency);
-        clusterSettings.addSettingsUpdateConsumer(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING, this::setEnabled);
 
         // Add InternalClusterInfoService to listen for Master changes
         this.clusterService.addLocalNodeMasterListener(this);
         // Add to listen for state changes (when nodes are added)
         this.clusterService.addListener(this);
         this.listener = listener;
-    }
-
-    private void setEnabled(boolean enabled) {
-        this.enabled = enabled;
     }
 
     private void setFetchTimeout(TimeValue fetchTimeout) {
@@ -137,7 +126,7 @@ public class InternalClusterInfoService extends AbstractComponent
             threadPool.schedule(updateFrequency, executorName(), new SubmitReschedulingClusterInfoUpdatedJob());
             if (clusterService.state().getNodes().getDataNodes().size() > 1) {
                 // Submit an info update job to be run immediately
-                threadPool.executor(executorName()).execute(() -> maybeRefresh());
+                threadPool.executor(executorName()).execute(() -> refresh());
             }
         } catch (EsRejectedExecutionException ex) {
             if (logger.isDebugEnabled()) {
@@ -158,10 +147,6 @@ public class InternalClusterInfoService extends AbstractComponent
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (!this.enabled) {
-            return;
-        }
-
         // Check whether it was a data node that was added
         boolean dataNodeAdded = false;
         for (DiscoveryNode addedNode : event.nodesDelta().addedNodes()) {
@@ -175,7 +160,7 @@ public class InternalClusterInfoService extends AbstractComponent
             if (logger.isDebugEnabled()) {
                 logger.debug("data node was added, retrieving new cluster info");
             }
-            threadPool.executor(executorName()).execute(() -> maybeRefresh());
+            threadPool.executor(executorName()).execute(() -> refresh());
         }
 
         if (this.isMaster && event.nodesRemoved()) {
@@ -205,7 +190,7 @@ public class InternalClusterInfoService extends AbstractComponent
     }
 
     /**
-     * Class used to submit {@link #maybeRefresh()} on the
+     * Class used to submit {@link #refresh()} on the
      * {@link InternalClusterInfoService} threadpool, these jobs will
      * reschedule themselves by placing a new instance of this class onto the
      * scheduled threadpool.
@@ -219,7 +204,7 @@ public class InternalClusterInfoService extends AbstractComponent
             try {
                 threadPool.executor(executorName()).execute(() -> {
                     try {
-                        maybeRefresh();
+                        refresh();
                     } finally { //schedule again after we refreshed
                         if (isMaster) {
                             if (logger.isTraceEnabled()) {
@@ -267,17 +252,6 @@ public class InternalClusterInfoService extends AbstractComponent
 
         client.admin().indices().stats(indicesStatsRequest, new LatchedActionListener<>(listener, latch));
         return latch;
-    }
-
-    private void maybeRefresh() {
-        // Short-circuit if not enabled
-        if (enabled) {
-            refresh();
-        } else {
-            if (logger.isTraceEnabled()) {
-                logger.trace("Skipping ClusterInfoUpdatedJob since it is disabled");
-            }
-        }
     }
 
     /**

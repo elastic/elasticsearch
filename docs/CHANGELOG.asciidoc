@@ -41,6 +41,8 @@ written to by an older Elasticsearch after writing to it with a newer Elasticsea
 
 === Bug Fixes
 
+Do not ignore request analysis/similarity settings on index resize operations when the source index already contains such settings ({pull}30216[#30216])
+
 === Regressions
 
 === Known Issues

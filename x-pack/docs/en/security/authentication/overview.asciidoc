@@ -29,9 +29,21 @@ include::internal-users.asciidoc[]
 
 include::realms.asciidoc[]
 
-include::anonymous-access.asciidoc[]
+include::native-realm.asciidoc[]
+
+include::ldap-realm.asciidoc[]
+
+include::active-directory-realm.asciidoc[]
+
+include::pki-realm.asciidoc[]
+
+include::file-realm.asciidoc[]
+
+include::saml-realm.asciidoc[]
 
 include::custom-realm.asciidoc[]
+
+include::anonymous-access.asciidoc[]
 
 include::user-cache.asciidoc[]
 

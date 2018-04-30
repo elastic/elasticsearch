@@ -107,32 +107,6 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
         assertThat(internalCluster().masterClient().admin().cluster().prepareState().execute().actionGet().getState().nodes().getMasterNode().getName(), equalTo(nextMasterEligableNodeName));
     }
 
-    /**
-     * Tests that putting custom default mapping and then putting a type mapping will have the default mapping merged
-     * to the type mapping.
-     */
-    public void testCustomDefaultMapping() throws Exception {
-        logger.info("--> start master node / non data");
-        internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).put(Node.NODE_MASTER_SETTING.getKey(), true));
-
-        logger.info("--> start data node / non master node");
-        internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), true).put(Node.NODE_MASTER_SETTING.getKey(), false));
-
-        createIndex("test");
-        assertAcked(client().admin().indices().preparePutMapping("test").setType("_default_").setSource("timestamp", "type=date"));
-
-        MappingMetaData defaultMapping = client().admin().cluster().prepareState().get().getState().getMetaData().getIndices().get("test").getMappings().get("_default_");
-        Map<?,?> properties = (Map<?, ?>) defaultMapping.getSourceAsMap().get("properties");
-        assertThat(properties.get("timestamp"), notNullValue());
-
-        assertAcked(client().admin().indices().preparePutMapping("test").setType("_default_").setSource("timestamp", "type=date"));
-
-        assertAcked(client().admin().indices().preparePutMapping("test").setType("type1").setSource("foo", "enabled=true"));
-        MappingMetaData type1Mapping = client().admin().cluster().prepareState().get().getState().getMetaData().getIndices().get("test").getMappings().get("type1");
-        properties = (Map<?, ?>) type1Mapping.getSourceAsMap().get("properties");
-        assertThat(properties.get("timestamp"), notNullValue());
-    }
-
     public void testAliasFilterValidation() throws Exception {
         logger.info("--> start master node / non data");
         internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).put(Node.NODE_MASTER_SETTING.getKey(), true));

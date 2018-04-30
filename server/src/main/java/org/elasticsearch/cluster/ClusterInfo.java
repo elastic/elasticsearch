@@ -26,6 +26,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -133,7 +134,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         builder.endObject(); // end "nodes"
         builder.startObject("shard_sizes"); {
             for (ObjectObjectCursor<String, Long> c : this.shardSizes) {
-                builder.byteSizeField(c.key + "_bytes", c.key, c.value);
+                builder.humanReadableField(c.key + "_bytes", c.key, new ByteSizeValue(c.value));
             }
         }
         builder.endObject(); // end "shard_sizes"

@@ -152,9 +152,6 @@ public class CommonStats implements Writeable, ToXContentFragment {
                 case Translog:
                     translog = new TranslogStats();
                     break;
-                case Suggest:
-                    // skip
-                    break;
                 case RequestCache:
                     requestCache = new RequestCacheStats();
                     break;
@@ -213,9 +210,6 @@ public class CommonStats implements Writeable, ToXContentFragment {
                 case Translog:
                     translog = indexShard.translogStats();
                     break;
-                case Suggest:
-                    // skip
-                    break;
                 case RequestCache:
                     requestCache = indexShard.requestCache().stats();
                     break;
@@ -233,7 +227,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         store = in.readOptionalStreamable(StoreStats::new);
         indexing = in.readOptionalStreamable(IndexingStats::new);
         get = in.readOptionalStreamable(GetStats::new);
-        search = in.readOptionalStreamable(SearchStats::new);
+        search = in.readOptionalWriteable(SearchStats::new);
         merge = in.readOptionalStreamable(MergeStats::new);
         refresh =  in.readOptionalStreamable(RefreshStats::new);
         flush =  in.readOptionalStreamable(FlushStats::new);
@@ -253,7 +247,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         out.writeOptionalStreamable(store);
         out.writeOptionalStreamable(indexing);
         out.writeOptionalStreamable(get);
-        out.writeOptionalStreamable(search);
+        out.writeOptionalWriteable(search);
         out.writeOptionalStreamable(merge);
         out.writeOptionalStreamable(refresh);
         out.writeOptionalStreamable(flush);

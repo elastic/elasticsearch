@@ -44,12 +44,12 @@ If you register same snapshot repository with multiple clusters, only
 one cluster should have write access to the repository. All other clusters
 connected to that repository should set the repository to `readonly` mode.
 
-NOTE: The snapshot format can change across major versions, so if you have
-clusters on different major versions trying to write the same repository,
-new snapshots written by one version will not be visible to the other. While
-setting the repository to `readonly` on all but one of the clusters should work
-with multiple clusters differing by one major version, it is not a supported
-configuration.
+IMPORTANT: The snapshot format can change across major versions, so if you have
+clusters on different versions trying to write the same repository, snapshots
+written by one version may not be visible to the other and the repository could
+be corrupted. While setting the repository to `readonly` on all but one of the
+clusters should work with multiple clusters differing by one major version, it
+is not a supported configuration.
 
 [source,js]
 -----------------------------------
@@ -401,7 +401,7 @@ created the snapshotting process will be aborted and all files created as part o
 cleaned. Therefore, the delete snapshot operation can be used to cancel long running snapshot operations that were
 started by mistake.
 
-A repository can be deleted using the following command:
+A repository can be unregistered using the following command:
 
 [source,sh]
 -----------------------------------
@@ -410,7 +410,7 @@ DELETE /_snapshot/my_fs_backup
 // CONSOLE
 // TEST[continued]
 
-When a repository is deleted, Elasticsearch only removes the reference to the location where the repository is storing
+When a repository is unregistered, Elasticsearch only removes the reference to the location where the repository is storing
 the snapshots. The snapshots themselves are left untouched and in place.
 
 [float]

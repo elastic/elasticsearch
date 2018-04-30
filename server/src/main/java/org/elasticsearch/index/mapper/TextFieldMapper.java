@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
@@ -152,11 +153,20 @@ public class TextFieldMapper extends FieldMapper {
                 fieldType.setSearchQuoteAnalyzer(new NamedAnalyzer(fieldType.searchQuoteAnalyzer(), positionIncrementGap));
             }
             setupFieldType(context);
-            if (prefixFieldType != null && fieldType().isSearchable() == false) {
-                throw new IllegalArgumentException("Cannot set index_prefix on unindexed field [" + name() + "]");
+            PrefixFieldMapper prefixMapper = null;
+            if (prefixFieldType != null) {
+                if (fieldType().isSearchable() == false) {
+                    throw new IllegalArgumentException("Cannot set index_prefix on unindexed field [" + name() + "]");
+                }
+                if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
+                    prefixFieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+                }
+                if (fieldType.storeTermVectorOffsets()) {
+                    prefixFieldType.setStoreTermVectorOffsets(true);
+                }
+                prefixFieldType.setAnalyzer(fieldType.indexAnalyzer());
+                prefixMapper = new PrefixFieldMapper(prefixFieldType, context.indexSettings());
             }
-            PrefixFieldMapper prefixMapper = prefixFieldType == null ? null
-                : new PrefixFieldMapper(prefixFieldType.setAnalyzer(fieldType.indexAnalyzer()), context.indexSettings());
             return new TextFieldMapper(
                     name, fieldType, defaultFieldType, positionIncrementGap, prefixMapper,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);

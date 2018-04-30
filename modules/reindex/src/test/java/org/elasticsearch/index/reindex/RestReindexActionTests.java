@@ -118,7 +118,7 @@ public class RestReindexActionTests extends ESTestCase {
                 b.endObject();
             }
             b.endObject();
-            request = b.bytes();
+            request = BytesReference.bytes(b);
         }
         try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
             ReindexRequest r = new ReindexRequest(new SearchRequest(), new IndexRequest());
@@ -144,7 +144,7 @@ public class RestReindexActionTests extends ESTestCase {
                 body.endObject();
             }
             body.endObject();
-            request.withContent(body.bytes(), body.contentType());
+            request.withContent(BytesReference.bytes(body), body.contentType());
         }
         request.withParams(singletonMap("pipeline", "doesn't matter"));
         Exception e = expectThrows(IllegalArgumentException.class, () -> action.buildRequest(request.build()));

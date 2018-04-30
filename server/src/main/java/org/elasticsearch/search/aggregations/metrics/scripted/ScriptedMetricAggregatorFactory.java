@@ -35,28 +35,35 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedMetricAggregatorFactory> {
 
     private final SearchScript.Factory mapScript;
+    private final Map<String, Object> mapScriptParams;
     private final ExecutableScript.Factory combineScript;
+    private final Map<String, Object> combineScriptParams;
     private final Script reduceScript;
-    private final Map<String, Object> params;
+    private final Map<String, Object> aggParams;
     private final SearchLookup lookup;
     private final ExecutableScript.Factory initScript;
+    private final Map<String, Object> initScriptParams;
 
-    public ScriptedMetricAggregatorFactory(String name, SearchScript.Factory mapScript, ExecutableScript.Factory initScript,
-                                           ExecutableScript.Factory combineScript, Script reduceScript, Map<String, Object> params,
+    public ScriptedMetricAggregatorFactory(String name, SearchScript.Factory mapScript, Map<String, Object> mapScriptParams,
+                                           ExecutableScript.Factory initScript, Map<String, Object> initScriptParams,
+                                           ExecutableScript.Factory combineScript, Map<String, Object> combineScriptParams,
+                                           Script reduceScript, Map<String, Object> aggParams,
                                            SearchLookup lookup, SearchContext context, AggregatorFactory<?> parent,
                                            AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, subFactories, metaData);
         this.mapScript = mapScript;
+        this.mapScriptParams = mapScriptParams;
         this.initScript = initScript;
+        this.initScriptParams = initScriptParams;
         this.combineScript = combineScript;
+        this.combineScriptParams = combineScriptParams;
         this.reduceScript = reduceScript;
         this.lookup = lookup;
-        this.params = params;
+        this.aggParams = aggParams;
     }
 
     @Override
@@ -65,26 +72,26 @@ public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedM
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, context, parent);
         }
-        Map<String, Object> params = this.params;
-        if (params != null) {
-            params = deepCopyParams(params, context);
+        Map<String, Object> aggParams = this.aggParams;
+        if (aggParams != null) {
+            aggParams = deepCopyParams(aggParams, context);
         } else {
-            params = new HashMap<>();
+            aggParams = new HashMap<>();
         }
-        if (params.containsKey("_agg") == false) {
-            params.put("_agg", new HashMap<String, Object>());
+        if (aggParams.containsKey("_agg") == false) {
+            aggParams.put("_agg", new HashMap<String, Object>());
         }
 
-        final ExecutableScript initScript = this.initScript.newInstance(params);
-        final SearchScript.LeafFactory mapScript = this.mapScript.newFactory(params, lookup);
-        final ExecutableScript combineScript = this.combineScript.newInstance(params);
+        final ExecutableScript initScript = this.initScript.newInstance(mergeParams(aggParams, initScriptParams));
+        final SearchScript.LeafFactory mapScript = this.mapScript.newFactory(mergeParams(aggParams, mapScriptParams), lookup);
+        final ExecutableScript combineScript = this.combineScript.newInstance(mergeParams(aggParams, combineScriptParams));
 
         final Script reduceScript = deepCopyScript(this.reduceScript, context);
         if (initScript != null) {
             initScript.run();
         }
         return new ScriptedMetricAggregator(name, mapScript,
-                combineScript, reduceScript, params, context, parent,
+                combineScript, reduceScript, aggParams, context, parent,
                 pipelineAggregators, metaData);
     }
 
@@ -128,5 +135,18 @@ public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedM
         return clone;
     }
 
+    private static Map<String, Object> mergeParams(Map<String, Object> agg, Map<String, Object> script) {
+        // Start with script params
+        Map<String, Object> combined = new HashMap<>(script);
 
+        // Add in agg params, throwing an exception if any conflicts are detected
+        for (Map.Entry<String, Object> aggEntry : agg.entrySet()) {
+            if (combined.putIfAbsent(aggEntry.getKey(), aggEntry.getValue()) != null) {
+                throw new IllegalArgumentException("Parameter name \"" + aggEntry.getKey() +
+                    "\" used in both aggregation and script parameters");
+            }
+        }
+
+        return combined;
+    }
 }

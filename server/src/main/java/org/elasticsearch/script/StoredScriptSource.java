@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -110,7 +111,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                 if (parser.currentToken() == Token.START_OBJECT) {
                     //this is really for search templates, that need to be converted to json format
                     XContentBuilder builder = XContentFactory.jsonBuilder();
-                    source = builder.copyCurrentStructure(parser).string();
+                    source = Strings.toString(builder.copyCurrentStructure(parser));
                     options.put(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType());
                 } else {
                     source = parser.text();
@@ -292,7 +293,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                         builder.copyCurrentStructure(parser);
                     }
 
-                    return new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, builder.string(), Collections.emptyMap());
+                    return new StoredScriptSource(Script.DEFAULT_TEMPLATE_LANG, Strings.toString(builder), Collections.emptyMap());
                 }
             }
         } catch (IOException ioe) {

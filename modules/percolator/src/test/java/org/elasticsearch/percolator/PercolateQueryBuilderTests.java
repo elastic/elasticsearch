@@ -31,6 +31,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -96,15 +97,12 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         queryField = randomAlphaOfLength(4);
         String docType = "_doc";
-        mapperService.merge(docType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(docType,
+        mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(docType,
                 queryField, "type=percolator"
-        ).string()), MapperService.MergeReason.MAPPING_UPDATE);
-        mapperService.merge(docType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(docType,
+        ))), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(docType, new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(docType,
                 STRING_FIELD_NAME, "type=text"
-        ).string()), MapperService.MergeReason.MAPPING_UPDATE);
-        if (mapperService.getIndexSettings().isSingleType() == false) {
-            PercolateQueryBuilderTests.docType = docType;
-        }
+        ))), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     @Override
@@ -243,13 +241,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     public void testFromJsonNoDocumentType() throws IOException {
         QueryShardContext queryShardContext = createShardContext();
         QueryBuilder queryBuilder = parseQuery("{\"percolate\" : { \"document\": {}, \"field\":\"" + queryField + "\"}}");
-        if (indexVersionCreated.before(Version.V_6_0_0_alpha1)) {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> queryBuilder.toQuery(queryShardContext));
-            assertThat(e.getMessage(), equalTo("[percolate] query is missing required [document_type] parameter"));
-        } else {
-            queryBuilder.toQuery(queryShardContext);
-        }
+        queryBuilder.toQuery(queryShardContext);
     }
 
     public void testBothDocumentAndDocumentsSpecified() throws IOException {
@@ -339,7 +331,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
 
             XContentBuilder xContent = XContentFactory.jsonBuilder();
             xContent.map(source);
-            return xContent.bytes();
+            return BytesReference.bytes(xContent);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

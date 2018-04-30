@@ -123,6 +123,16 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 }
 
                 @Override
+                public String[] indexRoutings() {
+                    return null;
+                }
+
+                @Override
+                public String preference() {
+                    return null;
+                }
+
+                @Override
                 public void setProfile(boolean profile) {
 
                 }

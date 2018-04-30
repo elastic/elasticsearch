@@ -25,7 +25,6 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -93,7 +92,7 @@ public class ListPluginsCommandTests extends ESTestCase {
             final String description,
             final String name,
             final String classname) throws IOException {
-        buildFakePlugin(env, null, description, name, classname, false, false);
+        buildFakePlugin(env, null, description, name, classname, false);
     }
 
     private static void buildFakePlugin(
@@ -102,17 +101,16 @@ public class ListPluginsCommandTests extends ESTestCase {
             final String description,
             final String name,
             final String classname) throws IOException {
-        buildFakePlugin(env, metaPlugin, description, name, classname, false, false);
+        buildFakePlugin(env, metaPlugin, description, name, classname, false);
     }
 
     private static void buildFakePlugin(
-        final Environment env,
-        final String description,
-        final String name,
-        final String classname,
-        final boolean hasNativeController,
-        final boolean requiresKeystore) throws IOException {
-        buildFakePlugin(env, null, description, name, classname, hasNativeController, requiresKeystore);
+            final Environment env,
+            final String description,
+            final String name,
+            final String classname,
+            final boolean hasNativeController) throws IOException {
+        buildFakePlugin(env, null, description, name, classname, hasNativeController);
     }
 
     private static void buildFakePlugin(
@@ -121,8 +119,7 @@ public class ListPluginsCommandTests extends ESTestCase {
             final String description,
             final String name,
             final String classname,
-            final boolean hasNativeController,
-            final boolean requiresKeystore) throws IOException {
+            final boolean hasNativeController) throws IOException {
         Path dest = metaPlugin != null ? env.pluginsFile().resolve(metaPlugin) : env.pluginsFile();
         PluginTestUtil.writePluginProperties(
                 dest.resolve(name),
@@ -132,8 +129,7 @@ public class ListPluginsCommandTests extends ESTestCase {
                 "elasticsearch.version", Version.CURRENT.toString(),
                 "java.version", "1.8",
                 "classname", classname,
-                "has.native.controller", Boolean.toString(hasNativeController),
-                "requires.keystore", Boolean.toString(requiresKeystore));
+                "has.native.controller", Boolean.toString(hasNativeController));
     }
 
     private static void buildFakeMetaPlugin(
@@ -195,14 +191,13 @@ public class ListPluginsCommandTests extends ESTestCase {
                         "Elasticsearch Version: " + Version.CURRENT.toString(),
                         "Java Version: 1.8",
                         "Native Controller: false",
-                        "Requires Keystore: false",
                         "Extended Plugins: []",
                         " * Classname: org.fake"),
                 terminal.getOutput());
     }
 
     public void testPluginWithNativeController() throws Exception {
-        buildFakePlugin(env, "fake desc 1", "fake_plugin1", "org.fake", true, false);
+        buildFakePlugin(env, "fake desc 1", "fake_plugin1", "org.fake", true);
         String[] params = { "-v" };
         MockTerminal terminal = listPlugins(home, params);
         assertEquals(
@@ -216,28 +211,6 @@ public class ListPluginsCommandTests extends ESTestCase {
                 "Elasticsearch Version: " + Version.CURRENT.toString(),
                 "Java Version: 1.8",
                 "Native Controller: true",
-                "Requires Keystore: false",
-                "Extended Plugins: []",
-                " * Classname: org.fake"),
-            terminal.getOutput());
-    }
-
-    public void testPluginWithRequiresKeystore() throws Exception {
-        buildFakePlugin(env, "fake desc 1", "fake_plugin1", "org.fake", false, true);
-        String[] params = { "-v" };
-        MockTerminal terminal = listPlugins(home, params);
-        assertEquals(
-            buildMultiline(
-                "Plugins directory: " + env.pluginsFile(),
-                "fake_plugin1",
-                "- Plugin information:",
-                "Name: fake_plugin1",
-                "Description: fake desc 1",
-                "Version: 1.0",
-                "Elasticsearch Version: " + Version.CURRENT.toString(),
-                "Java Version: 1.8",
-                "Native Controller: false",
-                "Requires Keystore: true",
                 "Extended Plugins: []",
                 " * Classname: org.fake"),
             terminal.getOutput());
@@ -259,7 +232,6 @@ public class ListPluginsCommandTests extends ESTestCase {
                         "Elasticsearch Version: " + Version.CURRENT.toString(),
                         "Java Version: 1.8",
                         "Native Controller: false",
-                        "Requires Keystore: false",
                         "Extended Plugins: []",
                         " * Classname: org.fake",
                         "fake_plugin2",
@@ -270,7 +242,6 @@ public class ListPluginsCommandTests extends ESTestCase {
                         "Elasticsearch Version: " + Version.CURRENT.toString(),
                         "Java Version: 1.8",
                         "Native Controller: false",
-                        "Requires Keystore: false",
                         "Extended Plugins: []",
                         " * Classname: org.fake2"),
                 terminal.getOutput());
@@ -294,7 +265,6 @@ public class ListPluginsCommandTests extends ESTestCase {
                 "\tElasticsearch Version: " + Version.CURRENT.toString(),
                 "\tJava Version: 1.8",
                 "\tNative Controller: false",
-                "\tRequires Keystore: false",
                 "\tExtended Plugins: []",
                 "\t * Classname: org.fake",
                 "\tfake_plugin2",
@@ -305,7 +275,6 @@ public class ListPluginsCommandTests extends ESTestCase {
                 "\tElasticsearch Version: " + Version.CURRENT.toString(),
                 "\tJava Version: 1.8",
                 "\tNative Controller: false",
-                "\tRequires Keystore: false",
                 "\tExtended Plugins: []",
                 "\t * Classname: org.fake2"),
             terminal.getOutput());

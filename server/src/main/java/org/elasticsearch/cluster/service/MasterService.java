@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.service;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.cluster.AckedClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -226,10 +225,8 @@ public class MasterService extends AbstractLifecycleComponent {
                     clusterStatePublisher.accept(clusterChangedEvent, taskOutputs.createAckListener(threadPool, newClusterState));
                 } catch (Discovery.FailedToCommitClusterStateException t) {
                     final long version = newClusterState.version();
-                    logger.warn(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "failing [{}]: failed to commit cluster state version [{}]", summary, version),
-                        t);
+                    logger.warn(() -> new ParameterizedMessage(
+                            "failing [{}]: failed to commit cluster state version [{}]", summary, version), t);
                     taskOutputs.publishingFailed(t);
                     return;
                 }
@@ -239,11 +236,9 @@ public class MasterService extends AbstractLifecycleComponent {
                 try {
                     taskOutputs.clusterStatePublished(clusterChangedEvent);
                 } catch (Exception e) {
-                    logger.error(
-                        (Supplier<?>) () -> new ParameterizedMessage(
+                    logger.error(() -> new ParameterizedMessage(
                             "exception thrown while notifying executor of new cluster state publication [{}]",
-                            summary),
-                        e);
+                            summary), e);
                 }
                 TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
                 logger.debug("processing [{}]: took [{}] done publishing updated cluster state (version: {}, uuid: {})", summary,
@@ -255,8 +250,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 final long version = newClusterState.version();
                 final String stateUUID = newClusterState.stateUUID();
                 final String fullState = newClusterState.toString();
-                logger.warn(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                logger.warn(() -> new ParameterizedMessage(
                         "failed to publish updated cluster state in [{}]:\nversion [{}], uuid [{}], source [{}]\n{}",
                         executionTime,
                         version,
@@ -473,8 +467,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 listener.onFailure(source, e);
             } catch (Exception inner) {
                 inner.addSuppressed(e);
-                logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                logger.error(() -> new ParameterizedMessage(
                         "exception thrown by listener notifying of failure from [{}]", source), inner);
             }
         }
@@ -484,8 +477,7 @@ public class MasterService extends AbstractLifecycleComponent {
             try {
                 listener.onNoLongerMaster(source);
             } catch (Exception e) {
-                logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                logger.error(() -> new ParameterizedMessage(
                         "exception thrown by listener while notifying no longer master from [{}]", source), e);
             }
         }
@@ -495,12 +487,9 @@ public class MasterService extends AbstractLifecycleComponent {
             try {
                 listener.clusterStateProcessed(source, oldState, newState);
             } catch (Exception e) {
-                logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                logger.error(() -> new ParameterizedMessage(
                         "exception thrown by listener while notifying of cluster state processed from [{}], old cluster state:\n" +
-                            "{}\nnew cluster state:\n{}",
-                        source, oldState, newState),
-                    e);
+                            "{}\nnew cluster state:\n{}", source, oldState, newState), e);
             }
         }
     }
@@ -614,10 +603,8 @@ public class MasterService extends AbstractLifecycleComponent {
                 logger.trace("ack received from node [{}], cluster_state update (version: {})", node, clusterStateVersion);
             } else {
                 this.lastFailure = e;
-                logger.debug(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "ack received from node [{}], cluster_state update (version: {})", node, clusterStateVersion),
-                    e);
+                logger.debug(() -> new ParameterizedMessage(
+                        "ack received from node [{}], cluster_state update (version: {})", node, clusterStateVersion), e);
             }
 
             if (countDown.countDown()) {
@@ -650,7 +637,7 @@ public class MasterService extends AbstractLifecycleComponent {
             TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
             if (logger.isTraceEnabled()) {
                 logger.trace(
-                    (Supplier<?>) () -> new ParameterizedMessage(
+                    () -> new ParameterizedMessage(
                         "failed to execute cluster state update in [{}], state:\nversion [{}], source [{}]\n{}{}{}",
                         executionTime,
                         previousClusterState.version(),

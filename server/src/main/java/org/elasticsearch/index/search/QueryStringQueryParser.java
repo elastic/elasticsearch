@@ -42,7 +42,7 @@ import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -66,6 +66,7 @@ import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfN
 import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
 import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQuery;
 import static org.elasticsearch.index.search.QueryParserHelper.resolveMappingField;
+import static org.elasticsearch.index.search.QueryParserHelper.resolveMappingFields;
 
 /**
  * A {@link XQueryParser} that uses the {@link MapperService} in order to build smarter
@@ -264,6 +265,8 @@ public class QueryStringQueryParser extends XQueryParser {
             // Filters unsupported fields if a pattern is requested
             // Filters metadata fields if all fields are requested
             return resolveMappingField(context, field, 1.0f, !allFields, !multiFields, quoted ? quoteFieldSuffix : null);
+        } else if (quoted && quoteFieldSuffix != null) {
+            return resolveMappingFields(context, fieldsAndWeights, quoteFieldSuffix);
         } else {
             return fieldsAndWeights;
         }

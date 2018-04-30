@@ -20,7 +20,6 @@
 package org.elasticsearch.tasks;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
@@ -197,8 +196,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateApplie
         try {
             taskResult = task.result(localNode, error);
         } catch (IOException ex) {
-            logger.warn(
-                (Supplier<?>) () -> new ParameterizedMessage("couldn't store error {}", ExceptionsHelper.detailedMessage(error)), ex);
+            logger.warn(() -> new ParameterizedMessage("couldn't store error {}", ExceptionsHelper.detailedMessage(error)), ex);
             listener.onFailure(ex);
             return;
         }
@@ -210,8 +208,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateApplie
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(
-                    (Supplier<?>) () -> new ParameterizedMessage("couldn't store error {}", ExceptionsHelper.detailedMessage(error)), e);
+                logger.warn(() -> new ParameterizedMessage("couldn't store error {}", ExceptionsHelper.detailedMessage(error)), e);
                 listener.onFailure(e);
             }
         });
@@ -232,7 +229,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateApplie
         try {
             taskResult = task.result(localNode, response);
         } catch (IOException ex) {
-            logger.warn((Supplier<?>) () -> new ParameterizedMessage("couldn't store response {}", response), ex);
+            logger.warn(() -> new ParameterizedMessage("couldn't store response {}", response), ex);
             listener.onFailure(ex);
             return;
         }
@@ -245,7 +242,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateApplie
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("couldn't store response {}", response), e);
+                logger.warn(() -> new ParameterizedMessage("couldn't store response {}", response), e);
                 listener.onFailure(e);
             }
         });

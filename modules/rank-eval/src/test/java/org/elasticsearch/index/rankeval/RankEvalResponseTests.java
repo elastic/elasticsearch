@@ -152,7 +152,7 @@ public class RankEvalResponseTests extends ESTestCase {
         RankEvalResponse response = new RankEvalResponse(0.123, Collections.singletonMap("coffee_query", coffeeQueryQuality),
                 Collections.singletonMap("beer_query", new ParsingException(new XContentLocation(0, 0), "someMsg")));
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        String xContent = response.toXContent(builder, ToXContent.EMPTY_PARAMS).bytes().utf8ToString();
+        String xContent = BytesReference.bytes(response.toXContent(builder, ToXContent.EMPTY_PARAMS)).utf8ToString();
         assertEquals(("{" +
                 "    \"quality_level\": 0.123," +
                 "    \"details\": {" +

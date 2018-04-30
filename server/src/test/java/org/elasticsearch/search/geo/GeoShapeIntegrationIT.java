@@ -21,6 +21,7 @@ package org.elasticsearch.search.geo;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -42,22 +43,22 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
      */
     public void testOrientationPersistence() throws Exception {
         String idxName = "orientation";
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("shape")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("shape")
                 .startObject("properties").startObject("location")
                 .field("type", "geo_shape")
                 .field("orientation", "left")
                 .endObject().endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
 
         // create index
         assertAcked(prepareCreate(idxName).addMapping("shape", mapping, XContentType.JSON));
 
-        mapping = XContentFactory.jsonBuilder().startObject().startObject("shape")
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("shape")
                 .startObject("properties").startObject("location")
                 .field("type", "geo_shape")
                 .field("orientation", "right")
                 .endObject().endObject()
-                .endObject().endObject().string();
+                .endObject().endObject());
 
         assertAcked(prepareCreate(idxName+"2").addMapping("shape", mapping, XContentType.JSON));
         ensureGreen(idxName, idxName+"2");
@@ -100,7 +101,7 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         ensureGreen();
 
         // test self crossing ccw poly not crossing dateline
-        String polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
+        String polygonGeoJson = Strings.toString(XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
             .startArray("coordinates")
             .startArray()
             .startArray().value(176.0).value(15.0).endArray()
@@ -112,7 +113,7 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
             .startArray().value(176.0).value(15.0).endArray()
             .endArray()
             .endArray()
-            .endObject().string();
+            .endObject());
 
         indexRandom(true, client().prepareIndex("test", "geometry", "0").setSource("shape",
             polygonGeoJson));

@@ -37,11 +37,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.main.MainRequest;
 import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseListener;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -162,7 +157,7 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
         ProtocolVersion protocol = new ProtocolVersion("HTTP", 1, 1);
         when(mockResponse.getStatusLine()).thenReturn(new BasicStatusLine(protocol, 200, "OK"));
 
-        MainResponse response = new MainResponse(httpHeader.getValue(), Version.CURRENT, ClusterName.DEFAULT, "_na", Build.CURRENT, true);
+        MainResponse response = new MainResponse(httpHeader.getValue(), Version.CURRENT, ClusterName.DEFAULT, "_na", Build.CURRENT);
         BytesRef bytesRef = XContentHelper.toXContent(response, XContentType.JSON, false).toBytesRef();
         when(mockResponse.getEntity()).thenReturn(new ByteArrayEntity(bytesRef.bytes, ContentType.APPLICATION_JSON));
 

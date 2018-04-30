@@ -32,6 +32,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.FieldMemoryStats;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -68,7 +69,6 @@ import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasScore;
 import static org.hamcrest.Matchers.contains;
@@ -244,8 +244,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         int id = numDocs;
         for (CompletionSuggestion.Entry.Option option : options) {
             assertThat(option.getText().toString(), equalTo("suggestion" + id));
-            assertSearchHit(option.getHit(), hasId("" + id));
-            assertSearchHit(option.getHit(), hasScore((id)));
+            assertThat(option.getHit(), hasId("" + id));
+            assertThat(option.getHit(), hasScore((id)));
             assertNotNull(option.getHit().getSourceAsMap());
             id--;
         }
@@ -279,8 +279,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         int id = numDocs;
         for (CompletionSuggestion.Entry.Option option : options) {
             assertThat(option.getText().toString(), equalTo("suggestion" + id));
-            assertSearchHit(option.getHit(), hasId("" + id));
-            assertSearchHit(option.getHit(), hasScore((id)));
+            assertThat(option.getHit(), hasId("" + id));
+            assertThat(option.getHit(), hasScore((id)));
             assertNull(option.getHit().getSourceAsMap());
             id--;
         }
@@ -316,8 +316,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         int id = numDocs;
         for (CompletionSuggestion.Entry.Option option : options) {
             assertThat(option.getText().toString(), equalTo("suggestion" + id));
-            assertSearchHit(option.getHit(), hasId("" + id));
-            assertSearchHit(option.getHit(), hasScore((id)));
+            assertThat(option.getHit(), hasId("" + id));
+            assertThat(option.getHit(), hasScore((id)));
             assertNotNull(option.getHit().getSourceAsMap());
             Set<String> sourceFields = option.getHit().getSourceAsMap().keySet();
             assertThat(sourceFields, contains("a"));
@@ -1113,17 +1113,17 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
     // see issue #6399
     public void testIndexingUnrelatedNullValue() throws Exception {
-        String mapping = jsonBuilder()
-                .startObject()
-                .startObject(TYPE)
-                .startObject("properties")
-                .startObject(FIELD)
-                .field("type", "completion")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .string();
+        String mapping = Strings
+                .toString(jsonBuilder()
+                        .startObject()
+                        .startObject(TYPE)
+                        .startObject("properties")
+                        .startObject(FIELD)
+                        .field("type", "completion")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject());
 
         assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, mapping, XContentType.JSON).get());
         ensureGreen();

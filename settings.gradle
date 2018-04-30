@@ -16,9 +16,13 @@ List projects = [
   'client:benchmark',
   'benchmarks',
   'distribution:archives:integ-test-zip',
+  'distribution:archives:oss-zip',
   'distribution:archives:zip',
+  'distribution:archives:oss-tar',
   'distribution:archives:tar',
+  'distribution:packages:oss-deb',
   'distribution:packages:deb',
+  'distribution:packages:oss-rpm',
   'distribution:packages:rpm',
   'distribution:bwc:next-minor-snapshot',
   'distribution:bwc:staged-minor-snapshot',
@@ -72,6 +76,7 @@ addSubProjects('', new File(rootProject.projectDir, 'libs'))
 addSubProjects('', new File(rootProject.projectDir, 'modules'))
 addSubProjects('', new File(rootProject.projectDir, 'plugins'))
 addSubProjects('', new File(rootProject.projectDir, 'qa'))
+addSubProjects('', new File(rootProject.projectDir, 'x-pack'))
 
 boolean isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
 if (isEclipse) {
@@ -80,6 +85,7 @@ if (isEclipse) {
   projects << 'server-tests'
   projects << 'libs:elasticsearch-core-tests'
   projects << 'libs:elasticsearch-nio-tests'
+  projects << 'libs:x-content-tests'
   projects << 'libs:secure-sm-tests'
   projects << 'libs:grok-tests'
 }
@@ -101,6 +107,10 @@ if (isEclipse) {
   project(":libs:elasticsearch-nio").buildFileName = 'eclipse-build.gradle'
   project(":libs:elasticsearch-nio-tests").projectDir = new File(rootProject.projectDir, 'libs/elasticsearch-nio/src/test')
   project(":libs:elasticsearch-nio-tests").buildFileName = 'eclipse-build.gradle'
+  project(":libs:x-content").projectDir = new File(rootProject.projectDir, 'libs/x-content/src/main')
+  project(":libs:x-content").buildFileName = 'eclipse-build.gradle'
+  project(":libs:x-content-tests").projectDir = new File(rootProject.projectDir, 'libs/x-content/src/test')
+  project(":libs:x-content-tests").buildFileName = 'eclipse-build.gradle'
   project(":libs:secure-sm").projectDir = new File(rootProject.projectDir, 'libs/secure-sm/src/main')
   project(":libs:secure-sm").buildFileName = 'eclipse-build.gradle'
   project(":libs:secure-sm-tests").projectDir = new File(rootProject.projectDir, 'libs/secure-sm/src/test')

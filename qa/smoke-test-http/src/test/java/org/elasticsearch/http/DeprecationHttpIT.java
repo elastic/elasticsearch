@@ -23,6 +23,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Setting;
@@ -210,7 +211,7 @@ public class DeprecationHttpIT extends HttpSmokeTestCase {
 
         builder.endArray().endObject();
 
-        return new StringEntity(builder.string(), ContentType.APPLICATION_JSON);
+        return new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
     }
 
 }

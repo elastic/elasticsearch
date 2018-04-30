@@ -82,8 +82,10 @@ public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregation
         final Map<String, Long> expectedCounts = new TreeMap<>();
         for (InternalAdjacencyMatrix input : inputs) {
             for (InternalAdjacencyMatrix.InternalBucket bucket : input.getBuckets()) {
-                expectedCounts.compute(bucket.getKeyAsString(),
+                if (bucket.getDocCount() > 0) {
+                    expectedCounts.compute(bucket.getKeyAsString(),
                         (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
+                }
             }
         }
         final Map<String, Long> actualCounts = new TreeMap<>();

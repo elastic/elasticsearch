@@ -31,11 +31,12 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.UidFieldMapper;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -83,6 +84,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     /**
      * Add types to query
      */
+    // TODO: Remove
     public IdsQueryBuilder types(String... types) {
         if (types == null) {
             throw new IllegalArgumentException("[" + NAME + "] types cannot be null");
@@ -154,13 +156,12 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        Query query;
-        MappedFieldType uidField = context.fieldMapper(UidFieldMapper.NAME);
-        if (uidField == null) {
+        MappedFieldType idField = context.fieldMapper(IdFieldMapper.NAME);
+        if (idField == null) {
             return new MatchNoDocsQuery("No mappings");
         }
         if (this.ids.isEmpty()) {
-             query = Queries.newMatchNoDocsQuery("Missing ids in \"" + this.getName() + "\" query.");
+             return Queries.newMatchNoDocsQuery("Missing ids in \"" + this.getName() + "\" query.");
         } else {
             Collection<String> typesForQuery;
             if (types.length == 0) {
@@ -172,9 +173,15 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
                 Collections.addAll(typesForQuery, types);
             }
 
-            query = uidField.termsQuery(Arrays.asList(Uid.createUidsForTypesAndIds(typesForQuery, ids)), context);
+            final Collection<String> mappingTypes = context.getMapperService().types();
+            assert mappingTypes.size() == 1;
+            if (typesForQuery.contains(mappingTypes.iterator().next())) {
+                return idField.termsQuery(new ArrayList<>(ids), context);
+            } else {
+                return new MatchNoDocsQuery("Type mismatch");
+            }
+            
         }
-        return query;
     }
 
     @Override

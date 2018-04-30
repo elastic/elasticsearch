@@ -20,7 +20,6 @@ package org.elasticsearch.persistent;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.common.Nullable;
@@ -148,8 +147,7 @@ public class AllocatedPersistentTask extends CancellableTask {
             logger.warn("attempt to complete task [{}] with id [{}] in the [{}] state", getAction(), getPersistentTaskId(), prevState);
         } else {
             if (failure != null) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage(
-                        "task {} failed with an exception", getPersistentTaskId()), failure);
+                logger.warn(() -> new ParameterizedMessage("task {} failed with an exception", getPersistentTaskId()), failure);
             }
             try {
                 this.failure = failure;
@@ -165,9 +163,8 @@ public class AllocatedPersistentTask extends CancellableTask {
 
                                 @Override
                                 public void onFailure(Exception e) {
-                                    logger.warn((Supplier<?>) () ->
-                                            new ParameterizedMessage("notification for task [{}] with id [{}] failed",
-                                                    getAction(), getPersistentTaskId()), e);
+                                    logger.warn(() -> new ParameterizedMessage(
+                                        "notification for task [{}] with id [{}] failed", getAction(), getPersistentTaskId()), e);
                                 }
                             });
                 }

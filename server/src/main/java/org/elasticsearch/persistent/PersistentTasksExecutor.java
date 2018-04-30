@@ -95,9 +95,7 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
      * <p>
      * Throws an exception if the supplied params cannot be executed on the cluster in the current state.
      */
-    public void validate(Params params, ClusterState clusterState) {
-
-    }
+    public void validate(Params params, ClusterState clusterState) {}
 
     /**
      * Creates a AllocatedPersistentTask for communicating with task manager

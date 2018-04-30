@@ -38,6 +38,8 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -796,7 +798,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
         builder.endObject();
         builder.flush();
-        logger.info(builder.string());
-        return XContentHelper.convertToMap(builder.bytes(), false, builder.contentType()).v2();
+        logger.info(Strings.toString(builder));
+        return XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
     }
 }

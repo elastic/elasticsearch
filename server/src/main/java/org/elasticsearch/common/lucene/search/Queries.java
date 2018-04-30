@@ -99,18 +99,13 @@ public class Queries {
             .build();
     }
 
-    private static boolean isNegativeQuery(Query q) {
+    static boolean isNegativeQuery(Query q) {
         if (!(q instanceof BooleanQuery)) {
             return false;
         }
         List<BooleanClause> clauses = ((BooleanQuery) q).clauses();
-        if (clauses.isEmpty()) {
-            return false;
-        }
-        for (BooleanClause clause : clauses) {
-            if (!clause.isProhibited()) return false;
-        }
-        return true;
+        return clauses.isEmpty() == false &&
+                clauses.stream().allMatch(BooleanClause::isProhibited);
     }
 
     public static Query fixNegativeQueryIfNeeded(Query q) {
@@ -120,7 +115,7 @@ public class Queries {
             for (BooleanClause clause : bq) {
                 builder.add(clause);
             }
-            builder.add(newMatchAllQuery(), BooleanClause.Occur.MUST);
+            builder.add(newMatchAllQuery(), BooleanClause.Occur.FILTER);
             return builder.build();
         }
         return q;

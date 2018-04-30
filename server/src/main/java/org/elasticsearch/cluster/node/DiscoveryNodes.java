@@ -40,6 +40,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.StreamSupport;
 
 /**
  * This class holds all {@link DiscoveryNode} in the cluster and provides convenience methods to
@@ -232,10 +233,6 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         return null;
     }
 
-    public boolean isAllNodes(String... nodesIds) {
-        return nodesIds == null || nodesIds.length == 0 || (nodesIds.length == 1 && nodesIds[0].equals("_all"));
-    }
-
     /**
      * Returns the version of the node with the oldest version in the cluster that is not a client node
      *
@@ -304,13 +301,8 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
      *   or a generic node attribute name in which case value will be treated as a wildcard and matched against the node attribute values.
      */
     public String[] resolveNodes(String... nodes) {
-        if (isAllNodes(nodes)) {
-            int index = 0;
-            nodes = new String[this.nodes.size()];
-            for (DiscoveryNode node : this) {
-                nodes[index++] = node.getId();
-            }
-            return nodes;
+        if (nodes == null || nodes.length == 0) {
+            return StreamSupport.stream(this.spliterator(), false).map(DiscoveryNode::getId).toArray(String[]::new);
         } else {
             ObjectHashSet<String> resolvedNodesIds = new ObjectHashSet<>(nodes.length);
             for (String nodeId : nodes) {
@@ -327,16 +319,11 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                 } else if (nodeExists(nodeId)) {
                     resolvedNodesIds.add(nodeId);
                 } else {
-                    // not a node id, try and search by name
                     for (DiscoveryNode node : this) {
-                        if (Regex.simpleMatch(nodeId, node.getName())) {
-                            resolvedNodesIds.add(node.getId());
-                        }
-                    }
-                    for (DiscoveryNode node : this) {
-                        if (Regex.simpleMatch(nodeId, node.getHostAddress())) {
-                            resolvedNodesIds.add(node.getId());
-                        } else if (Regex.simpleMatch(nodeId, node.getHostName())) {
+                        if ("_all".equals(nodeId)
+                                || Regex.simpleMatch(nodeId, node.getName())
+                                || Regex.simpleMatch(nodeId, node.getHostAddress())
+                                || Regex.simpleMatch(nodeId, node.getHostName())) {
                             resolvedNodesIds.add(node.getId());
                         }
                     }

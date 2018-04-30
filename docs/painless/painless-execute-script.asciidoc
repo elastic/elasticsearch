@@ -1,0 +1,53 @@
+[[painless-execute-api]]
+=== Painless execute API
+
+The Painless execute API allows an arbitrary script to be executed and a result to be returned.
+
+[[painless-execute-api-parameters]]
+.Parameters
+[options="header"]
+|======
+| Name             | Required  | Default                | Description
+| `script`         | yes       | -                      | The script to execute
+| `context`        | no        | `execute_api_script`   | The context the script should be executed in.
+|======
+
+==== Contexts
+
+Contexts control how scripts are executed, what variables are available at runtime and what the return type is.
+
+===== Painless test script context
+
+The `painless_test` context executes scripts as is and do not add any special parameters.
+The only variable that is available is `params`, which can be used to access user defined values.
+The result of the script is always converted to a string.
+If no context is specified then this context is used by default.
+
+==== Example
+
+Request:
+
+[source,js]
+----------------------------------------------------------------
+POST /_scripts/painless/_execute
+{
+  "script": {
+    "source": "params.count / params.total",
+    "params": {
+      "count": 100.0,
+      "total": 1000.0
+    }
+  }
+}
+----------------------------------------------------------------
+// CONSOLE
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+  "result": "0.1"
+}
+--------------------------------------------------
+// TESTRESPONSE

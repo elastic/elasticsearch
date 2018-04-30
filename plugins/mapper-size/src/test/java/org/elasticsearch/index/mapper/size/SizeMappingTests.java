@@ -21,8 +21,7 @@ package org.elasticsearch.index.mapper.size;
 
 import java.util.Collection;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -30,11 +29,9 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugin.mapper.MapperSizePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -42,7 +39,6 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.instanceOf;
 
 import org.apache.lucene.index.IndexableField;
 
@@ -56,11 +52,11 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
         IndexService service = createIndex("test", Settings.EMPTY, "type", "_size", "enabled=true");
         DocumentMapper docMapper = service.mapperService().documentMapper("type");
 
-        BytesReference source = XContentFactory.jsonBuilder()
-            .startObject()
-            .field("field", "value")
-            .endObject()
-            .bytes();
+        BytesReference source = BytesReference
+            .bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "value")
+                .endObject());
         ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON));
 
         boolean stored = false;
@@ -77,11 +73,11 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
         IndexService service = createIndex("test", Settings.EMPTY, "type", "_size", "enabled=false");
         DocumentMapper docMapper = service.mapperService().documentMapper("type");
 
-        BytesReference source = XContentFactory.jsonBuilder()
-            .startObject()
-            .field("field", "value")
-            .endObject()
-            .bytes();
+        BytesReference source = BytesReference
+            .bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "value")
+                .endObject());
         ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("_size"), nullValue());
@@ -91,11 +87,11 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
         IndexService service = createIndex("test", Settings.EMPTY, "type");
         DocumentMapper docMapper = service.mapperService().documentMapper("type");
 
-        BytesReference source = XContentFactory.jsonBuilder()
-            .startObject()
-            .field("field", "value")
-            .endObject()
-            .bytes();
+        BytesReference source = BytesReference
+            .bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "value")
+                .endObject());
         ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "1", source, XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("_size"), nullValue());
@@ -106,9 +102,9 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
         DocumentMapper docMapper = service.mapperService().documentMapper("type");
         assertThat(docMapper.metadataMapper(SizeFieldMapper.class).enabled(), is(true));
 
-        String disabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String disabledMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_size").field("enabled", false).endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
         docMapper = service.mapperService().merge("type", new CompressedXContent(disabledMapping),
             MapperService.MergeReason.MAPPING_UPDATE);
 

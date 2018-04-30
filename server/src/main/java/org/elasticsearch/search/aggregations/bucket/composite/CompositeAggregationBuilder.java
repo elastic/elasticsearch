@@ -19,16 +19,12 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.IndexSortConfig;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -154,16 +150,9 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         if (parent != null) {
             throw new IllegalArgumentException("[composite] aggregation cannot be used with a parent aggregation");
         }
-        final QueryShardContext shardContext = context.getQueryShardContext();
         CompositeValuesSourceConfig[] configs = new CompositeValuesSourceConfig[sources.size()];
-        SortField[] sortFields = new SortField[configs.length];
-        IndexSortConfig indexSortConfig = shardContext.getIndexSettings().getIndexSortConfig();
-        if (indexSortConfig.hasIndexSort()) {
-            Sort sort = indexSortConfig.buildIndexSort(shardContext::fieldMapper, shardContext::getForField);
-            System.arraycopy(sort.getSort(), 0, sortFields, 0, sortFields.length);
-        }
         for (int i = 0; i < configs.length; i++) {
-            configs[i] = sources.get(i).build(context, i, configs.length, sortFields[i]);
+            configs[i] = sources.get(i).build(context);
             if (configs[i].valuesSource().needsScores()) {
                 throw new IllegalArgumentException("[sources] cannot access _score");
             }

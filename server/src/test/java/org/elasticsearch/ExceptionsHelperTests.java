@@ -20,6 +20,8 @@
 package org.elasticsearch;
 
 import org.apache.commons.codec.DecoderException;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Optional;
@@ -82,6 +84,11 @@ public class ExceptionsHelperTests extends ESTestCase {
         final Optional<Error> maybeError = maybeError(cause, logger);
         assertTrue(maybeError.isPresent());
         assertThat(maybeError.get(), equalTo(error));
+    }
+
+    public void testStatus() {
+        assertThat(ExceptionsHelper.status(new IllegalArgumentException("illegal")), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(ExceptionsHelper.status(new EsRejectedExecutionException("rejected")), equalTo(RestStatus.TOO_MANY_REQUESTS));
     }
 
 }

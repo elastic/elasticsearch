@@ -128,7 +128,6 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
     static class CollapsingTopDocsCollectorContext extends TopDocsCollectorContext {
         private final DocValueFormat[] sortFmt;
         private final CollapsingTopDocsCollector<?> topDocsCollector;
-        private final boolean rescore;
 
         /**
          * Ctr
@@ -140,14 +139,13 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         private CollapsingTopDocsCollectorContext(CollapseContext collapseContext,
                                                   @Nullable SortAndFormats sortAndFormats,
                                                   int numHits,
-                                                  boolean trackMaxScore, boolean rescore) {
+                                                  boolean trackMaxScore) {
             super(REASON_SEARCH_TOP_HITS, numHits);
             assert numHits > 0;
             assert collapseContext != null;
             Sort sort = sortAndFormats == null ? Sort.RELEVANCE : sortAndFormats.sort;
             this.sortFmt = sortAndFormats == null ? new DocValueFormat[] { DocValueFormat.RAW } : sortAndFormats.formats;
             this.topDocsCollector = collapseContext.createTopDocs(sort, numHits, trackMaxScore);
-            this.rescore = rescore;
         }
 
         @Override
@@ -159,11 +157,6 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         @Override
         void postProcess(QuerySearchResult result) throws IOException {
             result.topDocs(topDocsCollector.getTopDocs(), sortFmt);
-        }
-
-        @Override
-        boolean shouldRescore() {
-            return rescore;
         }
     }
 
@@ -339,6 +332,11 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             return new ScrollingTopDocsCollectorContext(reader, query, searchContext.scrollContext(),
                 searchContext.sort(), numDocs, searchContext.trackScores(), searchContext.numberOfShards(),
                 searchContext.trackTotalHits(), hasFilterCollector);
+        } else if (searchContext.collapse() != null) {
+            boolean trackScores = searchContext.sort() == null ? true : searchContext.trackScores();
+            int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
+            return new CollapsingTopDocsCollectorContext(searchContext.collapse(),
+                searchContext.sort(), numDocs, trackScores);
         } else {
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
             final boolean rescore = searchContext.rescore().isEmpty() == false;
@@ -347,11 +345,6 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 for (RescoreContext rescoreContext : searchContext.rescore()) {
                     numDocs = Math.max(numDocs, rescoreContext.getWindowSize());
                 }
-            }
-            if (searchContext.collapse() != null) {
-                boolean trackScores = searchContext.sort() == null ? true : searchContext.trackScores();
-                return new CollapsingTopDocsCollectorContext(searchContext.collapse(),
-                    searchContext.sort(), numDocs, trackScores, rescore);
             }
             return new SimpleTopDocsCollectorContext(reader, query, searchContext.sort(), searchContext.searchAfter(), numDocs,
                                                      searchContext.trackScores(), searchContext.trackTotalHits(), hasFilterCollector) {

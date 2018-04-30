@@ -46,7 +46,7 @@ public class CreateIndexRequestTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         CreateIndexRequest request = new CreateIndexRequest("foo");
-        String mapping = JsonXContent.contentBuilder().startObject().startObject("type").endObject().endObject().string();
+        String mapping = Strings.toString(JsonXContent.contentBuilder().startObject().startObject("type").endObject().endObject());
         request.mapping("my_type", mapping, XContentType.JSON);
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -87,7 +87,7 @@ public class CreateIndexRequestTests extends ESTestCase {
     public void testToXContent() throws IOException {
         CreateIndexRequest request = new CreateIndexRequest("foo");
 
-        String mapping = JsonXContent.contentBuilder().startObject().startObject("type").endObject().endObject().string();
+        String mapping = Strings.toString(JsonXContent.contentBuilder().startObject().startObject("type").endObject().endObject());
         request.mapping("my_type", mapping, XContentType.JSON);
 
         Alias alias = new Alias("test_alias");

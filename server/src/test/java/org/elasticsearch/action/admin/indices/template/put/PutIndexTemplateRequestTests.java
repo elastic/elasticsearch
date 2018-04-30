@@ -20,6 +20,7 @@ package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -77,7 +78,7 @@ public class PutIndexTemplateRequestTests extends ESTestCase {
 
     public void testPutIndexTemplateRequestSerializationXContent() throws IOException {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest("foo");
-        String mapping = YamlXContent.contentBuilder().startObject().field("foo", "bar").endObject().string();
+        String mapping = Strings.toString(YamlXContent.contentBuilder().startObject().field("foo", "bar").endObject());
         request.patterns(Collections.singletonList("foo"));
         request.mapping("bar", mapping, XContentType.YAML);
         assertNotEquals(mapping, request.mappings().get("bar"));
@@ -106,7 +107,7 @@ public class PutIndexTemplateRequestTests extends ESTestCase {
             in.setVersion(version);
             PutIndexTemplateRequest request = new PutIndexTemplateRequest();
             request.readFrom(in);
-            String mapping = YamlXContent.contentBuilder().startObject().field("foo", "bar").endObject().string();
+            String mapping = Strings.toString(YamlXContent.contentBuilder().startObject().field("foo", "bar").endObject());
             assertNotEquals(mapping, request.mappings().get("bar"));
             assertEquals(XContentHelper.convertToJson(new BytesArray(mapping), false, XContentType.YAML), request.mappings().get("bar"));
             assertEquals("foo", request.name());

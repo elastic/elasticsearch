@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.block;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -53,7 +55,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
 
     private final ImmutableOpenMap<String, Set<ClusterBlock>> indicesBlocks;
 
-    private final ImmutableLevelHolder[] levelHolders;
+    private final EnumMap<ClusterBlockLevel, ImmutableLevelHolder> levelHolders;
 
     ClusterBlocks(Set<ClusterBlock> global, ImmutableOpenMap<String, Set<ClusterBlock>> indicesBlocks) {
         this.global = global;
@@ -70,20 +72,20 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
     }
 
     public Set<ClusterBlock> global(ClusterBlockLevel level) {
-        return levelHolders[level.ordinal()].global();
+        return levelHolders.get(level).global();
     }
 
     public ImmutableOpenMap<String, Set<ClusterBlock>> indices(ClusterBlockLevel level) {
-        return levelHolders[level.ordinal()].indices();
+        return levelHolders.get(level).indices();
     }
 
     private Set<ClusterBlock> blocksForIndex(ClusterBlockLevel level, String index) {
         return indices(level).getOrDefault(index, emptySet());
     }
 
-    private static ImmutableLevelHolder[] generateLevelHolders(Set<ClusterBlock> global,
-                                                               ImmutableOpenMap<String, Set<ClusterBlock>> indicesBlocks) {
-        ImmutableLevelHolder[] levelHolders = new ImmutableLevelHolder[ClusterBlockLevel.values().length];
+    private static EnumMap<ClusterBlockLevel, ImmutableLevelHolder> generateLevelHolders(Set<ClusterBlock> global,
+            ImmutableOpenMap<String, Set<ClusterBlock>> indicesBlocks) {
+        EnumMap<ClusterBlockLevel, ImmutableLevelHolder> levelHolders = new EnumMap<>(ClusterBlockLevel.class);
         for (final ClusterBlockLevel level : ClusterBlockLevel.values()) {
             Predicate<ClusterBlock> containsLevel = block -> block.contains(level);
             Set<ClusterBlock> newGlobal = unmodifiableSet(global.stream()
@@ -96,8 +98,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
                     .filter(containsLevel)
                     .collect(toSet())));
             }
-
-            levelHolders[level.ordinal()] = new ImmutableLevelHolder(newGlobal, indicesBuilder.build());
+            levelHolders.put(level, new ImmutableLevelHolder(newGlobal, indicesBuilder.build()));
         }
         return levelHolders;
     }

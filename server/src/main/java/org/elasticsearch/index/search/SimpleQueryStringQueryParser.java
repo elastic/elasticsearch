@@ -408,9 +408,9 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
                 Objects.equals(analyzeWildcard, other.analyzeWildcard) &&
                 Objects.equals(quoteFieldSuffix, other.quoteFieldSuffix) &&
                 Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery) &&
-                Objects.equals(fuzzyPrefixLength, fuzzyPrefixLength) &&
-                Objects.equals(fuzzyMaxExpansions, fuzzyMaxExpansions) &&
-                Objects.equals(fuzzyTranspositions, fuzzyTranspositions);
+                Objects.equals(fuzzyPrefixLength, other.fuzzyPrefixLength) &&
+                Objects.equals(fuzzyMaxExpansions, other.fuzzyMaxExpansions) &&
+                Objects.equals(fuzzyTranspositions, other.fuzzyTranspositions);
         }
     }
 }

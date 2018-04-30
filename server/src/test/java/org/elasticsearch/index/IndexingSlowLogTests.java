@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -34,6 +35,7 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
@@ -43,7 +45,7 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class IndexingSlowLogTests extends ESTestCase {
     public void testSlowLogParsedDocumentPrinterSourceToLog() throws IOException {
-        BytesReference source = JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject().bytes();
+        BytesReference source = BytesReference.bytes(JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject());
         ParsedDocument pd = new ParsedDocument(new NumericDocValuesField("version", 1), SeqNoFieldMapper.SequenceIDFields.emptySeqID(), "id",
                 "test", null, null, source, XContentType.JSON, null);
         Index index = new Index("foo", "123");
@@ -70,9 +72,15 @@ public class IndexingSlowLogTests extends ESTestCase {
             "test", null, null, source, XContentType.JSON, null);
         p = new SlowLogParsedDocumentPrinter(index, pd, 10, true, 3);
 
-        assertThat(p.toString(), containsString("_failed_to_convert_[Unrecognized token 'invalid':"
+        final UncheckedIOException e = expectThrows(UncheckedIOException.class, p::toString);
+        assertThat(e, hasToString(containsString("_failed_to_convert_[Unrecognized token 'invalid':"
             + " was expecting ('true', 'false' or 'null')\n"
-            + " at [Source: org.elasticsearch.common.bytes.BytesReference$MarkSupportingStreamInputWrapper"));
+            + " at [Source: org.elasticsearch.common.bytes.BytesReference$MarkSupportingStreamInputWrapper")));
+        assertNotNull(e.getCause());
+        assertThat(e.getCause(), instanceOf(JsonParseException.class));
+        assertThat(e.getCause(), hasToString(containsString("Unrecognized token 'invalid':"
+                + " was expecting ('true', 'false' or 'null')\n"
+                + " at [Source: org.elasticsearch.common.bytes.BytesReference$MarkSupportingStreamInputWrapper")));
     }
 
     public void testReformatSetting() {

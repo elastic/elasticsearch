@@ -20,6 +20,7 @@
 package org.elasticsearch.tasks;
 
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -151,7 +152,7 @@ public class TaskResultTests extends ESTestCase {
                 builder.field(randomAlphaOfLength(5), randomAlphaOfLength(5));
             }
             builder.endObject();
-            return new RawTaskStatus(builder.bytes());
+            return new RawTaskStatus(BytesReference.bytes(builder));
         }
     }
 

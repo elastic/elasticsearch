@@ -145,7 +145,6 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
         }
     }
 
-
     public Collection<PersistentTask<?>> tasks() {
         return this.tasks.values();
     }
@@ -163,12 +162,6 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
                 .filter(p -> taskName.equals(p.getTaskName()))
                 .filter(predicate)
                 .collect(Collectors.toList());
-    }
-
-    public boolean tasksExist(String taskName, Predicate<PersistentTask<?>> predicate) {
-        return this.tasks().stream()
-                .filter(p -> taskName.equals(p.getTaskName()))
-                .anyMatch(predicate);
     }
 
     @Override
@@ -278,7 +271,6 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
         private final Assignment assignment;
         @Nullable
         private final Long allocationIdOnLastStatusUpdate;
-
 
         public PersistentTask(String id, String taskName, P params, long allocationId, Assignment assignment) {
             this(id, allocationId, taskName, params, null, assignment, null);
@@ -393,13 +385,6 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
 
         public boolean isAssigned() {
             return assignment.isAssigned();
-        }
-
-        /**
-         * Returns true if the tasks is not stopped and unassigned or assigned to a non-existing node.
-         */
-        public boolean needsReassignment(DiscoveryNodes nodes) {
-            return (assignment.isAssigned() == false || nodes.nodeExists(assignment.getExecutorNode()) == false);
         }
 
         @Nullable
@@ -522,16 +507,14 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
         return readDiffFrom(MetaData.Custom.class, TYPE, in);
     }
 
-    public long getLastAllocationId() {
-        return lastAllocationId;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("last_allocation_id", lastAllocationId);
         builder.startArray("tasks");
-        for (PersistentTask<?> entry : tasks.values()) {
-            entry.toXContent(builder, params);
+        {
+            for (PersistentTask<?> entry : tasks.values()) {
+                entry.toXContent(builder, params);
+            }
         }
         builder.endArray();
         return builder;
@@ -609,7 +592,7 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
                 changed = true;
                 tasks.put(taskId, new PersistentTask<>(taskInProgress, getNextAllocationId(), assignment));
             } else {
-                throw new ResourceNotFoundException("cannot reassign task with id {" + taskId + "}, the task no longer exits");
+                throw new ResourceNotFoundException("cannot reassign task with id {" + taskId + "}, the task no longer exists");
             }
             return this;
         }
@@ -623,7 +606,7 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
                 changed = true;
                 tasks.put(taskId, new PersistentTask<>(taskInProgress, status));
             } else {
-                throw new ResourceNotFoundException("cannot update task with id {" + taskId + "}, the task no longer exits");
+                throw new ResourceNotFoundException("cannot update task with id {" + taskId + "}, the task no longer exists");
             }
             return this;
         }
@@ -635,23 +618,7 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
             if (tasks.remove(taskId) != null) {
                 changed = true;
             } else {
-                throw new ResourceNotFoundException("cannot remove task with id {" + taskId + "}, the task no longer exits");
-            }
-            return this;
-        }
-
-        /**
-         * Finishes the task
-         * <p>
-         * If the task is marked with removeOnCompletion flag, it is removed from the list, otherwise it is stopped.
-         */
-        public Builder finishTask(String taskId) {
-            PersistentTask<?> taskInProgress = tasks.get(taskId);
-            if (taskInProgress != null) {
-                changed = true;
-                tasks.remove(taskId);
-            } else {
-                throw new ResourceNotFoundException("cannot finish task with id {" + taskId + "}, the task no longer exits");
+                throw new ResourceNotFoundException("cannot remove task with id {" + taskId + "}, the task no longer exists");
             }
             return this;
         }

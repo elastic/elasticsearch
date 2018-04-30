@@ -21,8 +21,11 @@ package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.db.NoCache;
 import com.maxmind.db.NodeCache;
+import com.maxmind.db.Reader;
 import com.maxmind.geoip2.DatabaseReader;
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.IngestPlugin;
@@ -30,11 +33,9 @@ import org.elasticsearch.plugins.Plugin;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
-import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -42,7 +43,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
-import java.util.zip.GZIPInputStream;
 
 public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable {
     public static final Setting<Long> CACHE_SIZE =
@@ -80,26 +80,36 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable
         if (Files.exists(geoIpConfigDirectory) == false && Files.isDirectory(geoIpConfigDirectory)) {
             throw new IllegalStateException("the geoip directory [" + geoIpConfigDirectory  + "] containing databases doesn't exist");
         }
-
+        boolean loadDatabaseOnHeap = Booleans.parseBoolean(System.getProperty("es.geoip.load_db_on_heap", "false"));
         Map<String, DatabaseReaderLazyLoader> databaseReaders = new HashMap<>();
         try (Stream<Path> databaseFiles = Files.list(geoIpConfigDirectory)) {
-            PathMatcher pathMatcher = geoIpConfigDirectory.getFileSystem().getPathMatcher("glob:**.mmdb.gz");
+            PathMatcher pathMatcher = geoIpConfigDirectory.getFileSystem().getPathMatcher("glob:**.mmdb");
             // Use iterator instead of forEach otherwise IOException needs to be caught twice...
             Iterator<Path> iterator = databaseFiles.iterator();
             while (iterator.hasNext()) {
                 Path databasePath = iterator.next();
                 if (Files.isRegularFile(databasePath) && pathMatcher.matches(databasePath)) {
                     String databaseFileName = databasePath.getFileName().toString();
-                    DatabaseReaderLazyLoader holder = new DatabaseReaderLazyLoader(databaseFileName, () -> {
-                        try (InputStream inputStream = new GZIPInputStream(Files.newInputStream(databasePath, StandardOpenOption.READ))) {
-                            return new DatabaseReader.Builder(inputStream).withCache(cache).build();
-                        }
-                    });
+                    DatabaseReaderLazyLoader holder = new DatabaseReaderLazyLoader(databaseFileName,
+                        () -> {
+                            DatabaseReader.Builder builder = createDatabaseBuilder(databasePath).withCache(cache);
+                            if (loadDatabaseOnHeap) {
+                                builder.fileMode(Reader.FileMode.MEMORY);
+                            } else {
+                                builder.fileMode(Reader.FileMode.MEMORY_MAPPED);
+                            }
+                            return builder.build();
+                        });
                     databaseReaders.put(databaseFileName, holder);
                 }
             }
         }
         return Collections.unmodifiableMap(databaseReaders);
+    }
+
+    @SuppressForbidden(reason = "Maxmind API requires java.io.File")
+    private static DatabaseReader.Builder createDatabaseBuilder(Path databasePath) {
+        return new DatabaseReader.Builder(databasePath.toFile());
     }
 
     @Override

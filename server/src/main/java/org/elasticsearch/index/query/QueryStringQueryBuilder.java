@@ -42,7 +42,6 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -78,15 +77,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     private static final ParseField ANALYZER_FIELD = new ParseField("analyzer");
     private static final ParseField QUOTE_ANALYZER_FIELD = new ParseField("quote_analyzer");
     private static final ParseField ALLOW_LEADING_WILDCARD_FIELD = new ParseField("allow_leading_wildcard");
-    private static final ParseField AUTO_GENERATE_PHRASE_QUERIES_FIELD = new ParseField("auto_generate_phrase_queries")
-            .withAllDeprecated("This setting is ignored, use [type=phrase] instead");
     private static final ParseField MAX_DETERMINIZED_STATES_FIELD = new ParseField("max_determinized_states");
-    private static final ParseField LOWERCASE_EXPANDED_TERMS_FIELD = new ParseField("lowercase_expanded_terms")
-            .withAllDeprecated("Decision is now made by the analyzer");
     private static final ParseField ENABLE_POSITION_INCREMENTS_FIELD = new ParseField("enable_position_increments");
     private static final ParseField ESCAPE_FIELD = new ParseField("escape");
-    private static final ParseField USE_DIS_MAX_FIELD = new ParseField("use_dis_max")
-            .withAllDeprecated("Set [tie_breaker] to 1 instead");
     private static final ParseField FUZZY_PREFIX_LENGTH_FIELD = new ParseField("fuzzy_prefix_length");
     private static final ParseField FUZZY_MAX_EXPANSIONS_FIELD = new ParseField("fuzzy_max_expansions");
     private static final ParseField FUZZY_REWRITE_FIELD = new ParseField("fuzzy_rewrite");
@@ -97,13 +90,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
     private static final ParseField QUOTE_FIELD_SUFFIX_FIELD = new ParseField("quote_field_suffix");
     private static final ParseField LENIENT_FIELD = new ParseField("lenient");
-    private static final ParseField LOCALE_FIELD = new ParseField("locale")
-            .withAllDeprecated("Decision is now made by the analyzer");
     private static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
-    private static final ParseField SPLIT_ON_WHITESPACE = new ParseField("split_on_whitespace")
-            .withAllDeprecated("This setting is ignored, the parser always splits on operator");
-    private static final ParseField ALL_FIELDS_FIELD = new ParseField("all_fields")
-            .withAllDeprecated("Set [default_field] to `*` instead");
     private static final ParseField TYPE_FIELD = new ParseField("type");
     private static final ParseField GENERATE_SYNONYMS_PHRASE_QUERY = new ParseField("auto_generate_synonyms_phrase_query");
     private static final ParseField FUZZY_TRANSPOSITIONS_FIELD = new ParseField("fuzzy_transpositions");
@@ -193,13 +180,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         }
         allowLeadingWildcard = in.readOptionalBoolean();
         analyzeWildcard = in.readOptionalBoolean();
-        if (in.getVersion().before(Version.V_5_1_1)) {
-            in.readBoolean(); // lowercase_expanded_terms
-        }
         enablePositionIncrements = in.readBoolean();
-        if (in.getVersion().before(Version.V_5_1_1)) {
-            in.readString(); // locale
-        }
         fuzziness = new Fuzziness(in);
         fuzzyPrefixLength = in.readVInt();
         fuzzyMaxExpansions = in.readVInt();
@@ -219,13 +200,11 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         timeZone = in.readOptionalTimeZone();
         escape = in.readBoolean();
         maxDeterminizedStates = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
-            if (in.getVersion().before(Version.V_6_0_0_beta1)) {
-                in.readBoolean(); // split_on_whitespace
-                Boolean useAllField = in.readOptionalBoolean();
-                if (useAllField != null && useAllField) {
-                    defaultField = "*";
-                }
+        if (in.getVersion().onOrAfter(Version.V_5_1_1) && in.getVersion().before(Version.V_6_0_0_beta1)) {
+            in.readBoolean(); // split_on_whitespace
+            Boolean useAllField = in.readOptionalBoolean();
+            if (useAllField != null && useAllField) {
+                defaultField = "*";
             }
         }
         if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
@@ -252,13 +231,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         }
         out.writeOptionalBoolean(this.allowLeadingWildcard);
         out.writeOptionalBoolean(this.analyzeWildcard);
-        if (out.getVersion().before(Version.V_5_1_1)) {
-            out.writeBoolean(true); // lowercase_expanded_terms
-        }
         out.writeBoolean(this.enablePositionIncrements);
-        if (out.getVersion().before(Version.V_5_1_1)) {
-            out.writeString(Locale.ROOT.toLanguageTag()); // locale
-        }
         this.fuzziness.writeTo(out);
         out.writeVInt(this.fuzzyPrefixLength);
         out.writeVInt(this.fuzzyMaxExpansions);
@@ -277,12 +250,10 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         out.writeOptionalTimeZone(timeZone);
         out.writeBoolean(this.escape);
         out.writeVInt(this.maxDeterminizedStates);
-        if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
-            if (out.getVersion().before(Version.V_6_0_0_beta1)) {
-                out.writeBoolean(false); // split_on_whitespace
-                Boolean useAllFields = defaultField == null ? null : Regex.isMatchAllPattern(defaultField);
-                out.writeOptionalBoolean(useAllFields);
-            }
+        if (out.getVersion().onOrAfter(Version.V_5_1_1) && out.getVersion().before(Version.V_6_0_0_beta1)) {
+            out.writeBoolean(false); // split_on_whitespace
+            Boolean useAllFields = defaultField == null ? null : Regex.isMatchAllPattern(defaultField);
+            out.writeOptionalBoolean(useAllFields);
         }
         if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             out.writeBoolean(autoGenerateSynonymsPhraseQuery);
@@ -386,7 +357,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         return this;
     }
 
-    public float tieBreaker() {
+    public Float tieBreaker() {
         return this.tieBreaker;
     }
 
@@ -416,6 +387,22 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     public QueryStringQueryBuilder analyzer(String analyzer) {
         this.analyzer = analyzer;
         return this;
+    }
+    
+    /**
+     * The optional analyzer used to analyze the query string. Note, if a field has search analyzer
+     * defined for it, then it will be used automatically. Defaults to the smart search analyzer.
+     */
+    public String analyzer() {
+        return analyzer;
+    }
+
+    /**
+     * The optional analyzer used to analyze the query string for phrase searches. Note, if a field has search (quote) analyzer
+     * defined for it, then it will be used automatically. Defaults to the smart search analyzer.
+     */
+    public String quoteAnalyzer() {
+        return quoteAnalyzer;
     }
 
     /**
@@ -824,8 +811,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                     quoteFieldSuffix = parser.textOrNull();
                 } else if (LENIENT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     lenient = parser.booleanValue();
-                } else if (ALL_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    defaultField = "*";
                 } else if (MAX_DETERMINIZED_STATES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     maxDeterminizedStates = parser.intValue();
                 } else if (TIME_ZONE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -841,16 +826,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                     autoGenerateSynonymsPhraseQuery = parser.booleanValue();
                 } else if (FUZZY_TRANSPOSITIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     fuzzyTranspositions = parser.booleanValue();
-                } else if (AUTO_GENERATE_PHRASE_QUERIES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    // ignore, deprecated setting
-                } else if (LOWERCASE_EXPANDED_TERMS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    // ignore, deprecated setting
-                } else if (LOCALE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    // ignore, deprecated setting
-                } else if (USE_DIS_MAX_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    // ignore, deprecated setting
-                } else if (SPLIT_ON_WHITESPACE.match(currentFieldName, parser.getDeprecationHandler())) {
-                    // ignore, deprecated setting
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + QueryStringQueryBuilder.NAME +
                             "] query does not support [" + currentFieldName + "]");
@@ -924,9 +899,10 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 Objects.equals(tieBreaker, other.tieBreaker) &&
                 Objects.equals(rewrite, other.rewrite) &&
                 Objects.equals(minimumShouldMatch, other.minimumShouldMatch) &&
-                Objects.equals(lenient, other.lenient) &&
-                timeZone == null ? other.timeZone == null : other.timeZone != null &&
-                Objects.equals(timeZone.getID(), other.timeZone.getID()) &&
+                Objects.equals(lenient, other.lenient) && 
+                Objects.equals(
+                        timeZone == null ? null : timeZone.getID(), 
+                        other.timeZone == null ? null : other.timeZone.getID()) &&
                 Objects.equals(escape, other.escape) &&
                 Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates) &&
                 Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery) &&

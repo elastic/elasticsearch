@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -123,7 +124,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "      }\n" +
                     "    }\n" +
                     "  }\n" +
-                    "}", builder.string());
+                    "}", Strings.toString(builder));
 
         }
         {
@@ -156,7 +157,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "      ]\n" +
                     "    }\n" +
                     "  ]\n" +
-                    "}", builder.string());
+                    "}", Strings.toString(builder));
         }
         {
             XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
@@ -196,7 +197,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                     "      }\n" +
                     "    }\n" +
                     "  }\n" +
-                    "}", builder.string());
+                    "}", Strings.toString(builder));
         }
     }
 }

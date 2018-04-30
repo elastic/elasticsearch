@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.vagrant
 
+import org.elasticsearch.gradle.Version
 import org.gradle.api.tasks.Input
 
 class VagrantPropertiesExtension {
@@ -26,7 +27,7 @@ class VagrantPropertiesExtension {
     List<String> boxes
 
     @Input
-    String upgradeFromVersion
+    Version upgradeFromVersion
 
     @Input
     List<String> upgradeFromVersions
@@ -36,9 +37,6 @@ class VagrantPropertiesExtension {
 
     @Input
     Boolean inheritTests
-
-    @Input
-    Boolean inheritTestArchives
 
     @Input
     Boolean inheritTestUtils
@@ -58,10 +56,6 @@ class VagrantPropertiesExtension {
 
     void setInheritTests(Boolean inheritTests) {
         this.inheritTests = inheritTests
-    }
-
-    void setInheritTestArchives(Boolean inheritTestArchives) {
-        this.inheritTestArchives = inheritTestArchives
     }
 
     void setInheritTestUtils(Boolean inheritTestUtils) {

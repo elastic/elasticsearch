@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gradle.doc
 
+import groovy.transform.PackageScope
 import org.elasticsearch.gradle.doc.SnippetsTask.Snippet
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.tasks.Input
@@ -97,6 +98,43 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
          * and gce discovery plugins, the snippets should be marked
          * `// NOTCONSOLE`. */
         return snippet.language == 'js' || snippet.curl
+    }
+
+    /**
+     * Converts Kibana's block quoted strings into standard JSON. These
+     * {@code """} delimited strings can be embedded in CONSOLE and can
+     * contain newlines and {@code "} without the normal JSON escaping.
+     * This has to add it.
+     */
+    @PackageScope
+    static String replaceBlockQuote(String body) {
+        int start = body.indexOf('"""');
+        if (start < 0) {
+            return body
+        }
+        /*
+         * 1.3 is a fairly wild guess of the extra space needed to hold
+         * the escaped string.
+         */
+        StringBuilder result = new StringBuilder((int) (body.length() * 1.3));
+        int startOfNormal = 0;
+        while (start >= 0) {
+            int end = body.indexOf('"""', start + 3);
+            if (end < 0) {
+                throw new InvalidUserDataException(
+                    "Invalid block quote starting at $start in:\n$body")
+            }
+            result.append(body.substring(startOfNormal, start));
+            result.append('"');
+            result.append(body.substring(start + 3, end)
+                .replace('"', '\\"')
+                .replace("\n", "\\n"));
+            result.append('"');
+            startOfNormal = end + 3;
+            start = body.indexOf('"""', startOfNormal);
+        }
+        result.append(body.substring(startOfNormal));
+        return result.toString();
     }
 
     private class TestBuilder {
@@ -259,6 +297,8 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             if (body != null) {
                 // Throw out the leading newline we get from parsing the body
                 body = body.substring(1)
+                // Replace """ quoted strings with valid json ones
+                body = replaceBlockQuote(body)
                 current.println("        body: |")
                 body.eachLine { current.println("          $it") }
             }

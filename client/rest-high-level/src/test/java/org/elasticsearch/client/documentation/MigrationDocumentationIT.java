@@ -33,6 +33,7 @@ import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -75,7 +76,7 @@ public class MigrationDocumentationIT extends ESRestHighLevelClientTestCase {
                     .put(SETTING_NUMBER_OF_REPLICAS, 0)
                     .build();
 
-            String payload = XContentFactory.jsonBuilder() // <2>
+            String payload = Strings.toString(XContentFactory.jsonBuilder() // <2>
                     .startObject()
                         .startObject("settings") // <3>
                             .value(indexSettings)
@@ -89,7 +90,7 @@ public class MigrationDocumentationIT extends ESRestHighLevelClientTestCase {
                                 .endObject()
                             .endObject()
                         .endObject()
-                    .endObject().string();
+                    .endObject());
 
             HttpEntity entity = new NStringEntity(payload, ContentType.APPLICATION_JSON); // <5>
 

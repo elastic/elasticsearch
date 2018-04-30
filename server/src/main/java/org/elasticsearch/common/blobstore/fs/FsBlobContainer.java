@@ -19,12 +19,12 @@
 
 package org.elasticsearch.common.blobstore.fs;
 
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
-import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.core.internal.io.Streams;
 
 import java.io.BufferedInputStream;
 import java.io.FileNotFoundException;
@@ -128,7 +128,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
         }
         final Path file = path.resolve(blobName);
         try (OutputStream outputStream = Files.newOutputStream(file, StandardOpenOption.CREATE_NEW)) {
-            Streams.copy(inputStream, outputStream, new byte[blobStore.bufferSizeInBytes()]);
+            Streams.copy(inputStream, outputStream);
         }
         IOUtils.fsync(file, false);
         IOUtils.fsync(path, true);

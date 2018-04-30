@@ -120,9 +120,9 @@ public class UUIDTests extends ESTestCase {
         Logger logger = Loggers.getLogger(UUIDTests.class);
         // Low number so that the test runs quickly, but the results are more interesting with larger numbers
         // of indexed documents
-        assertThat(testCompression(500000, 10000, 3, logger), Matchers.lessThan(12d)); // ~10.8 in practice
-        assertThat(testCompression(500000, 1000, 3, logger), Matchers.lessThan(14d)); // ~11.5 in practice
-        assertThat(testCompression(500000, 100, 3, logger), Matchers.lessThan(21d)); // ~19.5 in practice
+        assertThat(testCompression(100000, 10000, 3, logger), Matchers.lessThan(14d)); // ~12 in practice
+        assertThat(testCompression(100000, 1000, 3, logger), Matchers.lessThan(15d)); // ~13 in practice
+        assertThat(testCompression(100000, 100, 3, logger), Matchers.lessThan(21d)); // ~20 in practice
     }
 
     private static double testCompression(int numDocs, int numDocsPerSecond, int numNodes, Logger logger) throws Exception {

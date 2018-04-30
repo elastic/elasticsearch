@@ -35,9 +35,9 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
-import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.common.io.FastCharArrayReader;
+import org.elasticsearch.core.internal.io.IOUtils;
 
+import java.io.CharArrayReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -314,7 +314,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         spare.copyUTF8Bytes(toAnalyze);
         CharsRef charsRef = spare.get();
         try (TokenStream ts = analyzer.tokenStream(
-                                  field, new FastCharArrayReader(charsRef.chars, charsRef.offset, charsRef.length))) {
+                                  field, new CharArrayReader(charsRef.chars, charsRef.offset, charsRef.length))) {
              return analyze(ts, consumer);
         }
     }

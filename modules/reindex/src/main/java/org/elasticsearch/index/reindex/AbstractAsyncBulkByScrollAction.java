@@ -45,7 +45,6 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
-import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
@@ -181,7 +180,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * Copies the metadata from a hit to the request.
      */
     protected RequestWrapper<?> copyMetadata(RequestWrapper<?> request, ScrollableHitSource.Hit doc) {
-        request.setParent(doc.getParent());
         copyRouting(request, doc.getRouting());
         return request;
     }
@@ -550,10 +548,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
         void setVersionType(VersionType versionType);
 
-        void setParent(String parent);
-
-        String getParent();
-
         void setRouting(String routing);
 
         String getRouting();
@@ -619,16 +613,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         @Override
         public void setVersionType(VersionType versionType) {
             request.versionType(versionType);
-        }
-
-        @Override
-        public void setParent(String parent) {
-            request.parent(parent);
-        }
-
-        @Override
-        public String getParent() {
-            return request.parent();
         }
 
         @Override
@@ -721,16 +705,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         }
 
         @Override
-        public void setParent(String parent) {
-            request.parent(parent);
-        }
-
-        @Override
-        public String getParent() {
-            return request.parent();
-        }
-
-        @Override
         public void setRouting(String routing) {
             request.routing(routing);
         }
@@ -807,8 +781,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             context.put(IdFieldMapper.NAME, doc.getId());
             Long oldVersion = doc.getVersion();
             context.put(VersionFieldMapper.NAME, oldVersion);
-            String oldParent = doc.getParent();
-            context.put(ParentFieldMapper.NAME, oldParent);
             String oldRouting = doc.getRouting();
             context.put(RoutingFieldMapper.NAME, oldRouting);
             context.put(SourceFieldMapper.NAME, request.getSource());
@@ -846,10 +818,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             if (false == Objects.equals(oldVersion, newValue)) {
                 scriptChangedVersion(request, newValue);
             }
-            newValue = context.remove(ParentFieldMapper.NAME);
-            if (false == Objects.equals(oldParent, newValue)) {
-                scriptChangedParent(request, newValue);
-            }
             /*
              * Its important that routing comes after parent in case you want to
              * change them both.
@@ -879,7 +847,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 RequestWrapper<DeleteRequest> delete = wrap(new DeleteRequest(request.getIndex(), request.getType(), request.getId()));
                 delete.setVersion(request.getVersion());
                 delete.setVersionType(VersionType.INTERNAL);
-                delete.setParent(request.getParent());
                 delete.setRouting(request.getRouting());
                 return delete;
             default:
@@ -896,8 +863,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         protected abstract void scriptChangedVersion(RequestWrapper<?> request, Object to);
 
         protected abstract void scriptChangedRouting(RequestWrapper<?> request, Object to);
-
-        protected abstract void scriptChangedParent(RequestWrapper<?> request, Object to);
 
     }
 

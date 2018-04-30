@@ -20,6 +20,7 @@ package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -158,7 +159,7 @@ public class SettingsFilterTests extends ESTestCase {
         xContentBuilder.startObject();
         source.toXContent(xContentBuilder, request);
         xContentBuilder.endObject();
-        String filteredSettingsString = xContentBuilder.string();
+        String filteredSettingsString = Strings.toString(xContentBuilder);
         filteredSettings = Settings.builder().loadFromSource(filteredSettingsString, xContentBuilder.contentType()).build();
         assertThat(filteredSettings, equalTo(filtered));
     }

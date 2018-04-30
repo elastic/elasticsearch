@@ -47,6 +47,7 @@ import org.apache.http.message.BasicStatusLine;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.apache.http.util.EntityUtils;
+import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.invocation.InvocationOnMock;
@@ -61,6 +62,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import static org.elasticsearch.client.RestClientTestUtil.getAllErrorStatusCodes;
@@ -68,6 +71,7 @@ import static org.elasticsearch.client.RestClientTestUtil.getHttpMethods;
 import static org.elasticsearch.client.RestClientTestUtil.getOkStatusCodes;
 import static org.elasticsearch.client.RestClientTestUtil.randomHttpMethod;
 import static org.elasticsearch.client.RestClientTestUtil.randomStatusCode;
+import static org.elasticsearch.client.SyncResponseListenerTests.assertExceptionStackContainsCallingMethod;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertArrayEquals;
@@ -88,6 +92,7 @@ import static org.mockito.Mockito.when;
  */
 public class RestClientSingleHostTests extends RestClientTestCase {
 
+    private ExecutorService exec = Executors.newFixedThreadPool(1);
     private RestClient restClient;
     private Header[] defaultHeaders;
     private HttpHost httpHost;
@@ -96,7 +101,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
 
     @Before
     @SuppressWarnings("unchecked")
-    public void createRestClient() throws IOException {
+    public void createRestClient() {
         httpClient = mock(CloseableHttpAsyncClient.class);
         when(httpClient.<HttpResponse>execute(any(HttpAsyncRequestProducer.class), any(HttpAsyncResponseConsumer.class),
                 any(HttpClientContext.class), any(FutureCallback.class))).thenAnswer(new Answer<Future<HttpResponse>>() {
@@ -105,7 +110,8 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                         HttpAsyncRequestProducer requestProducer = (HttpAsyncRequestProducer) invocationOnMock.getArguments()[0];
                         HttpClientContext context = (HttpClientContext) invocationOnMock.getArguments()[2];
                         assertThat(context.getAuthCache().get(httpHost), instanceOf(BasicScheme.class));
-                        FutureCallback<HttpResponse> futureCallback = (FutureCallback<HttpResponse>) invocationOnMock.getArguments()[3];
+                        final FutureCallback<HttpResponse> futureCallback =
+                            (FutureCallback<HttpResponse>) invocationOnMock.getArguments()[3];
                         HttpUriRequest request = (HttpUriRequest)requestProducer.generateRequest();
                         //return the desired status code or exception depending on the path
                         if (request.getURI().getPath().equals("/soe")) {
@@ -116,7 +122,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                             int statusCode = Integer.parseInt(request.getURI().getPath().substring(1));
                             StatusLine statusLine = new BasicStatusLine(new ProtocolVersion("http", 1, 1), statusCode, "");
 
-                            HttpResponse httpResponse = new BasicHttpResponse(statusLine);
+                            final HttpResponse httpResponse = new BasicHttpResponse(statusLine);
                             //return the same body that was sent
                             if (request instanceof HttpEntityEnclosingRequest) {
                                 HttpEntity entity = ((HttpEntityEnclosingRequest) request).getEntity();
@@ -128,7 +134,13 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                             }
                             //return the same headers that were sent
                             httpResponse.setHeaders(request.getAllHeaders());
-                            futureCallback.completed(httpResponse);
+                            // Call the callback asynchronous to better simulate how async http client works
+                            exec.execute(new Runnable() {
+                                @Override
+                                public void run() {
+                                    futureCallback.completed(httpResponse);
+                                }
+                            });
                         }
                         return null;
                     }
@@ -140,15 +152,12 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         restClient = new RestClient(httpClient, 10000, defaultHeaders, new HttpHost[]{httpHost}, null, failureListener);
     }
 
-    public void testNullPath() throws IOException {
-        for (String method : getHttpMethods()) {
-            try {
-                restClient.performRequest(method, null);
-                fail("path set to null should fail!");
-            } catch (NullPointerException e) {
-                assertEquals("path must not be null", e.getMessage());
-            }
-        }
+    /**
+     * Shutdown the executor so we don't leak threads into other test runs.
+     */
+    @After
+    public void shutdownExec() {
+        exec.shutdown();
     }
 
     /**
@@ -173,33 +182,6 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                     assertEquals(EntityUtils.toString(expectedEntity), EntityUtils.toString(actualEntity));
                 }
             }
-        }
-    }
-
-    public void testSetHosts() throws IOException {
-        try {
-            restClient.setHosts((HttpHost[]) null);
-            fail("setHosts should have failed");
-        } catch (IllegalArgumentException e) {
-            assertEquals("hosts must not be null nor empty", e.getMessage());
-        }
-        try {
-            restClient.setHosts();
-            fail("setHosts should have failed");
-        } catch (IllegalArgumentException e) {
-            assertEquals("hosts must not be null nor empty", e.getMessage());
-        }
-        try {
-            restClient.setHosts((HttpHost) null);
-            fail("setHosts should have failed");
-        } catch (NullPointerException e) {
-            assertEquals("host cannot be null", e.getMessage());
-        }
-        try {
-            restClient.setHosts(new HttpHost("localhost", 9200), null, new HttpHost("localhost", 9201));
-            fail("setHosts should have failed");
-        } catch (NullPointerException e) {
-            assertEquals("host cannot be null", e.getMessage());
         }
     }
 
@@ -258,6 +240,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                         throw e;
                     }
                     assertEquals(errorStatusCode, e.getResponse().getStatusLine().getStatusCode());
+                    assertExceptionStackContainsCallingMethod(e);
                 }
                 if (errorStatusCode <= 500 || expectedIgnores.contains(errorStatusCode)) {
                     failureListener.assertNotCalled();
@@ -268,7 +251,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         }
     }
 
-    public void testIOExceptions() throws IOException {
+    public void testIOExceptions() {
         for (String method : getHttpMethods()) {
             //IOExceptions should be let bubble up
             try {
@@ -309,6 +292,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                     Response response = e.getResponse();
                     assertThat(response.getStatusLine().getStatusCode(), equalTo(errorStatusCode));
                     assertThat(EntityUtils.toString(response.getEntity()), equalTo(body));
+                    assertExceptionStackContainsCallingMethod(e);
                 }
             }
         }

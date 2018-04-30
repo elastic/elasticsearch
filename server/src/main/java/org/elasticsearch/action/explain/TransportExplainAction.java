@@ -112,13 +112,13 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
             if (uidTerm == null) {
                 return new ExplainResponse(shardId.getIndexName(), request.type(), request.id(), false);
             }
-            result = context.indexShard().get(new Engine.Get(false, request.type(), request.id(), uidTerm));
+            result = context.indexShard().get(new Engine.Get(false, false, request.type(), request.id(), uidTerm));
             if (!result.exists()) {
                 return new ExplainResponse(shardId.getIndexName(), request.type(), request.id(), false);
             }
             context.parsedQuery(context.getQueryShardContext().toQuery(request.query()));
             context.preProcess(true);
-            int topLevelDocId = result.docIdAndVersion().docId + result.docIdAndVersion().context.docBase;
+            int topLevelDocId = result.docIdAndVersion().docId + result.docIdAndVersion().docBase;
             Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);
             for (RescoreContext ctx : context.rescore()) {
                 Rescorer rescorer = ctx.rescorer();

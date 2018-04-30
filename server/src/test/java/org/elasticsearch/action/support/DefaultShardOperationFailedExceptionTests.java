@@ -22,6 +22,7 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -96,7 +97,7 @@ public class DefaultShardOperationFailedExceptionTests extends ESTestCase {
             .endObject();
         builder = shuffleXContent(builder);
         DefaultShardOperationFailedException parsed;
-        try(XContentParser parser = createParser(xContent, builder.bytes())) {
+        try(XContentParser parser = createParser(xContent, BytesReference.bytes(builder))) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             parsed = DefaultShardOperationFailedException.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());

@@ -1,7 +1,7 @@
 :version:               7.0.0-alpha1
 :major-version:         7.x
-:lucene_version:        7.2.1
-:lucene_version_path:   7_2_1
+:lucene_version:        7.3.0
+:lucene_version_path:   7_3_0
 :branch:                master
 :jdk:                   1.8.0_131
 :jdk_major:             8

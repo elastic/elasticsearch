@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -306,7 +307,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 builder.endObject();
             }
             builder.endObject();
-            requestBody = builder.string();
+            requestBody = Strings.toString(builder);
         }
         return new NStringEntity(requestBody, ContentType.APPLICATION_JSON);
     }

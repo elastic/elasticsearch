@@ -110,10 +110,8 @@ public class FieldCapabilitiesResponseTests extends AbstractStreamableXContentTe
     public void testToXContent() throws IOException {
         FieldCapabilitiesResponse response = createSimpleResponse();
 
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)
-            .startObject();
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
 
         String generatedResponse = BytesReference.bytes(builder).utf8ToString();
         assertEquals((

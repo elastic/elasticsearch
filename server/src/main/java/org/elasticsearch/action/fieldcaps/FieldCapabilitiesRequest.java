@@ -30,7 +30,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -102,10 +101,6 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         }
     }
 
-    public static FieldCapabilitiesRequest parseFields(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
-    }
-
     /**
      * The list of field names to retrieve
      */
@@ -162,17 +157,17 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         if (o == null || getClass() != o.getClass()) return false;
 
         FieldCapabilitiesRequest that = (FieldCapabilitiesRequest) o;
-
-        if (!Arrays.equals(indices, that.indices)) return false;
-        if (!indicesOptions.equals(that.indicesOptions)) return false;
-        return Arrays.equals(fields, that.fields);
+        return  Arrays.equals(indices, that.indices) &&
+            Objects.equals(indicesOptions, that.indicesOptions) &&
+            Arrays.equals(fields, that.fields) &&
+            Objects.equals(mergeResults, that.mergeResults);
     }
 
     @Override
     public int hashCode() {
-        int result = Arrays.hashCode(indices);
-        result = 31 * result + indicesOptions.hashCode();
-        result = 31 * result + Arrays.hashCode(fields);
-        return result;
+        return Objects.hash(Arrays.hashCode(indices),
+            indicesOptions,
+            Arrays.hashCode(fields),
+            mergeResults);
     }
 }

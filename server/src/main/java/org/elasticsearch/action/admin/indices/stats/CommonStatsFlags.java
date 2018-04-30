@@ -221,7 +221,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         Completion("completion", 11),
         Segments("segments", 12),
         Translog("translog", 13),
-        Suggest("suggest", 14), // unused
+        // 14 was previously used for Suggest
         RequestCache("request_cache", 15),
         Recovery("recovery", 16);
 

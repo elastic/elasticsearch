@@ -287,8 +287,16 @@ public class RangeFieldMapper extends FieldMapper {
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
                                 ShapeRelation relation, DateTimeZone timeZone, DateMathParser parser, QueryShardContext context) {
             failIfNotIndexed();
-            return rangeType.rangeQuery(name(), hasDocValues(), lowerTerm, upperTerm, includeLower, includeUpper, relation,
-                timeZone, parser, context);
+            return rangeType.rangeQuery(name(),
+                hasDocValues(),
+                lowerTerm,
+                upperTerm,
+                includeLower,
+                includeUpper,
+                relation,
+                timeZone,
+                parser != null ? parser : this.dateMathParser, // try and use the parser with the mapping format.
+                context);
         }
     }
 
@@ -586,6 +594,8 @@ public class RangeFieldMapper extends FieldMapper {
                                     boolean includeUpper, ShapeRelation relation, @Nullable DateTimeZone timeZone,
                                     @Nullable DateMathParser parser, QueryShardContext context) {
                 DateTimeZone zone = (timeZone == null) ? DateTimeZone.UTC : timeZone;
+
+                // if no parser (no format in mapping or query) use default.
                 DateMathParser dateMathParser = (parser == null) ?
                     new DateMathParser(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER) : parser;
                 Long low = lowerTerm == null ? Long.MIN_VALUE :

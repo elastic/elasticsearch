@@ -20,6 +20,7 @@ This section summarizes the changes in each release.
 == {es} 7.0.0
 
 [float]
+[[breaking-7.0.0]]
 === Breaking Changes
 
 <<write-thread-pool-fallback, Removed `thread_pool.bulk.*` settings and

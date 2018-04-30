@@ -169,7 +169,7 @@ public class OpenLdapTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/2849")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29758")
     public void testTcpTimeout() throws Exception {
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "oldap-test");
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";

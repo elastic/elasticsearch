@@ -1,5 +1,5 @@
 [[native-realm]]
-=== Native User Authentication
+=== Native user authentication
 
 The easiest way to manage and authenticate users is with the internal `native`
 realm. You can use the REST APIs or Kibana to add and remove users, assign user roles, and
@@ -7,7 +7,7 @@ manage user passwords.
 
 [[native-realm-configuration]]
 [float]
-==== Configuring a Native Realm
+==== Configuring a native realm
 
 The native realm is added to the realm chain by default. You don't need to
 explicitly configure a native realm to manage users through the REST APIs.
@@ -47,45 +47,12 @@ xpack:
 . Restart Elasticsearch.
 
 [[native-settings]]
-.Native Realm Settings
-[cols="4,^3,10"]
-|=======================
-| Setting             | Required  | Description
+==== Native realm settings
 
-| `type`              | yes       | Indicates the realm type. Must be set to `native`.
-
-| `order`             | no        | Indicates the priority of this realm within
-                                    the realm chain. Realms with a lower order
-                                    are consulted first. Although not required,
-                                    we recommend explicitly setting this value
-                                    when you configure multiple realms. Defaults
-                                    to `Integer.MAX_VALUE`.
-
-| `enabled`           | no        | Indicates whether this realm is enabled or
-                                    disabled. When set to `false`, the realm is
-                                    not added to the realm chain and therefore
-                                    is inactive. Defaults to `true`.
-
-| `cache.ttl`         | no        | Specifies the time-to-live for cached user
-                                    entries. A user's credentials are cached for
-                                    this period of time. Specify the time period
-                                    using the standard Elasticsearch
-                                    {ref}/common-options.html#time-units[time units].
-                                    Defaults to `20m`.
-
-| `cache.max_users`   | no        | Specifies the maximum number of user entries
-                                    that can be cached at any given time. Defaults
-                                    to 100,000.
-
-| `cache.hash_algo`   | no        | Specifies the hashing algorithm that is used
-                                    for the cached user credentials. See
-                                    <<cache-hash-algo, Cache hash algorithms>>
-                                    for the possible values. (Expert Setting)
-|=======================
-
+See {ref}/security-settings.html#ref-native-settings[Native Realm Settings]. 
 
 [[managing-native-users]]
-==== Managing Native Users
+==== Managing native users
 
 {security} enables you to easily manage users in {kib} on the 
 *Management / Security / Users* page. 

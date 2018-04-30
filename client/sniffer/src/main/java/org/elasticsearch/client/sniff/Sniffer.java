@@ -78,7 +78,7 @@ public class Sniffer implements Closeable {
     /**
      * Triggers a new immediate sniffing round, which will schedule a new round in sniffAfterFailureDelayMillis ms
      */
-    public final void sniffOnFailure() {
+    public void sniffOnFailure() {
         scheduleNextRound(0L, sniffAfterFailureDelayMillis, true);
     }
 

@@ -6,7 +6,7 @@ script that is executed on each window of data.  For convenience, a number of co
 etc.
 
 This is conceptually very similar to the <<search-aggregations-pipeline-movavg-aggregation, Moving Average>> pipeline aggregation, except
-it provides more functionality and better flexibility.
+it provides more functionality.
 ==== Syntax
 
 A `moving_fn` aggregation looks like this in isolation:
@@ -27,9 +27,8 @@ A `moving_fn` aggregation looks like this in isolation:
 |===
 |Parameter Name |Description |Required |Default Value
 |`buckets_path` |Path to the metric of interest (see <<buckets-path-syntax, `buckets_path` Syntax>> for more details |Required |
-|`window` |The size of window to "slide" across the histogram. |Optional |`5`
+|`window` |The size of window to "slide" across the histogram. |Required |
 |`script` |The script that should be executed on each window of data |Required |
-|`params` |User-defined extra parameters to be injected into the script |Optional |
 |===
 
 `moving_fn` aggregations must be embedded inside of a `histogram` or `date_histogram` aggregation.  They can be
@@ -50,7 +49,7 @@ POST /_search
                 "the_sum":{
                     "sum":{ "field": "price" } <2>
                 },
-                "the_movavg": {
+                "the_movfn": {
                     "moving_fn": {
                         "buckets_path": "the_sum", <3>
                         "window": 10,
@@ -66,11 +65,11 @@ POST /_search
 // TEST[setup:sales]
 
 <1> A `date_histogram` named "my_date_histo" is constructed on the "timestamp" field, with one-day intervals
-<2> A `sum` metric is used to calculate the sum of a field.  This could be any metric (sum, min, max, etc)
+<2> A `sum` metric is used to calculate the sum of a field.  This could be any numeric metric (sum, min, max, etc)
 <3> Finally, we specify a `moving_fn` aggregation which uses "the_sum" metric as its input.
 
 Moving averages are built by first specifying a `histogram` or `date_histogram` over a field.  You can then optionally
-add normal metrics, such as a `sum`, inside of that histogram.  Finally, the `moving_fn` is embedded inside the histogram.
+add numeric metrics, such as a `sum`, inside of that histogram.  Finally, the `moving_fn` is embedded inside the histogram.
 The `buckets_path` parameter is then used to "point" at one of the sibling metrics inside of the histogram (see
 <<buckets-path-syntax>> for a description of the syntax for `buckets_path`.
 
@@ -92,6 +91,9 @@ An example response from the above aggregation may look like:
                  "doc_count": 3,
                  "the_sum": {
                     "value": 550.0
+                 },
+                 "the_movfn": {
+                    "value": null
                  }
              },
              {
@@ -101,7 +103,7 @@ An example response from the above aggregation may look like:
                  "the_sum": {
                     "value": 60.0
                  },
-                 "moving_fn": {
+                 "the_movfn": {
                     "value": 550.0
                  }
              },
@@ -112,7 +114,7 @@ An example response from the above aggregation may look like:
                  "the_sum": {
                     "value": 375.0
                  },
-                 "moving_fn": {
+                 "the_movfn": {
                     "value": 305.0
                  }
              }
@@ -132,7 +134,7 @@ The Moving Function aggregation allows the user to specify any arbitrary script 
 new window of data is collected.  These values are provided to the script in the `values` variable.  The script should then perform some
 kind of calculation and emit a single `double` as the result.  Emitting `null` is not permitted, although `NaN` and +/- `Inf` are allowed.
 
-For example, this script will simply return the first value from the window:
+For example, this script will simply return the first value from the window, or `NaN` if no values are available:
 
 [source,js]
 --------------------------------------------------
@@ -153,7 +155,7 @@ POST /_search
                     "moving_fn": {
                         "buckets_path": "the_sum",
                         "window": 10,
-                        "script": "return values[0];"
+                        "script": "return values.toArray().length > 0 ? values.toArray()[0] : Double.NaN"
                     }
                 }
             }
@@ -171,6 +173,7 @@ For convenience, a number of functions have been prebuilt and are available insi
 - `windowMax()`
 - `windowMin()`
 - `windowSum()`
+- `windowStdDev()`
 - `simpleMovAvg()`
 - `linearMovAvg()`
 - `ewmaMovAvg()`
@@ -181,8 +184,8 @@ The functions are available from the `MovingFunctions` namespace.  E.g. `MovingF
 
 ===== windowMax Function
 
-This function accepts a collection of doubles and returns the maximum value in that window.  If the window is empty, or all values
-are `null`/`NaN`, `NaN` is returned as the result.
+This function accepts a collection of doubles and returns the maximum value in that window. `null` and `NaN` values are ignored; the maximum
+is only calculated over the real values. If the window is empty, or all values are `null`/`NaN`, `NaN` is returned as the result.
 
 .`windowMax(Collection<Double> values)` Parameters
 |===
@@ -222,8 +225,8 @@ POST /_search
 
 ===== windowMin Function
 
-This function accepts a collection of doubles and returns the minimum value in that window.  If the window is empty, or all values
-are `null`/`NaN`, `NaN` is returned as the result.
+This function accepts a collection of doubles and returns the minimum value in that window.  `null` and `NaN` values are ignored; the minimum
+is only calculated over the real values. If the window is empty, or all values are `null`/`NaN`, `NaN` is returned as the result.
 
 .`windowMin(Collection<Double> values)` Parameters
 |===
@@ -263,8 +266,8 @@ POST /_search
 
 ===== windowSum Function
 
-This function accepts a collection of doubles and returns the sum of the values in that window.  If the window is empty, or all values
-are `null`/`NaN`, `0.0` is returned as the result.
+This function accepts a collection of doubles and returns the sum of the values in that window.  `null` and `NaN` values are ignored;
+the sum is only calculated over the real values.  If the window is empty, or all values are `null`/`NaN`, `0.0` is returned as the result.
 
 .`windowSum(Collection<Double> values)` Parameters
 |===
@@ -302,13 +305,62 @@ POST /_search
 // CONSOLE
 // TEST[setup:sales]
 
+===== windowStdDev Function
+
+This function accepts a collection of doubles and and average, then returns the standard deviation of the values in that window.
+`null` and `NaN` values are ignored; the sum is only calculated over the real values.  If the window is empty, or all values are
+`null`/`NaN`, `0.0` is returned as the result.
+
+.`windowSum(Collection<Double> values)` Parameters
+|===
+|Parameter Name |Description
+|`values` |The window of values to find the standard deviation of
+|`avg` |The average of the window
+|===
+
+[source,js]
+--------------------------------------------------
+POST /_search
+{
+    "size": 0,
+    "aggs": {
+        "my_date_histo":{
+            "date_histogram":{
+                "field":"date",
+                "interval":"1M"
+            },
+            "aggs":{
+                "the_sum":{
+                    "sum":{ "field": "price" }
+                },
+                "the_moving_sum": {
+                    "moving_fn": {
+                        "buckets_path": "the_sum",
+                        "window": 10,
+                        "script": "MovingFunctions.windowStdDev(values, MovingFunctions.simpleMovAvg(values))"
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
+
+The `avg` parameter must be provided to the standard deviation function because different styles of averages can be computed on the window
+(simple, linearly weighted, etc).  The various moving averages that are detailed below can be used to calculate the average for the
+standard deviation function.
+
 ===== simpleMovAvg Function
 
 The `simpleMovAvg` function calculates the sum of all values in the window, then divides by the size of the window.  It is effectively
 a simple arithmetic mean of the window.  The simple moving average does not perform any time-dependent weighting, which means
 the values from a `simple` moving average tend to "lag" behind the real data.
 
-If the window is empty, or all values are `null`/`NaN`, `NaN` is returned as the result.
+`null` and `NaN` values are ignored; the average is only calculated over the real values. If the window is empty, or all values are
+`null`/`NaN`, `NaN` is returned as the result.  This means that the count used in the average calculation is count of non-`null`,non-`NaN`
+values.
 
 .`simpleMovAvg(Collection<Double> values)` Parameters
 |===
@@ -399,7 +451,9 @@ setting.  Small values make the weight decay slowly, which provides greater smoo
 portion of the window.  Larger valuers make the weight decay quickly, which reduces the impact of older values on the
 moving average.  This tends to make the moving average track the data more closely but with less smoothing.
 
-If the window is empty, or all values are `null`/`NaN`, `NaN` is returned as the result.
+`null` and `NaN` values are ignored; the average is only calculated over the real values. If the window is empty, or all values are
+`null`/`NaN`, `NaN` is returned as the result.  This means that the count used in the average calculation is count of non-`null`,non-`NaN`
+values.
 
 .`ewmaMovAvg(Collection<Double> values, double alpha)` Parameters
 |===
@@ -452,7 +506,9 @@ smoothed data).  The trend value is also exponentially weighted.
 
 Values are produced by multiplying the level and trend components.
 
-If the window is empty, or all values are `null`/`NaN`, `NaN` is returned as the result.
+`null` and `NaN` values are ignored; the average is only calculated over the real values. If the window is empty, or all values are
+`null`/`NaN`, `NaN` is returned as the result.  This means that the count used in the average calculation is count of non-`null`,non-`NaN`
+values.
 
 .`holtMovAvg(Collection<Double> values, double alpha)` Parameters
 |===
@@ -511,7 +567,9 @@ of your data: e.g. if your data has cyclic trends every 7 days, you would set `p
 a monthly trend, you would set it to `30`.  There is currently no periodicity detection, although that is planned
 for future enhancements.
 
-If the window is empty, or all values are `null`/`NaN`, `NaN` is returned as the result.
+`null` and `NaN` values are ignored; the average is only calculated over the real values. If the window is empty, or all values are
+`null`/`NaN`, `NaN` is returned as the result.  This means that the count used in the average calculation is count of non-`null`,non-`NaN`
+values.
 
 .`holtWintersMovAvg(Collection<Double> values, double alpha)` Parameters
 |===

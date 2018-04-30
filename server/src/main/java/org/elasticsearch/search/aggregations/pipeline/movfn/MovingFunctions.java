@@ -64,7 +64,8 @@ public class MovingFunctions {
      * Calculate a simple unweighted (arithmetic) moving average.
      *
      * Only finite values are averaged.  NaN or null are ignored.
-     * If all values are missing/null/NaN, the return value will be NaN
+     * If all values are missing/null/NaN, the return value will be NaN.
+     * The average is based on the count of non-null, non-NaN values.
      */
     public static double simpleMovAvg(Collection<Double> values) {
         double avg = 0.0;
@@ -79,11 +80,35 @@ public class MovingFunctions {
     }
 
     /**
+     * Calculate a standard deviation over the values using the provided average.
+     *
+     * Only finite values are averaged.  NaN or null are ignored.
+     * If all values are missing/null/NaN, the return value will be NaN.
+     * The average is based on the count of non-null, non-NaN values.
+     */
+    public static double windowStdDev(Collection<Double> values, double avg) {
+        if (avg == Double.NaN) {
+            return Double.NaN;
+        } else {
+            long count = 0;
+            double squaredMean = 0;
+            for (Double v : values) {
+                if (v != null && v.isNaN() == false) {
+                    squaredMean += Math.pow(v - avg, 2);
+                    count += 1;
+                }
+            }
+            return Math.sqrt(squaredMean / count);
+        }
+    }
+
+    /**
      * Calculate a linearly weighted moving average, such that older values are
      * linearly less important.  "Time" is determined by position in collection
      *
      * Only finite values are averaged.  NaN or null are ignored.
      * If all values are missing/null/NaN, the return value will be NaN
+     * The average is based on the count of non-null, non-NaN values.
      */
     public static double linearMovAvg(Collection<Double> values) {
         double avg = 0;
@@ -110,6 +135,7 @@ public class MovingFunctions {
      *
      * Only finite values are averaged.  NaN or null are ignored.
      * If all values are missing/null/NaN, the return value will be NaN
+     * The average is based on the count of non-null, non-NaN values.
      *
      * @param alpha A double between 0-1 inclusive, controls data smoothing
      */
@@ -141,6 +167,7 @@ public class MovingFunctions {
      *
      * Only finite values are averaged.  NaN or null are ignored.
      * If all values are missing/null/NaN, the return value will be NaN
+     * The average is based on the count of non-null, non-NaN values.
      *
      * @param alpha A double between 0-1 inclusive, controls data smoothing
      * @param beta a double between 0-1 inclusive, controls trend smoothing
@@ -211,6 +238,7 @@ public class MovingFunctions {
      *
      * Only finite values are averaged.  NaN or null are ignored.
      * If all values are missing/null/NaN, the return value will be NaN
+     * The average is based on the count of non-null, non-NaN values.
      *
      * @param alpha A double between 0-1 inclusive, controls data smoothing
      * @param beta a double between 0-1 inclusive, controls trend smoothing

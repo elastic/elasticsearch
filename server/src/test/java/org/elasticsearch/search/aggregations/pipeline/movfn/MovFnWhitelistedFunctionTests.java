@@ -249,6 +249,68 @@ public class MovFnWhitelistedFunctionTests extends ESTestCase {
         assertThat(actual, equalTo(Double.NaN));
     }
 
+    public void testSimpleMovStdDev() {
+        int numValues = randomIntBetween(1, 100);
+        int windowSize = randomIntBetween(1, 50);
+
+        EvictingQueue<Double> window = new EvictingQueue<>(windowSize);
+        for (int i = 0; i < numValues; i++) {
+
+            double randValue = randomDouble();
+            double mean = 0;
+
+            if (i == 0) {
+                window.offer(randValue);
+                continue;
+            }
+
+            for (double value : window) {
+                mean += value;
+            }
+            mean /= window.size();
+
+            double expected = 0.0;
+            for (double value : window) {
+                expected += Math.pow(value - mean, 2);
+            }
+            expected = Math.sqrt(expected / window.size());
+
+            double actual = MovingFunctions.windowStdDev(window, mean);
+            assertEquals(expected, actual, 0.01 * Math.abs(expected));
+            window.offer(randValue);
+        }
+    }
+
+    public void testNullSimpleStdDev() {
+        int numValues = randomIntBetween(1, 100);
+        int windowSize = randomIntBetween(1, 50);
+
+        EvictingQueue<Double> window = new EvictingQueue<>(windowSize);
+        for (int i = 0; i < numValues; i++) {
+
+            Double randValue = randomBoolean() ? Double.NaN : null;
+
+            if (i == 0) {
+                if (randValue != null) {
+                    window.offer(randValue);
+                }
+                continue;
+            }
+
+            double actual = MovingFunctions.windowStdDev(window, MovingFunctions.simpleMovAvg(window));
+            assertThat(actual, equalTo(Double.NaN));
+            if (randValue != null) {
+                window.offer(randValue);
+            }
+        }
+    }
+
+    public void testEmptySimpleStdDev() {
+        EvictingQueue<Double> window = new EvictingQueue<>(0);
+        double actual = MovingFunctions.windowStdDev(window,  MovingFunctions.simpleMovAvg(window));
+        assertThat(actual, equalTo(Double.NaN));
+    }
+
     public void testLinearMovAvg() {
 
         int numValues = randomIntBetween(1, 100);

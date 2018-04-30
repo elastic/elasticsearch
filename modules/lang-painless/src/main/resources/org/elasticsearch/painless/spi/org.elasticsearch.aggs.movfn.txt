@@ -23,6 +23,7 @@ class org.elasticsearch.search.aggregations.pipeline.movfn.MovingFunctions {
   double windowMax(Collection)
   double windowMin(Collection)
   double windowSum(Collection)
+  double windowStdDev(Collection, double)
   double simpleMovAvg(Collection)
   double linearMovAvg(Collection)
   double ewmaMovAvg(Collection, double)

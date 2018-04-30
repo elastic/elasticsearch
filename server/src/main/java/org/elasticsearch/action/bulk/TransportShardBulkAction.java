@@ -67,7 +67,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
@@ -606,7 +605,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     class ConcreteMappingUpdatePerformer implements MappingUpdatePerformer {
 
         public void updateMappings(final Mapping update, final ShardId shardId, final String type) {
-            Objects.requireNonNull(update);
+            assert update != null;
             // can throw timeout exception when updating mappings or ISE for attempting to
             // update default mappings which are bubbled up
             mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), type, update);

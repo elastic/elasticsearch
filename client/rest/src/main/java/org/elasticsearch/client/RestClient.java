@@ -210,9 +210,7 @@ public class RestClient implements Closeable {
      * @throws IOException in case of a problem or the connection was aborted
      * @throws ClientProtocolException in case of an http protocol error
      * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
-     * @deprecated Prefer {@link #performRequest(Request)}
      */
-    @Deprecated
     public Response performRequest(String method, String endpoint, Header... headers) throws IOException {
         Request request = new Request(method, endpoint);
         request.setHeaders(headers);
@@ -231,9 +229,7 @@ public class RestClient implements Closeable {
      * @throws IOException in case of a problem or the connection was aborted
      * @throws ClientProtocolException in case of an http protocol error
      * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
-     * @deprecated Prefer {@link #performRequest(Request)}
      */
-    @Deprecated
     public Response performRequest(String method, String endpoint, Map<String, String> params, Header... headers) throws IOException {
         Request request = new Request(method, endpoint);
         addParameters(request, params);
@@ -256,9 +252,7 @@ public class RestClient implements Closeable {
      * @throws IOException in case of a problem or the connection was aborted
      * @throws ClientProtocolException in case of an http protocol error
      * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
-     * @deprecated Prefer {@link #performRequest(Request)}
      */
-    @Deprecated
     public Response performRequest(String method, String endpoint, Map<String, String> params,
                                    HttpEntity entity, Header... headers) throws IOException {
         Request request = new Request(method, endpoint);
@@ -295,9 +289,7 @@ public class RestClient implements Closeable {
      * @throws IOException in case of a problem or the connection was aborted
      * @throws ClientProtocolException in case of an http protocol error
      * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
-     * @deprecated Prefer {@link #performRequest(Request)}
      */
-    @Deprecated
     public Response performRequest(String method, String endpoint, Map<String, String> params,
                                    HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
                                    Header... headers) throws IOException {
@@ -318,9 +310,7 @@ public class RestClient implements Closeable {
      * @param endpoint the path of the request (without host and port)
      * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
      * @param headers the optional request headers
-     * @deprecated Prefer {@link #performRequestAsync(Request, ResponseListener)}
      */
-    @Deprecated
     public void performRequestAsync(String method, String endpoint, ResponseListener responseListener, Header... headers) {
         Request request;
         try {
@@ -343,9 +333,7 @@ public class RestClient implements Closeable {
      * @param params the query_string parameters
      * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
      * @param headers the optional request headers
-     * @deprecated Prefere {@link #performRequestAsync(Request, ResponseListener)}
      */
-    @Deprecated
     public void performRequestAsync(String method, String endpoint, Map<String, String> params,
                                     ResponseListener responseListener, Header... headers) {
         Request request;
@@ -373,9 +361,7 @@ public class RestClient implements Closeable {
      * @param entity the body of the request, null if not applicable
      * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
      * @param headers the optional request headers
-     * @deprecated Prefer {@link #performRequestAsync(Request, ResponseListener)}
      */
-    @Deprecated
     public void performRequestAsync(String method, String endpoint, Map<String, String> params,
                                     HttpEntity entity, ResponseListener responseListener, Header... headers) {
         Request request;
@@ -408,9 +394,7 @@ public class RestClient implements Closeable {
      * connection on the client side.
      * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
      * @param headers the optional request headers
-     * @deprecated Prefer {@link #performRequestAsync(Request, ResponseListener)}
      */
-    @Deprecated
     public void performRequestAsync(String method, String endpoint, Map<String, String> params,
                                     HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
                                     ResponseListener responseListener, Header... headers) {

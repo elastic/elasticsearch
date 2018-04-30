@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -21,24 +22,31 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Function;
 
 public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm implements CachingRealm {
 
     private final Cache<String, UserWithHash> cache;
     final Hasher hasher;
 
-    protected CachingUsernamePasswordRealm(String type, RealmConfig config) {
-        super(type, config);
-        hasher = Hasher.resolve(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING.get(config.settings()), Hasher.SSHA256);
-        TimeValue ttl = CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING.get(config.settings());
+    protected CachingUsernamePasswordRealm(RealmConfig config) {
+        super(config);
+        hasher = Hasher.resolve(setting(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING), Hasher.SSHA256);
+        TimeValue ttl = setting(CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING);
         if (ttl.getNanos() > 0) {
             cache = CacheBuilder.<String, UserWithHash>builder()
                     .setExpireAfterWrite(ttl)
-                    .setMaximumWeight(CachingUsernamePasswordRealmSettings.CACHE_MAX_USERS_SETTING.get(config.settings()))
+                    .setMaximumWeight(setting(CachingUsernamePasswordRealmSettings.CACHE_MAX_USERS_SETTING))
                     .build();
         } else {
             cache = null;
         }
+    }
+
+    private <T> T setting(Function<String, Setting.AffixSetting<T>> settingFunction) {
+        final Setting.AffixSetting<T> affixSetting = settingFunction.apply(config.type());
+        final Setting<T> concreteSetting = affixSetting.getConcreteSettingForNamespace(config.name());
+        return concreteSetting.get(config.globalSettings());
     }
 
     public final void expire(String username) {
@@ -59,8 +67,9 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
      * If the user exists in the cache (keyed by the principle name), then the password is validated
      * against a hash also stored in the cache.  Otherwise the subclass authenticates the user via
      * doAuthenticate
+     *
      * @param authToken The authentication token
-     * @param listener to be called at completion
+     * @param listener  to be called at completion
      */
     @Override
     public final void authenticate(AuthenticationToken authToken, ActionListener<AuthenticationResult> listener) {
@@ -105,7 +114,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                         if (result.isAuthenticated()) {
                             final User user = result.getUser();
                             logger.debug("realm [{}] authenticated user [{}] (enabled:{}), with roles [{}]", name(), token.principal(),
-                                   user.enabled(), user.roles());
+                                    user.enabled(), user.roles());
                         }
                         listener.onResponse(result);
                     }, listener::onFailure));

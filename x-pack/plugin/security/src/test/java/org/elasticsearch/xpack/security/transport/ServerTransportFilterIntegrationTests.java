@@ -139,8 +139,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
 
         // test that starting up a node works
         Settings.Builder nodeSettings = Settings.builder()
-                .put("xpack.security.authc.realms.file.type", FileRealmSettings.TYPE)
-                .put("xpack.security.authc.realms.file.order", 0)
+                .put("xpack.security.authc.realms.file.file.order", 0)
                 .put("node.name", "my-test-node")
                 .put(SecurityField.USER_SETTING.getKey(), "test_user:" + SecuritySettingsSourceField.TEST_PASSWORD)
                 .put("cluster.name", internalCluster().getClusterName())

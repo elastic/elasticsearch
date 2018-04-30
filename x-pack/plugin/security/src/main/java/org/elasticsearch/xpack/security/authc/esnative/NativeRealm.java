@@ -10,7 +10,6 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
-import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
@@ -23,7 +22,7 @@ public class NativeRealm extends CachingUsernamePasswordRealm {
     private final NativeUsersStore userStore;
 
     public NativeRealm(RealmConfig config, NativeUsersStore usersStore) {
-        super(NativeRealmSettings.TYPE, config);
+        super(config);
         this.userStore = usersStore;
     }
 

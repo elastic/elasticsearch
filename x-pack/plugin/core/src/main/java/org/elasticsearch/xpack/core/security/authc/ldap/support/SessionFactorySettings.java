@@ -7,38 +7,53 @@ package org.elasticsearch.xpack.core.security.authc.ldap.support;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 
 public final class SessionFactorySettings {
-    public static final String URLS_SETTING = "url";
-    public static final String TIMEOUT_TCP_CONNECTION_SETTING = "timeout.tcp_connect";
-    public static final String TIMEOUT_TCP_READ_SETTING = "timeout.tcp_read";
-    public static final String TIMEOUT_LDAP_SETTING = "timeout.ldap_search";
-    public static final String HOSTNAME_VERIFICATION_SETTING = "hostname_verification";
-    public static final String FOLLOW_REFERRALS_SETTING = "follow_referrals";
-    public static final Setting<Boolean> IGNORE_REFERRAL_ERRORS_SETTING = Setting.boolSetting(
-            "ignore_referral_errors", true, Setting.Property.NodeScope);
+
+    public static final Function<String, Setting.AffixSetting<List<String>>> URLS_SETTING = RealmSettings.affixSetting(
+            "url", key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Setting.Property.NodeScope));
+
     public static final TimeValue TIMEOUT_DEFAULT = TimeValue.timeValueSeconds(5);
+    public static final Function<String, Setting.AffixSetting<TimeValue>> TIMEOUT_TCP_CONNECTION_SETTING = RealmSettings.affixSetting(
+            "timeout.tcp_connect", key -> Setting.timeSetting(key, TIMEOUT_DEFAULT, Setting.Property.NodeScope));
 
-    private SessionFactorySettings() {}
+    public static final Function<String, Setting.AffixSetting<TimeValue>> TIMEOUT_TCP_READ_SETTING = RealmSettings.affixSetting(
+            "timeout.tcp_read", key -> Setting.timeSetting(key, TIMEOUT_DEFAULT, Setting.Property.NodeScope));
 
-    public static Set<Setting<?>> getSettings() {
-        Set<Setting<?>> settings = new HashSet<>();
-        settings.addAll(LdapLoadBalancingSettings.getSettings());
-        settings.add(Setting.listSetting(URLS_SETTING, Collections.emptyList(), Function.identity(),
-                Setting.Property.NodeScope));
-        settings.add(Setting.timeSetting(TIMEOUT_TCP_CONNECTION_SETTING, TIMEOUT_DEFAULT, Setting.Property.NodeScope));
-        settings.add(Setting.timeSetting(TIMEOUT_TCP_READ_SETTING, TIMEOUT_DEFAULT, Setting.Property.NodeScope));
-        settings.add(Setting.timeSetting(TIMEOUT_LDAP_SETTING, TIMEOUT_DEFAULT, Setting.Property.NodeScope));
-        settings.add(Setting.boolSetting(HOSTNAME_VERIFICATION_SETTING, true, Setting.Property.NodeScope, Setting.Property.Filtered));
-        settings.add(Setting.boolSetting(FOLLOW_REFERRALS_SETTING, true, Setting.Property.NodeScope));
-        settings.add(IGNORE_REFERRAL_ERRORS_SETTING);
-        settings.addAll(SSLConfigurationSettings.withPrefix("ssl.").getAllSettings());
+    public static final Function<String, Setting.AffixSetting<TimeValue>> TIMEOUT_LDAP_SETTING = RealmSettings.affixSetting(
+            "timeout.ldap_search", key -> Setting.timeSetting(key, TIMEOUT_DEFAULT, Setting.Property.NodeScope));
+
+    public static final Function<String, Setting.AffixSetting<Boolean>> HOSTNAME_VERIFICATION_SETTING = RealmSettings.affixSetting(
+            "hostname_verification", key -> Setting.boolSetting(key, true, Setting.Property.NodeScope, Setting.Property.Filtered));
+
+    public static final Function<String, Setting.AffixSetting<Boolean>> FOLLOW_REFERRALS_SETTING = RealmSettings.affixSetting(
+            "follow_referrals", key -> Setting.boolSetting(key, true, Setting.Property.NodeScope));
+
+    public static final Function<String, Setting.AffixSetting<Boolean>> IGNORE_REFERRAL_ERRORS_SETTING = RealmSettings.affixSetting(
+            "ignore_referral_errors", key -> Setting.boolSetting(key, true, Setting.Property.NodeScope));
+
+    private SessionFactorySettings() {
+    }
+
+    public static Set<Setting.AffixSetting<?>> getSettings(String realmType) {
+        Set<Setting.AffixSetting<?>> settings = new HashSet<>();
+        settings.addAll(LdapLoadBalancingSettings.getSettings(realmType));
+        settings.add(URLS_SETTING.apply(realmType));
+        settings.add(TIMEOUT_TCP_CONNECTION_SETTING.apply(realmType));
+        settings.add(TIMEOUT_TCP_READ_SETTING.apply(realmType));
+        settings.add(TIMEOUT_LDAP_SETTING.apply(realmType));
+        settings.add(HOSTNAME_VERIFICATION_SETTING.apply(realmType));
+        settings.add(FOLLOW_REFERRALS_SETTING.apply(realmType));
+        settings.add(IGNORE_REFERRAL_ERRORS_SETTING.apply(realmType));
+        settings.addAll(SSLConfigurationSettings.getRealmSettings(realmType));
         return settings;
     }
 }

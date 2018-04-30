@@ -12,6 +12,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.reindex.ReindexPlugin;
@@ -22,6 +23,7 @@ import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
@@ -40,6 +42,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static org.apache.lucene.util.LuceneTestCase.createTempFile;
@@ -131,10 +134,8 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
                 .put(LoggingAuditTrail.HOST_ADDRESS_SETTING.getKey(), randomBoolean())
                 .put(LoggingAuditTrail.HOST_NAME_SETTING.getKey(), randomBoolean())
                 .put(LoggingAuditTrail.NODE_NAME_SETTING.getKey(), randomBoolean())
-                .put("xpack.security.authc.realms.file.type", FileRealmSettings.TYPE)
-                .put("xpack.security.authc.realms.file.order", 0)
-                .put("xpack.security.authc.realms.index.type", NativeRealmSettings.TYPE)
-                .put("xpack.security.authc.realms.index.order", "1");
+                .put("xpack.security.authc.realms." + FileRealmSettings.TYPE + ".file.order", 0)
+                .put("xpack.security.authc.realms." + NativeRealmSettings.TYPE + ".index.order", "1");
         addNodeSSLSettings(builder);
         return builder.build();
     }
@@ -322,6 +323,17 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
             throw new AssertionError("Test settings builder must contain MockSecureSettings, " +
                 "but has [" + secureSettings.getClass().getName() + "]");
         }
+    }
+
+    public static <T> String getSettingKey(Function<String, Setting.AffixSetting<T>> settingFactory,
+                                           RealmConfig.RealmIdentifier identifier) {
+        final Setting.AffixSetting<?> affixSetting = settingFactory.apply(identifier.getType());
+        return getSettingKey(affixSetting, identifier);
+    }
+
+    public static String getSettingKey(Setting.AffixSetting<?> affixSetting, RealmConfig.RealmIdentifier identifier) {
+        final Setting<?> concreteSetting = affixSetting.getConcreteSettingForNamespace(identifier.getName());
+        return concreteSetting.getKey();
     }
 
     private static String[] resolvePathsToString(List<String> resourcePaths) {

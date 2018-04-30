@@ -20,11 +20,13 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
+import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
 import org.junit.After;
 import org.junit.Before;
 
+import static org.elasticsearch.test.SecuritySettingsSource.getSettingKey;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -46,8 +48,8 @@ public class SessionFactoryTests extends ESTestCase {
 
     public void testConnectionFactoryReturnsCorrectLDAPConnectionOptionsWithDefaultSettings() throws Exception {
         final Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
-        RealmConfig realmConfig = new RealmConfig("conn settings", Settings.EMPTY, environment.settings(), environment,
-                new ThreadContext(Settings.EMPTY));
+        RealmConfig realmConfig = new RealmConfig(new RealmConfig.RealmIdentifier("ldap", "conn_settings"),
+                environment.settings(), environment, new ThreadContext(Settings.EMPTY));
         LDAPConnectionOptions options = SessionFactory.connectionOptions(realmConfig, new SSLService(environment.settings(), environment),
                 logger);
         assertThat(options.followReferrals(), is(equalTo(true)));
@@ -58,15 +60,17 @@ public class SessionFactoryTests extends ESTestCase {
     }
 
     public void testConnectionFactoryReturnsCorrectLDAPConnectionOptions() throws Exception {
+        final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "conn_settings");
         Settings settings = Settings.builder()
-                .put(SessionFactorySettings.TIMEOUT_TCP_CONNECTION_SETTING, "10ms")
-                .put(SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING, "false")
-                .put(SessionFactorySettings.TIMEOUT_TCP_READ_SETTING, "20ms")
-                .put(SessionFactorySettings.FOLLOW_REFERRALS_SETTING, "false")
+                .put(getSettingKey(SessionFactorySettings.TIMEOUT_TCP_CONNECTION_SETTING, realmId), "10ms")
+                .put(getSettingKey(SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING, realmId), "false")
+                .put(getSettingKey(SessionFactorySettings.TIMEOUT_TCP_READ_SETTING, realmId), "20ms")
+                .put(getSettingKey(SessionFactorySettings.FOLLOW_REFERRALS_SETTING, realmId), "false")
                 .build();
 
         final Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
-        RealmConfig realmConfig = new RealmConfig("conn settings", settings, environment.settings(), environment, new ThreadContext(Settings.EMPTY));
+        RealmConfig realmConfig = new RealmConfig(realmId, mergeSettings(settings, environment.settings()),
+                environment, new ThreadContext(Settings.EMPTY));
         LDAPConnectionOptions options = SessionFactory.connectionOptions(realmConfig, new SSLService(environment.settings(), environment),
                 logger);
         assertThat(options.followReferrals(), is(equalTo(false)));
@@ -74,23 +78,32 @@ public class SessionFactoryTests extends ESTestCase {
         assertThat(options.getConnectTimeoutMillis(), is(equalTo(10)));
         assertThat(options.getResponseTimeoutMillis(), is(equalTo(20L)));
         assertThat(options.getSSLSocketVerifier(), is(instanceOf(TrustAllSSLSocketVerifier.class)));
-        assertWarnings("the setting [xpack.security.authc.realms.conn settings.hostname_verification] has been deprecated and will be " +
-                "removed in a future version. use [xpack.security.authc.realms.conn settings.ssl.verification_mode] instead");
+        assertWarnings("the setting [xpack.security.authc.realms.ldap.conn_settings.hostname_verification] has been deprecated and will be " +
+                "removed in a future version. use [xpack.security.authc.realms.ldap.conn_settings.ssl.verification_mode] instead");
 
-        settings = Settings.builder().put("ssl.verification_mode", VerificationMode.CERTIFICATE).build();
-        realmConfig = new RealmConfig("conn settings", settings, environment.settings(), environment, new ThreadContext(Settings.EMPTY));
+        settings = Settings.builder()
+                .put(getSettingKey(SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM, realmId), VerificationMode.CERTIFICATE)
+                .build();
+        realmConfig = new RealmConfig(realmId, mergeSettings(settings, environment.settings()),
+                environment, new ThreadContext(Settings.EMPTY));
         options = SessionFactory.connectionOptions(realmConfig, new SSLService(environment.settings(), environment),
                 logger);
         assertThat(options.getSSLSocketVerifier(), is(instanceOf(TrustAllSSLSocketVerifier.class)));
 
-        settings = Settings.builder().put("ssl.verification_mode", VerificationMode.NONE).build();
-        realmConfig = new RealmConfig("conn settings", settings, environment.settings(), environment, new ThreadContext(Settings.EMPTY));
+        settings = Settings.builder()
+                .put(getSettingKey(SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM, realmId), VerificationMode.NONE)
+                .build();
+        realmConfig = new RealmConfig(realmId, mergeSettings(settings, environment.settings()),
+                environment, new ThreadContext(Settings.EMPTY));
         options = SessionFactory.connectionOptions(realmConfig, new SSLService(environment.settings(), environment),
                 logger);
         assertThat(options.getSSLSocketVerifier(), is(instanceOf(TrustAllSSLSocketVerifier.class)));
 
-        settings = Settings.builder().put("ssl.verification_mode", VerificationMode.FULL).build();
-        realmConfig = new RealmConfig("conn settings", settings, environment.settings(), environment, new ThreadContext(Settings.EMPTY));
+        settings = Settings.builder()
+                .put(getSettingKey(SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM, realmId), VerificationMode.FULL)
+                .build();
+        realmConfig = new RealmConfig(realmId, mergeSettings(settings, environment.settings()),
+                environment, new ThreadContext(Settings.EMPTY));
         options = SessionFactory.connectionOptions(realmConfig, new SSLService(environment.settings(), environment),
                 logger);
         assertThat(options.getSSLSocketVerifier(), is(instanceOf(HostNameSSLSocketVerifier.class)));
@@ -108,8 +121,12 @@ public class SessionFactoryTests extends ESTestCase {
 
     private SessionFactory createSessionFactory() {
         Settings global = Settings.builder().put("path.home", createTempDir()).build();
-        final RealmConfig realmConfig = new RealmConfig("_name", Settings.builder().put("url", "ldap://localhost:389").build(),
-                global, TestEnvironment.newEnvironment(global), new ThreadContext(Settings.EMPTY));
+        final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("ldap", "_name");
+        final RealmConfig realmConfig = new RealmConfig(realmIdentifier, mergeSettings(
+                Settings.builder()
+                        .put(getSettingKey(SessionFactorySettings.URLS_SETTING, realmIdentifier), "ldap://localhost:389")
+                        .build(), global),
+                TestEnvironment.newEnvironment(global), new ThreadContext(Settings.EMPTY));
         return new SessionFactory(realmConfig, null, threadPool) {
 
             @Override
@@ -117,5 +134,9 @@ public class SessionFactoryTests extends ESTestCase {
                 listener.onResponse(null);
             }
         };
+    }
+
+    private Settings mergeSettings(Settings local, Settings global) {
+        return Settings.builder().put(global).put(local).build();
     }
 }

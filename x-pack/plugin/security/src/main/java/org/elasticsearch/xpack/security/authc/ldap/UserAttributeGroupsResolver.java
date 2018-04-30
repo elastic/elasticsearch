@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.UserAttributeGroupsResolverSettings;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
 
@@ -34,8 +35,8 @@ class UserAttributeGroupsResolver implements GroupsResolver {
     private final String attribute;
     private final boolean ignoreReferralErrors;
 
-    UserAttributeGroupsResolver(Settings settings) {
-        this(UserAttributeGroupsResolverSettings.ATTRIBUTE.get(settings), IGNORE_REFERRAL_ERRORS_SETTING.get(settings));
+    UserAttributeGroupsResolver(RealmConfig realmConfig) {
+        this(realmConfig.getSetting(UserAttributeGroupsResolverSettings.ATTRIBUTE), realmConfig.getSetting(IGNORE_REFERRAL_ERRORS_SETTING));
     }
 
     private UserAttributeGroupsResolver(String attribute, boolean ignoreReferralErrors) {

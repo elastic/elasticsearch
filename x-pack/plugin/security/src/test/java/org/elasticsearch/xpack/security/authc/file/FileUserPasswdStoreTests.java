@@ -74,7 +74,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
 
         Settings fileSettings = randomBoolean() ? Settings.EMPTY : Settings.builder().put("files.users", file.toAbsolutePath()).build();
-        RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env, threadPool.getThreadContext());
+        RealmConfig config = getRealmConfig(fileSettings);
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
         FileUserPasswdStore store = new FileUserPasswdStore(config, watcherService);
         assertThat(store.usersCount(), is(0));
@@ -88,7 +88,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         Files.copy(users, file, StandardCopyOption.REPLACE_EXISTING);
 
         Settings fileSettings = randomBoolean() ? Settings.EMPTY : Settings.builder().put("files.users", file.toAbsolutePath()).build();
-        RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env, threadPool.getThreadContext());
+        RealmConfig config = getRealmConfig(fileSettings);
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
         final CountDownLatch latch = new CountDownLatch(1);
 
@@ -117,6 +117,11 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         assertThat(result.getUser(), is(user));
     }
 
+    private RealmConfig getRealmConfig(Settings fileSettings) {
+        final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier("file", "file-test");
+        return new RealmConfig(identifier, fileSettings, settings, env, threadPool.getThreadContext());
+    }
+
     public void testStore_AutoReload_WithParseFailures() throws Exception {
         Path users = getDataPath("users");
         Path xpackConf = env.configFile();
@@ -128,7 +133,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
                 .put("files.users", testUsers.toAbsolutePath())
                 .build();
 
-        RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env, threadPool.getThreadContext());
+        RealmConfig config = getRealmConfig(fileSettings);
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
         final CountDownLatch latch = new CountDownLatch(1);
 

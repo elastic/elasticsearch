@@ -21,6 +21,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetaDataResolverSettings;
 
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.OBJECT_CLASS_PRESENCE_FILTER;
@@ -31,8 +32,8 @@ public class LdapMetaDataResolver {
     private final String[] attributeNames;
     private final boolean ignoreReferralErrors;
 
-    public LdapMetaDataResolver(Settings settings, boolean ignoreReferralErrors) {
-        this(LdapMetaDataResolverSettings.ADDITIONAL_META_DATA_SETTING.get(settings), ignoreReferralErrors);
+    public LdapMetaDataResolver(RealmConfig realmConfig, boolean ignoreReferralErrors) {
+        this(realmConfig.getSetting(LdapMetaDataResolverSettings.ADDITIONAL_META_DATA_SETTING), ignoreReferralErrors);
     }
 
     LdapMetaDataResolver(Collection<String> attributeNames, boolean ignoreReferralErrors) {

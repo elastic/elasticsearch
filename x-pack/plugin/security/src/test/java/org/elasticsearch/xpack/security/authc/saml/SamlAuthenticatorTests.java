@@ -22,8 +22,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -62,7 +62,6 @@ import javax.xml.crypto.dsig.spec.TransformParameterSpec;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
-
 import java.io.IOException;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
@@ -191,7 +190,8 @@ public class SamlAuthenticatorTests extends SamlTestCase {
         final SpConfiguration sp = new SpConfiguration(SP_ENTITY_ID, SP_ACS_URL, null, signingConfiguration, spEncryptionCredentials);
         final Environment env = TestEnvironment.newEnvironment(globalSettings);
         return new SamlAuthenticator(
-                new RealmConfig("saml_test", realmSettings, globalSettings, env, new ThreadContext(globalSettings)),
+                new RealmConfig(new RealmConfig.RealmIdentifier("saml", "saml_test"),
+                        realmSettings, globalSettings, env, new ThreadContext(globalSettings)),
                 clock,
                 idp,
                 sp,

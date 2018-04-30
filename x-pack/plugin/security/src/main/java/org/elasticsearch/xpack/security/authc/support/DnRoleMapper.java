@@ -56,8 +56,8 @@ public class DnRoleMapper implements UserRoleMapper {
         this.config = config;
         this.logger = config.logger(getClass());
 
-        useUnmappedGroupsAsRoles = DnRoleMapperSettings.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING.get(config.settings());
-        file = resolveFile(config.settings(), config.env());
+        useUnmappedGroupsAsRoles = config.getSetting(DnRoleMapperSettings.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING);
+        file = resolveFile(config);
         dnRoles = parseFileLenient(file, logger, config.type(), config.name());
         FileWatcher watcher = new FileWatcher(file.getParent());
         watcher.addListener(new FileListener());
@@ -77,9 +77,9 @@ public class DnRoleMapper implements UserRoleMapper {
         listeners.add(Objects.requireNonNull(listener, "listener cannot be null"));
     }
 
-    public static Path resolveFile(Settings settings, Environment env) {
-        String location = DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING.get(settings);
-        return XPackPlugin.resolveConfigFile(env, location);
+    public static Path resolveFile(RealmConfig realmConfig) {
+        String location = realmConfig.getSetting(DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING);
+        return XPackPlugin.resolveConfigFile(realmConfig.env(), location);
     }
 
     /**

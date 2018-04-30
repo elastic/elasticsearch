@@ -29,7 +29,7 @@ public class CompositeRoleMapper implements UserRoleMapper {
 
     private List<UserRoleMapper> delegates;
 
-    public CompositeRoleMapper(String realmType, RealmConfig realmConfig,
+    public CompositeRoleMapper(RealmConfig realmConfig,
                                ResourceWatcherService watcherService,
                                NativeRoleMappingStore nativeRoleMappingStore) {
         this(new DnRoleMapper(realmConfig, watcherService), nativeRoleMappingStore);

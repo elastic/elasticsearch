@@ -99,9 +99,9 @@ public final class InternalRealms {
             securityLifecycleService.addSecurityIndexHealthChangeListener(nativeRealm::onSecurityIndexHealthChange);
             return nativeRealm;
         });
-        map.put(LdapRealmSettings.AD_TYPE, config -> new LdapRealm(LdapRealmSettings.AD_TYPE, config, sslService,
+        map.put(LdapRealmSettings.AD_TYPE, config -> new LdapRealm(config, sslService,
                 resourceWatcherService, nativeRoleMappingStore, threadPool));
-        map.put(LdapRealmSettings.LDAP_TYPE, config -> new LdapRealm(LdapRealmSettings.LDAP_TYPE, config,
+        map.put(LdapRealmSettings.LDAP_TYPE, config -> new LdapRealm(config,
                 sslService, resourceWatcherService, nativeRoleMappingStore, threadPool));
         map.put(PkiRealmSettings.TYPE, config -> new PkiRealm(config, resourceWatcherService, nativeRoleMappingStore));
         map.put(SamlRealmSettings.TYPE, config -> SamlRealm.create(config, sslService, resourceWatcherService, nativeRoleMappingStore));
@@ -111,11 +111,14 @@ public final class InternalRealms {
     private InternalRealms() {
     }
 
+    /**
+     * TODO REALM-SETTINGS[TIM] This can be redone a lot now the realm settings are keyed by type
+     */
     public static List<BootstrapCheck> getBootstrapChecks(final Settings globalSettings, final Environment env) {
         final List<BootstrapCheck> checks = new ArrayList<>();
-        final Map<String, Settings> settingsByRealm = RealmSettings.getRealmSettings(globalSettings);
-        settingsByRealm.forEach((name, settings) -> {
-            final RealmConfig realmConfig = new RealmConfig(name, settings, globalSettings, env, null);
+        final Map<RealmConfig.RealmIdentifier, Settings> settingsByRealm = RealmSettings.getRealmSettings(globalSettings);
+        settingsByRealm.forEach((identifier, settings) -> {
+            final RealmConfig realmConfig = new RealmConfig(identifier, settings, globalSettings, env, null);
             switch (realmConfig.type()) {
                 case LdapRealmSettings.AD_TYPE:
                 case LdapRealmSettings.LDAP_TYPE:

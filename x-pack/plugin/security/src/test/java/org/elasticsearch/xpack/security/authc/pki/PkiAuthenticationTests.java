@@ -60,16 +60,14 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .put("xpack.security.http.ssl.enabled", true)
                 .put("xpack.security.http.ssl.client_authentication", sslClientAuth)
-                .put("xpack.security.authc.realms.file.type", FileRealmSettings.TYPE)
-                .put("xpack.security.authc.realms.file.order", "0")
-                .put("xpack.security.authc.realms.pki1.type", PkiRealmSettings.TYPE)
-                .put("xpack.security.authc.realms.pki1.order", "1")
-                .put("xpack.security.authc.realms.pki1.truststore.path",
+                .put("xpack.security.authc.realms.file.file.order", "0")
+                .put("xpack.security.authc.realms.pki.pki1.order", "1")
+                .put("xpack.security.authc.realms.pki.pki1.truststore.path",
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/truststore-testnode-only.jks"))
-                .put("xpack.security.authc.realms.pki1.files.role_mapping", getDataPath("role_mapping.yml"));
+                .put("xpack.security.authc.realms.pki.pki1.files.role_mapping", getDataPath("role_mapping.yml"));
 
         SecuritySettingsSource.addSecureSettings(builder, secureSettings ->
-                secureSettings.setString("xpack.security.authc.realms.pki1.truststore.secure_password", "truststore-testnode-only"));
+                secureSettings.setString("xpack.security.authc.realms.pki.pki1.truststore.secure_password", "truststore-testnode-only"));
         return builder.build();
     }
 

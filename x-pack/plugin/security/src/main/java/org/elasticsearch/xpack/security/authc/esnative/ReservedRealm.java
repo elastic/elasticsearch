@@ -67,7 +67,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     public ReservedRealm(Environment env, Settings settings, NativeUsersStore nativeUsersStore, AnonymousUser anonymousUser,
                          SecurityLifecycleService securityLifecycleService, ThreadContext threadContext) {
-        super(TYPE, new RealmConfig(TYPE, Settings.EMPTY, settings, env, threadContext));
+        super(new RealmConfig(new RealmConfig.RealmIdentifier(TYPE, TYPE), Settings.EMPTY, settings, env, threadContext));
         this.nativeUsersStore = nativeUsersStore;
         this.realmEnabled = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);
         this.anonymousUser = anonymousUser;

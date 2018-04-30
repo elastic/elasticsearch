@@ -5,15 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import java.io.UnsupportedEncodingException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-import java.time.Clock;
-import java.util.Arrays;
-import java.util.Collections;
-
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -22,6 +13,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.joda.time.DateTime;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -32,6 +24,15 @@ import org.opensaml.saml.saml2.core.LogoutRequest;
 import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.security.x509.X509Credential;
 import org.opensaml.xmlsec.signature.support.SignatureConstants;
+
+import java.io.UnsupportedEncodingException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.util.Arrays;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -216,11 +217,12 @@ public class SamlLogoutRequestHandlerTests extends SamlTestCase {
                 signingConfiguration, Arrays.asList(spCredential));
         final Environment env = TestEnvironment.newEnvironment(globalSettings);
         return new SamlLogoutRequestHandler(
-                new RealmConfig("saml_test", realmSettings, globalSettings, env, new ThreadContext(globalSettings)),
-                clock,
-                idp,
-                sp,
-                TimeValue.timeValueSeconds(1)
+            new RealmConfig(new RealmConfig.RealmIdentifier(SamlRealmSettings.TYPE, "saml_test"),
+                realmSettings, globalSettings, env, new ThreadContext(globalSettings)),
+            clock,
+            idp,
+            sp,
+            TimeValue.timeValueSeconds(1)
         );
     }
 

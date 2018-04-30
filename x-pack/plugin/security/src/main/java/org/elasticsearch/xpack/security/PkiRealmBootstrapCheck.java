@@ -9,6 +9,7 @@ import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
@@ -62,8 +63,10 @@ class PkiRealmBootstrapCheck implements BootstrapCheck {
     @Override
     public BootstrapCheckResult check(BootstrapContext context) {
         final Settings settings = context.settings;
-        final boolean pkiRealmEnabled = settings.getGroups(RealmSettings.PREFIX).values().stream()
-                .filter(s -> PkiRealmSettings.TYPE.equals(s.get("type")))
+        final Map<RealmConfig.RealmIdentifier, Settings> realms = RealmSettings.getRealmSettings(settings);
+        final boolean pkiRealmEnabled = realms.entrySet().stream()
+                .filter(e -> PkiRealmSettings.TYPE.equals(e.getKey().getType()))
+                .map(Map.Entry::getValue)
                 .anyMatch(s -> s.getAsBoolean("enabled", true));
         if (pkiRealmEnabled) {
             for (SSLConfiguration configuration : this.sslConfigurations) {

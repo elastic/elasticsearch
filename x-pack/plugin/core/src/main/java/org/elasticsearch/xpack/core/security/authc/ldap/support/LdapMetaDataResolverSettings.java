@@ -6,18 +6,21 @@
 package org.elasticsearch.xpack.core.security.authc.ldap.support;
 
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
 public final class LdapMetaDataResolverSettings {
-    public static final Setting<List<String>> ADDITIONAL_META_DATA_SETTING = Setting.listSetting(
-            "metadata", Collections.emptyList(), Function.identity(), Setting.Property.NodeScope);
+    public static final Setting.AffixSetting<List<String>> ADDITIONAL_META_DATA_SETTING = Setting.affixKeySetting(
+            RealmSettings.realmSettingPrefix(LdapRealmSettings.LDAP_TYPE), "metadata",
+            key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Setting.Property.NodeScope));
 
     private LdapMetaDataResolverSettings() {}
 
-    public static List<Setting<?>> getSettings() {
+    public static List<Setting.AffixSetting<?>> getSettings() {
         return Collections.singletonList(ADDITIONAL_META_DATA_SETTING);
     }
 }

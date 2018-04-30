@@ -478,8 +478,7 @@ public class SSLServiceTests extends ESTestCase {
                 .put("xpack.ssl.keystore.path", jksPath)
                 .put("xpack.ssl.truststore.path", jksPath)
                 .put("xpack.http.ssl.keystore.path", p12Path)
-                .put("xpack.security.authc.realms.ad.type", "ad")
-                .put("xpack.security.authc.realms.ad.ssl.certificate_authorities", pemPath)
+                .put("xpack.security.authc.realms.active_directory.ad.ssl.certificate_authorities", pemPath)
                 .setSecureSettings(secureSettings)
                 .build();
 

@@ -5,6 +5,20 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
+import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.AllowedRealmType;
+import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -17,20 +31,6 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-
-import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.AllowedRealmType;
-import org.elasticsearch.xpack.core.security.authc.Realm;
-import org.elasticsearch.xpack.core.security.authc.RealmConfig;
-import org.elasticsearch.xpack.core.security.authc.RealmSettings;
-import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
-import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
-import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 
 
 /**
@@ -145,34 +145,30 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
     }
 
     protected List<Realm> initRealms() throws Exception {
-        Settings realmsSettings = RealmSettings.get(settings);
+        Map<RealmConfig.RealmIdentifier, Settings> realmsSettings = RealmSettings.getRealmSettings(settings);
         Set<String> internalTypes = new HashSet<>();
         List<Realm> realms = new ArrayList<>();
-        for (String name : realmsSettings.names()) {
-            Settings realmSettings = realmsSettings.getAsSettings(name);
-            String type = realmSettings.get("type");
-            if (type == null) {
-                throw new IllegalArgumentException("missing realm type for [" + name + "] realm");
-            }
-            Realm.Factory factory = factories.get(type);
+        for (RealmConfig.RealmIdentifier identifier: realmsSettings.keySet()) {
+            Settings realmSettings = realmsSettings.get(identifier);
+            Realm.Factory factory = factories.get(identifier.getType());
             if (factory == null) {
-                throw new IllegalArgumentException("unknown realm type [" + type + "] set for realm [" + name + "]");
+                throw new IllegalArgumentException("unknown realm type [" + identifier.getType() + "] for realm [" + identifier + "]");
             }
-            RealmConfig config = new RealmConfig(name, realmSettings, settings, env, threadContext);
+            RealmConfig config = new RealmConfig(identifier, realmSettings, settings, env, threadContext);
             if (!config.enabled()) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug("realm [{}/{}] is disabled", type, name);
+                    logger.debug("realm [{}] is disabled", identifier);
                 }
                 continue;
             }
-            if (FileRealmSettings.TYPE.equals(type) || NativeRealmSettings.TYPE.equals(type)) {
+            if (FileRealmSettings.TYPE.equals(identifier.getType()) || NativeRealmSettings.TYPE.equals(identifier.getType())) {
                 // this is an internal realm factory, let's make sure we didn't already registered one
                 // (there can only be one instance of an internal realm)
-                if (internalTypes.contains(type)) {
-                    throw new IllegalArgumentException("multiple [" + type + "] realms are configured. [" + type +
-                            "] is an internal realm and therefore there can only be one such realm configured");
+                if (internalTypes.contains(identifier.getType())) {
+                    throw new IllegalArgumentException("multiple [" + identifier.getType() + "] realms are configured. ["
+                            + identifier.getType() + "] is an internal realm and therefore there can only be one such realm configured");
                 }
-                internalTypes.add(type);
+                internalTypes.add(identifier.getType());
             }
             realms.add(factory.create(config));
         }
@@ -233,14 +229,15 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
     private void addNativeRealms(List<Realm> realms) throws Exception {
         Realm.Factory fileRealm = factories.get(FileRealmSettings.TYPE);
         if (fileRealm != null) {
-
-            realms.add(fileRealm.create(new RealmConfig("default_" + FileRealmSettings.TYPE, Settings.EMPTY,
-                    settings, env, threadContext)));
+            realms.add(fileRealm.create(new RealmConfig(
+                    new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, "default_" + FileRealmSettings.TYPE),
+                    Settings.EMPTY, settings, env, threadContext)));
         }
         Realm.Factory indexRealmFactory = factories.get(NativeRealmSettings.TYPE);
         if (indexRealmFactory != null) {
-            realms.add(indexRealmFactory.create(new RealmConfig("default_" + NativeRealmSettings.TYPE, Settings.EMPTY,
-                    settings, env, threadContext)));
+            realms.add(indexRealmFactory.create(new RealmConfig(
+                    new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, "default_" + NativeRealmSettings.TYPE),
+                    Settings.EMPTY, settings, env, threadContext)));
         }
     }
 

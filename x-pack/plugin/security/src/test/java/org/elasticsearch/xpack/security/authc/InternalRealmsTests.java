@@ -41,12 +41,12 @@ public class InternalRealmsTests extends ESTestCase {
         verifyZeroInteractions(lifecycleService);
 
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
-        factories.get(NativeRealmSettings.TYPE).create(new RealmConfig("test", Settings.EMPTY, settings,
-            TestEnvironment.newEnvironment(settings), new ThreadContext(settings)));
+        factories.get(NativeRealmSettings.TYPE).create(new RealmConfig(new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, "test"),
+                Settings.EMPTY, settings, TestEnvironment.newEnvironment(settings), new ThreadContext(settings)));
         verify(lifecycleService).addSecurityIndexHealthChangeListener(isA(BiConsumer.class));
 
-        factories.get(NativeRealmSettings.TYPE).create(new RealmConfig("test", Settings.EMPTY, settings,
-            TestEnvironment.newEnvironment(settings), new ThreadContext(settings)));
+        factories.get(NativeRealmSettings.TYPE).create(new RealmConfig(new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, "test"),
+                Settings.EMPTY, settings, TestEnvironment.newEnvironment(settings), new ThreadContext(settings)));
         verify(lifecycleService, times(2)).addSecurityIndexHealthChangeListener(isA(BiConsumer.class));
     }
 }

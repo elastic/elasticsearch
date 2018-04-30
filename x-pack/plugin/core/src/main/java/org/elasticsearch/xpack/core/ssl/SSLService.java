@@ -17,7 +17,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
-import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 
 import javax.net.ssl.HostnameVerifier;
@@ -30,7 +29,6 @@ import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import javax.security.auth.DestroyFailedException;
-
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
@@ -158,9 +156,9 @@ public class SSLService extends AbstractComponent {
      * not expose any of the parameters that you give it.
      *
      * @param sslContext SSL Context used to handle SSL / TCP requests
-     * @param protocols Supported protocols
-     * @param ciphers Supported ciphers
-     * @param verifier Hostname verifier
+     * @param protocols  Supported protocols
+     * @param ciphers    Supported ciphers
+     * @param verifier   Hostname verifier
      * @return Never {@code null}.
      */
     SSLIOSessionStrategy sslIOSessionStrategy(SSLContext sslContext, String[] protocols, String[] ciphers, HostnameVerifier verifier) {
@@ -171,6 +169,7 @@ public class SSLService extends AbstractComponent {
      * Create a new {@link SSLSocketFactory} based on the provided settings. The settings are used to identify the ssl configuration that
      * should be used to create the socket factory. The socket factory will also properly configure the ciphers and protocols on each
      * socket that is created
+     *
      * @param settings the settings used to identify the ssl configuration, typically under a *.ssl. prefix. An empty settings will return
      *                 a factory created from the default configuration
      * @return Never {@code null}.
@@ -187,8 +186,9 @@ public class SSLService extends AbstractComponent {
      * used to create the engine. This SSLEngine cannot be used for hostname verification since the engine will not be created with the
      * host and port. This method is useful to obtain an SSLEngine that will be used for server connections or client connections that
      * will not use hostname verification.
-     * @param settings the settings used to identify the ssl configuration, typically under a *.ssl. prefix. An empty settings will return
-     *                 a SSLEngine created from the default configuration
+     *
+     * @param settings         the settings used to identify the ssl configuration, typically under a *.ssl. prefix.
+     *                         An empty settings will return a SSLEngine created from the default configuration
      * @param fallbackSettings the settings that should be used for the fallback of the SSLConfiguration. Using {@link Settings#EMPTY}
      *                         results in a fallback to the global configuration
      * @return {@link SSLEngine}
@@ -201,13 +201,14 @@ public class SSLService extends AbstractComponent {
      * Creates an {@link SSLEngine} based on the provided settings. The settings are used to identify the ssl configuration that should be
      * used to create the engine. This SSLEngine can be used for a connection that requires hostname verification assuming the provided
      * host and port are correct. The SSLEngine created by this method is most useful for clients with hostname verification enabled
-     * @param settings the settings used to identify the ssl configuration, typically under a *.ssl. prefix. An empty settings will return
-     *                 a SSLEngine created from the default configuration
+     *
+     * @param settings         the settings used to identify the ssl configuration, typically under a *.ssl. prefix.
+     *                         An empty settings will return a SSLEngine created from the default configuration
      * @param fallbackSettings the settings that should be used for the fallback of the SSLConfiguration. Using {@link Settings#EMPTY}
      *                         results in a fallback to the global configuration
-     * @param host the host of the remote endpoint. If using hostname verification, this should match what is in the remote endpoint's
-     *             certificate
-     * @param port the port of the remote endpoint
+     * @param host             the host of the remote endpoint. If using hostname verification, this should match what is in the
+     *                         remote endpoint's certificate
+     * @param port             the port of the remote endpoint
      * @return {@link SSLEngine}
      */
     public SSLEngine createSSLEngine(Settings settings, Settings fallbackSettings, String host, int port) {
@@ -219,10 +220,11 @@ public class SSLService extends AbstractComponent {
      * Creates an {@link SSLEngine} based on the provided configuration. This SSLEngine can be used for a connection that requires
      * hostname verification assuming the provided
      * host and port are correct. The SSLEngine created by this method is most useful for clients with hostname verification enabled
+     *
      * @param configuration the ssl configuration
-     * @param host the host of the remote endpoint. If using hostname verification, this should match what is in the remote endpoint's
-     *             certificate
-     * @param port the port of the remote endpoint
+     * @param host          the host of the remote endpoint. If using hostname verification, this should match what is in the remote
+     *                      endpoint's certificate
+     * @param port          the port of the remote endpoint
      * @return {@link SSLEngine}
      * @see #sslConfiguration(Settings, Settings)
      */
@@ -251,6 +253,7 @@ public class SSLService extends AbstractComponent {
 
     /**
      * Returns whether the provided settings results in a valid configuration that can be used for server connections
+     *
      * @param sslConfiguration the configuration to check
      */
     public boolean isConfigurationValidForServerUsage(SSLConfiguration sslConfiguration) {
@@ -259,6 +262,7 @@ public class SSLService extends AbstractComponent {
 
     /**
      * Indicates whether client authentication is enabled for a particular configuration
+     *
      * @param settings the settings used to identify the ssl configuration, typically under a *.ssl. prefix. The global configuration
      *                 will be used for fallback
      */
@@ -268,6 +272,7 @@ public class SSLService extends AbstractComponent {
 
     /**
      * Indicates whether client authentication is enabled for a particular configuration
+     *
      * @param settings the settings used to identify the ssl configuration, typically under a *.ssl. prefix
      * @param fallback the settings that should be used for the fallback of the SSLConfiguration. Using {@link Settings#EMPTY}
      *                 results in a fallback to the global configuration
@@ -286,6 +291,7 @@ public class SSLService extends AbstractComponent {
 
     /**
      * Returns the {@link VerificationMode} that is specified in the settings (or the default)
+     *
      * @param settings the settings used to identify the ssl configuration, typically under a *.ssl. prefix
      * @param fallback the settings that should be used for the fallback of the SSLConfiguration. Using {@link Settings#EMPTY}
      *                 results in a fallback to the global configuration
@@ -311,6 +317,7 @@ public class SSLService extends AbstractComponent {
 
     /**
      * Returns the existing {@link SSLContextHolder} for the configuration
+     *
      * @throws IllegalArgumentException if not found
      */
     SSLContextHolder sslContextHolder(SSLConfiguration sslConfiguration) {
@@ -323,6 +330,7 @@ public class SSLService extends AbstractComponent {
 
     /**
      * Returns the existing {@link SSLConfiguration} for the given settings
+     *
      * @param settings the settings for the ssl configuration
      * @return the ssl configuration for the provided settings. If the settings are empty, the global configuration is returned
      */
@@ -336,7 +344,8 @@ public class SSLService extends AbstractComponent {
     /**
      * Returns the existing {@link SSLConfiguration} for the given settings and applies the provided fallback settings instead of the global
      * configuration
-     * @param settings the settings for the ssl configuration
+     *
+     * @param settings         the settings for the ssl configuration
      * @param fallbackSettings the settings that should be used for the fallback of the SSLConfiguration. Using {@link Settings#EMPTY}
      *                         results in a fallback to the global configuration
      * @return the ssl configuration for the provided settings. If the settings are empty, the global configuration is returned
@@ -359,6 +368,7 @@ public class SSLService extends AbstractComponent {
     /**
      * Returns the intersection of the supported ciphers with the requested ciphers. This method will also optionally log if unsupported
      * ciphers were requested.
+     *
      * @throws IllegalArgumentException if no supported ciphers are in the requested ciphers
      */
     String[] supportedCiphers(String[] supportedCiphers, List<String> requestedCiphers, boolean log) {
@@ -396,6 +406,7 @@ public class SSLService extends AbstractComponent {
 
     /**
      * Creates an {@link SSLContext} based on the provided configuration
+     *
      * @param sslConfiguration the configuration to use for context creation
      * @return the created SSLContext
      */
@@ -412,9 +423,10 @@ public class SSLService extends AbstractComponent {
 
     /**
      * Creates an {@link SSLContext} based on the provided configuration and trust/key managers
+     *
      * @param sslConfiguration the configuration to use for context creation
-     * @param keyManager the key manager to use
-     * @param trustManager the trust manager to use
+     * @param keyManager       the key manager to use
+     * @param trustManager     the trust manager to use
      * @return the created SSLContext
      */
     private SSLContextHolder createSslContext(ReloadableX509KeyManager keyManager, ReloadableTrustManager trustManager,
@@ -422,7 +434,7 @@ public class SSLService extends AbstractComponent {
         // Initialize sslContext
         try {
             SSLContext sslContext = SSLContext.getInstance(sslContextAlgorithm(sslConfiguration.supportedProtocols()));
-            sslContext.init(new X509ExtendedKeyManager[] { keyManager }, new X509ExtendedTrustManager[] { trustManager }, null);
+            sslContext.init(new X509ExtendedKeyManager[]{keyManager}, new X509ExtendedTrustManager[]{trustManager}, null);
 
             // check the supported ciphers and log them here to prevent spamming logs on every call
             supportedCiphers(sslContext.getSupportedSSLParameters().getCipherSuites(), sslConfiguration.cipherSuites(), true);
@@ -458,7 +470,7 @@ public class SSLService extends AbstractComponent {
         List<Settings> profileSettings = getTransportProfileSSLSettings(settings);
         sslConfigurations.computeIfAbsent(transportSSLConfiguration, this::createSslContext);
         profileSettings.forEach((profileSetting) ->
-            sslConfigurations.computeIfAbsent(new SSLConfiguration(profileSetting, transportSSLConfiguration), this::createSslContext));
+                sslConfigurations.computeIfAbsent(new SSLConfiguration(profileSetting, transportSSLConfiguration), this::createSslContext));
         return Collections.unmodifiableMap(sslConfigurations);
     }
 
@@ -469,6 +481,7 @@ public class SSLService extends AbstractComponent {
      * certificates that are provided by the JRE.
      * Due to the nature of KeyStores, this may include certificates that are available, but never used
      * such as a CA certificate that is no longer in use, or a server certificate for an unrelated host.
+     *
      * @see TrustConfig#certificates(Environment)
      */
     public Set<CertificateInfo> getLoadedCertificates() throws GeneralSecurityException, IOException {
@@ -529,14 +542,14 @@ public class SSLService extends AbstractComponent {
 
         @Override
         public Socket createSocket(String host, int port, InetAddress localHost, int localPort) throws IOException {
-            SSLSocket sslSocket = createWithPermissions(() ->  delegate.createSocket(host, port, localHost, localPort));
+            SSLSocket sslSocket = createWithPermissions(() -> delegate.createSocket(host, port, localHost, localPort));
             configureSSLSocket(sslSocket);
             return sslSocket;
         }
 
         @Override
         public Socket createSocket(InetAddress host, int port) throws IOException {
-            SSLSocket sslSocket = createWithPermissions(() ->  delegate.createSocket(host, port));
+            SSLSocket sslSocket = createWithPermissions(() -> delegate.createSocket(host, port));
             configureSSLSocket(sslSocket);
             return sslSocket;
         }
@@ -817,13 +830,15 @@ public class SSLService extends AbstractComponent {
 
     private static List<Settings> getRealmsSSLSettings(Settings settings) {
         List<Settings> sslSettings = new ArrayList<>();
-        Settings realmsSettings = settings.getByPrefix(SecurityField.setting("authc.realms."));
-        for (String name : realmsSettings.names()) {
-            Settings realmSSLSettings = realmsSettings.getAsSettings(name).getByPrefix("ssl.");
-            if (realmSSLSettings.isEmpty() == false) {
-                sslSettings.add(realmSSLSettings);
-            }
-        }
+        final Map<String, Settings> settingsByRealmType = settings.getGroups("xpack.security.authc.realms.");
+        settingsByRealmType.forEach((realmType, typeSettings) ->
+                typeSettings.getAsGroups().forEach((realmName, realmSettings) -> {
+                            Settings realmSSLSettings = realmSettings.getByPrefix("ssl.");
+                            if (realmSSLSettings.isEmpty() == false) {
+                                sslSettings.add(realmSSLSettings);
+                            }
+                        }
+                ));
         return sslSettings;
     }
 

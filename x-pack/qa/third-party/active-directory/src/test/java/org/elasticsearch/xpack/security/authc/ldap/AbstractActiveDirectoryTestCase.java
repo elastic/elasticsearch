@@ -9,16 +9,17 @@ import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPConnectionPool;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPInterface;
-
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
+import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
 import org.junit.Before;
@@ -26,6 +27,8 @@ import org.junit.Before;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+
+import static org.elasticsearch.test.SecuritySettingsSource.getSettingKey;
 
 public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
 
@@ -81,26 +84,27 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
         sslService = new SSLService(globalSettings, environment);
     }
 
-    Settings buildAdSettings(String ldapUrl, String adDomainName, String userSearchDN, LdapSearchScope scope,
-                                           boolean hostnameVerification) {
+    Settings buildAdSettings(RealmConfig.RealmIdentifier realmId, String ldapUrl, String adDomainName, String userSearchDN,
+                             LdapSearchScope scope, boolean hostnameVerification) {
         Settings.Builder builder = Settings.builder()
-                .putList(SessionFactorySettings.URLS_SETTING, ldapUrl)
-                .put(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING, adDomainName)
-                .put(ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_BASEDN_SETTING, userSearchDN)
-                .put(ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_SCOPE_SETTING, scope)
-                .put(ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING.getKey(), AD_LDAP_PORT)
-                .put(ActiveDirectorySessionFactorySettings.AD_LDAPS_PORT_SETTING.getKey(), AD_LDAPS_PORT)
-                .put(ActiveDirectorySessionFactorySettings.AD_GC_LDAP_PORT_SETTING.getKey(), AD_GC_LDAP_PORT)
-                .put(ActiveDirectorySessionFactorySettings.AD_GC_LDAPS_PORT_SETTING.getKey(), AD_GC_LDAPS_PORT)
-                .put("follow_referrals", FOLLOW_REFERRALS);
+                .putList(getSettingKey(SessionFactorySettings.URLS_SETTING, realmId), ldapUrl)
+                .put(getSettingKey(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING, realmId), adDomainName)
+                .put(getSettingKey(ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_BASEDN_SETTING, realmId), userSearchDN)
+                .put(getSettingKey(ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_SCOPE_SETTING, realmId), scope)
+                .put(getSettingKey(ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING, realmId), AD_LDAP_PORT)
+                .put(getSettingKey(ActiveDirectorySessionFactorySettings.AD_LDAPS_PORT_SETTING, realmId), AD_LDAPS_PORT)
+                .put(getSettingKey(ActiveDirectorySessionFactorySettings.AD_GC_LDAP_PORT_SETTING, realmId), AD_GC_LDAP_PORT)
+                .put(getSettingKey(ActiveDirectorySessionFactorySettings.AD_GC_LDAPS_PORT_SETTING, realmId), AD_GC_LDAPS_PORT)
+                .put(getSettingKey(SessionFactorySettings.FOLLOW_REFERRALS_SETTING, realmId), FOLLOW_REFERRALS);
         if (randomBoolean()) {
-            builder.put("ssl.verification_mode", hostnameVerification ? VerificationMode.FULL : VerificationMode.CERTIFICATE);
+            builder.put(getSettingKey(SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM, realmId),
+                    hostnameVerification ? VerificationMode.FULL : VerificationMode.CERTIFICATE);
         } else {
-            builder.put(SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING, hostnameVerification);
+            builder.put(getSettingKey(SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING, realmId), hostnameVerification);
         }
         if (useGlobalSSL == false) {
-            builder.put("ssl.truststore.path", getDataPath("../ldap/support/ADtrust.jks"))
-                    .put("ssl.truststore.password", "changeit");
+            builder.put(getSettingKey(SSLConfigurationSettings.TRUST_STORE_PATH_REALM, realmId), getDataPath("../ldap/support/ADtrust.jks"))
+                    .put(getSettingKey(SSLConfigurationSettings.LEGACY_TRUST_STORE_PASSWORD_REALM, realmId), "changeit");
         }
         return builder.build();
     }

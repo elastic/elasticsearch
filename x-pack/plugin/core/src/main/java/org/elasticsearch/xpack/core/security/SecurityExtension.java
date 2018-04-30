@@ -42,16 +42,6 @@ public interface SecurityExtension {
     }
 
     /**
-     * Returns the set of {@link Setting settings} that may be configured for the each type of realm.
-     *
-     * Each <em>setting key</em> must be unqualified and is in the same format as will be provided via {@link RealmConfig#settings()}.
-     * If a given realm-type is not present in the returned map, then it will be treated as if it supported <em>all</em> possible settings.
-     *
-     * The life-cycle of an extension dictates that this method will be called before {@link #getRealms(ResourceWatcherService)}
-     */
-    default Map<String, Set<Setting<?>>> getRealmSettings() { return Collections.emptyMap(); }
-
-    /**
      * Returns a handler for authentication failures, or null to use the default handler.
      *
      * Only one installed extension may have an authentication failure handler. If more than

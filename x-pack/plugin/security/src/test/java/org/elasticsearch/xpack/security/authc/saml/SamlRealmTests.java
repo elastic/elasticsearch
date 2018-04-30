@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -41,7 +42,6 @@ import org.opensaml.security.credential.Credential;
 import org.opensaml.security.x509.X509Credential;
 
 import javax.security.auth.x500.X500Principal;
-
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -64,6 +64,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -87,7 +88,7 @@ public class SamlRealmTests extends SamlTestCase {
     private static final int METADATA_REFRESH = 3000;
 
     private static final String REALM_NAME = "my-saml";
-    private static final String REALM_SETTINGS_PREFIX = "xpack.security.authc.realms." + REALM_NAME;
+    private static final String REALM_SETTINGS_PREFIX = "xpack.security.authc.realms.saml." + REALM_NAME;
 
     @Before
     public void initRealm() throws PrivilegedActionException {
@@ -126,6 +127,7 @@ public class SamlRealmTests extends SamlTestCase {
             assertEquals(0, proxyServer.requests().size());
 
             Tuple<RealmConfig, SSLService> config = buildConfig("https://localhost:" + proxyServer.getPort());
+            logger.info("Settings\n{}", config.v1().globalSettings().toDelimitedString('\n'));
             final ResourceWatcherService watcherService = mock(ResourceWatcherService.class);
             Tuple<AbstractReloadingMetadataResolver, Supplier<EntityDescriptor>> tuple
                     = SamlRealm.initializeResolver(logger, config.v1(), config.v2(), watcherService);
@@ -152,22 +154,23 @@ public class SamlRealmTests extends SamlTestCase {
         final SamlLogoutRequestHandler logoutHandler = mock(SamlLogoutRequestHandler.class);
 
         final Settings.Builder settingsBuilder = Settings.builder()
-                .put(SamlRealmSettings.PRINCIPAL_ATTRIBUTE.name(), useNameId ? "nameid" : "uid")
-                .put(SamlRealmSettings.GROUPS_ATTRIBUTE.name(), "groups")
-                .put(SamlRealmSettings.MAIL_ATTRIBUTE.name(), "mail");
+                .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getAttribute()), useNameId ? "nameid" : "uid")
+                .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.GROUPS_ATTRIBUTE.getAttribute()), "groups")
+                .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.MAIL_ATTRIBUTE.getAttribute()), "mail");
         if (principalIsEmailAddress) {
             final boolean anchoredMatch = randomBoolean();
-            settingsBuilder.put(SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getPattern().getKey(),
+            settingsBuilder.put(getFullSettingKey(REALM_NAME, SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getPattern()),
                     anchoredMatch ? "^([^@]+)@shield.gov$" : "^([^@]+)@");
         }
         if (populateUserMetadata != null) {
-            settingsBuilder.put(SamlRealmSettings.POPULATE_USER_METADATA.getKey(), populateUserMetadata.booleanValue());
+            settingsBuilder.put(getFullSettingKey(REALM_NAME, SamlRealmSettings.POPULATE_USER_METADATA),
+                    populateUserMetadata.booleanValue());
         }
         final Settings realmSettings = settingsBuilder.build();
 
-        final RealmConfig config = realmConfigFromRealmSettings(realmSettings);
+        final RealmConfig config = buildConfig(realmSettings);
 
-        final SamlRealm realm = new SamlRealm(config, roleMapper, authenticator, logoutHandler, () -> idp, sp);
+        final SamlRealm realm = buildRealm(config, roleMapper, authenticator, logoutHandler, idp, sp);
         final SamlToken token = new SamlToken(new byte[0], Collections.singletonList("<id>"));
 
         final String nameIdValue = principalIsEmailAddress ? "clint.barton@shield.gov" : "clint.barton";
@@ -200,7 +203,6 @@ public class SamlRealmTests extends SamlTestCase {
         assertThat(result.getUser().email(), equalTo("cbarton@shield.gov"));
         assertThat(result.getUser().roles(), arrayContainingInAnyOrder("superuser"));
         if (populateUserMetadata == Boolean.FALSE) {
-            // TODO : "saml_nameid" should be null too, but the logout code requires it for now.
             assertThat(result.getUser().metadata().get("saml_uid"), nullValue());
         } else {
             assertThat(result.getUser().metadata().get("saml_nameid"), equalTo(nameIdValue));
@@ -212,14 +214,24 @@ public class SamlRealmTests extends SamlTestCase {
         assertThat(userData.get().getGroups(), containsInAnyOrder("avengers", "shield"));
     }
 
+    public SamlRealm buildRealm(RealmConfig config, UserRoleMapper roleMapper, SamlAuthenticator authenticator,
+                                SamlLogoutRequestHandler logoutHandler, EntityDescriptor idp, SpConfiguration sp) throws Exception {
+        try {
+            return new SamlRealm(config, roleMapper, authenticator, logoutHandler, () -> idp, sp);
+        } catch (SettingsException e) {
+            logger.info(new ParameterizedMessage("Settings are invalid:\n{}", config.globalSettings().toDelimitedString('\n')), e);
+            throw e;
+        }
+    }
+
     public void testAttributeSelectionWithRegex() throws Exception {
         final boolean useFriendlyName = randomBoolean();
         final Settings settings = Settings.builder()
-                .put("attributes.principal", useFriendlyName ? "mail" : "urn:oid:0.9.2342.19200300.100.1.3")
-                .put("attribute_patterns.principal", "^(.+)@\\w+.example.com$")
+                .put(REALM_SETTINGS_PREFIX + ".attributes.principal", useFriendlyName ? "mail" : "urn:oid:0.9.2342.19200300.100.1.3")
+                .put(REALM_SETTINGS_PREFIX + ".attribute_patterns.principal", "^(.+)@\\w+.example.com$")
                 .build();
 
-        final RealmConfig config = realmConfigFromRealmSettings(settings);
+        final RealmConfig config = buildConfig(settings);
 
         final SamlRealmSettings.AttributeSetting principalSetting = new SamlRealmSettings.AttributeSetting("principal");
         final SamlRealm.AttributeParser parser = SamlRealm.AttributeParser.forSetting(logger, principalSetting, config, false);
@@ -232,15 +244,15 @@ public class SamlRealmTests extends SamlTestCase {
                 )));
 
         final List<String> strings = parser.getAttribute(attributes);
-        assertThat(strings, contains("john.smith", "jsmith"));
+        assertThat("For attributes: " + strings, strings, contains("john.smith", "jsmith"));
     }
 
     public void testSettingPatternWithoutAttributeThrowsSettingsException() throws Exception {
         final Settings realmSettings = Settings.builder()
-                .put(SamlRealmSettings.PRINCIPAL_ATTRIBUTE.name(), "nameid")
-                .put(SamlRealmSettings.NAME_ATTRIBUTE.getPattern().getKey(), "^\\s*(\\S.*\\S)\\s*$")
+                .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getAttribute()), "nameid")
+                .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.NAME_ATTRIBUTE.getPattern()), "^\\s*(\\S.*\\S)\\s*$")
                 .build();
-        final RealmConfig config = realmConfigFromRealmSettings(realmSettings);
+        final RealmConfig config = buildConfig(realmSettings);
 
         final UserRoleMapper roleMapper = mock(UserRoleMapper.class);
         final SamlAuthenticator authenticator = mock(SamlAuthenticator.class);
@@ -249,14 +261,14 @@ public class SamlRealmTests extends SamlTestCase {
         final SpConfiguration sp = new SpConfiguration("<sp>", "https://saml/", null, null, null);
 
         final SettingsException settingsException = expectThrows(SettingsException.class,
-                () -> new SamlRealm(config, roleMapper, authenticator, logoutHandler, () -> idp, sp));
+                () -> buildRealm(config, roleMapper, authenticator, logoutHandler, idp, sp));
         assertThat(settingsException.getMessage(), containsString(REALM_SETTINGS_PREFIX + ".attribute_patterns.name"));
         assertThat(settingsException.getMessage(), containsString(REALM_SETTINGS_PREFIX + ".attributes.name"));
     }
 
     public void testMissingPrincipalSettingThrowsSettingsException() throws Exception {
         final Settings realmSettings = Settings.EMPTY;
-        final RealmConfig config = realmConfigFromRealmSettings(realmSettings);
+        final RealmConfig config = buildConfig(realmSettings);
 
         final UserRoleMapper roleMapper = mock(UserRoleMapper.class);
         final SamlAuthenticator authenticator = mock(SamlAuthenticator.class);
@@ -265,7 +277,7 @@ public class SamlRealmTests extends SamlTestCase {
         final SpConfiguration sp = new SpConfiguration("<sp>", "https://saml/", null, null, null);
 
         final SettingsException settingsException = expectThrows(SettingsException.class,
-                () -> new SamlRealm(config, roleMapper, authenticator, logoutHandler, () -> idp, sp));
+                () -> buildRealm(config, roleMapper, authenticator, logoutHandler, idp, sp));
         assertThat(settingsException.getMessage(), containsString(REALM_SETTINGS_PREFIX + ".attributes.principal"));
     }
 
@@ -277,13 +289,13 @@ public class SamlRealmTests extends SamlTestCase {
         final SamlLogoutRequestHandler logoutHandler = mock(SamlLogoutRequestHandler.class);
 
         final Settings realmSettings = Settings.builder()
-                .put(SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getAttribute().getKey(), "mail")
-                .put(SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getPattern().getKey(), "^([^@]+)@mycorp\\.example\\.com$")
+                .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getAttribute()), "mail")
+                .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getPattern()), "^([^@]+)@mycorp\\.example\\.com$")
                 .build();
 
-        final RealmConfig config = realmConfigFromRealmSettings(realmSettings);
+        final RealmConfig config = buildConfig(realmSettings);
 
-        final SamlRealm realm = new SamlRealm(config, roleMapper, authenticator, logoutHandler, () -> idp, sp);
+        final SamlRealm realm = buildRealm(config, roleMapper, authenticator, logoutHandler, idp, sp);
         final SamlToken token = new SamlToken(new byte[0], Collections.singletonList("<id>"));
 
         for (String mail : Arrays.asList("john@your-corp.example.com", "john@mycorp.example.com.example.net", "john")) {
@@ -463,7 +475,7 @@ public class SamlRealmTests extends SamlTestCase {
                 final IllegalArgumentException illegalArgumentException =
                         expectThrows(IllegalArgumentException.class, () -> SamlRealm.buildSigningConfiguration(realmConfig));
                 final String expectedErrorMessage = "The configured key store for "
-                        + RealmSettings.getFullSettingKey(realmConfig, SamlRealmSettings.SIGNING_SETTINGS.getPrefix())
+                        + RealmSettings.realmSettingPrefix(realmConfig.identifier()) + "signing."
                         + " does not have a key associated with alias [" + unknownAlias + "] " + "(from setting "
                         + RealmSettings.getFullSettingKey(realmConfig, SamlRealmSettings.SIGNING_KEY_ALIAS) + ")";
                 assertEquals(expectedErrorMessage, illegalArgumentException.getLocalizedMessage());
@@ -484,7 +496,7 @@ public class SamlRealmTests extends SamlTestCase {
                 final IllegalArgumentException illegalArgumentException =
                         expectThrows(IllegalArgumentException.class, () -> SamlRealm.buildSigningConfiguration(realmConfig));
                 final String expectedErrorMessage = "The configured key store for "
-                        + RealmSettings.getFullSettingKey(realmConfig, SamlRealmSettings.SIGNING_SETTINGS.getPrefix())
+                        + RealmSettings.realmSettingPrefix(realmConfig.identifier()) + "signing."
                         + " does not contain any RSA key pairs";
                 assertEquals(expectedErrorMessage, illegalArgumentException.getLocalizedMessage());
             } else {
@@ -492,7 +504,7 @@ public class SamlRealmTests extends SamlTestCase {
                 final IllegalArgumentException illegalArgumentException =
                         expectThrows(IllegalArgumentException.class, () -> SamlRealm.buildSigningConfiguration(realmConfig));
                 final String expectedErrorMessage = "The configured key store for "
-                        + RealmSettings.getFullSettingKey(realmConfig, SamlRealmSettings.SIGNING_SETTINGS.getPrefix())
+                        + RealmSettings.realmSettingPrefix(realmConfig.identifier()) + "signing."
                         + " has multiple keys but no alias has been specified (from setting "
                         + RealmSettings.getFullSettingKey(realmConfig, SamlRealmSettings.SIGNING_KEY_ALIAS) + ")";
                 assertEquals(expectedErrorMessage, illegalArgumentException.getLocalizedMessage());
@@ -520,14 +532,14 @@ public class SamlRealmTests extends SamlTestCase {
         final SamlLogoutRequestHandler logoutHandler = mock(SamlLogoutRequestHandler.class);
 
         final Settings.Builder realmSettings = Settings.builder()
-                .put(SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getAttribute().getKey(), "uid");
+                .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getAttribute()), "uid");
         if (useSingleLogout != null) {
-            realmSettings.put(SamlRealmSettings.IDP_SINGLE_LOGOUT.getKey(), useSingleLogout.booleanValue());
+            realmSettings.put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_SINGLE_LOGOUT), useSingleLogout.booleanValue());
         }
 
-        final RealmConfig config = realmConfigFromRealmSettings(realmSettings.build());
+        final RealmConfig config = buildConfig(realmSettings.build());
 
-        final SamlRealm realm = new SamlRealm(config, roleMapper, authenticator, logoutHandler, () -> idp, sp);
+        final SamlRealm realm = buildRealm(config, roleMapper, authenticator, logoutHandler, idp, sp);
 
         final NameID nameId = SamlUtils.buildObject(NameID.class, NameID.DEFAULT_ELEMENT_NAME);
         nameId.setFormat(NameID.TRANSIENT);
@@ -571,8 +583,8 @@ public class SamlRealmTests extends SamlTestCase {
         return path;
     }
 
-    private Tuple<RealmConfig, SSLService> buildConfig(String path) throws Exception {
-        Settings globalSettings = buildSettings(path).build();
+    private Tuple<RealmConfig, SSLService> buildConfig(String idpMetaDataPath) throws Exception {
+        Settings globalSettings = buildSettings(idpMetaDataPath).build();
         final Environment env = TestEnvironment.newEnvironment(globalSettings);
         final RealmConfig config = realmConfigFromGlobalSettings(globalSettings);
         final SSLService sslService = new SSLService(globalSettings, env);
@@ -587,23 +599,24 @@ public class SamlRealmTests extends SamlTestCase {
                 .put(REALM_SETTINGS_PREFIX + ".ssl.keystore.path",
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"))
                 .put(REALM_SETTINGS_PREFIX + ".type", "saml")
-                .put(REALM_SETTINGS_PREFIX + "." + SamlRealmSettings.IDP_METADATA_PATH.getKey(), idpMetaDataPath)
-                .put(REALM_SETTINGS_PREFIX + "." + SamlRealmSettings.IDP_ENTITY_ID.getKey(), TEST_IDP_ENTITY_ID)
-                .put(REALM_SETTINGS_PREFIX + "." + SamlRealmSettings.IDP_METADATA_HTTP_REFRESH.getKey(), METADATA_REFRESH + "ms")
+                .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_PATH), idpMetaDataPath)
+                .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_ENTITY_ID), TEST_IDP_ENTITY_ID)
+                .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_REFRESH), METADATA_REFRESH + "ms")
                 .put("path.home", createTempDir())
                 .setSecureSettings(secureSettings);
     }
 
-    private RealmConfig realmConfigFromRealmSettings(Settings realmSettings) {
-        final Settings globalSettings = Settings.builder().put("path.home", createTempDir()).build();
-        final Environment env = TestEnvironment.newEnvironment(globalSettings);
-        return new RealmConfig(REALM_NAME, realmSettings, globalSettings, env, new ThreadContext(globalSettings));
+    private RealmConfig buildConfig(Settings realmSettings) {
+        final Settings settings = Settings.builder()
+                .put("path.home", createTempDir())
+                .put(realmSettings).build();
+        final Environment env = TestEnvironment.newEnvironment(settings);
+        return new RealmConfig(new RealmConfig.RealmIdentifier("saml", REALM_NAME), settings, env, new ThreadContext(settings));
     }
 
     private RealmConfig realmConfigFromGlobalSettings(Settings globalSettings) {
-        final Settings realmSettings = globalSettings.getByPrefix(REALM_SETTINGS_PREFIX + ".");
         final Environment env = TestEnvironment.newEnvironment(globalSettings);
-        return new RealmConfig(REALM_NAME, realmSettings, globalSettings, env, new ThreadContext(globalSettings));
+        return new RealmConfig(new RealmConfig.RealmIdentifier("saml", REALM_NAME), globalSettings, env, new ThreadContext(globalSettings));
     }
 
     private void assertIdp1MetadataParsedCorrectly(EntityDescriptor descriptor) {

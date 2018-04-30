@@ -108,6 +108,7 @@ import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
+import org.elasticsearch.xpack.core.security.authc.InternalRealmsSettings;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
@@ -548,6 +549,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             return settingsList;
         }
 
+
         // The following just apply in node mode
 
         // IP Filter settings
@@ -560,7 +562,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
         // authentication settings
         AnonymousUser.addSettings(settingsList);
-        RealmSettings.addSettings(settingsList, securityExtensions);
+        settingsList.addAll(InternalRealmsSettings.getSettings());
         NativeRolesStore.addSettings(settingsList);
         ReservedRealm.addSettings(settingsList);
         AuthenticationService.addSettings(settingsList);
@@ -596,7 +598,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     public List<String> getSettingsFilter() {
         List<String> asArray = settings.getAsList(SecurityField.setting("hide_settings"));
         ArrayList<String> settingsFilter = new ArrayList<>(asArray);
-        settingsFilter.addAll(RealmSettings.getSettingsFilter(securityExtensions));
         // hide settings where we don't define them - they are part of a group...
         settingsFilter.add("transport.profiles.*." + SecurityField.setting("*"));
         return settingsFilter;

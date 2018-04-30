@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionRe
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -84,6 +85,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.test.SecuritySettingsSource.getSettingKey;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -177,16 +179,20 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
 
         final Path metadata = PathUtils.get(SamlRealm.class.getResource("idp1.xml").toURI());
         final Environment env = TestEnvironment.newEnvironment(settings);
+        final RealmIdentifier identifier = new RealmIdentifier("saml", "saml1");
         final Settings realmSettings = Settings.builder()
-                .put(SamlRealmSettings.IDP_METADATA_PATH.getKey(), metadata.toString())
-                .put(SamlRealmSettings.IDP_ENTITY_ID.getKey(), SamlRealmTests.TEST_IDP_ENTITY_ID)
-                .put(SamlRealmSettings.SP_ENTITY_ID.getKey(), SamlRealmTestHelper.SP_ENTITY_ID)
-                .put(SamlRealmSettings.SP_ACS.getKey(), SamlRealmTestHelper.SP_ACS_URL)
-                .put(SamlRealmSettings.SP_LOGOUT.getKey(), SamlRealmTestHelper.SP_LOGOUT_URL)
-                .put("attributes.principal", "uid")
+                .put(getSettingKey(SamlRealmSettings.IDP_METADATA_PATH, identifier), metadata.toString())
+                .put(getSettingKey(SamlRealmSettings.IDP_ENTITY_ID, identifier), SamlRealmTests.TEST_IDP_ENTITY_ID)
+                .put(getSettingKey(SamlRealmSettings.SP_ENTITY_ID, identifier), SamlRealmTestHelper.SP_ENTITY_ID)
+                .put(getSettingKey(SamlRealmSettings.SP_ACS, identifier), SamlRealmTestHelper.SP_ACS_URL)
+                .put(getSettingKey(SamlRealmSettings.SP_LOGOUT, identifier), SamlRealmTestHelper.SP_LOGOUT_URL)
+                .put(getSettingKey(SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getAttribute(), identifier), "uid")
                 .build();
 
-        final RealmConfig realmConfig = new RealmConfig("saml1", realmSettings, settings, env, threadContext);
+        final RealmConfig realmConfig = new RealmConfig(
+                identifier,
+                mergeSettings(realmSettings, settings),
+                env, threadContext);
         samlRealm = SamlRealmTestHelper.buildRealm(realmConfig, null);
         when(realms.realm(realmConfig.name())).thenReturn(samlRealm);
         when(realms.stream()).thenAnswer(i -> Stream.of(samlRealm));

@@ -26,7 +26,7 @@ public class PkiRealmBootstrapCheckTests extends ESTestCase {
 
     public void testBootstrapCheckWithPkiRealm() throws Exception {
         Settings settings = Settings.builder()
-                .put("xpack.security.authc.realms.test_pki.type", PkiRealmSettings.TYPE)
+                .put("xpack.security.authc.realms.pki.test_pki.order", 0)
                 .put("path.home", createTempDir())
                 .build();
         Environment env = TestEnvironment.newEnvironment(settings);
@@ -88,8 +88,7 @@ public class PkiRealmBootstrapCheckTests extends ESTestCase {
 
     public void testBootstrapCheckWithDisabledRealm() throws Exception {
         Settings settings = Settings.builder()
-                .put("xpack.security.authc.realms.test_pki.type", PkiRealmSettings.TYPE)
-                .put("xpack.security.authc.realms.test_pki.enabled", false)
+                .put("xpack.security.authc.realms.pki.test_pki.enabled", false)
                 .put("xpack.ssl.client_authentication", "none")
                 .put("path.home", createTempDir())
                 .build();
@@ -102,7 +101,7 @@ public class PkiRealmBootstrapCheckTests extends ESTestCase {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.http.ssl.keystore.secure_password", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.security.authc.realms.test_pki.type", PkiRealmSettings.TYPE)
+                .put("xpack.security.authc.realms.pki.test_pki.order", 0)
                 .put("xpack.security.http.ssl.enabled", true)
                 .put("xpack.security.http.ssl.client_authentication", expectFail ? "none" : "optional")
                 .put("xpack.security.http.ssl.keystore.path",

@@ -28,6 +28,8 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 
+import org.elasticsearch.xpack.security.authc.ldap.LdapUserSearchSessionFactoryTests;
+
 import static org.elasticsearch.xpack.security.authc.ldap.LdapUserSearchSessionFactoryTests.getLdapUserSearchSessionFactory;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -91,8 +93,8 @@ public class ADLdapUserSearchSessionFactoryTests extends AbstractActiveDirectory
         });
         Settings fullSettings = builder.build();
         sslService = new SSLService(fullSettings, TestEnvironment.newEnvironment(fullSettings));
-        RealmConfig config = new RealmConfig("ad-as-ldap-test", settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
-                new ThreadContext(globalSettings));
+        RealmConfig config = new RealmConfig(new RealmConfig.RealmIdentifier("ad", "ad-as-ldap-test"), settings, globalSettings,
+                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
         LdapUserSearchSessionFactory sessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool);
 
         String user = "Bruce Banner";

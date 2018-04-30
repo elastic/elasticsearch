@@ -46,15 +46,14 @@ public class LdapSessionFactory extends SessionFactory {
 
     public LdapSessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool) {
         super(config, sslService, threadPool);
-        Settings settings = config.settings();
-        userDnTemplates = LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
+        userDnTemplates = config.getSetting(LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING).toArray(Strings.EMPTY_ARRAY);
         if (userDnTemplates.length == 0) {
             throw new IllegalArgumentException("missing required LDAP setting ["
                     + RealmSettings.getFullSettingKey(config, LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING) + "]");
         }
         logger.info("Realm [{}] is in user-dn-template mode: [{}]", config.name(), userDnTemplates);
-        groupResolver = groupResolver(settings);
-        metaDataResolver = new LdapMetaDataResolver(settings, ignoreReferralErrors);
+        groupResolver = groupResolver(config);
+        metaDataResolver = new LdapMetaDataResolver(config, ignoreReferralErrors);
     }
 
     /**
@@ -123,11 +122,11 @@ public class LdapSessionFactory extends SessionFactory {
         return new MessageFormat(template, Locale.ROOT).format(new Object[] { escapedUsername }, new StringBuffer(), null).toString();
     }
 
-    static GroupsResolver groupResolver(Settings settings) {
-        if (SearchGroupsResolverSettings.BASE_DN.exists(settings)) {
-            return new SearchGroupsResolver(settings);
+    static GroupsResolver groupResolver(RealmConfig realmConfig) {
+        if (realmConfig.hasSetting(SearchGroupsResolverSettings.BASE_DN)) {
+            return new SearchGroupsResolver(realmConfig);
         }
-        return new UserAttributeGroupsResolver(settings);
+        return new UserAttributeGroupsResolver(realmConfig);
     }
 
 }

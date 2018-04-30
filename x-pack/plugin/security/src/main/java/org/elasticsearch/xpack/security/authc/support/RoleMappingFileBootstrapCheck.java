@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.security.authc.support;
 
-import java.nio.file.Path;
-
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.DnRoleMapperSettings;
+
+import java.nio.file.Path;
 
 /**
  * A BootstrapCheck that {@link DnRoleMapper} files exist and are valid (valid YAML and valid DNs)
@@ -42,8 +42,8 @@ public class RoleMappingFileBootstrapCheck implements BootstrapCheck {
     }
 
     public static BootstrapCheck create(RealmConfig realmConfig) {
-        if (realmConfig.enabled() && DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING.exists(realmConfig.settings())) {
-            Path file = DnRoleMapper.resolveFile(realmConfig.settings(), realmConfig.env());
+        if (realmConfig.enabled() && realmConfig.hasSetting(DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING)) {
+            Path file = DnRoleMapper.resolveFile(realmConfig);
             return new RoleMappingFileBootstrapCheck(realmConfig, file);
         }
         return null;

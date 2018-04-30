@@ -30,8 +30,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Random;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
@@ -39,6 +43,9 @@ import static java.util.Collections.unmodifiableList;
 
 /** Utilities for selecting versions in tests */
 public class VersionUtils {
+    // this will need to be set to false once the branch has no BWC candidates (ie, its 2 major releases behind a released version)
+    private static final boolean isReleasableBranch = true;
+
     /**
      * Sort versions that have backwards compatibility guarantees from
      * those that don't. Doesn't actually check whether or not the versions
@@ -50,73 +57,107 @@ public class VersionUtils {
      * guarantees in v1 and versions without the guranteees in v2
      */
     static Tuple<List<Version>, List<Version>> resolveReleasedVersions(Version current, Class<?> versionClass) {
-        List<Version> versions = Version.getDeclaredVersions(versionClass);
+        TreeSet<Version> releasedVersions = new TreeSet<>(Version.getDeclaredVersions(versionClass));
+        List<Version> unreleasedVersions = new ArrayList<>();
 
-        Version last = versions.remove(versions.size() - 1);
-        assert last.equals(current) : "The highest version must be the current one "
-            + "but was [" + last + "] and current was [" + current + "]";
+        assert releasedVersions.last().equals(current) : "The highest version must be the current one "
+            + "but was [" + releasedVersions.last() + "] and current was [" + current + "]";
 
-        if (current.revision != 0) {
-            /* If we are in a stable branch there should be no unreleased version constants
-             * because we don't expect to release any new versions in older branches. If there
-             * are extra constants then gradle will yell about it. */
-            return new Tuple<>(unmodifiableList(versions), singletonList(current));
-        }
+        List<Version> temporarilyRemovedReleases = new ArrayList<>();
 
-        /* If we are on a patch release then we know that at least the version before the
-         * current one is unreleased. If it is released then gradle would be complaining. */
-        int unreleasedIndex = versions.size() - 1;
-        while (true) {
-            if (unreleasedIndex < 0) {
-                throw new IllegalArgumentException("Couldn't find first non-alpha release");
-            }
-            /* We don't support backwards compatibility for alphas, betas, and rcs. But
-             * they were released so we add them to the released list. Usually this doesn't
-             * matter to consumers, but consumers that do care should filter non-release
-             * versions. */
-            if (versions.get(unreleasedIndex).isRelease()) {
-                break;
-            }
-            unreleasedIndex--;
-        }
-
-        Version unreleased = versions.remove(unreleasedIndex);
-        if (unreleased.revision == 0) {
-            /*
-             * If the last unreleased version is itself a patch release then Gradle enforces that there is yet another unreleased version
-             * before that. However, we have to skip alpha/betas/RCs too (e.g., consider when the version constants are ..., 5.6.3, 5.6.4,
-             * 6.0.0-alpha1, ..., 6.0.0-rc1, 6.0.0-rc2, 6.0.0, 6.1.0 on the 6.x branch. In this case, we will have pruned 6.0.0 and 6.1.0 as
-             * unreleased versions, but we also need to prune 5.6.4. At this point though, unreleasedIndex will be pointing to 6.0.0-rc2, so
-             * we have to skip backwards until we find a non-alpha/beta/RC again. Then we can prune that version as an unreleased version
-             * too.
-             */
-            do {
-                unreleasedIndex--;
-            } while (versions.get(unreleasedIndex).isRelease() == false);
-            Version earlierUnreleased = versions.remove(unreleasedIndex);
-
-            // This earlierUnreleased is either the snapshot on the minor branch lower, or its possible its a staged release. If it is a
-            // staged release, remove it and return it in unreleased as well.
-            if (earlierUnreleased.revision == 0) {
-                unreleasedIndex--;
-                Version actualUnreleasedPreviousMinor = versions.remove(unreleasedIndex);
-                return new Tuple<>(unmodifiableList(versions), unmodifiableList(Arrays.asList(actualUnreleasedPreviousMinor,
-                    earlierUnreleased, unreleased, current)));
-            }
-
-            return new Tuple<>(unmodifiableList(versions), unmodifiableList(Arrays.asList(earlierUnreleased, unreleased, current)));
-        } else if (unreleased.major == current.major) {
-            // need to remove one more of the last major's minor set
-            do {
-                unreleasedIndex--;
-            } while (unreleasedIndex > 0 && versions.get(unreleasedIndex).major == current.major);
-            if (unreleasedIndex > 0) {
-                // some of the test cases return very small lists, so its possible this is just the end of the list, if so, dont include it
-                Version earlierMajorsMinor = versions.remove(unreleasedIndex);
-                return new Tuple<>(unmodifiableList(versions), unmodifiableList(Arrays.asList(earlierMajorsMinor, unreleased, current)));
+        for (Version version: releasedVersions) {
+            if (version.isRelease() == false && isMajorReleased(version, releasedVersions)) {
+                // remove the Alpha/Beta/RC temporarily for already released versions
+                temporarilyRemovedReleases.add(version);
+            } else if (version.isRelease() == false
+                && version.major == current.major
+                && version.minor == current.minor
+                && version.revision == current.revision
+                && version.build != current.build) {
+                // remove the Alpha/Beta/RC temporarily for the current version
+                temporarilyRemovedReleases.add(version);
             }
         }
-        return new Tuple<>(unmodifiableList(versions), unmodifiableList(Arrays.asList(unreleased, current)));
+        releasedVersions.removeAll(temporarilyRemovedReleases);
+        releasedVersions.remove(current);
+
+        if (isReleasableBranch) {
+            if (isReleased(current)) {
+                // if the minor has been released then it only has a maintenance version
+                // go back 1 version to get the last supported snapshot version of the line, which is a maint bugfix
+                Version highestMinor = getHighestPreviousMinor(current.major, releasedVersions);
+                releasedVersions.remove(highestMinor);
+                unreleasedVersions.add(highestMinor);
+            } else {
+                // if our currentVersion is a X.0.0, we need to check X-1 minors to see if they are released
+                if (current.minor == 0) {
+                    boolean hasFoundNextMinor = false;
+                    boolean hasFoundStagedMinor = false;
+                    for (Version version: getMinorTips(current.major - 1, releasedVersions)) {
+                        if (isReleased(version) == false) {
+                            // This should only ever contain 2 non released branches in flight. An example is 6.x is frozen,
+                            // and 6.2 is cut but not yet released there is some simple logic to make sure that in the case of more than 2,
+                            // it will bail. The order is that the minor snapshot is fufilled first, and then the staged minor snapshot
+                            if (hasFoundNextMinor == false) {
+                                hasFoundNextMinor = true;
+                                releasedVersions.remove(version);
+                                unreleasedVersions.add(version);
+                            } else if (hasFoundStagedMinor == false) {
+                                hasFoundStagedMinor = true;
+                                releasedVersions.remove(version);
+                                unreleasedVersions.add(version);
+                            } else {
+                                throw new IllegalArgumentException(
+                                    "More than 2 snapshot version existed for the next minor and staged (frozen) minors.");
+                            }
+                        } else {
+                            // this is the last minor snap for this major, so replace the highest (last) one of these and break
+                            releasedVersions.remove(version);
+                            unreleasedVersions.add(version);
+                            // we only care about the largest minor here, so in the case of 6.1 and 6.0, it will only get 6.1
+                            break;
+                        }
+                    }
+                    // now dip back 2 versions to get the last supported snapshot version of the line
+                    Version highestMinor = getHighestPreviousMinor(current.major - 1, releasedVersions);
+                    releasedVersions.remove(highestMinor);
+                    unreleasedVersions.add(highestMinor);
+                } else {
+                    // version is not a X.0.0, so we are somewhere on a X.Y line only check till minor == 0 of the major
+                    boolean hasFoundStagedMinor = false;
+                    for (Version version: getMinorTips(current.major, releasedVersions)) {
+                        if (isReleased(version) == false) {
+                            // This should only ever contain 0 or 1 branch in flight. An example is 6.x is frozen, and 6.2 is cut
+                            // but not yet released there is some simple logic to make sure that in the case of more than 1, it will bail
+                            if (hasFoundStagedMinor == false) {
+                                hasFoundStagedMinor = true;
+                                releasedVersions.remove(version);
+                                unreleasedVersions.add(version);
+                            } else {
+                                throw new IllegalArgumentException("More than 1 snapshot version existed for the staged (frozen) minors.");
+                            }
+                        } else {
+                            // this is the last minor snap for this major, so replace the highest (last) one of these and break
+                            releasedVersions.remove(version);
+                            unreleasedVersions.add(version);
+                            // we only care about the largest minor here, so in the case of 6.1 and 6.0, it will only get 6.1
+                            break;
+                        }
+                    }
+                    // now dip back 1 version to get the last supported snapshot version of the line
+                    Version highestMinor = getHighestPreviousMinor(current.major, releasedVersions);
+                    releasedVersions.remove(highestMinor);
+                    unreleasedVersions.add(highestMinor);
+                }
+            }
+        }
+
+        // re-add the Alpha/Beta/RC
+        releasedVersions.addAll(temporarilyRemovedReleases);
+        unreleasedVersions.add(current);
+
+        Collections.sort(unreleasedVersions);
+        return new Tuple<>(new ArrayList<>(releasedVersions), unreleasedVersions);
     }
 
     private static final List<Version> RELEASED_VERSIONS;
@@ -243,6 +284,73 @@ public class VersionUtils {
             .collect(Collectors.toList());
         assert compatible.size() > 0;
         return compatible.get(compatible.size() - 1);
+    }
+
+    private static Version generateVersion(int major, int minor, int revision) {
+        return Version.fromString(String.format(Locale.ROOT, "%s.%s.%s", major, minor, revision));
+    }
+
+    /**
+     * Uses basic logic about our releases to determine if this version has been previously released
+     */
+    private static boolean isReleased(Version version) {
+        return version.revision > 0;
+    }
+
+    /**
+     * Validates that the count of non suffixed (alpha/beta/rc) versions in a given major to major+1 is greater than 1.
+     * This means that there is more than just a major.0.0 or major.0.0-alpha in a branch to signify it has been prevously released.
+     */
+    private static boolean isMajorReleased(Version version, TreeSet<Version> items) {
+        return getMajorSet(version.major, items)
+            .stream()
+            .map(v -> v.isRelease())
+            .count() > 1;
+    }
+
+    /**
+     * Gets the largest version previous major version based on the nextMajorVersion passed in.
+     * If you have a list [5.0.2, 5.1.2, 6.0.1, 6.1.1] and pass in 6 for the nextMajorVersion, it will return you 5.1.2
+     */
+    private static Version getHighestPreviousMinor(int majorVersion, TreeSet<Version> items){
+        return items.headSet(generateVersion(majorVersion, 0, 0)).last();
+    }
+
+    /**
+     * Gets the entire set of major.minor.* given those parameters.
+     */
+    private static SortedSet<Version> getMinorSetForMajor(int major, int minor, TreeSet<Version> items) {
+        return items
+            .tailSet(generateVersion(major, minor, 0))
+            .headSet(generateVersion(major, minor + 1, 0));
+    }
+
+    /**
+     * Gets the entire set of major.* to the currentVersion
+     */
+    private static SortedSet<Version> getMajorSet(int major, TreeSet<Version> items) {
+        return items
+            .tailSet(generateVersion(major, 0, 0))
+            .headSet(generateVersion(major + 1, 0, 0));
+    }
+
+    /**
+     * Gets the tip of each minor set and puts it in a list.
+     *
+     * examples:
+     *  [1.0.0, 1.1.0, 1.1.1, 1.2.0, 1.3.1] will return [1.0.0, 1.1.1, 1.2.0, 1.3.1]
+     *  [1.0.0, 1.0.1, 1.0.2, 1.0.3, 1.0.4] will return [1.0.4]
+     */
+    private static List<Version> getMinorTips(int major, TreeSet<Version> items) {
+        SortedSet<Version> majorSet = getMajorSet(major, items);
+        List<Version> minorList = new ArrayList<>();
+        for (int minor = majorSet.last().minor; minor >= 0; minor--) {
+            SortedSet<Version> minorSetInMajor = getMinorSetForMajor(major, minor, items);
+            if (minorSetInMajor.isEmpty() == false) {
+                minorList.add(minorSetInMajor.last());
+            }
+        }
+        return minorList;
     }
 
 }

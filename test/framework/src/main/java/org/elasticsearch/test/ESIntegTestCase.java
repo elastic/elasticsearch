@@ -1703,7 +1703,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
-     * This method is used to obtain settings for the {@code Nth} node in the cluster.
+     * This method is used to obtain settings for the {@code N}th node in the cluster.
      * Nodes in this cluster are associated with an ordinal number such that nodes can
      * be started with specific configurations. This method might be called multiple
      * times with the same ordinal and is expected to return the same value for each invocation.

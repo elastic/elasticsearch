@@ -2590,6 +2590,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private EngineConfig.TombstoneDocSupplier tombstoneDocSupplier() {
+        final RootObjectMapper.Builder noopRootMapper = new RootObjectMapper.Builder("__noop");
+        final DocumentMapper noopDocumentMapper = new DocumentMapper.Builder(noopRootMapper, mapperService).build(mapperService);
         return new EngineConfig.TombstoneDocSupplier() {
             @Override
             public ParsedDocument newDeleteTombstoneDoc(String type, String id) {
@@ -2597,9 +2599,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             @Override
             public ParsedDocument newNoopTombstoneDoc() {
-                final RootObjectMapper.Builder rootMapper = new RootObjectMapper.Builder("__noop");
-                final DocumentMapper documentMapper = new DocumentMapper.Builder(rootMapper, mapperService).build(mapperService);
-                return documentMapper.createNoopTombstoneDoc(shardId.getIndexName());
+                return noopDocumentMapper.createNoopTombstoneDoc(shardId.getIndexName());
             }
         };
     }

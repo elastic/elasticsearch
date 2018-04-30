@@ -560,7 +560,7 @@ class BuildPlugin implements Plugin<Project> {
              * incentive to convert them....
              */
             List html4Projects = [
-                ':server',
+                /*':server',*/
                 ':x-pack:plugin:core',
             ]
             if (false == html4Projects.contains(project.path)) {

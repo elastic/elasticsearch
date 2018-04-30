@@ -227,7 +227,7 @@ internal rather than general purpose. We have no plans to
 We publish them to maven central because they are dependencies of our plugin
 test framework, high level rest client, and jdbc driver but they really aren't
 general purpose enough to *belong* in maven central. We're still working out
-what to do here....
+what to do here.
 
 #### `modules`
 Features that are shipped with Elasticsearch by default but are not built in to

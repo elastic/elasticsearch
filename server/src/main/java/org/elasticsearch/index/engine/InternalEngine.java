@@ -67,6 +67,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -1233,6 +1234,8 @@ public class InternalEngine extends Engine {
                 tombstone.updateSeqID(plan.seqNoOfDeletion, delete.primaryTerm());
                 tombstone.version().setLongValue(plan.versionOfDeletion);
                 final ParseContext.Document doc = tombstone.docs().get(0);
+                assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null :
+                    "Delete tombstone document but _tombstone field is not set [" + doc + " ]";
                 doc.add(softDeleteField);
                 if (plan.addStaleOpToLucene || plan.currentlyDeleted) {
                     indexWriter.addDocument(doc);
@@ -1342,7 +1345,11 @@ public class InternalEngine extends Engine {
                     final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newNoopTombstoneDoc();
                     tombstone.updateSeqID(noOp.seqNo(), noOp.primaryTerm());
                     assert tombstone.docs().size() == 1 : "Tombstone should have a single doc [" + tombstone + "]";
-                    addStaleDocs(tombstone.docs(), indexWriter);
+                    final ParseContext.Document doc = tombstone.docs().get(0);
+                    assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null
+                        : "Noop tombstone document but _tombstone field is not set [" + doc + " ]";
+                    doc.add(softDeleteField);
+                    indexWriter.addDocument(doc);
                 } catch (Exception ex) {
                     if (maybeFailEngine("noop", ex)) {
                         throw ex;

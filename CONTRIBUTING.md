@@ -261,18 +261,18 @@ Honestly this is kind of in flux and we're not 100% sure where we'll end up.
 Right now the directory contains
 * Tests that require multiple modules or plugins to work
 * Tests that form a cluster made up of multiple versions of Elasticsearch like
-        full cluster restart, rolling restarts, and mixed version tests
+full cluster restart, rolling restarts, and mixed version tests
 * Tests that test the Elasticsearch clients in "interesting" places like the
-        `wildfly` project.
+`wildfly` project.
 * Tests that test Elasticsearch in funny configurations like with ingest
-        disabled
+disabled
 * Tests that need to do strange things like install plugins that thrown
-        uncaught `Throwable`s or add a shutdown hook
+uncaught `Throwable`s or add a shutdown hook
 But we're not convinced that all of these things *belong* in the qa directory.
-We're fairly sure that "tests that require multiple modules or plugins to work"
+We're fairly sure that tests that require multiple modules or plugins to work
 should just pick a "home" plugin. We're fairly sure that the multi-version
 tests *do* belong in qa. Beyond that, we're not sure. If you want to add a new
-thing qa module, ask around and you'll get several opinions.
+qa project, open a PR and be ready to discuss options.
 
 #### `server`
 The server component of Elasticsearch that contains all of the modules and
@@ -282,7 +282,7 @@ but we'd like to fix that in the future.
 #### `test`
 Our test framework and test fixtures. We use the test framework for testing the
 server, the plugins, and modules, and pretty much everything else. We publish
-the test framework so folks who develope Elasticsearch plugins can use it to
+the test framework so folks who develop Elasticsearch plugins can use it to
 test the plugins. The test fixtures are external processes that we start before
 running specific tests that rely on them.
 

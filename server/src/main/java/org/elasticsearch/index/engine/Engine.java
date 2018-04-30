@@ -306,9 +306,8 @@ public abstract class Engine implements Closeable {
         private long took;
 
         protected Result(Operation.TYPE operationType, Exception failure, long version, long seqNo) {
-            Objects.requireNonNull(failure);
             this.operationType = operationType;
-            this.failure = failure;
+            this.failure = Objects.requireNonNull(failure);
             this.version = version;
             this.seqNo = seqNo;
             this.requiredMappingUpdate = null;

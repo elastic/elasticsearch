@@ -9,12 +9,12 @@ manage user passwords.
 [float]
 ==== Configuring a native realm
 
-See {ref}/[Configuring a Native Realm]. 
+See {ref}/[Configuring a native realm]. 
 
 [[native-settings]]
 ==== Native realm settings
 
-See {ref}/security-settings.html#ref-native-settings[Native Realm Settings]. 
+See {ref}/security-settings.html#ref-native-settings[Native realm settings]. 
 
 [[managing-native-users]]
 ==== Managing native users
@@ -23,7 +23,7 @@ See {ref}/security-settings.html#ref-native-settings[Native Realm Settings].
 *Management / Security / Users* page. 
 
 Alternatively, you can manage users through the `user` API. For more 
-information and examples, see {ref}/security-api-users.html[User Management APIs].
+information and examples, see {ref}/security-api-users.html[User management APIs].
 
 [[migrating-from-file]]
 NOTE: To migrate file-based users to the `native` realm, use the

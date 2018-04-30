@@ -1,3 +1,22 @@
+[[es-release-notes]]
+= {es} Release Notes
+
+[partintro]
+--
+
+This section summarizes the changes in each release.
+
+* <<release-notes-7.0.0>>
+* <<release-notes-6.4.0>>
+
+--
+
+[[release-notes-7.0.0]]
+== {es} 7.0.0
+
+Test
+
+////
 // Use these for links to issue and pulls. Note issues and pulls redirect one to
 // each other on Github, so don't worry too much on using the right prefix.
 :issue: https://github.com/elastic/elasticsearch/issues/
@@ -32,9 +51,13 @@ written to by an older Elasticsearch after writing to it with a newer Elasticsea
 === Regressions
 
 === Known Issues
+////
 
-== Elasticsearch version 6.4.0
+[[release-notes-6.4.0]]
+== {es} 6.4.0
 
+Test
+////
 === New Features
 
 === Enhancements
@@ -49,4 +72,4 @@ Do not ignore request analysis/similarity settings on index resize operations wh
 
 === Known Issues
 
-
+////

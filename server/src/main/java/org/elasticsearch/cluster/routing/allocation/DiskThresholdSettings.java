@@ -36,6 +36,7 @@ import java.util.Map;
  * A container to keep settings for disk thresholds up to date with cluster setting changes.
  */
 public class DiskThresholdSettings {
+    @Deprecated
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING =
         Setting.boolSetting("cluster.routing.allocation.disk.threshold_enabled", true,
             Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Deprecated);

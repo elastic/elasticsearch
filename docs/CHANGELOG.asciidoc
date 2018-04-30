@@ -19,15 +19,6 @@ This section summarizes the changes in each release.
 [[release-notes-7.0.0]]
 == {es} 7.0.0
 
-// Use these for links to issue and pulls. Note issues and pulls redirect one to
-// each other on Github, so don't worry too much on using the right prefix.
-:issue: https://github.com/elastic/elasticsearch/issues/
-:pull: https://github.com/elastic/elasticsearch/pull/
-
-= Elasticsearch Release Notes
-
-== Elasticsearch 7.0.0
-
 [float]
 === Breaking Changes
 

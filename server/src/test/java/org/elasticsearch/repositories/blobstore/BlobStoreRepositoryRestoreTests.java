@@ -33,6 +33,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.repositories.IndexId;
@@ -48,6 +49,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.cluster.routing.RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE;
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * This class tests the behavior of {@link BlobStoreRepository} when it
@@ -115,6 +117,43 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                 assertTrue("File [" + fileName + "] does not exist in store directory", directoryFiles.contains(fileName));
                 assertEquals(storeFile.length(), shard.store().directory().fileLength(fileName));
             }
+        } finally {
+            if (shard != null && shard.state() != IndexShardState.CLOSED) {
+                try {
+                    shard.close("test", false);
+                } finally {
+                    IOUtils.close(shard.store());
+                }
+            }
+        }
+    }
+
+    public void testSnapshotWithConflictingName() throws IOException {
+        final IndexId indexId = new IndexId(randomAlphaOfLength(10), UUIDs.randomBase64UUID());
+        final ShardId shardId = new ShardId(indexId.getName(), indexId.getId(), 0);
+
+        IndexShard shard = newShard(shardId, true);
+        try {
+            // index documents in the shards
+            final int numDocs = scaledRandomIntBetween(1, 500);
+            recoverShardFromStore(shard);
+            for (int i = 0; i < numDocs; i++) {
+                indexDoc(shard, "doc", Integer.toString(i));
+                if (rarely()) {
+                    flushShard(shard, false);
+                }
+            }
+            assertDocCount(shard, numDocs);
+
+            // snapshot the shard
+            final Repository repository = createRepository();
+            final Snapshot snapshot = new Snapshot(repository.getMetadata().name(), new SnapshotId(randomAlphaOfLength(10), "_uuid"));
+            snapshotShard(shard, snapshot, repository);
+            final Snapshot snapshotWithSameName = new Snapshot(repository.getMetadata().name(), new SnapshotId(
+                snapshot.getSnapshotId().getName(), "_uuid2"));
+            IndexShardSnapshotFailedException isfe = expectThrows(IndexShardSnapshotFailedException.class,
+                () -> snapshotShard(shard, snapshotWithSameName, repository));
+            assertThat(isfe.getMessage(), containsString("Duplicate snapshot name"));
         } finally {
             if (shard != null && shard.state() != IndexShardState.CLOSED) {
                 try {

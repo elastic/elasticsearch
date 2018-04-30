@@ -222,8 +222,7 @@ GET /cluster_one:twitter/_search
 // TESTRESPONSE[s/"_score": 1/"_score": "$body.hits.hits.0._score"/]
 
 
-In contrast to the `tribe` feature cross cluster search can also search indices with the same name on different
-clusters:
+Indices can also be searched with the same name on different clusters:
 
 [source,js]
 --------------------------------------------------

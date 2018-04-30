@@ -326,6 +326,9 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         EnumSet<Metric> metrics = Metric.parseString(params.param("metric", "_all"), true);
 
+        // always provide the cluster_uuid as part of the top-level response (also part of the metadata response)
+        builder.field("cluster_uuid", metaData().clusterUUID());
+
         if (metrics.contains(Metric.VERSION)) {
             builder.field("version", version);
             builder.field("state_uuid", stateUUID);

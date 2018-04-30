@@ -144,7 +144,7 @@ public class SnifferTests extends RestClientTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicInteger runs = new AtomicInteger(iters);
         final ExecutorService executor = Executors.newSingleThreadExecutor();
-        final AtomicReference<Future> lastFuture = new AtomicReference<>();
+        final AtomicReference<Future<?>> lastFuture = new AtomicReference<>();
         Scheduler scheduler = new Scheduler() {
             @Override
             public Future<?> schedule(Sniffer.Task task, long delayMillis) {
@@ -206,7 +206,7 @@ public class SnifferTests extends RestClientTestCase {
      * Also verifies that the next scheduled round gets cancelled.
      */
     public void testClose() {
-        final Future future = mock(Future.class);
+        final Future<?> future = mock(Future.class);
         long sniffInterval = randomLongBetween(1, Long.MAX_VALUE);
         long sniffAfterFailureDelay = randomLongBetween(1, Long.MAX_VALUE);
         RestClient restClient = mock(RestClient.class);
@@ -239,7 +239,7 @@ public class SnifferTests extends RestClientTestCase {
      * which the ordinary sniffing rounds get scheduled with sniffInterval delay
      */
     public void testOnFailureSingleRound() throws Exception {
-        final Future mockedFuture = mock(Future.class);
+        final Future<?> mockedFuture = mock(Future.class);
         RestClient restClient = mock(RestClient.class);
         CountingHostsSniffer hostsSniffer = new CountingHostsSniffer();
         final long sniffInterval = randomLongBetween(1, Long.MAX_VALUE);
@@ -257,8 +257,8 @@ public class SnifferTests extends RestClientTestCase {
             }
         });
         final CountDownLatch doneLatch = new CountDownLatch(1);
-        final List<Future> futures = new CopyOnWriteArrayList<>();
-        final AtomicReference<Future> lastFuture = new AtomicReference<>();
+        final List<Future<?>> futures = new CopyOnWriteArrayList<>();
+        final AtomicReference<Future<?>> lastFuture = new AtomicReference<>();
         final ExecutorService executor = Executors.newSingleThreadExecutor();
         try {
             Scheduler scheduler = new Scheduler() {
@@ -314,7 +314,7 @@ public class SnifferTests extends RestClientTestCase {
             assertTrue(doneLatch.await(1000, TimeUnit.MILLISECONDS));
             assertEquals(2, futures.size());
             lastFuture.get().get();
-            for (Future future : futures) {
+            for (Future<?> future : futures) {
                 assertTrue(future.isDone());
                 future.get();
             }
@@ -339,7 +339,7 @@ public class SnifferTests extends RestClientTestCase {
         final long sniffInterval = randomLongBetween(1, Long.MAX_VALUE);
         final long sniffAfterFailureDelay = randomLongBetween(1, Long.MAX_VALUE);
         final AtomicBoolean initialized = new AtomicBoolean(false);
-        final List<Future> futures = new CopyOnWriteArrayList<>();
+        final List<Future<?>> futures = new CopyOnWriteArrayList<>();
         Scheduler scheduler = new Scheduler() {
             @Override
             public Future<?> schedule(Sniffer.Task task, long delayMillis) {
@@ -349,7 +349,7 @@ public class SnifferTests extends RestClientTestCase {
                 } else {
                     assertEquals(sniffAfterFailureDelay, task.nextTaskDelay);
                 }
-                Future mockedFuture = mock(Future.class);
+                Future<?> mockedFuture = mock(Future.class);
                 futures.add(mockedFuture);
                 return mockedFuture;
             }
@@ -363,7 +363,7 @@ public class SnifferTests extends RestClientTestCase {
         final Sniffer sniffer = new Sniffer(restClient, hostsSniffer, scheduler, sniffInterval, sniffAfterFailureDelay);
         ExecutorService onFailureExecutor = Executors.newFixedThreadPool(randomIntBetween(2, 10));
         try {
-            Future[] onFailureFutures = new Future[onFailureRounds];
+            Future<?>[] onFailureFutures = new Future<?>[onFailureRounds];
             for (int i = 0; i < onFailureFutures.length; i++) {
                 onFailureFutures[i] = onFailureExecutor.submit(new Runnable() {
                     @Override
@@ -372,7 +372,7 @@ public class SnifferTests extends RestClientTestCase {
                     }
                 });
             }
-            for (Future onFailureFuture : onFailureFutures) {
+            for (Future<?> onFailureFuture : onFailureFutures) {
                 onFailureFuture.get();
             }
         } finally {
@@ -385,7 +385,7 @@ public class SnifferTests extends RestClientTestCase {
         boolean notInvokedFound = false;
         //all of these futures but one must be cancelled, one single time. The one that's not is the last scheduled but not
         //necessarily the last one in our list
-        for (Future future : futures) {
+        for (Future<?> future : futures) {
             try {
                 verify(future).cancel(false);
             } catch(WantedButNotInvoked e) {
@@ -492,8 +492,14 @@ public class SnifferTests extends RestClientTestCase {
         Sniffer.Task task = sniffer.new Task(randomLongBetween(1, Long.MAX_VALUE));
 
         ScheduledExecutorService scheduledExecutorService = mock(ScheduledExecutorService.class);
-        ScheduledFuture mockedFuture = mock(ScheduledFuture.class);
-        when(scheduledExecutorService.schedule(any(Runnable.class), any(Long.class), any(TimeUnit.class))).thenReturn(mockedFuture);
+        final ScheduledFuture<?> mockedFuture = mock(ScheduledFuture.class);
+        when(scheduledExecutorService.schedule(any(Runnable.class), any(Long.class), any(TimeUnit.class)))
+                .then(new Answer<ScheduledFuture<?>>() {
+                    @Override
+                    public ScheduledFuture<?> answer(InvocationOnMock invocationOnMock) {
+                        return mockedFuture;
+                    }
+        });
         DefaultScheduler scheduler = new DefaultScheduler(scheduledExecutorService);
         long delay = randomLongBetween(1, Long.MAX_VALUE);
         Future<?> future = scheduler.schedule(task, delay);

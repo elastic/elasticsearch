@@ -565,7 +565,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private static Engine.DeleteResult executeDeleteRequestOnPrimary(DeleteRequest request, IndexShard primary,
                                                                      MappingUpdatePerformer mappingUpdater) throws Exception {
-        return executeOnPrimaryWhileHandlingMappingUpdates(request.shardId(), request.type(),
+        return executeOnPrimaryWhileHandlingMappingUpdates(primary.shardId(), request.type(),
             () -> primary.applyDeleteOperationOnPrimary(request.version(), request.type(), request.id(), request.versionType()),
             e -> new Engine.DeleteResult(e, request.version()),
             mappingUpdater);
@@ -606,6 +606,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
         public void updateMappings(final Mapping update, final ShardId shardId, final String type) {
             assert update != null;
+            assert shardId != null;
             // can throw timeout exception when updating mappings or ISE for attempting to
             // update default mappings which are bubbled up
             mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), type, update);

@@ -51,6 +51,7 @@ import java.util.List;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.min;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
 
 public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
@@ -243,7 +244,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                 .put("index.version.created", version)
                 .put("index.version.upgraded", upgraded)
                 .put("index.version.minimum_compatible", minCompat.luceneVersion.toString())
-                .put("index.analysis.analyzer.my_analyzer.tokenizer", "keyword")
+                .put("index.analysis.analyzer.default.tokenizer", "keyword")
                 .build())).nodes(DiscoveryNodes.builder().add(newNode("node1")))
             .build();
         AllocationService service = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,
@@ -257,17 +258,60 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             routingTable.index(indexName).shardsWithState(ShardRoutingState.INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        Settings.Builder builder = Settings.builder();
-        builder.put("index.number_of_shards", 1);
-        MetaDataCreateIndexService.prepareResizeIndexSettings(clusterState, Collections.emptySet(), builder,
-            clusterState.metaData().index(indexName).getIndex(), "target", ResizeType.SHRINK);
-        assertEquals("similarity settings must be copied", "BM25", builder.build().get("index.similarity.default.type"));
-        assertEquals("analysis settings must be copied",
-            "keyword", builder.build().get("index.analysis.analyzer.my_analyzer.tokenizer"));
-        assertEquals("node1", builder.build().get("index.routing.allocation.initial_recovery._id"));
-        assertEquals("1", builder.build().get("index.allocation.max_retries"));
-        assertEquals(version, builder.build().getAsVersion("index.version.created", null));
-        assertEquals(upgraded, builder.build().getAsVersion("index.version.upgraded", null));
+        {
+            final Settings.Builder builder = Settings.builder();
+            builder.put("index.number_of_shards", 1);
+            MetaDataCreateIndexService.prepareResizeIndexSettings(
+                    clusterState,
+                    Collections.emptySet(),
+                    builder,
+                    clusterState.metaData().index(indexName).getIndex(),
+                    "target",
+                    ResizeType.SHRINK);
+            final Settings settings = builder.build();
+            assertThat("similarity settings must be copied", settings.get("index.similarity.default.type"), equalTo("BM25"));
+            assertThat(
+                    "analysis settings must be copied", settings.get("index.analysis.analyzer.default.tokenizer"), equalTo("keyword"));
+            assertThat(settings.get("index.routing.allocation.initial_recovery._id"), equalTo("node1"));
+            assertThat(settings.get("index.allocation.max_retries"), equalTo("1"));
+            assertThat(settings.getAsVersion("index.version.created", null), equalTo(version));
+            assertThat(settings.getAsVersion("index.version.upgraded", null), equalTo(upgraded));
+        }
+
+        // analysis settings from the request are not overwritten
+        {
+            final Settings.Builder builder = Settings.builder();
+            builder.put("index.number_of_shards", 1);
+            builder.put("index.analysis.analyzer.default.tokenizer", "whitespace");
+            MetaDataCreateIndexService.prepareResizeIndexSettings(
+                    clusterState,
+                    Collections.emptySet(),
+                    builder,
+                    clusterState.metaData().index(indexName).getIndex(),
+                    "target",
+                    ResizeType.SHRINK);
+            final Settings settings = builder.build();
+            assertThat(
+                    "analysis settings are not overwritten",
+                    settings.get("index.analysis.analyzer.default.tokenizer"),
+                    equalTo("whitespace"));
+        }
+
+        // similarity settings from the request are not overwritten
+        {
+            final Settings.Builder builder = Settings.builder();
+            builder.put("index.number_of_shards", 1);
+            builder.put("index.similarity.default.type", "DFR");
+            MetaDataCreateIndexService.prepareResizeIndexSettings(
+                    clusterState,
+                    Collections.emptySet(),
+                    builder,
+                    clusterState.metaData().index(indexName).getIndex(),
+                    "target",
+                    ResizeType.SHRINK);
+            final Settings settings = builder.build();
+            assertThat("similarity settings are not overwritten", settings.get("index.similarity.default.type"), equalTo("DFR"));
+        }
     }
 
     private DiscoveryNode newNode(String nodeId) {

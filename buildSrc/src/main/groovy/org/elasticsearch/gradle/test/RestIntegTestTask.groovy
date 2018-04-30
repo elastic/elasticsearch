@@ -24,6 +24,7 @@ import org.elasticsearch.gradle.VersionProperties
 import org.gradle.api.DefaultTask
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.Transformer
 import org.gradle.api.execution.TaskExecutionAdapter
 import org.gradle.api.internal.tasks.options.Option
 import org.gradle.api.provider.Property

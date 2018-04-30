@@ -22,7 +22,47 @@ The following parameters starting with underscore have been removed:
 Instead of these removed parameters, use their non camel case equivalents without
 starting underscore, e.g. use `version_type` instead of `_version_type` or `versionType`.
 
+==== Thread pool info
+
+In previous versions of Elasticsearch, the thread pool info returned in the
+<<cluster-nodes-info,nodes info API>> returned `min` and `max` values reflecting
+the configured minimum and maximum number of threads that could be in each
+thread pool. The trouble with this representation is that it does not align with
+the configuration parameters used to configure thread pools. For
+<<modules-threadpool,scaling thread pools>>, the minimum number of threads is
+configured by a parameter called `core` and the maximum number of threads is
+configured by a parameter called `max`. For <<modules-threadpool,fixed thread
+pools>>, there is only one configuration parameter along these lines and that
+parameter is called `size`, reflecting the fixed number of threads in the
+pool. This discrepancy between the API and the configuration parameters has been
+rectified. Now, the API will report `core` and `max` for scaling thread pools,
+and `size` for fixed thread pools.
+
+Similarly, in the cat thread pool API the existing `size` output has been
+renamed to `pool_size` which reflects the number of threads currently in the
+pool; the shortcut for this value has been changed from `s` to `psz`.  The `min`
+output has been renamed to `core` with a shortcut of `cr`, the shortcut for
+`max` has been changed to `mx`, and the `size` output with a shortcut of `sz`
+has been reused to report the configured number of threads in the pool.  This
+aligns the output of the API with the configuration values for thread
+pools. Note that `core` and `max` will be populated for scaling thread pools,
+and `size` will be populated for fixed thread pools.
 
 ==== The parameter `fields` deprecated in 6.x has been removed from Bulk request 
 and Update request. The Update API returns `400 - Bad request` if request contains 
 unknown parameters (instead of ignored in the previous version).
+
+[[remove-suggest-metric]]
+==== Remove support for `suggest` metric/index metric in indices stats and nodes stats APIs
+
+Previously, `suggest` stats were folded into `search` stats. Support for the
+`suggest` metric on the indices stats and nodes stats APIs remained for
+backwards compatibility. Backwards support for the `suggest` metric was
+deprecated in 6.3.0 and now removed in 7.0.0.
+
+[[remove-field-caps-body]]
+==== In the fields capabilities API, `fields` can no longer be provided in the request body.
+
+In the past, `fields` could be provided either as a parameter, or as part of the request
+body. Specifying `fields` in the request body as opposed to a parameter was deprecated
+in 6.4.0, and is now unsupported in 7.0.0.

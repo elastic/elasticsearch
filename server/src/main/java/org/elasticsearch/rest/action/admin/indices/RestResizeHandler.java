@@ -47,8 +47,8 @@ public abstract class RestResizeHandler extends BaseRestHandler {
     public final RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final ResizeRequest resizeRequest = new ResizeRequest(request.param("target"), request.param("index"));
         resizeRequest.setResizeType(getResizeType());
-        final boolean copySettings;
         final String rawCopySettings = request.param("copy_settings");
+        final boolean copySettings;
         if (rawCopySettings == null) {
             copySettings = resizeRequest.getCopySettings();
         } else {

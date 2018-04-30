@@ -384,7 +384,9 @@ public abstract class TransportWriteAction<
         @Override
         public void failShardIfNeeded(ShardRouting replica, String message, Exception exception,
                                       Runnable onSuccess, Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
-            logger.warn(new ParameterizedMessage("[{}] {}", replica.shardId(), message), exception);
+            if (TransportActions.isShardNotAvailableException(exception) == false) {
+                logger.warn(new ParameterizedMessage("[{}] {}", replica.shardId(), message), exception);
+            }
             shardStateAction.remoteShardFailed(replica.shardId(), replica.allocationId().getId(), primaryTerm, true, message, exception,
                 createShardActionListener(onSuccess, onPrimaryDemoted, onIgnoredFailure));
         }

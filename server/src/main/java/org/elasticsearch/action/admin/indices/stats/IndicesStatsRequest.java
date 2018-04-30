@@ -229,15 +229,6 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
         return flags.isSet(Flag.Translog);
     }
 
-    public IndicesStatsRequest suggest(boolean suggest) {
-        flags.set(Flag.Suggest, suggest);
-        return this;
-    }
-
-    public boolean suggest() {
-        return flags.isSet(Flag.Suggest);
-    }
-
     public IndicesStatsRequest requestCache(boolean requestCache) {
         flags.set(Flag.RequestCache, requestCache);
         return this;

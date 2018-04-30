@@ -146,10 +146,6 @@ public class RestNodesStatsAction extends BaseRestHandler {
                     for (final String indexMetric : indexMetrics) {
                         final Consumer<CommonStatsFlags> handler = FLAGS.get(indexMetric);
                         if (handler != null) {
-                            if ("suggest".equals(indexMetric)) {
-                                deprecationLogger.deprecated(
-                                        "the suggest index metric is deprecated on the nodes stats API [" + request.uri() + "]");
-                            }
                             handler.accept(flags);
                         } else {
                             invalidIndexMetrics.add(indexMetric);

@@ -33,7 +33,7 @@ class BucketDiagnostics {
     private long latestFlushedBucketStartMs = -1;
     private final BucketFlushListener bucketFlushListener;
 
-    public BucketDiagnostics(Job job, BucketFlushListener bucketFlushListener) {
+    BucketDiagnostics(Job job, BucketFlushListener bucketFlushListener) {
         bucketSpanMs = job.getAnalysisConfig().getBucketSpan().millis();
         latencyMs = job.getAnalysisConfig().getLatency() == null ? 0 : job.getAnalysisConfig().getLatency().millis();
         maxSize = Math.max((int) (Intervals.alignToCeil(latencyMs, bucketSpanMs) / bucketSpanMs), MIN_BUCKETS);
@@ -41,7 +41,7 @@ class BucketDiagnostics {
         this.bucketFlushListener = bucketFlushListener;
     }
 
-    public void addRecord(long recordTimestampMs) {
+    void addRecord(long recordTimestampMs) {
         long bucketStartMs = Intervals.alignToFloor(recordTimestampMs, bucketSpanMs);
 
         // Initialize earliest/latest times
@@ -103,7 +103,7 @@ class BucketDiagnostics {
         return latestBucketStartMs - offsetToLatest * bucketSpanMs;
     }
 
-    public void flush() {
+    void flush() {
         if (latestBucketStartMs < 0) {
             return;
         }
@@ -115,7 +115,7 @@ class BucketDiagnostics {
         }
     }
 
-    public double averageBucketCount() {
+    double averageBucketCount() {
         return (double) movingBucketCount / size();
     }
 
@@ -126,7 +126,7 @@ class BucketDiagnostics {
         return (int) ((latestBucketStartMs - earliestBucketStartMs) / bucketSpanMs) + 1;
     }
 
-    public interface BucketFlushListener {
+    interface BucketFlushListener {
         void onBucketFlush(long bucketStartMs, long bucketCounts);
     }
 }

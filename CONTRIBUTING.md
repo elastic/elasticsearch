@@ -212,7 +212,7 @@ Before submitting your changes, run the test suite to make sure that nothing is 
 ### Project layout
 
 This repository is split into many top level directories. The most important
-ones are
+ones are:
 
 #### `docs`
 Documentation for the project.
@@ -269,7 +269,7 @@ disabled
 * Tests that need to do strange things like install plugins that thrown
 uncaught `Throwable`s or add a shutdown hook
 But we're not convinced that all of these things *belong* in the qa directory.
-We're fairly sure that tests that require multiple modules or plugins to work
+We're fairly sure that tests that require multiple modules or plugins to work`
 should just pick a "home" plugin. We're fairly sure that the multi-version
 tests *do* belong in qa. Beyond that, we're not sure. If you want to add a new
 qa project, open a PR and be ready to discuss options.

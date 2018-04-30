@@ -805,10 +805,9 @@ include the `SPNameQualifier` attribute.
 
 `force_authn`::
 Specifies whether to set the `ForceAuthn` attribute when requesting that the IdP
-authenticate the current user. If set to `true`, the IdP is required to freshly 
-establish the user’s identity, irrespective of any exiting 
-//TBD: Should this be "existing"?
-sessions they might have. Defaults to `false`.
+authenticate the current user. If set to `true`, the IdP is required to verify 
+the user’s identity, irrespective of any existing sessions they might have. 
+Defaults to `false`.
 
 `populate_user_metadata`::
 Specifies whether to populate the {es} user's metadata with the values that are 

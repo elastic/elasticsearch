@@ -31,26 +31,66 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 
-public class RestSplitIndexAction extends BaseRestHandler {
-    public RestSplitIndexAction(Settings settings, RestController controller) {
+public abstract class RestResizeHandler extends BaseRestHandler {
+
+    RestResizeHandler(final Settings settings) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.PUT, "/{index}/_split/{target}", this);
-        controller.registerHandler(RestRequest.Method.POST, "/{index}/_split/{target}", this);
     }
 
     @Override
-    public String getName() {
-        return "split_index_action";
-    }
+    public abstract String getName();
+
+    abstract ResizeType getResizeType();
 
     @Override
-    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+    public final RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final ResizeRequest resizeRequest = new ResizeRequest(request.param("target"), request.param("index"));
-        resizeRequest.setResizeType(ResizeType.SPLIT);
+        resizeRequest.setResizeType(getResizeType());
         request.applyContentParser(resizeRequest::fromXContent);
         resizeRequest.timeout(request.paramAsTime("timeout", resizeRequest.timeout()));
         resizeRequest.masterNodeTimeout(request.paramAsTime("master_timeout", resizeRequest.masterNodeTimeout()));
         resizeRequest.setWaitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
         return channel -> client.admin().indices().resizeIndex(resizeRequest, new RestToXContentListener<>(channel));
     }
+
+    public static class RestShrinkIndexAction extends RestResizeHandler {
+
+        public RestShrinkIndexAction(final Settings settings, final RestController controller) {
+            super(settings);
+            controller.registerHandler(RestRequest.Method.PUT, "/{index}/_shrink/{target}", this);
+            controller.registerHandler(RestRequest.Method.POST, "/{index}/_shrink/{target}", this);
+        }
+
+        @Override
+        public String getName() {
+            return "shrink_index_action";
+        }
+
+        @Override
+        protected ResizeType getResizeType() {
+            return ResizeType.SHRINK;
+        }
+
+    }
+
+    public static class RestSplitIndexAction extends RestResizeHandler {
+
+        public RestSplitIndexAction(final Settings settings, final RestController controller) {
+            super(settings);
+            controller.registerHandler(RestRequest.Method.PUT, "/{index}/_split/{target}", this);
+            controller.registerHandler(RestRequest.Method.POST, "/{index}/_split/{target}", this);
+        }
+
+        @Override
+        public String getName() {
+            return "split_index_action";
+        }
+
+        @Override
+        protected ResizeType getResizeType() {
+            return ResizeType.SPLIT;
+        }
+
+    }
+
 }

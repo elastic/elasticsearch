@@ -49,6 +49,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
@@ -75,7 +76,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
     public void testDiskThreshold() {
         Settings diskSettings = Settings.builder()
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), 0.7)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), 0.8)
                 .build();
@@ -178,7 +178,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         // Set the high threshold to 70 instead of 80
         // node2 now should not have new shards allocated to it, but shards can remain
         diskSettings = Settings.builder()
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "60%")
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), 0.7)
                 .build();
@@ -209,7 +208,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         // Set the high threshold to 60 instead of 70
         // node2 now should not have new shards allocated to it, and shards cannot remain
         diskSettings = Settings.builder()
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), 0.5)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), 0.6)
                 .build();
@@ -260,7 +258,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
     public void testDiskThresholdWithAbsoluteSizes() {
         Settings diskSettings = Settings.builder()
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "30b")
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "9b")
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "5b")
@@ -400,7 +397,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         // Set the high threshold to 70 instead of 80
         // node2 now should not have new shards allocated to it, but shards can remain
         diskSettings = Settings.builder()
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "40b")
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "30b")
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "20b")
@@ -432,7 +428,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         // Set the high threshold to 60 instead of 70
         // node2 now should not have new shards allocated to it, and shards cannot remain
         diskSettings = Settings.builder()
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "50b")
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "40b")
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "30b")
@@ -515,7 +510,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
     public void testDiskThresholdWithShardSizes() {
         Settings diskSettings = Settings.builder()
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), 0.7)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "71%").build();
 
@@ -581,7 +575,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
     public void testUnknownDiskUsage() {
         Settings diskSettings = Settings.builder()
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), 0.7)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), 0.85).build();
 
@@ -679,7 +672,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
     public void testShardRelocationsTakenIntoAccount() {
         Settings diskSettings = Settings.builder()
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.getKey(), true)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), 0.7)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), 0.8).build();
@@ -782,7 +774,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
     public void testCanRemainWithShardRelocatingAway() {
         Settings diskSettings = Settings.builder()
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.getKey(), true)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "60%")
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "70%").build();
@@ -918,7 +909,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
     public void testForSingleDataNode() {
         Settings diskSettings = Settings.builder()
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.getKey(), true)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "60%")
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "70%").build();
@@ -1064,5 +1054,57 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 rn.shardsWithState(INITIALIZING),
                 rn.shardsWithState(RELOCATING),
                 rn.shardsWithState(STARTED));
+    }
+
+    public void testDiskThresholdEnabledSettingEffect() {
+        Settings diskSettings = Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), 0.7)
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), 0.7)
+            .build();
+
+        ImmutableOpenMap.Builder<String, DiskUsage> usagesBuilder = ImmutableOpenMap.builder();
+        usagesBuilder.put("node1", new DiskUsage("node1", "node1", "/dev/null", 100, 10)); // 90% used
+        usagesBuilder.put("node2", new DiskUsage("node2", "node2", "/dev/null", 100, 10)); // 90% used
+        ImmutableOpenMap<String, DiskUsage> usages = usagesBuilder.build();
+
+        ImmutableOpenMap.Builder<String, Long> shardSizesBuilder = ImmutableOpenMap.builder();
+        shardSizesBuilder.put("[test][0][p]", 10L); // 10 bytes
+
+        ImmutableOpenMap<String, Long> shardSizes = shardSizesBuilder.build();
+        final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
+
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
+            new HashSet<>(Arrays.asList(
+                new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
+                makeDecider(diskSettings))));
+
+        ClusterInfoService cis = () -> clusterInfo;
+        AllocationService strategy = new AllocationService(Settings.EMPTY, deciders, new TestGatewayAllocator(),
+            new BalancedShardsAllocator(Settings.EMPTY), cis);
+
+        MetaData metaData = MetaData.builder()
+            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+            .build();
+
+        final RoutingTable initialRoutingTable = RoutingTable.builder()
+            .addAsNew(metaData.index("test"))
+            .build();
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData)
+            .routingTable(initialRoutingTable).build();
+
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
+            .add(newNode("node1"))
+            .add(newNode("node2"))
+        ).build();
+        clusterState = strategy.reroute(clusterState, "reroute");
+
+        // Shard is initializing because disk threshold decider is disabled
+        assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
+
+        assertSettingDeprecationsAndWarnings(
+            new Setting<?>[] { DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING });
     }
 }

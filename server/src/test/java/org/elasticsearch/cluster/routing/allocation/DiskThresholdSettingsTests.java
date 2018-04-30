@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -51,7 +52,6 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         DiskThresholdSettings diskThresholdSettings = new DiskThresholdSettings(Settings.EMPTY, nss);
 
         Settings newSettings = Settings.builder()
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.getKey(), false)
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "500mb")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1000mb")
@@ -67,8 +67,17 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertEquals(ByteSizeValue.parseBytesSizeValue("250mb", "test"), diskThresholdSettings.getFreeBytesThresholdFloodStage());
         assertEquals(0.0D, diskThresholdSettings.getFreeDiskThresholdFloodStage(), 0.0D);
         assertEquals(30L, diskThresholdSettings.getRerouteInterval().seconds());
-        assertFalse(diskThresholdSettings.isEnabled());
+        assertTrue(diskThresholdSettings.isEnabled());
         assertFalse(diskThresholdSettings.includeRelocations());
+    }
+
+    public void testEnabledDeprecation() {
+        ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        DiskThresholdSettings diskThresholdSettings = new DiskThresholdSettings(Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false).build(), nss);
+        assertFalse(diskThresholdSettings.isEnabled());
+        assertSettingDeprecationsAndWarnings(
+            new Setting<?>[] { DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING });
     }
 
     public void testInvalidConstruction() {

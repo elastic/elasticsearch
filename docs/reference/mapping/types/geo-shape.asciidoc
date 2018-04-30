@@ -32,7 +32,7 @@ best tree_levels value to honor this precision. The value should be a
 number followed by an optional distance unit. Valid distance units
 include: `in`, `inch`, `yd`, `yard`, `mi`, `miles`, `km`, `kilometers`,
 `m`,`meters`, `cm`,`centimeters`, `mm`, `millimeters`.
-| `meters`
+| `50m`
 
 |`tree_levels` |Maximum number of layers to be used by the PrefixTree.
 This can be used to control the precision of shape representations and
@@ -42,7 +42,7 @@ certain level of understanding of the underlying implementation, users
 may use the `precision` parameter instead. However, Elasticsearch only
 uses the tree_levels parameter internally and this is what is returned
 via the mapping API even if you use the precision parameter.
-| `50m`
+| various
 
 |`strategy` |The strategy parameter defines the approach for how to
 represent shapes at indexing and search time. It also influences the
@@ -119,14 +119,14 @@ Geohashes are base32 encoded strings of the bits of the latitude and
 longitude interleaved. So the longer the hash, the more precise it is.
 Each character added to the geohash represents another tree level and
 adds 5 bits of precision to the geohash. A geohash represents a
-rectangular area and has 32 sub rectangles. The maximum amount of levels
-in Elasticsearch is 24.
+rectangular area and has 32 sub rectangles. The maximum number of levels
+in Elasticsearch is 24; the default is 9.
 * QuadPrefixTree - Uses a
 http://en.wikipedia.org/wiki/Quadtree[quadtree] for grid squares.
 Similar to geohash, quad trees interleave the bits of the latitude and
 longitude the resulting hash is a bit set. A tree level in a quad tree
 represents 2 bits in this bit set, one for each coordinate. The maximum
-amount of levels for the quad trees in Elasticsearch is 29.
+number of levels for the quad trees in Elasticsearch is 29; the default is 21.
 
 [[spatial-strategy]]
 [float]

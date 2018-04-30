@@ -54,6 +54,20 @@ public final class ShardRouting implements Writeable, ToXContentObject {
      */
     public static final long UNAVAILABLE_EXPECTED_SHARD_SIZE = -1;
 
+    /**
+     * XContent Fields
+     */
+    static final String STATE = "state";
+    static final String PRIMARY = "primary";
+    static final String NODE = "node";
+    static final String RELOCATING_NODE = "relocating_node";
+    static final String SHARD = "shard";
+    static final String INDEX = "index";
+    static final String EXPECTED_SHARD_SIZE_IN_BYTES = "expected_shard_size_in_bytes";
+    static final String RECOVERY_SOURCE = "recovery_source";
+    static final String ALLOCATION_ID = "allocation_id";
+    static final String UNASSIGNED_INFO = "unassigned_info";
+
     private final ShardId shardId;
     private final String currentNodeId;
     private final String relocatingNodeId;
@@ -623,20 +637,20 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
-            .field(Fields.STATE, state())
-            .field(Fields.PRIMARY, primary())
-            .field(Fields.NODE, currentNodeId())
-            .field(Fields.RELOCATING_NODE, relocatingNodeId())
-            .field(Fields.SHARD, id())
-            .field(Fields.INDEX, getIndexName());
+            .field(STATE, state())
+            .field(PRIMARY, primary())
+            .field(NODE, currentNodeId())
+            .field(RELOCATING_NODE, relocatingNodeId())
+            .field(SHARD, id())
+            .field(INDEX, getIndexName());
         if (expectedShardSize != UNAVAILABLE_EXPECTED_SHARD_SIZE) {
-            builder.field(Fields.EXPECTED_SHARD_SIZE_IN_BYTES, expectedShardSize);
+            builder.field(EXPECTED_SHARD_SIZE_IN_BYTES, expectedShardSize);
         }
         if (recoverySource != null) {
-            builder.field(Fields.RECOVERY_SOURCE, recoverySource);
+            builder.field(RECOVERY_SOURCE, recoverySource);
         }
         if (allocationId != null) {
-            builder.field(Fields.ALLOCATION_ID);
+            builder.field(ALLOCATION_ID);
             allocationId.toXContent(builder, params);
         }
         if (unassignedInfo != null) {
@@ -664,7 +678,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             String fieldName = parser.currentName();
             Token currentToken = parser.nextToken(); // Move to value of the field
             switch (fieldName) {
-                case Fields.STATE:
+                case STATE:
                     if (currentToken == Token.VALUE_STRING) {
                         state = ShardRoutingState.valueOf(parser.text());
                     } else {
@@ -672,11 +686,11 @@ public final class ShardRouting implements Writeable, ToXContentObject {
                         ensureExpectedToken(Token.VALUE_NULL, currentToken, parser::getTokenLocation);
                     }
                     break;
-                case Fields.PRIMARY:
+                case PRIMARY:
                     ensureExpectedToken(Token.VALUE_BOOLEAN, currentToken, parser::getTokenLocation);
                     isPrimary = parser.booleanValue();
                     break;
-                case Fields.NODE:
+                case NODE:
                     if (currentToken == Token.VALUE_STRING) {
                         nodeId = parser.text();
                     } else {
@@ -684,7 +698,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
                         ensureExpectedToken(Token.VALUE_NULL, currentToken, parser::getTokenLocation);
                     }
                     break;
-                case Fields.RELOCATING_NODE:
+                case RELOCATING_NODE:
                     if (currentToken == Token.VALUE_STRING) {
                         relocatingNodeid = parser.text();
                     } else {
@@ -692,25 +706,25 @@ public final class ShardRouting implements Writeable, ToXContentObject {
                         ensureExpectedToken(Token.VALUE_NULL, currentToken, parser::getTokenLocation);
                     }
                     break;
-                case Fields.SHARD:
+                case SHARD:
                     ensureExpectedToken(Token.VALUE_NUMBER, currentToken, parser::getTokenLocation);
                     shardId = parser.intValue();
                     break;
-                case Fields.INDEX:
+                case INDEX:
                     ensureExpectedToken(Token.VALUE_STRING, currentToken, parser::getTokenLocation);
                     indexName = parser.text();
                     break;
-                case Fields.EXPECTED_SHARD_SIZE_IN_BYTES:
+                case EXPECTED_SHARD_SIZE_IN_BYTES:
                     ensureExpectedToken(Token.VALUE_STRING, currentToken, parser::getTokenLocation);
                     expectedShardSizeInBytes = parser.longValue();
                     break;
-                case Fields.RECOVERY_SOURCE:
+                case RECOVERY_SOURCE:
                     recoverySource = RecoverySource.fromXContent(parser);
                     break;
-                case Fields.ALLOCATION_ID:
+                case ALLOCATION_ID:
                     allocationId = AllocationId.fromXContent(parser);
                     break;
-                case Fields.UNASSIGNED_INFO:
+                case UNASSIGNED_INFO:
                     unassignedInfo = UnassignedInfo.fromXContent(parser);
                     break;
                 default:
@@ -738,19 +752,6 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         } else {
             throw new ParsingException(startingLocation, "Unable to construct ShardRouting information from JSON");
         }
-    }
-
-    static final class Fields {
-        static final String STATE = "state";
-        static final String PRIMARY = "primary";
-        static final String NODE = "node";
-        static final String RELOCATING_NODE = "relocating_node";
-        static final String SHARD = "shard";
-        static final String INDEX = "index";
-        static final String EXPECTED_SHARD_SIZE_IN_BYTES = "expected_shard_size_in_bytes";
-        static final String RECOVERY_SOURCE = "recovery_source";
-        static final String ALLOCATION_ID = "allocation_id";
-        static final String UNASSIGNED_INFO = "unassigned_info";
     }
 
     /**

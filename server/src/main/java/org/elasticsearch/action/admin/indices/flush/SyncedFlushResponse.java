@@ -52,8 +52,9 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class SyncedFlushResponse extends ActionResponse implements ToXContentFragment {
 
-    Map<String, List<ShardsSyncedFlushResult>> shardsResultPerIndex;
+    Map<String, FlushSyncedResponsePerIndex> responsePerIndex;
     Map<String, ShardCounts> shardCountsPerIndex;
+    Map<String, List<ShardsSyncedFlushResult>> shardsResultPerIndex;
     ShardCounts shardCounts;
 
     SyncedFlushResponse() {
@@ -71,16 +72,15 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
             shardsCountsPerIndex.put(entry.getKey(), calculateShardCounts(entry.getValue()));
         }
         this.shardCountsPerIndex = unmodifiableMap(shardsCountsPerIndex);
+        this.responsePerIndex = unmodifiableMap(buildResponsePerIndex());
     }
 
     public SyncedFlushResponse(ShardCounts shardCounts, Map<String, List<ShardsSyncedFlushResult>> shardsResultPerIndex,
         Map<String, ShardCounts> shardCountsPerIndex) {
-        // shardsResultPerIndex is never modified after it is passed to this
-        // constructor so this is safe even though shardsResultPerIndex is a
-        // ConcurrentHashMap
         this.shardsResultPerIndex = unmodifiableMap(shardsResultPerIndex);
         this.shardCounts = shardCounts;
         this.shardCountsPerIndex = shardCountsPerIndex;
+        this.responsePerIndex = unmodifiableMap(buildResponsePerIndex());
     }
 
     /**
@@ -112,8 +112,53 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
         return shardsResultPerIndex;
     }
 
-    public Map<String, ShardCounts> getShardCountsPerIndex() {
-        return shardCountsPerIndex;
+    /**
+     * @return FlushSyncedResponsePerIndex for each index that was sent in the request
+     */
+    public Map<String, FlushSyncedResponsePerIndex> getResponsePerIndex() {
+        return this.responsePerIndex;
+    }
+
+
+    private Map<String, FlushSyncedResponsePerIndex> buildResponsePerIndex() {
+        Map<String, FlushSyncedResponsePerIndex> responsePerIndex = new HashMap<>();
+        for (Map.Entry<String, ShardCounts> entry: shardCountsPerIndex.entrySet()) {
+            String indexName = entry.getKey();
+            ShardCounts shardCounts = entry.getValue();
+            Map<ShardId, ShardFailure> shardFailures = new HashMap<>();
+            // If there were no failures shardFailures would be an empty array
+            if (shardCounts.failed > 0) {
+                List<ShardsSyncedFlushResult> indexResult = shardsResultPerIndex.get(indexName);
+                for (ShardsSyncedFlushResult shardResults : indexResult) {
+                    if (shardResults.failed()) {
+                        shardFailures.put(
+                            shardResults.shardId(),
+                            new ShardFailure(
+                                shardResults.shardId(),
+                                shardResults.failureReason(),
+                                shardResults.totalShards(),
+                                shardResults.successfulShards(),
+                                null)
+                        );
+                        continue;
+                    }
+                    Map<ShardRouting, SyncedFlushService.ShardSyncedFlushResponse> failedShards = shardResults.failedShards();
+                    for (Map.Entry<ShardRouting, SyncedFlushService.ShardSyncedFlushResponse> shardEntry : failedShards.entrySet()) {
+                        shardFailures.put(
+                            shardResults.shardId(),
+                            new ShardFailure(
+                                shardResults.shardId(),
+                                shardResults.failureReason(),
+                                shardResults.totalShards(),
+                                shardResults.successfulShards(),
+                                shardEntry.getKey())
+                        );
+                    }
+                }
+            }
+            responsePerIndex.put(indexName, new FlushSyncedResponsePerIndex(indexName, shardCounts, shardFailures));
+        }
+        return responsePerIndex;
     }
 
     @Override
@@ -124,7 +169,7 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
         for (Map.Entry<String, List<ShardsSyncedFlushResult>> indexEntry : shardsResultPerIndex.entrySet()) {
             List<ShardsSyncedFlushResult> indexResult = indexEntry.getValue();
             builder.startObject(indexEntry.getKey());
-            ShardCounts indexShardCounts = calculateShardCounts(indexResult);
+            ShardCounts indexShardCounts = shardCountsPerIndex.get(indexEntry.getKey());
             indexShardCounts.toXContent(builder, params);
             if (indexShardCounts.failed > 0) {
                 builder.startArray(Fields.FAILURES);
@@ -169,18 +214,20 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
         // If it is an object we try to parse it for Fields._SHARD or for an index entry
         for (Token curToken = parser.currentToken(); curToken != Token.END_OBJECT; curToken = parser.nextToken()) {
             ensureExpectedToken(Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
-            String fieldName = parser.currentName();
+            String currentName = parser.currentName();
             curToken = parser.nextToken();
-            Integer totalShards = null;
-            Integer successfulShards = null;
-            Integer failedShards = null;
-            Map<ShardId, List<FailureContainer>> failures = new HashMap<>();
             if (curToken == Token.START_OBJECT) { // Start parsing for _shard or for index
+                Boolean isIndex = !currentName.equals(Fields._SHARDS);
+                String indexName = isIndex ? currentName : null;
+                Integer totalShards = null;
+                Integer successfulShards = null;
+                Integer failedShards = null;
+                Map<ShardId, List<ShardFailure>> failures = null;
                 for (curToken = parser.nextToken(); curToken != Token.END_OBJECT; curToken = parser.nextToken()) {
                     if (curToken == Token.FIELD_NAME) {
-                        String level2FieldName = parser.currentName();
-                        curToken = parser.nextToken();
-                        switch (level2FieldName) {
+                         currentName = parser.currentName();
+                         curToken = parser.nextToken();
+                        switch (currentName) {
                             case Fields.TOTAL:
                                 ensureExpectedToken(Token.VALUE_NUMBER, curToken, parser::getTokenLocation);
                                 totalShards = parser.intValue();
@@ -194,66 +241,9 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
                                 failedShards = parser.intValue();
                                 break;
                             case Fields.FAILURES:
-                                if (!fieldName.equals(Fields._SHARDS)) {
+                                if (isIndex) {
                                     ensureExpectedToken(Token.START_ARRAY, curToken, parser::getTokenLocation);
-                                    for (curToken = parser.nextToken(); curToken != Token.END_ARRAY; curToken = parser.nextToken()) {
-                                        ensureExpectedToken(Token.START_OBJECT, curToken, parser::getTokenLocation);
-                                        ShardRouting routing = null;
-                                        String failureReason = null;
-                                        Integer totalCopies = null;
-                                        Integer successfulCopies = null;
-                                        ShardId shardId = null;
-                                        XContentLocation startLocation = parser.getTokenLocation();
-                                        for (curToken = parser.nextToken(); curToken != Token.END_OBJECT; curToken = parser.nextToken()) {
-                                            ensureExpectedToken(Token.FIELD_NAME, curToken, parser::getTokenLocation);
-                                            String level3FieldName = parser.currentName();
-                                            curToken = parser.nextToken();
-                                            switch (level3FieldName) {
-                                                case Fields.SHARD:
-                                                    ensureExpectedToken(Token.VALUE_NUMBER, curToken, parser::getTokenLocation);
-                                                    shardId = new ShardId(
-                                                        fieldName,
-                                                        IndexMetaData.INDEX_UUID_NA_VALUE,
-                                                        parser.intValue()
-                                                    );
-                                                    break;
-                                                case Fields.REASON:
-                                                    ensureExpectedToken(Token.VALUE_STRING, curToken, parser::getTokenLocation);
-                                                    failureReason = parser.text();
-                                                    break;
-                                                case Fields.TOTAL_COPIES:
-                                                    ensureExpectedToken(Token.VALUE_NUMBER, curToken, parser::getTokenLocation);
-                                                    totalCopies = parser.intValue();
-                                                    break;
-                                                case Fields.SUCCESSFUL_COPIES:
-                                                    ensureExpectedToken(Token.VALUE_NUMBER, curToken, parser::getTokenLocation);
-                                                    successfulCopies = parser.intValue();
-                                                    break;
-                                                case Fields.ROUTING:
-                                                    routing = ShardRouting.fromXContent(parser);
-                                                    break;
-                                                default:
-                                                    // If something else skip it
-                                                    parser.skipChildren();
-                                                    break;
-                                            }
-                                        }
-                                        if (failureReason != null &&
-                                            shardId != null &&
-                                            totalCopies != null &&
-                                            successfulCopies != null) {
-                                            // This is ugly but there is only one ShardsSyncedFlushResult for each shardId
-                                            // so this will work.
-                                            if (!failures.containsKey(shardId)) {
-                                                failures.put(shardId, new ArrayList<>());
-                                            }
-                                            failures.get(shardId).add(
-                                                new FailureContainer(shardId, failureReason, totalCopies, successfulCopies, routing)
-                                            );
-                                        } else {
-                                            throw new ParsingException(startLocation, "Unable to construct ShardsSyncedFlushResult");
-                                        }
-                                    }
+                                    failures = shardFailuresFromXContent(parser, indexName);
                                 } else {
                                     parser.skipChildren();
                                 }
@@ -270,36 +260,38 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
                     successfulShards != null &&
                     failedShards != null) {
                     ShardCounts shardCount = new ShardCounts(totalShards, successfulShards, failedShards);
-                    if (fieldName.equals(Fields._SHARDS)) {
+                    if (!isIndex) {
                         totalShardCounts = shardCount;
                     } else {
                         List<ShardsSyncedFlushResult> results = new ArrayList<>();
-                        // All failures in this list belong to the same index
-                        for (Map.Entry<ShardId, List<FailureContainer>> entry: failures.entrySet()) {
-                            Map<ShardRouting, SyncedFlushService.ShardSyncedFlushResponse> shardResponses = new HashMap<>();
-                            for (FailureContainer container: entry.getValue()) {
-                                if (container.shardRouting != null) {
-                                    shardResponses.put(container.shardRouting,
-                                        new SyncedFlushService.ShardSyncedFlushResponse(container.failureReason)
+                        if (failures != null) {
+                            // All failures in this list belong to the same index
+                            for (Map.Entry<ShardId, List<ShardFailure>> entry: failures.entrySet()) {
+                                Map<ShardRouting, SyncedFlushService.ShardSyncedFlushResponse> shardResponses = new HashMap<>();
+                                for (ShardFailure container: entry.getValue()) {
+                                    if (container.shardRouting != null) {
+                                        shardResponses.put(container.shardRouting,
+                                            new SyncedFlushService.ShardSyncedFlushResponse(container.failureReason)
+                                        );
+                                    }
+                                }
+                                // Size of entry.getValue() will at least be one
+                                ShardFailure container = entry.getValue().get(0);
+                                if (!shardResponses.isEmpty()) {
+                                    results.add(
+                                        new ShardsSyncedFlushResult(container.shardId, null, container.totalCopies,
+                                            container.successfulCopies, shardResponses)
+                                    );
+                                } else {
+                                    results.add(
+                                        new ShardsSyncedFlushResult(container.shardId, container.totalCopies,
+                                            container.successfulCopies, container.failureReason)
                                     );
                                 }
                             }
-                            // Size of entry.getValue() will at least be one
-                            FailureContainer container = entry.getValue().get(0);
-                            if (!shardResponses.isEmpty()) {
-                                results.add(
-                                    new ShardsSyncedFlushResult(container.shardId, null, container.totalCopies,
-                                        container.successfulCopies, shardResponses)
-                                );
-                            } else {
-                                results.add(
-                                    new ShardsSyncedFlushResult(container.shardId, container.totalCopies,
-                                        container.successfulCopies, container.failureReason)
-                                );
-                            }
-                        }
-                        shardsCountsPerIndex.put(fieldName, shardCount);
-                        shardsResultPerIndex.put(fieldName, results);
+                        } // if failures were null then no failures were reported
+                        shardsCountsPerIndex.put(indexName, shardCount);
+                        shardsResultPerIndex.put(indexName, results);
                     }
                 }
             } else { // Else leave this tree alone
@@ -309,6 +301,23 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
         return new SyncedFlushResponse(totalShardCounts, shardsResultPerIndex, shardsCountsPerIndex);
     }
 
+    private static Map<ShardId, List<ShardFailure>> shardFailuresFromXContent(
+        XContentParser parser,
+        String indexName) throws IOException {
+
+        Map<ShardId, List<ShardFailure>> failures = new HashMap<>();
+        for (Token curToken = parser.nextToken(); curToken != Token.END_ARRAY; curToken = parser.nextToken()) {
+            ensureExpectedToken(Token.START_OBJECT, curToken, parser::getTokenLocation);
+            ShardFailure failure = ShardFailure.fromXContent(parser, indexName);
+            // This is ugly but there is only one ShardsSyncedFlushResult for each shardId
+            // so this will work.
+            if (!failures.containsKey(failure.shardId)) {
+                failures.put(failure.shardId, new ArrayList<>());
+            }
+            failures.get(failure.shardId).add(failure);
+        }
+        return failures;
+    }
 
     static ShardCounts calculateShardCounts(Iterable<ShardsSyncedFlushResult> results) {
         int total = 0, successful = 0, failed = 0;
@@ -326,20 +335,128 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
         return new ShardCounts(total, successful, failed);
     }
 
-    // Only used as a container for parsing XContent
-    static final class FailureContainer {
+    // Only used as a container for XContent
+    public static final class ShardFailure {
         ShardId shardId;
         String failureReason;
         ShardRouting shardRouting;
         int totalCopies;
         int successfulCopies;
-        FailureContainer(ShardId shardId, String failureReason, int totalCopies, int successfulCopies,
+        int failedCopies;
+
+        ShardFailure(ShardId shardId, String failureReason, int totalCopies, int successfulCopies,
             @Nullable ShardRouting shardRouting) {
             this.shardId = shardId;
             this.failureReason = failureReason;
             this.shardRouting = shardRouting;
             this.totalCopies = totalCopies;
             this.successfulCopies = successfulCopies;
+            this.failedCopies = this.totalCopies - this.successfulCopies;
+        }
+
+        public ShardId getShardId() {
+            return shardId;
+        }
+
+        public String getFailureReason() {
+            return failureReason;
+        }
+
+        public ShardRouting getShardRouting() {
+            return shardRouting;
+        }
+
+        public int getTotalCopies() {
+            return totalCopies;
+        }
+
+        public int getSuccessfulCopies() {
+            return successfulCopies;
+        }
+
+        public int getFailedCopies() {
+            return failedCopies;
+        }
+
+        public static ShardFailure fromXContent(XContentParser parser, String indexName) throws IOException {
+            ShardRouting routing = null;
+            String failureReason = null;
+            Integer totalCopies = null;
+            Integer successfulCopies = null;
+            ShardId shardId = null;
+            Token curToken;
+            XContentLocation startLocation = parser.getTokenLocation();
+            for (curToken = parser.nextToken(); curToken != Token.END_OBJECT; curToken = parser.nextToken()) {
+                ensureExpectedToken(Token.FIELD_NAME, curToken, parser::getTokenLocation);
+                String currentFieldName = parser.currentName();
+                curToken = parser.nextToken();
+                switch (currentFieldName) {
+                    case Fields.SHARD:
+                        ensureExpectedToken(Token.VALUE_NUMBER, curToken, parser::getTokenLocation);
+                        shardId = new ShardId(
+                            indexName,
+                            IndexMetaData.INDEX_UUID_NA_VALUE,
+                            parser.intValue()
+                        );
+                        break;
+                    case Fields.REASON:
+                        ensureExpectedToken(Token.VALUE_STRING, curToken, parser::getTokenLocation);
+                        failureReason = parser.text();
+                        break;
+                    case Fields.TOTAL_COPIES:
+                        ensureExpectedToken(Token.VALUE_NUMBER, curToken, parser::getTokenLocation);
+                        totalCopies = parser.intValue();
+                        break;
+                    case Fields.SUCCESSFUL_COPIES:
+                        ensureExpectedToken(Token.VALUE_NUMBER, curToken, parser::getTokenLocation);
+                        successfulCopies = parser.intValue();
+                        break;
+                    case Fields.ROUTING:
+                        routing = ShardRouting.fromXContent(parser);
+                        break;
+                    default:
+                        // If something else skip it
+                        parser.skipChildren();
+                        break;
+                }
+            }
+            if (failureReason != null &&
+                shardId != null &&
+                totalCopies != null &&
+                successfulCopies != null) {
+                return new ShardFailure(shardId, failureReason, totalCopies, successfulCopies, routing);
+            } else {
+                throw new ParsingException(startLocation, "Unable to construct ShardsSyncedFlushResult");
+            }
+        }
+    }
+
+    // Only used for response objects
+    public static final class FlushSyncedResponsePerIndex {
+        String index;
+        ShardCounts shardCounts;
+        Map<ShardId, ShardFailure> shardFailures;
+
+        FlushSyncedResponsePerIndex(String index, ShardCounts counts, Map<ShardId, ShardFailure> shardFailures) {
+            this.index = index;
+            this.shardCounts = counts;
+            this.shardFailures = shardFailures;
+        }
+
+        public int getTotalShards() {
+            return shardCounts.total;
+        }
+
+        public int getSuccessfulShards() {
+            return shardCounts.successful;
+        }
+
+        public int getFailedShards() {
+            return shardCounts.failed;
+        }
+
+        public Map<ShardId, ShardFailure> getShardFailures() {
+            return shardFailures;
         }
     }
 

@@ -454,7 +454,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             createIndex(index, settings);
             SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(index);
             SyncedFlushResponse flushResponse =
-                execute(syncedFlushRequest, highLevelClient().indices()::syncedFlush, highLevelClient().indices()::syncedFlushAsync);
+                execute(syncedFlushRequest, highLevelClient().indices()::flushSynced, highLevelClient().indices()::flushSyncedAsync);
             assertThat(flushResponse.totalShards(), equalTo(1));
             assertThat(flushResponse.successfulShards(), equalTo(1));
             assertThat(flushResponse.failedShards(), equalTo(0));
@@ -465,7 +465,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             assertFalse(indexExists(nonExistentIndex));
             SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(nonExistentIndex);
             ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                () -> execute(syncedFlushRequest, highLevelClient().indices()::syncedFlush, highLevelClient().indices()::syncedFlushAsync));
+                () -> execute(syncedFlushRequest, highLevelClient().indices()::flushSynced, highLevelClient().indices()::flushSyncedAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
         }
     }

@@ -634,14 +634,12 @@ public class RequestTests extends ESTestCase {
         }
         Map<String, String> expectedParams = new HashMap<>();
         setRandomIndicesOptions(syncedFlushRequest::indicesOptions, syncedFlushRequest::indicesOptions, expectedParams);
-
         Request request = Request.syncedFlush(syncedFlushRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         if (indices != null && indices.length > 0) {
             endpoint.add(String.join(",", indices));
         }
-        endpoint.add("_flush");
-        endpoint.add("synced");
+        endpoint.add("_flush/synced");
         assertThat(request.getEndpoint(), equalTo(endpoint.toString()));
         assertThat(request.getParameters(), equalTo(expectedParams));
         assertThat(request.getEntity(), nullValue());

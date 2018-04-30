@@ -713,7 +713,7 @@ public abstract class EngineTestCase extends ESTestCase {
      * Reads all engine operations that have been processed by the engine from Lucene index.
      * The returned operations are sorted and de-duplicated, thus each sequence number will be have at most one operation.
      */
-    public static List<Translog.Operation> readAllOperationsInLucene(Engine engine, MapperService mapper) throws IOException {
+    public static List<Translog.Operation> readAllOperationsInLucene(Engine engine, String docType) throws IOException {
         engine.refresh("test");
         final List<Translog.Operation> operations = new ArrayList<>();
         try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
@@ -725,7 +725,7 @@ public abstract class EngineTestCase extends ESTestCase {
             final TopDocs allDocs = indexSearcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE, sortedBySeqNoThenByTerm);
             long lastSeenSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
             for (ScoreDoc scoreDoc : allDocs.scoreDocs) {
-                final Translog.Operation op = readOperationInLucene(indexSearcher, mapper, scoreDoc.doc);
+                final Translog.Operation op = readOperationInLucene(indexSearcher, docType, scoreDoc.doc);
                 if (op.seqNo() != lastSeenSeqNo) {
                     operations.add(op);
                     lastSeenSeqNo = op.seqNo();
@@ -735,7 +735,7 @@ public abstract class EngineTestCase extends ESTestCase {
         return operations;
     }
 
-    private static Translog.Operation readOperationInLucene(IndexSearcher searcher, MapperService mapper, int docID) throws IOException {
+    private static Translog.Operation readOperationInLucene(IndexSearcher searcher, String docType, int docID) throws IOException {
         final List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
         final int leafIndex = ReaderUtil.subIndex(docID, leaves);
         final int segmentDocID = docID - leaves.get(leafIndex).docBase;
@@ -743,7 +743,6 @@ public abstract class EngineTestCase extends ESTestCase {
         final long primaryTerm = readNumericDV(leaves.get(leafIndex), SeqNoFieldMapper.PRIMARY_TERM_NAME, segmentDocID);
         final FieldsVisitor fields = new FieldsVisitor(true);
         searcher.doc(docID, fields);
-        fields.postProcess(mapper);
         final Translog.Operation op;
         final boolean isTombstone = isTombstoneOperation(leaves.get(leafIndex), segmentDocID);
         if (isTombstone && fields.uid() == null) {
@@ -752,16 +751,15 @@ public abstract class EngineTestCase extends ESTestCase {
                 : "Noop operation but soft_deletes field is not set";
         } else {
             final String id = fields.uid().id();
-            final String type = fields.uid().type();
             final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
             final long version = readNumericDV(leaves.get(leafIndex), VersionFieldMapper.NAME, segmentDocID);
             if (isTombstone) {
-                op = new Translog.Delete(type, id, uid, seqNo, primaryTerm, version, VersionType.INTERNAL);
+                op = new Translog.Delete(docType, id, uid, seqNo, primaryTerm, version, VersionType.INTERNAL);
                 assert readNumericDV(leaves.get(leafIndex), Lucene.SOFT_DELETE_FIELD, segmentDocID) == 1
                     : "Delete operation but soft_deletes field is not set";
             } else {
                 final BytesReference source = fields.source();
-                op = new Translog.Index(type, id, seqNo, primaryTerm, version, VersionType.INTERNAL, source.toBytesRef().bytes,
+                op = new Translog.Index(docType, id, seqNo, primaryTerm, version, VersionType.INTERNAL, source.toBytesRef().bytes,
                     fields.routing(), -1);
             }
         }
@@ -798,7 +796,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 translogOps.put(op.seqNo(), op);
             }
         }
-        final List<Translog.Operation> luceneOps = readAllOperationsInLucene(engine, mapper);
+        final List<Translog.Operation> luceneOps = readAllOperationsInLucene(engine, mapper.documentMapper().type());
         for (Translog.Operation luceneOp : luceneOps) {
             Translog.Operation translogOp = translogOps.get(luceneOp.seqNo());
             if (translogOp == null) {

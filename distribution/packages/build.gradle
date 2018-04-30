@@ -270,7 +270,7 @@ Closure commonDebConfig(boolean oss) {
       customFields['License'] = 'Elastic-License'
     }
 
-    version = project.version
+    version = project.version.replace('-', '~')
     packageGroup 'web'
     requires 'bash'
     requires 'libc6'

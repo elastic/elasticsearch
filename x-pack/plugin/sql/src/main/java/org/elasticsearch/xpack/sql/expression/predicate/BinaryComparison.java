@@ -32,6 +32,11 @@ public abstract class BinaryComparison extends BinaryOperator {
         return DataType.BOOLEAN;
     }
 
+    /**
+     * Compares two expression arguments (typically Numbers), if possible.
+     * Otherwise returns null (the arguments are not comparable or at least
+     * one of them is null).
+     */
     @SuppressWarnings({ "rawtypes", "unchecked" })
     public static Integer compare(Object l, Object r) {
         // typical number comparison
@@ -39,14 +44,16 @@ public abstract class BinaryComparison extends BinaryOperator {
             return compare((Number) l, (Number) r);
         }
 
-        try {
-            if (l instanceof Comparable && r instanceof Comparable) {
+        if (l instanceof Comparable && r instanceof Comparable) {
+            try {
                 return Integer.valueOf(((Comparable) l).compareTo(r));
+            } catch (ClassCastException cce) {
+                // when types are not compatible, cce is thrown
+                // fall back to null
+                return null;
             }
-        } catch (ClassCastException cce) {
-            // types are not compatible
-            // return null
         }
+
         return null;
     }
 

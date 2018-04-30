@@ -1283,7 +1283,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     /**
      * Propagate Equals to eliminate conjuncted Ranges.
-     * When encountering a different Equals or exclusive {@link Range}, the conjunction becomes false.
+     * When encountering a different Equals or non-containing {@link Range}, the conjunction becomes false.
+     * When encountering a containing {@link Range}, the range gets eliminated by the equality.
+     * 
      * This rule doesn't perform any promotion of {@link BinaryComparison}s, that is handled by
      * {@link CombineBinaryComparisons} on purpose as the resulting Range might be foldable
      * (which is picked by the folding rule on the next run).
@@ -1314,17 +1316,17 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 if (ex instanceof Range) {
                     ranges.add((Range) ex);
                 } else if (ex instanceof Equals) {
-                    Equals equ = (Equals) ex;
+                    Equals otherEq = (Equals) ex;
                     // equals on different values evaluate to FALSE
-                    if (equ.right().foldable()) {
+                    if (otherEq.right().foldable()) {
                         for (Equals eq : equals) {
                             // cannot evaluate equals so skip it
                             if (!eq.right().foldable()) {
                                 continue;
                             }
-                            if (equ.left().semanticEquals(eq.left())) {
-                                if (eq.right().foldable() && equ.right().foldable()) {
-                                    Integer comp = BinaryComparison.compare(eq.right().fold(), equ.right().fold());
+                            if (otherEq.left().semanticEquals(eq.left())) {
+                                if (eq.right().foldable() && otherEq.right().foldable()) {
+                                    Integer comp = BinaryComparison.compare(eq.right().fold(), otherEq.right().fold());
                                     if (comp != null) {
                                         // var cannot be equal to two different values at the same time
                                         if (comp != 0) {
@@ -1335,7 +1337,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                             }
                         }
                     }
-                    equals.add(equ);
+                    equals.add(otherEq);
                 } else {
                     exps.add(ex);
                 }

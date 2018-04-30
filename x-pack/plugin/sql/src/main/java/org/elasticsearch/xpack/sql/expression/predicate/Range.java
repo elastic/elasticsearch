@@ -66,7 +66,7 @@ public class Range extends Expression {
     @Override
     public boolean foldable() {
         if (lower.foldable() && upper.foldable()) {
-            return (excludingBoundaries() || value.foldable());
+            return areBoundariesInvalid() || value.foldable();
         }
 
         return false;
@@ -74,7 +74,7 @@ public class Range extends Expression {
 
     @Override
     public Object fold() {
-        if (excludingBoundaries()) {
+        if (areBoundariesInvalid()) {
             return Boolean.FALSE;
         }
 
@@ -86,8 +86,11 @@ public class Range extends Expression {
         return lowerComparsion && upperComparsion;
     }
 
-    private boolean excludingBoundaries() {
-        // if the boundaries exclude each other, the value doesn't need to be evaluated
+    /**
+     * Check whether the boundaries are invalid ( upper < lower) or not.
+     * If they do, the value does not have to be evaluate.
+     */
+    private boolean areBoundariesInvalid() {
         Integer compare = BinaryComparison.compare(lower.fold(), upper.fold());
         // upper < lower OR upper == lower and the range doesn't contain any equals
         return compare != null && (compare > 0 || (compare == 0 && (!includeLower || !includeUpper)));

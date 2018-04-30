@@ -48,8 +48,19 @@ public abstract class Predicates {
     }
 
     /**
-     * Build a binary 'pyramid' - while a bit longer this method creates a balanced tree as oppose to a plain
-     * recursive approach that creates an unbalanced one (either to the left or right).
+     * Build a binary 'pyramid' from the given list:
+     * <pre>
+     *       AND
+     *      /   \
+     *   AND     AND
+     *  /   \   /   \
+     * A     B C     D
+     * </pre>
+     * 
+     * using the given combiner.
+     * 
+     * While a bit longer, this method creates a balanced tree as oppose to a plain
+     * recursive approach which creates an unbalanced one (either to the left or right).
      */
     private static Expression combine(List<Expression> exps, BiFunction<Expression, Expression, Expression> combiner) {
         if (exps.isEmpty()) {

@@ -76,6 +76,9 @@ project.afterEvaluate {
     // Add an extra licenses directory to the combined notices
     project.tasks.findByName('generateNotice').dependsOn extractNativeLicenses
     project.tasks.findByName('generateNotice').licensesDir new File("${project.buildDir}/platform/licenses")
+    project.tasks.findByName('generateNotice').outputs.upToDateWhen {
+        extractNativeLicenses.state.upToDate
+    }
 }
 
 run {

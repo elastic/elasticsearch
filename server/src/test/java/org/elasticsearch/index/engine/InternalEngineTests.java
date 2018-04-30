@@ -3048,7 +3048,7 @@ public class InternalEngineTests extends EngineTestCase {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), 10);
             assertEquals(1, topDocs.totalHits);
         }
-        List<Translog.Operation> ops = readAllOperationsInLucene(engine, "test");
+        List<Translog.Operation> ops = readAllOperationsInLucene(engine, createMapperService("test"));
         assertThat(ops.stream().map(o -> o.seqNo()).collect(Collectors.toList()), hasItem(20L));
     }
 
@@ -3641,12 +3641,13 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(noOp.seqNo(), equalTo((long) (maxSeqNo + 2)));
             assertThat(noOp.primaryTerm(), equalTo(primaryTerm.get()));
             assertThat(noOp.reason(), equalTo(reason));
-            List<Translog.Operation> operationsFromLucene = readAllOperationsInLucene(noOpEngine, "test");
+            MapperService mapperService = createMapperService("test");
+            List<Translog.Operation> operationsFromLucene = readAllOperationsInLucene(noOpEngine, mapperService);
             assertThat(operationsFromLucene, hasSize(maxSeqNo + 2 - localCheckpoint)); // fills n gap and 2 manual noop.
             for (int i = 0; i < operationsFromLucene.size(); i++) {
                 assertThat(operationsFromLucene.get(i), equalTo(new Translog.NoOp(localCheckpoint + 1 + i, primaryTerm.get(), "")));
             }
-            assertConsistentHistoryBetweenTranslogAndLuceneIndex(noOpEngine, createMapperService("test"));
+            assertConsistentHistoryBetweenTranslogAndLuceneIndex(noOpEngine, mapperService);
         } finally {
             IOUtils.close(noOpEngine);
         }
@@ -4614,9 +4615,10 @@ public class InternalEngineTests extends EngineTestCase {
                     engine.forceMerge(true);
                 }
             }
-            List<Translog.Operation> actualOps = readAllOperationsInLucene(engine, "test");
+            MapperService mapperService = createMapperService("test");
+            List<Translog.Operation> actualOps = readAllOperationsInLucene(engine, mapperService);
             assertThat(actualOps.stream().map(o -> o.seqNo()).collect(Collectors.toList()), containsInAnyOrder(expectedSeqNos.toArray()));
-            assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, createMapperService("test"));
+            assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
         }
     }
 

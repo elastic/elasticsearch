@@ -14,6 +14,8 @@
 
 <<remove-suggest-metric, Removed `suggest` metric on stats APIs>> ({pull}29635[#29635])
 
+<<remove-field-caps-body, In field capabilities APIs, removed support for providing fields in the request body>> ({pull}30185[#30185])
+
 === Breaking Java Changes
 
 === Deprecations
@@ -31,7 +33,7 @@ written to by an older Elasticsearch after writing to it with a newer Elasticsea
 
 === Known Issues
 
-== Elasticsearch version 6.3.0
+== Elasticsearch version 6.4.0
 
 === New Features
 

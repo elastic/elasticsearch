@@ -37,6 +37,9 @@ written to by an older Elasticsearch after writing to it with a newer Elasticsea
 
 === New Features
 
+<<ll-rest-request-flavored-methods, Added new "Request" object flavored request methods. Prefer
+these multi-argument versions.>> ({pull}29623[#29623])
+
 === Enhancements
 
 === Bug Fixes
@@ -46,5 +49,3 @@ Do not ignore request analysis/similarity settings on index resize operations wh
 === Regressions
 
 === Known Issues
-
-

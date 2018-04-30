@@ -87,9 +87,9 @@ public final class Request {
     }
 
     /**
-     * Query string parameters. The returned map cannot be modifed but calls
-     * to {@link #addParameter(String, String)} are viewable live in the map
-     * but changes are not synchronized.
+     * Query string parameters. The returned map is an unmodifiable view of the
+     * map in the request so calls to {@link #addParameter(String, String)}
+     * will change it.
      */
     public Map<String, String> getParameters() {
         return unmodifiableMap(parameters);

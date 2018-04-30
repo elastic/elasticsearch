@@ -865,7 +865,7 @@ public class RestClient implements Closeable {
      * Add all parameters from a map to a {@link Request}. This only exists
      * to support methods that exist for backwards compatibility.
      */
-    private void addParameters(Request request, Map<String, String> parameters) {
+    private static void addParameters(Request request, Map<String, String> parameters) {
         Objects.requireNonNull(parameters, "parameters cannot be null");
         for (Map.Entry<String, String> entry : parameters.entrySet()) {
             request.addParameter(entry.getKey(), entry.getValue());

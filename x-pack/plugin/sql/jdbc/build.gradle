@@ -45,11 +45,23 @@ jar {
 }
 
 dependencies {
-    bundled (xpackProject('plugin:sql:sql-shared-client')) {
-        transitive = false
-    }
-    bundled (xpackProject('plugin:sql:sql-proto')) {
-        transitive = false
+    
+    // Eclipse doesn't know how to deal with these bundled deependencies so make them compile 
+    // dependencies if we are running in Eclipse
+    if (isEclipse) {
+        compile (xpackProject('plugin:sql:sql-shared-client')) {
+            transitive = false
+        }
+        compile (xpackProject('plugin:sql:sql-proto')) {
+            transitive = false
+        }
+    } else {
+        bundled (xpackProject('plugin:sql:sql-shared-client')) {
+            transitive = false
+        }
+        bundled (xpackProject('plugin:sql:sql-proto')) {
+            transitive = false
+        }
     }
     compile (project(':server')) {
         transitive = false

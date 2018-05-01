@@ -706,9 +706,7 @@ Defaults to `CN=(.*?)(?:,\|$)`.
 `certificate_authorities`::
 List of paths to the PEM certificate files that should be used to authenticate a
 user's certificate as trusted. Defaults to the trusted certificates configured
-for SSL. See the {xpack-ref}/pki-realm.html#pki-ssl-config[SSL settings]
-section of the PKI realm documentation for more information.
-This setting cannot be used with `truststore.path`.
+for SSL. This setting cannot be used with `truststore.path`. 
 
 `truststore.algorithm`::
 Algorithm for the truststore. Defaults to `SunX509`.
@@ -721,10 +719,7 @@ The password for the truststore.
 
 `truststore.path`::
 The path of a truststore to use. Defaults to the trusted certificates configured
-for SSL. See the
-{xpack-ref}/pki-realm.html#pki-ssl-config[SSL settings] section of the PKI realm
-documentation for more information. This setting cannot be used with
-`certificate_authorities`.
+for SSL. This setting cannot be used with `certificate_authorities`.
 
 `files.role_mapping`::
 Specifies the {xpack-ref}/security-files.html[location] of the

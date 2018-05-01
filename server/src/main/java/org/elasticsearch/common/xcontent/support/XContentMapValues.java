@@ -32,6 +32,8 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -187,8 +189,8 @@ public class XContentMapValues {
         // we want all sub properties to match as soon as an object matches
 
         return (map) -> filter(map,
-            include, 0,
-            exclude, 0,
+            include,
+            exclude,
             matchAllAutomaton);
     }
 
@@ -206,6 +208,16 @@ public class XContentMapValues {
             state = automaton.step(state, key.charAt(i));
         }
         return state;
+    }
+
+    private static Map<String, Object> filter(Map<String, ?> map,
+                                              CharacterRunAutomaton includeAutomaton,
+                                              CharacterRunAutomaton excludeAutomaton,
+                                              CharacterRunAutomaton matchAllAutomaton) {
+        final Map<String, Object> result = filter(map,
+            includeAutomaton, 0, excludeAutomaton, 0, matchAllAutomaton);
+        // $result will be null if all its properties were not included/excluded etc.
+        return null != result ? result : Collections.emptyMap();
     }
 
     private static Map<String, Object> filter(Map<String, ?> map,
@@ -256,15 +268,16 @@ public class XContentMapValues {
                 Map<String, Object> valueAsMap = (Map<String, Object>) value;
                 Map<String, Object> filteredValue = filter(valueAsMap,
                         subIncludeAutomaton, subIncludeState, excludeAutomaton, excludeState, matchAllAutomaton);
-                if (includeAutomaton.isAccept(includeState) || filteredValue.isEmpty() == false) {
-                    filtered.put(key, filteredValue);
+                if(null!=filteredValue) {
+                    if (includeAutomaton.isAccept(includeState) || filteredValue.isEmpty() == false) {
+                        filtered.put(key, filteredValue);
+                    }
                 }
 
-            } else if (value instanceof Iterable) {
-
-                List<Object> filteredValue = filter((Iterable<?>) value,
+            } else if (value instanceof List) {
+                List<Object> filteredValue = filter((List<?>) value,
                         subIncludeAutomaton, subIncludeState, excludeAutomaton, excludeState, matchAllAutomaton);
-                if (filteredValue.isEmpty() == false) {
+                if (null!=filteredValue) {
                     filtered.put(key, filteredValue);
                 }
 
@@ -277,18 +290,23 @@ public class XContentMapValues {
                 }
 
             }
-
         }
+
+        // if we have filtered away (deleted all fields) of the input map return null.
+        if(filtered.isEmpty() && !map.isEmpty()) {
+            filtered = null;
+        }
+
         return filtered;
     }
 
-    private static List<Object> filter(Iterable<?> iterable,
+    private static List<Object> filter(List<?> from,
             CharacterRunAutomaton includeAutomaton, int initialIncludeState,
             CharacterRunAutomaton excludeAutomaton, int initialExcludeState,
             CharacterRunAutomaton matchAllAutomaton) {
         List<Object> filtered = new ArrayList<>();
         boolean isInclude = includeAutomaton.isAccept(initialIncludeState);
-        for (Object value : iterable) {
+        for (Object value : from) {
             if (value instanceof Map) {
                 int includeState = includeAutomaton.step(initialIncludeState, '.');
                 int excludeState = initialExcludeState;
@@ -297,13 +315,13 @@ public class XContentMapValues {
                 }
                 Map<String, Object> filteredValue = filter((Map<String, ?>)value,
                         includeAutomaton, includeState, excludeAutomaton, excludeState, matchAllAutomaton);
-                if (filteredValue.isEmpty() == false) {
+                if (null != filteredValue) {
                     filtered.add(filteredValue);
                 }
-            } else if (value instanceof Iterable) {
-                List<Object> filteredValue = filter((Iterable<?>) value,
+            } else if (value instanceof List) {
+                List<Object> filteredValue = filter((List<?>) value,
                         includeAutomaton, initialIncludeState, excludeAutomaton, initialExcludeState, matchAllAutomaton);
-                if (filteredValue.isEmpty() == false) {
+                if (null!=filteredValue) {
                     filtered.add(filteredValue);
                 }
             } else if (isInclude) {
@@ -311,6 +329,12 @@ public class XContentMapValues {
                 filtered.add(value);
             }
         }
+
+        // if list was initially not empty and everything was filtered away delete it also.
+        if(filtered.isEmpty() && !from.isEmpty()) {
+            filtered = null;
+        }
+
         return filtered;
     }
 

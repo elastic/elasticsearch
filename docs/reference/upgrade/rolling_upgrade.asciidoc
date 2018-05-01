@@ -70,7 +70,7 @@ GET _cat/nodes
 --
 
 Once the node has joined the cluster, remove the `cluster.routing.allocation.enable`
-settings to enable shard allocation and start using the node:
+setting to enable shard allocation and start using the node:
 
 [source,js]
 --------------------------------------------------

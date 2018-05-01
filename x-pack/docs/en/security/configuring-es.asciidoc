@@ -1,6 +1,6 @@
 [role="xpack"]
 [[configuring-security]]
-== Configuring Security in {es}
+== Configuring security in {es}
 ++++
 <titleabbrev>Configuring Security</titleabbrev>
 ++++
@@ -72,6 +72,7 @@ user API.
 
 . Choose which types of realms you want to use to authenticate users. 
 ** <<configuring-ad-realm,Configure an Active Directory realm>>.
+** <<configuring-file-realm,Configure a file realm>>.
 ** <<configuring-pki-realm,Configure a PKI realm>>.
 
 . Set up roles and users to control access to {es}.
@@ -133,6 +134,7 @@ include::securing-communications/configuring-tls-docker.asciidoc[]
 include::securing-communications/enabling-cipher-suites.asciidoc[]
 include::securing-communications/separating-node-client-traffic.asciidoc[]
 include::authentication/configuring-active-directory-realm.asciidoc[]
+include::authentication/configuring-file-realm.asciidoc[]
 include::authentication/configuring-pki-realm.asciidoc[]
 include::{xes-repo-dir}/settings/security-settings.asciidoc[]
 include::{xes-repo-dir}/settings/audit-settings.asciidoc[]

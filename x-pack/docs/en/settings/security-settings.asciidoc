@@ -150,9 +150,9 @@ For a native realm, the `type` must be set to `native`. In addition to the
 <<ref-realm-settings,settings that are valid for all realms>>, you can specify  
 the following optional settings: 
 
-`cache.ttl`:: The time-to-live for cached user entries. User credentials are 
-cached for this period of time. Specify the time period using the standard 
-{es} <<time-units,time units>>. Defaults to `20m`.
+`cache.ttl`:: The time-to-live for cached user entries. A user and a hash of its 
+credentials are cached for this period of time. Specify the time period using 
+the standard {es} <<time-units,time units>>. Defaults to `20m`.
 
 `cache.max_users`:: The maximum number of user entries that can live in the 
 cache at any given time. Defaults to 100,000.
@@ -169,9 +169,9 @@ in-memory cached user credentials. For possible values, see
 ===== File realm settings
 
 `cache.ttl`::
-The time-to-live for cached user entries--user credentials are cached for
-this configured period of time. Defaults to `20m`. Specify values using the
-standard Elasticsearch {ref}/common-options.html#time-units[time units].
+The time-to-live for cached user entries. A user and a hash of its credentials 
+are cached for this configured period of time. Defaults to `20m`. Specify values 
+using the standard {es} {ref}/common-options.html#time-units[time units].
 Defaults to `20m`.
 
 `cache.max_users`::
@@ -186,12 +186,18 @@ all possible values. Defaults to `ssha256`.
 [[ref-ldap-settings]]
 [float]
 ===== LDAP realm settings
-`url`::
-An LDAP URL in the format `ldap[s]://<server>:<port>`. Required.
+
+The `type` setting must be set to `ldap`. In addition to the 
+<<ref-realm-settings>>, you can specify the following settings: 
+
+`url`:: Specifies one or more LDAP URLs in the format  
+`ldap[s]://<server>:<port>`. Multiple URLs can be defined using a comma 
+separated value or array syntax: `[ "ldaps://server1:636", "ldaps://server2:636" ]`. 
+`ldaps` and `ldap` URL protocols cannot be mixed in the same realm. Required.
 
 `load_balance.type`::
 The behavior to use when there are multiple LDAP URLs defined. For supported
-values see {xpack-ref}/ldap-realm.html#ldap-load-balancing[LDAP load balancing and failover types].
+values see <<load-balancing,load balancing and failover types>>.
 Defaults to `failover`.
 
 `load_balance.cache_ttl`::
@@ -200,36 +206,45 @@ this setting controls the amount of time to cache DNS lookups. Defaults
 to `1h`.
 
 `bind_dn`::
-The DN of the user that will be used to bind to the LDAP and perform searches.
-Only applicable in {xpack-ref}/ldap-realm.html#ldap-user-search[user search mode].
-If this is not specified, an anonymous bind will be attempted.
-Defaults to Empty.
+The DN of the user that is used to bind to the LDAP and perform searches.
+Only applicable in user search mode.
+If not specified, an anonymous bind is attempted.
+Defaults to Empty. Due to its potential security impact, `bind_dn` is not 
+exposed via the <<cluster-nodes-info,nodes info API>>.
 
 `bind_password`::
-The password for the user that will be used to bind to the LDAP directory.
-Defaults to Empty.
-*Deprecated.* Use `secure_bind_password` instead.
+deprecated[6.3] Use `secure_bind_password` instead. The password for the user 
+that is used to bind to the LDAP directory.
+Defaults to Empty. Due to its potential security impact, `bind_password` is not 
+exposed via the <<cluster-nodes-info,nodes info API>>.
+
 
 `secure_bind_password` (<<secure-settings,Secure>>)::
-The password for the user that will be used to bind to the LDAP directory.
+The password for the user that is used to bind to the LDAP directory.
 Defaults to Empty.
 
 `user_dn_templates`::
 The DN template that replaces the user name with the string `{0}`.
-This element is multivalued; you can specify multiple user contexts.
-Required to operate in user template mode. Not valid
-if `user_search.base_dn` is specified. For more information on
+This setting is multivalued; you can specify multiple user contexts.
+Required to operate in user template mode. If `user_search.base_dn` is specified, 
+this setting is not valid. For more information on
 the different modes, see {xpack-ref}/ldap-realm.html[LDAP realms].
++
+--
+NOTE: If any settings starting with `user_search` are specified, the 
+`user_dn_templates` settings are ignored.
+
+--
 
 `user_group_attribute`::
 Specifies the attribute to examine on the user for group membership.
-The default is `memberOf`. This setting will be ignored if any
-`group_search` settings are specified. Defaults to  `memberOf`.
+If any `group_search` settings are specified, this setting is ignored. Defaults 
+to `memberOf`.
 
 `user_search.base_dn`::
 Specifies a container DN to search for users. Required
-to operated in user search mode. Not valid if
-`user_dn_templates is specified. For more information on
+to operated in user search mode. If `user_dn_templates` is specified, this 
+setting is not valid. For more information on
 the different modes, see {xpack-ref}/ldap-realm.html[LDAP realms].
 
 `user_search.scope`::
@@ -240,18 +255,18 @@ The scope of the user search. Valid values are `sub_tree`, `one_level` or
 the only user considered. Defaults to  `sub_tree`.
 
 `user_search.filter`::
-Specifies the filter used to search the directory in attempt to match
+Specifies the filter used to search the directory in attempts to match
 an entry with the username provided by the user. Defaults to `(uid={0})`.
 `{0}` is substituted with the username provided when searching.
 
 `user_search.attribute`::
-This setting is deprecated; use `user_search.filter` instead.
-The attribute to match with the username presented to. Defaults to `uid`.
+deprecated[5.6] Use `user_search.filter` instead.
+The attribute to match with the username sent with the request. Defaults to `uid`.
 
 `user_search.pool.enabled`::
-Enables or disables connection pooling for user search. When
-disabled a new connection is created for every search. The
-default is `true` when `bind_dn` is provided.
+Enables or disables connection pooling for user search. If set to `false`, a new 
+connection is created for every search. The
+default is `true` when `bind_dn` is set.
 
 `user_search.pool.size`::
 The maximum number of connections to the LDAP server to allow in the
@@ -259,17 +274,18 @@ connection pool. Defaults to `20`.
 
 `user_search.pool.initial_size`::
 The initial number of connections to create to the LDAP server on startup.
-Defaults to `0`.
+Defaults to `0`. If the LDAP server is down, values greater than `0` could cause 
+startup failures.
 
 `user_search.pool.health_check.enabled`::
-Flag to enable or disable a health check on LDAP connections in the connection
+Enables or disables a health check on LDAP connections in the connection
 pool. Connections are checked in the background at the specified interval.
 Defaults to `true`.
 
 `user_search.pool.health_check.dn`::
-The distinguished name to be retrieved as part of the health check.
-Defaults to the value of `bind_dn` if present, and if
-not falls back to `user_search.base_dn`.
+The distinguished name that is retrieved as part of the health check.
+Defaults to the value of `bind_dn` if present; if
+not, falls back to `user_search.base_dn`.
 
 `user_search.pool.health_check.interval`::
 The interval to perform background checks of connections in the pool.
@@ -277,7 +293,7 @@ Defaults to `60s`.
 
 `group_search.base_dn`::
 The container DN to search for groups in which the user has membership. When
-this element is absent, Security searches for the attribute specified by
+this element is absent, {security} searches for the attribute specified by
 `user_group_attribute` set on the user in order to determine group membership.
 
 `group_search.scope`::
@@ -287,30 +303,33 @@ Specifies whether the group search should be `sub_tree`, `one_level` or
 `base` specifies that the `base_dn` is a group object, and that it is the
 only group considered. Defaults to  `sub_tree`.
 
-`group_search.filter`::
+`group_search.filter`:: 
+Specifies a filter to use to look up a group. 
 When not set, the realm searches for `group`, `groupOfNames`, `groupOfUniqueNames`,
 or `posixGroup` with the attributes `member`, `memberOf`, or `memberUid`.  Any
 instance of `{0}` in the filter is replaced by the user attribute defined in
 `group_search.user_attribute`.
 
 `group_search.user_attribute`::
-Specifies the user attribute that will be fetched and provided as a parameter to
+Specifies the user attribute that is fetched and provided as a parameter to
 the filter.  If not set, the user DN is passed into the filter. Defaults to Empty.
 
 `unmapped_groups_as_roles`::
-Takes a boolean variable. When this element is set to `true`, the names of any
-LDAP groups that are not referenced in a role-mapping _file_ are used as role
-names and assigned to the user. Defaults to `false`.
+If set to `true`, the names of any unmapped LDAP groups are used as role names 
+and assigned to the user. A group is considered to be _unmapped_ if it is not 
+not referenced in a 
+{xpack-ref}/mapping-roles.html#mapping-roles-file[role-mapping file]. API-based 
+role mappings are not considered. Defaults to `false`.
 
 `files.role_mapping`::
 The {xpack-ref}/security-files.html[location] for the {xpack-ref}/mapping-roles.html#mapping-roles[
 YAML role mapping configuration file]. Defaults to
-`CONFIG_DIR/x-pack/role_mapping.yml`.
+`CONFIG_DIR/role_mapping.yml`.
 
 `follow_referrals`::
-Boolean value that specifies whether Securityshould follow referrals returned
+Specifies whether {security} should follow referrals returned
 by the LDAP server. Referrals are URLs returned by the server that are to be
-used to continue the LDAP operation (e.g. search). Defaults to `true`.
+used to continue the LDAP operation (for example, search). Defaults to `true`.
 
 `metadata`::
 A list of additional LDAP attributes that should be loaded from the
@@ -332,7 +351,9 @@ An `s` at the end indicates seconds, or `ms` indicates milliseconds.
 Defaults to `5s` (5 seconds ).
 
 `ssl.key`::
-Path to a PEM encoded file containing the private key.
+Path to a PEM encoded file containing the private key, which is used if the 
+LDAP server requires client authentication. `ssl.key` and `ssl.keystore.path` 
+cannot be used at the same time.
 
 `ssl.key_passphrase`::
 The passphrase that is used to decrypt the private key. This value is
@@ -346,7 +367,9 @@ Path to a PEM encoded file containing the certificate (or certificate chain)
 that will be presented to clients when they connect.
 
 `ssl.certificate_authorities`::
-List of paths to PEM encoded certificate files that should be trusted.
+List of paths to PEM encoded certificate files that should be trusted. 
+`ssl.certificate_authorities` and `ssl.truststore.path` cannot be used at the 
+same time.
 
 `ssl.keystore.path`::
 The path to the Java Keystore file that contains a private key and certificate.
@@ -370,7 +393,7 @@ The password for the key in the keystore. Defaults to the keystore password.
 
 `ssl.truststore.path`::
 The path to the Java Keystore file that contains the certificates to trust.
-`ssl.certificate_authorities` and `ssl.truststore.path` may not be used at the same time.
+`ssl.certificate_authorities` and `ssl.truststore.path` cannot be used at the same time.
 
 `ssl.truststore.password`::
 The password to the truststore.
@@ -391,18 +414,19 @@ See <<ssl-tls-settings,`xpack.ssl.verification_mode`>> for an explanation of
 these values.
 
 `ssl.supported_protocols`::
-Supported protocols with versions. Defaults to the value of
+Supported protocols for TLS/SSL (with versions). Defaults to the value of
 `xpack.ssl.supported_protocols`.
 
-`ssl.cipher_suites`
+`ssl.cipher_suites`:: Specifies the cipher suites that should be supported when 
+communicating with the LDAP server. 
 Supported cipher suites can be found in Oracle's http://docs.oracle.com/javase/8/docs/technotes/guides/security/SunProviders.html[
 Java Cryptography Architecture documentation]. Defaults to the value of
 `xpack.ssl.cipher_suites`.
 
 `cache.ttl`::
-Specifies the time-to-live for cached user entries (a user and its credentials
-are cached for this period of time). Use the standard Elasticsearch
-{ref}/common-options.html#time-units[time units]). Defaults to  `20m`.
+Specifies the time-to-live for cached user entries. A user and a hash of its 
+credentials are cached for this period of time. Use the standard {es}
+<<time-units,time units>>. Defaults to  `20m`.
 
 `cache.max_users`::
 Specifies the maximum number of user entries that the cache can contain.
@@ -410,20 +434,28 @@ Defaults to `100000`.
 
 `cache.hash_algo`::
 (Expert Setting) Specifies the hashing algorithm that is used for the
-in-memory cached user credentials (see {xpack-ref}/controlling-user-cache.html#controlling-user-cache[Cache hash algorithms]
-table for all possible values). Defaults to `ssha256`.
+in-memory cached user credentials. See {xpack-ref}/controlling-user-cache.html#controlling-user-cache[Cache hash algorithms]
+table for all possible values. Defaults to `ssha256`.
 
 [[ref-ad-settings]]
 [float]
 ===== Active Directory realm settings
 
+The `type` setting must be set to `active_directory`. In addition to the 
+<<ref-realm-settings,settings that are valid for all realms>>, you can specify  
+the following settings: 
+
 `url`::
-A URL in the format `ldap[s]://<server>:<port>`. Defaults to `ldap://<domain_name>:389`.
+An LDAP URL of the form `ldap[s]://<server>:<port>`. {security} attempts to 
+authenticate against this URL. If the URL is not specified, it is derived from 
+the `domain_name` setting and assumes an unencrypted connection to port 389. 
+Defaults to `ldap://<domain_name>:389`. This setting is required when connecting 
+using SSL/TLS or when using a custom port.
 
 `load_balance.type`::
 The behavior to use when there are multiple LDAP URLs defined. For supported
-values see {xpack-ref}/active-directory-realm.html#ad-load-balancing[load balancing and failover types].
-Defaults to  `failover`.
+values see <<load-balancing,load balancing and failover types>>.
+Defaults to `failover`.
 
 `load_balance.cache_ttl`::
 When using `dns_failover` or `dns_round_robin` as the load balancing type,
@@ -431,31 +463,34 @@ this setting controls the amount of time to cache DNS lookups. Defaults
 to `1h`.
 
 `domain_name`::
-The domain name of Active Directory. The cluster can derive the URL and
-`user_search_dn` fields from values in this element if those fields are not
-otherwise specified. Required.
+The domain name of Active Directory. If the the `url` and `user_search_dn` 
+settings are not specified, the cluster can derive those values from this 
+setting. Required.
 
 `bind_dn`::
-The DN of the user that will be used to bind to Active Directory and perform searches.
-Defaults to Empty.
+The DN of the user that is used to bind to Active Directory and perform searches.
+Defaults to Empty. Due to its potential security impact, `bind_dn` is not 
+exposed via the <<cluster-nodes-info,nodes info API>>.
 
 `bind_password`::
-The password for the user that will be used to bind to Active Directory.
-Defaults to Empty.
-*Deprecated.* Use `secure_bind_password` instead.
+deprecated[6.3] Use `secure_bind_password` instead. The password for the user 
+that is used to bind to Active Directory. Defaults to Empty. Due to its 
+potential security impact, `bind_password` is not exposed via the 
+<<cluster-nodes-info,nodes info API>>.
 
 `secure_bind_password` (<<secure-settings,Secure>>)::
-The password for the user that will be used to bind to Active Directory.
+The password for the user that is used to bind to Active Directory.
 Defaults to Empty.
 
 `unmapped_groups_as_roles`::
-Takes a boolean variable. When this element is set to `true`, the names of any
-LDAP groups that are not referenced in a role-mapping _file_ are used as role
-names and assigned to the user. Defaults to `false`.
+If set to `true`, the names of any unmapped Active Directory groups are used as 
+role names and assigned to the user. A group is considered _unmapped_ when it 
+is not referenced in any role-mapping files. API-based role mappings are not 
+considered. Defaults to `false`.
 
 `files.role_mapping`::
 The {xpack-ref}/security-files.html[location] for the YAML
-role mapping configuration file. Defaults to  `CONFIG_DIR/x-pack/role_mapping.yml`.
+role mapping configuration file. Defaults to `CONFIG_DIR/role_mapping.yml`.
 
 `user_search.base_dn`::
 The context to search for a user. Defaults to the root
@@ -471,22 +506,27 @@ only user considered. Defaults to `sub_tree`.
 `user_search.filter`::
 Specifies a filter to use to lookup a user given a username.  The default
 filter looks up `user` objects with either `sAMAccountName` or
-`userPrincipalName`.
+`userPrincipalName`. If specified, this must be a valid LDAP user search filter. 
+For example `(&(objectClass=user)(sAMAccountName={0}))`. For more information, 
+see 
+https://msdn.microsoft.com/en-us/library/aa746475(v=vs.85).aspx[Search Filter Syntax].
 
 `user_search.upn_filter`::
 Specifies a filter to use to lookup a user given a user principal name.
 The default filter looks up `user` objects with
 a matching `userPrincipalName`. If specified, this
-must be a valid LDAP user search filter, for example
+must be a valid LDAP user search filter. For example,
 `(&(objectClass=user)(userPrincipalName={1}))`. `{1}` is the full user principal name
-provided by the user.
+provided by the user. For more information, see 
+https://msdn.microsoft.com/en-us/library/aa746475(v=vs.85).aspx[Search Filter Syntax].
 
 `user_search.down_level_filter`::
 Specifies a filter to use to lookup a user given a down level logon name
 (DOMAIN\user). The default filter looks up `user` objects with a matching
 `sAMAccountName` in the domain provided. If specified, this
-must be a valid LDAP user search filter, for example
-`(&(objectClass=user)(sAMAccountName={0}))`.
+must be a valid LDAP user search filter. For example,
+`(&(objectClass=user)(sAMAccountName={0}))`. For more information, see 
+https://msdn.microsoft.com/en-us/library/aa746475(v=vs.85).aspx[Search Filter Syntax]. 
 
 `user_search.pool.enabled`::
 Enables or disables connection pooling for user search. When
@@ -499,16 +539,18 @@ connection pool. Defaults to `20`.
 
 `user_search.pool.initial_size`::
 The initial number of connections to create to the Active Directory server on startup.
-Defaults to `0`.
+Defaults to `0`. If the LDAP server is down, values greater than 0 
+could cause startup failures. 
 
 `user_search.pool.health_check.enabled`::
-Flag to enable or disable a health check on Active Directory connections in the connection
+Enables or disables a health check on Active Directory connections in the connection
 pool. Connections are checked in the background at the specified interval.
 Defaults to `true`.
 
 `user_search.pool.health_check.dn`::
 The distinguished name to be retrieved as part of the health check.
-Defaults to the value of `bind_dn` if it is a distinguished name.
+Defaults to the value of `bind_dn` if that setting is present. Otherwise, it 
+defaults to the value of the `user_search.base_dn` setting. 
 
 `user_search.pool.health_check.interval`::
 The interval to perform background checks of connections in the pool.
@@ -516,7 +558,7 @@ Defaults to `60s`.
 
 `group_search.base_dn`::
 The context to search for groups in which the user has membership.  Defaults
-to the root of the  Active Directory domain.
+to the root of the Active Directory domain.
 
 `group_search.scope`::
 Specifies whether the group search should be `sub_tree`, `one_level` or
@@ -546,13 +588,18 @@ Defaults to `5s` (5 seconds ).
 
 `ssl.certificate`::
 Path to a PEM encoded file containing the certificate (or certificate chain)
-that will be presented to clients when they connect.
+that will be presented to clients when they connect. 
 
 `ssl.certificate_authorities`::
-List of paths to PEM encoded certificate files that should be trusted.
+List of paths to PEM encoded certificate files that should be trusted. 
+`ssl.certificate_authorities` and `ssl.truststore.path` cannot be used at the 
+same time.
 
 `ssl.key`::
-Path to the PEM encoded file containing the private key.
+Path to the PEM encoded file containing the private key, which is used when the 
+Active Directory server requires client authentication. `ssl.key` and 
+`ssl.keystore.path` cannot be used at the same time.
+
 
 `ssl.key_passphrase`::
 The passphrase that is used to decrypt the private key. This value is
@@ -576,6 +623,7 @@ The password to the keystore.
 
 `ssl.keystore.path`::
 The path to the Java Keystore file that contains a private key and certificate.
+`ssl.key` and `ssl.keystore.path` cannot be used at the same time.
 
 `ssl.keystore.type`::
 The format of the keystore file. Should be either `jks` to use the Java
@@ -589,6 +637,8 @@ The password to the truststore.
 
 `ssl.truststore.path`::
 The path to the Java Keystore file that contains the certificates to trust.
+`ssl.certificate_authorities` and `ssl.truststore.path` cannot be used at the 
+same time.
 
 `ssl.truststore.type`::
 The format of the truststore file. Should be either `jks` to use the Java
@@ -603,17 +653,18 @@ See <<ssl-tls-settings,`xpack.ssl.verification_mode`>> for an explanation of
 these values.
 
 `ssl.supported_protocols`::
-Supported protocols with versions. Defaults to the value of
+Supported protocols for TLS/SSL (with versions). Defaults to the value of
 `xpack.ssl.supported_protocols`.
 
-`ssl.cipher_suites`::
+`ssl.cipher_suites`:: Specifies the cipher suites that should be supported when 
+communicating with the Active Directory server. 
 Supported cipher suites can be found in Oracle's http://docs.oracle.com/javase/8/docs/technotes/guides/security/SunProviders.html[
 Java Cryptography Architecture documentation]. Defaults to the value of
 `xpack.ssl.cipher_suites`.
 
 `cache.ttl`::
-Specifies the time-to-live for cached user entries (user
-credentials are cached for this configured period of time). Use the
+Specifies the time-to-live for cached user entries. A user and a hash of its 
+credentials are cached for this configured period of time. Use the
 standard Elasticsearch {ref}/common-options.html#time-units[time units]).
 Defaults to `20m`.
 
@@ -622,8 +673,13 @@ Specifies the maximum number of user entries that the cache can contain.
 Defaults to `100000`.
 
 `cache.hash_algo`::
-(Expert Setting) Specifies the hashing algorithm that will be used for
+(Expert Setting) Specifies the hashing algorithm that is used for
 the in-memory cached user credentials (see {xpack-ref}/controlling-user-cache.html#controlling-user-cache[Cache hash algorithms] table for all possible values). Defaults to `ssha256`.
+
+`follow_referrals`::
+If set to `true` {security} follows referrals returned by the LDAP server. 
+Referrals are URLs returned by the server that are to be used to continue the 
+LDAP operation (such as `search`). Defaults to `true`.
 
 [[ref-pki-settings]]
 [float]
@@ -660,11 +716,12 @@ documentation for more information. This setting cannot be used with
 `files.role_mapping`::
 Specifies the {xpack-ref}/security-files.html[location] of the
 {xpack-ref}/mapping-roles.html[YAML role  mapping configuration file].
-Defaults to `CONFIG_DIR/x-pack/role_mapping.yml`.
+Defaults to `CONFIG_DIR/role_mapping.yml`.
 
 `cache.ttl`::
-Specifies the time-to-live for cached user entries. Use the
-standard Elasticsearch {ref}/common-options.html#time-units[time units]).
+Specifies the time-to-live for cached user entries. A user and a hash of its 
+credentials are cached for this period of time. Use the
+standard {es} {ref}/common-options.html#time-units[time units]).
 Defaults to `20m`.
 
 `cache.max_users`::
@@ -934,6 +991,32 @@ supported protocols for TLS/SSL.
 `ssl.cipher_suites`::
 If retrieving IDP metadata via https (see `idp.metadata.path`), specifies the
 cipher suites that should be supported.
+
+[float]
+[[load-balancing]]
+===== Load balancing and failover
+
+The `load_balance.type` setting can have the following values: 
+
+* `failover`: The URLs specified are used in the order that they are specified. 
+The first server that can be connected to will be used for all subsequent 
+connections. If a connection to that server fails then the next server that a 
+connection can be established to will be used for subsequent connections.
+* `dns_failover`: In this mode of operation, only a single URL may be specified.
+This URL must contain a DNS name. The system will be queried for all IP 
+addresses that correspond to this DNS name. Connections to the Active Directory 
+or LDAP server will always be tried in the order in which they were retrieved. 
+This differs from `failover` in that there is no reordering of the list and if a 
+server has failed at the beginning of the list, it will still be tried for each 
+subsequent connection.
+* `round_robin`: Connections will continuously iterate through the list of 
+provided URLs. If a server is unavailable, iterating through the list of URLs 
+will continue until a successful connection is made.
+* `dns_round_robin`: In this mode of operation, only a single URL may be 
+specified. This URL must contain a DNS name. The system will be queried for all 
+IP addresses that correspond to this DNS name. Connections will continuously 
+iterate through the list of addresses. If a server is unavailable, iterating 
+through the list of URLs will continue until a successful connection is made.
 
 [float]
 [[ssl-tls-settings]]

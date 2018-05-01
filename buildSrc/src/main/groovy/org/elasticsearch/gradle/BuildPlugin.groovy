@@ -561,7 +561,6 @@ class BuildPlugin implements Plugin<Project> {
              */
             List html4Projects = [
                 ':server',
-                ':x-pack:plugin:core',
             ]
             if (false == html4Projects.contains(project.path)) {
                 javadoc.options.addBooleanOption('html5', true)

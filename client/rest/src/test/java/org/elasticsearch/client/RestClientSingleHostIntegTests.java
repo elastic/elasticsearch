@@ -33,7 +33,6 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.util.EntityUtils;
-import org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -64,8 +63,6 @@ import static org.junit.Assert.fail;
  * Integration test to check interaction between {@link RestClient} and {@link org.apache.http.client.HttpClient}.
  * Works against a real http server, one single host.
  */
-//animal-sniffer doesn't like our usage of com.sun.net.httpserver.* classes
-@IgnoreJRERequirement
 public class RestClientSingleHostIntegTests extends RestClientTestCase {
 
     private static HttpServer httpServer;
@@ -91,8 +88,6 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
         return httpServer;
     }
 
-    //animal-sniffer doesn't like our usage of com.sun.net.httpserver.* classes
-    @IgnoreJRERequirement
     private static class ResponseHandler implements HttpHandler {
         private final int statusCode;
 

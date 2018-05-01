@@ -857,12 +857,19 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
 
         static LoadedMetadata loadMetadata(IndexCommit commit, Directory directory, Logger logger) throws IOException {
-            long numDocs;
+            final long numDocs;
             Map<String, StoreFileMetaData> builder = new HashMap<>();
             Map<String, String> commitUserDataBuilder = new HashMap<>();
             try {
+                final IndexCommit snapshottingCommit;
+                if (commit == null) {
+                    final List<IndexCommit> existingCommits = DirectoryReader.listCommits(directory);
+                    snapshottingCommit = existingCommits.get(existingCommits.size() - 1); // take the latest commit in store.
+                } else {
+                    snapshottingCommit = commit;
+                }
                 final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
-                numDocs = commit != null ? Lucene.getNumDocs(commit) : 0;
+                numDocs = Lucene.getNumDocs(snapshottingCommit);
                 commitUserDataBuilder.putAll(segmentCommitInfos.getUserData());
                 Version maxVersion = segmentCommitInfos.getMinSegmentLuceneVersion(); // we don't know which version was used to write so we take the max version.
                 for (SegmentCommitInfo info : segmentCommitInfos) {

@@ -22,54 +22,5 @@ To define users, {security} provides the {ref}/users-command.html[users]
 command-line tool. This tool enables you to add and remove users, assign user
 roles, and manage user passwords.
 
-==============================
-These files are managed locally by the node and are **not** managed
-globally by the cluster. This means that with a typical multi-node cluster,
-the exact same changes need to be applied on each and every node in the
-cluster.
-
-A safer approach would be to apply the change on one of the nodes and have the
-`users` and `users_roles` files distributed/copied to all other nodes in the
-cluster (either manually or using a configuration management system such as
-Puppet or Chef).
-==============================
-
-While it is possible to modify these files directly using any standard text
-editor, we strongly recommend using the {ref}/users-command.html[`bin/elasticsearch-users`]
-command-line tool to apply the required changes.
-
-[float]
-[[users-file]]
-===== The `users` File
-The `users` file stores all the users and their passwords. Each line in the
-`users` file represents a single user entry consisting of the username and
-**hashed** password.
-
-[source,bash]
-----------------------------------------------------------------------
-rdeniro:$2a$10$BBJ/ILiyJ1eBTYoRKxkqbuDEdYECplvxnqQ47uiowE7yGqvCEgj9W
-alpacino:$2a$10$cNwHnElYiMYZ/T3K4PvzGeJ1KbpXZp2PfoQD.gfaVdImnHOwIuBKS
-jacknich:$2a$10$GYUNWyABV/Ols/.bcwxuBuuaQzV6WIauW6RdboojxcixBq3LtI3ni
-----------------------------------------------------------------------
-
-NOTE: {security} uses `bcrypt` to hash the user passwords.
-
-[float]
-[[users_defining-roles]]
-==== The `users_roles` File
-
-The `users_roles` file stores the roles associated with the users, as in the
-following example:
-
-[source,shell]
---------------------------------------------------
-admin:rdeniro
-power_user:alpacino,jacknich
-user:jacknich
---------------------------------------------------
-
-Each row maps a role to a comma-separated list of all the users that are
-associated with that role.
-=======
 For more information, see 
 {ref}/configuring-file-realm.html[Configuring a file realm].

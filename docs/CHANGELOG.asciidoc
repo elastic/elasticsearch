@@ -74,9 +74,7 @@ multi-argument versions. ({pull}29623[#29623])
 
 Do not ignore request analysis/similarity settings on index resize operations when the source index already contains such settings ({pull}30216[#30216])
 
-=== Regressions
 
-=== Known Issues
 //[float]
 //=== Regressions
 

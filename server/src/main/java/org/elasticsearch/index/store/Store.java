@@ -858,8 +858,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         static LoadedMetadata loadMetadata(IndexCommit commit, Directory directory, Logger logger) throws IOException {
             final long numDocs;
-            Map<String, StoreFileMetaData> builder = new HashMap<>();
-            Map<String, String> commitUserDataBuilder = new HashMap<>();
+            final Map<String, StoreFileMetaData> builder = new HashMap<>();
+            final Map<String, String> commitUserData;
             try {
                 final IndexCommit snapshottingCommit;
                 if (commit == null) {
@@ -868,9 +868,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 } else {
                     snapshottingCommit = commit;
                 }
-                final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
+                final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(snapshottingCommit, directory);
                 numDocs = Lucene.getNumDocs(snapshottingCommit);
-                commitUserDataBuilder.putAll(segmentCommitInfos.getUserData());
+                commitUserData = Collections.unmodifiableMap(segmentCommitInfos.getUserData());
                 Version maxVersion = segmentCommitInfos.getMinSegmentLuceneVersion(); // we don't know which version was used to write so we take the max version.
                 for (SegmentCommitInfo info : segmentCommitInfos) {
                     final Version version = info.info.getVersion();
@@ -909,7 +909,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 }
                 throw ex;
             }
-            return new LoadedMetadata(unmodifiableMap(builder), unmodifiableMap(commitUserDataBuilder), numDocs);
+            return new LoadedMetadata(unmodifiableMap(builder), commitUserData, numDocs);
         }
 
         private static void checksumFromLuceneFile(Directory directory, String file, Map<String, StoreFileMetaData> builder,

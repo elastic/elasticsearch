@@ -121,12 +121,22 @@ GET hockey/_search
 // CONSOLE
 
 [float]
-===== Missing and multiple values
+===== Missing values
 
-If a document is missing a field `field`, `doc['field']` for this document
-will return null.
+Currently by default, if a document is missing a numeric field `field`,
+`doc['field'].value` returns `0` for this document. This default behaviour
+will be changed in the next major version of elasticsearch:
+if a document is missing a field `field`, `doc['field']` for this document
+will return `null`. You can set a system property
+`export ES_JAVA_OPTS="-Des.script.null_for_missing_value=true"' on a node
+to make this node's behaviour compatible with the future major version.
+Otherwise, every time the node starts a deprecation warning will remind you
+about this forthcoming change.
 
-There is also a number of operations designed for numeric fields,
+
+===== Multiple values
+
+There is a number of operations designed for numeric fields,
 if a document has multiple values in such a field:
 
 - `doc['field'].min` - gets the minimum value among values

@@ -12,6 +12,7 @@
 === Breaking Java Changes
 
 === Deprecations
+Returning 0 for missing numeric fields in script is deprecated. PR: 29611
 
 === New Features 
 

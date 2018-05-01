@@ -25,6 +25,7 @@ esplugin {
 }
 
 integTestCluster {
+  systemProperty 'es.script.null_for_missing_value', 'true'
   module project.project(':modules:mapper-extras')
 }
 

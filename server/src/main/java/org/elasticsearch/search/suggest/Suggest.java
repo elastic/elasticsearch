@@ -242,7 +242,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
     /**
      * The suggestion responses corresponding with the suggestions in the request.
      */
-    public static abstract class Suggestion<T extends Suggestion.Entry> implements Iterable<T>, NamedWriteable, ToXContentFragment {
+    public abstract static class Suggestion<T extends Suggestion.Entry> implements Iterable<T>, NamedWriteable, ToXContentFragment {
 
         private static final String NAME = "suggestion";
 
@@ -411,7 +411,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         /**
          * Represents a part from the suggest text with suggested options.
          */
-        public static abstract class Entry<O extends Option> implements Iterable<O>, Writeable, ToXContentObject {
+        public abstract static class Entry<O extends Option> implements Iterable<O>, Writeable, ToXContentObject {
 
             private static final String TEXT = "text";
             private static final String OFFSET = "offset";
@@ -597,7 +597,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             /**
              * Contains the suggested text with its document frequency and score.
              */
-            public static abstract class Option implements Writeable, ToXContentObject {
+            public abstract static class Option implements Writeable, ToXContentObject {
 
                 public static final ParseField TEXT = new ParseField("text");
                 public static final ParseField HIGHLIGHTED = new ParseField("highlighted");

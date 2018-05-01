@@ -164,8 +164,8 @@ public interface SearchPlugin {
          * @param builderReader the reader registered for this suggester's builder. Typically a reference to a constructor that takes a
          *        {@link StreamInput}
          * @param builderParser a parser that reads the suggester's builder from xcontent
-         * @param suggestionReader the reader registered for this suggester's Suggestion response. Typically a reference to a constructor that
-         *        takes a {@link StreamInput}
+         * @param suggestionReader the reader registered for this suggester's Suggestion response. Typically a reference to a constructor
+         *        that takes a {@link StreamInput}
          */
         public SuggesterSpec(
                 ParseField name,
@@ -185,8 +185,8 @@ public interface SearchPlugin {
          * @param builderReader the reader registered for this suggester's builder. Typically a reference to a constructor that takes a
          *        {@link StreamInput}
          * @param builderParser a parser that reads the suggester's builder from xcontent
-         * @param suggestionReader the reader registered for this suggester's Suggestion response. Typically a reference to a constructor that
-         *        takes a {@link StreamInput}
+         * @param suggestionReader the reader registered for this suggester's Suggestion response. Typically a reference to a constructor
+         *        that takes a {@link StreamInput}
          */
         public SuggesterSpec(
                 String name,

@@ -65,7 +65,7 @@ public class RestGetPrivilegesAction extends SecurityBaseRestHandler {
                             for (ApplicationPrivilege privilege : privsByApp.get(app)) {
                                 assert privilege.name().size() == 1
                                         : "Stored privileges should have a single name (got: " + privilege.name() + ")";
-                                builder.field(Iterables.get(privilege.name(), 0), privilege);
+                                builder.field(privilege.getPrivilegeName(), privilege);
                             }
                             builder.endObject();
                         }

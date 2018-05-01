@@ -68,7 +68,7 @@ public class RestPutPrivilegesAction extends SecurityBaseRestHandler {
                         .forEach(a -> result.put(a, new HashMap<>()));
                 privileges.forEach(privilege -> {
                     assert privilege.name().size() == 1 : "Privilege name [" + privilege.name() + "] should have a single value";
-                    String name = Iterables.get(privilege.name(), 0);
+                    String name = privilege.getPrivilegeName();
                     boolean created = response.created().getOrDefault(privilege.getApplication(), Collections.emptyList()).contains(name);
                     result.get(privilege.getApplication()).put(name, Collections.singletonMap("created", created));
                 });

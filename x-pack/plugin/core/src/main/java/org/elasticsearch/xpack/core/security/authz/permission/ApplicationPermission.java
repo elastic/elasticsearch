@@ -43,13 +43,34 @@ public final class ApplicationPermission {
                 return new PermissionEntry(k, Automatons.unionAndMinimize(Arrays.asList(existing.resources, patterns)));
             }
         }));
-        this.permissions = new ArrayList<>(permissionsByPrivilege.values());
+        this.permissions = Collections.unmodifiableList(new ArrayList<>(permissionsByPrivilege.values()));
     }
 
+    /**
+     * Determines whether this permission grants the specified privilege on the given resource.
+     * <p>
+     * An {@link ApplicationPermission} consists of a sequence of permission entries, where each entry contains a single
+     * {@link ApplicationPrivilege} and one or more resource patterns.
+     * </p>
+     * <p>
+     * This method returns {@code true} if, one or more of those entries meet the following criteria
+     * </p>
+     * <ul>
+     * <li>The entry's application, when interpreted as an {@link Automaton} {@link Automatons#pattern(String) pattern} matches the
+     * application given in the argument (interpreted as a raw string)
+     * </li>
+     * <li>The {@link ApplicationPrivilege#getAutomaton automaton that defines the entry's actions} entirely covers the
+     * automaton given in the argument (that is, the argument is a subset of the entry's automaton)
+     * </li>
+     * <li>The entry's resources, when interpreted as an {@link Automaton} {@link Automatons#patterns(String...)} set of patterns} entirely
+     * covers the resource given in the argument (also interpreted as an {@link Automaton} {@link Automatons#pattern(String) pattern}.
+     * </li>
+     * </ul>
+     */
     public boolean grants(ApplicationPrivilege other, String resource) {
         Automaton resourceAutomaton = Automatons.patterns(resource);
         final boolean matched = permissions.stream().anyMatch(e -> e.grants(other, resourceAutomaton));
-        logger.debug("Permission [{}] {} grant [{} , {}]", this, matched ? "does" : "does not", other, resource);
+        logger.trace("Permission [{}] {} grant [{} , {}]", this, matched ? "does" : "does not", other, resource);
         return matched;
     }
 

@@ -52,6 +52,6 @@ public class PutPrivilegesResponse extends ActionResponse implements ToXContentO
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        this.created = in.readMap(StreamInput::readString, si -> si.readList(StreamInput::readString));
+        this.created = Collections.unmodifiableMap(in.readMap(StreamInput::readString, si -> si.readList(StreamInput::readString)));
     }
 }

@@ -31,7 +31,7 @@ public class DeletePrivilegesResponse extends ActionResponse implements ToXConte
     }
 
     public DeletePrivilegesResponse(Collection<String> found) {
-        this.found = new HashSet<>(found);
+        this.found = Collections.unmodifiableSet(new HashSet<>(found));
     }
 
     @Override
@@ -41,17 +41,18 @@ public class DeletePrivilegesResponse extends ActionResponse implements ToXConte
     }
 
     public Set<String> found() {
-        return Collections.unmodifiableSet(this.found);
+        return this.found;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         final int size = in.readVInt();
-        found = new HashSet<>(size);
+        final HashSet<String> foundSet = new HashSet<>(size);
         for (int i = 0; i < size; i++) {
-            found.add(in.readString());
+            foundSet.add(in.readString());
         }
+        this.found = Collections.unmodifiableSet(foundSet);
     }
 
     @Override

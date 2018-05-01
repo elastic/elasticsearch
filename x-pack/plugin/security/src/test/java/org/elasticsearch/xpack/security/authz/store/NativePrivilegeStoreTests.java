@@ -214,7 +214,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             assertThat(request.indices(), arrayContaining(SecurityLifecycleService.SECURITY_INDEX_NAME));
             assertThat(request.type(), equalTo("doc"));
             assertThat(request.id(), equalTo(
-                    "application-privilege_" + privilege.getApplication() + ":" + Iterables.get(privilege.name(), 0)
+                    "application-privilege_" + privilege.getApplication() + ":" + privilege.getPrivilegeName()
             ));
             final XContentBuilder builder
                     = privilege.toIndexContent(XContentBuilder.builder(XContentType.JSON.xContent()), ToXContent.EMPTY_PARAMS);
@@ -266,7 +266,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         final SearchHit[] hits = new SearchHit[sourcePrivileges.size()];
         for (int i = 0; i < hits.length; i++) {
             final ApplicationPrivilege p = sourcePrivileges.get(i);
-            hits[i] = new SearchHit(i, "application-privilege_" + p.getApplication() + ":" + Iterables.get(p.name(), 0), null, null);
+            hits[i] = new SearchHit(i, "application-privilege_" + p.getApplication() + ":" + p.getPrivilegeName(), null, null);
             hits[i].sourceRef(new BytesArray(Strings.toString(p)));
         }
         return hits;

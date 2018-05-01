@@ -72,11 +72,11 @@ public class PutPrivilegesRequest extends ActionRequest implements WriteRequest<
     }
 
     public List<ApplicationPrivilege> getPrivileges() {
-        return Collections.unmodifiableList(privileges);
+        return privileges;
     }
 
     public void setPrivileges(Collection<ApplicationPrivilege> privileges) {
-        this.privileges = new ArrayList<>(privileges);
+        this.privileges = Collections.unmodifiableList(new ArrayList<>(privileges));
     }
 
     @Override
@@ -88,7 +88,7 @@ public class PutPrivilegesRequest extends ActionRequest implements WriteRequest<
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        privileges = in.readList(ApplicationPrivilege::readFrom);
+        privileges = Collections.unmodifiableList(in.readList(ApplicationPrivilege::readFrom));
         refreshPolicy = RefreshPolicy.readFrom(in);
     }
 

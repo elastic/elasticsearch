@@ -21,8 +21,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class GetPrivilegesRequest extends ActionRequest {
 
-    private @Nullable
-    String application;
+    @Nullable
+    private String application;
     private String[] privileges;
 
     public GetPrivilegesRequest() {
@@ -57,12 +57,14 @@ public class GetPrivilegesRequest extends ActionRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        application = in.readString();
         privileges = in.readStringArray();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeString(application);
         out.writeStringArray(privileges);
     }
 

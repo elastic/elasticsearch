@@ -18,7 +18,7 @@ public class GetPrivilegesRequestBuilder
         this(client, GetPrivilegesAction.INSTANCE);
     }
 
-    public GetPrivilegesRequestBuilder(ElasticsearchClient client, GetPrivilegesAction action) {
+    GetPrivilegesRequestBuilder(ElasticsearchClient client, GetPrivilegesAction action) {
         super(client, action, new GetPrivilegesRequest());
     }
 

@@ -30,8 +30,8 @@ public class DeletePrivilegesRequest extends ActionRequest implements WriteReque
     }
 
     public DeletePrivilegesRequest(String application, String[] privileges) {
-        application(application);
-        privileges(privileges);
+        this.application = application;
+        this.privileges = privileges;
     }
 
     @Override

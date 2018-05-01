@@ -71,7 +71,7 @@ public class HasPrivilegesRequest extends ActionRequest implements UserRequest {
 
     @Override
     public String[] usernames() {
-        return new String[]{username};
+        return new String[] { username };
     }
 
     public RoleDescriptor.IndicesPrivileges[] indexPrivileges() {

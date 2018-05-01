@@ -37,7 +37,7 @@ public class PutPrivilegesRequestBuilder
         this(client, PutPrivilegesAction.INSTANCE);
     }
 
-    public PutPrivilegesRequestBuilder(ElasticsearchClient client, PutPrivilegesAction action) {
+    PutPrivilegesRequestBuilder(ElasticsearchClient client, PutPrivilegesAction action) {
         super(client, action, new PutPrivilegesRequest());
     }
 
@@ -129,7 +129,7 @@ public class PutPrivilegesRequestBuilder
             throw new IllegalArgumentException("privilege name [" + privilege.name()
                     + "] in source must contain exactly 1 value");
         }
-        final String privilegeName = Iterables.get(privilege.name(), 0);
+        final String privilegeName = privilege.getPrivilegeName();
         if (Strings.isNullOrEmpty(applicationName) == false && applicationName.equals(privilege.getApplication()) == false) {
             throw new IllegalArgumentException("privilege application [" + privilege.getApplication()
                     + "] in source does not match the provided application [" + applicationName + "]");

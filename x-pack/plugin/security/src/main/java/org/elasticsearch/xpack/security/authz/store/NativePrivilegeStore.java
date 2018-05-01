@@ -176,7 +176,7 @@ public class NativePrivilegeStore extends AbstractComponent {
             return;
         }
         try {
-            final String name = Iterables.get(privilege.name(), 0);
+            final String name = privilege.getPrivilegeName();
             final XContentBuilder xContentBuilder = privilege.toIndexContent(jsonBuilder(), ToXContent.EMPTY_PARAMS);
             ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                     client.prepareIndex(SECURITY_INDEX_NAME, "doc", toDocId(privilege.getApplication(), name))
@@ -232,7 +232,7 @@ public class NativePrivilegeStore extends AbstractComponent {
                 final ApplicationPrivilege privilege = ApplicationPrivilege.parse(parser, true);
                 assert privilege.getApplication().equals(name.v1())
                         : "Incorrect application name for privilege. Expected [" + name.v1() + "] but was " + privilege.getApplication();
-                assert privilege.name().size() == 1 && Iterables.get(privilege.name(), 0).equals(name.v2())
+                assert privilege.name().size() == 1 && privilege.getPrivilegeName().equals(name.v2())
                         : "Incorrect name for application privilege. Expected [" + name.v2() + "] but was " + privilege.name();
                 return privilege;
             }

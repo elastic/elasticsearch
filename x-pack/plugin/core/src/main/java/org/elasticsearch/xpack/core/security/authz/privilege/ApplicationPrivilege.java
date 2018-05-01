@@ -11,8 +11,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -33,6 +31,8 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import static java.util.Collections.emptyMap;
 
 /**
  * An application privilege has a name (e.g. {@code "my-app:admin"}) that starts with a prefix that identifies the app,
@@ -77,16 +77,11 @@ public final class ApplicationPrivilege extends Privilege implements ToXContentO
     private final Map<String, Object> metadata;
 
     public ApplicationPrivilege(String application, String privilegeName, Collection<String> patterns, Map<String, Object> metadata) {
-        this(application, Collections.singleton(privilegeName), patterns, metadata, true);
+        this(application, Collections.singleton(privilegeName), patterns.toArray(new String[patterns.size()]), metadata, true);
     }
 
     public ApplicationPrivilege(String application, String privilegeName, String... patterns) {
-        this(application, Sets.newHashSet(privilegeName), patterns, Collections.emptyMap(), true);
-    }
-
-    private ApplicationPrivilege(String application, Set<String> name, Collection<String> patterns, Map<String, Object> metadata,
-                                 boolean validateNames) {
-        this(application, name, patterns.toArray(new String[patterns.size()]), metadata, validateNames);
+        this(application, Collections.singleton(privilegeName), patterns, emptyMap(), true);
     }
 
     private ApplicationPrivilege(String application, Set<String> name, String[] patterns, Map<String, Object> metadata,
@@ -94,12 +89,24 @@ public final class ApplicationPrivilege extends Privilege implements ToXContentO
         super(name, patterns);
         this.application = application;
         this.patterns = patterns;
-        this.metadata = new HashMap<>(metadata == null ? Collections.emptyMap() : metadata);
+        this.metadata = new HashMap<>(metadata == null ? emptyMap() : metadata);
         validate(validateNames);
     }
 
     public String getApplication() {
         return application;
+    }
+
+    /**
+     * If this privilege has a single name, returns that name. Otherwise throws {@link IllegalStateException}.
+     * @see #name()
+     */
+    public String getPrivilegeName() {
+        if (name.size() == 1) {
+            return name.iterator().next();
+        } else {
+            throw new IllegalStateException(this + " has a multivariate name: " + Strings.collectionToCommaDelimitedString(name));
+        }
     }
 
     public Map<String, Object> getMetadata() {
@@ -127,7 +134,7 @@ public final class ApplicationPrivilege extends Privilege implements ToXContentO
 
     /**
      * Validate that the provided application name is valid, and throws an exception otherwise
-     * @thorw IllegalArgumentException if the name is not valid
+     * @throws IllegalArgumentException if the name is not valid
      */
     public static void validateApplicationName(String application) {
         if (VALID_APPLICATION.matcher(application).matches() == false) {
@@ -147,7 +154,7 @@ public final class ApplicationPrivilege extends Privilege implements ToXContentO
             Map<String, ApplicationPrivilege> lookup = stored.stream()
                 .filter(cp -> cp.application.equals(application))
                 .filter(cp -> cp.name.size() == 1)
-                .collect(Collectors.toMap(cp -> Iterables.get(cp.name, 0), Function.identity()));
+                .collect(Collectors.toMap(ApplicationPrivilege::getPrivilegeName, Function.identity()));
             return resolve(application, name, lookup);
         }
     }
@@ -177,10 +184,10 @@ public final class ApplicationPrivilege extends Privilege implements ToXContentO
         }
 
         if (actions.isEmpty()) {
-            return new ApplicationPrivilege(application, names, patterns, Collections.emptyMap(), true);
+            return new ApplicationPrivilege(application, names, patterns.toArray(new String[patterns.size()]), emptyMap(), true);
         } else {
             patterns.addAll(actions);
-            return new ApplicationPrivilege(application, names, patterns, Collections.emptyMap(), false);
+            return new ApplicationPrivilege(application, names, patterns.toArray(new String[patterns.size()]), emptyMap(), false);
         }
     }
 
@@ -215,7 +222,7 @@ public final class ApplicationPrivilege extends Privilege implements ToXContentO
 
         builder.startObject()
             .field(Fields.APPLICATION.getPreferredName(), application)
-            .field(Fields.NAME.getPreferredName(), Iterables.get(name, 0))
+            .field(Fields.NAME.getPreferredName(), getPrivilegeName())
             .array(Fields.ACTIONS.getPreferredName(), this.patterns)
             .field(Fields.METADATA.getPreferredName(), this.metadata);
 
@@ -237,7 +244,7 @@ public final class ApplicationPrivilege extends Privilege implements ToXContentO
             names.add(in.readString());
         }
         String[] patterns = in.readStringArray();
-        Map<String, Object> metadata = in.readBoolean() ? in.readMap() : Collections.emptyMap();
+        Map<String, Object> metadata = in.readBoolean() ? in.readMap() : emptyMap();
         return new ApplicationPrivilege(application, names, patterns, metadata, false);
     }
 

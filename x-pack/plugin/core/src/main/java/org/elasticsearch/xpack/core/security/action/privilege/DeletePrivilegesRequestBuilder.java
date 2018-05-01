@@ -22,7 +22,7 @@ public class DeletePrivilegesRequestBuilder
         this(client, DeletePrivilegesAction.INSTANCE);
     }
 
-    public DeletePrivilegesRequestBuilder(ElasticsearchClient client, DeletePrivilegesAction action) {
+    DeletePrivilegesRequestBuilder(ElasticsearchClient client, DeletePrivilegesAction action) {
         super(client, action, new DeletePrivilegesRequest());
     }
 

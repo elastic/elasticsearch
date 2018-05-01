@@ -561,8 +561,6 @@ class BuildPlugin implements Plugin<Project> {
              */
             List html4Projects = [
                 ':server',
-                ':libs:elasticsearch-core',
-                ':test:framework',
                 ':x-pack:plugin:core',
             ]
             if (false == html4Projects.contains(project.path)) {

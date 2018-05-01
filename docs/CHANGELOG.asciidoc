@@ -10,26 +10,16 @@
 
 This section summarizes the changes in each release.
 
-* <<release-notes-7.0.0>>
-* <<release-notes-6.4.0>>
-
+* <<release-notes-6.3.0>>
 
 --
 
-== Elasticsearch version 6.3.0
-[[release-notes-7.0.0]]
-== {es} 7.0.0
+[[release-notes-6.3.0]]
+== {es} version 6.3.0
 
-[float]
-[[breaking-7.0.0]]
-=== Breaking Changes
-
-<<write-thread-pool-fallback, Removed `thread_pool.bulk.*` settings and
-`es.thread_pool.write.use_bulk_as_display_name` system property>> ({pull}29609[#29609])
-
-<<remove-suggest-metric, Removed `suggest` metric on stats APIs>> ({pull}29635[#29635])
-
-<<remove-field-caps-body, In field capabilities APIs, removed support for providing fields in the request body>> ({pull}30185[#30185])
+//[float]
+//[[breaking-6.3.0]]
+//=== Breaking Changes
 
 //[float]
 //=== Breaking Java Changes
@@ -43,39 +33,8 @@ This section summarizes the changes in each release.
 //[float]
 //=== Enhancements
 
-[float]
-=== Bug Fixes
-
-Fail snapshot operations early when creating or deleting a snapshot on a repository that has been
-written to by an older Elasticsearch after writing to it with a newer Elasticsearch version. ({pull}30140[#30140])
-
 //[float]
-//=== Regressions
-
-//[float]
-//=== Known Issues
-
-[[release-notes-6.4.0]]
-== {es} 6.4.0
-
-//[float]
-//=== New Features
-
-[float]
-=== Enhancements
-
-=== Bug Fixes
-
-=== Regressions
-
-=== Known Issues
-
-<<copy-source-settings-on-resize, Allow copying source settings on index resize operations>> ({pull}30255[#30255])
-
-[float]
-=== Bug Fixes
-
-Do not ignore request analysis/similarity settings on index resize operations when the source index already contains such settings ({pull}30216[#30216])
+//=== Bug Fixes
 
 //[float]
 //=== Regressions

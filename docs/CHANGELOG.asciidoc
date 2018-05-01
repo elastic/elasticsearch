@@ -63,7 +63,7 @@ written to by an older Elasticsearch after writing to it with a newer Elasticsea
 [float]
 === Enhancements
 
-<<copy-source-settings-on-resize, Allow copying source settings on index resize operations>> ({pull}30255[#30255])
+{ref-64}/breaking_64_api_changes.html#copy-source-settings-on-resize[Allow copying source settings on index resize operations] ({pull}30255[#30255])
 
 Added new "Request" object flavored request methods. Prefer these instead of the
 multi-argument versions. ({pull}29623[#29623])
@@ -74,9 +74,7 @@ multi-argument versions. ({pull}29623[#29623])
 
 Do not ignore request analysis/similarity settings on index resize operations when the source index already contains such settings ({pull}30216[#30216])
 
-=== Regressions
 
-=== Known Issues
 //[float]
 //=== Regressions
 

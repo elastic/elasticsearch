@@ -260,8 +260,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
                 logger.info("freezing indices {}", indicesAsString);
 
                 MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
-                ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder()
-                        .blocks(currentState.blocks());
+                ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
                 for (IndexMetaData openIndexMetadata : indicesToFreeze) {
                     final String indexName = openIndexMetadata.getIndex().getName();
                     mdBuilder.put(IndexMetaData.builder(openIndexMetadata).state(IndexMetaData.State.FROZEN));
@@ -325,8 +324,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
                     logger.info("thawing indices {}", indicesAsString);
 
                     MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
-                    ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder()
-                        .blocks(currentState.blocks());
+                    ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
                     for (IndexMetaData openIndexMetadata : indicesToThaw) {
                         final String indexName = openIndexMetadata.getIndex().getName();
                         mdBuilder.put(IndexMetaData.builder(openIndexMetadata).state(IndexMetaData.State.OPEN));

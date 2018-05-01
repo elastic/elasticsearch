@@ -120,7 +120,7 @@ object allocated to the heap. A reference type instance is allocated using the
 
 Reference type values refer to reference type instances, and multiple reference
 type values may refer to a single reference type instance. A change to a
-reference type instance will affect all reference type values refering to that
+reference type instance will affect all reference type values referring to that
 instance. Reference type values are shallow-copied when
 <<assignment, assigned>> and when passed into a <<method-access, method>> or
 function as arguments.
@@ -279,10 +279,10 @@ While not required, the <<constructor-call, `new` operator>> can allocate
 `String` values.
 
 *Examples*
-[source,Painless]
 
 * General use of the `String` type.
 +
+[source,Painless]
 ----
 <1> String r = "some text";
 <2> String s = 'some text';
@@ -305,58 +305,76 @@ While not required, the <<constructor-call, `new` operator>> can allocate
 The `void` type represents the concept of a lack of type. The `void` type is
 primarily used to indicate a function will return no value.
 
+*Examples*
+
+* Use of the `void` type in a function.
++
+[source,Painless]
+----
+void addToList(List l, def d) {
+    l.add(d);
+}
+----
+
 [[array-type]]
 ==== Array Type
 
-Array types are a specialized reference type that contain a series of elements
+The array type is a specialized reference type where an array type instance
+represents a series of values.  All values in an array type instance are of
+the same type.  Each value is assigned an index from within the range
+`[0, length)` where length is the total number of values allocated for the
+array type instance. Specify the type of values and the length during an
+array allocation.
 
+Allocate an array type instance using the <<new-array, new operator>> or the
+<<array-initialization, initialization operator>>.  Array type instances are
+allocated to the heap. <<declaration, Declare>> and <<assignment, assign>>
+array type variables for <<painless-operators, use>> within scripts.  The
+default value for newly-declared array instance types is `null`.  Array type
+values are shallow-copied when <<assignment, assigned>> and when passed into a
+<<method-access, method>> or function as arguments. Read and write to individual
+values within the array type instance using the <<array-access, access operator>>.
 
-Arrays contain a series of elements of the same type that can be allocated
-simultaneously. Painless supports both single and multi-dimensional arrays for
-all types except void (including `def`).
+When an array type instance is allocated with multiple dimensions using the
+range `[2, d]` where `d >= 2`, each dimension in the range `[1, d-1]` is also
+an array type. The array type of each dimension, `n`, is an array type with the
+number of dimensions equal to `d-n`. For example, consider `int[][][]` with 3
+dimensions. The 3rd dimension, `d-3`, is the primitive type `int`.  The 2nd
+dimension, `d-2`, is the array type `int[]`. And the 1st dimension, `d-1` is
+the array type `int[][]`.
 
-You declare an array by specifying a type followed by a series of empty brackets,
-where each set of brackets represents a dimension. Declared arrays have a default
-value of `null` and are themselves a reference type.
+*Examples*
 
-To allocate an array, you use the `new` keyword followed by the type and a
-set of brackets for each dimension. You can explicitly define the size of each dimension by specifying an expression within the brackets, or initialize each
-dimension with the desired number of values. The allocated size of each
-dimension is its permanent size.
-
-To initialize an array, specify the values you want to initialize
-each dimension with as a comma-separated list of expressions enclosed in braces.
-For example, `new int[] {1, 2, 3}` creates a one-dimensional `int` array with a
-size of 3 and the values 1, 2, and 3.
-
-When you initialize an array, the order of the expressions is maintained. Each expression used as part of the initialization is converted to the
-array's type. An error occurs if the types do not match.
-
-*Grammar:*
-[source,ANTLR4]
+* General use of single-dimensional arrays.
++
+[source,Painless]
 ----
-declare_array: TYPE ('[' ']')+;
-
-array_initialization: 'new' TYPE '[' ']' '{' expression (',' expression) '}'
-                    | 'new' TYPE '[' ']' '{' '}';
+<1> int[] x;
+<2> float[] y = new float[10];
+<3> def z = new float[5];
+<4> y[9] = 1.0F;
+<5> z[0] = y[9];
 ----
-
-*Examples:*
-[source,Java]
++
+<1> declare `int[] x`
+<2> declare `float[] y`;
+    assign a newly-allocated array type of `float` to `y`
+<3> declare `def z`;
+    assign a newly-allocated array type of `float` to `z`
+<4> assign `1.0F` to the 9th index of `y`
+<5> assign the value of 9th index of `y` to the 0th index of `z`
++
+* Use of a multi-dimensional array.
++
+[source,Painless]
 ----
-int[] x = new int[5];          // Declare int array x and assign it a newly
-                               //   allocated int array with a size of 5
-def[][] y = new def[5][5];     // Declare the 2-dimensional def array y and
-                               //   assign it a newly allocated 2-dimensional
-                               //   array where both dimensions have a size of 5
-int[] x = new int[] {1, 2, 3}; // Declare int array x and set it to an int
-                               //   array with values 1, 2, 3 and a size of 3
-int i = 1;
-long l = 2L;
-float f = 3.0F;
-double d = 4.0;
-String s = "5";
-def[] da = new def[] {i, l, f*d, s}; // Declare def array da and set it to
-                                     // a def array with a size of 4 and the
-                                     // values i, l, f*d, and s
+<1> int[][][] ia3 = new int[2][3][4];
+<2> ia3[1][2][3] = 99;
+<3> int i = ia3[1][2][3];
 ----
++
+<1> declare `int[][][] ia`;
+    assign a newly-allocated 3-dimensional array type of `int` to `ia3`
+<2> assign `99` to the 3rd index of the 2nd index of the 1st index of `ia3`
+<3> assign the value of the 3rd index of the 2nd index of the 1st index
+    of `ia3` to `i`

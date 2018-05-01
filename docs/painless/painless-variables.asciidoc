@@ -11,13 +11,15 @@ standard JVM in relation to instruction execution and memory usage.
 ==== Declaration
 
 Declare variables before use with the format of <<painless-types, type>>
-<<painless-identifiers, identifier>>. Specify a comma-separated list of
-<<painless-identifiers, identifiers>> following the <<painless-types, type>>
-to declare multiple variables in a single statement.  Use an
-<<assignment, assignment>> statement combined with a declaration statement to
-immediately assign a value to a variable. Variables not immediately assigned a
-value will have a default value assigned implicitly based on the
-<<painless-types, type>>.
+<<painless-identifiers, identifier>>. Declare <<array-type, array type>>
+variables using an opening `[` token and a closing `]` token for each
+dimension directly after the <<painless-identifiers, identifier>>. Specify a
+comma-separated list of <<painless-identifiers, identifiers>> following the
+<<painless-types, type>> to declare multiple variables in a single statement.
+Use an <<assignment, assignment>> statement combined with a declaration
+statement to immediately assign a value to a variable. Variables not
+immediately assigned a value will have a default value assigned implicitly
+based on the <<painless-types, type>>.
 
 *Grammar*
 [source,ANTLR4]
@@ -36,16 +38,20 @@ assignment: '=' expression;
 <1> int x;
 <2> List y;
 <3> int x, y, z;
-<4> def[] d;
+<4> def d;
 <5> int i = 10;
+<6> float[] f;
+<7> Map[][] m;
 ----
 +
 <1> declare a variable of type `int` and identifier `x`
 <2> declare a variable of type `List` and identifier `y`
 <3> declare three variables of type `int` and identifiers `x`, `y`, `z`
-<4> declare a variable of type `def[]` and identifier `d`
+<4> declare a variable of type `def` and identifier `d`
 <5> declare a variable of type `int` and identifier `i`;
     assign the integer literal `10` to `i`
+<6> declare a 1-dimensional array type variable of `float` and identifier `f`
+<7> declare a 2-dimensional array type variable of `Map` and identifier `m`
 
 [[assignment]]
 ==== Assignment
@@ -135,3 +141,27 @@ assignment: ID '=' expression
 <3> declare `List m`;
     assign default value `null` to `m`
 <4> assign a shallow-copy of `k` to `m`
++
+* Assignment with the <<array-type, array type>> using the
+<<new-array, new operator>>.
++
+[source,Painless]
+----
+<1> int[] ia1;
+<2> ia1 = new int[2];
+<3> ia1[0] = 1;
+<4> int[] ib1 = ia1;
+<5> int[][] ic2 = new int[2][5];
+<6> ic2[0][0] = 2;
+<7> ic2[0] = ia1;
+----
++
+<1> declare `int[] ia1`
+<2> assign a newly-allocated 1-dimensional array type of `int` to `ia1`
+<3> assign `1` to the 0th index of `ia1`
+<4> declare `int[] ib1`;
+    assign a shallow-copy of `ia1` to `ib1`
+<5> declare `int[][] ic2`;
+    assign a newly-allocated 2-dimensional array type of `int` to `ic2`
+<6> assign `2` to the 0th index of the 0th index of `ic2`
+<7> assign a shallow-copy of `ia1` to the 0th index of `ic2`

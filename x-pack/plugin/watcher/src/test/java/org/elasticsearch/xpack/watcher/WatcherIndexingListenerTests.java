@@ -230,7 +230,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(operation.id()).thenReturn("_id");
         when(operation.type()).thenReturn(Watch.DOC_TYPE);
         when(shardId.getIndexName()).thenReturn("anything");
-        when(result.hasFailure()).thenReturn(false);
+        when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
 
         listener.postIndex(shardId, operation, new ElasticsearchParseException("whatever"));
         verifyZeroInteractions(triggerService);

@@ -68,6 +68,7 @@ GET hockey/_search
 ----------------------------------------------------------------
 // CONSOLE
 
+
 Alternatively, you could do the same thing using a script field instead of a function score:
 
 [source,js]
@@ -118,6 +119,31 @@ GET hockey/_search
 }
 ----------------------------------------------------------------
 // CONSOLE
+
+[float]
+===== Missing values
+
+Currently by default, if a document is missing a numeric field `field`,
+`doc['field'].value` returns `0` for this document. This default behaviour
+will be changed in the next major version of elasticsearch. Starting from 7.0,
+if a document is missing a field `field`, `doc['field']` for this document
+will return `null`. From 6.4 version, you can set a system property
+`export ES_JAVA_OPTS="-Des.script.null_for_missing_value=true"' on a node
+to make this node's behaviour compatible with the future major version.
+Otherwise, every time the node starts a deprecation warning will remind you
+about this forthcoming change in 7.x.
+
+
+===== Multiple values
+
+There is a number of operations designed for numeric fields,
+if a document has multiple values in such a field:
+
+- `doc['field'].min` - gets the minimum value among values
+- `doc['field'].max` - gets the maximum value among values
+- `doc['field'].sum` - gets the sum of all values
+- `doc['field'].avg` - gets the average of all values
+
 
 [float]
 ==== Updating Fields with Painless

@@ -32,6 +32,7 @@ import java.security.PermissionCollection;
 import java.security.Permissions;
 import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -126,6 +127,38 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
         assertThat(warnings, containsInAnyOrder(
                 "getDate on numeric fields is deprecated. Use a date field to get dates.",
                 "getDates on numeric fields is deprecated. Use a date field to get dates."));
+    }
+
+    public void testLongsMinMaxSumAvg() throws IOException {
+        long[][] values = new long[between(3, 10)][];
+        long[] mins = new long[values.length];
+        long[] maxs = new long[values.length];
+        long[] sums = new long[values.length];
+        double[] avgs = new double[values.length];
+        for (int d = 0; d < values.length; d++) {
+            values[d] = new long[randomBoolean() ? randomBoolean() ? 0 : 1 : between(2, 100)];
+            mins[d] = values[d].length > 0 ? Long.MAX_VALUE : 0L;
+            maxs[d] = values[d].length > 0 ? Long.MIN_VALUE : 0L;
+            sums[d] = 0L;
+            for (int i = 0; i < values[d].length; i++) {
+                values[d][i] = randomLong();
+                mins[d] = mins[d] > values[d][i] ? values[d][i] : mins[d];
+                maxs[d] = maxs[d] < values[d][i] ? values[d][i] : maxs[d];
+                sums[d] += values[d][i];
+            }
+            avgs[d] = values[d].length > 0 ? sums[d] * 1.0/ values[d].length  : 0L;
+            Arrays.sort(values[d]);
+        }
+        Longs longs = wrap(values, deprecationMessage -> {fail("unexpected deprecation: " + deprecationMessage);});
+
+        for (int round = 0; round < 10; round++) {
+            int d = between(0, values.length - 1);
+            longs.setNextDocId(d);
+            assertEquals(mins[d], longs.getMin());
+            assertEquals(maxs[d], longs.getMax());
+            assertEquals(sums[d], longs.getSum());
+            assertEquals(avgs[d], longs.getAvg(), 0.0);
+        }
     }
 
     private Longs wrap(long[][] values, Consumer<String> deprecationCallback) {

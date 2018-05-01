@@ -30,6 +30,7 @@ import java.util.stream.Stream;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.common.Booleans;
 
 /**
  * Manages building {@link ScriptService}.
@@ -51,6 +52,8 @@ public class ScriptModule {
             TemplateScript.CONTEXT
         ).collect(Collectors.toMap(c -> c.name, Function.identity()));
     }
+    public static final boolean NULL_FOR_MISSING_VALUE =
+        Booleans.parseBoolean(System.getProperty("es.script.null_for_missing_value", "false"));
 
     private final ScriptService scriptService;
 

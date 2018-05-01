@@ -41,6 +41,10 @@ written to by an older Elasticsearch after writing to it with a newer Elasticsea
 
 Do not ignore request analysis/similarity settings on index resize operations when the source index already contains such settings ({pull}30216[#30216])
 
+=== Deprecations
+
+Returning 0 for missing numeric fields in script is deprecated. PR: 
+
 === Regressions
 
 === Known Issues

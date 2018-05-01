@@ -188,7 +188,7 @@ public class GrokPatternCreatorTests extends ESTestCase {
 
         assertEquals(".*?%{SYSLOGTIMESTAMP:timestamp}.+?linux.+?named.+?%{NUMBER:field}.+?error.+?" +
                 "unexpected.+?RCODE.+?REFUSED.+?resolving.+?%{QUOTEDSTRING:field2}.+?%{IP:ipaddress}.+?%{NUMBER:field3}.*",
-                GrokPatternCreator.findBestGrokMatchFromExamples(regex, examples));
+                GrokPatternCreator.findBestGrokMatchFromExamples("foo", regex, examples));
     }
 
     public void testFindBestGrokMatchFromExamplesGivenCatalinaLogs() {
@@ -208,7 +208,7 @@ public class GrokPatternCreatorTests extends ESTestCase {
 
         assertEquals(".*?%{CATALINA_DATESTAMP:timestamp}.+?org\\.apache\\.tomcat\\.util\\.http\\.Parameters.+?processParameters.+?" +
                 "WARNING.+?Parameters.+?Invalid.+?chunk.+?ignored.*",
-                GrokPatternCreator.findBestGrokMatchFromExamples(regex, examples));
+                GrokPatternCreator.findBestGrokMatchFromExamples("foo", regex, examples));
     }
 
     public void testFindBestGrokMatchFromExamplesGivenMultiTimestampLogs() {
@@ -227,6 +227,6 @@ public class GrokPatternCreatorTests extends ESTestCase {
 
         assertEquals(".*?%{NUMBER:field}.+?%{TIMESTAMP_ISO8601:timestamp}.+?%{TIMESTAMP_ISO8601:timestamp2}.+?%{NUMBER:field2}.+?" +
                 "%{IP:ipaddress}.+?Authpriv.+?Info.+?sshd.+?subsystem.+?request.+?for.+?sftp.*",
-                GrokPatternCreator.findBestGrokMatchFromExamples(regex, examples));
+                GrokPatternCreator.findBestGrokMatchFromExamples("foo", regex, examples));
     }
 }

@@ -684,7 +684,8 @@ public class JobProvider {
         if (examples.isEmpty() || regex.isEmpty()) {
             categoryDefinition.setGrokPattern("");
         } else {
-            categoryDefinition.setGrokPattern(GrokPatternCreator.findBestGrokMatchFromExamples(regex, examples));
+            categoryDefinition.setGrokPattern(GrokPatternCreator.findBestGrokMatchFromExamples(categoryDefinition.getJobId(),
+                regex, examples));
         }
     }
 

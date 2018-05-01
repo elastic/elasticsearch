@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.categorization;
 
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.grok.Grok;
 
 import java.io.BufferedReader;
@@ -87,7 +88,7 @@ public final class GrokPatternCreator {
      * expectation is that a user will adjust the extracted field names based on their domain
      * knowledge.
      */
-    public static String findBestGrokMatchFromExamples(String regex, Collection<String> examples) {
+    public static String findBestGrokMatchFromExamples(String jobId, String regex, Collection<String> examples) {
 
         // The first string in this array will end up being the empty string, and it doesn't correspond
         // to an "in between" bit.  Although it could be removed for "neatness", it actually makes the
@@ -101,7 +102,10 @@ public final class GrokPatternCreator {
         // E.g., ".*?cat.+?sat.+?mat.*" -> Pattern (.*?)cat(.+?)sat(.+?)mat(.*)
         Pattern exampleProcessor = Pattern.compile(regex.replaceAll("(\\.[*+]\\??)", "($1)"), Pattern.DOTALL);
 
-        List<Collection<String>> inBetweenBits = new ArrayList<>(fixedRegexBits.length);
+        List<Collection<String>> groupsMatchesFromExamples = new ArrayList<>(fixedRegexBits.length);
+        for (int i = 0; i < fixedRegexBits.length; ++i) {
+            groupsMatchesFromExamples.add(new ArrayList<>(examples.size()));
+        }
         for (String example : examples) {
             Matcher matcher = exampleProcessor.matcher(example);
             if (matcher.matches()) {
@@ -110,15 +114,14 @@ public final class GrokPatternCreator {
                 // "the cat sat on the mat" will result in "the ", " ", " on the ", and ""
                 // being added to the 4 "in between" collections in that order
                 for (int groupNum = 1; groupNum <= matcher.groupCount(); ++groupNum) {
-                    if (inBetweenBits.size() < groupNum) {
-                        inBetweenBits.add(new ArrayList<>(examples.size()));
-                    }
-                    inBetweenBits.get(groupNum - 1).add(matcher.group(groupNum));
+                    groupsMatchesFromExamples.get(groupNum - 1).add(matcher.group(groupNum));
                 }
             } else {
                 // We should never get here.  If we do it implies a bug in the original categorization,
                 // as it's produced a regex that doesn't match the examples.
                 assert matcher.matches() : exampleProcessor.pattern() + " did not match " + example;
+                Loggers.getLogger(GrokPatternCreator.class).error("[{}] Pattern [{}] did not match example [{}]", jobId,
+                        exampleProcessor.pattern(), example);
             }
         }
 
@@ -126,12 +129,12 @@ public final class GrokPatternCreator {
         StringBuilder overallGrokPatternBuilder = new StringBuilder();
         // Finally, for each collection of "in between" bits we look for the best Grok pattern and incorporate
         // it into the overall Grok pattern that will match the each example in its entirety
-        for (int inBetweenBitNum = 0; inBetweenBitNum < inBetweenBits.size(); ++inBetweenBitNum) {
+        for (int inBetweenBitNum = 0; inBetweenBitNum < groupsMatchesFromExamples.size(); ++inBetweenBitNum) {
             // Remember (from the first comment in this method) that the first element in this array is
             // always the empty string
             overallGrokPatternBuilder.append(fixedRegexBits[inBetweenBitNum]);
             appendBestGrokMatchForStrings(fieldNameCountStore, overallGrokPatternBuilder, inBetweenBitNum == 0,
-                    inBetweenBitNum == fixedRegexBits.length - 1, inBetweenBits.get(inBetweenBitNum));
+                    inBetweenBitNum == fixedRegexBits.length - 1, groupsMatchesFromExamples.get(inBetweenBitNum));
         }
         return overallGrokPatternBuilder.toString();
     }
@@ -145,10 +148,12 @@ public final class GrokPatternCreator {
                                               boolean isFirst, boolean isLast, Collection<String> mustMatchStrings) {
 
         GrokPatternCandidate bestCandidate = null;
-        for (GrokPatternCandidate candidate : ORDERED_CANDIDATE_GROK_PATTERNS) {
-            if (mustMatchStrings.stream().allMatch(candidate.grok::match)) {
-                bestCandidate = candidate;
-                break;
+        if (mustMatchStrings.isEmpty() == false) {
+            for (GrokPatternCandidate candidate : ORDERED_CANDIDATE_GROK_PATTERNS) {
+                if (mustMatchStrings.stream().allMatch(candidate.grok::match)) {
+                    bestCandidate = candidate;
+                    break;
+                }
             }
         }
 

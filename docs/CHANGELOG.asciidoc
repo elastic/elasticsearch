@@ -1,7 +1,7 @@
 // Use these for links to issue and pulls. Note issues and pulls redirect one to
 // each other on Github, so don't worry too much on using the right prefix.
-// :issue: https://github.com/elastic/elasticsearch/issues/
-// :pull: https://github.com/elastic/elasticsearch/pull/
+:issue: https://github.com/elastic/elasticsearch/issues/
+:pull: https://github.com/elastic/elasticsearch/pull/
 
 = Elasticsearch Release Notes
 
@@ -40,6 +40,8 @@ written to by an older Elasticsearch after writing to it with a newer Elasticsea
 === Enhancements
 
 === Bug Fixes
+
+Do not ignore request analysis/similarity settings on index resize operations when the source index already contains such settings ({pull}30216[#30216])
 
 === Regressions
 

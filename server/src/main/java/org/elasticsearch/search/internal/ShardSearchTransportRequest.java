@@ -28,9 +28,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.Scroll;
@@ -57,9 +54,10 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     public ShardSearchTransportRequest(OriginalIndices originalIndices, SearchRequest searchRequest, ShardId shardId, int numberOfShards,
-                                       AliasFilter aliasFilter, float indexBoost, long nowInMillis, String clusterAlias) {
+                                       AliasFilter aliasFilter, float indexBoost, long nowInMillis,
+                                       String clusterAlias, String[] indexRoutings) {
         this.shardSearchLocalRequest = new ShardSearchLocalRequest(searchRequest, shardId, numberOfShards, aliasFilter, indexBoost,
-            nowInMillis, clusterAlias);
+            nowInMillis, clusterAlias, indexRoutings);
         this.originalIndices = originalIndices;
     }
 
@@ -151,15 +149,25 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     public Boolean requestCache() {
         return shardSearchLocalRequest.requestCache();
     }
-    
+
     @Override
     public Boolean allowPartialSearchResults() {
         return shardSearchLocalRequest.allowPartialSearchResults();
-    }    
+    }
 
     @Override
     public Scroll scroll() {
         return shardSearchLocalRequest.scroll();
+    }
+
+    @Override
+    public String[] indexRoutings() {
+        return shardSearchLocalRequest.indexRoutings();
+    }
+
+    @Override
+    public String preference() {
+        return shardSearchLocalRequest.preference();
     }
 
     @Override

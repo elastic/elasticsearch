@@ -26,13 +26,11 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
-import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -84,8 +82,8 @@ public class IndicesModuleTests extends ESTestCase {
         }
     });
 
-    private static String[] EXPECTED_METADATA_FIELDS = new String[]{UidFieldMapper.NAME, IdFieldMapper.NAME, RoutingFieldMapper.NAME,
-            IndexFieldMapper.NAME, SourceFieldMapper.NAME, TypeFieldMapper.NAME, VersionFieldMapper.NAME, ParentFieldMapper.NAME,
+    private static String[] EXPECTED_METADATA_FIELDS = new String[]{IdFieldMapper.NAME, RoutingFieldMapper.NAME,
+            IndexFieldMapper.NAME, SourceFieldMapper.NAME, TypeFieldMapper.NAME, VersionFieldMapper.NAME,
             SeqNoFieldMapper.NAME, FieldNamesFieldMapper.NAME};
 
     public void testBuiltinMappers() {
@@ -108,7 +106,7 @@ public class IndicesModuleTests extends ESTestCase {
                 greaterThan(noPluginsModule.getMapperRegistry().getMetadataMapperParsers().size()));
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = module.getMapperRegistry().getMetadataMapperParsers();
         Iterator<String> iterator = metadataMapperParsers.keySet().iterator();
-        assertEquals(UidFieldMapper.NAME, iterator.next());
+        assertEquals(IdFieldMapper.NAME, iterator.next());
         String last = null;
         while(iterator.hasNext()) {
             last = iterator.next();

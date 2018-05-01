@@ -214,6 +214,27 @@ specific index module:
     The maximum length of regex that can be used in Regexp Query.
     Defaults to `1000`.
 
+ `index.routing.allocation.enable`::
+
+    Controls shard allocation for this index. It can be set to:
+    * `all` (default) - Allows shard allocation for all shards.
+    * `primaries` - Allows shard allocation only for primary shards.
+    * `new_primaries` - Allows shard allocation only for newly-created primary shards.
+    * `none` - No shard allocation is allowed.
+
+ `index.routing.rebalance.enable`::
+
+    Enables shard rebalancing for this index. It can be set to:
+    * `all` (default) - Allows shard rebalancing for all shards.
+    * `primaries` - Allows shard rebalancing only for primary shards.
+    * `replicas` - Allows shard rebalancing only for replica shards.
+    * `none` - No shard rebalancing is allowed.
+
+ `index.gc_deletes`::
+
+    The length of time that a <<delete-versioning,deleted document's version number>> remains available for <<index-versioning,further versioned operations>>.
+    Defaults to `60s`.
+
 [float]
 === Settings in other index modules
 

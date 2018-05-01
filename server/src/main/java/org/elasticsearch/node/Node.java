@@ -93,6 +93,7 @@ import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
@@ -257,7 +258,6 @@ public class Node implements Closeable {
             // use temp logger just to say we are starting. we can't use it later on because the node name might not be set
             Logger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(environment.settings()));
             logger.info("initializing ...");
-
         }
         try {
             Settings tmpSettings = Settings.builder().put(environment.settings())
@@ -271,22 +271,24 @@ public class Node implements Closeable {
                 throw new IllegalStateException("Failed to create node environment", ex);
             }
             final boolean hadPredefinedNodeName = NODE_NAME_SETTING.exists(tmpSettings);
-            Logger logger = Loggers.getLogger(Node.class, tmpSettings);
             final String nodeId = nodeEnvironment.nodeId();
             tmpSettings = addNodeNameIfNeeded(tmpSettings, nodeId);
+            final Logger logger = Loggers.getLogger(Node.class, tmpSettings);
             // this must be captured after the node name is possibly added to the settings
             final String nodeName = NODE_NAME_SETTING.get(tmpSettings);
             if (hadPredefinedNodeName == false) {
-                logger.info("node name [{}] derived from node ID [{}]; set [{}] to override", nodeName, nodeId, NODE_NAME_SETTING.getKey());
+                logger.info("node name derived from node ID [{}]; set [{}] to override", nodeId, NODE_NAME_SETTING.getKey());
             } else {
                 logger.info("node name [{}], node ID [{}]", nodeName, nodeId);
             }
 
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
             logger.info(
-                "version[{}], pid[{}], build[{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
+                "version[{}], pid[{}], build[{}/{}/{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
                 Version.displayVersion(Version.CURRENT, Build.CURRENT.isSnapshot()),
                 jvmInfo.pid(),
+                Build.CURRENT.flavor().displayName(),
+                Build.CURRENT.type().displayName(),
                 Build.CURRENT.shortHash(),
                 Build.CURRENT.date(),
                 Constants.OS_NAME,
@@ -537,7 +539,7 @@ public class Node implements Closeable {
             resourcesToClose.addAll(pluginLifecycleComponents);
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
             client.initialize(injector.getInstance(new Key<Map<GenericAction, TransportAction>>() {}),
-                    () -> clusterService.localNode().getId());
+                    () -> clusterService.localNode().getId(), transportService.getRemoteClusterService());
 
             if (NetworkModule.HTTP_ENABLED.get(settings)) {
                 logger.debug("initializing HTTP handlers ...");
@@ -776,8 +778,7 @@ public class Node implements Closeable {
         logger.info("closing ...");
         List<Closeable> toClose = new ArrayList<>();
         StopWatch stopWatch = new StopWatch("node_close");
-        toClose.add(() -> stopWatch.start("tribe"));
-        toClose.add(() -> stopWatch.stop().start("node_service"));
+        toClose.add(() -> stopWatch.start("node_service"));
         toClose.add(nodeService);
         toClose.add(() -> stopWatch.stop().start("http"));
         if (NetworkModule.HTTP_ENABLED.get(settings)) {

@@ -18,7 +18,8 @@
  */
 package org.elasticsearch.common.geo.parsers;
 
-import com.vividsolutions.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Coordinate;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -59,6 +60,16 @@ public class CoordinateNode implements ToXContentObject {
 
     public boolean isEmpty() {
         return (coordinate == null && (children == null || children.isEmpty()));
+    }
+
+    protected int numDimensions() {
+        if (isEmpty()) {
+            throw new ElasticsearchException("attempting to get number of dimensions on an empty coordinate node");
+        }
+        if (coordinate != null) {
+            return Double.isNaN(coordinate.z) ? 2 : 3;
+        }
+        return children.get(0).numDimensions();
     }
 
     @Override

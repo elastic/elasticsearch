@@ -296,7 +296,6 @@ e.g. -Dtests.rest.suite=index,get,create/10_with_id
 * `tests.rest.blacklist`: comma separated globs that identify tests that are
 blacklisted and need to be skipped
 e.g. -Dtests.rest.blacklist=index/*/Index document,get/10_basic/*
-* `tests.rest.spec`: REST spec path (default /rest-api-spec/api)
 
 Note that the REST tests, like all the integration tests, can be run against an external
 cluster by specifying the `tests.cluster` property, which if present needs to contain a
@@ -414,16 +413,16 @@ and in another window:
 
 ----------------------------------------------------
 vagrant up centos-7 --provider virtualbox && vagrant ssh centos-7
-cd $BATS_ARCHIVES
+cd $PACKAGING_ARCHIVES
 sudo -E bats $BATS_TESTS/*rpm*.bats
 ----------------------------------------------------
 
 If you wanted to retest all the release artifacts on a single VM you could:
 
 -------------------------------------------------
-./gradlew setupBats
+./gradlew setupPackagingTest
 cd qa/vagrant; vagrant up ubuntu-1404 --provider virtualbox && vagrant ssh ubuntu-1404
-cd $BATS_ARCHIVES
+cd $PACKAGING_ARCHIVES
 sudo -E bats $BATS_TESTS/*.bats
 -------------------------------------------------
 
@@ -477,12 +476,12 @@ branch. Finally, on a release branch, it will test against the most recent relea
 === BWC Testing against a specific remote/branch
 
 Sometimes a backward compatibility change spans two versions. A common case is a new functionality
-that needs a BWC bridge in and an unreleased versioned of a release branch (for example, 5.x).
+that needs a BWC bridge in an unreleased versioned of a release branch (for example, 5.x).
 To test the changes, you can instruct Gradle to build the BWC version from a another remote/branch combination instead of
-pulling the release branch from GitHub. You do so using the `tests.bwc.remote` and `tests.bwc.refspec` system properties:
+pulling the release branch from GitHub. You do so using the `tests.bwc.remote` and `tests.bwc.refspec.BRANCH` system properties:
 
 -------------------------------------------------
-./gradlew check -Dtests.bwc.remote=${remote} -Dtests.bwc.refspec=index_req_bwc_5.x
+./gradlew check -Dtests.bwc.remote=${remote} -Dtests.bwc.refspec.5.x=index_req_bwc_5.x
 -------------------------------------------------
 
 The branch needs to be available on the remote that the BWC makes of the
@@ -497,34 +496,30 @@ will need to:
 will contain your change.
 . Create a branch called `index_req_bwc_5.x` off `5.x`. This will contain your bwc layer.
 . Push both branches to your remote repository.
-. Run the tests with `./gradlew check -Dtests.bwc.remote=${remote} -Dtests.bwc.refspec=index_req_bwc_5.x`.
+. Run the tests with `./gradlew check -Dtests.bwc.remote=${remote} -Dtests.bwc.refspec.5.x=index_req_bwc_5.x`.
 
-== Coverage analysis
+== Skip fetching latest
 
-Tests can be run instrumented with jacoco to produce a coverage report in
-`target/site/jacoco/`.
+For some BWC testing scenarios, you want to use the local clone of the
+repository without fetching latest. For these use cases, you can set the system
+property `tests.bwc.git_fetch_latest` to `false` and the BWC builds will skip
+fetching the latest from the remote.
 
-Unit test coverage:
+== Test coverage analysis
 
----------------------------------------------------------------------------
-mvn -Dtests.coverage test jacoco:report
----------------------------------------------------------------------------
+Generating test coverage reports for Elasticsearch is currently not possible through Gradle.
+However, it _is_ possible to gain insight in code coverage using IntelliJ's built-in coverage 
+analysis tool that can measure coverage upon executing specific tests. Eclipse may also be able
+to do the same using the EclEmma plugin.
 
-Integration test coverage:
-
----------------------------------------------------------------------------
-mvn -Dtests.coverage -Dskip.unit.tests verify jacoco:report
----------------------------------------------------------------------------
-
-Combined (Unit+Integration) coverage:
-
----------------------------------------------------------------------------
-mvn -Dtests.coverage verify jacoco:report
----------------------------------------------------------------------------
+Test coverage reporting used to be possible with JaCoCo when Elasticsearch was using Maven
+as its build system. Since the switch to Gradle though, this is no longer possible, seeing as
+the code currently used to build Elasticsearch does not allow JaCoCo to recognize its tests.
+For more information on this, see the discussion in https://github.com/elastic/elasticsearch/issues/28867[issue #28867].
 
 == Launching and debugging from an IDE
 
-If you want to run elasticsearch from your IDE, the `./gradlew run` task
+If you want to run Elasticsearch from your IDE, the `./gradlew run` task
 supports a remote debugging option:
 
 ---------------------------------------------------------------------------

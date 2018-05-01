@@ -19,7 +19,6 @@
 package org.elasticsearch.cluster;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -98,7 +97,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                         // will try again after `cluster.nodes.reconnect_interval` on all nodes but the current master.
                         // On the master, node fault detection will remove these nodes from the cluster as their are not
                         // connected. Note that it is very rare that we end up here on the master.
-                        logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to connect to {}", node), e);
+                        logger.warn(() -> new ParameterizedMessage("failed to connect to {}", node), e);
                     }
 
                     @Override
@@ -137,7 +136,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                 try {
                     transportService.disconnectFromNode(node);
                 } catch (Exception e) {
-                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to disconnect to node [{}]", node), e);
+                    logger.warn(() -> new ParameterizedMessage("failed to disconnect to node [{}]", node), e);
                 }
             }
         }
@@ -160,9 +159,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                 // log every 6th failure
                 if ((nodeFailureCount % 6) == 1) {
                     final int finalNodeFailureCount = nodeFailureCount;
-                    logger.warn(
-                        (Supplier<?>)
-                            () -> new ParameterizedMessage(
+                    logger.warn(() -> new ParameterizedMessage(
                                 "failed to connect to node {} (tried [{}] times)", node, finalNodeFailureCount), e);
                 }
                 nodes.put(node, nodeFailureCount);

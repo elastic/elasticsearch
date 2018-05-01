@@ -650,13 +650,10 @@ public class InnerHitsIT extends ESIntegTestCase {
 
     public void testInnerHitsWithIgnoreUnmapped() throws Exception {
         assertAcked(prepareCreate("index1")
-            .setSettings(Settings.builder().put("index.version.created", Version.V_5_6_0.id))
-            .addMapping("parent_type", "nested_type", "type=nested")
-            .addMapping("child_type", "_parent", "type=parent_type")
+            .addMapping("_doc", "nested_type", "type=nested")
         );
         createIndex("index2");
-        client().prepareIndex("index1", "parent_type", "1").setSource("nested_type", Collections.singletonMap("key", "value")).get();
-        client().prepareIndex("index1", "child_type", "2").setParent("1").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("index1", "_doc", "1").setSource("nested_type", Collections.singletonMap("key", "value")).get();
         client().prepareIndex("index2", "type", "3").setSource("key", "value").get();
         refresh();
 

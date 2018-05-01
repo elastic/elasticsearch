@@ -43,6 +43,7 @@ import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.Arrays;
@@ -326,6 +327,8 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
     /**
      * This test asserts that replicas failed to execute resync operations will be failed but not marked as stale.
      */
+    @TestLogging("_root:DEBUG, org.elasticsearch.cluster.routing.allocation:TRACE, org.elasticsearch.cluster.action.shard:TRACE," +
+        "org.elasticsearch.indices.recovery:TRACE, org.elasticsearch.cluster.routing.allocation.allocator:TRACE")
     public void testPrimaryReplicaResyncFailed() throws Exception {
         String master = internalCluster().startMasterOnlyNode(Settings.EMPTY);
         final int numberOfReplicas = between(2, 3);
@@ -377,6 +380,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             client(master).admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable", "all")).get());
         partition.stopDisrupting();
+        partition.ensureHealthy(internalCluster());
         logger.info("--> stop disrupting network and re-enable allocation");
         assertBusy(() -> {
             ClusterState state = client(master).admin().cluster().prepareState().get().getState();
@@ -386,7 +390,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
                 IndexShard shard = internalCluster().getInstance(IndicesService.class, node).getShardOrNull(shardId);
                 assertThat(shard.getLocalCheckpoint(), equalTo(numDocs + moreDocs));
             }
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
 }

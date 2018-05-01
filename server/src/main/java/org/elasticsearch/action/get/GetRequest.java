@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.get;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
@@ -48,7 +49,6 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     private String type;
     private String id;
     private String routing;
-    private String parent;
     private String preference;
 
     private String[] storedFields;
@@ -123,21 +123,6 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
      */
     public GetRequest id(String id) {
         this.id = id;
-        return this;
-    }
-
-    /**
-     * @return The parent for this request.
-     */
-    public String parent() {
-        return parent;
-    }
-
-    /**
-     * Sets the parent id of this document.
-     */
-    public GetRequest parent(String parent) {
-        this.parent = parent;
         return this;
     }
 
@@ -260,7 +245,9 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
-        parent = in.readOptionalString();
+        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+            in.readOptionalString();
+        }
         preference = in.readOptionalString();
         refresh = in.readBoolean();
         storedFields = in.readOptionalStringArray();
@@ -277,7 +264,9 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing);
-        out.writeOptionalString(parent);
+        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+            out.writeOptionalString(null);
+        }
         out.writeOptionalString(preference);
 
         out.writeBoolean(refresh);

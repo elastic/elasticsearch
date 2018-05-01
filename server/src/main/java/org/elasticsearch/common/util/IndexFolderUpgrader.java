@@ -21,7 +21,6 @@ package org.elasticsearch.common.util;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.logging.Loggers;
@@ -67,7 +66,7 @@ public class IndexFolderUpgrader {
         } catch (NoSuchFileException | FileNotFoundException exception) {
             // thrown when the source is non-existent because the folder was renamed
             // by another node (shared FS) after we checked if the target exists
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("multiple nodes trying to upgrade [{}] in parallel, retry " +
+            logger.error(() -> new ParameterizedMessage("multiple nodes trying to upgrade [{}] in parallel, retry " +
                 "upgrading with single node", target), exception);
             throw exception;
         } finally {

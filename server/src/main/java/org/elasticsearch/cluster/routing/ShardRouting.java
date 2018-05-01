@@ -45,7 +45,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 
 /**
  * {@link ShardRouting} immutably encapsulates information about shard
- * routings like id, state, version, etc.
+ * indexRoutings like id, state, version, etc.
  */
 public final class ShardRouting implements Writeable, ToXContentObject {
 
@@ -499,7 +499,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             "ShardRouting is a relocation target but current node id isn't equal to source relocating node. This [" + this + "], other [" + other + "]";
 
         assert b == false || this.shardId.equals(other.shardId) :
-            "ShardRouting is a relocation target but both routings are not of the same shard id. This [" + this + "], other [" + other + "]";
+            "ShardRouting is a relocation target but both indexRoutings are not of the same shard id. This [" + this + "], other [" + other + "]";
 
         assert b == false || this.primary == other.primary :
             "ShardRouting is a relocation target but primary flag is different. This [" + this + "], target [" + other + "]";
@@ -526,7 +526,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             "ShardRouting is a relocation source but relocating node isn't equal to other's current node. This [" + this + "], other [" + other + "]";
 
         assert b == false || this.shardId.equals(other.shardId) :
-            "ShardRouting is a relocation source but both routings are not of the same shard. This [" + this + "], target [" + other + "]";
+            "ShardRouting is a relocation source but both indexRoutings are not of the same shard. This [" + this + "], target [" + other + "]";
 
         assert b == false || this.primary == other.primary :
             "ShardRouting is a relocation source but primary flag is different. This [" + this + "], target [" + other + "]";

@@ -65,7 +65,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     private static final ParseField TYPE = new ParseField("_type");
     private static final ParseField ID = new ParseField("_id");
     private static final ParseField ROUTING = new ParseField("routing");
-    private static final ParseField PARENT = new ParseField("parent");
     private static final ParseField VERSION = new ParseField("version");
     private static final ParseField VERSION_TYPE = new ParseField("version_type");
     private static final ParseField FIELDS = new ParseField("fields");
@@ -86,8 +85,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     private XContentType xContentType;
 
     private String routing;
-
-    private String parent;
 
     private VersionType versionType = VersionType.INTERNAL;
 
@@ -185,7 +182,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         this.flagsEnum = other.getFlags().clone();
         this.preference = other.preference();
         this.routing = other.routing();
-        this.parent = other.parent();
         if (other.selectedFields != null) {
             this.selectedFields = new HashSet<>(other.selectedFields);
         }
@@ -204,7 +200,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         this.type = item.type();
         this.selectedFields(item.storedFields());
         this.routing(item.routing());
-        this.parent(item.parent());
     }
 
     public EnumSet<Flag> getFlags() {
@@ -290,18 +285,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
 
     public TermVectorsRequest routing(String routing) {
         this.routing = routing;
-        return this;
-    }
-
-    public String parent() {
-        return parent;
-    }
-
-    /**
-     * Sets the parent id of this document.
-     */
-    public TermVectorsRequest parent(String parent) {
-        this.parent = parent;
         return this;
     }
 
@@ -522,7 +505,10 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
             }
         }
         routing = in.readOptionalString();
-        parent = in.readOptionalString();
+        
+        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+            in.readOptionalString(); // _parent
+        }
         preference = in.readOptionalString();
         long flags = in.readVLong();
 
@@ -565,7 +551,9 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
             }
         }
         out.writeOptionalString(routing);
-        out.writeOptionalString(parent);
+        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+            out.writeOptionalString(null); // _parent
+        }
         out.writeOptionalString(preference);
         long longFlags = 0;
         for (Flag flag : flagsEnum) {
@@ -650,8 +638,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                     termVectorsRequest.doc(jsonBuilder().copyCurrentStructure(parser));
                 } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
                     termVectorsRequest.routing = parser.text();
-                } else if (PARENT.match(currentFieldName, parser.getDeprecationHandler())) {
-                    termVectorsRequest.parent = parser.text();
                 } else if (VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
                     termVectorsRequest.version = parser.longValue();
                 } else if (VERSION_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {

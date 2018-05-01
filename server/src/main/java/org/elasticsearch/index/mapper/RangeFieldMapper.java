@@ -53,6 +53,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.joda.time.DateTimeZone;
@@ -183,16 +184,10 @@ public class RangeFieldMapper extends FieldMapper {
                     throw new MapperParsingException("Property [null_value] is not supported for [" + this.type.name
                             + "] field types.");
                 } else if (propName.equals("coerce")) {
-                    builder.coerce(TypeParsers.nodeBooleanValue(name, "coerce", propNode, parserContext));
+                    builder.coerce(XContentMapValues.nodeBooleanValue(propNode, name + ".coerce"));
                     iterator.remove();
                 } else if (propName.equals("locale")) {
-                    Locale locale;
-                    if (parserContext.indexVersionCreated().onOrAfter(Version.V_6_0_0_beta2)) {
-                        locale = LocaleUtils.parse(propNode.toString());
-                    } else {
-                        locale = LocaleUtils.parse5x(propNode.toString());
-                    }
-                    builder.locale(locale);
+                    builder.locale(LocaleUtils.parse(propNode.toString()));
                     iterator.remove();
                 } else if (propName.equals("format")) {
                     builder.dateTimeFormatter(parseDateTimeFormatter(propNode));
@@ -214,7 +209,7 @@ public class RangeFieldMapper extends FieldMapper {
             super();
             this.rangeType = Objects.requireNonNull(type);
             setTokenized(false);
-            setHasDocValues(indexVersionCreated.onOrAfter(Version.V_6_0_0_beta1));
+            setHasDocValues(true);
             setOmitNorms(true);
             if (rangeType == RangeType.DATE) {
                 setDateTimeFormatter(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);

@@ -52,7 +52,6 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
 
         final DocumentMapper mapper = mapperService.documentMapperParser().parse("test", new CompressedXContent(mapping));
 
-
         List<BytesRef> bytesList1 = new ArrayList<>(2);
         bytesList1.add(randomBytes());
         bytesList1.add(randomBytes());
@@ -123,22 +122,26 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
         // Test whether ScriptDocValues.BytesRefs makes a deepcopy
         fieldData = indexFieldData.load(reader);
         ScriptDocValues<?> scriptValues = fieldData.getScriptValues();
-        scriptValues.setNextDocId(0);
-        assertEquals(2, scriptValues.size());
-        assertEquals(bytesList1.get(0), scriptValues.get(0));
-        assertEquals(bytesList1.get(1), scriptValues.get(1));
+        Object[][] retValues = new BytesRef[4][0];
+        for (int i = 0; i < 4; i++) {
+            scriptValues.setNextDocId(i);
+            retValues[i] = new BytesRef[scriptValues.size()];
+            for (int j = 0; j < retValues[i].length; j++) {
+                retValues[i][j] = scriptValues.get(j);
+            }
+        }
+        assertEquals(2, retValues[0].length);
+        assertEquals(bytesList1.get(0), retValues[0][0]);
+        assertEquals(bytesList1.get(1), retValues[0][1]);
 
-        scriptValues.setNextDocId(1);
-        assertEquals(1, scriptValues.size());
-        assertEquals(bytes1, scriptValues.get(0));
+        assertEquals(1, retValues[1].length);
+        assertEquals(bytes1, retValues[1][0]);
 
-        scriptValues.setNextDocId(2);
-        assertEquals(0, scriptValues.size());
+        assertEquals(0, retValues[2].length);
 
-        scriptValues.setNextDocId(3);
-        assertEquals(2, scriptValues.size());
-        assertEquals(bytesList2.get(0), scriptValues.get(0));
-        assertEquals(bytesList2.get(1), scriptValues.get(1));
+        assertEquals(2, retValues[3].length);
+        assertEquals(bytesList2.get(0), retValues[3][0]);
+        assertEquals(bytesList2.get(1), retValues[3][1]);
     }
 
     private static BytesRef randomBytes() {

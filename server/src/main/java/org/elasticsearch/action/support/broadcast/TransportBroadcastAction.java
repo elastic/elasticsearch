@@ -222,13 +222,8 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
                 if (e != null) {
                     if (logger.isTraceEnabled()) {
                         if (!TransportActions.isShardNotAvailableException(e)) {
-                            logger.trace(
-                                (org.apache.logging.log4j.util.Supplier<?>)
-                                    () -> new ParameterizedMessage(
-                                        "{}: failed to execute [{}]",
-                                        shard != null ? shard.shortSummary() : shardIt.shardId(),
-                                        request),
-                                e);
+                            logger.trace(new ParameterizedMessage(
+                                "{}: failed to execute [{}]", shard != null ? shard.shortSummary() : shardIt.shardId(), request), e);
                         }
                     }
                 }
@@ -237,13 +232,8 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
                 if (logger.isDebugEnabled()) {
                     if (e != null) {
                         if (!TransportActions.isShardNotAvailableException(e)) {
-                            logger.debug(
-                                (org.apache.logging.log4j.util.Supplier<?>)
-                                    () -> new ParameterizedMessage(
-                                        "{}: failed to execute [{}]",
-                                        shard != null ? shard.shortSummary() : shardIt.shardId(),
-                                        request),
-                                e);
+                            logger.debug(new ParameterizedMessage(
+                                "{}: failed to execute [{}]", shard != null ? shard.shortSummary() : shardIt.shardId(), request), e);
                         }
                     }
                 }

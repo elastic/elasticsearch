@@ -16,6 +16,7 @@
 
 package org.elasticsearch.common.inject.internal;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.IOException;

@@ -43,7 +43,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.UnknownNamedObjectException;
+import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -474,14 +474,14 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
      */
     // TODO: This can be moved to IndexNameExpressionResolver too, but this means that we will support wildcards and other expressions
     // in the index,bulk,update and delete apis.
-    public String resolveIndexRouting(@Nullable String parent, @Nullable String routing, String aliasOrIndex) {
+    public String resolveIndexRouting(@Nullable String routing, String aliasOrIndex) {
         if (aliasOrIndex == null) {
-            return routingOrParent(parent, routing);
+            return routing;
         }
 
         AliasOrIndex result = getAliasAndIndexLookup().get(aliasOrIndex);
         if (result == null || result.isAlias() == false) {
-            return routingOrParent(parent, routing);
+            return routing;
         }
         AliasOrIndex.Alias alias = (AliasOrIndex.Alias) result;
         if (result.getIndices().size() > 1) {
@@ -500,7 +500,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             // Alias routing overrides the parent routing (if any).
             return aliasMd.indexRouting();
         }
-        return routingOrParent(parent, routing);
+        return routing;
     }
 
     private void rejectSingleIndexOperation(String aliasOrIndex, AliasOrIndex result) {
@@ -510,13 +510,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             indexNames[i++] = indexMetaData.getIndex().getName();
         }
         throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has more than one index associated with it [" + Arrays.toString(indexNames) + "], can't execute a single index op");
-    }
-
-    private String routingOrParent(@Nullable String parent, @Nullable String routing) {
-        if (routing == null) {
-            return parent;
-        }
-        return routing;
     }
 
     public boolean hasIndex(String index) {
@@ -1173,7 +1166,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                         try {
                             Custom custom = parser.namedObject(Custom.class, currentFieldName, null);
                             builder.putCustom(custom.getWriteableName(), custom);
-                        } catch (UnknownNamedObjectException ex) {
+                        } catch (NamedObjectNotFoundException ex) {
                             logger.warn("Skipping unknown custom object with type {}", currentFieldName);
                             parser.skipChildren();
                         }

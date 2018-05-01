@@ -46,6 +46,7 @@ export_elasticsearch_paths() {
     if is_rpm; then
         export ESENVFILE="/etc/sysconfig/elasticsearch"
     fi
+    export PACKAGE_NAME=${PACKAGE_NAME:-"elasticsearch-oss"}
 }
 
 # Install the rpm or deb package.
@@ -73,9 +74,9 @@ install_package() {
         esac
     done
     if is_rpm; then
-        rpm $rpmCommand elasticsearch-$version.rpm
+        rpm $rpmCommand $PACKAGE_NAME-$version.rpm
     elif is_dpkg; then
-        dpkg $dpkgCommand -i elasticsearch-$version.deb
+        dpkg $dpkgCommand -i $PACKAGE_NAME-$version.deb
     else
         skip "Only rpm or deb supported"
     fi
@@ -115,9 +116,10 @@ verify_package_installation() {
         # Env file
         assert_file "/etc/default/elasticsearch" f root elasticsearch 660
 
-        # Doc files
-        assert_file "/usr/share/doc/elasticsearch" d root root 755
-        assert_file "/usr/share/doc/elasticsearch/copyright" f root root 644
+        # Machine-readable debian/copyright file
+        local copyrightDir=$(readlink -f /usr/share/doc/$PACKAGE_NAME)
+        assert_file $copyrightDir d root root 755
+        assert_file "$copyrightDir/copyright" f root root 644
     fi
 
     if is_rpm; then

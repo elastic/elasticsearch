@@ -416,7 +416,7 @@ fi
 
 @test "[$GROUP] install a sample plugin with different logging modes and check output" {
     local relativePath=${1:-$(readlink -m custom-settings-*.zip)}
-    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install "file://$relativePath" > /tmp/plugin-cli-output
+    sudo -E -u $ESPLUGIN_COMMAND_USER "$ESHOME/bin/elasticsearch-plugin" install --batch "file://$relativePath" > /tmp/plugin-cli-output
     # exclude progress line
     local loglines=$(cat /tmp/plugin-cli-output | grep -v "^[[:cntrl:]]" | wc -l)
     [ "$loglines" -eq "2" ] || {
@@ -427,7 +427,7 @@ fi
     remove_plugin_example
 
     local relativePath=${1:-$(readlink -m custom-settings-*.zip)}
-    sudo -E -u $ESPLUGIN_COMMAND_USER ES_JAVA_OPTS="-Des.logger.level=DEBUG" "$ESHOME/bin/elasticsearch-plugin" install "file://$relativePath" > /tmp/plugin-cli-output
+    sudo -E -u $ESPLUGIN_COMMAND_USER ES_JAVA_OPTS="-Des.logger.level=DEBUG" "$ESHOME/bin/elasticsearch-plugin" install --batch "file://$relativePath" > /tmp/plugin-cli-output
     local loglines=$(cat /tmp/plugin-cli-output | grep -v "^[[:cntrl:]]" | wc -l)
     [ "$loglines" -gt "2" ] || {
         echo "Expected more than 2 lines excluding progress bar but the output had $loglines lines and was:"

@@ -133,7 +133,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
      *     <li>String/Object/Array: <pre>&quot;GEO POINT&quot;</pre></li>
      *  </ul>
      *
-     * see {@link GeoUtils#parseGeoPoint(String, GeoPoint)} for GEO POINT
+     * see {@code GeoPoint(String)} for GEO POINT
      */
     @Override
     public Set<CharSequence> parseContext(ParseContext parseContext, XContentParser parser) throws IOException, ElasticsearchParseException {
@@ -249,7 +249,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
      *     </ul>
      *     <li>String: <pre>GEO POINT</pre></li>
      *  </ul>
-     * see {@link GeoUtils#parseGeoPoint(String, GeoPoint)} for GEO POINT
+     * see {@code GeoPoint(String)} for GEO POINT
      */
     @Override
     public List<InternalQueryContext> toInternalQueryContexts(List<GeoQueryContext> queryContexts) {

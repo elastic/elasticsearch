@@ -67,6 +67,8 @@ import org.apache.lucene.analysis.snowball.SnowballFilter;
 import org.apache.lucene.analysis.standard.ClassicFilter;
 import org.apache.lucene.analysis.tr.ApostropheFilter;
 import org.apache.lucene.analysis.util.ElisionFilter;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
@@ -88,6 +90,9 @@ import java.util.TreeMap;
 import static org.elasticsearch.plugins.AnalysisPlugin.requriesAnalysisSettings;
 
 public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(CommonAnalysisPlugin.class));
+
     @Override
     public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
         Map<String, AnalysisProvider<TokenFilterFactory>> filters = new TreeMap<>();
@@ -171,8 +176,14 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
     public List<PreConfiguredCharFilter> getPreConfiguredCharFilters() {
         List<PreConfiguredCharFilter> filters = new ArrayList<>();
         filters.add(PreConfiguredCharFilter.singleton("html_strip", false, HTMLStripCharFilter::new));
-        // TODO deprecate htmlStrip
-        filters.add(PreConfiguredCharFilter.singleton("htmlStrip", false, HTMLStripCharFilter::new));
+        filters.add(PreConfiguredCharFilter.singletonWithVersion("htmlStrip", false, (reader, version) -> {
+            if (version.onOrAfter(org.elasticsearch.Version.V_6_3_0)) {
+                DEPRECATION_LOGGER.deprecatedAndMaybeLog("htmlStrip_deprecation",
+                        "The [htmpStrip] char filter name is deprecated and will be removed in a future version. "
+                                + "Please change the filter name to [html_strip] instead.");
+            }
+            return new HTMLStripCharFilter(reader);
+        }));
         return filters;
     }
 

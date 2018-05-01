@@ -113,7 +113,7 @@ public class ProcessStats implements Writeable, ToXContentFragment {
         }
         if (mem != null) {
             builder.startObject(Fields.MEM);
-            builder.byteSizeField(Fields.TOTAL_VIRTUAL_IN_BYTES, Fields.TOTAL_VIRTUAL, mem.totalVirtual);
+            builder.humanReadableField(Fields.TOTAL_VIRTUAL_IN_BYTES, Fields.TOTAL_VIRTUAL, new ByteSizeValue(mem.totalVirtual));
             builder.endObject();
         }
         builder.endObject();

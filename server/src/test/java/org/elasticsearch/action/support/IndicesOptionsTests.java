@@ -51,11 +51,7 @@ public class IndicesOptionsTests extends ESTestCase {
             assertThat(indicesOptions2.forbidClosedIndices(), equalTo(indicesOptions.forbidClosedIndices()));
             assertThat(indicesOptions2.allowAliasesToMultipleIndices(), equalTo(indicesOptions.allowAliasesToMultipleIndices()));
 
-            if (output.getVersion().onOrAfter(Version.V_6_0_0_alpha2)) {
-                assertEquals(indicesOptions2.ignoreAliases(), indicesOptions.ignoreAliases());
-            } else {
-                assertFalse(indicesOptions2.ignoreAliases());
-            }
+            assertEquals(indicesOptions2.ignoreAliases(), indicesOptions.ignoreAliases());
         }
     }
 

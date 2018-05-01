@@ -98,7 +98,7 @@ which returns something similar to:
                      "translog_uuid" : "hnOG3xFcTDeoI_kvvvOdNA",
                      "history_uuid" : "XP7KDJGiS1a2fHYiFL5TXQ",
                      "local_checkpoint" : "-1",
-                     "translog_generation" : "3",
+                     "translog_generation" : "2",
                      "max_seq_no" : "-1",
                      "sync_id" : "AVvFY-071siAOuFGEO9P", <1>
                      "max_unsafe_auto_id_timestamp" : "-1"

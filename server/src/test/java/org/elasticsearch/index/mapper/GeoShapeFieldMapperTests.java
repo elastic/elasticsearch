@@ -35,6 +35,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import java.io.IOException;
 import java.util.Collection;
 
+import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_Z_VALUE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -136,6 +137,42 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
 
         coerce = ((GeoShapeFieldMapper)fieldMapper).coerce().value();
         assertThat(coerce, equalTo(false));
+    }
+
+
+    /**
+     * Test that accept_z_value parameter correctly parses
+     */
+    public void testIgnoreZValue() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .startObject("properties").startObject("location")
+            .field("type", "geo_shape")
+            .field(IGNORE_Z_VALUE.getPreferredName(), "true")
+            .endObject().endObject()
+            .endObject().endObject());
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("type1", new CompressedXContent(mapping));
+        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+
+        boolean ignoreZValue = ((GeoShapeFieldMapper)fieldMapper).ignoreZValue().value();
+        assertThat(ignoreZValue, equalTo(true));
+
+        // explicit false accept_z_value test
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .startObject("properties").startObject("location")
+            .field("type", "geo_shape")
+            .field(IGNORE_Z_VALUE.getPreferredName(), "false")
+            .endObject().endObject()
+            .endObject().endObject());
+
+        defaultMapper = createIndex("test2").mapperService().documentMapperParser().parse("type1", new CompressedXContent(mapping));
+        fieldMapper = defaultMapper.mappers().getMapper("location");
+        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+
+        ignoreZValue = ((GeoShapeFieldMapper)fieldMapper).ignoreZValue().value();
+        assertThat(ignoreZValue, equalTo(false));
     }
 
     /**

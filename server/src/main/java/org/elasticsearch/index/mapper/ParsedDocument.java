@@ -45,8 +45,6 @@ public class ParsedDocument {
 
     private Mapping dynamicMappingsUpdate;
 
-    private String parent;
-
     public ParsedDocument(Field version,
                           SeqNoFieldMapper.SequenceIDFields seqID,
                           String id,
@@ -110,15 +108,6 @@ public class ParsedDocument {
         this.xContentType = xContentType;
     }
 
-    public ParsedDocument parent(String parent) {
-        this.parent = parent;
-        return this;
-    }
-
-    public String parent() {
-        return this.parent;
-    }
-
     /**
      * Return dynamic updates to mappings or {@code null} if there were no
      * updates to the mappings.
@@ -137,7 +126,7 @@ public class ParsedDocument {
 
     @Override
     public String toString() {
-        return "Document uid[" + Uid.createUidAsBytes(type, id) + "] doc [" + documents + ']';
+        return "Document id[" + id + "] doc [" + documents + ']';
     }
 
 }

@@ -115,6 +115,15 @@ endif::[]
 
 include::skip-set-kernel-parameters.asciidoc[]
 
+ifdef::include-xpack[]
+[[rpm-enable-indices]]
+==== Enable automatic creation of {xpack} indices
+
+{xpack} will try to automatically create a number of indices within {es}.
+include::{xes-repo-dir}/setup/xpack-indices.asciidoc[]
+
+endif::include-xpack[]
+
 include::init-systemd.asciidoc[]
 
 [[rpm-running-init]]

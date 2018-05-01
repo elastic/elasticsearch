@@ -8,6 +8,7 @@ Besides the link:/guide[officially supported Elasticsearch clients], there are
 a number of clients that have been contributed by the community for various languages:
 
 * <<b4j>>
+* <<cpp>>
 * <<clojure>>
 * <<coldfusion>>
 * <<erlang>>
@@ -34,6 +35,10 @@ a number of clients that have been contributed by the community for various lang
 == B4J
 * https://www.b4x.com/android/forum/threads/server-jelasticsearch-search-and-text-analytics.73335/
   B4J client based on the official Java REST client.
+
+[[cpp]]
+== C++
+* https://github.com/seznam/elasticlient[elasticlient]: simple library for simplified work with Elasticsearch in C++
 
 [[clojure]]
 == Clojure

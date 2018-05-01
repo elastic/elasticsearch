@@ -128,6 +128,15 @@ sudo dpkg -i elasticsearch-{version}.deb
 
 endif::[]
 
+ifdef::include-xpack[]
+[[deb-enable-indices]]
+==== Enable automatic creation of {xpack} indices
+
+{xpack} will try to automatically create a number of indices within Elasticsearch.
+include::{xes-repo-dir}/setup/xpack-indices.asciidoc[]
+
+endif::include-xpack[]
+
 include::init-systemd.asciidoc[]
 
 [[deb-running-init]]

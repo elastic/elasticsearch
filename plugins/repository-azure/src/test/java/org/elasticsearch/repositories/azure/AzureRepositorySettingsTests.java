@@ -47,7 +47,6 @@ public class AzureRepositorySettingsTests extends ESTestCase {
             TestEnvironment.newEnvironment(internalSettings), NamedXContentRegistry.EMPTY, null);
     }
 
-
     public void testReadonlyDefault() throws StorageException, IOException, URISyntaxException {
         assertThat(azureRepository(Settings.EMPTY).isReadOnly(), is(false));
     }
@@ -112,17 +111,17 @@ public class AzureRepositorySettingsTests extends ESTestCase {
         // zero bytes is not allowed
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             azureRepository(Settings.builder().put("chunk_size", "0").build()));
-        assertEquals("Failed to parse value [0] for setting [chunk_size] must be >= 1b", e.getMessage());
+        assertEquals("failed to parse value [0] for setting [chunk_size], must be >= [1b]", e.getMessage());
 
         // negative bytes not allowed
         e = expectThrows(IllegalArgumentException.class, () ->
             azureRepository(Settings.builder().put("chunk_size", "-1").build()));
-        assertEquals("Failed to parse value [-1] for setting [chunk_size] must be >= 1b", e.getMessage());
+        assertEquals("failed to parse value [-1] for setting [chunk_size], must be >= [1b]", e.getMessage());
 
         // greater than max chunk size not allowed
         e = expectThrows(IllegalArgumentException.class, () ->
             azureRepository(Settings.builder().put("chunk_size", "65mb").build()));
-        assertEquals("Failed to parse value [65mb] for setting [chunk_size] must be <= 64mb", e.getMessage());
+        assertEquals("failed to parse value [65mb] for setting [chunk_size], must be <= [64mb]", e.getMessage());
     }
 
 }

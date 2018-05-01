@@ -23,7 +23,6 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import org.apache.http.HttpHost;
-import org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -48,8 +47,6 @@ import static org.junit.Assert.assertTrue;
  * Integration test to check interaction between {@link RestClient} and {@link org.apache.http.client.HttpClient}.
  * Works against real http servers, multiple hosts. Also tests failover by randomly shutting down hosts.
  */
-//animal-sniffer doesn't like our usage of com.sun.net.httpserver.* classes
-@IgnoreJRERequirement
 public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
 
     private static HttpServer[] httpServers;
@@ -90,8 +87,6 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
         return httpServer;
     }
 
-    //animal-sniffer doesn't like our usage of com.sun.net.httpserver.* classes
-    @IgnoreJRERequirement
     private static class ResponseHandler implements HttpHandler {
         private final int statusCode;
 
@@ -143,7 +138,7 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
             final int statusCode = randomBoolean() ? randomOkStatusCode(getRandom()) : randomErrorNoRetryStatusCode(getRandom());
             Response response;
             try {
-                response = restClient.performRequest(method, "/" + statusCode);
+                response = restClient.performRequest(new Request(method, "/" + statusCode));
             } catch(ResponseException responseException) {
                 response = responseException.getResponse();
             }
@@ -161,7 +156,7 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
             final String method = RestClientTestUtil.randomHttpMethod(getRandom());
             //we don't test status codes that are subject to retries as they interfere with hosts being stopped
             final int statusCode = randomBoolean() ? randomOkStatusCode(getRandom()) : randomErrorNoRetryStatusCode(getRandom());
-            restClient.performRequestAsync(method, "/" + statusCode, new ResponseListener() {
+            restClient.performRequestAsync(new Request(method, "/" + statusCode), new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
                     responses.add(new TestResponse(method, statusCode, response));

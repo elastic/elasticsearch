@@ -291,7 +291,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 try {
                     membership.sendLeaveRequestBlocking(nodes.getMasterNode(), nodes.getLocalNode(), TimeValue.timeValueSeconds(1));
                 } catch (Exception e) {
-                    logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to send leave request to master [{}]", nodes.getMasterNode()), e);
+                    logger.debug(() -> new ParameterizedMessage("failed to send leave request to master [{}]", nodes.getMasterNode()), e);
                 }
             } else {
                 // we're master -> let other potential master we left and start a master election now rather then wait for masterFD
@@ -303,7 +303,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                     try {
                         membership.sendLeaveRequest(nodes.getLocalNode(), possibleMaster);
                     } catch (Exception e) {
-                        logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to send leave request from master [{}] to possible master [{}]", nodes.getMasterNode(), possibleMaster), e);
+                        logger.debug(() -> new ParameterizedMessage("failed to send leave request from master [{}] to possible master [{}]", nodes.getMasterNode(), possibleMaster), e);
                     }
                 }
             }
@@ -367,11 +367,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                     processedOrFailed.set(true);
                     latch.countDown();
                     ackListener.onNodeAck(localNode, e);
-                    logger.warn(
-                        (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
-                            "failed while applying cluster state locally [{}]",
-                            clusterChangedEvent.source()),
-                        e);
+                    logger.warn(() -> new ParameterizedMessage(
+                            "failed while applying cluster state locally [{}]", clusterChangedEvent.source()), e);
                 }
             });
 
@@ -393,11 +390,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         try {
             latch.await();
         } catch (InterruptedException e) {
-            logger.debug(
-                (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
-                    "interrupted while applying cluster state locally [{}]",
-                    clusterChangedEvent.source()),
-                e);
+            logger.debug(() -> new ParameterizedMessage(
+                    "interrupted while applying cluster state locally [{}]", clusterChangedEvent.source()), e);
             Thread.currentThread().interrupt();
         }
     }
@@ -514,7 +508,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             // first, make sure we can connect to the master
             transportService.connectToNode(masterNode);
         } catch (Exception e) {
-            logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to connect to master [{}], retrying...", masterNode), e);
+            logger.warn(() -> new ParameterizedMessage("failed to connect to master [{}], retrying...", masterNode), e);
             return false;
         }
         int joinAttempt = 0; // we retry on illegal state if the master is not yet ready
@@ -534,7 +528,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                     }
                 } else {
                     if (logger.isTraceEnabled()) {
-                        logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to send join request to master [{}]", masterNode), e);
+                        logger.trace(() -> new ParameterizedMessage("failed to send join request to master [{}]", masterNode), e);
                     } else {
                         logger.info("failed to send join request to master [{}], reason [{}]", masterNode, ExceptionsHelper.detailedMessage(e));
                     }
@@ -646,7 +640,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
         @Override
         public void onFailure(final String source, final Exception e) {
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+            logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
         }
 
         @Override
@@ -718,7 +712,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             return;
         }
 
-        logger.info((Supplier<?>) () -> new ParameterizedMessage("master_left [{}], reason [{}]", masterNode, reason), cause);
+        logger.info(() -> new ParameterizedMessage("master_left [{}], reason [{}]", masterNode, reason), cause);
 
         synchronized (stateMutex) {
             if (localNodeMaster() == false && masterNode.equals(committedState.get().nodes().getMasterNode())) {
@@ -764,7 +758,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 pendingStatesQueue.markAsFailed(newClusterState, e);
             } catch (Exception inner) {
                 inner.addSuppressed(e);
-                logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected exception while failing [{}]", reason), inner);
+                logger.error(() -> new ParameterizedMessage("unexpected exception while failing [{}]", reason), inner);
             }
             return false;
         }
@@ -807,14 +801,14 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
                 @Override
                 public void onFailure(String source, Exception e) {
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure applying [{}]", reason), e);
+                    logger.error(() -> new ParameterizedMessage("unexpected failure applying [{}]", reason), e);
                     try {
                         // TODO: use cluster state uuid instead of full cluster state so that we don't keep reference to CS around
                         // for too long.
                         pendingStatesQueue.markAsFailed(newClusterState, e);
                     } catch (Exception inner) {
                         inner.addSuppressed(e);
-                        logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected exception while failing [{}]", reason), inner);
+                        logger.error(() -> new ParameterizedMessage("unexpected exception while failing [{}]", reason), inner);
                     }
                 }
             });
@@ -880,7 +874,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             try {
                 membership.sendValidateJoinRequestBlocking(node, state, joinTimeout);
             } catch (Exception e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to validate incoming join request from node [{}]", node),
+                logger.warn(() -> new ParameterizedMessage("failed to validate incoming join request from node [{}]", node),
                     e);
                 callback.onFailure(new IllegalStateException("failure when sending a validation request to node", e));
                 return;
@@ -1029,11 +1023,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
                     @Override
                     public void handleException(TransportException exp) {
-                        logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to send rejoin request to [{}]", otherMaster), exp);
+                        logger.warn(() -> new ParameterizedMessage("failed to send rejoin request to [{}]", otherMaster), exp);
                     }
                 });
             } catch (Exception e) {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to send rejoin request to [{}]", otherMaster), e);
+                logger.warn(() -> new ParameterizedMessage("failed to send rejoin request to [{}]", otherMaster), e);
             }
         }
     }

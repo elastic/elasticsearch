@@ -426,7 +426,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         if (index != null) {
             builder.field(Fields._INDEX, RemoteClusterAware.buildRemoteIndexName(clusterAlias, index));
         }
-        if (type != null) {
+        if (type != null && params.paramAsBoolean("include_type_name", true)) {
             builder.field(Fields._TYPE, type);
         }
         if (id != null) {

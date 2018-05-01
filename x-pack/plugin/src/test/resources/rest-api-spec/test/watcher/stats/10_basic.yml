@@ -1,0 +1,16 @@
+---
+"Test watcher stats output":
+
+  - do: {xpack.watcher.stats: {}}
+  - match: { "manually_stopped": false }
+  - match: { "stats.0.watcher_state": "started" }
+
+---
+"Test watcher stats supports emit_stacktraces parameter":
+
+  - do:
+      xpack.watcher.stats:
+        metric: "all"
+        emit_stacktraces: "true"
+  - match: { "manually_stopped": false }
+  - match: { "stats.0.watcher_state": "started" }

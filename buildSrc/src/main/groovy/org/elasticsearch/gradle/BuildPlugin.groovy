@@ -38,6 +38,7 @@ import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
+import org.gradle.api.execution.TaskExecutionGraph
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
@@ -221,21 +222,34 @@ class BuildPlugin implements Plugin<Project> {
         return System.getenv('JAVA' + version + '_HOME')
     }
 
-    /**
-     * Get Java home for the project for the specified version. If the specified version is not configured, an exception with the specified
-     * message is thrown.
-     *
-     * @param project the project
-     * @param version the version of Java home to obtain
-     * @param message the exception message if Java home for the specified version is not configured
-     * @return Java home for the specified version
-     * @throws GradleException if Java home for the specified version is not configured
-     */
-    static String getJavaHome(final Project project, final int version, final String message) {
-        if (project.javaVersions.get(version) == null) {
-            throw new GradleException(message)
+    /** Add a check before gradle execution phase which ensures java home for the given java version is set. */
+    static void requireJavaHome(Task task, int version) {
+        Project rootProject = task.project.rootProject // use root project for global accounting
+        if (rootProject.hasProperty('requiredJavaVersions') == false) {
+            rootProject.rootProject.ext.requiredJavaVersions = [:].withDefault{key -> return []}
+            rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
+                List<String> messages = []
+                for (entry in rootProject.requiredJavaVersions) {
+                    if (rootProject.javaVersions.get(entry.key) != null) {
+                        continue
+                    }
+                    List<String> tasks = entry.value.findAll { taskGraph.hasTask(it) }.collect { "  ${it.path}" }
+                    if (tasks.isEmpty() == false) {
+                        messages.add("JAVA${entry.key}_HOME required to run tasks:\n${tasks.join('\n')}")
+                    }
+                }
+                if (messages.isEmpty() == false) {
+                    throw new GradleException(messages.join('\n'))
+                }
+            }
         }
-        return project.javaVersions.get(version)
+        rootProject.requiredJavaVersions.get(version).add(task)
+    }
+
+    /** A convenience method for getting java home for a version of java and requiring that version for the given task to execute */
+    static String getJavaHome(final Task task, final int version) {
+        requireJavaHome(task, version)
+        return task.project.javaVersions.get(version)
     }
 
     private static String findRuntimeJavaHome(final String compilerJavaHome) {
@@ -535,6 +549,23 @@ class BuildPlugin implements Plugin<Project> {
             javadoc.classpath = javadoc.getClasspath().filter { f ->
                 return classes.contains(f) == false
             }
+            /*
+             * Force html5 on projects that support it to silence the warning
+             * that `javadoc` will change its defaults in the future.
+             *
+             * But not all of our javadoc is actually valid html5. So we
+             * have to become valid incrementally. We only set html5 on the
+             * projects we have converted so that we still get the annoying
+             * warning on the unconverted ones. That will give us an
+             * incentive to convert them....
+             */
+            List html4Projects = [
+                ':server',
+                ':x-pack:plugin:core',
+            ]
+            if (false == html4Projects.contains(project.path)) {
+                javadoc.options.addBooleanOption('html5', true)
+            }
         }
         configureJavadocJar(project)
     }
@@ -605,6 +636,7 @@ class BuildPlugin implements Plugin<Project> {
                 jarTask.metaInf {
                     from(project.licenseFile.parent) {
                         include project.licenseFile.name
+                        rename { 'LICENSE.txt' }
                     }
                     from(project.noticeFile.parent) {
                         include project.noticeFile.name

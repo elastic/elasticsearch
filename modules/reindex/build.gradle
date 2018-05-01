@@ -83,8 +83,9 @@ dependencies {
   es090 'org.elasticsearch:elasticsearch:0.90.13@zip'
 }
 
-if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-  // we can't get the pid files in windows so we skip reindex-from-old
+if (Os.isFamily(Os.FAMILY_WINDOWS) || rootProject.rootDir.toString().contains(" ")) {
+  // We can't get the pid files in windows and old versions of Elasticsearch doesn't set up the CLASSPATH correctly if there are spaces
+  // in the path. In either case, we skip reindex-from-old.
   integTestRunner.systemProperty "tests.fromOld", "false"
 } else {
   integTestRunner.systemProperty "tests.fromOld", "true"

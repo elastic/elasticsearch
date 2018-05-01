@@ -33,7 +33,7 @@ retrieves the user's group memberships from the `tokenGroups` attribute on the
 user's entry in Active Directory.
 
 [[ad-load-balancing]]
-===== Load Balancing and Failover
+==== Load Balancing and Failover
 The `load_balance.type` setting can be used at the realm level to configure how
 {security} should interact with multiple Active Directory servers. Two modes of
 operation are supported: failover and load balancing.
@@ -41,7 +41,7 @@ operation are supported: failover and load balancing.
 See {ref}/security-settings.html#load-balancing[Load Balancing and Failover Settings].
 
 [[ad-settings]]
-===== Active Directory Realm Settings
+==== Active Directory Realm Settings
 
 See {ref}/security-settings.html#ref-ad-settings[Active Directory Realm Settings].
 

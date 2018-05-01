@@ -674,9 +674,6 @@ public class InternalEngineTests extends EngineTestCase {
                 engine.refresh("test");
             }
             assertThat(engine.commitStats().getNumDocs(), equalTo(flushedDocs));
-            try (Engine.IndexCommitRef commitRef = engine.acquireLastIndexCommit(false)) {
-                assertThat(Lucene.getNumDocs(commitRef.getIndexCommit()), equalTo(flushedDocs));
-            }
         }
     }
 

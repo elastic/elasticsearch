@@ -37,6 +37,8 @@ written to by an older Elasticsearch after writing to it with a newer Elasticsea
 
 === Enhancements
 
+<<copy-source-settings-on-resize, Allow copying source settings on index resize operations>> ({pull}30255[#30255])
+
 === Bug Fixes
 
 Do not ignore request analysis/similarity settings on index resize operations when the source index already contains such settings ({pull}30216[#30216])

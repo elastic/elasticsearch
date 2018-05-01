@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.shrink;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestTests;
@@ -29,13 +30,27 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.hamcrest.collection.IsCollectionWithSize;
 
 import java.io.IOException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class ResizeRequestTests extends ESTestCase {
+
+    public void testCopySettingsValidation() {
+        ResizeRequest request = new ResizeRequest();
+        request.setSourceIndex("source");
+        request.setTargetIndex(new CreateIndexRequest("target"));
+        request.setCopySettings(false);
+        final ActionRequestValidationException e = request.validate();
+        assertNotNull(e);
+        assertThat(e.validationErrors(), hasSize(1));
+        assertThat(e.validationErrors().get(0), equalTo("copySettings can not be set to [false]"));
+    }
 
     public void testToXContent() throws IOException {
         {

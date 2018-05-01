@@ -443,18 +443,20 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         // check that index sort cannot be set on the target index
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
             () -> client().admin().indices().prepareResizeIndex("source", "target")
-                .setSettings(Settings.builder()
-                    .put("index.number_of_replicas", 0)
-                    .put("index.number_of_shards", "2")
-                    .put("index.sort.field", "foo")
-                    .build()).get());
+                    .setSettings(Settings.builder()
+                            .put("index.number_of_replicas", 0)
+                            .put("index.number_of_shards", "2")
+                            .put("index.blocks.write", (String) null)
+                            .put("index.sort.field", "foo")
+                            .build()).get());
         assertThat(exc.getMessage(), containsString("can't override index sort when resizing an index"));
 
         // check that the index sort order of `source` is correctly applied to the `target`
         assertAcked(client().admin().indices().prepareResizeIndex("source", "target")
-            .setSettings(Settings.builder()
-                .put("index.number_of_replicas", 0)
-                .put("index.number_of_shards", "2").build()).get());
+                .setSettings(Settings.builder()
+                        .put("index.number_of_replicas", 0)
+                        .put("index.number_of_shards", "2")
+                        .put("index.blocks.write", (String) null).build()).get());
         ensureGreen();
         flushAndRefresh();
         GetSettingsResponse settingsResponse =

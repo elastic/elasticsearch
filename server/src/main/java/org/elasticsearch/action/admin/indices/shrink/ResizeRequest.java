@@ -56,7 +56,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
     private CreateIndexRequest targetIndexRequest;
     private String sourceIndex;
     private ResizeType type = ResizeType.SHRINK;
-    private boolean copySettings = false;
+    private boolean copySettings = true;
 
     ResizeRequest() {}
 
@@ -79,6 +79,9 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         }
         if (type == ResizeType.SPLIT && IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexRequest.settings()) == false) {
             validationException = addValidationError("index.number_of_shards is required for split operations", validationException);
+        }
+        if (copySettings == false) {
+            validationException = addValidationError("copySettings can not be set to [false]", validationException);
         }
         return validationException;
     }

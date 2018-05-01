@@ -80,6 +80,7 @@ import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -121,6 +122,7 @@ public class InternalEngine extends Engine {
     private final LiveVersionMap versionMap = new LiveVersionMap();
 
     private volatile SegmentInfos lastCommittedSegmentInfos;
+    private volatile CommitStats lastComputedCommitStats;
 
     private final IndexThrottle throttle;
 
@@ -1824,6 +1826,33 @@ public class InternalEngine extends Engine {
     }
 
     @Override
+    public CommitStats commitStats() {
+        if (softDeleteEnabled) {
+            // Need to retain the commit as we might open it.
+            try (IndexCommitRef commitRef = acquireLastIndexCommit(false)) {
+                final IndexCommit indexCommit = commitRef.getIndexCommit();
+                CommitStats lastCommitStats = this.lastComputedCommitStats;
+                if (lastCommitStats != null && lastCommitStats.getGeneration() == indexCommit.getGeneration()) {
+                    return lastCommitStats;
+                }
+                lastCommitStats = new CommitStats(Lucene.readSegmentInfos(indexCommit), Lucene.getNumDocs(indexCommit));
+                this.lastComputedCommitStats = lastCommitStats;
+                return lastCommitStats;
+            } catch (IOException e) {
+                try {
+                    maybeFailEngine("commit_stats", e);
+                } catch (Exception inner) {
+                    e.addSuppressed(inner);
+                }
+                throw new UncheckedIOException(e);
+            }
+        } else {
+            final SegmentInfos sis = this.lastCommittedSegmentInfos;
+            return new CommitStats(this.lastCommittedSegmentInfos, Lucene.getNumDocs(sis));
+        }
+    }
+
+    @Override
     protected final void writerSegmentStats(SegmentsStats stats) {
         stats.addVersionMapMemoryInBytes(versionMap.ramBytesUsed());
         stats.addIndexWriterMemoryInBytes(indexWriter.ramBytesUsed());
@@ -2179,6 +2208,7 @@ public class InternalEngine extends Engine {
                 commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
                 commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
                 commitData.put(HISTORY_UUID_KEY, historyUUID);
+                commitData.put(SOFT_DELETES_COMMIT_KEY, Boolean.toString(softDeleteEnabled));
                 logger.trace("committing writer with commit data [{}]", commitData);
                 return commitData.entrySet().iterator();
             });

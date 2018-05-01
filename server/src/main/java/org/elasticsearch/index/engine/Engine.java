@@ -71,7 +71,6 @@ import org.elasticsearch.index.translog.TranslogStats;
 import java.io.Closeable;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
 import java.util.Base64;
@@ -97,6 +96,7 @@ public abstract class Engine implements Closeable {
 
     public static final String SYNC_COMMIT_ID = "sync_id";
     public static final String HISTORY_UUID_KEY = "history_uuid";
+    public static final String SOFT_DELETES_COMMIT_KEY = "soft_deletes";
 
     protected final ShardId shardId;
     protected final String allocationId;
@@ -577,16 +577,7 @@ public abstract class Engine implements Closeable {
     }
 
     /** get commits stats for the last commit */
-    public CommitStats commitStats() {
-        // Need to retain the commit as we will open it.
-        try (IndexCommitRef commitRef = acquireLastIndexCommit(false)) {
-            final SegmentInfos sis = Lucene.readSegmentInfos(commitRef.getIndexCommit());
-            return new CommitStats(sis, Lucene.getNumDocs(store.directory(), sis));
-        } catch (IOException ex) {
-            maybeFailEngine("commit_stats", ex);
-            throw new UncheckedIOException(ex);
-        }
-    }
+    public abstract CommitStats commitStats();
 
     /**
      * The sequence number service for this engine.

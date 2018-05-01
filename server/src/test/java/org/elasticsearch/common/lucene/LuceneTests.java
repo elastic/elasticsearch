@@ -283,7 +283,7 @@ public class LuceneTests extends ESTestCase {
         writer.addDocument(doc);
         writer.commit();
         SegmentInfos segmentCommitInfos = Lucene.readSegmentInfos(dir);
-        assertEquals(1, Lucene.getNumDocs(dir, segmentCommitInfos));
+        assertEquals(1, Lucene.getNumDocs(segmentCommitInfos));
 
         doc = new Document();
         doc.add(new TextField("id", "2", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
@@ -293,14 +293,14 @@ public class LuceneTests extends ESTestCase {
         doc.add(new TextField("id", "3", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
         writer.addDocument(doc);
         segmentCommitInfos = Lucene.readSegmentInfos(dir);
-        assertEquals(1, Lucene.getNumDocs(dir, segmentCommitInfos));
+        assertEquals(1, Lucene.getNumDocs(segmentCommitInfos));
         writer.commit();
         segmentCommitInfos = Lucene.readSegmentInfos(dir);
-        assertEquals(3, Lucene.getNumDocs(dir, segmentCommitInfos));
+        assertEquals(3, Lucene.getNumDocs(segmentCommitInfos));
         writer.deleteDocuments(new Term("id", "2"));
         writer.commit();
         segmentCommitInfos = Lucene.readSegmentInfos(dir);
-        assertEquals(2, Lucene.getNumDocs(dir, segmentCommitInfos));
+        assertEquals(2, Lucene.getNumDocs(segmentCommitInfos));
 
         int numDocsToIndex = randomIntBetween(10, 50);
         List<Term> deleteTerms = new ArrayList<>();
@@ -318,7 +318,7 @@ public class LuceneTests extends ESTestCase {
         }
         writer.commit();
         segmentCommitInfos = Lucene.readSegmentInfos(dir);
-        assertEquals(2 + deleteTerms.size(), Lucene.getNumDocs(dir, segmentCommitInfos));
+        assertEquals(2 + deleteTerms.size(), Lucene.getNumDocs(segmentCommitInfos));
         writer.close();
         dir.close();
     }

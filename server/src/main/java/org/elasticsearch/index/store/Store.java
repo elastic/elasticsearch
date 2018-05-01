@@ -862,7 +862,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             Map<String, String> commitUserDataBuilder = new HashMap<>();
             try {
                 final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
-                numDocs = Lucene.getNumDocs(directory, segmentCommitInfos);
+                numDocs = commit != null ? Lucene.getNumDocs(commit) : 0;
                 commitUserDataBuilder.putAll(segmentCommitInfos.getUserData());
                 Version maxVersion = segmentCommitInfos.getMinSegmentLuceneVersion(); // we don't know which version was used to write so we take the max version.
                 for (SegmentCommitInfo info : segmentCommitInfos) {

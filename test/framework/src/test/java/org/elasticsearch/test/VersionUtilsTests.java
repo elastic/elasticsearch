@@ -24,9 +24,10 @@ import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 import static java.util.stream.Collectors.toCollection;
 import static java.util.stream.Collectors.toList;
@@ -340,6 +341,44 @@ public class VersionUtilsTests extends ESTestCase {
         String message = error.getMessage();
         assertThat(message, containsString(TestIncorrectCurrentVersion.CURRENT.toString()));
         assertThat(message, containsString(previousVersion.toString()));
+    }
+
+    public void testIsMajorReleased() {
+        TreeSet<Version> versions = new TreeSet<>(VersionUtils.allReleasedVersions());
+        assertTrue(VersionUtils.isMajorReleased(VersionUtils.generateVersion(6, 0, 0), versions));
+        assertFalse(VersionUtils.isMajorReleased(VersionUtils.generateVersion(versions.last().major + 1, 0, 0), versions));
+        assertFalse(VersionUtils.isMajorReleased(VersionUtils.generateVersion(6, 0, 0), new TreeSet<>()));
+    }
+
+    public void testGetHighestPreviousMinor() {
+        TreeSet<Version> versions = new TreeSet<>(VersionUtils.allReleasedVersions());
+        int majorVersion = 6;
+        Version highestPreviousMinor = VersionUtils.getHighestPreviousMinor(majorVersion, versions);
+        Version shouldBeVersion = null;
+        for (Version version: VersionUtils.allReleasedVersions()) {
+            if (highestPreviousMinor.compareTo(version) >= 0) {
+                shouldBeVersion = version;
+            } else {
+                break;
+            }
+        }
+        assertThat(highestPreviousMinor, equalTo(shouldBeVersion));
+    }
+
+    public void testGetMinorSetForMajor() {
+        TreeSet<Version> versions = new TreeSet<>(VersionUtils.allReleasedVersions());
+        int majorVersion = 6;
+        int minorVersion = 2;
+        SortedSet<Version> minorSet = VersionUtils.getMinorSetForMajor(majorVersion, minorVersion, versions);
+        SortedSet<Version> expectedSet = new TreeSet<>();
+
+        for (Version version: VersionUtils.allReleasedVersions()) {
+            if (version.major == majorVersion && version.minor == minorVersion) {
+                expectedSet.add(version);
+            }
+        }
+
+        assertThat(minorSet, equalTo(expectedSet));
     }
 
     /**

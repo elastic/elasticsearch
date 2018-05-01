@@ -3,12 +3,11 @@
 === Configuring a Native Realm
 
 The easiest way to manage and authenticate users is with the internal `native`
-realm. You don't need to explicitly configure a native realm; it is added to the 
-realm chain by default. 
+realm. 
 
-IMPORTANT: When you configure realms in `elasticsearch.yml`, only the
-realms you specify are used for authentication. To use the
-`native` realm as a fallback, you must include it in the realm chain.
+The native realm is available by default when no other realms are 
+configured. If other realm settings have been configured in `elasticsearch.yml`, 
+you must add the native realm to the realm chain.
 
 You can configure options for the `native` realm in the 
 `xpack.security.authc.realms` namespace in `elasticsearch.yml`. Explicitly

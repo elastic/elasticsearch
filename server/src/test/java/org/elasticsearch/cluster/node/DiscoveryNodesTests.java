@@ -102,9 +102,7 @@ public class DiscoveryNodesTests extends ESTestCase {
                     .map(DiscoveryNode::getId)
                     .toArray(String[]::new);
 
-        assertThat(
-                discoveryNodes.resolveNodes("_all", "data:false", "ingest:false", "master:false"),
-                arrayContainingInAnyOrder(coordinatorOnlyNodes));
+        assertThat(discoveryNodes.resolveNodes("_coordinating_only"), arrayContainingInAnyOrder(coordinatorOnlyNodes));
     }
 
     public void testResolveNodesIds() {
@@ -253,6 +251,13 @@ public class DiscoveryNodesTests extends ESTestCase {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
                 return Collections.singleton(nodes.getMasterNodeId());
+            }
+        }, COORDINATING_ONLY("_coordinating_only") {
+            @Override
+            Set<String> matchingNodeIds(DiscoveryNodes nodes) {
+                Set<String> ids = new HashSet<>();
+                nodes.getCoordinatingOnlyNodes().keysIt().forEachRemaining(ids::add);
+                return ids;
             }
         }, MASTER_ELIGIBLE(DiscoveryNode.Role.MASTER.getRoleName() + ":true") {
             @Override

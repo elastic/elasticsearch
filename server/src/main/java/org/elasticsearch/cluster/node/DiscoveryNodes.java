@@ -149,6 +149,19 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     }
 
     /**
+     * Get a {@link Map} of the coordinating only nodes (nodes which are neither master, nor data, nor ingest nodes) arranged by their ids
+     *
+     * @return {@link Map} of the coordinating only nodes arranged by their ids
+     */
+    public ImmutableOpenMap<String, DiscoveryNode> getCoordinatingOnlyNodes() {
+        ImmutableOpenMap.Builder<String, DiscoveryNode> nodes = ImmutableOpenMap.builder(this.nodes);
+        nodes.removeAll(masterNodes.keys());
+        nodes.removeAll(dataNodes.keys());
+        nodes.removeAll(ingestNodes.keys());
+        return nodes.build();
+    }
+
+    /**
      * Get a node by its id
      *
      * @param nodeId id of the wanted node
@@ -294,10 +307,10 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
 
     /**
      * resolves a set of node "descriptions" to concrete and existing node ids. "descriptions" can be (resolved in this order):
-     * - "_local" or "_master" for the relevant nodes
+     * - "_local", "_master" or "_coordinating_only" for the relevant nodes
      * - a node id
      * - a wild card pattern that will be matched against node names
-     * - a "attr:value" pattern, where attr can be a node role (master, data, ingest etc.) in which case the value can be true of false
+     * - a "attr:value" pattern, where attr can be a node role (master, data, ingest etc.) in which case the value can be true or false,
      *   or a generic node attribute name in which case value will be treated as a wildcard and matched against the node attribute values.
      */
     public String[] resolveNodes(String... nodes) {
@@ -316,6 +329,8 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                     if (masterNodeId != null) {
                         resolvedNodesIds.add(masterNodeId);
                     }
+                } else if (nodeId.equals("_coordinating_only")) {
+                    resolvedNodesIds.addAll(getCoordinatingOnlyNodes().keys());
                 } else if (nodeExists(nodeId)) {
                     resolvedNodesIds.add(nodeId);
                 } else {

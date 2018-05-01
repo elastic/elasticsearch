@@ -340,7 +340,7 @@ public class IndicesService extends AbstractLifecycleComponent
                                        new ShardStats(indexShard.routingEntry(),
                                                       indexShard.shardPath(),
                                                       new CommonStats(indicesService.getIndicesQueryCache(), indexShard, flags),
-                                                      indexShard.commitStats(),
+                                                      indexShard.commitStats(false),
                                                       indexShard.seqNoStats())
                                    });
     }

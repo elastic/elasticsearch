@@ -1114,7 +1114,7 @@ public final class InternalTestCluster extends TestCluster {
             IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
             for (IndexService indexService : indexServices) {
                 for (IndexShard indexShard : indexService) {
-                    CommitStats commitStats = indexShard.commitStats();
+                    CommitStats commitStats = indexShard.commitStats(true);
                     if (commitStats != null) { // null if the engine is closed or if the shard is recovering
                         String syncId = commitStats.getUserData().get(Engine.SYNC_COMMIT_ID);
                         if (syncId != null) {

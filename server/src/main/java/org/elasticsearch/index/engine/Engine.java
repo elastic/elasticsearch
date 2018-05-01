@@ -576,7 +576,7 @@ public abstract class Engine implements Closeable {
     }
 
     /** get commits stats for the last commit */
-    public abstract CommitStats commitStats();
+    public abstract CommitStats commitStats(boolean requireExactNumDocs);
 
     /**
      * The sequence number service for this engine.

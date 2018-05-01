@@ -104,7 +104,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
                             indexShard.routingEntry(),
                             indexShard.shardPath(),
                             new CommonStats(indicesService.getIndicesQueryCache(), indexShard, SHARD_STATS_FLAGS),
-                            indexShard.commitStats(),
+                            indexShard.commitStats(false),
                             indexShard.seqNoStats()));
                 }
             }

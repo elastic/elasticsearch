@@ -587,7 +587,7 @@ public class InternalEngineTests extends EngineTestCase {
                         }
                     }
             )) {
-            CommitStats stats1 = engine.commitStats();
+            CommitStats stats1 = engine.commitStats(randomBoolean());
             assertThat(stats1.getGeneration(), greaterThan(0L));
             assertThat(stats1.getId(), notNullValue());
             assertThat(stats1.getUserData(), hasKey(Translog.TRANSLOG_GENERATION_KEY));
@@ -610,7 +610,7 @@ public class InternalEngineTests extends EngineTestCase {
 
             final Engine.CommitId commitId = engine.flush(true, true);
 
-            CommitStats stats2 = engine.commitStats();
+            CommitStats stats2 = engine.commitStats(randomBoolean());
             assertThat(stats2.getRawCommitId(), equalTo(commitId));
             assertThat(stats2.getGeneration(), greaterThan(stats1.getGeneration()));
             assertThat(stats2.getId(), notNullValue());
@@ -627,7 +627,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    public void testCommitStatsNumDocs() throws Exception {
+    public void testCommitStatsExactNumDocs() throws Exception {
         Settings.Builder settings = Settings.builder()
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
@@ -638,7 +638,7 @@ public class InternalEngineTests extends EngineTestCase {
         try (Store store = createStore();
              Engine softDeletesEngine = createEngine(config(IndexSettingsModule.newIndexSettings(indexMetaData), store, createTempDir(),
                  keepSoftDeleteDocsMP, null))) {
-            assertNumDocsInCommitStats(softDeletesEngine);
+            assertExactNumDocsInCommitStats(softDeletesEngine);
         }
         // Without soft-deletes
         settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false);
@@ -646,11 +646,11 @@ public class InternalEngineTests extends EngineTestCase {
         try (Store store = createStore();
              Engine hardDeletesEngine = createEngine(config(IndexSettingsModule.newIndexSettings(indexMetaData), store, createTempDir(),
                  newMergePolicy(), null))) {
-            assertNumDocsInCommitStats(hardDeletesEngine);
+            assertExactNumDocsInCommitStats(hardDeletesEngine);
         }
     }
 
-    private void assertNumDocsInCommitStats(Engine engine) throws IOException {
+    private void assertExactNumDocsInCommitStats(Engine engine) throws IOException {
         final Set<String> pendingDocs = new HashSet<>();
         int flushedDocs = 0;
         final int iters = scaledRandomIntBetween(5, 20);
@@ -673,7 +673,7 @@ public class InternalEngineTests extends EngineTestCase {
             if (randomBoolean()) {
                 engine.refresh("test");
             }
-            assertThat(engine.commitStats().getNumDocs(), equalTo(flushedDocs));
+            assertThat(engine.commitStats(true).getNumDocs(), equalTo(flushedDocs));
         }
     }
 
@@ -1990,14 +1990,14 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(globalCheckpoint, equalTo(replicaLocalCheckpoint));
 
             assertThat(
-                Long.parseLong(initialEngine.commitStats().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
+                Long.parseLong(initialEngine.commitStats(randomBoolean()).getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
                 equalTo(localCheckpoint));
             initialEngine.getTranslog().sync(); // to guarantee the global checkpoint is written to the translog checkpoint
             assertThat(
                 initialEngine.getTranslog().getLastSyncedGlobalCheckpoint(),
                 equalTo(globalCheckpoint));
             assertThat(
-                Long.parseLong(initialEngine.commitStats().getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
+                Long.parseLong(initialEngine.commitStats(randomBoolean()).getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
                 equalTo(maxSeqNo));
 
         } finally {
@@ -2010,13 +2010,13 @@ public class InternalEngineTests extends EngineTestCase {
 
             assertEquals(primarySeqNo, recoveringEngine.getLocalCheckpointTracker().getMaxSeqNo());
             assertThat(
-                Long.parseLong(recoveringEngine.commitStats().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
+                Long.parseLong(recoveringEngine.commitStats(randomBoolean()).getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
                 equalTo(primarySeqNo));
             assertThat(
                 recoveringEngine.getTranslog().getLastSyncedGlobalCheckpoint(),
                 equalTo(globalCheckpoint));
             assertThat(
-                Long.parseLong(recoveringEngine.commitStats().getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
+                Long.parseLong(recoveringEngine.commitStats(randomBoolean()).getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
                 // after recovering from translog, all docs have been flushed to Lucene segments, so here we will assert
                 // that the committed max seq no is equivalent to what the current primary seq no is, as all data
                 // we have assigned sequence numbers to should be in the commit
@@ -3743,7 +3743,7 @@ public class InternalEngineTests extends EngineTestCase {
 
             int i = 0;
             for (final Map.Entry<Thread, CountDownLatch> entry : threads.entrySet()) {
-                final Map<String, String> userData = finalActualEngine.commitStats().getUserData();
+                final Map<String, String> userData = finalActualEngine.commitStats(randomBoolean()).getUserData();
                 assertThat(userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY), equalTo(Long.toString(3 * i)));
                 assertThat(userData.get(Translog.TRANSLOG_GENERATION_KEY), equalTo(Long.toString(i + generation)));
                 entry.getValue().countDown();

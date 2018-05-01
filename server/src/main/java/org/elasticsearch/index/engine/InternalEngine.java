@@ -1827,8 +1827,8 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public CommitStats commitStats() {
-        if (softDeleteEnabled == false) {
+    public CommitStats commitStats(boolean requireExactNumDocs) {
+        if (softDeleteEnabled == false || requireExactNumDocs == false) {
             final SegmentInfos sis = this.lastCommittedSegmentInfos;
             return new CommitStats(sis, Lucene.getNumDocs(sis));
         }

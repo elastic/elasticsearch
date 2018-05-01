@@ -861,12 +861,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * @return {@link CommitStats} if engine is open, otherwise null
+     * Returns {@link CommitStats} if engine is open, otherwise null
+     *
+     * @param requireExactNumDocs if true the exact number of documents in commit is returned; otherwise an estimate is returned.
+     *                            An estimate numDocs value is good enough for any general purpose.
      */
     @Nullable
-    public CommitStats commitStats() {
+    public CommitStats commitStats(boolean requireExactNumDocs) {
         Engine engine = getEngineOrNull();
-        return engine == null ? null : engine.commitStats();
+        return engine == null ? null : engine.commitStats(requireExactNumDocs);
     }
 
     /**

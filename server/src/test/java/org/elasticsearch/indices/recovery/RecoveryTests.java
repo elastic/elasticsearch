@@ -223,7 +223,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
 
             // history uuid was restored
             assertThat(newReplica.getHistoryUUID(), equalTo(historyUUID));
-            assertThat(newReplica.commitStats().getUserData().get(Engine.HISTORY_UUID_KEY), equalTo(historyUUID));
+            assertThat(newReplica.commitStats(false).getUserData().get(Engine.HISTORY_UUID_KEY), equalTo(historyUUID));
 
             shards.assertAllEqual(numDocs);
         }

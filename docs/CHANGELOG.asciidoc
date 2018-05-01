@@ -30,6 +30,20 @@ This section summarizes the changes in each release.
 
 <<remove-field-caps-body, In field capabilities APIs, removed support for providing fields in the request body>> ({pull}30185[#30185])
 
+Machine Learning::
+* The `max_running_jobs` node property is removed in this release. Use the
+`xpack.ml.max_open_jobs` setting instead. For more information, see <<ml-settings>>.
+
+Monitoring::
+* The `xpack.monitoring.collection.interval` setting can no longer be set to `-1`
+to disable monitoring data collection. Use `xpack.monitoring.collection.enabled`
+and set it to `false` (its default), which was added in 6.3.0.
+
+Security::
+* The fields returned as part of the mappings section by get index, get
+mappings, get field mappings, and field capabilities API are now only the
+ones that the user is authorized to access in case field level security is enabled.
+
 //[float]
 //=== Breaking Java Changes
 

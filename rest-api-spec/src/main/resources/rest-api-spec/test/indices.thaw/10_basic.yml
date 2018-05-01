@@ -46,6 +46,8 @@
   - do:
       search:
         index: test_index
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.foo: bar }
 
 ---
 "Thaw index with wait_for_active_shards set to all":

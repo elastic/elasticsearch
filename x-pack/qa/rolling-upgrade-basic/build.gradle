@@ -71,7 +71,7 @@ task bwcTest {
     group = 'verification'
 }
 
-String outputDir = "generated-resources/${project.name}"
+String outputDir = "${buildDir}/generated-resources/${project.name}"
 
 for (Version version : bwcVersions.wireCompatible) {
     String baseName = "v${version}"

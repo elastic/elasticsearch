@@ -133,7 +133,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
-        step.performAction(sourceIndexMetaData, new Listener() {
+        step.performAction(sourceIndexMetaData, null, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -178,7 +178,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
-        step.performAction(indexMetaData, new Listener() {
+        step.performAction(indexMetaData, null, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -222,7 +222,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetaData, new Listener() {
+        step.performAction(indexMetaData, null, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {

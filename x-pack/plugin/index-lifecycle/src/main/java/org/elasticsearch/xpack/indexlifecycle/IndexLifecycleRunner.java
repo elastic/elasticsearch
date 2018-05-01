@@ -38,7 +38,9 @@ public class IndexLifecycleRunner {
         this.nowSupplier = nowSupplier;
     }
 
-    public void runPolicy(String policy, IndexMetaData indexMetaData, Settings indexSettings, boolean fromClusterStateChange) {
+    public void runPolicy(String policy, IndexMetaData indexMetaData, ClusterState currentState,
+            boolean fromClusterStateChange) {
+        Settings indexSettings = indexMetaData.getSettings();
         Step currentStep = getCurrentStep(stepRegistry, policy, indexSettings);
         logger.warn("running policy with current-step[" + currentStep.getKey() + "]");
         if (currentStep instanceof TerminalPolicyStep) {
@@ -66,7 +68,7 @@ public class IndexLifecycleRunner {
             }
         } else if (currentStep instanceof AsyncActionStep) {
             if (fromClusterStateChange == false) {
-                ((AsyncActionStep) currentStep).performAction(indexMetaData, new AsyncActionStep.Listener() {
+                ((AsyncActionStep) currentStep).performAction(indexMetaData, currentState, new AsyncActionStep.Listener() {
     
                     @Override
                     public void onResponse(boolean complete) {
@@ -88,10 +90,10 @@ public class IndexLifecycleRunner {
         }
     }
 
-    private void runPolicy(IndexMetaData indexMetaData) {
+    private void runPolicy(IndexMetaData indexMetaData, ClusterState currentState) {
         Settings indexSettings = indexMetaData.getSettings();
         String policy = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings);
-        runPolicy(policy, indexMetaData, indexSettings, false);
+        runPolicy(policy, indexMetaData, currentState, false);
     }
 
     private void executeClusterStateSteps(Index index, String policy, Step step) {
@@ -154,6 +156,6 @@ public class IndexLifecycleRunner {
         logger.error("moveToStep[" + policy + "] [" + index.getName() + "]" + currentStepKey + " -> "
                 + nextStepKey);
         clusterService.submitStateUpdateTask("ILM", new MoveToNextStepUpdateTask(index, policy, currentStepKey,
-                nextStepKey, nowSupplier, newState -> runPolicy(newState.getMetaData().index(index))));
+                nextStepKey, nowSupplier, newState -> runPolicy(newState.getMetaData().index(index), newState)));
     }
 }

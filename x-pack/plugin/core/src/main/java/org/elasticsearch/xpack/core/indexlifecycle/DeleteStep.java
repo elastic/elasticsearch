@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 
 public class DeleteStep extends AsyncActionStep {
@@ -18,7 +19,7 @@ public class DeleteStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetaData indexMetaData, Listener listener) {
+    public void performAction(IndexMetaData indexMetaData, ClusterState currentState, Listener listener) {
         getClient().admin().indices()
             .delete(new DeleteIndexRequest(indexMetaData.getIndex().getName()),
                 ActionListener.wrap(response -> listener.onResponse(true) , listener::onFailure));

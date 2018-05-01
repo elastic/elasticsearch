@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 public abstract class AbstractStepTestCase<T extends Step> extends ESTestCase {
 
@@ -20,5 +21,9 @@ public abstract class AbstractStepTestCase<T extends Step> extends ESTestCase {
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(createRandomInstance(), this::copyInstance, this::mutateInstance);
         }
+    }
+
+    public static StepKey randomStepKey() {
+        return new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 }

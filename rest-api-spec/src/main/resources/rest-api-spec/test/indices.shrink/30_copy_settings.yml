@@ -1,8 +1,8 @@
 ---
 "Copy settings during shrink index":
   - skip:
-      version: " - 6.99.99"
-      reason:  copy_settings did not exist prior to 7.0.0
+      version: " - 6.3.99"
+      reason:  copy_settings did not exist prior to 6.4.0
       features: "warnings"
 
   - do:

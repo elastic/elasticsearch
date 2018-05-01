@@ -98,7 +98,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         } else {
             type = ResizeType.SHRINK; // BWC this used to be shrink only
         }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
             copySettings = in.readBoolean();
         } else {
             copySettings = false;
@@ -113,7 +113,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         if (out.getVersion().onOrAfter(ResizeAction.COMPATIBILITY_VERSION)) {
             out.writeEnum(type);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeBoolean(copySettings);
         }
     }

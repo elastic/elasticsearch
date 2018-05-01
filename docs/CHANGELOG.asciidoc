@@ -24,8 +24,6 @@
 
 === Enhancements
 
-<<copy-source-settings-on-resize, Allow copying source settings on index resize operations>> ({pull}30255[#30255])
-
 === Bug Fixes
 
 Fail snapshot operations early when creating or deleting a snapshot on a repository that has been
@@ -40,6 +38,8 @@ written to by an older Elasticsearch after writing to it with a newer Elasticsea
 === New Features
 
 === Enhancements
+
+<<copy-source-settings-on-resize, Allow copying source settings on index resize operations>> ({pull}30255[#30255])
 
 === Bug Fixes
 

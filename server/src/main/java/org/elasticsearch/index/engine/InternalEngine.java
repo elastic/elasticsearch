@@ -1848,7 +1848,7 @@ public class InternalEngine extends Engine {
             }
         } else {
             final SegmentInfos sis = this.lastCommittedSegmentInfos;
-            return new CommitStats(this.lastCommittedSegmentInfos, Lucene.getNumDocs(sis));
+            return new CommitStats(sis, Lucene.getNumDocs(sis));
         }
     }
 

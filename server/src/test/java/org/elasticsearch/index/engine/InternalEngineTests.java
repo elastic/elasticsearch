@@ -634,6 +634,7 @@ public class InternalEngineTests extends EngineTestCase {
         IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
         final MergePolicy keepSoftDeleteDocsMP = new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETE_FIELD,
             () -> new MatchAllDocsQuery(), newMergePolicy());
+        // With soft-deletes
         try (Store store = createStore();
              Engine softDeletesEngine = createEngine(config(IndexSettingsModule.newIndexSettings(indexMetaData), store, createTempDir(),
                  keepSoftDeleteDocsMP, null))) {
@@ -643,9 +644,9 @@ public class InternalEngineTests extends EngineTestCase {
         settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false);
         indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
         try (Store store = createStore();
-             Engine hardDeleteEngine = createEngine(config(IndexSettingsModule.newIndexSettings(indexMetaData), store, createTempDir(),
+             Engine hardDeletesEngine = createEngine(config(IndexSettingsModule.newIndexSettings(indexMetaData), store, createTempDir(),
                  newMergePolicy(), null))) {
-            assertNumDocsInCommitStats(hardDeleteEngine);
+            assertNumDocsInCommitStats(hardDeletesEngine);
         }
     }
 

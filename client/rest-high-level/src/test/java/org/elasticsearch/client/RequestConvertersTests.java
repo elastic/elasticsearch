@@ -81,6 +81,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.client.RequestConverters.EndpointBuilder;
+import org.elasticsearch.client.RequestConverters.Params;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -119,8 +121,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.client.Request.REQUEST_BODY_CONTENT_TYPE;
-import static org.elasticsearch.client.Request.enforceSameContentType;
+import static org.elasticsearch.client.RequestConverters.REQUEST_BODY_CONTENT_TYPE;
+import static org.elasticsearch.client.RequestConverters.enforceSameContentType;
 import static org.elasticsearch.index.RandomCreateIndexGenerator.randomAliases;
 import static org.elasticsearch.index.RandomCreateIndexGenerator.randomCreateIndexRequest;
 import static org.elasticsearch.index.RandomCreateIndexGenerator.randomIndexSettings;
@@ -130,40 +132,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class RequestTests extends ESTestCase {
-
-    public void testConstructor() {
-        final String method = randomFrom("GET", "PUT", "POST", "HEAD", "DELETE");
-        final String endpoint = randomAlphaOfLengthBetween(1, 10);
-        final Map<String, String> parameters = singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5));
-        final HttpEntity entity = randomBoolean() ? new StringEntity(randomAlphaOfLengthBetween(1, 100), ContentType.TEXT_PLAIN) : null;
-
-        NullPointerException e = expectThrows(NullPointerException.class, () -> new Request(null, endpoint, parameters, entity));
-        assertEquals("method cannot be null", e.getMessage());
-
-        e = expectThrows(NullPointerException.class, () -> new Request(method, null, parameters, entity));
-        assertEquals("endpoint cannot be null", e.getMessage());
-
-        e = expectThrows(NullPointerException.class, () -> new Request(method, endpoint, null, entity));
-        assertEquals("parameters cannot be null", e.getMessage());
-
-        final Request request = new Request(method, endpoint, parameters, entity);
-        assertEquals(method, request.getMethod());
-        assertEquals(endpoint, request.getEndpoint());
-        assertEquals(parameters, request.getParameters());
-        assertEquals(entity, request.getEntity());
-
-        final Constructor<?>[] constructors = Request.class.getConstructors();
-        assertEquals("Expected only 1 constructor", 1, constructors.length);
-        assertTrue("Request constructor is not public", Modifier.isPublic(constructors[0].getModifiers()));
-    }
-
-    public void testClassVisibility() {
-        assertTrue("Request class is not public", Modifier.isPublic(Request.class.getModifiers()));
-    }
-
+public class RequestConvertersTests extends ESTestCase {
     public void testPing() {
-        Request request = Request.ping();
+        Request request = RequestConverters.ping();
         assertEquals("/", request.getEndpoint());
         assertEquals(0, request.getParameters().size());
         assertNull(request.getEntity());
@@ -171,7 +142,7 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testInfo() {
-        Request request = Request.info();
+        Request request = RequestConverters.info();
         assertEquals("/", request.getEndpoint());
         assertEquals(0, request.getParameters().size());
         assertNull(request.getEntity());
@@ -179,7 +150,7 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testGet() {
-        getAndExistsTest(Request::get, HttpGet.METHOD_NAME);
+        getAndExistsTest(RequestConverters::get, HttpGet.METHOD_NAME);
     }
 
     public void testMultiGet() throws IOException {
@@ -228,7 +199,7 @@ public class RequestTests extends ESTestCase {
             multiGetRequest.add(item);
         }
 
-        Request request = Request.multiGet(multiGetRequest);
+        Request request = RequestConverters.multiGet(multiGetRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals("/_mget", request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
@@ -261,7 +232,7 @@ public class RequestTests extends ESTestCase {
             }
         }
 
-        Request request = Request.delete(deleteRequest);
+        Request request = RequestConverters.delete(deleteRequest);
         assertEquals("/" + index + "/" + type + "/" + id, request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
@@ -269,7 +240,7 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testExists() {
-        getAndExistsTest(Request::exists, HttpHead.METHOD_NAME);
+        getAndExistsTest(RequestConverters::exists, HttpHead.METHOD_NAME);
     }
 
     public void testIndicesExist() {
@@ -283,7 +254,7 @@ public class RequestTests extends ESTestCase {
         setRandomHumanReadable(getIndexRequest, expectedParams);
         setRandomIncludeDefaults(getIndexRequest, expectedParams);
 
-        final Request request = Request.indicesExist(getIndexRequest);
+        final Request request = RequestConverters.indicesExist(getIndexRequest);
 
         assertEquals(HttpHead.METHOD_NAME, request.getMethod());
         assertEquals("/" + String.join(",", indices), request.getEndpoint());
@@ -292,8 +263,8 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testIndicesExistEmptyIndices() {
-        expectThrows(IllegalArgumentException.class, () -> Request.indicesExist(new GetIndexRequest()));
-        expectThrows(IllegalArgumentException.class, () -> Request.indicesExist(new GetIndexRequest().indices((String[])null)));
+        expectThrows(IllegalArgumentException.class, () -> RequestConverters.indicesExist(new GetIndexRequest()));
+        expectThrows(IllegalArgumentException.class, () -> RequestConverters.indicesExist(new GetIndexRequest().indices((String[])null)));
     }
 
     private static void getAndExistsTest(Function<GetRequest, Request> requestConverter, String method) {
@@ -363,7 +334,7 @@ public class RequestTests extends ESTestCase {
         setRandomWaitForActiveShards(createIndexRequest::waitForActiveShards, ActiveShardCount.DEFAULT, expectedParams);
         setRandomUpdateAllTypes(createIndexRequest::updateAllTypes, expectedParams);
 
-        Request request = Request.createIndex(createIndexRequest);
+        Request request = RequestConverters.createIndex(createIndexRequest);
         assertEquals("/" + createIndexRequest.index(), request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
@@ -384,7 +355,7 @@ public class RequestTests extends ESTestCase {
         setRandomTimeout(indicesAliasesRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
         setRandomMasterTimeout(indicesAliasesRequest, expectedParams);
 
-        Request request = Request.updateAliases(indicesAliasesRequest);
+        Request request = RequestConverters.updateAliases(indicesAliasesRequest);
         assertEquals("/_aliases", request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(indicesAliasesRequest, request.getEntity());
@@ -405,7 +376,7 @@ public class RequestTests extends ESTestCase {
         setRandomMasterTimeout(putMappingRequest, expectedParams);
         setRandomUpdateAllTypes(putMappingRequest::updateAllTypes, expectedParams);
 
-        Request request = Request.putMapping(putMappingRequest);
+        Request request = RequestConverters.putMapping(putMappingRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         String index = String.join(",", indices);
         if (Strings.hasLength(index)) {
@@ -430,7 +401,7 @@ public class RequestTests extends ESTestCase {
 
         setRandomIndicesOptions(deleteIndexRequest::indicesOptions, deleteIndexRequest::indicesOptions, expectedParams);
 
-        Request request = Request.deleteIndex(deleteIndexRequest);
+        Request request = RequestConverters.deleteIndex(deleteIndexRequest);
         assertEquals("/" + String.join(",", indices), request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
@@ -454,7 +425,7 @@ public class RequestTests extends ESTestCase {
         setRandomIndicesOptions(openIndexRequest::indicesOptions, openIndexRequest::indicesOptions, expectedParams);
         setRandomWaitForActiveShards(openIndexRequest::waitForActiveShards, ActiveShardCount.NONE, expectedParams);
 
-        Request request = Request.openIndex(openIndexRequest);
+        Request request = RequestConverters.openIndex(openIndexRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "").add(String.join(",", indices)).add("_open");
         assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
         assertThat(expectedParams, equalTo(request.getParameters()));
@@ -477,7 +448,7 @@ public class RequestTests extends ESTestCase {
         setRandomMasterTimeout(closeIndexRequest, expectedParams);
         setRandomIndicesOptions(closeIndexRequest::indicesOptions, closeIndexRequest::indicesOptions, expectedParams);
 
-        Request request = Request.closeIndex(closeIndexRequest);
+        Request request = RequestConverters.closeIndex(closeIndexRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "").add(String.join(",", indices)).add("_close");
         assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
         assertThat(expectedParams, equalTo(request.getParameters()));
@@ -550,7 +521,7 @@ public class RequestTests extends ESTestCase {
             indexRequest.source(builder);
         }
 
-        Request request = Request.index(indexRequest);
+        Request request = RequestConverters.index(indexRequest);
         if (indexRequest.opType() == DocWriteRequest.OpType.CREATE) {
             assertEquals("/" + index + "/" + type + "/" + id + "/_create", request.getEndpoint());
         } else if (id != null) {
@@ -580,7 +551,7 @@ public class RequestTests extends ESTestCase {
         }
         Map<String, String> expectedParams = new HashMap<>();
         setRandomIndicesOptions(refreshRequest::indicesOptions, refreshRequest::indicesOptions, expectedParams);
-        Request request = Request.refresh(refreshRequest);
+        Request request = RequestConverters.refresh(refreshRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         if (indices != null && indices.length > 0) {
             endpoint.add(String.join(",", indices));
@@ -612,7 +583,7 @@ public class RequestTests extends ESTestCase {
         }
         expectedParams.put("wait_if_ongoing", Boolean.toString(flushRequest.waitIfOngoing()));
 
-        Request request = Request.flush(flushRequest);
+        Request request = RequestConverters.flush(flushRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         if (indices != null && indices.length > 0) {
             endpoint.add(String.join(",", indices));
@@ -649,7 +620,7 @@ public class RequestTests extends ESTestCase {
         }
         expectedParams.put("flush", Boolean.toString(forceMergeRequest.flush()));
 
-        Request request = Request.forceMerge(forceMergeRequest);
+        Request request = RequestConverters.forceMerge(forceMergeRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         if (indices != null && indices.length > 0) {
             endpoint.add(String.join(",", indices));
@@ -689,7 +660,7 @@ public class RequestTests extends ESTestCase {
             expectedParams.put("fields", String.join(",", clearIndicesCacheRequest.fields()));
         }
 
-        Request request = Request.clearCache(clearIndicesCacheRequest);
+        Request request = RequestConverters.clearCache(clearIndicesCacheRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         if (indices != null && indices.length > 0) {
             endpoint.add(String.join(",", indices));
@@ -767,7 +738,7 @@ public class RequestTests extends ESTestCase {
             randomizeFetchSourceContextParams(updateRequest::fetchSource, expectedParams);
         }
 
-        Request request = Request.update(updateRequest);
+        Request request = RequestConverters.update(updateRequest);
         assertEquals("/" + index + "/" + type + "/" + id + "/_update", request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
@@ -804,7 +775,7 @@ public class RequestTests extends ESTestCase {
             UpdateRequest updateRequest = new UpdateRequest();
             updateRequest.doc(new IndexRequest().source(singletonMap("field", "doc"), XContentType.JSON));
             updateRequest.upsert(new IndexRequest().source(singletonMap("field", "upsert"), XContentType.YAML));
-            Request.update(updateRequest);
+            RequestConverters.update(updateRequest);
         });
         assertEquals("Update request cannot have different content types for doc [JSON] and upsert [YAML] documents",
                 exception.getMessage());
@@ -881,7 +852,7 @@ public class RequestTests extends ESTestCase {
             bulkRequest.add(docWriteRequest);
         }
 
-        Request request = Request.bulk(bulkRequest);
+        Request request = RequestConverters.bulk(bulkRequest);
         assertEquals("/_bulk", request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
@@ -937,7 +908,7 @@ public class RequestTests extends ESTestCase {
             bulkRequest.add(new UpdateRequest("index", "type", "1").script(mockScript("test")));
             bulkRequest.add(new DeleteRequest("index", "type", "2"));
 
-            Request request = Request.bulk(bulkRequest);
+            Request request = RequestConverters.bulk(bulkRequest);
             assertEquals(XContentType.JSON.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
         }
         {
@@ -947,7 +918,7 @@ public class RequestTests extends ESTestCase {
             bulkRequest.add(new IndexRequest("index", "type", "0").source(singletonMap("field", "value"), xContentType));
             bulkRequest.add(new DeleteRequest("index", "type", "2"));
 
-            Request request = Request.bulk(bulkRequest);
+            Request request = RequestConverters.bulk(bulkRequest);
             assertEquals(xContentType.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
         }
         {
@@ -959,14 +930,14 @@ public class RequestTests extends ESTestCase {
                 updateRequest.upsert(new IndexRequest().source(singletonMap("field", "value"), xContentType));
             }
 
-            Request request = Request.bulk(new BulkRequest().add(updateRequest));
+            Request request = RequestConverters.bulk(new BulkRequest().add(updateRequest));
             assertEquals(xContentType.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
         }
         {
             BulkRequest bulkRequest = new BulkRequest();
             bulkRequest.add(new IndexRequest("index", "type", "0").source(singletonMap("field", "value"), XContentType.SMILE));
             bulkRequest.add(new IndexRequest("index", "type", "1").source(singletonMap("field", "value"), XContentType.JSON));
-            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> Request.bulk(bulkRequest));
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> RequestConverters.bulk(bulkRequest));
             assertEquals("Mismatching content-type found for request with content-type [JSON], " +
                             "previous requests have content-type [SMILE]", exception.getMessage());
         }
@@ -980,7 +951,7 @@ public class RequestTests extends ESTestCase {
                     .doc(new IndexRequest().source(singletonMap("field", "value"), XContentType.JSON))
                     .upsert(new IndexRequest().source(singletonMap("field", "value"), XContentType.SMILE))
             );
-            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> Request.bulk(bulkRequest));
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> RequestConverters.bulk(bulkRequest));
             assertEquals("Mismatching content-type found for request with content-type [SMILE], " +
                             "previous requests have content-type [JSON]", exception.getMessage());
         }
@@ -993,7 +964,7 @@ public class RequestTests extends ESTestCase {
             bulkRequest.add(new DeleteRequest("index", "type", "3"));
             bulkRequest.add(new IndexRequest("index", "type", "4").source(singletonMap("field", "value"), XContentType.JSON));
             bulkRequest.add(new IndexRequest("index", "type", "1").source(singletonMap("field", "value"), xContentType));
-            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> Request.bulk(bulkRequest));
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> RequestConverters.bulk(bulkRequest));
             assertEquals("Unsupported content-type found for request with content-type [" + xContentType
                     + "], only JSON and SMILE are supported", exception.getMessage());
         }
@@ -1001,7 +972,7 @@ public class RequestTests extends ESTestCase {
 
     public void testSearchNullSource() throws IOException {
         SearchRequest searchRequest = new SearchRequest();
-        Request request = Request.search(searchRequest);
+        Request request = RequestConverters.search(searchRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals("/_search", request.getEndpoint());
         assertNull(request.getEntity());
@@ -1096,7 +1067,7 @@ public class RequestTests extends ESTestCase {
             searchRequest.source(searchSourceBuilder);
         }
 
-        Request request = Request.search(searchRequest);
+        Request request = RequestConverters.search(searchRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         String index = String.join(",", indices);
         if (Strings.hasLength(index)) {
@@ -1150,7 +1121,7 @@ public class RequestTests extends ESTestCase {
             expectedParams.put("max_concurrent_searches", Integer.toString(multiSearchRequest.maxConcurrentSearchRequests()));
         }
 
-        Request request = Request.multiSearch(multiSearchRequest);
+        Request request = RequestConverters.multiSearch(multiSearchRequest);
         assertEquals("/_msearch", request.getEndpoint());
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals(expectedParams, request.getParameters());
@@ -1175,7 +1146,7 @@ public class RequestTests extends ESTestCase {
         if (randomBoolean()) {
             searchScrollRequest.scroll(randomPositiveTimeValue());
         }
-        Request request = Request.searchScroll(searchScrollRequest);
+        Request request = RequestConverters.searchScroll(searchScrollRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals("/_search/scroll", request.getEndpoint());
         assertEquals(0, request.getParameters().size());
@@ -1189,7 +1160,7 @@ public class RequestTests extends ESTestCase {
         for (int i = 0; i < numScrolls; i++) {
             clearScrollRequest.addScrollId(randomAlphaOfLengthBetween(5, 10));
         }
-        Request request = Request.clearScroll(clearScrollRequest);
+        Request request = RequestConverters.clearScroll(clearScrollRequest);
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_search/scroll", request.getEndpoint());
         assertEquals(0, request.getParameters().size());
@@ -1214,7 +1185,7 @@ public class RequestTests extends ESTestCase {
         setRandomLocal(getAliasesRequest, expectedParams);
         setRandomIndicesOptions(getAliasesRequest::indicesOptions, getAliasesRequest::indicesOptions, expectedParams);
 
-        Request request = Request.existsAlias(getAliasesRequest);
+        Request request = RequestConverters.existsAlias(getAliasesRequest);
         StringJoiner expectedEndpoint = new StringJoiner("/", "/", "");
         if (indices != null && indices.length > 0) {
             expectedEndpoint.add(String.join(",", indices));
@@ -1232,13 +1203,15 @@ public class RequestTests extends ESTestCase {
     public void testExistsAliasNoAliasNoIndex() {
         {
             GetAliasesRequest getAliasesRequest = new GetAliasesRequest();
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Request.existsAlias(getAliasesRequest));
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
+                    RequestConverters.existsAlias(getAliasesRequest));
             assertEquals("existsAlias requires at least an alias or an index", iae.getMessage());
         }
         {
             GetAliasesRequest getAliasesRequest = new GetAliasesRequest((String[])null);
             getAliasesRequest.indices((String[])null);
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Request.existsAlias(getAliasesRequest));
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
+                    RequestConverters.existsAlias(getAliasesRequest));
             assertEquals("existsAlias requires at least an alias or an index", iae.getMessage());
         }
     }
@@ -1252,7 +1225,7 @@ public class RequestTests extends ESTestCase {
         Map<String, String> expectedParams = new HashMap<>();
         setRandomIndicesOptions(rankEvalRequest::indicesOptions, rankEvalRequest::indicesOptions, expectedParams);
 
-        Request request = Request.rankEval(rankEvalRequest);
+        Request request = RequestConverters.rankEval(rankEvalRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         String index = String.join(",", indices);
         if (Strings.hasLength(index)) {
@@ -1267,25 +1240,25 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testSplit() throws IOException {
-        resizeTest(ResizeType.SPLIT, Request::split);
+        resizeTest(ResizeType.SPLIT, RequestConverters::split);
     }
 
     public void testSplitWrongResizeType() {
         ResizeRequest resizeRequest = new ResizeRequest("target", "source");
         resizeRequest.setResizeType(ResizeType.SHRINK);
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Request.split(resizeRequest));
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> RequestConverters.split(resizeRequest));
         assertEquals("Wrong resize type [SHRINK] for indices split request", iae.getMessage());
     }
 
     public void testShrinkWrongResizeType() {
         ResizeRequest resizeRequest = new ResizeRequest("target", "source");
         resizeRequest.setResizeType(ResizeType.SPLIT);
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Request.shrink(resizeRequest));
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> RequestConverters.shrink(resizeRequest));
         assertEquals("Wrong resize type [SPLIT] for indices shrink request", iae.getMessage());
     }
 
     public void testShrink() throws IOException {
-        resizeTest(ResizeType.SHRINK, Request::shrink);
+        resizeTest(ResizeType.SHRINK, RequestConverters::shrink);
     }
 
     private static void resizeTest(ResizeType resizeType, CheckedFunction<ResizeRequest, Request, IOException> function)
@@ -1324,7 +1297,7 @@ public class RequestTests extends ESTestCase {
         setRandomMasterTimeout(request, expectedParams);
         setRandomTimeout(request::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
 
-        Request expectedRequest = Request.clusterPutSettings(request);
+        Request expectedRequest = RequestConverters.clusterPutSettings(request);
         assertEquals("/_cluster/settings", expectedRequest.getEndpoint());
         assertEquals(HttpPut.METHOD_NAME, expectedRequest.getMethod());
         assertEquals(expectedParams, expectedRequest.getParameters());
@@ -1358,7 +1331,7 @@ public class RequestTests extends ESTestCase {
         setRandomWaitForActiveShards(rolloverRequest.getCreateIndexRequest()::waitForActiveShards,
                 ActiveShardCount.DEFAULT, expectedParams);
 
-        Request request = Request.rollover(rolloverRequest);
+        Request request = RequestConverters.rollover(rolloverRequest);
         if (rolloverRequest.getNewIndexName() == null) {
             assertEquals("/" + rolloverRequest.getAlias() + "/_rollover", request.getEndpoint());
         } else {
@@ -1383,7 +1356,7 @@ public class RequestTests extends ESTestCase {
             }
         }
 
-        Request request = Request.indexPutSettings(updateSettingsRequest);
+        Request request = RequestConverters.indexPutSettings(updateSettingsRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         if (indices != null && indices.length > 0) {
             endpoint.add(String.join(",", indices));
@@ -1401,143 +1374,115 @@ public class RequestTests extends ESTestCase {
         assertEquals(expectedBytes, new BytesArray(EntityUtils.toByteArray(actualEntity)));
     }
 
-    public void testParams() {
-        final int nbParams = randomIntBetween(0, 10);
-        Request.Params params = Request.Params.builder();
-        Map<String, String> expectedParams = new HashMap<>();
-        for (int i = 0; i < nbParams; i++) {
-            String paramName = "p_" + i;
-            String paramValue = randomAlphaOfLength(5);
-            params.putParam(paramName, paramValue);
-            expectedParams.put(paramName, paramValue);
-        }
-
-        Map<String, String> requestParams = params.getParams();
-        assertEquals(nbParams, requestParams.size());
-        assertEquals(expectedParams, requestParams);
-    }
-
-    public void testParamsNoDuplicates() {
-        Request.Params params = Request.Params.builder();
-        params.putParam("test", "1");
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> params.putParam("test", "2"));
-        assertEquals("Request parameter [test] is already registered", e.getMessage());
-
-        Map<String, String> requestParams = params.getParams();
-        assertEquals(1L, requestParams.size());
-        assertEquals("1", requestParams.values().iterator().next());
-    }
-
     public void testEndpointBuilder() {
         {
-            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder();
+            EndpointBuilder endpointBuilder = new EndpointBuilder();
             assertEquals("/", endpointBuilder.build());
         }
         {
-            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart(Strings.EMPTY_ARRAY);
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart(Strings.EMPTY_ARRAY);
             assertEquals("/", endpointBuilder.build());
         }
         {
-            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("");
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("");
             assertEquals("/", endpointBuilder.build());
         }
         {
-            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("a", "b");
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("a", "b");
             assertEquals("/a/b", endpointBuilder.build());
         }
         {
-            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("a").addPathPart("b")
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("a").addPathPart("b")
                     .addPathPartAsIs("_create");
             assertEquals("/a/b/_create", endpointBuilder.build());
         }
 
         {
-            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("a", "b", "c")
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("a", "b", "c")
                     .addPathPartAsIs("_create");
             assertEquals("/a/b/c/_create", endpointBuilder.build());
         }
         {
-            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("a").addPathPartAsIs("_create");
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("a").addPathPartAsIs("_create");
             assertEquals("/a/_create", endpointBuilder.build());
         }
     }
 
     public void testEndpointBuilderEncodeParts() {
         {
-            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("-#index1,index#2", "type", "id");
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("-#index1,index#2", "type", "id");
             assertEquals("/-%23index1,index%232/type/id", endpointBuilder.build());
         }
         {
-            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("index", "type#2", "id");
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("index", "type#2", "id");
             assertEquals("/index/type%232/id", endpointBuilder.build());
         }
         {
-            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("index", "type", "this/is/the/id");
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("index", "type", "this/is/the/id");
             assertEquals("/index/type/this%2Fis%2Fthe%2Fid", endpointBuilder.build());
         }
         {
-            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("index", "type", "this|is|the|id");
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("index", "type", "this|is|the|id");
             assertEquals("/index/type/this%7Cis%7Cthe%7Cid", endpointBuilder.build());
         }
         {
-            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("index", "type", "id#1");
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("index", "type", "id#1");
             assertEquals("/index/type/id%231", endpointBuilder.build());
         }
         {
-            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("<logstash-{now/M}>", "_search");
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("<logstash-{now/M}>", "_search");
             assertEquals("/%3Clogstash-%7Bnow%2FM%7D%3E/_search", endpointBuilder.build());
         }
         {
-            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("中文");
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("中文");
             assertEquals("/中文", endpointBuilder.build());
         }
         {
-            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("foo bar");
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("foo bar");
             assertEquals("/foo%20bar", endpointBuilder.build());
         }
         {
-            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("foo+bar");
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("foo+bar");
             assertEquals("/foo+bar", endpointBuilder.build());
         }
         {
-            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("foo+bar");
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("foo+bar");
             assertEquals("/foo+bar", endpointBuilder.build());
         }
         {
-            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("foo/bar");
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("foo/bar");
             assertEquals("/foo%2Fbar", endpointBuilder.build());
         }
         {
-            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("foo^bar");
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("foo^bar");
             assertEquals("/foo%5Ebar", endpointBuilder.build());
         }
         {
-            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder().addPathPart("cluster1:index1,index2")
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("cluster1:index1,index2")
                     .addPathPartAsIs("_search");
             assertEquals("/cluster1:index1,index2/_search", endpointBuilder.build());
         }
         {
-            Request.EndpointBuilder endpointBuilder = new Request.EndpointBuilder()
+            EndpointBuilder endpointBuilder = new EndpointBuilder()
                     .addCommaSeparatedPathParts(new String[]{"index1", "index2"}).addPathPartAsIs("cache/clear");
             assertEquals("/index1,index2/cache/clear", endpointBuilder.build());
         }
     }
 
     public void testEndpoint() {
-        assertEquals("/index/type/id", Request.endpoint("index", "type", "id"));
-        assertEquals("/index/type/id/_endpoint", Request.endpoint("index", "type", "id", "_endpoint"));
-        assertEquals("/index1,index2", Request.endpoint(new String[]{"index1", "index2"}));
-        assertEquals("/index1,index2/_endpoint", Request.endpoint(new String[]{"index1", "index2"}, "_endpoint"));
-        assertEquals("/index1,index2/type1,type2/_endpoint", Request.endpoint(new String[]{"index1", "index2"},
+        assertEquals("/index/type/id", RequestConverters.endpoint("index", "type", "id"));
+        assertEquals("/index/type/id/_endpoint", RequestConverters.endpoint("index", "type", "id", "_endpoint"));
+        assertEquals("/index1,index2", RequestConverters.endpoint(new String[]{"index1", "index2"}));
+        assertEquals("/index1,index2/_endpoint", RequestConverters.endpoint(new String[]{"index1", "index2"}, "_endpoint"));
+        assertEquals("/index1,index2/type1,type2/_endpoint", RequestConverters.endpoint(new String[]{"index1", "index2"},
                 new String[]{"type1", "type2"}, "_endpoint"));
-        assertEquals("/index1,index2/_endpoint/suffix1,suffix2", Request.endpoint(new String[]{"index1", "index2"},
+        assertEquals("/index1,index2/_endpoint/suffix1,suffix2", RequestConverters.endpoint(new String[]{"index1", "index2"},
                 "_endpoint", new String[]{"suffix1", "suffix2"}));
     }
 
     public void testCreateContentType() {
         final XContentType xContentType = randomFrom(XContentType.values());
-        assertEquals(xContentType.mediaTypeWithoutParameters(), Request.createContentType(xContentType).getMimeType());
+        assertEquals(xContentType.mediaTypeWithoutParameters(), RequestConverters.createContentType(xContentType).getMimeType());
     }
 
     public void testEnforceSameContentType() {

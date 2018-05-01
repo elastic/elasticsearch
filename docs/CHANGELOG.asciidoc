@@ -753,6 +753,10 @@ Snapshot/Restore::
 Internal::
 * Make AbstractQueryBuilder.declareStandardFields to be protected (#27865) {pull}27894[#27894] (issue: {issue}27865[#27865])
 
+Added new "Request" object flavored request methods. Prefer these instead of the
+multi-argument versions. ({pull}29623[#29623])
+
+
 [float]
 === Bug Fixes
 
@@ -4876,6 +4880,8 @@ Network::
 * Upgrade to Netty 4.1.8 {pull}23055[#23055]
 * Upgrade to Netty 4.1.7 {pull}22587[#22587]
 * Upgrade to Netty 4.1.6 {pull}21051[#21051]
+//[float]
+//=== Regressions
 
 Plugin Repository Azure::
 * Update to Azure Storage 5.0.0 {pull}23517[#23517] (issue: {issue}23448[#23448])

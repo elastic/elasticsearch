@@ -17,16 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.action.bulk;
+package org.elasticsearch.packaging;
 
-import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.shard.ShardId;
+import org.junit.Test;
 
-public interface MappingUpdatePerformer {
+/**
+ * This class doesn't have any tests yet
+ */
+public class PackagingTests {
 
-    /**
-     * Update the mappings on the master.
-     */
-    void updateMappings(Mapping update, ShardId shardId, String type);
-
+    @Test
+    public void testDummy() {}
 }

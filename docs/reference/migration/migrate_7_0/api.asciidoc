@@ -66,6 +66,7 @@ In the past, `fields` could be provided either as a parameter, or as part of the
 body. Specifying `fields` in the request body as opposed to a parameter was deprecated
 in 6.4.0, and is now unsupported in 7.0.0.
 
+[[copy-source-settings-on-resize]]
 ==== Copying source settings during shrink/split operations
 
 In prior versions of Elasticsearch, resize operations (shrink/split) would only

@@ -1,8 +1,8 @@
 [[file-realm]]
 === File-based User Authentication
 
-You can manage and authenticate users with the built-in `file` internal realm.
-With the `file` realm users are defined in local files on each node in the cluster.
+You can manage and authenticate users with the built-in `file` realm.
+With the `file` realm, users are defined in local files on each node in the cluster.
 
 IMPORTANT:  As the administrator of the cluster, it is your responsibility to
             ensure the same users are defined on every node in the cluster.

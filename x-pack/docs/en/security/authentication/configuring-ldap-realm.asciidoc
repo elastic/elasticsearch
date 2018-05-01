@@ -14,10 +14,10 @@ operation, a user search mode and a mode with specific templates for user DNs.
 +
 --
 LDAP user search is the most common mode of operation. In this mode, a specific
-user with permission to search the LDAP directory is used to search for the
-authenticating user DN based on its username and an LDAP attribute. Once found,
-the user is authenticated by attempting to bind to the LDAP server using the 
-found DN and the provided password.
+user with permission to search the LDAP directory is used to search for the DN 
+of the authenticating user based on the provided username and an LDAP attribute. 
+Once found, the user is authenticated by attempting to bind to the LDAP server 
+using the found DN and the provided password.
 
 If your LDAP environment uses a few specific standard naming conditions for
 users, you can use user DN templates to configure the realm. The advantage of

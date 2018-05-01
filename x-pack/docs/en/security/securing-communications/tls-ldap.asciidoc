@@ -32,7 +32,7 @@ xpack:
             certificate_authorities: [ "CONFIG_DIR/x-pack/cacert.pem" ]
 --------------------------------------------------
 
-The CA cert must be a PEM encoded certificate.
+The CA certificate must be a PEM encoded.
 
 NOTE: You can also specify the individual server certificates rather than the CA
 certificate, but this is only recommended if you have a single LDAP server or 

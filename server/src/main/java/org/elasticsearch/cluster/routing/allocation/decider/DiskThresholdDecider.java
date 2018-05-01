@@ -47,24 +47,21 @@ import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings
  * The {@link DiskThresholdDecider} checks that the node a shard is potentially
  * being allocated to has enough disk space.
  *
- * It has three configurable settings, all of which can be changed dynamically:
+ * It has two configurable settings, both of which can be changed dynamically:
  *
  * <code>cluster.routing.allocation.disk.watermark.low</code> is the low disk
- * watermark. New shards will not allocated to a node with usage higher than this,
- * although this watermark may be passed by allocating a shard. It defaults to
- * 0.85 (85.0%).
+ * watermark. New shards will not allocated to a node with usage higher than
+ * this, although this watermark may be passed by allocating a shard. It
+ * defaults to 0.85 (85.0%).
  *
  * <code>cluster.routing.allocation.disk.watermark.high</code> is the high disk
  * watermark. If a node has usage higher than this, shards are not allowed to
  * remain on the node. In addition, if allocating a shard to a node causes the
- * node to pass this watermark, it will not be allowed. It defaults to
- * 0.90 (90.0%).
+ * node to pass this watermark, it will not be allowed. It defaults to 0.90
+ * (90.0%).
  *
  * Both watermark settings are expressed in terms of used disk percentage, or
  * exact byte values for free space (like "500mb")
- *
- * <code>cluster.routing.allocation.disk.threshold_enabled</code> is used to
- * enable or disable this decider. It defaults to false (disabled).
  */
 public class DiskThresholdDecider extends AllocationDecider {
 
@@ -364,11 +361,6 @@ public class DiskThresholdDecider extends AllocationDecider {
     }
 
     private Decision earlyTerminate(RoutingAllocation allocation, ImmutableOpenMap<String, DiskUsage> usages) {
-        // Always allow allocation if the decider is disabled
-        if (diskThresholdSettings.isEnabled() == false) {
-            return allocation.decision(Decision.YES, NAME, "the disk threshold decider is disabled");
-        }
-
         // Allow allocation regardless if only a single data node is available
         if (allocation.nodes().getDataNodes().size() <= 1) {
             if (logger.isTraceEnabled()) {

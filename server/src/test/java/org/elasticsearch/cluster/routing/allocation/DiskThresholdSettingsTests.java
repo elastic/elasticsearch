@@ -42,7 +42,6 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertEquals(zeroBytes, diskThresholdSettings.getFreeBytesThresholdLow());
         assertEquals(15.0D, diskThresholdSettings.getFreeDiskThresholdLow(), 0.0D);
         assertEquals(60L, diskThresholdSettings.getRerouteInterval().seconds());
-        assertTrue(diskThresholdSettings.isEnabled());
         assertTrue(diskThresholdSettings.includeRelocations());
     }
 
@@ -51,7 +50,6 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         DiskThresholdSettings diskThresholdSettings = new DiskThresholdSettings(Settings.EMPTY, nss);
 
         Settings newSettings = Settings.builder()
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.getKey(), false)
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "500mb")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1000mb")
@@ -67,7 +65,6 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertEquals(ByteSizeValue.parseBytesSizeValue("250mb", "test"), diskThresholdSettings.getFreeBytesThresholdFloodStage());
         assertEquals(0.0D, diskThresholdSettings.getFreeDiskThresholdFloodStage(), 0.0D);
         assertEquals(30L, diskThresholdSettings.getRerouteInterval().seconds());
-        assertFalse(diskThresholdSettings.isEnabled());
         assertFalse(diskThresholdSettings.includeRelocations());
     }
 

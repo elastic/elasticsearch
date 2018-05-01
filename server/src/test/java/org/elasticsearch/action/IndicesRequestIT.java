@@ -140,10 +140,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int ordinal) {
         // must set this independently of the plugin so it overrides MockTransportService
-        return Settings.builder().put(super.nodeSettings(ordinal))
-            // InternalClusterInfoService sends IndicesStatsRequest periodically which messes with this test
-            // this setting disables it...
-            .put("cluster.routing.allocation.disk.threshold_enabled", false).build();
+        return Settings.builder().put(super.nodeSettings(ordinal)).build();
     }
 
     @Override

@@ -1008,6 +1008,10 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.common.xcontent.UnknownNamedObjectException::new, 148, Version.V_5_2_0),
         TOO_MANY_BUCKETS_EXCEPTION(MultiBucketConsumerService.TooManyBucketsException.class,
                                    MultiBucketConsumerService.TooManyBucketsException::new, 149,
+            Version.V_7_0_0_alpha1),
+        INVALID_TEMPLATE_NAME_EXCEPTION(org.elasticsearch.indices.InvalidTemplateNameException.class,
+            org.elasticsearch.indices.InvalidTemplateNameException::new,
+            150,
             Version.V_7_0_0_alpha1);
 
         final Class<? extends ElasticsearchException> exceptionClass;

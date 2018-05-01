@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.Naming;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -51,7 +52,10 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest(request.param("name"));
+        final String name = request.param("name");
+        Naming.TEMPLATE.validate(name);
+
+        PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest(name);
         if (request.hasParam("template")) {
             DEPRECATION_LOGGER.deprecated("Deprecated parameter[template] used, replaced by [index_patterns]");
             putRequest.patterns(Collections.singletonList(request.param("template")));

@@ -85,6 +85,7 @@ import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.ActionTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TcpTransport;
+import org.junit.Assert;
 
 import java.io.EOFException;
 import java.io.FileNotFoundException;
@@ -810,11 +811,15 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(147, org.elasticsearch.env.ShardLockObtainFailedException.class);
         ids.put(148, UnknownNamedObjectException.class);
         ids.put(149, MultiBucketConsumerService.TooManyBucketsException.class);
+        ids.put(150, org.elasticsearch.indices.InvalidTemplateNameException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {
-            if (entry.getValue() != null) {
-                reverse.put(entry.getValue(), entry.getKey());
+            final Class<? extends ElasticsearchException> value = entry.getValue();
+            if (value != null) {
+                final Integer key = entry.getKey();
+                Assert.assertNotNull(value.getName(), key);
+                reverse.put(value, key);
             }
         }
 

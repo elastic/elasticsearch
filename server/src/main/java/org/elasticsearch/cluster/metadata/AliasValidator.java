@@ -34,6 +34,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.indices.InvalidAliasNameException;
+import org.elasticsearch.indices.Naming;
 
 import java.io.IOException;
 import java.util.function.Function;
@@ -107,7 +108,7 @@ public class AliasValidator extends AbstractComponent {
         if (!Strings.hasText(alias)) {
             throw new IllegalArgumentException("alias name is required");
         }
-        MetaDataCreateIndexService.validateIndexOrAliasName(alias, InvalidAliasNameException::new);
+        Naming.ALIAS.validate(alias);
         if (indexRouting != null && indexRouting.indexOf(',') != -1) {
             throw new IllegalArgumentException("alias [" + alias + "] has several index routing values associated with it");
         }

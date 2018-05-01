@@ -19,14 +19,12 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-public class InvalidAliasNameException extends ElasticsearchException {
+public class InvalidAliasNameException extends InvalidNameException {
 
     public InvalidAliasNameException(Index index, String name, String desc) {
         super("Invalid alias name [{}], {}", name, desc);
@@ -39,10 +37,5 @@ public class InvalidAliasNameException extends ElasticsearchException {
 
     public InvalidAliasNameException(StreamInput in) throws IOException{
         super(in);
-    }
-
-    @Override
-    public RestStatus status() {
-        return RestStatus.BAD_REQUEST;
     }
 }

@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.indices.Naming;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -192,8 +193,8 @@ public class IndexActionIT extends ESIntegTestCase {
     }
 
     public void testCreateIndexWithLongName() {
-        int min = MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES + 1;
-        int max = MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES * 2;
+        int min = Naming.MAX_NAME_LENGTH_BYTES + 1;
+        int max = Naming.MAX_NAME_LENGTH_BYTES * 2;
         try {
             createIndex(randomAlphaOfLengthBetween(min, max).toLowerCase(Locale.ROOT));
             fail("exception should have been thrown on too-long index name");
@@ -212,7 +213,7 @@ public class IndexActionIT extends ESIntegTestCase {
 
         try {
             // Catch chars that are more than a single byte
-            client().prepareIndex(randomAlphaOfLength(MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES - 1).toLowerCase(Locale.ROOT) +
+            client().prepareIndex(randomAlphaOfLength(Naming.MAX_NAME_LENGTH_BYTES - 1).toLowerCase(Locale.ROOT) +
                             "Ϟ".toLowerCase(Locale.ROOT),
                     "mytype").setSource("foo", "bar").get();
             fail("exception should have been thrown on too-long index name");
@@ -222,7 +223,7 @@ public class IndexActionIT extends ESIntegTestCase {
         }
 
         // we can create an index of max length
-        createIndex(randomAlphaOfLength(MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES).toLowerCase(Locale.ROOT));
+        createIndex(randomAlphaOfLength(Naming.MAX_NAME_LENGTH_BYTES).toLowerCase(Locale.ROOT));
     }
 
     public void testInvalidIndexName() {

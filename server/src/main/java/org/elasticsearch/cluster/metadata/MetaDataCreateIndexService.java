@@ -71,6 +71,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.indices.Naming;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.joda.time.DateTime;
@@ -103,8 +104,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_C
  */
 public class MetaDataCreateIndexService extends AbstractComponent {
 
-    public static final int MAX_INDEX_NAME_BYTES = 255;
-
     private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final AllocationService allocationService;
@@ -135,7 +134,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
      * Validate the name for an index against some static rules and a cluster state.
      */
     public static void validateIndexName(String index, ClusterState state) {
-        validateIndexOrAliasName(index, InvalidIndexNameException::new);
+        Naming.INDEX.validate(index);
         if (!index.toLowerCase(Locale.ROOT).equals(index)) {
             throw new InvalidIndexNameException(index, "must be lowercase");
         }
@@ -147,37 +146,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         }
         if (state.metaData().hasAlias(index)) {
             throw new InvalidIndexNameException(index, "already exists as alias");
-        }
-    }
-
-    /**
-     * Validate the name for an index or alias against some static rules.
-     */
-    public static void validateIndexOrAliasName(String index, BiFunction<String, String, ? extends RuntimeException> exceptionCtor) {
-        if (!Strings.validFileName(index)) {
-            throw exceptionCtor.apply(index, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
-        }
-        if (index.contains("#")) {
-            throw exceptionCtor.apply(index, "must not contain '#'");
-        }
-        if (index.contains(":")) {
-            throw exceptionCtor.apply(index, "must not contain ':'");
-        }
-        if (index.charAt(0) == '_' || index.charAt(0) == '-' || index.charAt(0) == '+') {
-            throw exceptionCtor.apply(index, "must not start with '_', '-', or '+'");
-        }
-        int byteCount = 0;
-        try {
-            byteCount = index.getBytes("UTF-8").length;
-        } catch (UnsupportedEncodingException e) {
-            // UTF-8 should always be supported, but rethrow this if it is not for some reason
-            throw new ElasticsearchException("Unable to determine length of index name", e);
-        }
-        if (byteCount > MAX_INDEX_NAME_BYTES) {
-            throw exceptionCtor.apply(index, "index name is too long, (" + byteCount + " > " + MAX_INDEX_NAME_BYTES + ")");
-        }
-        if (index.equals(".") || index.equals("..")) {
-            throw exceptionCtor.apply(index, "must not be '.' or '..'");
         }
     }
 

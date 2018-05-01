@@ -19,23 +19,29 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-public class InvalidIndexNameException extends InvalidNameException {
+public abstract class InvalidNameException extends ElasticsearchException {
 
-    public InvalidIndexNameException(String name, String desc) {
-        super("Invalid index name [" + name + "], " + desc);
-        setIndex(name);
-    }
-    public InvalidIndexNameException(Index index, String name, String desc) {
-        super("Invalid index name [" + name + "], " + desc);
-        setIndex(index);
+    InvalidNameException(String msg, Object... args) {
+        super(msg, args);
     }
 
-    public InvalidIndexNameException(StreamInput in) throws IOException{
+    InvalidNameException(String name, String description) {
+        super(name, description);
+    }
+
+    InvalidNameException(StreamInput in) throws IOException{
         super(in);
+    }
+
+    @Override
+    public RestStatus status() {
+        return RestStatus.BAD_REQUEST;
     }
 }

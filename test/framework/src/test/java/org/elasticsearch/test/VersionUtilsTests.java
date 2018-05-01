@@ -186,8 +186,6 @@ public class VersionUtilsTests extends ESTestCase {
     }
 
     public static class TestUnstableBranch {
-        public static final Version V_4_0_0 = Version.fromString("4.0.0");
-        public static final Version V_4_0_1 = Version.fromString("4.0.1");
         public static final Version V_5_3_0 = Version.fromString("5.3.0");
         public static final Version V_5_3_1 = Version.fromString("5.3.1");
         public static final Version V_5_3_2 = Version.fromString("5.3.2");
@@ -205,13 +203,11 @@ public class VersionUtilsTests extends ESTestCase {
         List<Version> unreleased = t.v2();
 
         assertThat(released, equalTo(Arrays.asList(
-            TestUnstableBranch.V_4_0_0,
             TestUnstableBranch.V_5_3_0,
             TestUnstableBranch.V_5_3_1,
             TestUnstableBranch.V_6_0_0_alpha1,
             TestUnstableBranch.V_6_0_0_alpha2)));
         assertThat(unreleased, equalTo(Arrays.asList(
-            TestUnstableBranch.V_4_0_1,
             TestUnstableBranch.V_5_3_2,
             TestUnstableBranch.V_5_4_0,
             TestUnstableBranch.V_6_0_0_beta1)));

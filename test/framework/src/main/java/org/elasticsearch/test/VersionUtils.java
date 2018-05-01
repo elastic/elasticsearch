@@ -335,7 +335,9 @@ public class VersionUtils {
             }
         }
 
-        unreleasedVersions.add(getHighestPreviousMinor(calculateTipMajor, versions));
+        if (current.minor != 0) {
+            unreleasedVersions.add(getHighestPreviousMinor(calculateTipMajor, versions));
+        }
 
         return unreleasedVersions;
     }

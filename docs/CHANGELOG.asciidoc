@@ -1,7 +1,7 @@
 // Use these for links to issue and pulls. Note issues and pulls redirect one to
 // each other on Github, so don't worry too much on using the right prefix.
-// :issue: https://github.com/elastic/elasticsearch/issues/
-// :pull: https://github.com/elastic/elasticsearch/pull/
+:issue: https://github.com/elastic/elasticsearch/issues/
+:pull: https://github.com/elastic/elasticsearch/pull/
 
 = Elasticsearch Release Notes
 
@@ -41,6 +41,8 @@ Added new "Request" object flavored request methods. Prefer these instead of the
 multi-argument versions. ({pull}29623[#29623])
 
 === Enhancements
+
+<<copy-source-settings-on-resize, Allow copying source settings on index resize operations>> ({pull}30255[#30255])
 
 === Bug Fixes
 

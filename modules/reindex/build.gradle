@@ -84,7 +84,10 @@ dependencies {
 }
 
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-  // we can't get the pid files in windows so we skip reindex-from-old
+  logger.warn("Disabling reindex-from-old tests because we can't get the pid file on windows")
+  integTestRunner.systemProperty "tests.fromOld", "false"
+} else if (rootProject.rootDir.toString().contains(" ")) {
+  logger.warn("Disabling reindex-from-old tests because Elasticsearch 1.7 won't start with spaces in the path")
   integTestRunner.systemProperty "tests.fromOld", "false"
 } else {
   integTestRunner.systemProperty "tests.fromOld", "true"

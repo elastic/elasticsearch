@@ -236,7 +236,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         IndexShard shard = indexService.getShard(0);
         shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
-            sourceToParse, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, update -> {});
+            sourceToParse, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
         shard.refresh("test");
         try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
             LeafReader leaf = searcher.getDirectoryReader().leaves().get(0).reader();
@@ -278,7 +278,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         IndexShard shard = indexService.getShard(0);
         shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
-            sourceToParse, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, update -> {});
+            sourceToParse, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
         shard.refresh("test");
         try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
             LeafReader leaf = searcher.getDirectoryReader().leaves().get(0).reader();

@@ -57,32 +57,7 @@ xpack:
 [[file-realm-settings]]
 ===== File Realm Settings
 
-[cols="4,^3,10"]
-|=======================
-| Setting                 | Required  | Description
-| `type`                  | yes       | Indicates the realm type. Must be set to `file`.
-| `order`                 | no        | Indicates the priority of this realm within the
-                                        realm chain. Realms with a lower order are
-                                        consulted first. Although not required, we
-                                        recommend explicitly setting this value when you
-                                        configure multiple realms. Defaults to
-                                        `Integer.MAX_VALUE`.
-| `enabled`              | no         | Indicates whether this realm is enabled or
-                                        disabled. Enables you to disable a realm without
-                                        removing its configuration. Defaults to `true`.
-| `cache.ttl`            | no         | Specifies the time-to-live for cached user entries.
-                                        A user's credentials are cached for this period of
-                                        time. Specify the time period using the standard
-                                        Elasticsearch {ref}/common-options.html#time-units[time units].
-                                        Defaults to `20m`.
-| `cache.max_users`      | no        	| Specifies the maximum number of user entries that
-                                        can be stored in the cache at one time. Defaults
-                                        to 100,000.
-| `cache.hash_algo`      | no        	| Specifies the hashing algorithm that is used for
-                                        the cached user credentials. See <<cache-hash-algo,
-                                        Cache hash algorithms>> for the possible values.
-                                        (Expert Setting).
-|=======================
+See {ref}/security-settings.html#ref-users-settings[File Realm Settings].
 
 ==== A Look Under the Hood
 

@@ -440,25 +440,18 @@ task run(type: Run) {
   impliesSubProjects = true
 }
 
-task wrapper(type: Wrapper)
-
-gradle.projectsEvaluated {
-
-  allprojects {
-    tasks.withType(Wrapper) { Wrapper wrapper ->
-      wrapper.distributionType = DistributionType.ALL
-
-      wrapper.doLast {
-        final DistributionLocator locator = new DistributionLocator()
-        final GradleVersion version = GradleVersion.version(wrapper.gradleVersion)
-        final URI distributionUri = locator.getDistributionFor(version, wrapper.distributionType.name().toLowerCase(Locale.ENGLISH))
-        final URI sha256Uri = new URI(distributionUri.toString() + ".sha256")
-        final String sha256Sum = new String(sha256Uri.toURL().bytes)
-        wrapper.getPropertiesFile() << "distributionSha256Sum=${sha256Sum}\n"
-      }
-    }
+task wrapper(type: Wrapper) {
+  distributionType = DistributionType.ALL
+  jarFile = file('.gradle-wrapper/gradle-wrapper.jar')
+  doLast {
+    final DistributionLocator locator = new DistributionLocator()
+    final GradleVersion version = GradleVersion.version(gradleVersion)
+    final URI distributionUri = locator.getDistributionFor(version, distributionType.name().toLowerCase(Locale.ENGLISH))
+    final URI sha256Uri = new URI(distributionUri.toString() + ".sha256")
+    final String sha256Sum = new String(sha256Uri.toURL().bytes)
+    final String existingProperties = getPropertiesFile().getText('UTF-8')
+    getPropertiesFile().setText("${existingProperties}distributionSha256Sum=${sha256Sum}\n", 'UTF-8')
   }
-
 }
 
 static void assertLinesInFile(final Path path, final List<String> expectedLines) {

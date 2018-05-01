@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 
@@ -35,7 +36,7 @@ public class ShrinkStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetaData indexMetaData, Listener listener) {
+    public void performAction(IndexMetaData indexMetaData, ClusterState currentState, Listener listener) {
         // if operating on the shrunken index, do nothing
 
         Long lifecycleDate = LifecycleSettings.LIFECYCLE_INDEX_CREATION_DATE_SETTING.get(indexMetaData.getSettings());

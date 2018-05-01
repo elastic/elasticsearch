@@ -33,6 +33,7 @@ subprojects {
 }
 
 File checkstyleSuppressions = file('dev-tools/checkstyle_suppressions.xml')
+File eclipseSettings = file('dev-tools/eclipse.settings')
 subprojects {
   tasks.withType(Checkstyle) {
     inputs.file(checkstyleSuppressions)
@@ -64,4 +65,13 @@ subprojects {
         ext.projectSubstitutions["org.elasticsearch.plugin:x-pack:${snapshot}"] = snapshotProject
     }
   }
+  
+  task copyEclipseSettingsXPack(type: Copy) {
+    // TODO: "package this up" for external builds
+    from eclipseSettings
+    into '.settings'
+  }
+  
+  tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings, copyEclipseSettingsXPack)
+  tasks.copyEclipseSettingsXPack.dependsOn(copyEclipseSettings)
 }

@@ -47,4 +47,11 @@ Do not ignore request analysis/similarity settings on index resize operations wh
 
 === Known Issues
 
+=== Deprecations
+
+Shard allocation::
+* Deprecate unnecessary setting
+  `cluster.routing.allocation.disk.threshold_enabled`: the same effect can be
+  achieved by setting all the disk allocator watermarks to `100%`.
+  {pull}30254[#30254] (issue: {issue}23395[#23395])
 

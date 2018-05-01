@@ -12,6 +12,8 @@ file or updated dynamically on a live cluster with the
 `cluster.routing.allocation.disk.threshold_enabled`::
 
     Defaults to `true`.  Set to `false` to disable the disk allocation decider.
+    This setting is deprecated and will be removed in a future version. To
+    disable the disk allocation decider, set all watermarks to `100%`.
 
 `cluster.routing.allocation.disk.watermark.low`::
 

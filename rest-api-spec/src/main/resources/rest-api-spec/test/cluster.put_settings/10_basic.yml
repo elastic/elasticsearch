@@ -43,22 +43,22 @@
       cluster.put_settings:
         body:
           persistent:
-            cluster.routing.allocation.disk.threshold_enabled: false
+            discovery.zen.minimum_master_nodes: 1
         flat_settings: true
 
-  - match: {persistent: {cluster.routing.allocation.disk.threshold_enabled: "false"}}
+  - match: {persistent: {discovery.zen.minimum_master_nodes: "1"}}
 
   - do:
       cluster.get_settings:
         flat_settings: true
 
-  - match: {persistent: {cluster.routing.allocation.disk.threshold_enabled: "false"}}
+  - match: {persistent: {discovery.zen.minimum_master_nodes: "1"}}
 
   - do:
       cluster.put_settings:
         body:
           persistent:
-            cluster.routing.allocation.disk.threshold_enabled: null
+            discovery.zen.minimum_master_nodes: null
         flat_settings: true
 
   - match: {persistent: {}}

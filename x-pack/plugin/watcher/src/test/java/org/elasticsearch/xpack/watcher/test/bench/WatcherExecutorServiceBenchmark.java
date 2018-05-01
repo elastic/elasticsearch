@@ -50,7 +50,9 @@ public class WatcherExecutorServiceBenchmark {
             .put("script.disable_dynamic", false)
             .put("discovery.zen.ping.unicast.hosts", "localhost")
             .put("http.cors.enabled", true)
-            .put("cluster.routing.allocation.disk.threshold_enabled", false)
+            .put("cluster.routing.allocation.disk.watermark.low", "100%")
+            .put("cluster.routing.allocation.disk.watermark.high", "100%")
+            .put("cluster.routing.allocation.disk.watermark.flood_stage", "100%")
 //                .put("recycler.page.limit.heap", "60%")
             .build();
 

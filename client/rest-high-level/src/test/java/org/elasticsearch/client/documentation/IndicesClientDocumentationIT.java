@@ -75,6 +75,7 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -821,7 +822,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                         int successfulCopies = failureEntry.getValue().getSuccessfulCopies(); // <10>
                         int failedCopies = failureEntry.getValue().getFailedCopies(); // <11>
                         String failureReason = failureEntry.getValue().getFailureReason(); // <12>
-                        ShardRouting routing = failureEntry.getValue().getShardRouting(); // <13>
+                        Optional<ShardRouting> routing = failureEntry.getValue().getShardRouting(); // <13>
                     }
                 }
             }

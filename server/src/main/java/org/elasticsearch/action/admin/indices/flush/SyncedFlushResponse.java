@@ -22,7 +22,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -38,11 +37,12 @@ import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
+import java.util.ArrayList;
+import java.util.Map;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -138,7 +138,7 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
                                 shardResults.failureReason(),
                                 shardResults.totalShards(),
                                 shardResults.successfulShards(),
-                                null)
+                                Optional.empty())
                         );
                         continue;
                     }
@@ -151,7 +151,8 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
                                 shardResults.failureReason(),
                                 shardResults.totalShards(),
                                 shardResults.successfulShards(),
-                                shardEntry.getKey())
+                                Optional.of(shardEntry.getKey())
+                            )
                         );
                     }
                 }
@@ -269,11 +270,11 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
                             for (Map.Entry<ShardId, List<ShardFailure>> entry: failures.entrySet()) {
                                 Map<ShardRouting, SyncedFlushService.ShardSyncedFlushResponse> shardResponses = new HashMap<>();
                                 for (ShardFailure container: entry.getValue()) {
-                                    if (container.shardRouting != null) {
-                                        shardResponses.put(container.shardRouting,
+                                    container.maybeShardRouting.ifPresent(shardRouting ->
+                                        shardResponses.put(shardRouting,
                                             new SyncedFlushService.ShardSyncedFlushResponse(container.failureReason)
-                                        );
-                                    }
+                                        )
+                                    );
                                 }
                                 // Size of entry.getValue() will at least be one
                                 ShardFailure container = entry.getValue().get(0);
@@ -339,16 +340,16 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
     public static final class ShardFailure {
         ShardId shardId;
         String failureReason;
-        ShardRouting shardRouting;
+        Optional<ShardRouting> maybeShardRouting;
         int totalCopies;
         int successfulCopies;
         int failedCopies;
 
         ShardFailure(ShardId shardId, String failureReason, int totalCopies, int successfulCopies,
-            @Nullable ShardRouting shardRouting) {
+                     Optional<ShardRouting> maybeShardRouting) {
             this.shardId = shardId;
             this.failureReason = failureReason;
-            this.shardRouting = shardRouting;
+            this.maybeShardRouting = maybeShardRouting;
             this.totalCopies = totalCopies;
             this.successfulCopies = successfulCopies;
             this.failedCopies = this.totalCopies - this.successfulCopies;
@@ -362,8 +363,8 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
             return failureReason;
         }
 
-        public ShardRouting getShardRouting() {
-            return shardRouting;
+        public Optional<ShardRouting> getShardRouting() {
+            return maybeShardRouting;
         }
 
         public int getTotalCopies() {
@@ -424,7 +425,7 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContentFra
                 shardId != null &&
                 totalCopies != null &&
                 successfulCopies != null) {
-                return new ShardFailure(shardId, failureReason, totalCopies, successfulCopies, routing);
+                return new ShardFailure(shardId, failureReason, totalCopies, successfulCopies, Optional.ofNullable(routing));
             } else {
                 throw new ParsingException(startLocation, "Unable to construct ShardsSyncedFlushResult");
             }

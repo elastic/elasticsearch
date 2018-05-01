@@ -209,10 +209,10 @@ final class RequestConverters {
 
     static Request syncedFlush(SyncedFlushRequest syncedFlushRequest) {
         String[] indices = syncedFlushRequest.indices() == null ? Strings.EMPTY_ARRAY : syncedFlushRequest.indices();
-        String endpoint = endpoint(indices, "_flush/synced");
-        Params syncedFlushparameters = Params.builder();
-        syncedFlushparameters.withIndicesOptions(syncedFlushRequest.indicesOptions());
-        return new Request(HttpPost.METHOD_NAME, endpoint, syncedFlushparameters.getParams(), null);
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint(indices, "_flush/synced"));
+        Params parameters = new Params(request);
+        parameters.withIndicesOptions(syncedFlushRequest.indicesOptions());
+        return request;
     }
 
     static Request forceMerge(ForceMergeRequest forceMergeRequest) {

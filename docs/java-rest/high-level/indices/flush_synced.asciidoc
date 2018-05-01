@@ -82,7 +82,8 @@ include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[flush-synced-respo
 <10> Successful copies of the shard mentioned in 8.
 <11> Failed copies of the shard mentioned in 8.
 <12> Reason for failure of copies of the shard mentioned in 8.
-<13> Routing information (like id, state, version etc.) for the failed shard copies.
+<13> Optional. Routing information (like id, state, version etc.) for the failed shard copies.
+If the entire shard failed then this returns Optional.empty.
 
 By default, if the indices were not found, an `ElasticsearchException` will be thrown:
 

@@ -841,13 +841,6 @@ public final class Request {
             return this;
         }
 
-        Params withFlatSettings(boolean flatSettings) {
-            if (flatSettings) {
-                return putParam("flat_settings", Boolean.TRUE.toString());
-            }
-            return this;
-        }
-
         Params withIncludeDefaults(boolean includeDefaults) {
             if (includeDefaults) {
                 return putParam("include_defaults", Boolean.TRUE.toString());

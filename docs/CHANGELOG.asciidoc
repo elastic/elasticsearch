@@ -53,7 +53,8 @@ written to by an older Elasticsearch after writing to it with a newer Elasticsea
 
 //=== New Features
 
-//=== Enhancements
+[float]
+=== Enhancements
 
 <<copy-source-settings-on-resize, Allow copying source settings on index resize operations>> ({pull}30255[#30255])
 

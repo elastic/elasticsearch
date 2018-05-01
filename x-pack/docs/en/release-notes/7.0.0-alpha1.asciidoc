@@ -21,6 +21,5 @@ ones that the user is authorized to access in case field level security is enabl
 
 See also:
 
-* <<release-notes-7.0.0-alpha1,{es} 7.0.0-alpha1 Release Notes>>
 * {kibana-ref}/xkb-7.0.0-alpha1.html[{kib} {xpack} 7.0.0-alpha1 Release Notes]
 * {logstash-ref}/xls-7.0.0-alpha1.html[Logstash {xpack} 7.0.0-alpha1 Release Notes]

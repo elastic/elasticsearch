@@ -44,8 +44,6 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
-import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FieldDoc;
@@ -78,7 +76,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 
 import java.io.IOException;
@@ -150,20 +147,6 @@ public class Lucene {
             numDocs += si.info.maxDoc() - si.getDelCount();
         }
         return numDocs;
-    }
-
-    /**
-     * Returns the number of documents in the given index commit.
-     */
-    public static int getNumDocs(IndexCommit indexCommit) throws IOException {
-        final String softDeleteEnabled = indexCommit.getUserData().get(Engine.SOFT_DELETES_COMMIT_KEY);
-        if (Boolean.parseBoolean(softDeleteEnabled)) {
-            try (DirectoryReader reader = StandardDirectoryReader.open(indexCommit)) {
-                return new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETE_FIELD).numDocs();
-            }
-        } else {
-            return getNumDocs(readSegmentInfos(indexCommit));
-        }
     }
 
     /**

@@ -34,6 +34,7 @@ import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
@@ -1827,28 +1828,30 @@ public class InternalEngine extends Engine {
 
     @Override
     public CommitStats commitStats() {
-        if (softDeleteEnabled) {
-            // Need to retain the commit as we might open it.
-            try (IndexCommitRef commitRef = acquireLastIndexCommit(false)) {
-                final IndexCommit indexCommit = commitRef.getIndexCommit();
-                CommitStats lastCommitStats = this.lastComputedCommitStats;
-                if (lastCommitStats != null && lastCommitStats.getGeneration() == indexCommit.getGeneration()) {
-                    return lastCommitStats;
-                }
-                lastCommitStats = new CommitStats(Lucene.readSegmentInfos(indexCommit), Lucene.getNumDocs(indexCommit));
-                this.lastComputedCommitStats = lastCommitStats;
-                return lastCommitStats;
-            } catch (IOException e) {
-                try {
-                    maybeFailEngine("commit_stats", e);
-                } catch (Exception inner) {
-                    e.addSuppressed(inner);
-                }
-                throw new UncheckedIOException(e);
-            }
-        } else {
+        if (softDeleteEnabled == false) {
             final SegmentInfos sis = this.lastCommittedSegmentInfos;
             return new CommitStats(sis, Lucene.getNumDocs(sis));
+        }
+        // Need to retain the commit as we might open it.
+        try (IndexCommitRef commitRef = acquireLastIndexCommit(false)) {
+            final IndexCommit indexCommit = commitRef.getIndexCommit();
+            CommitStats commitStats = this.lastComputedCommitStats;
+            if (commitStats != null && commitStats.getGeneration() == indexCommit.getGeneration()) {
+                return commitStats;
+            }
+            try (DirectoryReader reader = DirectoryReader.open(indexCommit)) {
+                final int numDocs = new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETE_FIELD).numDocs();
+                commitStats = new CommitStats(Lucene.readSegmentInfos(indexCommit), numDocs);
+                this.lastComputedCommitStats = commitStats;
+                return commitStats;
+            }
+        } catch (IOException e) {
+            try {
+                maybeFailEngine("commit_stats", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -2208,7 +2211,6 @@ public class InternalEngine extends Engine {
                 commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
                 commitData.put(MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp.get()));
                 commitData.put(HISTORY_UUID_KEY, historyUUID);
-                commitData.put(SOFT_DELETES_COMMIT_KEY, Boolean.toString(softDeleteEnabled));
                 logger.trace("committing writer with commit data [{}]", commitData);
                 return commitData.entrySet().iterator();
             });

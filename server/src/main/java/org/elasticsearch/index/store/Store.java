@@ -857,20 +857,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
 
         static LoadedMetadata loadMetadata(IndexCommit commit, Directory directory, Logger logger) throws IOException {
-            final long numDocs;
-            final Map<String, StoreFileMetaData> builder = new HashMap<>();
-            final Map<String, String> commitUserData;
+            long numDocs;
+            Map<String, StoreFileMetaData> builder = new HashMap<>();
+            Map<String, String> commitUserDataBuilder = new HashMap<>();
             try {
-                final IndexCommit snapshottingCommit;
-                if (commit == null) {
-                    final List<IndexCommit> existingCommits = DirectoryReader.listCommits(directory);
-                    snapshottingCommit = existingCommits.get(existingCommits.size() - 1); // take the latest commit in store.
-                } else {
-                    snapshottingCommit = commit;
-                }
-                final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(snapshottingCommit, directory);
-                numDocs = Lucene.getNumDocs(snapshottingCommit);
-                commitUserData = Collections.unmodifiableMap(segmentCommitInfos.getUserData());
+                final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
+                numDocs = Lucene.getNumDocs(segmentCommitInfos);
+                commitUserDataBuilder.putAll(segmentCommitInfos.getUserData());
                 Version maxVersion = segmentCommitInfos.getMinSegmentLuceneVersion(); // we don't know which version was used to write so we take the max version.
                 for (SegmentCommitInfo info : segmentCommitInfos) {
                     final Version version = info.info.getVersion();
@@ -909,7 +902,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 }
                 throw ex;
             }
-            return new LoadedMetadata(unmodifiableMap(builder), commitUserData, numDocs);
+            return new LoadedMetadata(unmodifiableMap(builder), unmodifiableMap(commitUserDataBuilder), numDocs);
         }
 
         private static void checksumFromLuceneFile(Directory directory, String file, Map<String, StoreFileMetaData> builder,

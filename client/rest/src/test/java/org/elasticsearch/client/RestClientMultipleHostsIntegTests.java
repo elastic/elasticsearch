@@ -138,7 +138,7 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
             final int statusCode = randomBoolean() ? randomOkStatusCode(getRandom()) : randomErrorNoRetryStatusCode(getRandom());
             Response response;
             try {
-                response = restClient.performRequest(method, "/" + statusCode);
+                response = restClient.performRequest(new Request(method, "/" + statusCode));
             } catch(ResponseException responseException) {
                 response = responseException.getResponse();
             }
@@ -156,7 +156,7 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
             final String method = RestClientTestUtil.randomHttpMethod(getRandom());
             //we don't test status codes that are subject to retries as they interfere with hosts being stopped
             final int statusCode = randomBoolean() ? randomOkStatusCode(getRandom()) : randomErrorNoRetryStatusCode(getRandom());
-            restClient.performRequestAsync(method, "/" + statusCode, new ResponseListener() {
+            restClient.performRequestAsync(new Request(method, "/" + statusCode), new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
                     responses.add(new TestResponse(method, statusCode, response));

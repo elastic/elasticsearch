@@ -8,7 +8,7 @@ cluster.
 
 To encrypt sensitive data in {watcher}:
 
-. Use the {ref}/syskeygen.html[syskeygen] command to create a system key file.
+. Use the {ref}/syskeygen.html[elasticsearch-syskeygen] command to create a system key file.
 
 . Copy the `system_key` file to all of the nodes in your cluster.
 +

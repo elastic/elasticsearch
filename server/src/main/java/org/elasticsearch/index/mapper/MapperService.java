@@ -112,7 +112,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     //also missing, not sure if on purpose. See IndicesModule#getMetadataMappers
     private static ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(
             "_id", "_type", "_routing", "_index",
-            "_size", "_timestamp", "_ttl"
+            "_size", "_timestamp", "_ttl", IgnoredFieldMapper.NAME
     );
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(MapperService.class));
@@ -671,15 +671,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public DocumentMapper parse(String mappingType, CompressedXContent mappingSource, boolean applyDefault) throws MapperParsingException {
         return documentParser.parse(mappingType, mappingSource, applyDefault ? defaultMappingSource : null);
-    }
-
-    /**
-     * Get the set of types.
-     * @deprecated Indices may have one type at most, use {@link #documentMapper()} instead.
-     */
-    @Deprecated
-    public Set<String> types() {
-        return mapper == null ? Collections.emptySet() : Collections.singleton(mapper.type());
     }
 
     /**

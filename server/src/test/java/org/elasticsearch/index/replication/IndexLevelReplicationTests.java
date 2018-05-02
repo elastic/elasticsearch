@@ -255,7 +255,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             // test only primary
             shards.startPrimary();
             BulkItemResponse response = shards.index(
-                    new IndexRequest(index.getName(), "testDocumentFailureReplication", "1")
+                    new IndexRequest(index.getName(), "type", "1")
                             .source("{}", XContentType.JSON)
             );
             assertTrue(response.isFailed());
@@ -269,7 +269,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             }
             shards.startReplicas(nReplica);
             response = shards.index(
-                    new IndexRequest(index.getName(), "testDocumentFailureReplication", "1")
+                    new IndexRequest(index.getName(), "type", "1")
                             .source("{}", XContentType.JSON)
             );
             assertTrue(response.isFailed());
@@ -285,7 +285,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
         try (ReplicationGroup shards = createGroup(0)) {
             shards.startAll();
             BulkItemResponse response = shards.index(
-                    new IndexRequest(index.getName(), "testRequestFailureException", "1")
+                    new IndexRequest(index.getName(), "type", "1")
                             .source("{}", XContentType.JSON)
                             .version(2)
             );
@@ -304,7 +304,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             }
             shards.startReplicas(nReplica);
             response = shards.index(
-                    new IndexRequest(index.getName(), "testRequestFailureException", "1")
+                    new IndexRequest(index.getName(), "type", "1")
                             .source("{}", XContentType.JSON)
                             .version(2)
             );

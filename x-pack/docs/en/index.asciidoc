@@ -31,8 +31,5 @@ include::commands/index.asciidoc[]
 :edit_url:
 include::{es-repo-dir}/index-shared4.asciidoc[]
 
-:edit_url!:
-include::release-notes/xpack-xes.asciidoc[]
-
 :edit_url:
 include::{es-repo-dir}/index-shared5.asciidoc[]

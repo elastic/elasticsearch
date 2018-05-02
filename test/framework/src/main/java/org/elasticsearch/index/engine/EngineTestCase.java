@@ -676,7 +676,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 // intentional
                 assertThat(result.isCreated(), equalTo(firstOp));
                 assertThat(result.getVersion(), equalTo(op.version()));
-                assertThat(result.hasFailure(), equalTo(false));
+                assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
 
             } else {
                 Engine.DeleteResult result = replicaEngine.delete((Engine.Delete) op);
@@ -687,7 +687,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 // intentional
                 assertThat(result.isFound(), equalTo(firstOp == false));
                 assertThat(result.getVersion(), equalTo(op.version()));
-                assertThat(result.hasFailure(), equalTo(false));
+                assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
             }
             if (randomBoolean()) {
                 replicaEngine.refresh("test");

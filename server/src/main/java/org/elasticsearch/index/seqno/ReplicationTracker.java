@@ -340,7 +340,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         }
 
         // all pending in sync shards are tracked
-        for (String aId: pendingInSync) {
+        for (String aId : pendingInSync) {
             assert checkpoints.get(aId) != null : "aId [" + aId + "] is pending in sync but isn't tracked";
         }
 

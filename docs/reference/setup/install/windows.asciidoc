@@ -10,6 +10,8 @@ the included `elasticsearch.exe` executable.
 TIP: Elasticsearch has historically been installed on Windows using the <<zip-windows, .zip>> archive.
 You can continue using the `.zip` approach if you prefer.
 
+include::license.asciidoc[]
+
 The latest stable version of Elasticsearch can be found on the
 link:/downloads/elasticsearch[Download Elasticsearch] page.
 Other versions can be found on the
@@ -31,6 +33,10 @@ endif::[]
 ifeval::["{release-state}"!="unreleased"]
 
 Download the `.msi` package for Elasticsearch v{version} from https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.msi
+
+Alternatively, you can download the following package, which contains only 
+features that are available under the Apache 2.0 license: 
+https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}.msi
 
 endif::[]
 

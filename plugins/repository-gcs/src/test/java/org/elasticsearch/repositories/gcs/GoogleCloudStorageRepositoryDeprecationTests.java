@@ -28,6 +28,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.concurrent.ConcurrentHashMap;
+
 public class GoogleCloudStorageRepositoryDeprecationTests extends ESTestCase {
 
     public void testDeprecatedSettings() throws Exception {
@@ -45,7 +47,7 @@ public class GoogleCloudStorageRepositoryDeprecationTests extends ESTestCase {
             new GoogleCloudStorageService(environment, GoogleCloudStorageClientSettings.load(Settings.EMPTY)) {
                 @Override
                 public Storage createClient(String clientName, String application, TimeValue connect, TimeValue read) throws Exception {
-                    return MockStorage.newStorageClient("test", "deprecated");
+                    return new MockStorage("test", new ConcurrentHashMap<>());
                 }
             });
 

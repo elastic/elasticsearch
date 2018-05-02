@@ -19,14 +19,13 @@
 package org.elasticsearch.test.engine;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.AssertingDirectoryReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.AssertingIndexSearcher;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
-import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.logging.Loggers;
@@ -38,6 +37,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.engine.MockInternalEngine;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -47,14 +47,15 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Support class to build MockEngines like {@link org.elasticsearch.test.engine.MockInternalEngine}
+ * Support class to build MockEngines like {@link MockInternalEngine}
  * since they need to subclass the actual engine
  */
 public final class MockEngineSupport {
 
     /**
-     * Allows tests to wrap an index reader randomly with a given ratio. This is disabled by default ie. <tt>0.0d</tt> since reader wrapping is insanely
-     * slow if {@link org.apache.lucene.index.AssertingDirectoryReader} is used.
+     * Allows tests to wrap an index reader randomly with a given ratio. This
+     * is disabled by default ie. {@code 0.0d} since reader wrapping is insanely
+     * slow if {@link AssertingDirectoryReader} is used.
      */
     public static final Setting<Double> WRAP_READER_RATIO =
         Setting.doubleSetting("index.engine.mock.random.wrap_reader_ratio", 0.0d, 0.0d, Property.IndexScope);

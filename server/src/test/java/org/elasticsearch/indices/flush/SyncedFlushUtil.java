@@ -18,11 +18,11 @@
  */
 package org.elasticsearch.indices.flush;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.InternalTestCluster;
 
@@ -40,9 +40,11 @@ public class SyncedFlushUtil {
     /**
      * Blocking version of {@link SyncedFlushService#attemptSyncedFlush(ShardId, ActionListener)}
      */
-    public static ShardsSyncedFlushResult attemptSyncedFlush(InternalTestCluster cluster, ShardId shardId) {
+    public static ShardsSyncedFlushResult attemptSyncedFlush(Logger logger, InternalTestCluster cluster, ShardId shardId) {
         SyncedFlushService service = cluster.getInstance(SyncedFlushService.class);
-        LatchedListener<ShardsSyncedFlushResult> listener = new LatchedListener();
+        logger.debug("Issue synced-flush on node [{}], shard [{}], cluster state [{}]",
+            service.nodeName(), shardId, cluster.clusterService(service.nodeName()).state());
+        LatchedListener<ShardsSyncedFlushResult> listener = new LatchedListener<>();
         service.attemptSyncedFlush(shardId, listener);
         try {
             listener.latch.await();

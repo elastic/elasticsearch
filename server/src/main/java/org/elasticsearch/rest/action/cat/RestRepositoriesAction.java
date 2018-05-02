@@ -79,7 +79,7 @@ public class RestRepositoriesAction extends AbstractCatAction {
 
     private Table buildTable(RestRequest req, GetRepositoriesResponse getRepositoriesResponse) {
         Table table = getTableWithHeader(req);
-        for (RepositoryMetaData repositoryMetaData : getRepositoriesResponse.repositories().repositories()) {
+        for (RepositoryMetaData repositoryMetaData : getRepositoriesResponse.repositories()) {
             table.startRow();
 
             table.addCell(repositoryMetaData.name());

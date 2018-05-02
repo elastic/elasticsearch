@@ -64,7 +64,7 @@ public class RestGetRepositoriesAction extends BaseRestHandler {
         settingsFilter.addFilterSettingParams(request);
         return channel ->
                 client.admin().cluster().getRepositories(getRepositoriesRequest,
-                    new RestToXContentListener<GetRepositoriesResponse>(channel));
+                    new RestToXContentListener<>(channel));
     }
 
     @Override

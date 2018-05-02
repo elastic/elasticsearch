@@ -286,7 +286,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         logger.info("--> make sure old repository wasn't restored");
         assertThrows(client.admin().cluster().prepareGetRepositories("test-repo"), RepositoryMissingException.class);
-        assertThat(client.admin().cluster().prepareGetRepositories("test-repo-2").get().repositories().repositories().size(), equalTo(1));
+        assertThat(client.admin().cluster().prepareGetRepositories("test-repo-2").get().repositories().size(), equalTo(1));
 
         logger.info("--> check that custom persistent metadata was restored");
         ClusterState clusterState = client.admin().cluster().prepareState().get().getState();

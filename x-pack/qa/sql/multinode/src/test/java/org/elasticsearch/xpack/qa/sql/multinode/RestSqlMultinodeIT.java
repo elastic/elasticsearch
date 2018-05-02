@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.qa.sql.multinode;
 import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
@@ -53,7 +54,7 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
         String firstHostName = null;
 
         String match = firstHost.getHostName() + ":" + firstHost.getPort();
-        Map<String, Object> nodesInfo = responseToMap(client().performRequest("GET", "/_nodes"));
+        Map<String, Object> nodesInfo = responseToMap(client().performRequest(new Request("GET", "/_nodes")));
         @SuppressWarnings("unchecked")
         Map<String, Object> nodes = (Map<String, Object>) nodesInfo.get("nodes");
         for (Map.Entry<String, Object> node : nodes.entrySet()) {
@@ -74,7 +75,9 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
         }
         index.endObject();
         index.endObject();
-        client().performRequest("PUT", "/test", emptyMap(), new StringEntity(Strings.toString(index), ContentType.APPLICATION_JSON));
+        Request request = new Request("PUT", "/test");
+        request.setEntity(new StringEntity(Strings.toString(index), ContentType.APPLICATION_JSON));
+        client().performRequest(request);
         int documents = between(10, 100);
         createTestData(documents);
 

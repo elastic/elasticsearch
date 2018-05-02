@@ -200,9 +200,14 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         explain = in.readOptionalBoolean();
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
         if (in.getVersion().before(Version.V_7_0_0_alpha1)) { // TODO: change to 6.4.0 after backport
-            docValueFields = ((List<String>) in.readGenericValue()).stream()
-                    .map(field -> new FieldAndFormat(field, null))
-                    .collect(Collectors.toList());
+            List<String> dvFields = (List<String>) in.readGenericValue();
+            if (dvFields == null) {
+                docValueFields = null;
+            } else {
+                docValueFields = dvFields.stream()
+                        .map(field -> new FieldAndFormat(field, null))
+                        .collect(Collectors.toList());
+            }
         } else {
             if (in.readBoolean()) {
                 docValueFields = in.readList(FieldAndFormat::new);

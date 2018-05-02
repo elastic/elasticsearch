@@ -71,8 +71,12 @@ written to by an older Elasticsearch after writing to it with a newer Elasticsea
 [[release-notes-6.4.0]]
 == {es} 6.4.0
 
-//[float]
-//=== New Features
+[float]
+=== New Features
+
+The new <<mapping-ignored-field,`_ignored`>> field allows to know which fields
+got ignored at index time because of the <<ignore-malformed,`ignore_malformed`>>
+option. ({pull}30140[#29658])
 
 [float]
 === Enhancements

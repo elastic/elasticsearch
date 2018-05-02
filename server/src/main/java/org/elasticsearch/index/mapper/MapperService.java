@@ -674,15 +674,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Get the set of types.
-     * @deprecated Indices may have one type at most, use {@link #documentMapper()} instead.
-     */
-    @Deprecated
-    public Set<String> types() {
-        return mapper == null ? Collections.emptySet() : Collections.singleton(mapper.type());
-    }
-
-    /**
      * Return the document mapper, or {@code null} if no mapping has been put yet.
      */
     public DocumentMapper documentMapper() {

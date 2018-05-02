@@ -70,6 +70,8 @@ Fixed prerelease version of elasticsearch in the `deb` package to sort before GA
 Fail snapshot operations early when creating or deleting a snapshot on a repository that has been
 written to by an older Elasticsearch after writing to it with a newer Elasticsearch version. ({pull}30140[#30140])
 
+Fix NPE when CumulativeSum agg encounters null value/empty bucket ({pull}29641[#29641])
+
 //[float]
 //=== Regressions
 
@@ -100,6 +102,7 @@ multi-argument versions. ({pull}29623[#29623])
 
 Do not ignore request analysis/similarity settings on index resize operations when the source index already contains such settings ({pull}30216[#30216])
 
+Fix NPE when CumulativeSum agg encounters null value/empty bucket ({pull}29641[#29641])
 
 //[float]
 //=== Regressions

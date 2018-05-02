@@ -209,9 +209,9 @@ mappings automatically. Maintenance is necessary, for example, when new fields
 are introduced or document types change.
 * Added and changed settings for the SAML NameID policy. For example, added the
 `nameid.allow_create` setting and changed the default value for
-the SPNameQualifier setting to blank. See {xpack-ref}/saml-realm.html[SAML Authentication].
+the SPNameQualifier setting to blank. See {stack-ov}/saml-realm.html[SAML Authentication].
 * Fixed handling of an Assertion Consumer Service (ACS) URL with existing query
-parameters. See {xpack-ref}/saml-realm.html[SAML Authentication].
+parameters. See {stack-ov}/saml-realm.html[SAML Authentication].
 * Fixed the PKI realm bootstrap check such that it works with secure settings.
 For more information, see <<bootstrap-checks-xpack>>.
 
@@ -226,7 +226,7 @@ Watcher::
 tries to write the status field twice.
 * Fixed TransformInput toXContent serialization errors. For more information,
 see
-{xpack-ref}/input-chain.html#_transforming_chained_input_data[Transforming Chained Input Data].
+{stack-ov}/input-chain.html#_transforming_chained_input_data[Transforming Chained Input Data].
 
 //[float]
 //=== Regressions
@@ -403,7 +403,7 @@ Suggesters::
 Machine Learning::
 * Added the ability to identify scheduled events and prevent anomaly detection
 during these periods. For more information, see
-{xpack-ref}/ml-calendars.html[Calendars and Scheduled Events].
+{stack-ov}/ml-calendars.html[Calendars and Scheduled Events].
 
 Plugin Ingest GeoIp::
 * Enable ASN support for Ingest GeoIP plugin.  {pull}27958[#27958] (issue: {issue}27849[#27849])
@@ -426,11 +426,11 @@ Reindex API::
 
 Security::
 * {security} now supports user authentication using SAML Single Sign on. For
-more information, see {xpack-ref}/saml-realm.html[SAML Authentication].
+more information, see {stack-ov}/saml-realm.html[SAML authentication].
 
 Watcher::
 * Added a transform input for chained input. For more information, see
-{xpack-ref}/input-chain.html#_transforming_chained_input_data[Transforming Chained Input Data].
+{stack-ov}/input-chain.html#_transforming_chained_input_data[Transforming Chained Input Data].
 
 [float]
 === Enhancements
@@ -496,7 +496,7 @@ Java High Level REST Client::
 Machine Learning::
 * Increased tokenization flexibility for categorization. Now all {es} analyzer
 functionality is available, which opens up the possibility of sensibly
-categorizing non-English log messages. For more information, see {xpack-ref}/ml-configuring-categories.html#ml-configuring-analyzer[Customizing the Categorization Analyzer].
+categorizing non-English log messages. For more information, see {stack-ov}/ml-configuring-categories.html#ml-configuring-analyzer[Customizing the Categorization Analyzer].
 * Improved the sensitivity of the analysis to high variance data with lots of
 values near zero.
 * Improved the decay rate of the model memory by using a weighted moving average.
@@ -511,7 +511,7 @@ subsequently runs with the new permissions that are associated with the roles.
 However, if the user's roles are adjusted after creating or updating the {dfeed}
 then the {dfeed} continues to run with the permissions that are associated with
 the original roles. For more information, see
-{xpack-ref}/ml-dfeeds.html[Datafeeds].
+{stack-ov}/ml-dfeeds.html[Datafeeds].
 * Added a new `scheduled` forecast status, which indicates that the forecast
 has not started yet.
 
@@ -579,11 +579,11 @@ hours of its creation to extend the life of a token. For more information, see
 <<security-api-tokens>>.
 * Added principal and role information to `access_granted`, `access_denied`,
 `run_as_granted`, and `run_as_denied` audit events. For more information about
-these events, see {xpack-ref}/auditing.html[Auditing Security Events].
+these events, see {stack-ov}/auditing.html[Auditing Security Events].
 * Added audit event ignore policies, which are a way to tune the verbosity of an
 audit trail. These policies define rules for ignoring audit events that match
 specific attribute values. For more information, see
-{xpack-ref}/auditing.html#audit-log-ignore-policy[Logfile Audit Events Ignore Policies].
+{stack-ov}/auditing.html#audit-log-ignore-policy[Logfile Audit Events Ignore Policies].
 * Added a certificates API, which enables you to retrieve information about the
 X.509 certificates that are used to encrypt communications in your {es} cluster.
 For more information, see <<security-api-ssl>>.
@@ -615,13 +615,13 @@ Translog::
 
 Watcher::
 * Added the ability to set the `index` and `doc_type` dynamically in an index
-action. For more information, see {xpack-ref}/actions-index.html[Index Action].
+action. For more information, see {stack-ov}/actions-index.html[Index Action].
 * Added a `refresh` index action attribute, which enables you to set the
 refresh policy of the write request. For more information, see
-{xpack-ref}/actions-index.html[Index Action].
+{stack-ov}/actions-index.html[Index Action].
 * Added support for actions in slack attachments, which enables you to add
 buttons that can be clicked in slack messages. For more information, see
-{xpack-ref}/actions-slack.html[Slack Action].
+{stack-ov}/actions-slack.html[Slack Action].
 * {watcher} indices (`.watch*` and `triggered_watches`) created after upgrading
 to 6.2 have the `auto_expand_replicas: 0-1` setting rather than a fixed setting
 of 1 replica. As a result, {watcher} indices created after upgrading to 6.2 can
@@ -947,7 +947,7 @@ Engine::
 Machine Learning::
 * Fixed the removal of tokens during categorization, where the tokens were
 incorrectly deemed to be hexadecimal numbers. For more information, see
-{xpack-ref}/ml-configuring-categories.html[Categorizing log messages].
+{stack-ov}/ml-configuring-categories.html[Categorizing log messages].
 * Reduced the sensitivity of the analysis to small perturbations in the input
 data.
 * Disabled the ability to create forecasts for jobs that were created before
@@ -976,7 +976,7 @@ particular, the problem occurred when the number of processors on the transport
 client did not match the number of processors on the server.
 * Ensured that TLS is not required to install a license if you are using
 single-node discovery. For more information, see <<single-node-discovery>> and
-{xpack-ref}/ssl-tls.html[Setting up TLS on a Cluster].
+{stack-ov}/ssl-tls.html[Setting up TLS on a Cluster].
 * Fixed the <<security-api-privileges,has_privileges API>>. In particular, the
 `has_all_requested` field in the API results was not taking cluster privileges
 into consideration.
@@ -1048,7 +1048,7 @@ Sequence IDs::
 
 Watcher::
 * Fixed the pagerduty action to send context data. For more information, see
-{xpack-ref}/actions-pagerduty.html[PagerDuty Action].
+{stack-ov}/actions-pagerduty.html[PagerDuty Action].
 
 //[float]
 //=== Regressions
@@ -1345,8 +1345,8 @@ Search::
 Security::
 * Added the `manage_index_templates` cluster privilege to the built-in role
 `kibana_system`. For more information, see
-{xpack-ref}/security-privileges.html#privileges-list-cluster[Cluster Privileges]
-and {xpack-ref}/built-in-roles.html[Built-in Roles].
+{stack-ov}/security-privileges.html#privileges-list-cluster[Cluster Privileges]
+and {stack-ov}/built-in-roles.html[Built-in Roles].
 * Newly created or updated watches execute with the privileges of the user that
 last modified the watch.
 * Added log messages when a PEM key is found when a PEM certificate was
@@ -1395,7 +1395,7 @@ easier to debug execution failures.
 * Enabled the account monitoring `url` field in the `xpack.notification.jira`
 setting to support customized paths. For more information about configuring Jira
 accounts for use with watches, see
-{xpack-ref}/actions-jira.html[Jira Action].
+{stack-ov}/actions-jira.html[Jira Action].
 * Improved handling of exceptions in {watcher} to make it easier to debug 
 problems.
 
@@ -1459,7 +1459,7 @@ partition, over, by, or influencer fields.
 * Fixed calculation of the `frequency` property value for {dfeeds} that use
 aggregations. The value must be a multiple of the histogram interval. For more
 information, see
-{xpack-ref}/ml-configuring-aggregation.html[Aggregating Data for Faster Performance].
+{stack-ov}/ml-configuring-aggregation.html[Aggregating Data for Faster Performance].
 * Removed unnecessary messages from logs when a job is forcefully closed.
 
 Mapping::
@@ -1671,7 +1671,7 @@ Snapshot/Restore::
 Watcher::
 * Fixed handling of Hipchat rooms. For example, room names with spaces did not
 work as expected. For more information, see
-{xpack-ref}/actions-hipchat.html[HipChat Action].
+{stack-ov}/actions-hipchat.html[HipChat Action].
 
 //[float]
 //=== Regressions
@@ -2649,12 +2649,12 @@ Security::
 {stack-ref}/upgrading-elastic-stack.html[Upgrading the Elastic Stack].
 * Enabled read-only access to the index audit log by the `_xpack` internal user.
 For more information, see
-{xpack-ref}/setting-up-authentication.html#internal-users[Internal Users].
+{stack-ov}/internal-users.html[Internal users].
 * Updated the concrete security index such that it is now always named
 `.security-6`. In 6.0 beta and RC releases, it was sometimes named `.security-v6`.
 * Fixed handling of exceptions when retrieving roles from a native roles store.
 For more information about configuring a native realm, see
-{xpack-ref}/native-realm.html[Native User Authentication].
+{stack-ov}/native-realm.html[Native User Authentication].
 
 Sequence IDs::
 * Fire global checkpoint sync under system context {pull}26984[#26984]
@@ -2807,7 +2807,7 @@ Security::
 Watcher::
 * Added verification that the required templates exist before {watcher} starts.
 For more information, see
-{xpack-ref}/how-watcher-works.html#scripts-templates[Scripts and Templates].
+{stack-ov}/how-watcher-works.html#scripts-templates[Scripts and Templates].
 * Added the `xpack.watcher.history.cleaner_service.enabled` setting. You can use
 this setting to enable or disable the cleaner service, which removes previous
 versions of {watcher} indices (for example, .watcher-history*) when it
@@ -2971,7 +2971,7 @@ Security::
 production. If you try to upgrade to a production license when security is
 enabled, the upgrade is not successful until you configure TLS. For more
 information, see
-{xpack-ref}/ssl-tls.html[Setting Up SSL/TLS on a Cluster].
+{stack-ov}/ssl-tls.html[Setting Up SSL/TLS on a Cluster].
 * Added bootstrap check that enforces the use of TLS when security is enabled
 and you are using a production license.
 
@@ -3326,7 +3326,7 @@ Security::
 * A new bootstrap check enforces that TLS/SSL is required for inter-node
 communication when running in
 {ref}/bootstrap-checks.html#_development_vs_production_mode[production mode]. See
-{xpack-ref}/encrypting-communications.html[Encrypting Communications].
+{stack-ov}/encrypting-communications.html[Encrypting Communications].
 * A new bootstrap check enforces that HTTPS is used by the built-in token
 service when running in
 {ref}/bootstrap-checks.html#_development_vs_production_mode[production mode].
@@ -4121,10 +4121,10 @@ built-in users when running in
 {ref}/bootstrap-checks.html#_development_vs_production_mode[production mode].
 You must set `xpack.security.authc.accept_default_password` to `false` in your
 `elasticsearch.yml`. For more information, see <<security-settings>> and
-{xpack-ref}/setting-up-authentication.html[Setting Up User Authentication].
+{stack-ov}/setting-up-authentication.html[User authentication].
 * A new configuration setting is available to disable support for the default
 password (_"changeme"_). For more information, see
-{xpack-ref}/setting-up-authentication.html#disabling-default-password[Disable Default Password Functionality].
+{stack-ov}/built-in-users.html#disabling-default-password[Disable default password functionality].
 
 Sequence IDs::
 * Change certain replica failures not to fail the replica shard {pull}22874[#22874] (issue: {issue}10708[#10708])

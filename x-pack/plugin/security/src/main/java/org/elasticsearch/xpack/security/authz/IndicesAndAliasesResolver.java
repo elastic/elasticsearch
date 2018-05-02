@@ -370,7 +370,8 @@ public class IndicesAndAliasesResolver {
         if (indexMetaData.getState() == IndexMetaData.State.CLOSE && (indicesOptions.expandWildcardsClosed() || dateMathExpression)) {
             return true;
         }
-        if (indexMetaData.getState() == IndexMetaData.State.OPEN && (indicesOptions.expandWildcardsOpen() || dateMathExpression)) {
+        if ((indexMetaData.getState() == IndexMetaData.State.OPEN || indexMetaData.getState() == IndexMetaData.State.FROZEN)
+                && (indicesOptions.expandWildcardsOpen() || dateMathExpression)) {
             return true;
         }
         return false;

@@ -213,7 +213,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                             concreteIndices.add(index.getIndex());
                         }
                     }
-                } else if (index.getState() == IndexMetaData.State.OPEN) {
+                } else if (index.getState() == IndexMetaData.State.OPEN || index.getState() == IndexMetaData.State.FROZEN) {
                     concreteIndices.add(index.getIndex());
                 } else {
                     throw new IllegalStateException("index state [" + index.getState() + "] not supported");
@@ -687,7 +687,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             } else if (options.expandWildcardsOpen() && options.expandWildcardsClosed() == false) {
                 excludeState = IndexMetaData.State.CLOSE;
             } else if (options.expandWildcardsClosed() && options.expandWildcardsOpen() == false) {
-                excludeState = IndexMetaData.State.OPEN;
+                excludeState = IndexMetaData.State.OPEN; // TODO: what should be done with frozen indices here?
             } else {
                 assert false : "this shouldn't get called if wildcards expand to none";
                 excludeState = null;

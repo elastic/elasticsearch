@@ -184,6 +184,10 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequestBuilder;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.elasticsearch.action.admin.indices.freeze.FreezeIndexAction;
+import org.elasticsearch.action.admin.indices.freeze.FreezeIndexRequest;
+import org.elasticsearch.action.admin.indices.freeze.FreezeIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.freeze.FreezeIndexResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequestBuilder;
@@ -252,6 +256,10 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateActio
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
+import org.elasticsearch.action.admin.indices.thaw.ThawIndexAction;
+import org.elasticsearch.action.admin.indices.thaw.ThawIndexRequest;
+import org.elasticsearch.action.admin.indices.thaw.ThawIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.thaw.ThawIndexResponse;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusAction;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequest;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequestBuilder;
@@ -1427,6 +1435,36 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         @Override
         public OpenIndexRequestBuilder prepareOpen(String... indices) {
             return new OpenIndexRequestBuilder(this, OpenIndexAction.INSTANCE, indices);
+        }
+
+        @Override
+        public FreezeIndexRequestBuilder prepareFreeze(String... indices) {
+            return new FreezeIndexRequestBuilder(this, FreezeIndexAction.INSTANCE, indices);
+        }
+
+        @Override
+        public ActionFuture<FreezeIndexResponse> freeze(final FreezeIndexRequest request) {
+            return execute(FreezeIndexAction.INSTANCE, request);
+        }
+
+        @Override
+        public void freeze(final FreezeIndexRequest request, final ActionListener<FreezeIndexResponse> listener) {
+            execute(FreezeIndexAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ThawIndexRequestBuilder prepareThaw(String... indices) {
+            return new ThawIndexRequestBuilder(this, ThawIndexAction.INSTANCE, indices);
+        }
+
+        @Override
+        public ActionFuture<ThawIndexResponse> thaw(final ThawIndexRequest request) {
+            return execute(ThawIndexAction.INSTANCE, request);
+        }
+
+        @Override
+        public void thaw(final ThawIndexRequest request, final ActionListener<ThawIndexResponse> listener) {
+            execute(ThawIndexAction.INSTANCE, request, listener);
         }
 
         @Override

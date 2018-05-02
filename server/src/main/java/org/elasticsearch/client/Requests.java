@@ -49,12 +49,14 @@ import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsReques
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.elasticsearch.action.admin.indices.freeze.FreezeIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
+import org.elasticsearch.action.admin.indices.thaw.ThawIndexRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -199,7 +201,7 @@ public class Requests {
      * Creates a close index request.
      *
      * @param index The index to close
-     * @return The delete index request
+     * @return The close index request
      * @see org.elasticsearch.client.IndicesAdminClient#close(org.elasticsearch.action.admin.indices.close.CloseIndexRequest)
      */
     public static CloseIndexRequest closeIndexRequest(String index) {
@@ -210,11 +212,33 @@ public class Requests {
      * Creates an open index request.
      *
      * @param index The index to open
-     * @return The delete index request
+     * @return The open index request
      * @see org.elasticsearch.client.IndicesAdminClient#open(org.elasticsearch.action.admin.indices.open.OpenIndexRequest)
      */
     public static OpenIndexRequest openIndexRequest(String index) {
         return new OpenIndexRequest(index);
+    }
+
+    /**
+     * Creates a freeze index request.
+     *
+     * @param index The index to freeze
+     * @return The freeze index request
+     * @see org.elasticsearch.client.IndicesAdminClient#freeze(org.elasticsearch.action.admin.indices.freeze.FreezeIndexRequest)
+     */
+    public static FreezeIndexRequest freezeIndexRequest(String index) {
+        return new FreezeIndexRequest(index);
+    }
+
+    /**
+     * Creates a thaw index request.
+     *
+     * @param index The index to thaw
+     * @return The thaw index request
+     * @see org.elasticsearch.client.IndicesAdminClient#thaw(org.elasticsearch.action.admin.indices.thaw.ThawIndexRequest)
+     */
+    public static ThawIndexRequest thawIndexRequest(String index) {
+        return new ThawIndexRequest(index);
     }
 
     /**

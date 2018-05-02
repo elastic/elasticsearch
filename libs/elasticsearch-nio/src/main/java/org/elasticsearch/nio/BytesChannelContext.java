@@ -28,7 +28,7 @@ public class BytesChannelContext extends SocketChannelContext {
 
     public BytesChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,
                                ReadConsumer readConsumer, InboundChannelBuffer channelBuffer) {
-        this(channel, selector, exceptionHandler, readConsumer, new BytesFlushProducer(selector), channelBuffer);
+        this(channel, selector, exceptionHandler, readConsumer, new BytesFlushProducer(), channelBuffer);
     }
 
     public BytesChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,

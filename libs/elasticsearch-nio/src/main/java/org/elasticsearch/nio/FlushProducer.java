@@ -28,13 +28,7 @@ public interface FlushProducer {
 
     WriteOperation createWriteOperation(SocketChannelContext context, Object message, BiConsumer<Void, Throwable> listener);
 
-    void produceWrites(WriteOperation writeOperation);
-
-    default List<FlushOperation> write(WriteOperation writeOperation) {
-        return Collections.emptyList();
-    }
-
-    FlushOperation pollFlushOperation();
+    List<FlushOperation> write(WriteOperation writeOperation);
 
     void close() throws IOException;
 }

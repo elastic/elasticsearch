@@ -22,20 +22,15 @@ package org.elasticsearch.nio;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.isNull;
-import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -44,13 +39,11 @@ import static org.mockito.Mockito.when;
 public class BytesChannelContextTests extends ESTestCase {
 
     private ReadConsumer readConsumer;
-    private BytesFlushProducer writeProducer;
     private NioSocketChannel channel;
     private SocketChannel rawChannel;
     private BytesChannelContext context;
     private InboundChannelBuffer channelBuffer;
     private SocketSelector selector;
-    private Consumer<Exception> exceptionHandler;
     private BiConsumer<Void, Throwable> listener;
     private int messageLength;
 
@@ -58,7 +51,7 @@ public class BytesChannelContextTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void init() {
         readConsumer = mock(ReadConsumer.class);
-        writeProducer = mock(BytesFlushProducer.class);
+        BytesFlushProducer writeProducer = new BytesFlushProducer();
 
         messageLength = randomInt(96) + 20;
         selector = mock(SocketSelector.class);
@@ -66,9 +59,8 @@ public class BytesChannelContextTests extends ESTestCase {
         channel = mock(NioSocketChannel.class);
         rawChannel = mock(SocketChannel.class);
         channelBuffer = InboundChannelBuffer.allocatingInstance();
-        exceptionHandler = mock(Consumer.class);
         when(channel.getRawChannel()).thenReturn(rawChannel);
-        context = new BytesChannelContext(channel, selector, exceptionHandler, readConsumer, writeProducer, channelBuffer);
+        context = new BytesChannelContext(channel, selector, mock(Consumer.class), readConsumer, writeProducer, channelBuffer);
 
         when(selector.isOnCurrentThread()).thenReturn(true);
     }
@@ -159,114 +151,14 @@ public class BytesChannelContextTests extends ESTestCase {
         assertTrue(context.selectorShouldClose());
     }
 
-//    @SuppressWarnings("unchecked")
-//    public void testCloseClosesChannelBuffer() throws IOException {
-//        try (SocketChannel realChannel = SocketChannel.open()) {
-//            when(channel.getRawChannel()).thenReturn(realChannel);
-//            when(channel.isOpen()).thenReturn(true);
-//            Runnable closer = mock(Runnable.class);
-//            Supplier<InboundChannelBuffer.Page> pageSupplier = () -> new InboundChannelBuffer.Page(ByteBuffer.allocate(1 << 14), closer);
-//            InboundChannelBuffer buffer = new InboundChannelBuffer(pageSupplier);
-//            buffer.ensureCapacity(1);
-//            BytesChannelContext context = new BytesChannelContext(channel, selector, exceptionHandler, readConsumer, writeProducer, buffer);
-//            context.closeFromSelector();
-//            verify(closer).run();
-//        }
-//    }
-
-//    public void testCloseClosesWriteProducer() throws IOException {
-//        try (SocketChannel realChannel = SocketChannel.open()) {
-//            when(channel.getRawChannel()).thenReturn(realChannel);
-//            when(channel.isOpen()).thenReturn(true);
-//            InboundChannelBuffer buffer = InboundChannelBuffer.allocatingInstance();
-//            BytesChannelContext context = new BytesChannelContext(channel, selector, exceptionHandler, readConsumer, writeProducer, buffer);
-//            context.closeFromSelector();
-//            verify(writeProducer).close();
-//        }
-//    }
-
-//    public void testWriteFailsIfClosing() {
-//        context.closeChannel();
-//
-//        ByteBuffer[] buffers = {ByteBuffer.wrap(createMessage(10))};
-//        context.sendMessage(buffers, listener);
-//
-//        verify(listener).accept(isNull(Void.class), any(ClosedChannelException.class));
-//    }
-
-//    public void testSendMessageFromDifferentThreadIsQueuedWithSelector() throws Exception {
-//        ArgumentCaptor<WriteOperation> writeOpCaptor = ArgumentCaptor.forClass(WriteOperation.class);
-//
-//        when(selector.isOnCurrentThread()).thenReturn(false);
-//
-//        ByteBuffer[] buffers = {ByteBuffer.wrap(createMessage(10))};
-//        WriteOperation writeOperation = mock(WriteOperation.class);
-//        when(writeProducer.createWriteOperation(context, buffers, listener)).thenReturn(writeOperation);
-//        context.sendMessage(buffers, listener);
-//
-//        verify(selector).queueWrite(writeOpCaptor.capture());
-//        WriteOperation writeOp = writeOpCaptor.getValue();
-//
-//        assertSame(writeOperation, writeOp);
-//    }
-
-//    public void testSendMessageFromSameThreadIsQueuedInChannel() {
-//        ArgumentCaptor<WriteOperation> writeOpCaptor = ArgumentCaptor.forClass(WriteOperation.class);
-//
-//        ByteBuffer[] buffers = {ByteBuffer.wrap(createMessage(10))};
-//        WriteOperation writeOperation = mock(WriteOperation.class);
-//        when(writeProducer.createWriteOperation(context, buffers, listener)).thenReturn(writeOperation);
-//        context.sendMessage(buffers, listener);
-//
-//        verify(selector).queueWriteInChannelBuffer(writeOpCaptor.capture());
-//        WriteOperation writeOp = writeOpCaptor.getValue();
-//
-//        assertSame(writeOperation, writeOp);
-//    }
-
-//    public void testWriteIsQueuedInChannel() {
-//        assertFalse(context.hasQueuedWriteOps());
-//
-//        ByteBuffer[] buffer = {ByteBuffer.allocate(10)};
-//        WriteOperation writeOperation = new FlushReadyWrite(context, buffer, listener);
-//        when(writeProducer.pollFlushOperation()).thenReturn(mock(FlushOperation.class));
-//        context.queueWriteOperation(writeOperation);
-//
-//        verify(writeProducer).produceWrites(writeOperation);
-//        assertTrue(context.hasQueuedWriteOps());
-//    }
-
-//    @SuppressWarnings({"unchecked", "varargs"})
-//    public void testFlushOpsClearedOnClose() throws Exception {
-//        try (SocketChannel realChannel = SocketChannel.open()) {
-//            when(channel.getRawChannel()).thenReturn(realChannel);
-//            context = new BytesChannelContext(channel, selector, exceptionHandler, readConsumer, writeProducer, channelBuffer);
-//
-//            assertFalse(context.hasQueuedWriteOps());
-//
-//            ByteBuffer[] buffer = {ByteBuffer.allocate(10)};
-//            when(writeProducer.pollFlushOperation()).thenReturn(new FlushOperation(buffer, listener), (FlushOperation) null);
-//            context.queueWriteOperation(mock(FlushReadyWrite.class));
-//
-//            assertTrue(context.hasQueuedWriteOps());
-//
-//            when(channel.isOpen()).thenReturn(true);
-//            context.closeFromSelector();
-//
-//            verify(selector).executeFailedListener(same(listener), any(ClosedChannelException.class));
-//
-//            assertFalse(context.hasQueuedWriteOps());
-//        }
-//    }
-
     @SuppressWarnings("varargs")
     public void testQueuedWriteIsFlushedInFlushCall() throws Exception {
         assertFalse(context.hasQueuedWriteOps());
 
         ByteBuffer[] buffers = {ByteBuffer.allocate(10)};
-        FlushOperation flushOperation = mock(FlushOperation.class);
-        when(writeProducer.pollFlushOperation()).thenReturn(flushOperation, (FlushOperation) null);
-        context.queueWriteOperation(mock(FlushReadyWrite.class));
+
+        FlushReadyWrite flushOperation = mock(FlushReadyWrite.class);
+        context.queueWriteOperation(flushOperation);
 
         assertTrue(context.hasQueuedWriteOps());
 
@@ -282,9 +174,8 @@ public class BytesChannelContextTests extends ESTestCase {
 
     public void testPartialFlush() throws IOException {
         assertFalse(context.hasQueuedWriteOps());
-        FlushOperation flushOperation = mock(FlushOperation.class);
-        when(writeProducer.pollFlushOperation()).thenReturn(flushOperation);
-        context.queueWriteOperation(mock(FlushReadyWrite.class));
+        FlushReadyWrite flushOperation = mock(FlushReadyWrite.class);
+        context.queueWriteOperation(flushOperation);
         assertTrue(context.hasQueuedWriteOps());
 
         when(flushOperation.isFullyFlushed()).thenReturn(false);
@@ -300,16 +191,15 @@ public class BytesChannelContextTests extends ESTestCase {
         assertFalse(context.hasQueuedWriteOps());
 
         BiConsumer<Void, Throwable> listener2 = mock(BiConsumer.class);
-        FlushOperation flushOperation1 = mock(FlushOperation.class);
-        FlushOperation flushOperation2 = mock(FlushOperation.class);
+        FlushReadyWrite flushOperation1 = mock(FlushReadyWrite.class);
+        FlushReadyWrite flushOperation2 = mock(FlushReadyWrite.class);
         when(flushOperation1.getBuffersToWrite()).thenReturn(new ByteBuffer[0]);
         when(flushOperation2.getBuffersToWrite()).thenReturn(new ByteBuffer[0]);
         when(flushOperation1.getListener()).thenReturn(listener);
         when(flushOperation2.getListener()).thenReturn(listener2);
 
-        when(writeProducer.pollFlushOperation()).thenReturn(flushOperation1, flushOperation2, null);
-        context.queueWriteOperation(mock(FlushReadyWrite.class));
-        context.queueWriteOperation(mock(FlushReadyWrite.class));
+        context.queueWriteOperation(flushOperation1);
+        context.queueWriteOperation(flushOperation2);
 
         assertTrue(context.hasQueuedWriteOps());
 
@@ -333,9 +223,8 @@ public class BytesChannelContextTests extends ESTestCase {
         assertFalse(context.hasQueuedWriteOps());
 
         ByteBuffer[] buffers = {ByteBuffer.allocate(10)};
-        FlushOperation flushOperation = mock(FlushOperation.class);
-        when(writeProducer.pollFlushOperation()).thenReturn(flushOperation, (FlushOperation) null);
-        context.queueWriteOperation(mock(FlushReadyWrite.class));
+        FlushReadyWrite flushOperation = mock(FlushReadyWrite.class);
+        context.queueWriteOperation(flushOperation);
 
         assertTrue(context.hasQueuedWriteOps());
 
@@ -351,9 +240,8 @@ public class BytesChannelContextTests extends ESTestCase {
 
     public void testWriteIOExceptionMeansChannelReadyToClose() throws IOException {
         ByteBuffer[] buffers = {ByteBuffer.allocate(10)};
-        FlushOperation flushOperation = mock(FlushOperation.class);
-        when(writeProducer.pollFlushOperation()).thenReturn(flushOperation);
-        context.queueWriteOperation(mock(FlushReadyWrite.class));
+        FlushReadyWrite flushOperation = mock(FlushReadyWrite.class);
+        context.queueWriteOperation(flushOperation);
 
         IOException exception = new IOException();
         when(flushOperation.getBuffersToWrite()).thenReturn(buffers);

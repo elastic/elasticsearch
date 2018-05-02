@@ -31,7 +31,7 @@ public final class SSLChannelContext extends SocketChannelContext {
 
     SSLChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler, SSLDriver sslDriver,
                       ReadConsumer readConsumer, InboundChannelBuffer channelBuffer) {
-        this(channel, selector, exceptionHandler, sslDriver, readConsumer, new BytesFlushProducer(selector), channelBuffer);
+        this(channel, selector, exceptionHandler, sslDriver, readConsumer, new BytesFlushProducer(), channelBuffer);
     }
 
     SSLChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler, SSLDriver sslDriver,

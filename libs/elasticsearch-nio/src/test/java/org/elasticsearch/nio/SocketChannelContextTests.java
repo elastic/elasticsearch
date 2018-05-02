@@ -27,6 +27,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -38,6 +40,7 @@ import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.isNull;
 import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -179,11 +182,11 @@ public class SocketChannelContextTests extends ESTestCase {
         assertFalse(context.hasQueuedWriteOps());
 
         ByteBuffer[] buffer = {ByteBuffer.allocate(10)};
-        WriteOperation writeOperation = new FlushReadyWrite(context, buffer, listener);
-        when(flushProducer.pollFlushOperation()).thenReturn(mock(FlushOperation.class));
+        FlushReadyWrite writeOperation = new FlushReadyWrite(context, buffer, listener);
+        when(flushProducer.write(writeOperation)).thenReturn(Collections.singletonList(writeOperation));
         context.queueWriteOperation(writeOperation);
 
-        verify(flushProducer).produceWrites(writeOperation);
+        verify(flushProducer).write(writeOperation);
         assertTrue(context.hasQueuedWriteOps());
     }
 
@@ -197,15 +200,19 @@ public class SocketChannelContextTests extends ESTestCase {
             assertFalse(context.hasQueuedWriteOps());
 
             ByteBuffer[] buffer = {ByteBuffer.allocate(10)};
-            when(flushProducer.pollFlushOperation()).thenReturn(new FlushOperation(buffer, listener), (FlushOperation) null);
-            context.queueWriteOperation(mock(FlushReadyWrite.class));
+            WriteOperation writeOperation = mock(WriteOperation.class);
+            BiConsumer listener2 = mock(BiConsumer.class);
+            when(flushProducer.write(writeOperation)).thenReturn(Arrays.asList(new FlushOperation(buffer, listener),
+                new FlushOperation(buffer, listener2)));
+            context.queueWriteOperation(writeOperation);
 
             assertTrue(context.hasQueuedWriteOps());
 
             when(channel.isOpen()).thenReturn(true);
             context.closeFromSelector();
 
-            verify(selector).executeFailedListener(same(listener), any(ClosedChannelException.class));
+            verify(selector, times(1)).executeFailedListener(same(listener), any(ClosedChannelException.class));
+            verify(selector, times(1)).executeFailedListener(same(listener2), any(ClosedChannelException.class));
 
             assertFalse(context.hasQueuedWriteOps());
         }

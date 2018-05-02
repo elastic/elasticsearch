@@ -76,6 +76,7 @@ public class NettyAdaptor implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
+        // TODO: Should not have any flushes queued
         for (FlushOperation flushOperation : flushOperations) {
             selector.executeFailedListener(flushOperation.getListener(), new ClosedChannelException());
         }

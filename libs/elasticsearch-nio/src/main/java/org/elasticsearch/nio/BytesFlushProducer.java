@@ -29,13 +29,6 @@ import java.util.function.BiConsumer;
 
 public class BytesFlushProducer implements FlushProducer {
 
-    private final LinkedList<FlushOperation> flushOperations = new LinkedList<>();
-    private final SocketSelector selector;
-
-    public BytesFlushProducer(SocketSelector selector) {
-        this.selector = selector;
-    }
-
     @Override
     public WriteOperation createWriteOperation(SocketChannelContext context, Object message, BiConsumer<Void, Throwable> listener) {
         if (message instanceof ByteBuffer[]) {
@@ -46,27 +39,12 @@ public class BytesFlushProducer implements FlushProducer {
     }
 
     @Override
-    public void produceWrites(WriteOperation writeOperation) {
-        assert writeOperation instanceof FlushReadyWrite : "Write operation must be flush ready";
-        flushOperations.addLast((FlushReadyWrite) writeOperation);
-    }
-
-    @Override
     public List<FlushOperation> write(WriteOperation writeOperation) {
         assert writeOperation instanceof FlushReadyWrite : "Write operation must be flush ready";
         return Collections.singletonList((FlushReadyWrite) writeOperation);
     }
 
     @Override
-    public FlushOperation pollFlushOperation() {
-        return flushOperations.pollFirst();
-    }
-
-    @Override
     public void close() throws IOException {
-        for (FlushOperation flushOperation : flushOperations) {
-            selector.executeFailedListener(flushOperation.getListener(), new ClosedChannelException());
-        }
-        flushOperations.clear();
     }
 }

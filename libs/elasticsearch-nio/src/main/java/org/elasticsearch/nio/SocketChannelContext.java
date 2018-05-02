@@ -54,7 +54,6 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     private boolean ioException;
     private boolean peerClosed;
     private Exception connectException;
-    private FlushOperation pendingFlush;
 
     protected SocketChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,
                                    ReadConsumer readConsumer, FlushProducer flushProducer, InboundChannelBuffer channelBuffer) {
@@ -143,10 +142,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
 
     public void queueWriteOperation(WriteOperation writeOperation) {
         getSelector().assertOnSelectorThread();
-        flushProducer.produceWrites(writeOperation);
-        if (pendingFlush == null) {
-            pendingFlush = flushProducer.pollFlushOperation();
-        }
+        pendingFlushes.addAll(flushProducer.write(writeOperation));
     }
 
     public abstract int read() throws IOException;
@@ -154,17 +150,17 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     public abstract void flushChannel() throws IOException;
 
     protected void currentFlushOperationFailed(IOException e) {
-        getSelector().executeFailedListener(pendingFlush.getListener(), e);
-        pendingFlush = flushProducer.pollFlushOperation();
+        FlushOperation flushOperation = pendingFlushes.pollFirst();
+        getSelector().executeFailedListener(flushOperation.getListener(), e);
     }
 
     protected void currentFlushOperationComplete() {
-        getSelector().executeListener(pendingFlush.getListener(), null);
-        pendingFlush = flushProducer.pollFlushOperation();
+        FlushOperation flushOperation = pendingFlushes.pollFirst();
+        getSelector().executeListener(flushOperation.getListener(), null);
     }
 
     protected FlushOperation getPendingFlush() {
-        return pendingFlush;
+        return pendingFlushes.peekFirst();
     }
 
     @Override
@@ -179,10 +175,11 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             }
             // Set to true in order to reject new writes before queuing with selector
             isClosing.set(true);
-            if (pendingFlush != null) {
-                selector.executeFailedListener(pendingFlush.getListener(), new ClosedChannelException());
-                pendingFlush = null;
+            FlushOperation flushOperation;
+            while ((flushOperation = pendingFlushes.pollFirst()) != null) {
+                selector.executeFailedListener(flushOperation.getListener(), new ClosedChannelException());
             }
+
             try {
                 flushProducer.close();
             } catch (IOException e) {
@@ -203,12 +200,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
 
     public boolean hasQueuedWriteOps() {
         getSelector().assertOnSelectorThread();
-        if (pendingFlush != null) {
-            return true;
-        } else {
-            pendingFlush = flushProducer.pollFlushOperation();
-            return pendingFlush != null;
-        }
+        return pendingFlushes.isEmpty() == false;
     }
 
     /**

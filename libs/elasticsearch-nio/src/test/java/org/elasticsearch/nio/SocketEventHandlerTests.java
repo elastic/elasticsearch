@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.nio.channels.CancelledKeyException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
+import java.util.Collections;
 import java.util.function.Consumer;
 
 import static org.mockito.Mockito.mock;
@@ -85,8 +86,9 @@ public class SocketEventHandlerTests extends ESTestCase {
     }
 
     public void testRegisterWithPendingWritesAddsOP_CONNECTAndOP_READAndOP_WRITEInterest() throws IOException {
-        when(flushProducer.pollFlushOperation()).thenReturn(mock(FlushOperation.class));
-        channel.getContext().queueWriteOperation(mock(FlushReadyWrite.class));
+        FlushReadyWrite flushReadyWrite = mock(FlushReadyWrite.class);
+        when(flushProducer.write(flushReadyWrite)).thenReturn(Collections.singletonList(flushReadyWrite));
+        channel.getContext().queueWriteOperation(flushReadyWrite);
         handler.handleRegistration(context);
         assertEquals(SelectionKey.OP_READ | SelectionKey.OP_CONNECT | SelectionKey.OP_WRITE, context.getSelectionKey().interestOps());
     }

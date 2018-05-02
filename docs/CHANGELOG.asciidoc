@@ -35,6 +35,9 @@ Machine Learning::
 * The `max_running_jobs` node property is removed in this release. Use the
 `xpack.ml.max_open_jobs` setting instead. For more information, see <<ml-settings>>.
 
+* <<remove-http-enabled, Removed `http.enabled` setting>> ({pull}29601[#29601])
+
+=== Deprecations
 Monitoring::
 * The `xpack.monitoring.collection.interval` setting can no longer be set to `-1`
 to disable monitoring data collection. Use `xpack.monitoring.collection.enabled`

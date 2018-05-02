@@ -86,6 +86,11 @@ is disabled. To enable data collection, use the new
 using the <<cluster-update-settings,Cluster Update Settings API>>. For more
 information, see <<monitoring-settings>>.
 
+Security::
+* The legacy `XPackExtension` extension mechanism has been removed and replaced
+with an SPI based extension mechanism that is installed and built as an
+elasticsearch plugin.
+
 //[float]
 //=== Breaking Java Changes
 

@@ -1,12 +1,26 @@
+[[es-release-notes]]
+= {es} Release Notes
+
+[partintro]
+--
 // Use these for links to issue and pulls. Note issues and pulls redirect one to
 // each other on Github, so don't worry too much on using the right prefix.
 :issue: https://github.com/elastic/elasticsearch/issues/
 :pull: https://github.com/elastic/elasticsearch/pull/
 
-= Elasticsearch Release Notes
+This section summarizes the changes in each release.
 
-== Elasticsearch 7.0.0
+* <<release-notes-7.0.0>>
+* <<release-notes-6.4.0>>
 
+
+--
+
+[[release-notes-7.0.0]]
+== {es} 7.0.0
+
+[float]
+[[breaking-7.0.0]]
 === Breaking Changes
 
 <<write-thread-pool-fallback, Removed `thread_pool.bulk.*` settings and
@@ -16,35 +30,67 @@
 
 <<remove-field-caps-body, In field capabilities APIs, removed support for providing fields in the request body>> ({pull}30185[#30185])
 
-=== Breaking Java Changes
+Machine Learning::
+* The `max_running_jobs` node property is removed in this release. Use the
+`xpack.ml.max_open_jobs` setting instead. For more information, see <<ml-settings>>.
 
-=== Deprecations
+Monitoring::
+* The `xpack.monitoring.collection.interval` setting can no longer be set to `-1`
+to disable monitoring data collection. Use `xpack.monitoring.collection.enabled`
+and set it to `false` (its default), which was added in 6.3.0.
 
-=== New Features
+Security::
+* The fields returned as part of the mappings section by get index, get
+mappings, get field mappings, and field capabilities API are now only the
+ones that the user is authorized to access in case field level security is enabled.
 
-=== Enhancements
+//[float]
+//=== Breaking Java Changes
 
+//[float]
+//=== Deprecations
+
+//[float]
+//=== New Features
+
+//[float]
+//=== Enhancements
+
+[float]
 === Bug Fixes
 
 Fail snapshot operations early when creating or deleting a snapshot on a repository that has been
 written to by an older Elasticsearch after writing to it with a newer Elasticsearch version. ({pull}30140[#30140])
 
-=== Regressions
+//[float]
+//=== Regressions
 
-=== Known Issues
+//[float]
+//=== Known Issues
 
-== Elasticsearch version 6.4.0
+[[release-notes-6.4.0]]
+== {es} 6.4.0
 
-=== New Features
+//[float]
+//=== New Features
 
+[float]
 === Enhancements
 
+{ref-64}/breaking_64_api_changes.html#copy-source-settings-on-resize[Allow copying source settings on index resize operations] ({pull}30255[#30255])
+
+Added new "Request" object flavored request methods. Prefer these instead of the
+multi-argument versions. ({pull}29623[#29623])
+
+
+[float]
 === Bug Fixes
 
 Do not ignore request analysis/similarity settings on index resize operations when the source index already contains such settings ({pull}30216[#30216])
 
-=== Regressions
 
-=== Known Issues
+//[float]
+//=== Regressions
 
-
+//[float]
+//=== Known Issues

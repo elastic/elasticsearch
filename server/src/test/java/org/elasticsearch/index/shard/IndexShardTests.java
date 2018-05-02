@@ -238,7 +238,8 @@ public class IndexShardTests extends IndexShardTestCase {
         assertNotNull(shardPath);
         // fail shard
         shard.failShard("test shard fail", new CorruptIndexException("", ""));
-        closeShards(shard);
+        shard.close("do not assert history", false);
+        shard.store().close();
         // check state file still exists
         ShardStateMetaData shardStateMetaData = load(logger, shardPath.getShardStatePath());
         assertEquals(shardStateMetaData, getShardStateMetadata(shard));

@@ -1357,7 +1357,7 @@ public class InternalEngine extends Engine {
                     failure = ex;
                 }
             }
-            final NoOpResult noOpResult = new NoOpResult(noOp.seqNo(), failure);
+            final NoOpResult noOpResult = failure != null ? new NoOpResult(noOp.seqNo(), failure) : new NoOpResult(noOp.seqNo());
             if (noOp.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
                 final Translog.Location location = translog.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
                 noOpResult.setTranslogLocation(location);

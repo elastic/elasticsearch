@@ -26,7 +26,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
@@ -41,7 +41,7 @@ import java.util.stream.Collectors;
 /**
  * Response for {@link FieldCapabilitiesRequest} requests.
  */
-public class FieldCapabilitiesResponse extends ActionResponse implements ToXContentFragment {
+public class FieldCapabilitiesResponse extends ActionResponse implements ToXContentObject {
     private static final ParseField FIELDS_FIELD = new ParseField("fields");
 
     private Map<String, Map<String, FieldCapabilities>> responseMap;
@@ -123,8 +123,9 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(FIELDS_FIELD.getPreferredName(), responseMap);
-        return builder;
+        return builder.startObject()
+            .field(FIELDS_FIELD.getPreferredName(), responseMap)
+            .endObject();
     }
 
     public static FieldCapabilitiesResponse fromXContent(XContentParser parser) throws IOException {

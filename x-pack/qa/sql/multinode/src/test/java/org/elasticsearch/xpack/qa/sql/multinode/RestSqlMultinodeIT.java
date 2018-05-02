@@ -87,6 +87,9 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
     }
 
     private void createTestData(int documents) throws UnsupportedCharsetException, IOException {
+        Request request = new Request("PUT", "/test/test/_bulk");
+        request.addParameter("refresh", "true");
+
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < documents; i++) {
             int a = 3 * i;
@@ -95,8 +98,9 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
             bulk.append("{\"index\":{\"_id\":\"" + i + "\"}\n");
             bulk.append("{\"a\": " + a + ", \"b\": " + b + ", \"c\": " + c + "}\n");
         }
-        client().performRequest("PUT", "/test/test/_bulk", singletonMap("refresh", "true"),
-                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+        request.setEntity(new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+
+        client().performRequest(request);
     }
 
     private Map<String, Object> responseToMap(Response response) throws IOException {
@@ -111,14 +115,12 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
         expected.put("columns", singletonList(columnInfo(mode, "COUNT(1)", "long", JDBCType.BIGINT, 20)));
         expected.put("rows", singletonList(singletonList(count)));
 
-        Map<String, String> params = new TreeMap<>();
-        params.put("format", "json");        // JSON is easier to parse then a table
-        if (Strings.hasText(mode)) {
-            params.put("mode", mode);        // JDBC or PLAIN mode
+        Request request = new Request("POST", "/_xpack/sql");
+        if (false == mode.isEmpty()) {
+            request.addParameter("mode", mode);
         }
-
-        Map<String, Object> actual = responseToMap(client.performRequest("POST", "/_xpack/sql", params,
-                new StringEntity("{\"query\": \"SELECT COUNT(*) FROM test\"}", ContentType.APPLICATION_JSON)));
+        request.setEntity(new StringEntity("{\"query\": \"SELECT COUNT(*) FROM test\"}", ContentType.APPLICATION_JSON));
+        Map<String, Object> actual = responseToMap(client.performRequest(request));
 
         if (false == expected.equals(actual)) {
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();

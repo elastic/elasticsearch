@@ -58,36 +58,11 @@ ones that the user is authorized to access in case field level security is enabl
 
 [float]
 === Bug Fixes
-<<cusum-pipeline-npe, Fix NPE when CumulativeSum agg encounters null value/empty bucket>> ({pull}29641[#29641])
-
-=== Regressions
-
-=== Known Issues
-
-== Elasticsearch version 6.4.0
-
-=== New Features
-
-=== Enhancements
-
-=== Bug Fixes
-<<cusum-pipeline-npe, Fix NPE when CumulativeSum agg encounters null value/empty bucket>> ({pull}29641[#29641])
-
-=== Regressions
-
-=== Known Issues
-
-== Elasticsearch version 6.3.1
-
-=== New Features
-
-=== Enhancements
-
-=== Bug Fixes
-<<cusum-pipeline-npe, Fix NPE when CumulativeSum agg encounters null value/empty bucket>> ({pull}29641[#29641])
 
 Fail snapshot operations early when creating or deleting a snapshot on a repository that has been
 written to by an older Elasticsearch after writing to it with a newer Elasticsearch version. ({pull}30140[#30140])
+
+Fix NPE when CumulativeSum agg encounters null value/empty bucket ({pull}29641[#29641])
 
 //[float]
 //=== Regressions
@@ -119,6 +94,7 @@ multi-argument versions. ({pull}29623[#29623])
 
 Do not ignore request analysis/similarity settings on index resize operations when the source index already contains such settings ({pull}30216[#30216])
 
+Fix NPE when CumulativeSum agg encounters null value/empty bucket ({pull}29641[#29641])
 
 //[float]
 //=== Regressions

@@ -21,6 +21,4 @@ include::commands/index.asciidoc[]
 
 include::{es-repo-dir}/index-shared4.asciidoc[]
 
-include::release-notes/xpack-xes.asciidoc[]
-
 include::{es-repo-dir}/index-shared5.asciidoc[]

@@ -65,7 +65,6 @@ written to by an older Elasticsearch after writing to it with a newer Elasticsea
 //[float]
 //=== Regressions
 
-== Elasticsearch version 6.4.0
 //[float]
 //=== Known Issues
 
@@ -75,13 +74,13 @@ written to by an older Elasticsearch after writing to it with a newer Elasticsea
 [float]
 === New Features
 
-<<search-request-docvalue-fields,Doc value fields>> support a new `format`
-option, which allows to configure how field values should be formatted. This is
-especially useful for dates and numeric fields. ({pull}placeholder[#placeholder])
-
 The new <<mapping-ignored-field,`_ignored`>> field allows to know which fields
 got ignored at index time because of the <<ignore-malformed,`ignore_malformed`>>
 option. ({pull}30140[#29658])
+
+<<search-request-docvalue-fields,Doc value fields>> support a new `format`
+option, which allows to configure how field values should be formatted. This is
+especially useful for dates and numeric fields. ({pull}29639[#29639])
 
 [float]
 === Enhancements
@@ -98,17 +97,6 @@ multi-argument versions. ({pull}29623[#29623])
 Do not ignore request analysis/similarity settings on index resize operations when the source index already contains such settings ({pull}30216[#30216])
 
 
-== Elasticsearch version 6.3.0
-
-=== New Features
-
-=== Enhancements
-
-=== Bug Fixes
-
-=== Regressions
-
-=== Known Issues
 //[float]
 //=== Regressions
 

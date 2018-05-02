@@ -90,6 +90,8 @@ option. ({pull}30140[#29658])
 Added new "Request" object flavored request methods. Prefer these instead of the
 multi-argument versions. ({pull}29623[#29623])
 
+Watcher HTTP client used in watches now allows more parallel connections to the
+same endpoint and evicts long running connections. ({pull}30130[#30130])
 
 [float]
 === Bug Fixes

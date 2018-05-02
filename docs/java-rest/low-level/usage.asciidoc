@@ -218,93 +218,74 @@ http://hc.apache.org/httpcomponents-asyncclient-dev/httpasyncclient/apidocs/org/
 [[java-rest-low-usage-requests]]
 === Performing requests
 
-Once the `RestClient` has been created, requests can be sent by calling one of
-the available `performRequest` or `performRequestAsync` method variants.
-The `performRequest` methods are synchronous and return the `Response` directly,
-meaning that the client will block and wait for a response to be returned.
-The `performRequestAsync` variants return `void` and accept an extra
-`ResponseListener` as an argument instead, meaning that they are executed
-asynchronously. The provided listener will be notified upon request completion
-or failure.
+Once the `RestClient` has been created, requests can be sent by calling either
+`performRequest` or `performRequestAsync`. `performRequest` is synchronous and
+will block the calling thread and return the `Response` when the request is
+successful or throw an exception if it fails. `performRequestAsync` is
+asynchronous and accepts a `ResponseListener` argument that it calls with a
+`Response` when the request is successful or with an `Exception` if it4 fails.
+
+This is synchronous:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-verb-endpoint]
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-sync]
 --------------------------------------------------
-<1> Send a request by providing only the verb and the endpoint, minimum set
-of required arguments
+<1> The HTTP method (`GET`, `POST`, `HEAD`, etc)
+<2> The endpoint on the server
+
+And this is asynchronous:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-verb-endpoint-params]
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-async]
 --------------------------------------------------
-<1> Send a request by providing the verb, the endpoint, and some querystring
-parameter
+<1> The HTTP method (`GET`, `POST`, `HEAD`, etc)
+<2> The endpoint on the server
+<3> Handle the response
+<4> Handle the failure
+
+You can add request parameters to the request object:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-verb-endpoint-params-body]
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-parameters]
 --------------------------------------------------
-<1> Send a request by providing the verb, the endpoint, optional querystring
-parameters and the request body enclosed in an `org.apache.http.HttpEntity`
-object
+
+You can set the body of the request to any `HttpEntity`:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-body]
+--------------------------------------------------
 
 IMPORTANT: The `ContentType` specified for the `HttpEntity` is important
 because it will be used to set the `Content-Type` header so that Elasticsearch
 can properly parse the content.
 
+And you can set a list of headers to send with the request:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-headers]
+--------------------------------------------------
+
+You can also customize the response consumer used to buffer the asynchronous
+responses. The default consumer will buffer up to 100MB of response on the
+JVM heap. If the response is larger then the request will fail. You could,
+for example, lower the maximum size which might be useful if you are running
+in a heap constrained environment:
+
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-response-consumer]
 --------------------------------------------------
-<1> Send a request by providing the verb, the endpoint, optional querystring
-parameters, optional request body and the optional factory that is used to
-create an http://hc.apache.org/httpcomponents-core-ga/httpcore-nio/apidocs/org/apache/http/nio/protocol/HttpAsyncResponseConsumer.html[`org.apache.http.nio.protocol.HttpAsyncResponseConsumer`]
-callback instance per request attempt. Controls how the response body gets
-streamed from a non-blocking HTTP connection on the client side. When not
-provided, the default implementation is used which buffers the whole response
-body in heap memory, up to 100 MB.
 
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-verb-endpoint-async]
---------------------------------------------------
-<1> Define what needs to happen when the request is successfully performed
-<2> Define what needs to happen when the request fails, meaning whenever
-there's a connection error or a response with error status code is returned.
-<3> Send an async request by providing only the verb, the endpoint, and the
-response listener to be notified once the request is completed, minimum set
-of required arguments
+==== Multiple parallel asynchronous actions
 
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-verb-endpoint-params-async]
---------------------------------------------------
-<1> Send an async request by providing the verb, the endpoint, some querystring
-parameter and the response listener to be notified once the request is completed
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-verb-endpoint-params-body-async]
---------------------------------------------------
-<1> Send an async request by providing the verb, the endpoint, optional
-querystring parameters, the request body enclosed in an
-`org.apache.http.HttpEntity` object and the response listener to be
-notified once the request is completed
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-response-consumer-async]
---------------------------------------------------
-<1> Send an async request by providing the verb, the endpoint, optional
-querystring parameters, optional request body and the optional factory that is
-used to create an http://hc.apache.org/httpcomponents-core-ga/httpcore-nio/apidocs/org/apache/http/nio/protocol/HttpAsyncResponseConsumer.html[`org.apache.http.nio.protocol.HttpAsyncResponseConsumer`]
-callback instance per request attempt. Controls how the response body gets
-streamed from a non-blocking HTTP connection on the client side. When not
-provided, the default implementation is used which buffers the whole response
-body in heap memory, up to 100 MB.
-
-The following is a basic example of how async requests can be sent:
+The client is quite happy to execute many actions in parallel. The following
+example indexes many documents in parallel. In a real world scenario you'd
+probably want to use the `_bulk` API instead, but the example is illustative.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -313,19 +294,6 @@ include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-async-examp
 <1> Process the returned response
 <2> Handle the returned exception, due to communication error or a response
 with status code that indicates an error
-
-Each of the above listed method supports sending headers along with the
-request through a `Header` varargs argument as in the following examples:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-headers]
---------------------------------------------------
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-headers-async]
---------------------------------------------------
 
 [[java-rest-low-usage-responses]]
 === Reading responses
@@ -396,4 +364,3 @@ still yields the same response as it did. Enable trace logging for the `tracer`
 package to have such log lines printed out. Do note that this type of logging is
 expensive and should not be enabled at all times in production environments,
 but rather temporarily used only when needed.
-

@@ -58,4 +58,7 @@ set ES_DISTRIBUTION_TYPE=${es.distribution.type}
 
 if not defined ES_TMPDIR (
   set ES_TMPDIR=!TMP!\elasticsearch
+  if not exist "!ES_TMPDIR!" (
+    mkdir "!ES_TMPDIR!"
+  )
 )

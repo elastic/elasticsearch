@@ -158,7 +158,7 @@ public class CompositeAggregationCursor implements Cursor {
         throw new SqlIllegalArgumentException("Unrecognized root group found; {}", agg.getClass());
     }
 
-    static boolean updateCompositeAfterKey(SearchResponse r, SearchSourceBuilder next) {
+    static void updateCompositeAfterKey(SearchResponse r, SearchSourceBuilder next) {
         CompositeAggregation composite = getComposite(r);
 
         if (composite == null) {
@@ -176,10 +176,7 @@ public class CompositeAggregationCursor implements Cursor {
             } else {
                 throw new SqlIllegalArgumentException("Invalid client request; expected a group-by but instead got {}", aggBuilder);
             }
-
-            return true;
         }
-        return false;
     }
 
     /**

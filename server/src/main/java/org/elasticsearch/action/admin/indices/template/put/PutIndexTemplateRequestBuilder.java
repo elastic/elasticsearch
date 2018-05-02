@@ -76,7 +76,7 @@ public class PutIndexTemplateRequestBuilder
     }
 
     /**
-     * Set to <tt>true</tt> to force only creation, not an update of an index template. If it already
+     * Set to {@code true} to force only creation, not an update of an index template. If it already
      * exists, it will fail with an {@link IllegalArgumentException}.
      */
     public PutIndexTemplateRequestBuilder setCreate(boolean create) {

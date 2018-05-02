@@ -330,7 +330,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
-     * From index to start the search from. Defaults to <tt>0</tt>.
+     * From index to start the search from. Defaults to {@code 0}.
      */
     public SearchSourceBuilder from(int from) {
         if (from < 0) {
@@ -348,7 +348,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
-     * The number of search hits to return. Defaults to <tt>10</tt>.
+     * The number of search hits to return. Defaults to {@code 10}.
      */
     public SearchSourceBuilder size(int size) {
         if (size < 0) {
@@ -496,7 +496,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     /**
      * Applies when sorting, and controls if scores will be tracked as well.
-     * Defaults to <tt>false</tt>.
+     * Defaults to {@code false}.
      */
     public SearchSourceBuilder trackScores(boolean trackScores) {
         this.trackScores = trackScores;
@@ -526,7 +526,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * The sort values that indicates which docs this request should "search after".
      * The sort values of the search_after must be equal to the number of sort fields in the query and they should be
      * of the same type (or parsable as such).
-     * Defaults to <tt>null</tt>.
+     * Defaults to {@code null}.
      */
     public Object[] searchAfter() {
         if (searchAfterBuilder == null) {
@@ -639,7 +639,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
-     * Should the query be profiled. Defaults to <tt>false</tt>
+     * Should the query be profiled. Defaults to {@code false}
      */
     public SearchSourceBuilder profile(boolean profile) {
         this.profile = profile;

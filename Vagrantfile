@@ -337,6 +337,7 @@ export BATS=/project/build/bats
 export BATS_UTILS=/project/build/packaging/bats/utils
 export BATS_TESTS=/project/build/packaging/bats/tests
 export PACKAGING_ARCHIVES=/project/build/packaging/archives
+export PACKAGING_TESTS=/project/build/packaging/tests
 VARS
     cat \<\<SUDOERS_VARS > /etc/sudoers.d/elasticsearch_vars
 Defaults   env_keep += "ZIP"
@@ -347,6 +348,7 @@ Defaults   env_keep += "BATS"
 Defaults   env_keep += "BATS_UTILS"
 Defaults   env_keep += "BATS_TESTS"
 Defaults   env_keep += "PACKAGING_ARCHIVES"
+Defaults   env_keep += "PACKAGING_TESTS"
 SUDOERS_VARS
     chmod 0440 /etc/sudoers.d/elasticsearch_vars
   SHELL

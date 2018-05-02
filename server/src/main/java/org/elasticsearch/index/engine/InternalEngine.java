@@ -765,7 +765,7 @@ public class InternalEngine extends Engine {
                 final IndexResult indexResult;
                 if (plan.earlyResultOnPreFlightError.isPresent()) {
                     indexResult = plan.earlyResultOnPreFlightError.get();
-                    assert indexResult.hasFailure();
+                    assert indexResult.getResultType() == Result.Type.FAILURE : indexResult.getResultType();
                 } else if (plan.indexIntoLucene) {
                     indexResult = indexIntoLucene(index, plan);
                 } else {
@@ -774,7 +774,7 @@ public class InternalEngine extends Engine {
                 }
                 if (index.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
                     final Translog.Location location;
-                    if (indexResult.hasFailure() == false) {
+                    if (indexResult.getResultType() == Result.Type.SUCCESS) {
                         location = translog.add(new Translog.Index(index, indexResult));
                     } else if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                         // if we have document failure, record it as a no-op in the translog with the generated seq_no
@@ -784,7 +784,7 @@ public class InternalEngine extends Engine {
                     }
                     indexResult.setTranslogLocation(location);
                 }
-                if (plan.indexIntoLucene && indexResult.hasFailure() == false) {
+                if (plan.indexIntoLucene && indexResult.getResultType() == Result.Type.SUCCESS) {
                     final Translog.Location translogLocation = trackTranslogLocation.get() ? indexResult.getTranslogLocation() : null;
                     versionMap.maybePutIndexUnderLock(index.uid().bytes(),
                         new IndexVersionValue(translogLocation, plan.versionForIndexing, plan.seqNoForIndexing, index.primaryTerm()));
@@ -1087,7 +1087,7 @@ public class InternalEngine extends Engine {
             }
             if (delete.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
                 final Translog.Location location;
-                if (deleteResult.hasFailure() == false) {
+                if (deleteResult.getResultType() == Result.Type.SUCCESS) {
                     location = translog.add(new Translog.Delete(delete, deleteResult));
                 } else if (deleteResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                     location = translog.add(new Translog.NoOp(deleteResult.getSeqNo(),

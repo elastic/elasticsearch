@@ -168,6 +168,10 @@ in-memory cached user credentials. For possible values, see
 [float]
 ===== File realm settings
 
+The `type` setting must be set to `file`. In addition to the 
+<<ref-realm-settings,settings that are valid for all realms>>, you can specify  
+the following settings: 
+
 `cache.ttl`::
 The time-to-live for cached user entries. A user and a hash of its credentials 
 are cached for this configured period of time. Defaults to `20m`. Specify values 
@@ -685,6 +689,10 @@ LDAP operation (such as `search`). Defaults to `true`.
 [float]
 ===== PKI realm settings
 
+The `type` setting must be set to `pki`. In addition to the 
+<<ref-realm-settings,settings that are valid for all realms>>, you can specify  
+the following settings: 
+
 `username_pattern`::
 The regular expression pattern used to extract the username from the
 certificate DN. The first match group is the used as the username.
@@ -693,9 +701,7 @@ Defaults to `CN=(.*?)(?:,\|$)`.
 `certificate_authorities`::
 List of paths to the PEM certificate files that should be used to authenticate a
 user's certificate as trusted. Defaults to the trusted certificates configured
-for SSL. See the {xpack-ref}/pki-realm.html#pki-ssl-config[SSL settings]
-section of the PKI realm documentation for more information.
-This setting cannot be used with `truststore.path`.
+for SSL. This setting cannot be used with `truststore.path`. 
 
 `truststore.algorithm`::
 Algorithm for the truststore. Defaults to `SunX509`.
@@ -708,10 +714,7 @@ The password for the truststore.
 
 `truststore.path`::
 The path of a truststore to use. Defaults to the trusted certificates configured
-for SSL. See the
-{xpack-ref}/pki-realm.html#pki-ssl-config[SSL settings] section of the PKI realm
-documentation for more information. This setting cannot be used with
-`certificate_authorities`.
+for SSL. This setting cannot be used with `certificate_authorities`.
 
 `files.role_mapping`::
 Specifies the {xpack-ref}/security-files.html[location] of the
@@ -731,8 +734,16 @@ Defaults to `100000`.
 [[ref-saml-settings]]
 [float]
 ===== SAML realm settings
+
+The `type` setting must be set to `saml`. In addition to the 
+<<ref-realm-settings,settings that are valid for all realms>>, you can specify  
+the following settings: 
+
 `idp.entity_id`::
-The Entity ID of the SAML Identity Provider
+The Entity ID of the SAML Identity Provider. An Entity ID is a URI with a 
+maximum length of 1024 characters. It can be a URL (https://idp.example.com/) or 
+a URN (`urn:example.com:idp`) and can be found in the configuration or the SAML 
+metadata of the Identity Provider.
 
 `idp.metadata.path`::
 The path _(recommended)_ or URL to a SAML 2.0 metadata file describing the
@@ -740,7 +751,7 @@ capabilities and configuration of the Identity Provider.
 If a path is provided, then it is resolved relative to the {es} config
 directory.
 If a URL is provided, then it must be either a `file` URL or a `https` URL.
-{security} will automatically poll this metadata resource and will reload
+{security} automatically polls this metadata resource and reloads 
 the IdP configuration when changes are detected.
 File based resources are polled at a frequency determined by the global {es}
 `resource.reload.interval.high` setting, which defaults to 5 seconds.
@@ -757,39 +768,47 @@ Indicates whether to utilise the Identity Provider's Single Logout service
 Defaults to `true`.
 
 `sp.entity_id`::
-The Entity ID to use for this SAML Service Provider, entered as a URI.
+The Entity ID to use for this SAML Service Provider. This should be entered as a 
+URI. We recommend that you use the base URL of your Kibana instance. For example, 
+`https://kibana.example.com/`. 
 
 `sp.acs`::
-The URL of the Assertion Consumer Service within {kib}.
+The URL of the Assertion Consumer Service within {kib}. Typically this is the 
+"api/security/v1/saml" endpoint of your Kibana server. For example, 
+`https://kibana.example.com/api/security/v1/saml`. 
 
 `sp.logout`::
-The URL of the Single Logout service within {kib}.
+The URL of the Single Logout service within {kib}. Typically this is the 
+"logout" endpoint of your Kibana server. For example, 
+`https://kibana.example.com/logout`.
 
 `attributes.principal`::
 The Name of the SAML attribute that should be used as the {security} user's
-principal (username)
+principal (username).
 
 `attributes.groups`::
 The Name of the SAML attribute that should be used to populate {security}
-user's groups
+user's groups. 
 
 `attributes.name`::
 The Name of the SAML attribute that should be used to populate {security}
-user's full name
+user's full name. 
 
 `attributes.mail`::
 The Name of the SAML attribute that should be used to populate {security}
-user's email address
+user's email address. 
 
 `attributes.dn`::
 The Name of the SAML attribute that should be used to populate {security}
-user's X.500 _Distinguished Name_
+user's X.500 _Distinguished Name_. 
 
 `attribute_patterns.principal`::
-A java regular expression that is matched against the SAML attribute specified
+A Java regular expression that is matched against the SAML attribute specified
 by `attributes.pattern` before it is applied to the user's _principal_ property.
-The attribute value must match the pattern, and the value of the first
-_capturing group_ is used as the principal.
+The attribute value must match the pattern and the value of the first
+_capturing group_ is used as the principal. For example, `^([^@]+)@example\\.com$` 
+matches email addresses from the "example.com" domain and uses the local-part as 
+the principal.
 
 `attribute_patterns.groups`::
 As per `attribute_patterns.principal`, but for the _group_ property.
@@ -805,26 +824,41 @@ As per `attribute_patterns.principal`, but for the _dn_ property.
 
 `nameid_format`::
 The NameID format that should be requested when asking the IdP to authenticate
-the current user.
-Defaults to `urn:oasis:names:tc:SAML:2.0:nameid-format:transient`
+the current user. Defaults to requesting _transient_ names 
+(`urn:oasis:names:tc:SAML:2.0:nameid-format:transient`). 
+
+`nameid.allow_create`:: The value of the `AllowCreate` attribute of the 
+`NameIdPolicy` element in an authentication request. Defaults to `false`. 
+
+`nameid.sp_qualifier`:: The value of the `SPNameQualifier` attribute of the 
+`NameIdPolicy` element in an authentication request. The default is to not 
+include the `SPNameQualifier` attribute.
 
 `force_authn`::
-Whether to set the `ForceAuthn` attribute when requesting that the IdP
-authenticate the current user.
+Specifies whether to set the `ForceAuthn` attribute when requesting that the IdP
+authenticate the current user. If set to `true`, the IdP is required to verify 
+the user’s identity, irrespective of any existing sessions they might have. 
 Defaults to `false`.
 
 `populate_user_metadata`::
-Whether to populate the {es} user's metadata with the values that are provided
-by the SAML attributes.
-Defaults to `true`.
+Specifies whether to populate the {es} user's metadata with the values that are 
+provided by the SAML attributes. Defaults to `true`.
 
 `allowed_clock_skew`::
 The maximum amount of skew that can be tolerated between the IdP's clock and the
 {es} node's clock.
 Defaults to `3m` (3 minutes).
 
+[float]
+[[ref-saml-signing-settings]]
+===== SAML realm signing settings
+
+If a signing key is configured (that is, either `signing.key` or 
+`signing.keystore.path` is set), then {security} signs outgoing SAML messages. 
+Signing can be configured using the following settings:
+
 `signing.saml_messages`::
-A list of SAML message types that should be signed, or `*` to sign all messages.
+A list of SAML message types that should be signed or `*` to sign all messages.
 Each element in the list should be the local name of a SAML XML Element.
 Supported element types are `AuthnRequest`, `LogoutRequest` and `LogoutResponse`.
 Only valid if `signing.key` or `signing.keystore.path` is also specified.
@@ -832,152 +866,177 @@ Defaults to `*`.
 
 `signing.key`::
 Specifies the path to the PEM encoded private key to use for SAML message signing.
-`signing.key` and `signing.keystore.path` may not be used at the same time.
+`signing.key` and `signing.keystore.path` cannot be used at the same time.
 
 `signing.secure_key_passphrase` (<<secure-settings,Secure>>)::
 Specifies the passphrase to decrypt the PEM encoded private key (`signing.key`)
 if it is encrypted.
 
 `signing.certificate`::
-Specifies the path to the PEM encoded certificate that corresponds to the
-`signing.key`.  May only be used if `signing.key` is set.
+Specifies the path to the PEM encoded certificate (or certificate chain) that 
+corresponds to the `signing.key`. This certificate must also be included in the 
+Service Provider metadata or manually configured within the IdP to allow for 
+signature validation. This setting can only be used if `signing.key` is set.
 
 `signing.keystore.path`::
 The path to the keystore that contains a private key and certificate.
 Must be either a Java Keystore (jks) or a PKCS#12 file.
-`signing.key` and `signing.keystore.path` may not be used at the same time.
+`signing.key` and `signing.keystore.path` cannot be used at the same time.
 
 `signing.keystore.type`::
-The type of the keystore (`signing.keystore.path`).
-Must be one of "jks" or "PKCS12".  Defaults to "PKCS12" if the keystore path
-ends in ".p12", ".pfx" or "pkcs12", otherwise uses "jks".
+The type of the keystore in `signing.keystore.path`.
+Must be either `jks` or `PKCS12`. If the keystore path ends in ".p12", ".pfx", 
+or "pkcs12", this setting defaults to `PKCS12`. Otherwise, it defaults to `jks`.
 
 `signing.keystore.alias`::
 Specifies the alias of the key within the keystore that should be
-used for SAML message signing. Must be specified if the keystore
-contains more than one private key.
+used for SAML message signing. If the keystore contains more than one private 
+key, this setting must be specified. 
 
 `signing.keystore.secure_password` (<<secure-settings,Secure>>)::
-The password to the keystore (`signing.keystore.path`).
+The password to the keystore in `signing.keystore.path`.
 
 `signing.keystore.secure_key_password` (<<secure-settings,Secure>>)::
 The password for the key in the keystore (`signing.keystore.path`).
 Defaults to the keystore password.
 
+[float]
+[[ref-saml-encryption-settings]]
+===== SAML realm encryption settings
+
+If an encryption key is configured (that is, either `encryption.key` or 
+`encryption.keystore.path` is set), then {security} publishes an encryption 
+certificate when generating metadata and attempts to decrypt incoming SAML 
+content. Encryption can be configured using the following settings:
+
 `encryption.key`::
 Specifies the path to the PEM encoded private key to use for SAML message
 decryption.
-`encryption.key` and `encryption.keystore.path` may not be used at the same time.
+`encryption.key` and `encryption.keystore.path` cannot be used at the same time.
 
 `encryption.secure_key_passphrase` (<<secure-settings,Secure>>)::
 Specifies the passphrase to decrypt the PEM encoded private key
 (`encryption.key`) if it is encrypted.
 
 `encryption.certificate`::
-Specifies the path to the PEM encoded certificate chain that is associated with
-the `encryption.key`.  May only be used if `encryption.key` is set.
+Specifies the path to the PEM encoded certificate (or certificate chain) that is 
+associated with the `encryption.key`. This certificate must also be included in 
+the Service Provider metadata or manually configured within the IdP to enable 
+message encryption. This setting can be used only if `encryption.key` is set.
 
 `encryption.keystore.path`::
 The path to the keystore that contains a private key and certificate.
 Must be either a Java Keystore (jks) or a PKCS#12 file.
-`encryption.key` and `encryption.keystore.path` may not be used at the same time.
+`encryption.key` and `encryption.keystore.path` cannot be used at the same time.
 
 `encryption.keystore.type`::
 The type of the keystore (`encryption.keystore.path`).
-Must be one of "jks" or "PKCS12".  Defaults to "PKCS12" if the keystore path
-ends in ".p12", ".pfx" or "pkcs12", otherwise uses "jks".
+Must be either `jks` or `PKCS12`. If the keystore path ends in ".p12", ".pfx", 
+or "pkcs12", this setting defaults to `PKCS12`. Otherwise, it defaults to `jks`.
 
 `encryption.keystore.alias`::
 Specifies the alias of the key within the keystore (`encryption.keystore.path`)
 that should be used for SAML message decryption. If not specified, all compatible
-key pairs from the keystore will be considered as candidate keys for decryption.
+key pairs from the keystore are considered as candidate keys for decryption.
 
 `encryption.keystore.secure_password` (<<secure-settings,Secure>>)::
 The password to the keystore (`encryption.keystore.path`).
 
 `encryption.keystore.secure_key_password` (<<secure-settings,Secure>>)::
 The password for the key in the keystore (`encryption.keystore.path`). Only a
-single password is supported. If you are using multiple decryption keys, then
+single password is supported. If you are using multiple decryption keys, 
 they cannot have individual passwords.
 
+[float]
+[[ref-saml-ssl-settings]]
+===== SAML realm SSL settings
+
+If you are loading the IdP metadata over SSL/TLS (that is, `idp.metadata.path` 
+is a URL using the `https` protocol), the following settings can be used to 
+configure SSL. If these are not specified, then the 
+<<ssl-tls-settings,default SSL settings>> are used.
+
+NOTE: These settings are not used for any purpose other than loading metadata 
+over https.
+
 `ssl.key`::
-If retrieving IDP metadata via https (see `idp.metadata.path`), specifies the
-path to the PEM encoded private key to use for http client authentication (if
-required). `ssl.key` and `ssl.keystore.path` may not be used at the same time.
+Specifies the path to the PEM encoded private key to use for http client 
+authentication (if required). `ssl.key` and `ssl.keystore.path` cannot be used 
+at the same time.
 
 `ssl.key_passphrase`::
-If retrieving IDP metadata via https (see `idp.metadata.path`), specifies the
+Specifies the
 passphrase to decrypt the PEM encoded private key (`ssl.key`) if it is
-encrypted. May not be used with `ssl.secure_key_passphrase`
+encrypted. Cannot be used with `ssl.secure_key_passphrase`. 
 
 `ssl.secure_key_passphrase` (<<secure-settings,Secure>>)::
-If retrieving IDP metadata via https (see `idp.metadata.path`), specifies the
+Specifies the
 passphrase to decrypt the PEM encoded private key (`ssl.key`) if it is
-encrypted. May not be used with `ssl.key_passphrase`
+encrypted. Cannot be used with `ssl.key_passphrase`. 
 
 `ssl.certificate`::
-If retrieving IDP metadata via https (see `idp.metadata.path`), specifies the
+Specifies the
 path to the PEM encoded certificate (or certificate chain) that is associated
-with the key (`ssl.key`). May only be used if `ssl.key` is set.
+with the key (`ssl.key`). This setting can be used only if `ssl.key` is set.
 
 `ssl.certificate_authorities`::
-If retrieving IDP metadata via https (see `idp.metadata.path`), specifies the
+Specifies the
 paths to the PEM encoded certificate authority certificates that should be
-trusted. `ssl.certificate_authorities` and `ssl.truststore.path` may not be
+trusted. `ssl.certificate_authorities` and `ssl.truststore.path` cannot be
 used at the same time.
 
 `ssl.keystore.path`::
-If retrieving IDP metadata via https (see `idp.metadata.path`), the path to
+Specifies the path to
 the keystore that contains a private key and certificate.
 Must be either a Java Keystore (jks) or a PKCS#12 file.
-`ssl.key` and `ssl.keystore.path` may not be used at the same time.
+`ssl.key` and `ssl.keystore.path` cannot be used at the same time.
 
 `ssl.keystore.type`::
-The type of the keystore (`ssl.keystore.path`). Must be one of "jks" or "PKCS12".
-Defaults to "PKCS12" if the keystore path ends in ".p12", ".pfx" or "pkcs12",
-otherwise uses "jks"
+The type of the keystore (`ssl.keystore.path`). Must be either `jks` or `PKCS12`.
+If the keystore path ends in ".p12", ".pfx" or "pkcs12", this setting defaults 
+to `PKCS12`. Otherwise, it defaults to `jks`.
 
 `ssl.keystore.password`::
-The password to the keystore (`ssl.keystore.path`).
-May not be used with `ssl.keystore.secure_password`.
+The password to the keystore (`ssl.keystore.path`). This setting cannot be used 
+with `ssl.keystore.secure_password`.
 
 `ssl.keystore.secure_password` (<<secure-settings,Secure>>)::
 The password to the keystore (`ssl.keystore.path`).
-May not be used with `ssl.keystore.password`.
+This setting cannot be used with `ssl.keystore.password`.
 
 `ssl.keystore.key_password`::
 The password for the key in the keystore (`ssl.keystore.path`).
-Defaults to the keystore password.
-May not be used with `ssl.keystore.secure_key_password`.
+Defaults to the keystore password. This setting cannot be used with 
+`ssl.keystore.secure_key_password`.
 
 `ssl.keystore.secure_key_password` (<<secure-settings,Secure>>)::
 The password for the key in the keystore (`ssl.keystore.path`).
-Defaults to the keystore password.
-May not be used with `ssl.keystore.key_password`.
+Defaults to the keystore password. This setting cannot be used with 
+`ssl.keystore.key_password`.
 
 `ssl.truststore.path`::
-If retrieving IDP metadata via https (see `idp.metadata.path`), the path to the
+The path to the
 keystore that contains the certificates to trust.
 Must be either a Java Keystore (jks) or a PKCS#12 file.
-`ssl.certificate_authorities` and `ssl.truststore.path` may not be used at the
+`ssl.certificate_authorities` and `ssl.truststore.path` cannot be used at the
 same time.
 
 `ssl.truststore.type`::
-The type of the truststore (`ssl.truststore.path`). Must be one of "jks" or "PKCS12".
-Defaults to "PKCS12" if the keystore path ends in ".p12", ".pfx" or "pkcs12",
-otherwise uses "jks"
+The type of the truststore (`ssl.truststore.path`). Must be either `jks` or 
+`PKCS12`. If the keystore path ends in ".p12", ".pfx" or "pkcs12", this setting 
+defaults to `PKCS12`. Otherwise, it defaults to `jks`.
 
 `ssl.truststore.password`::
-The password to the truststore (`ssl.truststore.path`).
-May not be used with `ssl.truststore.secure_password`.
+The password to the truststore (`ssl.truststore.path`). This setting cannot be 
+used with `ssl.truststore.secure_password`.
 
 `ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
-The password to the truststore (`ssl.truststore.path`).
-May not be used with `ssl.truststore.password`.
+The password to the truststore (`ssl.truststore.path`). This setting cannot be 
+used with `ssl.truststore.password`.
 
 `ssl.verification_mode`::
-If retrieving IDP metadata via https (see `idp.metadata.path`), one of `full`
-(verify the hostname and the certicate path), `certificate` (verify the
+One of `full`
+(verify the hostname and the certificate path), `certificate` (verify the
 certificate path, but not the hostname) or `none` (perform no verification).
 Defaults to `full`.
 +
@@ -985,11 +1044,10 @@ See <<ssl-tls-settings,`xpack.ssl.verification_mode`>> for a more detailed
 explanation of these values.
 
 `ssl.supported_protocols`::
-If retrieving IDP metadata via https (see `idp.metadata.path`), specifies the
-supported protocols for TLS/SSL.
+Specifies the supported protocols for TLS/SSL.
 
 `ssl.cipher_suites`::
-If retrieving IDP metadata via https (see `idp.metadata.path`), specifies the
+Specifies the
 cipher suites that should be supported.
 
 [float]

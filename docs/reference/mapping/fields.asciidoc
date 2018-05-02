@@ -40,9 +40,6 @@ can be customised when a mapping type is created.
 
     All fields in the document which contain non-null values.
 
-[float]
-=== Indexing meta-fields
-
 <<mapping-ignored-field,`_ignored`>>::
 
     All fields in the document that have been ignored at index time because of

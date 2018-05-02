@@ -6,8 +6,6 @@
 package org.elasticsearch.xpack.core.ssl;
 
 import org.apache.lucene.util.SetOnce;
-import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
-import org.bouncycastle.openssl.jcajce.JcePEMEncryptorBuilder;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -21,20 +19,14 @@ import org.junit.Before;
 
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
-import javax.security.auth.x500.X500Principal;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
-import java.nio.file.attribute.BasicFileAttributes;
-import java.security.KeyPair;
-import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
@@ -77,7 +69,9 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
     public void testReloadingKeyStore() throws Exception {
         final Path tempDir = createTempDir();
         final Path keystorePath = tempDir.resolve("testnode.jks");
+        final Path updatedKeystorePath = tempDir.resolve("testnode_updated.jks");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"), keystorePath);
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.jks"), updatedKeystorePath);
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
         final Settings settings = Settings.builder()
@@ -92,7 +86,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             String[] aliases = keyManager.getServerAliases("RSA", null);
             assertNotNull(aliases);
             assertThat(aliases.length, is(1));
-            assertThat(aliases[0], is("testnode"));
+            assertThat(aliases[0], is("testnode_rsa"));
         };
 
         final SetOnce<Integer> trustedCount = new SetOnce<>();
@@ -104,18 +98,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
 
         final Runnable modifier = () -> {
             try {
-                // modify it
-                KeyStore keyStore = KeyStore.getInstance("jks");
-                keyStore.load(null, null);
-                final KeyPair keyPair = CertUtils.generateKeyPair(512);
-                X509Certificate cert = CertUtils.generateSignedCertificate(new X500Principal("CN=testReloadingKeyStore"), null, keyPair,
-                        null, null, 365);
-                keyStore.setKeyEntry("key", keyPair.getPrivate(), "testnode".toCharArray(), new X509Certificate[] { cert });
-                Path updated = tempDir.resolve("updated.jks");
-                try (OutputStream out = Files.newOutputStream(updated)) {
-                    keyStore.store(out, "testnode".toCharArray());
-                }
-                atomicMoveIfPossible(updated, keystorePath);
+                atomicMoveIfPossible(updatedKeystorePath, keystorePath);
             } catch (Exception e) {
                 throw new RuntimeException("modification failed", e);
             }
@@ -128,7 +111,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             assertThat(aliases[0], is("key"));
         };
         final BiConsumer<X509ExtendedTrustManager, SSLConfiguration> trustManagerPostChecks = (updatedTrustManager, config) -> {
-            assertThat(trustedCount.get() - updatedTrustManager.getAcceptedIssuers().length, is(5));
+            assertThat(trustedCount.get() - updatedTrustManager.getAcceptedIssuers().length, is(7));
         };
         validateSSLConfigurationIsReloaded(settings, env, keyManagerPreChecks, trustManagerPreChecks, modifier, keyManagerPostChecks,
                 trustManagerPostChecks);
@@ -141,9 +124,11 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
     public void testPEMKeyConfigReloading() throws Exception {
         Path tempDir = createTempDir();
         Path keyPath = tempDir.resolve("testnode.pem");
+        Path updatedKeyPath = tempDir.resolve("testnode_updated.pem");
         Path certPath = tempDir.resolve("testnode.crt");
         Path clientCertPath = tempDir.resolve("testclient.crt");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"), keyPath);
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.pem"), updatedKeyPath);
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"), certPath);
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt"), clientCertPath);
         MockSecureSettings secureSettings = new MockSecureSettings();
@@ -159,6 +144,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
 
         final SetOnce<PrivateKey> privateKey = new SetOnce<>();
+        final PrivateKey updatedPrivateKey = PemUtils.readPrivateKey(updatedKeyPath, "testnode"::toCharArray);
         final BiConsumer<X509ExtendedKeyManager, SSLConfiguration> keyManagerPreChecks = (keyManager, config) -> {
             String[] aliases = keyManager.getServerAliases("RSA", null);
             assertNotNull(aliases);
@@ -168,26 +154,8 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             assertNotNull(privateKey.get());
         };
 
-        final KeyPair keyPair = CertUtils.generateKeyPair(randomFrom(1024, 2048));
         final Runnable modifier = () -> {
             try {
-                // make sure we wait long enough to see a change. if time is within a second the file may not be seen as modified since the
-                // size is the same!
-                assertTrue(awaitBusy(() -> {
-                    try {
-                        BasicFileAttributes attributes = Files.readAttributes(keyPath, BasicFileAttributes.class);
-                        return System.currentTimeMillis() - attributes.lastModifiedTime().toMillis() >= 1000L;
-                    } catch (IOException e) {
-                        throw new RuntimeException("io exception while checking time", e);
-                    }
-                }));
-                Path updatedKeyPath = tempDir.resolve("updated.pem");
-                try (OutputStream os = Files.newOutputStream(updatedKeyPath);
-                     OutputStreamWriter osWriter = new OutputStreamWriter(os, StandardCharsets.UTF_8);
-                     JcaPEMWriter writer = new JcaPEMWriter(osWriter)) {
-                    writer.writeObject(keyPair,
-                            new JcePEMEncryptorBuilder("DES-EDE3-CBC").setProvider(CertUtils.BC_PROV).build("testnode".toCharArray()));
-                }
                 atomicMoveIfPossible(updatedKeyPath, keyPath);
             } catch (Exception e) {
                 throw new RuntimeException("failed to modify file", e);
@@ -200,7 +168,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             assertThat(aliases.length, is(1));
             assertThat(aliases[0], is("key"));
             assertThat(keyManager.getPrivateKey(aliases[0]), not(equalTo(privateKey)));
-            assertThat(keyManager.getPrivateKey(aliases[0]), is(equalTo(keyPair.getPrivate())));
+            assertThat(keyManager.getPrivateKey(aliases[0]), is(equalTo(updatedPrivateKey)));
         };
         validateKeyConfigurationIsReloaded(settings, env, keyManagerPreChecks, modifier, keyManagerPostChecks);
     }
@@ -211,7 +179,9 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
     public void testReloadingTrustStore() throws Exception {
         Path tempDir = createTempDir();
         Path trustStorePath = tempDir.resolve("testnode.jks");
+        Path updatedTruststorePath = tempDir.resolve("testnode_updated.jks");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"), trustStorePath);
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_updated.jks"), updatedTruststorePath);
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode");
         Settings settings = Settings.builder()
@@ -228,23 +198,16 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             trustedCount.set(certificates.length);
         };
 
-
         final Runnable modifier = () -> {
             try {
-                Path updatedTruststore = tempDir.resolve("updated.jks");
-                KeyStore keyStore = KeyStore.getInstance("jks");
-                keyStore.load(null, null);
-                try (OutputStream out = Files.newOutputStream(updatedTruststore)) {
-                    keyStore.store(out, "testnode".toCharArray());
-                }
-                atomicMoveIfPossible(updatedTruststore, trustStorePath);
+                atomicMoveIfPossible(updatedTruststorePath, trustStorePath);
             } catch (Exception e) {
                 throw new RuntimeException("failed to modify file", e);
             }
         };
 
         final BiConsumer<X509ExtendedTrustManager, SSLConfiguration> trustManagerPostChecks = (updatedTrustManager, config) -> {
-            assertThat(trustedCount.get() - updatedTrustManager.getAcceptedIssuers().length, is(6));
+            assertThat(trustedCount.get() - updatedTrustManager.getAcceptedIssuers().length, is(7));
         };
 
         validateTrustConfigurationIsReloaded(settings, env, trustManagerPreChecks, modifier, trustManagerPostChecks);

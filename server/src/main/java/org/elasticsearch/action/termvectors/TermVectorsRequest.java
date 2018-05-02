@@ -294,7 +294,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
 
     /**
      * Sets the preference to execute the search. Defaults to randomize across
-     * shards. Can be set to <tt>_local</tt> to prefer local shards or a custom value,
+     * shards. Can be set to {@code _local} to prefer local shards or a custom value,
      * which guarantees that the same order will be used across different
      * requests.
      */

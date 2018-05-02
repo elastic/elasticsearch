@@ -1,6 +1,6 @@
 [role="xpack"]
 [[configuring-tls]]
-=== Encrypting Communications in {es}
+=== Encrypting communications in {es}
 
 {security} enables you to encrypt traffic to, from, and within your {es} cluster.
 Connections are secured using Transport Layer Security (TLS/SSL).
@@ -20,9 +20,17 @@ information, see <<security-settings>>.
 .. Required: <<tls-transport,Enable TLS on the transport layer>>.
 .. Recommended: <<tls-http,Enable TLS on the HTTP layer>>.
 
+. If you are using Active Directory user authentication, 
+<<tls-active-directory,encrypt communications between {es} and your Active Directory server>>. 
+
+. If you are using LDAP user authentication, 
+<<tls-ldap,encrypt communications between {es} and your LDAP server>>. 
+
 For more information about encrypting communications across the Elastic Stack,
 see {xpack-ref}/encrypting-communications.html[Encrypting Communications].
 
 include::node-certificates.asciidoc[]
 include::tls-transport.asciidoc[]
 include::tls-http.asciidoc[]
+include::tls-ad.asciidoc[]
+include::tls-ldap.asciidoc[]

@@ -91,7 +91,6 @@ public class HttpReadWritePipeline implements ReadConsumer, FlushProducer {
             handleRequest(message);
         }
 
-        // Handle requests
         return bytesConsumed;
     }
 
@@ -106,11 +105,11 @@ public class HttpReadWritePipeline implements ReadConsumer, FlushProducer {
     }
 
     @Override
-    public WriteOperation createWriteOperation(SocketChannelContext channelContext, Object message, BiConsumer<Void, Throwable> listener) {
+    public WriteOperation createWriteOperation(SocketChannelContext context, Object message, BiConsumer<Void, Throwable> listener) {
         if (message instanceof FullHttpResponse) {
-            return new HttpWriteOperation(channelContext, (FullHttpResponse) message, listener);
+            return new HttpWriteOperation(context, (FullHttpResponse) message, listener);
         } else {
-            throw new IllegalArgumentException("This channel only supports messages that are of type: FullHttpResponse");
+            throw new IllegalArgumentException("This channel only supports messages that are of type: " + FullHttpResponse.class);
         }
     }
 

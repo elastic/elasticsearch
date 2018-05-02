@@ -43,7 +43,7 @@ public class NettyAdaptor implements AutoCloseable {
     private final LinkedList<FlushOperation> flushOperations = new LinkedList<>();
     private final SocketSelector selector;
 
-    public NettyAdaptor(SocketSelector selector, ChannelHandler... handlers) {
+    NettyAdaptor(SocketSelector selector, ChannelHandler... handlers) {
         this.selector = selector;
         nettyChannel = new EmbeddedChannel();
         nettyChannel.pipeline().addLast("write_captor", new ChannelOutboundHandlerAdapter() {

@@ -22,7 +22,9 @@ package org.elasticsearch.nio;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
+import java.util.Collections;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.function.BiConsumer;
 
 public class BytesFlushProducer implements FlushProducer {
@@ -35,9 +37,24 @@ public class BytesFlushProducer implements FlushProducer {
     }
 
     @Override
+    public WriteOperation createWriteOperation(SocketChannelContext context, Object message, BiConsumer<Void, Throwable> listener) {
+        if (message instanceof ByteBuffer[]) {
+            return new FlushReadyWrite(context, (ByteBuffer[]) message, listener);
+        } else {
+            throw new IllegalArgumentException("This channel only supports messages that are of type: " + ByteBuffer[].class);
+        }
+    }
+
+    @Override
     public void produceWrites(WriteOperation writeOperation) {
         assert writeOperation instanceof FlushReadyWrite : "Write operation must be flush ready";
         flushOperations.addLast((FlushReadyWrite) writeOperation);
+    }
+
+    @Override
+    public List<FlushOperation> write(WriteOperation writeOperation) {
+        assert writeOperation instanceof FlushReadyWrite : "Write operation must be flush ready";
+        return Collections.singletonList((FlushReadyWrite) writeOperation);
     }
 
     @Override
@@ -51,15 +68,5 @@ public class BytesFlushProducer implements FlushProducer {
             selector.executeFailedListener(flushOperation.getListener(), new ClosedChannelException());
         }
         flushOperations.clear();
-    }
-
-    @Override
-    public WriteOperation createWriteOperation(SocketChannelContext channelContext, Object message,
-                                               BiConsumer<Void, Throwable> listener) {
-        if (message instanceof ByteBuffer[]) {
-            return new FlushReadyWrite(channelContext, (ByteBuffer[]) message, listener);
-        } else {
-            throw new IllegalArgumentException("This channel only supports messages that are of type: ByteBuffer[]");
-        }
     }
 }

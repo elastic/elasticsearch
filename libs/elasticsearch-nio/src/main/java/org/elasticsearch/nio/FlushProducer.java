@@ -20,15 +20,21 @@
 package org.elasticsearch.nio;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 import java.util.function.BiConsumer;
 
 public interface FlushProducer {
 
+    WriteOperation createWriteOperation(SocketChannelContext context, Object message, BiConsumer<Void, Throwable> listener);
+
     void produceWrites(WriteOperation writeOperation);
+
+    default List<FlushOperation> write(WriteOperation writeOperation) {
+        return Collections.emptyList();
+    }
 
     FlushOperation pollFlushOperation();
 
     void close() throws IOException;
-
-    WriteOperation createWriteOperation(SocketChannelContext channelContext, Object message, BiConsumer<Void, Throwable> listener);
 }

@@ -32,6 +32,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.singletonMap;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 public final class XPackRestTestHelper {
 
@@ -42,9 +43,9 @@ public final class XPackRestTestHelper {
      * Waits for the Machine Learning templates to be created
      * and check the version is up to date
      */
-    public static void waitForMlTemplates(RestClient client) throws InterruptedException {
+    public static void waitForMlTemplates(RestClient client) throws Exception {
         AtomicReference<Version> masterNodeVersion = new AtomicReference<>();
-        ESTestCase.awaitBusy(() -> {
+        ESTestCase.assertBusy(() -> {
             String response;
             try {
                 response = EntityUtils
@@ -55,30 +56,30 @@ public final class XPackRestTestHelper {
             for (String line : response.split("\n")) {
                 if (line.startsWith("*")) {
                     masterNodeVersion.set(Version.fromString(line.substring(2).trim()));
-                    return true;
+                    return;
                 }
             }
-            return false;
+            fail("We expect having one line starts with *");
         });
 
         final List<String> templateNames = Arrays.asList(AuditorField.NOTIFICATIONS_INDEX, MlMetaIndex.INDEX_NAME,
                 AnomalyDetectorsIndex.jobStateIndexName(), AnomalyDetectorsIndex.jobResultsIndexPrefix());
         for (String template : templateNames) {
-            ESTestCase.awaitBusy(() -> {
+            ESTestCase.assertBusy(() -> {
                 Map<?, ?> response;
                 try {
                     String string = EntityUtils.toString(client.performRequest("GET", "/_template/" + template).getEntity());
                     response = XContentHelper.convertToMap(JsonXContent.jsonXContent, string, false);
                 } catch (ResponseException e) {
                     if (e.getResponse().getStatusLine().getStatusCode() == 404) {
-                        return false;
+                        fail("We didn't expect status 404");
                     }
                     throw new RuntimeException(e);
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
                 Map<?, ?> templateDefinition = (Map<?, ?>) response.get(template);
-                return Version.fromId((Integer) templateDefinition.get("version")).equals(masterNodeVersion.get());
+                assertEquals(Version.fromId((Integer) templateDefinition.get("version")), masterNodeVersion.get());
             });
         }
     }

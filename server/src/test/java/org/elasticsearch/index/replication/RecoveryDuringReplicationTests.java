@@ -22,7 +22,6 @@ package org.elasticsearch.index.replication;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -33,6 +32,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
@@ -183,8 +183,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     VersionType.EXTERNAL,
                     randomNonNegativeLong(),
                     false,
-                    SourceToParse.source("index", "type", "replica", new BytesArray("{}"), XContentType.JSON),
-                    mapping -> {});
+                    SourceToParse.source("index", "type", "replica", new BytesArray("{}"), XContentType.JSON));
             shards.promoteReplicaToPrimary(promotedReplica).get();
             oldPrimary.close("demoted", randomBoolean());
             oldPrimary.store().close();
@@ -199,9 +198,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                         VersionType.INTERNAL,
                         SourceToParse.source("index", "type", "primary", new BytesArray("{}"), XContentType.JSON),
                         randomNonNegativeLong(),
-                        false,
-                        mapping -> {
-                        });
+                        false);
             }
             final IndexShard recoveredReplica =
                     shards.addReplicaWithExistingPath(remainingReplica.shardPath(), remainingReplica.routingEntry().currentNodeId());

@@ -173,14 +173,14 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             try {
                 // make sure we wait long enough to see a change. if time is within a second the file may not be seen as modified since the
                 // size is the same!
-                assertTrue(awaitBusy(() -> {
+                assertBusy(() -> {
                     try {
                         BasicFileAttributes attributes = Files.readAttributes(keyPath, BasicFileAttributes.class);
-                        return System.currentTimeMillis() - attributes.lastModifiedTime().toMillis() >= 1000L;
+                        assertTrue(System.currentTimeMillis() - attributes.lastModifiedTime().toMillis() >= 1000L);
                     } catch (IOException e) {
                         throw new RuntimeException("io exception while checking time", e);
                     }
-                }));
+                });
                 Path updatedKeyPath = tempDir.resolve("updated.pem");
                 try (OutputStream os = Files.newOutputStream(updatedKeyPath);
                      OutputStreamWriter osWriter = new OutputStreamWriter(os, StandardCharsets.UTF_8);

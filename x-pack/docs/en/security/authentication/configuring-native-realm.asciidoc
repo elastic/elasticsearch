@@ -1,6 +1,6 @@
 [role="xpack"]
 [[configuring-native-realm]]
-=== Configuring a Native Realm
+=== Configuring a native realm
 
 The easiest way to manage and authenticate users is with the internal `native`
 realm. 

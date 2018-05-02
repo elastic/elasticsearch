@@ -20,12 +20,12 @@ The `ldap` realm supports two modes of operation, a user search mode
 and a mode with specific templates for user DNs. 
 
 [[ldap-user-search]]
-===== User search mode and user DN templates mode
+==== User search mode and user DN templates mode
 
 See {ref}/configuring-ldap-realm.html[Configuring an LDAP Realm].
 
 [[ldap-load-balancing]]
-===== Load balancing and failover
+==== Load balancing and failover
 The `load_balance.type` setting can be used at the realm level to configure how
 {security} should interact with multiple LDAP servers. {security} supports both
 failover and load balancing modes of operation.
@@ -33,7 +33,7 @@ failover and load balancing modes of operation.
 See {ref}/security-settings.html#load-balancing[Load Balancing and Failover Settings].
 
 [[ldap-settings]]
-===== LDAP realm settings
+==== LDAP realm settings
 
 See {ref}/security-settings.html#ref-ldap-settings[LDAP Realm Settings].
 

@@ -49,11 +49,13 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
         GeoHashGrid {
     static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements GeoHashGrid.Bucket, Comparable<Bucket> {
 
+        protected GeoHashType type;
         protected long geohashAsLong;
         protected long docCount;
         protected InternalAggregations aggregations;
 
-        Bucket(long geohashAsLong, long docCount, InternalAggregations aggregations) {
+        Bucket(GeoHashType type, long geohashAsLong, long docCount, InternalAggregations aggregations) {
+            this.type = type;
             this.docCount = docCount;
             this.aggregations = aggregations;
             this.geohashAsLong = geohashAsLong;
@@ -63,6 +65,7 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
          * Read from a stream.
          */
         private Bucket(StreamInput in) throws IOException {
+            type = GeoHashType.readFromStream(in);
             geohashAsLong = in.readLong();
             docCount = in.readVLong();
             aggregations = InternalAggregations.readAggregations(in);
@@ -70,6 +73,7 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            type.writeTo(out);
             out.writeLong(geohashAsLong);
             out.writeVLong(docCount);
             aggregations.writeTo(out);
@@ -77,12 +81,22 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
 
         @Override
         public String getKeyAsString() {
-            return GeoHashUtils.stringEncode(geohashAsLong);
+            switch(type) {
+                case GEOHASH:
+                    return GeoHashUtils.stringEncode(geohashAsLong);
+                default:
+                    throw new IllegalArgumentException();
+            }
         }
 
         @Override
-        public GeoPoint getKey() {
-            return GeoPoint.fromGeohash(geohashAsLong);
+        public Object getKey() {
+            switch(type) {
+                case GEOHASH:
+                    return GeoPoint.fromGeohash(geohashAsLong);
+                default:
+                    throw new IllegalArgumentException();
+            }
         }
 
         @Override
@@ -114,7 +128,7 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
                 aggregationsList.add(bucket.aggregations);
             }
             final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
-            return new Bucket(geohashAsLong, docCount, aggs);
+            return new Bucket(type, geohashAsLong, docCount, aggs);
         }
 
         @Override
@@ -133,13 +147,14 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
             if (o == null || getClass() != o.getClass()) return false;
             Bucket bucket = (Bucket) o;
             return geohashAsLong == bucket.geohashAsLong &&
+                type == bucket.type &&
                 docCount == bucket.docCount &&
                 Objects.equals(aggregations, bucket.aggregations);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(geohashAsLong, docCount, aggregations);
+            return Objects.hash(type, geohashAsLong, docCount, aggregations);
         }
 
     }
@@ -181,7 +196,7 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
 
     @Override
     public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
-        return new Bucket(prototype.geohashAsLong, prototype.docCount, aggregations);
+        return new Bucket(prototype.type, prototype.geohashAsLong, prototype.docCount, aggregations);
     }
 
     @Override

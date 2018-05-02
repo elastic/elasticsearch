@@ -56,7 +56,7 @@ public class InternalGeoHashGridTests extends InternalMultiBucketAggregationTest
             double longitude = randomDoubleBetween(-180.0, 180.0, false);
 
             long geoHashAsLong = GeoHashUtils.longEncode(longitude, latitude, 4);
-            buckets.add(new InternalGeoHashGrid.Bucket(geoHashAsLong, randomInt(IndexWriter.MAX_DOCS), aggregations));
+            buckets.add(new InternalGeoHashGrid.Bucket(GeoHashType.GEOHASH, geoHashAsLong, randomInt(IndexWriter.MAX_DOCS), aggregations));
         }
         return new InternalGeoHashGrid(name, size, buckets, pipelineAggregators, metaData);
     }
@@ -85,7 +85,7 @@ public class InternalGeoHashGridTests extends InternalMultiBucketAggregationTest
             for (InternalGeoHashGrid.Bucket bucket : entry.getValue()) {
                 docCount += bucket.docCount;
             }
-            expectedBuckets.add(new InternalGeoHashGrid.Bucket(entry.getKey(), docCount, InternalAggregations.EMPTY));
+            expectedBuckets.add(new InternalGeoHashGrid.Bucket(GeoHashType.GEOHASH, entry.getKey(), docCount, InternalAggregations.EMPTY));
         }
         expectedBuckets.sort((first, second) -> {
             int cmp = Long.compare(second.docCount, first.docCount);
@@ -124,7 +124,8 @@ public class InternalGeoHashGridTests extends InternalMultiBucketAggregationTest
         case 1:
             buckets = new ArrayList<>(buckets);
             buckets.add(
-                    new InternalGeoHashGrid.Bucket(randomNonNegativeLong(), randomInt(IndexWriter.MAX_DOCS), InternalAggregations.EMPTY));
+                    new InternalGeoHashGrid.Bucket(GeoHashType.GEOHASH, randomNonNegativeLong(),
+                        randomInt(IndexWriter.MAX_DOCS), InternalAggregations.EMPTY));
             break;
         case 2:
             size = size + between(1, 10);

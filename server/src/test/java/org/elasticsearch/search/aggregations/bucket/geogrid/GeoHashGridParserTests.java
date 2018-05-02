@@ -65,8 +65,8 @@ public class GeoHashGridParserTests extends ESTestCase {
         // can create a factory
         GeoGridAggregationBuilder builder = GeoGridAggregationBuilder.parse("geohash_grid", stParser);
         assertNotNull(builder);
-        assertThat(builder.precision(), greaterThanOrEqualTo(0));
-        assertThat(builder.precision(), lessThanOrEqualTo(12));
+        assertThat(Integer.parseInt(builder.precision()), greaterThanOrEqualTo(0));
+        assertThat(Integer.parseInt(builder.precision()), lessThanOrEqualTo(12));
     }
 
     public void testParseInvalidUnitPrecision() throws Exception {
@@ -101,18 +101,5 @@ public class GeoHashGridParserTests extends ESTestCase {
                 () -> GeoGridAggregationBuilder.parse("geohash_grid", stParser));
         assertThat(ExceptionsHelper.detailedMessage(e),
                 containsString("[geohash_grid] precision doesn't support values of type: VALUE_BOOLEAN"));
-    }
-
-    public void testParseErrorOnPrecisionOutOfRange() throws Exception {
-        XContentParser stParser = createParser(JsonXContent.jsonXContent, "{\"field\":\"my_loc\", \"precision\":\"13\"}");
-        XContentParser.Token token = stParser.nextToken();
-        assertSame(XContentParser.Token.START_OBJECT, token);
-        try {
-            GeoGridAggregationBuilder.parse("geohash_grid", stParser);
-            fail();
-        } catch (XContentParseException ex) {
-            assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
-            assertEquals("Invalid geohash aggregation precision of 13. Must be between 1 and 12.", ex.getCause().getMessage());
-        }
     }
 }

@@ -32,7 +32,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
@@ -548,23 +547,25 @@ public class GeoUtils {
      * @return int representing precision
      */
     public static int parsePrecision(XContentParser parser) throws IOException, ElasticsearchParseException {
-        XContentParser.Token token = parser.currentToken();
-        if (token.equals(XContentParser.Token.VALUE_NUMBER)) {
-            return XContentMapValues.nodeIntegerValue(parser.intValue());
-        } else {
-            String precision = parser.text();
+        return parser.currentToken() == Token.VALUE_NUMBER ? parser.intValue() : parsePrecisionString(parser.text());
+    }
+
+    /**
+     * Attempt to parse geohash precision string into an integer value
+     */
+    public static int parsePrecisionString(String precision) {
+        try {
+            // we want to treat simple integer strings as precision levels, not distances
+            return checkPrecisionRange(Integer.parseInt(precision));
+            // Do not catch IllegalArgumentException here
+        } catch (NumberFormatException e) {
+            // try to parse as a distance value
+            final int parsedPrecision = GeoUtils.geoHashLevelsForPrecision(precision);
             try {
-                // we want to treat simple integer strings as precision levels, not distances
-                return XContentMapValues.nodeIntegerValue(precision);
-            } catch (NumberFormatException e) {
-                // try to parse as a distance value
-                final int parsedPrecision = GeoUtils.geoHashLevelsForPrecision(precision);
-                try {
-                    return checkPrecisionRange(parsedPrecision);
-                } catch (IllegalArgumentException e2) {
-                    // this happens when distance too small, so precision > 12. We'd like to see the original string
-                    throw new IllegalArgumentException("precision too high [" + precision + "]", e2);
-                }
+                return checkPrecisionRange(parsedPrecision);
+            } catch (IllegalArgumentException e2) {
+                // this happens when distance too small, so precision > 12. We'd like to see the original string
+                throw new IllegalArgumentException("precision too high [" + precision + "]", e2);
             }
         }
     }

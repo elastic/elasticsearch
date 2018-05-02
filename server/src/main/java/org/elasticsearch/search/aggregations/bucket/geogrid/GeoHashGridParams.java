@@ -26,6 +26,7 @@ import org.elasticsearch.common.ParseField;
 final class GeoHashGridParams {
 
     /* recognized field names in JSON */
+    static final ParseField FIELD_TYPE = new ParseField("type");
     static final ParseField FIELD_PRECISION = new ParseField("precision");
     static final ParseField FIELD_SIZE = new ParseField("size");
     static final ParseField FIELD_SHARD_SIZE = new ParseField("shard_size");

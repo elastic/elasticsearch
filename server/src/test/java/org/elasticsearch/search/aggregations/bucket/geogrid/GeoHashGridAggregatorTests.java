@@ -40,16 +40,17 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
+import org.elasticsearch.common.geo.GeoHashUtils;
 
 public class GeoHashGridAggregatorTests extends AggregatorTestCase {
 
     private static final String FIELD_NAME = "location";
 
     public void testNoDocs() throws IOException {
-        testCase(new MatchAllDocsQuery(), FIELD_NAME, 1, iw -> {
+        testCase(new MatchAllDocsQuery(), FIELD_NAME, GeoHashType.GEOHASH, 1, iw -> {
             // Intentionally not writing any docs
         }, geoHashGrid -> {
             assertEquals(0, geoHashGrid.getBuckets().size());
@@ -57,25 +58,32 @@ public class GeoHashGridAggregatorTests extends AggregatorTestCase {
     }
 
     public void testFieldMissing() throws IOException {
-        testCase(new MatchAllDocsQuery(), "wrong_field", 1, iw -> {
+        testCase(new MatchAllDocsQuery(), "wrong_field", GeoHashType.GEOHASH, 1, iw -> {
             iw.addDocument(Collections.singleton(new LatLonDocValuesField(FIELD_NAME, 10D, 10D)));
         }, geoHashGrid -> {
             assertEquals(0, geoHashGrid.getBuckets().size());
         });
     }
 
-    public void testWithSeveralDocs() throws IOException {
+    public void testHashcodeWithSeveralDocs() throws IOException {
         int precision = randomIntBetween(1, 12);
+        testWithSeveralDocs(GeoHashType.GEOHASH, precision, (lng, lat) -> {
+            return GeoHashUtils.stringEncode(lng, lat, precision);
+        });
+    }
+
+    private void testWithSeveralDocs(GeoHashType type, int precision, BiFunction<Double, Double, String> hasher)
+            throws IOException {
         int numPoints = randomIntBetween(8, 128);
         Map<String, Integer> expectedCountPerGeoHash = new HashMap<>();
-        testCase(new MatchAllDocsQuery(), FIELD_NAME, precision, iw -> {
+        testCase(new MatchAllDocsQuery(), FIELD_NAME, type, precision, iw -> {
             List<LatLonDocValuesField> points = new ArrayList<>();
             Set<String> distinctHashesPerDoc = new HashSet<>();
             for (int pointId = 0; pointId < numPoints; pointId++) {
                 double lat = (180d * randomDouble()) - 90d;
                 double lng = (360d * randomDouble()) - 180d;
                 points.add(new LatLonDocValuesField(FIELD_NAME, lat, lng));
-                String hash = stringEncode(lng, lat, precision);
+                String hash = hasher.apply(lng, lat);
                 if (distinctHashesPerDoc.contains(hash) == false) {
                     expectedCountPerGeoHash.put(hash, expectedCountPerGeoHash.getOrDefault(hash, 0) + 1);
                 }
@@ -97,8 +105,8 @@ public class GeoHashGridAggregatorTests extends AggregatorTestCase {
         });
     }
 
-    private void testCase(Query query, String field, int precision, CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                          Consumer<InternalGeoHashGrid> verify) throws IOException {
+    private void testCase(Query query, String field, GeoHashType type, int precision, CheckedConsumer<RandomIndexWriter,
+                          IOException> buildIndex, Consumer<InternalGeoHashGrid> verify) throws IOException {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         buildIndex.accept(indexWriter);
@@ -108,7 +116,8 @@ public class GeoHashGridAggregatorTests extends AggregatorTestCase {
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
         GeoGridAggregationBuilder aggregationBuilder = new GeoGridAggregationBuilder("_name").field(field);
-        aggregationBuilder.precision(precision);
+        aggregationBuilder.type(type.name());
+        aggregationBuilder.precision(Integer.toString(precision));
         MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType();
         fieldType.setHasDocValues(true);
         fieldType.setName(FIELD_NAME);

@@ -45,14 +45,16 @@ public class GeoHashGridAggregator extends BucketsAggregator {
     private final int shardSize;
     private final GeoGridAggregationBuilder.CellIdSource valuesSource;
     private final LongHash bucketOrds;
+    private final GeoHashType type;
 
     GeoHashGridAggregator(String name, AggregatorFactories factories, GeoGridAggregationBuilder.CellIdSource valuesSource,
             int requiredSize, int shardSize, SearchContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) throws IOException {
+            Map<String, Object> metaData, GeoHashType type) throws IOException {
         super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
+        this.type = type;
         bucketOrds = new LongHash(1, aggregationContext.bigArrays());
     }
 
@@ -96,8 +98,8 @@ public class GeoHashGridAggregator extends BucketsAggregator {
 
         long bucketOrd;
 
-        OrdinalBucket() {
-            super(0, 0, null);
+        OrdinalBucket(GeoHashType type) {
+            super(type, 0, 0, null);
         }
 
     }
@@ -112,7 +114,7 @@ public class GeoHashGridAggregator extends BucketsAggregator {
         OrdinalBucket spare = null;
         for (long i = 0; i < bucketOrds.size(); i++) {
             if (spare == null) {
-                spare = new OrdinalBucket();
+                spare = new OrdinalBucket(type);
             }
 
             spare.geohashAsLong = bucketOrds.get(i);

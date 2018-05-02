@@ -30,13 +30,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
@@ -53,30 +51,43 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.common.geo.GeoUtils.parsePrecision;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource.GeoPoint, GeoGridAggregationBuilder>
         implements MultiBucketAggregationBuilder {
     public static final String NAME = "geohash_grid";
-    public static final int DEFAULT_PRECISION = 5;
+    public static final GeoHashType DEFAULT_TYPE = GeoHashType.GEOHASH;
     public static final int DEFAULT_MAX_NUM_CELLS = 10000;
 
     private static final ObjectParser<GeoGridAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(GeoGridAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareGeoFields(PARSER, false, false);
-        PARSER.declareField((parser, builder, context) -> builder.precision(parsePrecision(parser)), GeoHashGridParams.FIELD_PRECISION,
-            org.elasticsearch.common.xcontent.ObjectParser.ValueType.INT);
+        PARSER.declareString(GeoGridAggregationBuilder::type, GeoHashGridParams.FIELD_TYPE);
+        // ValueType.INT supports both numbers and strings
+        PARSER.declareField(GeoGridAggregationBuilder::parsePrecision, GeoHashGridParams.FIELD_PRECISION, ObjectParser.ValueType.INT);
         PARSER.declareInt(GeoGridAggregationBuilder::size, GeoHashGridParams.FIELD_SIZE);
         PARSER.declareInt(GeoGridAggregationBuilder::shardSize, GeoHashGridParams.FIELD_SHARD_SIZE);
+    }
+
+    private static void parsePrecision(XContentParser parser, GeoGridAggregationBuilder builder, Void context)
+            throws IOException {
+        // In some cases, this value cannot be fully parsed until after we know the type
+        // Declare precision as an ObjectParser.ValueType.STRING, and convert it to String if needed
+        if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+            builder.precision(Integer.toString(parser.intValue()));
+        } else {
+            builder.precision(parser.text());
+        }
     }
 
     public static GeoGridAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
         return PARSER.parse(parser, new GeoGridAggregationBuilder(aggregationName), null);
     }
 
-    private int precision = DEFAULT_PRECISION;
+    private GeoHashType type = DEFAULT_TYPE;
+    private String precision = null;
     private int requiredSize = DEFAULT_MAX_NUM_CELLS;
     private int shardSize = -1;
 
@@ -86,6 +97,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
 
     protected GeoGridAggregationBuilder(GeoGridAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
         super(clone, factoriesBuilder, metaData);
+        this.type = clone.type;
         this.precision = clone.precision;
         this.requiredSize = clone.requiredSize;
         this.shardSize = clone.shardSize;
@@ -101,24 +113,45 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
      */
     public GeoGridAggregationBuilder(StreamInput in) throws IOException {
         super(in, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
-        precision = in.readVInt();
+        type = GeoHashType.readFromStream(in);
+        precision = in.readOptionalString();
         requiredSize = in.readVInt();
         shardSize = in.readVInt();
     }
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(precision);
+        type.writeTo(out);
+        out.writeOptionalString(precision);
         out.writeVInt(requiredSize);
         out.writeVInt(shardSize);
     }
 
-    public GeoGridAggregationBuilder precision(int precision) {
-        this.precision = GeoUtils.checkPrecisionRange(precision);
+    public GeoGridAggregationBuilder type(String type) {
+        try {
+            this.type = GeoHashType.forString(type);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(
+                "[type] is not valid. Allowed values: " +
+                    Stream.of(GeoHashType.values())
+                        .map(GeoHashType::toString)
+                        .collect(Collectors.joining(", ")) +
+                    ". Found [" + type + "] in [" + name + "]");
+        }
         return this;
     }
 
-    public int precision() {
+    public GeoHashType type() {
+        return type;
+    }
+
+    public GeoGridAggregationBuilder precision(String precision) {
+        // validation depends on the type, will be checked in innerBuild
+        this.precision = precision;
+        return this;
+    }
+
+    public String precision() {
         return precision;
     }
 
@@ -139,10 +172,10 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
         if (shardSize <= 0) {
             throw new IllegalArgumentException(
                     "[shardSize] must be greater than 0. Found [" + shardSize + "] in [" + name + "]");
-            }
+        }
         this.shardSize = shardSize;
         return this;
-        }
+    }
 
     public int shardSize() {
         return shardSize;
@@ -152,6 +185,21 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
     protected ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, ?> innerBuild(SearchContext context,
             ValuesSourceConfig<ValuesSource.GeoPoint> config, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
                     throws IOException {
+
+        // delayed precision validation and defaults
+        int precision;
+        switch (type) {
+            case GEOHASH:
+                if (this.precision != null) {
+                    precision = GeoUtils.parsePrecisionString(this.precision);
+                } else {
+                    precision = 5;
+                }
+                break;
+            default:
+                throw new IllegalArgumentException("Unknown type " + type.toString());
+        }
+
         int shardSize = this.shardSize;
 
         int requiredSize = this.requiredSize;
@@ -170,12 +218,13 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
         if (shardSize < requiredSize) {
             shardSize = requiredSize;
         }
-        return new GeoHashGridAggregatorFactory(name, config, precision, requiredSize, shardSize, context, parent,
+        return new GeoHashGridAggregatorFactory(name, config, type, precision, requiredSize, shardSize, context, parent,
                 subFactoriesBuilder, metaData);
     }
 
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        builder.field(GeoHashGridParams.FIELD_TYPE.getPreferredName(), type);
         builder.field(GeoHashGridParams.FIELD_PRECISION.getPreferredName(), precision);
         builder.field(GeoHashGridParams.FIELD_SIZE.getPreferredName(), requiredSize);
         if (shardSize > -1) {
@@ -187,7 +236,10 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
     @Override
     protected boolean innerEquals(Object obj) {
         GeoGridAggregationBuilder other = (GeoGridAggregationBuilder) obj;
-        if (precision != other.precision) {
+        if (type != other.type) {
+            return false;
+        }
+        if (!Objects.equals(precision, other.precision)) {
             return false;
         }
         if (requiredSize != other.requiredSize) {
@@ -201,7 +253,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
 
     @Override
     protected int innerHashCode() {
-        return Objects.hash(precision, requiredSize, shardSize);
+        return Objects.hash(type, precision, requiredSize, shardSize);
     }
 
     @Override
@@ -211,10 +263,12 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
 
     private static class CellValues extends AbstractSortingNumericDocValues {
         private MultiGeoPointValues geoValues;
+        private GeoHashType type;
         private int precision;
 
-        protected CellValues(MultiGeoPointValues geoValues, int precision) {
+        protected CellValues(MultiGeoPointValues geoValues, GeoHashType type, int precision) {
             this.geoValues = geoValues;
+            this.type = type;
             this.precision = precision;
         }
 
@@ -224,8 +278,14 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
                 resize(geoValues.docValueCount());
                 for (int i = 0; i < docValueCount(); ++i) {
                     GeoPoint target = geoValues.nextValue();
-                    values[i] = GeoHashUtils.longEncode(target.getLon(), target.getLat(),
-                            precision);
+
+                    switch (type) {
+                        case GEOHASH:
+                            values[i] = GeoHashUtils.longEncode(target.getLon(), target.getLat(), precision);
+                            break;
+                        default:
+                            throw new IllegalArgumentException();
+                    }
                 }
                 sort();
                 return true;
@@ -237,12 +297,18 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
 
     static class CellIdSource extends ValuesSource.Numeric {
         private final ValuesSource.GeoPoint valuesSource;
+        private final GeoHashType type;
         private final int precision;
 
-        CellIdSource(ValuesSource.GeoPoint valuesSource, int precision) {
+        CellIdSource(ValuesSource.GeoPoint valuesSource, GeoHashType type, int precision) {
             this.valuesSource = valuesSource;
             //different GeoPoints could map to the same or different geohash cells.
+            this.type = type;
             this.precision = precision;
+        }
+
+        public GeoHashType type() {
+            return type;
         }
 
         public int precision() {
@@ -256,7 +322,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
 
         @Override
         public SortedNumericDocValues longValues(LeafReaderContext ctx) {
-            return new CellValues(valuesSource.geoPointValues(ctx), precision);
+            return new CellValues(valuesSource.geoPointValues(ctx), type, precision);
         }
 
         @Override

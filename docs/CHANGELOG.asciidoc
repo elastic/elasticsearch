@@ -641,7 +641,6 @@ Stats::
 
 Term Vectors::
 * Fix term vectors generator with keyword and normalizer {pull}27608[#27608] (issue: {issue}27320[#27320])
-Fix NPE when CumulativeSum agg encounters null value/empty bucket ({pull}29641[#29641])
 
 //[float]
 //=== Regressions

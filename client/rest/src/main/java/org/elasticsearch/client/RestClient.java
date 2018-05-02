@@ -210,7 +210,7 @@ public class RestClient implements Closeable {
      * @throws IOException in case of a problem or the connection was aborted
      * @throws ClientProtocolException in case of an http protocol error
      * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
-     * @deprecated prefer {@link #performRequest(Request))}
+     * @deprecated prefer {@link #performRequest(Request)}
      */
     @Deprecated
     public Response performRequest(String method, String endpoint, Header... headers) throws IOException {
@@ -231,7 +231,7 @@ public class RestClient implements Closeable {
      * @throws IOException in case of a problem or the connection was aborted
      * @throws ClientProtocolException in case of an http protocol error
      * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
-     * @deprecated prefer {@link #performRequest(Request))}
+     * @deprecated prefer {@link #performRequest(Request)}
      */
     @Deprecated
     public Response performRequest(String method, String endpoint, Map<String, String> params, Header... headers) throws IOException {
@@ -256,7 +256,7 @@ public class RestClient implements Closeable {
      * @throws IOException in case of a problem or the connection was aborted
      * @throws ClientProtocolException in case of an http protocol error
      * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
-     * @deprecated prefer {@link #performRequest(Request))}
+     * @deprecated prefer {@link #performRequest(Request)}
      */
     @Deprecated
     public Response performRequest(String method, String endpoint, Map<String, String> params,
@@ -295,7 +295,7 @@ public class RestClient implements Closeable {
      * @throws IOException in case of a problem or the connection was aborted
      * @throws ClientProtocolException in case of an http protocol error
      * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
-     * @deprecated prefer {@link #performRequest(Request))}
+     * @deprecated prefer {@link #performRequest(Request)}
      */
     @Deprecated
     public Response performRequest(String method, String endpoint, Map<String, String> params,

@@ -306,6 +306,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
                             if (ignoreMalformed.value() == false) {
                                 throw e;
                             }
+                            context.addIgnoredField(fieldType.name());
                         }
                         token = context.parser().nextToken();
                     }
@@ -353,6 +354,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
                     if (ignoreMalformed.value() == false) {
                         throw e;
                     }
+                    context.addIgnoredField(fieldType.name());
                 }
             }
         }

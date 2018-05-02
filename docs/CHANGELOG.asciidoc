@@ -28,8 +28,12 @@ This section summarizes the changes in each release.
 //[float]
 //=== Deprecations
 
-//[float]
-//=== New Features
+[float]
+=== New Features
+
+The new <<mapping-ignored-field,`_ignored`>> field allows to know which fields
+got ignored at index time because of the <<ignore-malformed,`ignore_malformed`>>
+option. ({pull}30140[#29658])
 
 [float]
 === Enhancements

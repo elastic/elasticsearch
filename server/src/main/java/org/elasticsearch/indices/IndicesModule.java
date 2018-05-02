@@ -36,6 +36,7 @@ import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -133,7 +134,10 @@ public class IndicesModule extends AbstractModule {
         Map<String, MetadataFieldMapper.TypeParser> builtInMetadataMappers;
         // Use a LinkedHashMap for metadataMappers because iteration order matters
         builtInMetadataMappers = new LinkedHashMap<>();
-        // UID first so it will be the first stored field to load (so will benefit from "fields: []" early termination
+        // _ignored first so that we always load it, even if only _id is requested
+        builtInMetadataMappers.put(IgnoredFieldMapper.NAME, new IgnoredFieldMapper.TypeParser());
+        // UID second so it will be the first (if no ignored fields) stored field to load
+        // (so will benefit from "fields: []" early termination
         builtInMetadataMappers.put(UidFieldMapper.NAME, new UidFieldMapper.TypeParser());
         builtInMetadataMappers.put(IdFieldMapper.NAME, new IdFieldMapper.TypeParser());
         builtInMetadataMappers.put(RoutingFieldMapper.NAME, new RoutingFieldMapper.TypeParser());

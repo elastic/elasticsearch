@@ -64,6 +64,7 @@ option. ({pull}30140[#29658])
 
 Do not ignore request analysis/similarity settings on index resize operations when the source index already contains such settings ({pull}30216[#30216])
 
+Fix NPE when CumulativeSum agg encounters null value/empty bucket ({pull}29641[#29641])
 
 //[float]
 //=== Regressions
@@ -150,6 +151,7 @@ Search::
 
 Settings::
 * Archive unknown or invalid settings on updates {pull}28888[#28888] (issue: {issue}28609[#28609])
+
 
 //[float]
 //=== Regressions
@@ -639,6 +641,7 @@ Stats::
 
 Term Vectors::
 * Fix term vectors generator with keyword and normalizer {pull}27608[#27608] (issue: {issue}27320[#27320])
+Fix NPE when CumulativeSum agg encounters null value/empty bucket ({pull}29641[#29641])
 
 //[float]
 //=== Regressions

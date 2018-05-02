@@ -192,7 +192,7 @@ public class RatedRequest implements Writeable, ToXContentObject {
         return Collections.unmodifiableMap(this.params);
     }
 
-    /** return the parameters if this request uses a template, otherwise this will be <tt>null</tt>. */
+    /** return the parameters if this request uses a template, otherwise this will be {@code null}. */
     public String getTemplateId() {
         return this.templateId;
     }

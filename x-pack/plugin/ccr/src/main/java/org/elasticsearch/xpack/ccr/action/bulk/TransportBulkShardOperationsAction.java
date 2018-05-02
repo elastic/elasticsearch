@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
@@ -68,12 +67,9 @@ public class TransportBulkShardOperationsAction
             final BulkShardOperationsRequest request, final IndexShard shard, final Engine.Operation.Origin origin) throws IOException {
         Translog.Location location = null;
         for (final Translog.Operation operation : request.getOperations()) {
-            final Engine.Result result = shard.applyTranslogOperation(operation, origin, m -> {
-                // TODO: Figure out how to deal best with dynamic mapping updates from the leader side:
-                throw new MapperException("dynamic mapping updates are not allowed in follow shards [" + operation + "]");
-            });
+            final Engine.Result result = shard.applyTranslogOperation(operation, origin);
             assert result.getSeqNo() == operation.seqNo();
-            assert result.hasFailure() == false;
+            assert result.getResultType() == Engine.Result.Type.SUCCESS;
             location = locationToSync(location, result.getTranslogLocation());
         }
         assert request.getOperations().length == 0 || location != null;

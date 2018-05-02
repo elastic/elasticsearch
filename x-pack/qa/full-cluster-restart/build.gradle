@@ -163,7 +163,7 @@ subprojects {
       setting 'logger.level', 'DEBUG'
 
       setting 'xpack.security.enabled', 'true'
-      setting 'xpack.security.transport.ssl.enabled', version.onOrAfter("5.2.1").toString()
+      setting 'xpack.security.transport.ssl.enabled', version.onOrAfter("5.2.0").toString()
       setting 'xpack.ssl.keystore.path', 'testnode.jks'
       setting 'xpack.ssl.keystore.password', 'testnode'
       if (version.onOrAfter('6.3.0')) {

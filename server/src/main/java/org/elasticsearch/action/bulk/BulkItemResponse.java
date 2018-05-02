@@ -407,7 +407,7 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
     }
 
     /**
-     * The actual response ({@link IndexResponse} or {@link DeleteResponse}). <tt>null</tt> in
+     * The actual response ({@link IndexResponse} or {@link DeleteResponse}). {@code null} in
      * case of failure.
      */
     public <T extends DocWriteResponse> T getResponse() {
@@ -422,7 +422,7 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
     }
 
     /**
-     * The failure message, <tt>null</tt> if it did not fail.
+     * The failure message, {@code null} if it did not fail.
      */
     public String getFailureMessage() {
         if (failure != null) {

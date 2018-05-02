@@ -17,15 +17,14 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.support.Validation.Users;
 import org.elasticsearch.xpack.security.authc.file.FileUserPasswdStore;
 import org.elasticsearch.xpack.security.authc.file.FileUserRolesStore;
+import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.support.FileAttributesChecker;
 
 import java.nio.file.Files;
@@ -47,7 +46,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
     }
 
     UsersTool() {
-        super("Manages elasticsearch native users");
+        super("Manages elasticsearch file users");
         subcommands.put("useradd", newAddUserCommand());
         subcommands.put("userdel", newDeleteUserCommand());
         subcommands.put("passwd", newPasswordCommand());
@@ -82,7 +81,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
         private final OptionSpec<String> arguments;
 
         AddUserCommand() {
-            super("Adds a native user");
+            super("Adds a file user");
 
             this.passwordOption = parser.acceptsAll(Arrays.asList("p", "password"),
                 "The user password")
@@ -96,11 +95,8 @@ public class UsersTool extends LoggingAwareMultiCommand {
         @Override
         protected void printAdditionalHelp(Terminal terminal) {
             terminal.println("Adds a file based user to elasticsearch (via internal realm). The user will");
-            terminal.println("be added to the users file and its roles will be added to the");
-            terminal.println("users_roles file. If non-default files are used (different file");
-            terminal.println("locations are configured in elasticsearch.yml) the appropriate files");
-            terminal.println("will be resolved from the settings and the user and its roles will be");
-            terminal.println("added to them.");
+            terminal.println("be added to the \"users\" file and its roles will be added to the");
+            terminal.println("\"users_roles\" file in the elasticsearch config directory.");
             terminal.println("");
         }
 
@@ -123,7 +119,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
 
             Map<String, char[]> users = FileUserPasswdStore.parseFile(passwordFile, null, env.settings());
             if (users == null) {
-                throw new UserException(ExitCodes.CONFIG, "Configuration file [users] is missing");
+                throw new UserException(ExitCodes.CONFIG, "Configuration file [" + passwordFile + "] is missing");
             }
             if (users.containsKey(username)) {
                 throw new UserException(ExitCodes.CODE_ERROR, "User [" + username + "] already exists");
@@ -155,11 +151,8 @@ public class UsersTool extends LoggingAwareMultiCommand {
         @Override
         protected void printAdditionalHelp(Terminal terminal) {
             terminal.println("Removes an existing file based user from elasticsearch. The user will be");
-            terminal.println("removed from the users file and its roles will be removed from the");
-            terminal.println("users_roles file. If non-default files are used (different file");
-            terminal.println("locations are configured in elasticsearch.yml) the appropriate files");
-            terminal.println("will be resolved from the settings and the user and its roles will be");
-            terminal.println("removed from them.");
+            terminal.println("removed from the \"users\" file and its roles will be removed from the");
+            terminal.println("\"users_roles\" file in the elasticsearch config directory.");
             terminal.println("");
         }
 
@@ -173,7 +166,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
 
             Map<String, char[]> users = FileUserPasswdStore.parseFile(passwordFile, null, env.settings());
             if (users == null) {
-                throw new UserException(ExitCodes.CONFIG, "Configuration file [users] is missing");
+                throw new UserException(ExitCodes.CONFIG, "Configuration file [" + passwordFile + "] is missing");
             }
             if (users.containsKey(username) == false) {
                 throw new UserException(ExitCodes.NO_USER, "User [" + username + "] doesn't exist");
@@ -213,12 +206,10 @@ public class UsersTool extends LoggingAwareMultiCommand {
 
         @Override
         protected void printAdditionalHelp(Terminal terminal) {
-            terminal.println("The passwd command changes passwords for files based users. The tool");
+            terminal.println("The passwd command changes passwords for file based users. The tool");
             terminal.println("prompts twice for a replacement password. The second entry is compared");
             terminal.println("against the first and both are required to match in order for the");
-            terminal.println("password to be changed. If non-default users file is used (a different");
-            terminal.println("file location is configured in elasticsearch.yml) the  appropriate file");
-            terminal.println("will be resolved from the settings.");
+            terminal.println("password to be changed.");
             terminal.println("");
         }
 
@@ -232,7 +223,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
             FileAttributesChecker attributesChecker = new FileAttributesChecker(file);
             Map<String, char[]> users = new HashMap<>(FileUserPasswdStore.parseFile(file, null, env.settings()));
             if (users == null) {
-                throw new UserException(ExitCodes.CONFIG, "Configuration file [users] is missing");
+                throw new UserException(ExitCodes.CONFIG, "Configuration file [" + file + "] is missing");
             }
             if (users.containsKey(username) == false) {
                 throw new UserException(ExitCodes.NO_USER, "User [" + username + "] doesn't exist");
@@ -345,19 +336,19 @@ public class UsersTool extends LoggingAwareMultiCommand {
         Path userRolesFilePath = FileUserRolesStore.resolveFile(env);
         Map<String, String[]> userRoles = FileUserRolesStore.parseFile(userRolesFilePath, null);
         if (userRoles == null) {
-            throw new UserException(ExitCodes.CONFIG, "Configuration file [users_roles] is missing");
+            throw new UserException(ExitCodes.CONFIG, "Configuration file [" + userRolesFilePath + "] is missing");
         }
 
         Path userFilePath = FileUserPasswdStore.resolveFile(env);
         Map<String, char[]> users = FileUserPasswdStore.parseFile(userFilePath, null, env.settings());
         if (users == null) {
-            throw new UserException(ExitCodes.CONFIG, "Configuration file [users] is missing");
+            throw new UserException(ExitCodes.CONFIG, "Configuration file [" + userFilePath + "] is missing");
         }
 
         Path rolesFilePath = FileRolesStore.resolveFile(env);
         Set<String> knownRoles = Sets.union(FileRolesStore.parseFileForRoleNames(rolesFilePath, null), ReservedRolesStore.names());
         if (knownRoles == null) {
-            throw new UserException(ExitCodes.CONFIG, "Configuration file [roles.xml] is missing");
+            throw new UserException(ExitCodes.CONFIG, "Configuration file [" + rolesFilePath + "] is missing");
         }
 
         if (username != null) {

@@ -175,7 +175,7 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     }
 
     /**
-     * Set to <tt>true</tt> to force this index to use {@link org.elasticsearch.action.index.IndexRequest.OpType#CREATE}.
+     * Set to {@code true} to force this index to use {@link org.elasticsearch.action.index.IndexRequest.OpType#CREATE}.
      */
     public IndexRequestBuilder setCreate(boolean create) {
         request.create(create);

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common.geo.parsers;
 
-import com.vividsolutions.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Coordinate;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;

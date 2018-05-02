@@ -27,9 +27,9 @@ import java.util.Objects;
 public final class Location {
     private final String sourceName;
     private final int offset;
-    
+
     /**
-     * Create a new Location 
+     * Create a new Location
      * @param sourceName script's name
      * @param offset character offset of script element
      */
@@ -37,7 +37,7 @@ public final class Location {
         this.sourceName = Objects.requireNonNull(sourceName);
         this.offset = offset;
     }
-    
+
     /**
      * Return the script's name
      */
@@ -68,43 +68,31 @@ public final class Location {
 
     // This maximum length is theoretically 65535 bytes, but as it's CESU-8 encoded we don't know how large it is in bytes, so be safe
     private static final int MAX_NAME_LENGTH = 256;
-    
+
     /** Computes the file name (mostly important for stacktraces) */
-    public static String computeSourceName(String scriptName, String source) {
+    public static String computeSourceName(String scriptName) {
         StringBuilder fileName = new StringBuilder();
-        if (scriptName.equals(PainlessScriptEngine.INLINE_NAME)) {
-            // its an anonymous script, include at least a portion of the source to help identify which one it is
-            // but don't create stacktraces with filenames that contain newlines or huge names.
+        // its an anonymous script, include at least a portion of the source to help identify which one it is
+        // but don't create stacktraces with filenames that contain newlines or huge names.
 
-            // truncate to the first newline
-            int limit = source.indexOf('\n');
-            if (limit >= 0) {
-                int limit2 = source.indexOf('\r');
-                if (limit2 >= 0) {
-                    limit = Math.min(limit, limit2);
-                }
-            } else {
-                limit = source.length();
+        // truncate to the first newline
+        int limit = scriptName.indexOf('\n');
+        if (limit >= 0) {
+            int limit2 = scriptName.indexOf('\r');
+            if (limit2 >= 0) {
+                limit = Math.min(limit, limit2);
             }
-
-            // truncate to our limit
-            limit = Math.min(limit, MAX_NAME_LENGTH);
-            fileName.append(source, 0, limit);
-
-            // if we truncated, make it obvious
-            if (limit != source.length()) {
-                fileName.append(" ...");
-            }
-            fileName.append(" @ <inline script>");
         } else {
-            // its a named script, just use the name
-            // but don't trust this has a reasonable length!
-            if (scriptName.length() > MAX_NAME_LENGTH) {
-                fileName.append(scriptName, 0, MAX_NAME_LENGTH);
-                fileName.append(" ...");
-            } else {
-                fileName.append(scriptName);
-            }
+            limit = scriptName.length();
+        }
+
+        // truncate to our limit
+        limit = Math.min(limit, MAX_NAME_LENGTH);
+        fileName.append(scriptName, 0, limit);
+
+        // if we truncated, make it obvious
+        if (limit != scriptName.length()) {
+            fileName.append(" ...");
         }
         return fileName.toString();
     }

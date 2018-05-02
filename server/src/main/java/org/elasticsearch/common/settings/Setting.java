@@ -47,6 +47,7 @@ import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -113,7 +114,13 @@ public class Setting<T> implements ToXContentObject {
         /**
          * Index scope
          */
-        IndexScope
+        IndexScope,
+
+        /**
+         * Mark this setting as not copyable during an index resize (shrink or split). This property can only be applied to settings that
+         * also have {@link Property#IndexScope}.
+         */
+        NotCopyableOnResize
     }
 
     private final Key key;
@@ -141,10 +148,15 @@ public class Setting<T> implements ToXContentObject {
         if (properties.length == 0) {
             this.properties = EMPTY_PROPERTIES;
         } else {
-            this.properties = EnumSet.copyOf(Arrays.asList(properties));
-            if (isDynamic() && isFinal()) {
+            final EnumSet<Property> propertiesAsSet = EnumSet.copyOf(Arrays.asList(properties));
+            if (propertiesAsSet.contains(Property.Dynamic) && propertiesAsSet.contains(Property.Final)) {
                 throw new IllegalArgumentException("final setting [" + key + "] cannot be dynamic");
             }
+            if (propertiesAsSet.contains(Property.NotCopyableOnResize) && propertiesAsSet.contains(Property.IndexScope) == false) {
+                throw new IllegalArgumentException(
+                        "non-index-scoped setting [" + key + "] can not have property [" + Property.NotCopyableOnResize + "]");
+            }
+            this.properties = propertiesAsSet;
         }
     }
 
@@ -1070,10 +1082,22 @@ public class Setting<T> implements ToXContentObject {
     public static ByteSizeValue parseByteSize(String s, ByteSizeValue minValue, ByteSizeValue maxValue, String key) {
         ByteSizeValue value = ByteSizeValue.parseBytesSizeValue(s, key);
         if (value.getBytes() < minValue.getBytes()) {
-            throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
+            final String message = String.format(
+                    Locale.ROOT,
+                    "failed to parse value [%s] for setting [%s], must be >= [%s]",
+                    s,
+                    key,
+                    minValue.getStringRep());
+            throw new IllegalArgumentException(message);
         }
         if (value.getBytes() > maxValue.getBytes()) {
-            throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be <= " + maxValue);
+            final String message = String.format(
+                    Locale.ROOT,
+                    "failed to parse value [%s] for setting [%s], must be <= [%s]",
+                    s,
+                    key,
+                    maxValue.getStringRep());
+            throw new IllegalArgumentException(message);
         }
         return value;
     }

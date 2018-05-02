@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import com.vividsolutions.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Coordinate;
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;

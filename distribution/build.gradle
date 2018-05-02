@@ -17,16 +17,12 @@
  * under the License.
  */
 
-
-import org.apache.tools.ant.filters.FixCrLfFilter
-import org.apache.tools.ant.taskdefs.condition.Os
-import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.ConcatFilesTask
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.NoticeTask
-import org.elasticsearch.gradle.precommit.DependencyLicensesTask
-import org.elasticsearch.gradle.precommit.UpdateShasTask
 import org.elasticsearch.gradle.test.RunTask
+
+import java.nio.file.Path
 
 Collection distributions = project('archives').subprojects + project('packages').subprojects
 
@@ -46,42 +42,156 @@ task generateDependenciesReport(type: ConcatFilesTask) {
  *****************************************************************************/
 
 // integ test zip only uses server, so a different notice file is needed there
-task buildCoreNotice(type: NoticeTask) {
+task buildServerNotice(type: NoticeTask) {
   licensesDir new File(project(':server').projectDir, 'licenses')
 }
 
 // other distributions include notices from modules as well, which are added below later
-task buildFullNotice(type: NoticeTask) {
+task buildDefaultNotice(type: NoticeTask) {
+  licensesDir new File(project(':server').projectDir, 'licenses')
+}
+
+// other distributions include notices from modules as well, which are added below later
+task buildOssNotice(type: NoticeTask) {
   licensesDir new File(project(':server').projectDir, 'licenses')
 }
 
 /*****************************************************************************
  *                                  Modules                                  *
  *****************************************************************************/
+String ossOutputs = 'build/outputs/oss'
+String defaultOutputs = 'build/outputs/default'
+String transportOutputs = 'build/outputs/transport-only'
 
-task buildModules(type: Sync) {
-  into 'build/modules'
+task processOssOutputs(type: Sync) {
+  into ossOutputs
+}
+
+task processDefaultOutputs(type: Sync) {
+  into defaultOutputs
+  from processOssOutputs
+}
+
+// Integ tests work over the rest http layer, so we need a transport included with the integ test zip.
+// All transport modules are included so that they may be randomized for testing
+task processTransportOutputs(type: Sync) {
+  into transportOutputs
+}
+
+// these are dummy tasks that can be used to depend on the relevant sub output dir
+task buildOssModules {
+  dependsOn processOssOutputs
+  outputs.dir "${ossOutputs}/modules"
+}
+task buildOssBin {
+  dependsOn processOssOutputs
+  outputs.dir "${ossOutputs}/bin"
+}
+task buildOssConfig {
+  dependsOn processOssOutputs
+  outputs.dir "${ossOutputs}/config"
+}
+task buildDefaultModules {
+  dependsOn processDefaultOutputs
+  outputs.dir "${defaultOutputs}/modules"
+}
+task buildDefaultBin {
+  dependsOn processDefaultOutputs
+  outputs.dir "${defaultOutputs}/bin"
+}
+task buildDefaultConfig {
+  dependsOn processDefaultOutputs
+  outputs.dir "${defaultOutputs}/config"
+}
+task buildTransportModules {
+  dependsOn processTransportOutputs
+  outputs.dir "${transportOutputs}/modules"
+}
+
+void copyModule(Sync copyTask, Project module) {
+  copyTask.configure {
+    dependsOn { module.bundlePlugin }
+    from({ zipTree(module.bundlePlugin.outputs.files.singleFile) }) {
+      includeEmptyDirs false
+
+      // these are handled separately in the log4j config tasks below
+      exclude '*/config/log4j2.properties'
+      exclude 'config/log4j2.properties'
+
+      eachFile { details ->
+        String name = module.plugins.hasPlugin('elasticsearch.esplugin') ? module.esplugin.name : module.es_meta_plugin.name 
+        // Copy all non config/bin files
+        // Note these might be unde a subdirectory in the case of a meta plugin
+        if ((details.relativePath.pathString ==~ /([^\/]+\/)?(config|bin)\/.*/) == false) {
+          details.relativePath = details.relativePath.prepend('modules', name)
+        } else if ((details.relativePath.pathString ==~ /([^\/]+\/)(config|bin)\/.*/)) {
+          // this is the meta plugin case, in which we need to remove the intermediate dir
+          String[] segments = details.relativePath.segments
+          details.relativePath = new RelativePath(true, segments.takeRight(segments.length - 1))
+        }
+      }
+    }
+  }
+}
+
+// log4j config could be contained in modules, so we must join it together using these tasks
+task buildOssLog4jConfig {
+  dependsOn processOssOutputs
+  ext.contents = []
+  ext.log4jFile = file("${ossOutputs}/log4j2.properties")
+  outputs.file log4jFile
+}
+task buildDefaultLog4jConfig {
+  dependsOn processDefaultOutputs
+  ext.contents = []
+  ext.log4jFile = file("${defaultOutputs}/log4j2.properties")
+  outputs.file log4jFile
+}
+
+Closure writeLog4jProperties = {
+  String mainLog4jProperties = file('src/config/log4j2.properties').getText('UTF-8')
+  it.log4jFile.setText(mainLog4jProperties, 'UTF-8')
+  for (String moduleLog4jProperties : it.contents.reverse()) {
+    it.log4jFile.append(moduleLog4jProperties, 'UTF-8')
+  }
+}
+buildOssLog4jConfig.doLast(writeLog4jProperties)
+buildDefaultLog4jConfig.doLast(writeLog4jProperties)
+
+// copy log4j2.properties from modules that have it
+void copyLog4jProperties(Task buildTask, Project module) {
+  buildTask.doFirst {
+    FileTree tree = zipTree(module.bundlePlugin.outputs.files.singleFile)
+    FileTree filtered = tree.matching {
+      include 'config/log4j2.properties'
+      include '*/config/log4j2.properties' // could be in a bundled plugin
+    }
+    if (filtered.isEmpty() == false) {
+      buildTask.contents.add('\n\n' + filtered.singleFile.getText('UTF-8'))
+    }
+  }
 }
 
 ext.restTestExpansions = [
   'expected.modules.count': 0,
 ]
-// we create the buildModules task above so the distribution subprojects can
-// depend on it, but we don't actually configure it until here so we can do a single
+// we create the buildOssModules task above but fill it here so we can do a single
 // loop over modules to also setup cross task dependencies and increment our modules counter
 project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { Project module ->
-  buildFullNotice {
-    def defaultLicensesDir = new File(module.projectDir, 'licenses')
-    if (defaultLicensesDir.exists()) {
-      licensesDir defaultLicensesDir
-    }
+  File licenses = new File(module.projectDir, 'licenses')
+  if (licenses.exists()) {
+    buildDefaultNotice.licensesDir licenses
+    buildOssNotice.licensesDir licenses
   }
-  buildModules {
-    dependsOn({ project(module.path).bundlePlugin })
-    into(module.name) {
-      from { zipTree(project(module.path).bundlePlugin.outputs.files.singleFile) }
-    }
+
+  copyModule(processOssOutputs, module)
+  if (module.name.startsWith('transport-')) {
+    copyModule(processTransportOutputs, module)
   }
+
+  copyLog4jProperties(buildOssLog4jConfig, module)
+  copyLog4jProperties(buildDefaultLog4jConfig, module)
+
   // make sure the module's integration tests run after the integ-test-zip (ie rest tests)
   module.afterEvaluate({
     module.integTest.mustRunAfter(':distribution:archives:integ-test-zip:integTest')
@@ -89,20 +199,19 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
   restTestExpansions['expected.modules.count'] += 1
 }
 
-// Integ tests work over the rest http layer, so we need a transport included with the integ test zip.
-// All transport modules are included so that they may be randomized for testing
-task buildTransportModules(type: Sync) {
-  into 'build/transport-modules'
-}
-
-project.rootProject.subprojects.findAll { it.path.startsWith(':modules:transport-') }.each { Project transport ->
-  buildTransportModules {
-    dependsOn({ project(transport.path).bundlePlugin })
-    into(transport.name) {
-      from { zipTree(project(transport.path).bundlePlugin.outputs.files.singleFile) }
-    }
+// use licenses from each of the bundled xpack plugins
+Project xpack = project(':x-pack:plugin')
+xpack.subprojects.findAll { it.name != 'bwc' }.each { Project xpackSubproject ->
+  File licenses = new File(xpackSubproject.projectDir, 'licenses')
+  if (licenses.exists()) {
+    buildDefaultNotice.licensesDir licenses 
   }
 }
+// but copy just the top level meta plugin to the default modules
+copyModule(processDefaultOutputs, xpack)
+copyLog4jProperties(buildDefaultLog4jConfig, xpack)
+
+// 
 
 // make sure we have a clean task since we aren't a java project, but we have tasks that
 // put stuff in the build dir
@@ -130,45 +239,71 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       from { project(':distribution:tools:plugin-cli').jar }
     }
 
-    modulesFiles = copySpec {
-      into 'modules'
-      from project(':distribution').buildModules
+    modulesFiles = { oss ->
+      copySpec {
+        eachFile {
+          if (it.relativePath.segments[-2] == 'bin') {
+            // bin files, wherever they are within modules (eg platform specific) should be executable
+            it.mode = 0755
+          }
+        }
+        if (oss) {
+          from project(':distribution').buildOssModules
+        } else {
+          from project(':distribution').buildDefaultModules
+        }
+      }
     }
 
     transportModulesFiles = copySpec {
-      into "modules"
       from project(':distribution').buildTransportModules
     }
 
-    configFiles = { distributionType ->
+    configFiles = { distributionType, oss ->
       copySpec {
-        from '../src/config'
-        MavenFilteringHack.filter(it, expansionsForDistribution(distributionType))
+        with copySpec {
+          // main config files, processed with distribution specific substitutions
+          from '../src/config'
+          exclude 'log4j2.properties' // this is handled separately below
+          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss))
+        }
+        if (oss) {
+          from project(':distribution').buildOssLog4jConfig
+          from project(':distribution').buildOssConfig
+        } else {
+          from project(':distribution').buildDefaultLog4jConfig
+          from project(':distribution').buildDefaultConfig
+        }
       }
     }
 
-    binFiles = { distributionType ->
+    binFiles = { distributionType, oss ->
       copySpec {
-        // everything except windows files
-        from '../src/bin'
-        exclude '*.bat'
-        exclude '*.exe'
-        eachFile { it.setMode(0755) }
-        MavenFilteringHack.filter(it, expansionsForDistribution(distributionType))
+        with copySpec {
+          // main bin files, processed with distribution specific substitutions
+          // everything except windows files
+          from '../src/bin'
+          exclude '*.exe'
+          exclude '*.bat'
+          eachFile { it.setMode(0755) }
+          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss))
+        }
+        with copySpec {
+          eachFile { it.setMode(0755) }
+          if (oss) {
+            from project(':distribution').buildOssBin
+          } else {
+            from project(':distribution').buildDefaultBin
+          }
+        }
       }
-    }
-
-    commonFiles = copySpec {
-      from rootProject.projectDir
-      include 'LICENSE.txt'
-      include 'README.textile'
     }
 
     noticeFile = copySpec {
       if (project.name == 'integ-test-zip') {
-        from buildCoreNotice
+        from buildServerNotice
       } else {
-        from buildFullNotice
+        from buildDefaultNotice
       }
     }
   }
@@ -176,7 +311,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 }
 
 task run(type: RunTask) {
-  distribution = 'zip'
+  distribution = System.getProperty('run.distribution', 'zip')
 }
 
 /**
@@ -210,12 +345,21 @@ task run(type: RunTask) {
  * </dl>
  */
 subprojects {
-  ext.expansionsForDistribution = { distributionType ->
+  ext.expansionsForDistribution = { distributionType, oss ->
     final String defaultHeapSize = "1g"
     final String packagingPathData = "path.data: /var/lib/elasticsearch"
     final String pathLogs = "/var/log/elasticsearch"
     final String packagingPathLogs = "path.logs: ${pathLogs}"
     final String packagingLoggc = "${pathLogs}/gc.log"
+
+    String licenseText
+    if (oss) {
+      licenseText = rootProject.file('licenses/APACHE-LICENSE-2.0.txt').getText('UTF-8')
+    } else {
+      licenseText = rootProject.file('licenses/ELASTIC-LICENSE.txt').getText('UTF-8')
+    }
+    // license text needs to be indented with a single space
+    licenseText = ' ' + licenseText.replace('\n', '\n ') 
 
     String footer = "# Built for ${project.name}-${project.version} " +
         "(${distributionType})"
@@ -280,6 +424,26 @@ subprojects {
           the pretty footer. */
         'deb': "exit 0\n${footer}",
         'def': footer
+      ],
+
+      'es.distribution.flavor': [
+        'def': oss ? 'oss' : 'default'
+      ],
+
+
+      'es.distribution.type': [
+        'deb': 'deb',
+        'rpm': 'rpm',
+        'tar': 'tar',
+        'zip': 'zip'
+      ],
+
+      'license.name': [
+        'deb': oss ? 'ASL-2.0' : 'Elastic-License'
+      ],
+
+      'license.text': [
+        'deb': licenseText,
       ],
     ]
     Map<String, String> result = [:]

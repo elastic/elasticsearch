@@ -93,6 +93,7 @@ import org.elasticsearch.script.StoredScriptsIT;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
+import java.io.IOException;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -1243,30 +1244,44 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                         .put("compress", false)
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
-        createIndex("test-idx-1", "test-idx-2");
+        final String[] indices = {"test-idx-1", "test-idx-2"};
+        createIndex(indices);
         logger.info("--> indexing some data");
         indexRandom(true,
                 client().prepareIndex("test-idx-1", "_doc").setSource("foo", "bar"),
                 client().prepareIndex("test-idx-2", "_doc").setSource("foo", "bar"));
 
         logger.info("--> creating snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1").setWaitForCompletion(true).setIndices("test-idx-*").get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1")
+            .setWaitForCompletion(true).setIndices(indices).get();
+        final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
+        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+
+        RepositoriesService service = internalCluster().getInstance(RepositoriesService.class, internalCluster().getMasterName());
+        Repository repository = service.repository("test-repo");
+
+        final Map<String, IndexId> indexIds = repository.getRepositoryData().getIndices();
+        final Path indicesPath = repo.resolve("indices");
 
         logger.info("--> delete index metadata and shard metadata");
-        Path indices = repo.resolve("indices");
-        Path testIndex1 = indices.resolve("test-idx-1");
-        Path testIndex2 = indices.resolve("test-idx-2");
-        Path testIndex2Shard0 = testIndex2.resolve("0");
-        IOUtils.deleteFilesIgnoringExceptions(testIndex1.resolve("snapshot-test-snap-1"));
-        IOUtils.deleteFilesIgnoringExceptions(testIndex2Shard0.resolve("snapshot-test-snap-1"));
+        for (String index : indices) {
+            Path shardZero = indicesPath.resolve(indexIds.get(index).getId()).resolve("0");
+            if (randomBoolean()) {
+                Files.delete(shardZero.resolve("index-0"));
+            }
+            Files.delete(shardZero.resolve("snap-" + snapshotInfo.snapshotId().getUUID() + ".dat"));
+        }
 
         logger.info("--> delete snapshot");
         client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap-1").get();
 
         logger.info("--> make sure snapshot doesn't exist");
         assertThrows(client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1"), SnapshotMissingException.class);
+
+        for (String index : indices) {
+            assertTrue(Files.notExists(indicesPath.resolve(indexIds.get(index).getId())));
+        }
     }
 
     public void testDeleteSnapshotWithMissingMetadata() throws Exception {
@@ -1291,7 +1306,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
 
-        logger.info("--> delete index metadata and shard metadata");
+        logger.info("--> delete global state metadata");
         Path metadata = repo.resolve("meta-" + createSnapshotResponse.getSnapshotInfo().snapshotId().getUUID() + ".dat");
         Files.delete(metadata);
 
@@ -1341,6 +1356,67 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
     }
 
+    /** Tests that a snapshot with a corrupted global state file can still be deleted */
+    public void testDeleteSnapshotWithCorruptedGlobalState() throws Exception {
+        final Path repo = randomRepoPath();
+
+        assertAcked(client().admin().cluster().preparePutRepository("test-repo")
+            .setType("fs")
+            .setSettings(Settings.builder()
+                .put("location", repo)
+                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+
+        createIndex("test-idx-1", "test-idx-2");
+        indexRandom(true,
+            client().prepareIndex("test-idx-1", "_doc").setSource("foo", "bar"),
+            client().prepareIndex("test-idx-2", "_doc").setSource("foo", "bar"),
+            client().prepareIndex("test-idx-2", "_doc").setSource("foo", "bar"));
+        flushAndRefresh("test-idx-1", "test-idx-2");
+
+        CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+            .setIncludeGlobalState(true)
+            .setWaitForCompletion(true)
+            .get();
+        SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
+        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+
+        final Path globalStatePath = repo.resolve("meta-" + snapshotInfo.snapshotId().getUUID() + ".dat");
+        if (randomBoolean()) {
+            // Delete the global state metadata file
+            IOUtils.deleteFilesIgnoringExceptions(globalStatePath);
+        } else {
+            // Truncate the global state metadata file
+            try (SeekableByteChannel outChan = Files.newByteChannel(globalStatePath, StandardOpenOption.WRITE)) {
+                outChan.truncate(randomInt(10));
+            }
+        }
+
+        List<SnapshotInfo> snapshotInfos = client().admin().cluster().prepareGetSnapshots("test-repo").get().getSnapshots();
+        assertThat(snapshotInfos.size(), equalTo(1));
+        assertThat(snapshotInfos.get(0).state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfos.get(0).snapshotId().getName(), equalTo("test-snap"));
+
+        SnapshotsStatusResponse snapshotStatusResponse =
+            client().admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-snap").get();
+        assertThat(snapshotStatusResponse.getSnapshots(), hasSize(1));
+        assertThat(snapshotStatusResponse.getSnapshots().get(0).getSnapshot().getSnapshotId().getName(), equalTo("test-snap"));
+
+        assertAcked(client().admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap").get());
+        assertThrows(client().admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap"),
+            SnapshotMissingException.class);
+        assertThrows(client().admin().cluster().prepareSnapshotStatus("test-repo").addSnapshots("test-snap"),
+            SnapshotMissingException.class);
+
+        createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+            .setIncludeGlobalState(true)
+            .setWaitForCompletion(true)
+            .get();
+        snapshotInfo = createSnapshotResponse.getSnapshotInfo();
+        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+    }
+
     public void testSnapshotWithMissingShardLevelIndexFile() throws Exception {
         Path repo = randomRepoPath();
         logger.info("-->  creating repository at {}", repo.toAbsolutePath());
@@ -1359,9 +1435,13 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> deleting shard level index file");
         try (Stream<Path> files = Files.list(repo.resolve("indices"))) {
-            files.forEach(indexPath ->
-                IOUtils.deleteFilesIgnoringExceptions(indexPath.resolve("0").resolve("index-0"))
-            );
+            files.forEach(indexPath -> {
+                try {
+                    Files.delete(indexPath.resolve("0").resolve("index-0"));
+                } catch (IOException e) {
+                    throw new RuntimeException("Failed to delete expected file", e);
+                }
+            });
         }
 
         logger.info("--> creating another snapshot");
@@ -2623,7 +2703,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(snapshotInfo.successfulShards(), greaterThan(0));
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
 
-        // Truncate the global state metadata file
         final Path globalStatePath = repo.resolve("meta-" + snapshotInfo.snapshotId().getUUID() + ".dat");
         try(SeekableByteChannel outChan = Files.newByteChannel(globalStatePath, StandardOpenOption.WRITE)) {
             outChan.truncate(randomInt(10));

@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
@@ -270,7 +271,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
             stParser.nextToken();
             SignificantTermsAggregationBuilder.getParser(significanceHeuristicParserRegistry).parse("testagg", stParser);
             fail();
-        } catch (ParsingException e) {
+        } catch (XContentParseException e) {
             assertThat(e.getCause().getMessage(), containsString(expectedError));
         }
     }

@@ -23,11 +23,9 @@ search terms, but it is possible to specify other fields in the query syntax:
 
     status:active
 
-* where the `title` field contains `quick` or `brown`.
-  If you omit the OR operator the default operator will be used
+* where the `title` field contains `quick` or `brown`
 
     title:(quick OR brown)
-    title:(quick brown)
 
 * where the `author` field contains the exact phrase `"john smith"`
 
@@ -36,7 +34,7 @@ search terms, but it is possible to specify other fields in the query syntax:
 * where any of the fields `book.title`, `book.content` or `book.date` contains
   `quick` or `brown` (note how we need to escape the `*` with a backslash):
 
-    book.\*:(quick brown)
+    book.\*:(quick OR brown)
 
 * where the field `title` has any non-null value:
 

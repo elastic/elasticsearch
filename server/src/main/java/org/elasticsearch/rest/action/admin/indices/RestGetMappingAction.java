@@ -77,6 +77,7 @@ public class RestGetMappingAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        final boolean includeTypeName = request.paramAsBoolean("include_type_name", true);
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
         final GetMappingsRequest getMappingsRequest = new GetMappingsRequest();
@@ -141,13 +142,29 @@ public class RestGetMappingAction extends BaseRestHandler {
                     for (final ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexEntry : mappingsByIndex) {
                         builder.startObject(indexEntry.key);
                         {
-                            builder.startObject("mappings");
-                            {
+                            if (includeTypeName == false) {
+                                MappingMetaData mappings = null;
                                 for (final ObjectObjectCursor<String, MappingMetaData> typeEntry : indexEntry.value) {
-                                    builder.field(typeEntry.key, typeEntry.value.sourceAsMap());
+                                    if (typeEntry.key.equals("_default_") == false) {
+                                        assert mappings == null;
+                                        mappings = typeEntry.value;
+                                    }
                                 }
+                                if (mappings == null) {
+                                    // no mappings yet
+                                    builder.startObject("mappings").endObject();
+                                } else {
+                                    builder.field("mappings", mappings.sourceAsMap());
+                                }
+                            } else {
+                                builder.startObject("mappings");
+                                {
+                                    for (final ObjectObjectCursor<String, MappingMetaData> typeEntry : indexEntry.value) {
+                                        builder.field(typeEntry.key, typeEntry.value.sourceAsMap());
+                                    }
+                                }
+                                builder.endObject();
                             }
-                            builder.endObject();
                         }
                         builder.endObject();
                     }

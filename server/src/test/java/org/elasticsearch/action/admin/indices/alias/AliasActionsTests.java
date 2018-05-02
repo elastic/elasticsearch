@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
@@ -42,6 +43,7 @@ import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomRo
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class AliasActionsTests extends ESTestCase {
@@ -265,9 +267,9 @@ public class AliasActionsTests extends ESTestCase {
         }
         b.endObject();
         try (XContentParser parser = createParser(b)) {
-            Exception e = expectThrows(ParsingException.class, () -> AliasActions.PARSER.apply(parser, null));
+            Exception e = expectThrows(XContentParseException.class, () -> AliasActions.PARSER.apply(parser, null));
             assertThat(e.getCause().getCause(), instanceOf(IllegalArgumentException.class));
-            assertEquals("Only one of [index] and [indices] is supported", e.getCause().getCause().getMessage());
+            assertThat(e.getCause().getCause().getMessage(), containsString("Only one of [index] and [indices] is supported"));
         }
     }
 
@@ -285,9 +287,9 @@ public class AliasActionsTests extends ESTestCase {
         }
         b.endObject();
         try (XContentParser parser = createParser(b)) {
-            Exception e = expectThrows(ParsingException.class, () -> AliasActions.PARSER.apply(parser, null));
+            Exception e = expectThrows(XContentParseException.class, () -> AliasActions.PARSER.apply(parser, null));
             assertThat(e.getCause().getCause(), instanceOf(IllegalArgumentException.class));
-            assertEquals("Only one of [alias] and [aliases] is supported", e.getCause().getCause().getMessage());
+            assertThat(e.getCause().getCause().getMessage(), containsString("Only one of [alias] and [aliases] is supported"));
         }
     }
 

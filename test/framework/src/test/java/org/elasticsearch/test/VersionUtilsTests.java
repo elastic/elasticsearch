@@ -28,9 +28,9 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toCollection;
 import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -303,6 +303,24 @@ public class VersionUtilsTests extends ESTestCase {
             TestNewMinorBranchIn6x.V_5_6_2,
             TestNewMinorBranchIn6x.V_6_1_2,
             TestNewMinorBranchIn6x.V_6_2_0)));
+    }
+
+    public static class TestIncorrectCurrentVersion {
+        public static final Version V_5_3_0 = Version.fromString("5.3.0");
+        public static final Version V_5_3_1 = Version.fromString("5.3.1");
+        public static final Version V_5_4_0 = Version.fromString("5.4.0");
+        public static final Version V_5_4_1 = Version.fromString("5.4.1");
+        public static final Version CURRENT = V_5_4_1;
+    }
+
+    public void testIncorrectCurrentVersion() {
+        Version previousVersion = TestIncorrectCurrentVersion.V_5_4_0;
+        AssertionError error = expectThrows(AssertionError.class, () ->
+            VersionUtils.resolveReleasedVersions(previousVersion, TestIncorrectCurrentVersion.class));
+
+        String message = error.getMessage();
+        assertThat(message, containsString(TestIncorrectCurrentVersion.CURRENT.toString()));
+        assertThat(message, containsString(previousVersion.toString()));
     }
 
     /**

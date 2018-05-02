@@ -22,7 +22,7 @@ package org.elasticsearch.gradle
  * Accessor for shared dependency versions used by elasticsearch, namely the elasticsearch and lucene versions.
  */
 class VersionProperties {
-    static final String elasticsearch
+    static final Version elasticsearch
     static final String lucene
     static final Map<String, String> versions = new HashMap<>()
     static {
@@ -32,7 +32,7 @@ class VersionProperties {
             throw new RuntimeException('/version.properties resource missing')
         }
         props.load(propsStream)
-        elasticsearch = props.getProperty('elasticsearch')
+        elasticsearch = Version.fromString(props.getProperty('elasticsearch'))
         lucene = props.getProperty('lucene')
         for (String property : props.stringPropertyNames()) {
             versions.put(property, props.getProperty(property))

@@ -192,7 +192,7 @@ public class RatedRequest implements Writeable, ToXContentObject {
         return Collections.unmodifiableMap(this.params);
     }
 
-    /** return the parameters if this request uses a template, otherwise this will be <tt>null</tt>. */
+    /** return the parameters if this request uses a template, otherwise this will be {@code null}. */
     public String getTemplateId() {
         return this.templateId;
     }
@@ -223,7 +223,7 @@ public class RatedRequest implements Writeable, ToXContentObject {
             return RatedDocument.fromXContent(p);
         }, RATINGS_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) ->
-                SearchSourceBuilder.fromXContent(p), REQUEST_FIELD);
+                SearchSourceBuilder.fromXContent(p, false), REQUEST_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), PARAMS_FIELD);
         PARSER.declareStringArray(RatedRequest::addSummaryFields, FIELDS_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TEMPLATE_ID_FIELD);

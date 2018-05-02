@@ -165,27 +165,28 @@ public class BytesRestResponseTests extends ESTestCase {
 
     public void testResponseWhenPathContainsEncodingError() throws IOException {
         final String path = "%a";
-        final RestRequest request = new RestRequest(NamedXContentRegistry.EMPTY, Collections.emptyMap(), path, Collections.emptyMap()) {
-            @Override
-            public Method method() {
-                return null;
-            }
+        final RestRequest request =
+                new RestRequest(NamedXContentRegistry.EMPTY, Collections.emptyMap(), path, Collections.emptyMap()) {
+                    @Override
+                    public Method method() {
+                        return null;
+                    }
 
-            @Override
-            public String uri() {
-                return null;
-            }
+                    @Override
+                    public String uri() {
+                        return null;
+                    }
 
-            @Override
-            public boolean hasContent() {
-                return false;
-            }
+                    @Override
+                    public boolean hasContent() {
+                        return false;
+                    }
 
-            @Override
-            public BytesReference content() {
-                return null;
-            }
-        };
+                    @Override
+                    public BytesReference content() {
+                        return null;
+                    }
+                };
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> RestUtils.decodeComponent(request.rawPath()));
         final RestChannel channel = new DetailedExceptionRestChannel(request);
         // if we try to decode the path, this will throw an IllegalArgumentException again

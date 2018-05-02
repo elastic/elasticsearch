@@ -60,4 +60,18 @@ public class IndexTests extends ESTestCase {
         parser.nextToken(); // the beginning of the parser
         assertThat(Index.fromXContent(parser), equalTo(original));
     }
+
+    public void testEquals() {
+        Index index1 = new Index("a", "a");
+        Index index2 = new Index("a", "a");
+        Index index3 = new Index("a", "b");
+        Index index4 = new Index("b", "a");
+        String s = "Some random other object";
+        assertEquals(index1, index1);
+        assertEquals(index1, index2);
+        assertNotEquals(index1, null);
+        assertNotEquals(index1, s);
+        assertNotEquals(index1, index3);
+        assertNotEquals(index1, index4);
+    }
 }

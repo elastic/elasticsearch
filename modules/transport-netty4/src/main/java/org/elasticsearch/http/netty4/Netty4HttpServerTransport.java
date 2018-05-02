@@ -233,11 +233,6 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         this.pipeliningMaxEvents = SETTING_PIPELINING_MAX_EVENTS.get(settings);
         this.corsConfig = buildCorsConfig(settings);
 
-        // validate max content length
-        if (maxContentLength.getBytes() > Integer.MAX_VALUE) {
-            logger.warn("maxContentLength[{}] set to high value, resetting it to [100mb]", maxContentLength);
-            maxContentLength = new ByteSizeValue(100, ByteSizeUnit.MB);
-        }
         this.maxContentLength = maxContentLength;
 
         logger.debug("using max_chunk_size[{}], max_header_size[{}], max_initial_line_length[{}], max_content_length[{}], " +

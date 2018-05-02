@@ -193,8 +193,6 @@ public class SimulatePipelineRequest extends ActionRequest {
                 dataMap, MetaData.ID.getFieldName(), "_id");
             String routing = ConfigurationUtils.readOptionalStringOrIntProperty(null, null,
                 dataMap, MetaData.ROUTING.getFieldName());
-            String parent = ConfigurationUtils.readOptionalStringOrIntProperty(null, null,
-                dataMap, MetaData.PARENT.getFieldName());
             Long version = null;
             if (dataMap.containsKey(MetaData.VERSION.getFieldName())) {
                 version = (Long) ConfigurationUtils.readObject(null, null, dataMap, MetaData.VERSION.getFieldName());
@@ -205,7 +203,7 @@ public class SimulatePipelineRequest extends ActionRequest {
                     MetaData.VERSION_TYPE.getFieldName()));
             }
             IngestDocument ingestDocument =
-                new IngestDocument(index, type, id, routing, parent, version, versionType, document);
+                new IngestDocument(index, type, id, routing, version, versionType, document);
             ingestDocumentList.add(ingestDocument);
         }
         return ingestDocumentList;

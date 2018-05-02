@@ -25,6 +25,7 @@ import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.env.Environment;
@@ -62,6 +63,7 @@ public class NodeTests extends ESTestCase {
                 assertThat(Node.NODE_NAME_SETTING.get(nodeSettings), equalTo(name));
             }
         }
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
     }
 
     public static class CheckPlugin extends Plugin {
@@ -93,6 +95,7 @@ public class NodeTests extends ESTestCase {
             expectThrows(NodeValidationException.class, () -> node.start());
             assertTrue(executed.get());
         }
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
     }
 
     public void testWarnIfPreRelease() {
@@ -144,6 +147,7 @@ public class NodeTests extends ESTestCase {
         } catch (IllegalArgumentException e) {
             assertEquals("node.attr.test_attr cannot have leading or trailing whitespace [trailing ]", e.getMessage());
         }
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { NetworkModule.HTTP_ENABLED });
     }
 
     private static Settings.Builder baseSettings() {

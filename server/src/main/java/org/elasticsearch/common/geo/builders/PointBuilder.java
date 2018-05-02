@@ -22,7 +22,7 @@ package org.elasticsearch.common.geo.builders;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.locationtech.spatial4j.shape.Point;
-import com.vividsolutions.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Coordinate;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;

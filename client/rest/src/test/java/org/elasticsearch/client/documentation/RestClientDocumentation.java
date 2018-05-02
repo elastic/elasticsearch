@@ -27,7 +27,9 @@ import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.client.config.RequestConfig;
+import org.apache.http.entity.BasicHttpEntity;
 import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.impl.nio.reactor.IOReactorConfig;
@@ -37,6 +39,7 @@ import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.HttpAsyncResponseConsumerFactory;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
@@ -134,107 +137,61 @@ public class RestClientDocumentation {
         }
 
         {
-            //tag::rest-client-verb-endpoint
-            Response response = restClient.performRequest("GET", "/"); // <1>
-            //end::rest-client-verb-endpoint
+            //tag::rest-client-sync
+            Request request = new Request(
+                "GET",  // <1>
+                "/");   // <2>
+            Response response = restClient.performRequest(request);
+            //end::rest-client-sync
         }
         {
-            //tag::rest-client-headers
-            Response response = restClient.performRequest("GET", "/", new BasicHeader("header", "value"));
-            //end::rest-client-headers
-        }
-        {
-            //tag::rest-client-verb-endpoint-params
-            Map<String, String> params = Collections.singletonMap("pretty", "true");
-            Response response = restClient.performRequest("GET", "/", params); // <1>
-            //end::rest-client-verb-endpoint-params
-        }
-        {
-            //tag::rest-client-verb-endpoint-params-body
-            Map<String, String> params = Collections.emptyMap();
-            String jsonString = "{" +
-                        "\"user\":\"kimchy\"," +
-                        "\"postDate\":\"2013-01-30\"," +
-                        "\"message\":\"trying out Elasticsearch\"" +
-                    "}";
-            HttpEntity entity = new NStringEntity(jsonString, ContentType.APPLICATION_JSON);
-            Response response = restClient.performRequest("PUT", "/posts/doc/1", params, entity); // <1>
-            //end::rest-client-verb-endpoint-params-body
-        }
-        {
-            //tag::rest-client-response-consumer
-            Map<String, String> params = Collections.emptyMap();
-            HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory consumerFactory =
-                    new HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory(30 * 1024 * 1024);
-            Response response = restClient.performRequest("GET", "/posts/_search", params, null, consumerFactory); // <1>
-            //end::rest-client-response-consumer
-        }
-        {
-            //tag::rest-client-verb-endpoint-async
-            ResponseListener responseListener = new ResponseListener() {
+            //tag::rest-client-async
+            Request request = new Request(
+                "GET",  // <1>
+                "/");   // <2>
+            restClient.performRequestAsync(request, new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
-                    // <1>
+                    // <3>
                 }
 
                 @Override
                 public void onFailure(Exception exception) {
-                    // <2>
+                    // <4>
                 }
-            };
-            restClient.performRequestAsync("GET", "/", responseListener); // <3>
-            //end::rest-client-verb-endpoint-async
-
-            //tag::rest-client-headers-async
-            Header[] headers = {
-                    new BasicHeader("header1", "value1"),
-                    new BasicHeader("header2", "value2")
-            };
-            restClient.performRequestAsync("GET", "/", responseListener, headers);
-            //end::rest-client-headers-async
-
-            //tag::rest-client-verb-endpoint-params-async
-            Map<String, String> params = Collections.singletonMap("pretty", "true");
-            restClient.performRequestAsync("GET", "/", params, responseListener); // <1>
-            //end::rest-client-verb-endpoint-params-async
-
-            //tag::rest-client-verb-endpoint-params-body-async
-            String jsonString = "{" +
-                    "\"user\":\"kimchy\"," +
-                    "\"postDate\":\"2013-01-30\"," +
-                    "\"message\":\"trying out Elasticsearch\"" +
-                    "}";
-            HttpEntity entity = new NStringEntity(jsonString, ContentType.APPLICATION_JSON);
-            restClient.performRequestAsync("PUT", "/posts/doc/1", params, entity, responseListener); // <1>
-            //end::rest-client-verb-endpoint-params-body-async
-
-            //tag::rest-client-response-consumer-async
-            HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory consumerFactory =
-                    new HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory(30 * 1024 * 1024);
-            restClient.performRequestAsync("GET", "/posts/_search", params, null, consumerFactory, responseListener); // <1>
-            //end::rest-client-response-consumer-async
+            });
+            //end::rest-client-async
         }
         {
-            //tag::rest-client-response2
-            Response response = restClient.performRequest("GET", "/");
-            RequestLine requestLine = response.getRequestLine(); // <1>
-            HttpHost host = response.getHost(); // <2>
-            int statusCode = response.getStatusLine().getStatusCode(); // <3>
-            Header[] headers = response.getHeaders(); // <4>
-            String responseBody = EntityUtils.toString(response.getEntity()); // <5>
-            //end::rest-client-response2
+            Request request = new Request("GET", "/");
+            //tag::rest-client-parameters
+            request.addParameter("pretty", "true");
+            //end::rest-client-parameters
+            //tag::rest-client-body
+            request.setEntity(new StringEntity(
+                    "{\"json\":\"text\"}",
+                    ContentType.APPLICATION_JSON));
+            //end::rest-client-body
+            //tag::rest-client-headers
+            request.setHeaders(
+                    new BasicHeader("Accept", "text/plain"),
+                    new BasicHeader("Cache-Control", "no-cache"));
+            //end::rest-client-headers
+            //tag::rest-client-response-consumer
+            request.setHttpAsyncResponseConsumerFactory(
+                    new HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory(30 * 1024 * 1024));
+            //end::rest-client-response-consumer
         }
         {
             HttpEntity[] documents = new HttpEntity[10];
             //tag::rest-client-async-example
             final CountDownLatch latch = new CountDownLatch(documents.length);
             for (int i = 0; i < documents.length; i++) {
+                Request request = new Request("PUT", "/posts/doc/" + i);
+                //let's assume that the documents are stored in an HttpEntity array
+                request.setEntity(documents[i]);
                 restClient.performRequestAsync(
-                        "PUT",
-                        "/posts/doc/" + i,
-                        Collections.<String, String>emptyMap(),
-                        //let's assume that the documents are stored in an HttpEntity array
-                        documents[i],
+                        request,
                         new ResponseListener() {
                             @Override
                             public void onSuccess(Response response) {
@@ -253,7 +210,16 @@ public class RestClientDocumentation {
             latch.await();
             //end::rest-client-async-example
         }
-
+        {
+            //tag::rest-client-response2
+            Response response = restClient.performRequest("GET", "/");
+            RequestLine requestLine = response.getRequestLine(); // <1>
+            HttpHost host = response.getHost(); // <2>
+            int statusCode = response.getStatusLine().getStatusCode(); // <3>
+            Header[] headers = response.getHeaders(); // <4>
+            String responseBody = EntityUtils.toString(response.getEntity()); // <5>
+            //end::rest-client-response2
+        }
     }
 
     @SuppressWarnings("unused")

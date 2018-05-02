@@ -62,7 +62,6 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         metrics.put("store", r -> r.store(true));
         metrics.put("indexing", r -> r.indexing(true));
         metrics.put("search", r -> r.search(true));
-        metrics.put("suggest", r -> r.search(true));
         metrics.put("get", r -> r.get(true));
         metrics.put("merge", r -> r.merge(true));
         metrics.put("refresh", r -> r.refresh(true));

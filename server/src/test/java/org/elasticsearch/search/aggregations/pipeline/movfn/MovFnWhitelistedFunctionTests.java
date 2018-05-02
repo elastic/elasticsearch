@@ -587,7 +587,7 @@ public class MovFnWhitelistedFunctionTests extends ESTestCase {
         double gamma = randomDouble();
         int period = randomIntBetween(1,10);
         int numValues = randomIntBetween(1, 100);
-        int windowSize = randomIntBetween(1, 50);
+        int windowSize = randomIntBetween(period * 2, 50); // HW requires at least two periods of data
 
         EvictingQueue<Double> window = new EvictingQueue<>(windowSize);
         for (int i = 0; i < windowSize; i++) {

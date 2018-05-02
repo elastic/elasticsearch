@@ -36,9 +36,16 @@ This section summarizes the changes in each release.
 [[release-notes-6.3.0]]
 == {es} version 6.3.0
 
-//[float]
-//[[breaking-6.3.0]]
-//=== Breaking Changes
+[float]
+[[breaking-6.3.0]]
+=== Breaking Changes
+
+Monitoring::
+* By default when you install {xpack}, monitoring is enabled but data collection
+is disabled. To enable data collection, use the new
+`xpack.monitoring.collection.enabled` setting. You can update this setting by
+using the <<cluster-update-settings,Cluster Update Settings API>>. For more
+information, see <<monitoring-settings>>.
 
 //[float]
 //=== Breaking Java Changes

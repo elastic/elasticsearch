@@ -46,6 +46,7 @@ import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -437,6 +438,30 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         assertFalse(phase1Called.get());
         assertFalse(prepareTargetForTranslogCalled.get());
         assertFalse(phase2Called.get());
+    }
+
+    public void testCancellationsDoesNotLeakPrimaryPermits() throws Exception {
+        final CancellableThreads cancellableThreads = new CancellableThreads();
+        final IndexShard shard = mock(IndexShard.class);
+        final AtomicBoolean freed = new AtomicBoolean(true);
+        when(shard.isPrimaryMode()).thenReturn(true);
+        doAnswer(invocation -> {
+            freed.set(false);
+            ((ActionListener<Releasable>)invocation.getArguments()[0]).onResponse(() -> freed.set(true));
+            return null;
+        }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), anyObject());
+
+        Thread cancelingThread = new Thread(() -> cancellableThreads.cancel("test"));
+        cancelingThread.start();
+        try {
+            RecoverySourceHandler.runUnderPrimaryPermit(() -> {}, "test", shard, cancellableThreads, logger);
+        } catch (CancellableThreads.ExecutionCancelledException e) {
+            // expected.
+        }
+        cancelingThread.join();
+        // we have to use assert busy as we may be interrupted while acquiring the permit, if so we want to check
+        // that the permit is released.
+        assertBusy(() -> assertTrue(freed.get()));
     }
 
     private Store newStore(Path path) throws IOException {

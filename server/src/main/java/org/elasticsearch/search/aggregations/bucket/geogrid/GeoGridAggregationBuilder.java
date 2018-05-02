@@ -76,7 +76,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
         // In some cases, this value cannot be fully parsed until after we know the type
         // Declare precision as an ObjectParser.ValueType.STRING, and convert it to String if needed
         if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
-            builder.precision(Integer.toString(parser.intValue()));
+            builder.precision(parser.intValue());
         } else {
             builder.precision(parser.text());
         }
@@ -143,6 +143,12 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
 
     public GeoHashType type() {
         return type;
+    }
+
+    public GeoGridAggregationBuilder precision(int precision) {
+        // validation depends on the type, will be checked in innerBuild
+        this.precision = Integer.toString(precision);
+        return this;
     }
 
     public GeoGridAggregationBuilder precision(String precision) {

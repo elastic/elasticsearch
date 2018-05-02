@@ -117,7 +117,7 @@ public class GeoHashGridAggregatorTests extends AggregatorTestCase {
 
         GeoGridAggregationBuilder aggregationBuilder = new GeoGridAggregationBuilder("_name").field(field);
         aggregationBuilder.type(type.name());
-        aggregationBuilder.precision(Integer.toString(precision));
+        aggregationBuilder.precision(precision);
         MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType();
         fieldType.setHasDocValues(true);
         fieldType.setName(FIELD_NAME);

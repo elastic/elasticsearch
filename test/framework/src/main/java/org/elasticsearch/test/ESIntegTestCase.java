@@ -1352,7 +1352,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * segment or if only one document is in a segment etc. This method prevents issues like this by randomizing the index
      * layout.
      *
-     * @param forceRefresh if <tt>true</tt> all involved indices are refreshed once the documents are indexed. Additionally if <tt>true</tt>
+     * @param forceRefresh if {@code true} all involved indices are refreshed once the documents are indexed. Additionally if {@code true}
      *                     some empty dummy documents are may be randomly inserted into the document list and deleted once all documents are indexed.
      *                     This is useful to produce deleted documents on the server side.
      * @param builders     the documents to index.
@@ -1369,8 +1369,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * segment or if only one document is in a segment etc. This method prevents issues like this by randomizing the index
      * layout.
      *
-     * @param forceRefresh   if <tt>true</tt> all involved indices are refreshed once the documents are indexed.
-     * @param dummyDocuments if <tt>true</tt> some empty dummy documents may be randomly inserted into the document list and deleted once
+     * @param forceRefresh   if {@code true} all involved indices are refreshed once the documents are indexed.
+     * @param dummyDocuments if {@code true} some empty dummy documents may be randomly inserted into the document list and deleted once
      *                       all documents are indexed. This is useful to produce deleted documents on the server side.
      * @param builders       the documents to index.
      */
@@ -1385,10 +1385,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * segment or if only one document is in a segment etc. This method prevents issues like this by randomizing the index
      * layout.
      *
-     * @param forceRefresh   if <tt>true</tt> all involved indices are refreshed once the documents are indexed.
-     * @param dummyDocuments if <tt>true</tt> some empty dummy documents may be randomly inserted into the document list and deleted once
+     * @param forceRefresh   if {@code true} all involved indices are refreshed once the documents are indexed.
+     * @param dummyDocuments if {@code true} some empty dummy documents may be randomly inserted into the document list and deleted once
      *                       all documents are indexed. This is useful to produce deleted documents on the server side.
-     * @param maybeFlush     if <tt>true</tt> this method may randomly execute full flushes after index operations.
+     * @param maybeFlush     if {@code true} this method may randomly execute full flushes after index operations.
      * @param builders       the documents to index.
      */
     public void indexRandom(boolean forceRefresh, boolean dummyDocuments, boolean maybeFlush, List<IndexRequestBuilder> builders) throws InterruptedException, ExecutionException {
@@ -1554,27 +1554,27 @@ public abstract class ESIntegTestCase extends ESTestCase {
         Scope scope() default Scope.SUITE;
 
         /**
-         * Returns the number of nodes in the cluster. Default is <tt>-1</tt> which means
+         * Returns the number of nodes in the cluster. Default is {@code -1} which means
          * a random number of nodes is used, where the minimum and maximum number of nodes
          * are either the specified ones or the default ones if not specified.
          */
         int numDataNodes() default -1;
 
         /**
-         * Returns the minimum number of data nodes in the cluster. Default is <tt>-1</tt>.
+         * Returns the minimum number of data nodes in the cluster. Default is {@code -1}.
          * Ignored when {@link ClusterScope#numDataNodes()} is set.
          */
         int minNumDataNodes() default -1;
 
         /**
-         * Returns the maximum number of data nodes in the cluster.  Default is <tt>-1</tt>.
+         * Returns the maximum number of data nodes in the cluster.  Default is {@code -1}.
          * Ignored when {@link ClusterScope#numDataNodes()} is set.
          */
         int maxNumDataNodes() default -1;
 
         /**
-         * Indicates whether the cluster can have dedicated master nodes. If <tt>false</tt> means data nodes will serve as master nodes
-         * and there will be no dedicated master (and data) nodes. Default is <tt>true</tt> which means
+         * Indicates whether the cluster can have dedicated master nodes. If {@code false} means data nodes will serve as master nodes
+         * and there will be no dedicated master (and data) nodes. Default is {@code false} which means
          * dedicated master nodes will be randomly used.
          */
         boolean supportsDedicatedMasters() default true;
@@ -1703,7 +1703,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
-     * This method is used to obtain settings for the <tt>Nth</tt> node in the cluster.
+     * This method is used to obtain settings for the {@code N}th node in the cluster.
      * Nodes in this cluster are associated with an ordinal number such that nodes can
      * be started with specific configurations. This method might be called multiple
      * times with the same ordinal and is expected to return the same value for each invocation.
@@ -1878,7 +1878,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     /**
      * Iff this returns true mock transport implementations are used for the test runs. Otherwise not mock transport impls are used.
-     * The default is <tt>true</tt>
+     * The default is {@code true}.
      */
     protected boolean addMockTransportService() {
         return true;
@@ -1886,7 +1886,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     /**
      * Iff this returns true test zen discovery implementations is used for the test runs.
-     * The default is <tt>true</tt>
+     * The default is {@code true}.
      */
     protected boolean addTestZenDiscovery() {
         return true;
@@ -1957,7 +1957,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Returns the transport client ratio from the class level annotation or via
      * {@link System#getProperty(String)} if available. If both are not available this will
-     * return a random ratio in the interval <tt>[0..1]</tt>
+     * return a random ratio in the interval {@code [0..1]}.
      */
     protected double getPerTestTransportClientRatio() {
         final ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);

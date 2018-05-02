@@ -1,8 +1,5 @@
 ---
 "Non-existent type returns 404":
-  - skip:
-      version: " - 5.5.99"
-      reason: Previous versions did not 404 on missing types
   - do:
         indices.create:
           index: test_index
@@ -25,9 +22,6 @@
 
 ---
 "No type matching pattern returns 404":
-  - skip:
-      version: " - 5.5.99"
-      reason: Previous versions did not 404 on missing types
   - do:
         indices.create:
           index: test_index
@@ -51,9 +45,6 @@
 
 ---
 "Existent and non-existent type returns 404 and the existing type":
-  - skip:
-      version: " - 5.5.99"
-      reason: Previous versions did not 404 on missing types
   - do:
         indices.create:
           index: test_index
@@ -77,9 +68,6 @@
 
 ---
 "Existent and non-existent types returns 404 and the existing type":
-  - skip:
-      version: " - 5.5.99"
-      reason: Previous versions did not 404 on missing types
   - do:
         indices.create:
           index: test_index
@@ -103,9 +91,6 @@
 
 ---
 "Type missing when no types exist":
-  - skip:
-      version: " - 5.0.2"
-      reason: there was a bug prior to 5.0.2
   - do:
       catch: missing
       indices.get_mapping:

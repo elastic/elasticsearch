@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -602,66 +603,13 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
     }
 
     /**
-     * Fetches connection info for this connection
+     * Get the information about remote nodes to be rendered on {@code _remote/info} requests.
      */
-    public void getConnectionInfo(ActionListener<RemoteConnectionInfo> listener) {
-        final Optional<DiscoveryNode> anyNode = connectedNodes.getAny();
-        if (anyNode.isPresent() == false) {
-            // not connected we return immediately
-            RemoteConnectionInfo remoteConnectionStats = new RemoteConnectionInfo(clusterAlias,
-                Collections.emptyList(), Collections.emptyList(), maxNumRemoteConnections, 0,
-                RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings), skipUnavailable);
-            listener.onResponse(remoteConnectionStats);
-        } else {
-            NodesInfoRequest request = new NodesInfoRequest();
-            request.clear();
-            request.http(true);
-
-            transportService.sendRequest(anyNode.get(), NodesInfoAction.NAME, request, new TransportResponseHandler<NodesInfoResponse>() {
-                @Override
-                public NodesInfoResponse newInstance() {
-                    return new NodesInfoResponse();
-                }
-
-                @Override
-                public void handleResponse(NodesInfoResponse response) {
-                    Collection<TransportAddress> httpAddresses = new HashSet<>();
-                    for (NodeInfo info : response.getNodes()) {
-                        if (connectedNodes.contains(info.getNode()) && info.getHttp() != null) {
-                            httpAddresses.add(info.getHttp().getAddress().publishAddress());
-                        }
-                    }
-
-                    if (httpAddresses.size() < maxNumRemoteConnections) {
-                        // just in case non of the connected nodes have http enabled we get other http enabled nodes instead.
-                        for (NodeInfo info : response.getNodes()) {
-                            if (nodePredicate.test(info.getNode()) && info.getHttp() != null) {
-                                httpAddresses.add(info.getHttp().getAddress().publishAddress());
-                            }
-                            if (httpAddresses.size() == maxNumRemoteConnections) {
-                                break; // once we have enough return...
-                            }
-                        }
-                    }
-                    RemoteConnectionInfo remoteConnectionInfo = new RemoteConnectionInfo(clusterAlias,
-                        seedNodes.stream().map(DiscoveryNode::getAddress).collect(Collectors.toList()), new ArrayList<>(httpAddresses),
-                        maxNumRemoteConnections, connectedNodes.size(),
-                        RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings), skipUnavailable);
-                    listener.onResponse(remoteConnectionInfo);
-                }
-
-                @Override
-                public void handleException(TransportException exp) {
-                    listener.onFailure(exp);
-                }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
-                }
-            });
-        }
-
+    public RemoteConnectionInfo getConnectionInfo() {
+        List<TransportAddress> seedNodeAddresses = seedNodes.stream().map(DiscoveryNode::getAddress).collect(Collectors.toList());
+        TimeValue initialConnectionTimeout = RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);
+        return new RemoteConnectionInfo(clusterAlias, seedNodeAddresses, maxNumRemoteConnections, connectedNodes.size(),
+                initialConnectionTimeout, skipUnavailable);
     }
 
     int getNumNodesConnected() {

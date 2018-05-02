@@ -26,4 +26,12 @@ public abstract class AbstractStepTestCase<T extends Step> extends ESTestCase {
     public static StepKey randomStepKey() {
         return new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
+
+    public void testStepNameNotError() {
+        T instance = createRandomInstance();
+        StepKey stepKey = instance.getKey();
+        assertFalse(ErrorStep.NAME.equals(stepKey.getName()));
+        StepKey nextStepKey = instance.getKey();
+        assertFalse(ErrorStep.NAME.equals(nextStepKey.getName()));
+    }
 }

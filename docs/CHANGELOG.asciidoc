@@ -36,9 +36,16 @@ This section summarizes the changes in each release.
 [[release-notes-6.3.0]]
 == {es} version 6.3.0
 
-//[float]
-//[[breaking-6.3.0]]
-//=== Breaking Changes
+[float]
+[[breaking-6.3.0]]
+=== Breaking Changes
+
+Monitoring::
+* By default when you install {xpack}, monitoring is enabled but data collection
+is disabled. To enable data collection, use the new
+`xpack.monitoring.collection.enabled` setting. You can update this setting by
+using the <<cluster-update-settings,Cluster Update Settings API>>. For more
+information, see <<monitoring-settings>>.
 
 //[float]
 //=== Breaking Java Changes
@@ -95,6 +102,13 @@ Java High Level REST Client::
 Java Low Level REST Client::
 * REST client: hosts marked dead for the first time should not be immediately retried {pull}29230[#29230]
 
+Machine Learning::
+* Prevents failed jobs from mistakenly re-opening after node loss recovery. 
+* Returns an error when an operation cannot be submitted because the process was 
+killed. 
+* Respects the datafeed frequency when it is less or equal to the 
+`query_delay` setting.  
+
 Network::
 * Cross-cluster search and default connections can get crossed [OPEN] [ISSUE] {pull}29321[#29321]
 
@@ -110,8 +124,20 @@ Plugins::
 Search::
 * Propagate ignore_unmapped to inner_hits {pull}29261[#29261] (issue: {issue}29071[#29071])
 
+Security/Authentication::
+* Adds missing `idp.use_single_logout` and `populate_user_metadata` SAML realm 
+settings. See <<ref-saml-settings>>. 
+
 Settings::
 * Archive unknown or invalid settings on updates {pull}28888[#28888] (issue: {issue}28609[#28609])
+
+Watcher::
+* Re-enables `smtp.*` account configuration properties in the notification 
+settings. See <<email-notification-settings>>.  
+* Ensures starting and stopping {watcher} is properly acknowledged as a master 
+node action. 
+* Refrains from appending a question mark to an HTTP request if no parameters 
+are used. 
 
 //[float]
 //=== Regressions
@@ -161,6 +187,14 @@ Ingest::
 Java High Level REST Client::
 * REST high-level client: encode path parts {pull}28663[#28663] (issue: {issue}28625[#28625])
 
+Machine Learning::
+* Fixed the <<ml-get-datafeed-stats,get datafeed statistics API>> such that it
+returns only machine learning-specific node attributes.
+
+Monitoring::
+* Aligned reporting of index statistics that exist in the current cluster state.
+This fix avoids subtle race conditions in stats reporting.
+
 Packaging::
 * Delay path expansion on Windows {pull}28753[#28753] (issues: {issue}27675[#27675], {issue}28748[#28748])
 
@@ -168,11 +202,31 @@ Percolator::
 * Fix percolator query analysis for function_score query {pull}28854[#28854]
 * Improved percolator's random candidate query duel test {pull}28840[#28840]
 
+Security::
+* Fixed handling of comments in XML documents [ESA-2018-07].
+* Fixed auditing such that when you use a local audit index, it maintains the
+mappings automatically. Maintenance is necessary, for example, when new fields
+are introduced or document types change.
+* Added and changed settings for the SAML NameID policy. For example, added the
+`nameid.allow_create` setting and changed the default value for
+the SPNameQualifier setting to blank. See {stack-ov}/saml-realm.html[SAML Authentication].
+* Fixed handling of an Assertion Consumer Service (ACS) URL with existing query
+parameters. See {stack-ov}/saml-realm.html[SAML Authentication].
+* Fixed the PKI realm bootstrap check such that it works with secure settings.
+For more information, see <<bootstrap-checks-xpack>>.
+
 Snapshot/Restore::
 * Fix NPE when using deprecated Azure settings {pull}28769[#28769] (issues: {issue}23518[#23518], {issue}28299[#28299])
 
 Stats::
 * Fix AdaptiveSelectionStats serialization bug {pull}28718[#28718] (issue: {issue}28713[#28713])
+
+Watcher::
+* Fixed the serialization of failed hipchat messages, such that it no longer
+tries to write the status field twice.
+* Fixed TransformInput toXContent serialization errors. For more information,
+see
+{stack-ov}/input-chain.html#_transforming_chained_input_data[Transforming Chained Input Data].
 
 //[float]
 //=== Regressions
@@ -218,6 +272,15 @@ Java High Level REST Client::
 * Fix parsing of script fields {pull}28395[#28395] (issue: {issue}28380[#28380])
 * Move to POST when calling API to retrieve which support request body {pull}28342[#28342] (issue: {issue}28326[#28326])
 
+Machine Learning::
+* Fixed an exception that occurred when a categorization field contained an
+empty string.
+
+Monitoring::
+* Properly registered `xpack.monitoring.exporters.*.headers.*` settings, which
+were broken in 6.2.0 and 6.2.1. For more information, see
+<<http-exporter-settings>>.
+
 Packaging::
 * Fix using relative custom config path {pull}28700[#28700] (issue: {issue}27610[#27610])
 * Disable console logging in the Windows service {pull}28618[#28618] (issue: {issue}20422[#20422])
@@ -227,6 +290,26 @@ Percolator::
 
 Recovery::
 * Fsync directory after cleanup {pull}28604[#28604] (issue: {issue}28435[#28435])
+
+Security::
+* Added CachingRealm to published artifacts so it can be used in custom realm
+extensions.
+* If the realm uses native role mappings and the security index health changes,
+the realm caches are cleared. For example, they are cleared when the index
+recovers from a red state, when the index is deleted, when the index becomes
+outdated, and when the index becomes up-to-date.
+* Fixed a bug that could prevent auditing to a remote index if the remote
+cluster was re-started at the same time as the audited cluster.
+* Removed AuthorityKeyIdentifier's Issuer and Serial number from certificates
+generated by `certgen` and `certutil`. This improves compatibility with
+certificate verification in {kib}.
+
+Watcher::
+* Proxies now use HTTP by default, which was the default prior to 6.0. This
+fixes issues with HTTPS requests that tried to access proxies via HTTP.
+* Fixed the HTML sanitizer settings
+(`xpack.notification.email.html.sanitization.*`), which were broken in 6.2. For
+more information, see <<notification-settings>>.
 
 //[float]
 //=== Regressions
@@ -261,6 +344,11 @@ Plugin Lang Painless::
 
 Plugins::
 * Fix the ability to remove old plugin {pull}28540[#28540] (issue: {issue}28538[#28538])
+
+Security::
+* Fixed missing dependencies for x-pack-transport.
+* Fixed `saml-metadata` env file such that it sources the appropriate 
+environment file.
 
 //[float]
 //=== Regressions
@@ -312,6 +400,11 @@ Suggesters::
 [float]
 === New Features
 
+Machine Learning::
+* Added the ability to identify scheduled events and prevent anomaly detection
+during these periods. For more information, see
+{stack-ov}/ml-calendars.html[Calendars and Scheduled Events].
+
 Plugin Ingest GeoIp::
 * Enable ASN support for Ingest GeoIP plugin.  {pull}27958[#27958] (issue: {issue}27849[#27849])
 
@@ -330,6 +423,14 @@ Recovery::
 
 Reindex API::
 * Add scroll parameter to _reindex API {pull}28041[#28041] (issue: {issue}27555[#27555])
+
+Security::
+* {security} now supports user authentication using SAML Single Sign on. For
+more information, see {stack-ov}/saml-realm.html[SAML authentication].
+
+Watcher::
+* Added a transform input for chained input. For more information, see
+{stack-ov}/input-chain.html#_transforming_chained_input_data[Transforming Chained Input Data].
 
 [float]
 === Enhancements
@@ -392,8 +493,38 @@ Java High Level REST Client::
 * Add multi get api to the high level rest client {pull}27337[#27337] (issue: {issue}27205[#27205])
 * Add msearch api to high level client {pull}27274[#27274]
 
+Machine Learning::
+* Increased tokenization flexibility for categorization. Now all {es} analyzer
+functionality is available, which opens up the possibility of sensibly
+categorizing non-English log messages. For more information, see {stack-ov}/ml-configuring-categories.html#ml-configuring-analyzer[Customizing the Categorization Analyzer].
+* Improved the sensitivity of the analysis to high variance data with lots of
+values near zero.
+* Improved the decay rate of the model memory by using a weighted moving average.
+* Machine learning indices created after upgrading to 6.2 have the
+`auto_expand_replicas: 0-1` setting rather than a fixed setting of 1 replica.
+As a result, {ml} indices created after upgrading to 6.2 can have a green
+status on single node clusters. There is no impact in multi-node clusters.
+* Changed the credentials that are used by {dfeeds}. When {security} is enabled,
+a {dfeed} stores the roles of the user who created or updated the {dfeed}
+**at that time**. This means that if those roles are updated, the {dfeed}
+subsequently runs with the new permissions that are associated with the roles.
+However, if the user's roles are adjusted after creating or updating the {dfeed}
+then the {dfeed} continues to run with the permissions that are associated with
+the original roles. For more information, see
+{stack-ov}/ml-dfeeds.html[Datafeeds].
+* Added a new `scheduled` forecast status, which indicates that the forecast
+has not started yet.
+
 Mapping::
 * Allow `_doc` as a type. {pull}27816[#27816] (issues: {issue}27750[#27750], {issue}27751[#27751])
+
+Monitoring::
+* {monitoring} indices (`.monitoring`) created after upgrading to 6.2 have the
+`auto_expand_replicas: 0-1` setting rather than a fixed setting of 1 replica.
+As a result, monitoring indices created after upgrading to 6.2 can have a green
+status on single node clusters. There is no impact in multi-node clusters.
+* Added a cluster alert that triggers whenever a node is added, removed, or
+restarted.
 
 Network::
 * Add NioGroup for use in different transports {pull}27737[#27737] (issue: {issue}27260[#27260])
@@ -441,6 +572,22 @@ Search::
 * Use typeName() to check field type in GeoShapeQueryBuilder {pull}27730[#27730]
 * Optimize search_after when sorting in index sort order {pull}26401[#26401]
 
+Security::
+* Added the ability to refresh tokens that were created by the token API. The
+API provides information about a refresh token, which you can use within 24
+hours of its creation to extend the life of a token. For more information, see
+<<security-api-tokens>>.
+* Added principal and role information to `access_granted`, `access_denied`,
+`run_as_granted`, and `run_as_denied` audit events. For more information about
+these events, see {stack-ov}/auditing.html[Auditing Security Events].
+* Added audit event ignore policies, which are a way to tune the verbosity of an
+audit trail. These policies define rules for ignoring audit events that match
+specific attribute values. For more information, see
+{stack-ov}/auditing.html#audit-log-ignore-policy[Logfile Audit Events Ignore Policies].
+* Added a certificates API, which enables you to retrieve information about the
+X.509 certificates that are used to encrypt communications in your {es} cluster.
+For more information, see <<security-api-ssl>>.
+
 Sequence IDs::
 * Do not keep 5.x commits when having 6.x commits {pull}28188[#28188] (issues: {issue}27606[#27606], {issue}28038[#28038])
 * Use lastSyncedGlobalCheckpoint in deletion policy {pull}27826[#27826] (issue: {issue}27606[#27606])
@@ -465,6 +612,21 @@ Task Manager::
 Translog::
 * Simplify MultiSnapshot#SeqNoset {pull}27547[#27547] (issue: {issue}27268[#27268])
 * Enclose CombinedDeletionPolicy in SnapshotDeletionPolicy {pull}27528[#27528] (issues: {issue}27367[#27367], {issue}27456[#27456])
+
+Watcher::
+* Added the ability to set the `index` and `doc_type` dynamically in an index
+action. For more information, see {stack-ov}/actions-index.html[Index Action].
+* Added a `refresh` index action attribute, which enables you to set the
+refresh policy of the write request. For more information, see
+{stack-ov}/actions-index.html[Index Action].
+* Added support for actions in slack attachments, which enables you to add
+buttons that can be clicked in slack messages. For more information, see
+{stack-ov}/actions-slack.html[Slack Action].
+* {watcher} indices (`.watch*` and `triggered_watches`) created after upgrading
+to 6.2 have the `auto_expand_replicas: 0-1` setting rather than a fixed setting
+of 1 replica. As a result, {watcher} indices created after upgrading to 6.2 can
+have a green status on single node clusters. There is no impact in multi-node
+clusters.
 
 [float]
 === Bug Fixes
@@ -514,6 +676,17 @@ Internal::
 
 Java REST Client::
 * Do not use system properties when building the HttpAsyncClient {pull}27829[#27829] (issue: {issue}27827[#27827])
+
+Machine Learning::
+* Improved error reporting for crashes and resource problems on Linux.
+* Improved the detection of seasonal trends in bucket spans longer than 1 hour.
+* Updated the forecast API to wait for validation and return an error if the
+validation fails.
+* Set the actual bucket value to 0 in model plots for empty buckets for count
+and sum functions. The count and sum functions treat empty buckets as 0 rather
+than unknown for anomaly detection, so it was inconsistent not to do the same
+for model plots. This inconsistency resulted in problems plotting these buckets
+in {kib}.
 
 Mapping::
 * Ignore null value for range field (#27845) {pull}28116[#28116] (issue: {issue}27845[#27845])
@@ -575,6 +748,16 @@ Search::
 * Carry forward weights, etc on rescore rewrite {pull}27981[#27981] (issue: {issue}27979[#27979])
 * Fix routing with leading or trailing whitespace {pull}27712[#27712] (issue: {issue}27708[#27708])
 
+Security::
+* Updated the `setup-passwords` command to generate passwords with characters
+`A-Z`, `a-z`, and `0-9`, so that they are safe to use in shell scripts. For more
+information about this command, see <<setup-passwords>>.
+* Improved the error messages that occur if the `x-pack` directory is missing
+when you run <<users-command,`users` commands>>.
+* Fixed the ordering of realms in a realm chain, which determines the order in
+which the realms are consulted. For more information, see
+{stack-ov}/realms.html[Realms].
+
 Sequence IDs::
 * Recovery from snapshot may leave seq# gaps {pull}27850[#27850]
 * No longer unidle shard during recovery {pull}27757[#27757] (issue: {issue}26591[#26591])
@@ -601,6 +784,10 @@ Stats::
 
 Term Vectors::
 * Fix term vectors generator with keyword and normalizer {pull}27608[#27608] (issue: {issue}27320[#27320])
+
+Watcher::
+* Replaced group settings with affix key settings where filters are needed.
+For more information, see https://github.com/elastic/elasticsearch/pull/28338.
 
 //[float]
 //=== Regressions
@@ -698,6 +885,11 @@ Mapping::
 Scripting::
 * Ensure we protect Collections obtained from scripts from self-referencing {pull}28335[#28335]
 
+Security::
+* Improved cache expiry handling in the token service. Previously, if the token
+service was idle for more than 60 minutes, the key expired and the service
+failed to generate user tokens.
+
 Settings::
 *  Fix setting notification for complex setting (affixMap settings) that could cause transient settings to be ignored {pull}28317[#28317] (issue: {issue}28316[#28316])
 * Fix environment variable substitutions in list setting {pull}28106[#28106] (issue: {issue}27926[#27926])
@@ -705,6 +897,12 @@ Settings::
 Snapshot/Restore::
 * Avoid concurrent snapshot finalizations when deleting an INIT snapshot {pull}28078[#28078] (issues: {issue}27214[#27214], {issue}27931[#27931], {issue}27974[#27974])
 * Do not start snapshots that are deleted during initialization {pull}27931[#27931]
+
+Watcher::
+* Fixed a null pointer exception in the TemplateRegistry when there is no master
+node available.
+* Ensured collections obtained from scripts are protected from self-referencing.
+See https://github.com/elastic/elasticsearch/pull/28335.
 
 //[float]
 //=== Regressions
@@ -746,6 +944,20 @@ Engine::
 * Use `_refresh` to shrink the version map on inactivity {pull}27918[#27918] (issue: {issue}27852[#27852])
 * Allow resize version map under lock even if there are pending operations {pull}27870[#27870] (issue: {issue}27852[#27852])
 
+Machine Learning::
+* Fixed the removal of tokens during categorization, where the tokens were
+incorrectly deemed to be hexadecimal numbers. For more information, see
+{stack-ov}/ml-configuring-categories.html[Categorizing log messages].
+* Reduced the sensitivity of the analysis to small perturbations in the input
+data.
+* Disabled the ability to create forecasts for jobs that were created before
+6.1.0.
+
+Monitoring::
+* Added a `cluster_alerts.management.blacklist` setting for HTTP Exporters,
+which you can use to block the creation of specific cluster alerts. For more
+information, see <<monitoring-settings>>.
+
 Network::
 * Only bind loopback addresses when binding to local {pull}28029[#28029]
 
@@ -756,11 +968,27 @@ Search::
 * Use the underlying connection version for CCS connections  {pull}28093[#28093]
 * Carry forward weights, etc on rescore rewrite {pull}27981[#27981] (issue: {issue}27979[#27979])
 
+Security::
+* Fixed an issue in the Active Directory realm when following referrals that
+resulted in an increase in the number of connections made to Active Directory.
+* Fixed exception that occurred when using auditing and transport clients. In
+particular, the problem occurred when the number of processors on the transport
+client did not match the number of processors on the server.
+* Ensured that TLS is not required to install a license if you are using
+single-node discovery. For more information, see <<single-node-discovery>> and
+{stack-ov}/ssl-tls.html[Setting up TLS on a Cluster].
+* Fixed the <<security-api-privileges,has_privileges API>>. In particular, the
+`has_all_requested` field in the API results was not taking cluster privileges
+into consideration.
+
 Snapshot/Restore::
 * Fail restore when the shard allocations max retries count is reached {pull}27493[#27493] (issue: {issue}26865[#26865])
 
 Translog::
 * Only sync translog when global checkpoint increased {pull}27973[#27973] (issues: {issue}27837[#27837], {issue}27970[#27970])
+
+Watcher::
+* Fixed encoding of UTF-8 data in the HTTP client.
 
 //[float]
 //=== Regressions
@@ -790,6 +1018,12 @@ Translog::
 Snapshot/Restore::
 * Use AmazonS3.doesObjectExist() method in S3BlobContainer {pull}27723[#27723]
 
+Watcher::
+* Ensured the watcher thread pool size is reasonably bound. In particular, the
+watcher thread pool size is now five times the number of processors until 50
+threads are reached. If more than 50 cores exist and 50 threads exist, the
+watch thread pool size grows to match the number of processors.
+
 [float]
 === Bug Fixes
 
@@ -799,12 +1033,22 @@ Inner Hits::
 Java REST Client::
 * Do not use system properties when building the HttpAsyncClient {pull}27829[#27829] (issue: {issue}27827[#27827])
 
+Monitoring::
+* Data collectors now all share the same cluster state that existed at the
+beginning of data collection. This removes the extremely rare race condition
+where the cluster state can change between some data collectors, which could
+cause temporary issues in the Monitoring UI.
+
 Search::
 * Fix routing with leading or trailing whitespace {pull}27712[#27712] (issue: {issue}27708[#27708])
 
 Sequence IDs::
 * Recovery from snapshot may leave seq# gaps {pull}27850[#27850]
 * No longer unidle shard during recovery {pull}27757[#27757] (issue: {issue}26591[#26591])
+
+Watcher::
+* Fixed the pagerduty action to send context data. For more information, see
+{stack-ov}/actions-pagerduty.html[PagerDuty Action].
 
 //[float]
 //=== Regressions
@@ -836,6 +1080,12 @@ Scroll::
 
 Search::
 * Add a limit to from + size in top_hits and inner hits. {pull}26492[#26492] (issue: {issue}11511[#11511])
+
+Security::
+* The `certgen` command now returns validation errors when it encounters problems
+reading from an input file (with the `-in` command option). Previously these
+errors might have been ignored or caused the command to abort with unclear
+messages. For more information, see <<certgen>>.
 
 [float]
 === Breaking Java Changes
@@ -889,6 +1139,22 @@ Ingest::
 
 Java High Level REST Client::
 * Added Delete Index support to high-level REST client {pull}27019[#27019] (issue: {issue}25847[#25847])
+
+Machine Learning::
+* Added the ability to create job forecasts. This feature enables you to use
+historical behavior to predict the future behavior of your time series. You can
+create forecasts in {kib} or by using the <<ml-forecast,forecast jobs>> API.
++
+--
+NOTE: You cannot create forecasts for jobs that were created in previous
+versions; this functionality is available only for jobs created in 6.1 or later.
+
+--
+* Added overall buckets, which summarize bucket results for multiple jobs.
+For more information, see the <<ml-get-overall-buckets,get overall buckets>> API.
+* Added job groups, which you can use to manage or retrieve information from
+multiple jobs at once. Also updated many {ml} APIs to support groups and
+wildcard expressions in the job identifier.
 
 Nested Docs::
 * Multi-level Nested Sort with Filters {pull}26395[#26395]
@@ -971,12 +1237,44 @@ Logging::
 * Add more information on _failed_to_convert_ exception (#21946) {pull}27034[#27034] (issue: {issue}21946[#21946])
 * Improve shard-failed log messages. {pull}26866[#26866]
 
+Machine Learning::
+* Improved the way {ml} jobs are allocated to nodes, such that it is primarily
+determined by the estimated memory requirement of the job. If there is insufficient
+information about the job's memory requirements, the allocation decision is based
+on job counts per node.
+* Increased the default value of the `xpack.ml.max_open_jobs` setting from `10`
+to `20`. The allocation of jobs to nodes now considers memory usage as well as
+job counts, so it's reasonable to permit more small jobs on a single node. For
+more information, see <<ml-settings>>.
+* Decreased the default `model_memory_limit` property value to 1 GB for new jobs.
+If you want to create a job that analyzes high cardinality fields, you can
+increase this property value. For more information, see <<ml-apilimits>>.
+* Improved analytics related to decay rates when predictions are very accurate.
+* Improved analytics related to detecting non-negative quantities and using this
+information to constrain analysis, predictions, and confidence intervals.
+* Improved periodic trough or spike detection.
+* Improved the speed of the aggregation of {ml} results.
+* Improved probability calculation performance.
+* Expedited bucket processing time in very large populations by determining when
+there are nearly duplicate values in a bucket and de-duplicating the samples that
+are added to the model.
+* Improved handling of periodically missing values.
+* Improved analytics related to diurnal periodicity.
+* Reduced memory usage during population analysis by releasing redundant memory
+after the bucket results are written.
+* Improved modeling of long periodic components, particularly when there is a
+long bucket span.
+
 Mapping::
 * Allow ip_range to accept CIDR notation {pull}27192[#27192] (issue: {issue}26260[#26260])
 * Deduplicate `_field_names`. {pull}26550[#26550]
 * Throw a better error message for empty field names {pull}26543[#26543] (issue: {issue}23348[#23348])
 * Stricter validation for min/max values for whole numbers {pull}26137[#26137]
 * Make FieldMapper.copyTo() always non-null. {pull}25994[#25994]
+
+Monitoring::
+* Added the new `interval_ms` field to monitoring documents. This field
+indicates the current collection interval for {es} or external monitored systems.
 
 Nested Docs::
 * Use the primary_term field to identify parent documents {pull}27469[#27469] (issue: {issue}24362[#24362])
@@ -1044,6 +1342,20 @@ Search::
 * Reject IPv6-mapped IPv4 addresses when using the CIDR notation. {pull}26254[#26254] (issue: {issue}26078[#26078])
 * Rewrite range queries with open bounds to exists query {pull}26160[#26160] (issue: {issue}22640[#22640])
 
+Security::
+* Added the `manage_index_templates` cluster privilege to the built-in role
+`kibana_system`. For more information, see
+{stack-ov}/security-privileges.html#privileges-list-cluster[Cluster Privileges]
+and {stack-ov}/built-in-roles.html[Built-in Roles].
+* Newly created or updated watches execute with the privileges of the user that
+last modified the watch.
+* Added log messages when a PEM key is found when a PEM certificate was
+expected (or vice versa) in the `xpack.ssl.key` or `xpack.ssl.certificate` settings.
+* Added the new `certutil` command to simplify the creation of certificates for
+use with the Elastic stack. For more information, see <<certutil>>.
+* Added automatic detection of support for AES 256 bit TLS ciphers and enabled
+their use when the JVM supports them.
+
 Sequence IDs::
 * Only fsync global checkpoint if needed {pull}27652[#27652]
 * Log primary-replica resync failures {pull}27421[#27421] (issues: {issue}24841[#24841], {issue}27418[#27418])
@@ -1073,6 +1385,19 @@ Stats::
 Suggesters::
 * Improve error message for parse failures of completion fields {pull}27297[#27297]
 * Support 'AND' operation for context query in context suggester {pull}24565[#24565] (issue: {issue}24421[#24421])
+
+Watcher::
+* Improved error messages when there are no accounts configured for {watcher}.
+* Added thread pool rejection information to execution state, which makes it
+easier to debug execution failures.
+* Added execution state information to watch status details. It is stored in the
+`status.execution_state` field.
+* Enabled the account monitoring `url` field in the `xpack.notification.jira`
+setting to support customized paths. For more information about configuring Jira
+accounts for use with watches, see
+{stack-ov}/actions-jira.html[Jira Action].
+* Improved handling of exceptions in {watcher} to make it easier to debug 
+problems.
 
 [float]
 === Bug Fixes
@@ -1119,6 +1444,23 @@ Internal::
 Java High Level REST Client::
 * Register ip_range aggregation with the high level client {pull}26383[#26383]
 * add top hits as a parsed aggregation to the rest high level client {pull}26370[#26370]
+
+Machine Learning::
+* Improved handling of scenarios where there are insufficient values to
+interpolate trend components.
+* Improved calculation of confidence intervals.
+* Fixed degrees of freedom calculation that could lead to excessive error logging.
+* Improved trend modeling with long bucket spans.
+* Fixed timing of when model size statistics are written. Previously, if there
+were multiple partitions, there could be multiple model size stats docs written
+within the same bucket.
+* Updated the calculation of the model memory to include the memory used by
+partition, over, by, or influencer fields.
+* Fixed calculation of the `frequency` property value for {dfeeds} that use
+aggregations. The value must be a multiple of the histogram interval. For more
+information, see
+{stack-ov}/ml-configuring-aggregation.html[Aggregating Data for Faster Performance].
+* Removed unnecessary messages from logs when a job is forcefully closed.
 
 Mapping::
 * Fix dynamic mapping update generation. {pull}27467[#27467]
@@ -1170,6 +1512,10 @@ Search::
 * Filter unsupported relation for RangeQueryBuilder {pull}26620[#26620] (issue: {issue}26575[#26575])
 * Handle leniency for phrase query on a field indexed without positions {pull}26388[#26388]
 
+Security::
+* Fixed REST requests that required a body but did not validate it, resulting in
+null pointer exceptions.
+
 Sequence IDs::
 * Obey translog durability in global checkpoint sync {pull}27641[#27641]
 * Fix resync request serialization {pull}27418[#27418] (issue: {issue}24841[#24841])
@@ -1188,6 +1534,10 @@ Stats::
 * Include internal refreshes in refresh stats {pull}27615[#27615]
 * Make Segment statistics aware of segments hold by internal readers {pull}27558[#27558]
 * Ensure `doc_stats` are changing even if refresh is disabled {pull}27505[#27505]
+
+Watcher::
+* Fixed handling of watcher templates. Missing watcher templates can be added by
+any node if that node has a higher version than the master node.
 
 //[float]
 //=== Regressions
@@ -1271,6 +1621,10 @@ Engine::
 Inner Hits::
 * Return an empty _source for nested inner hit when filtering on a field that doesn't exist {pull}27531[#27531]
 
+Machine Learning::
+* Fixed analytics problem where sparse data resulted in "update failed" errors
+in the logs.
+
 Mapping::
 * Fix dynamic mapping update generation. {pull}27467[#27467]
 * Fixed rounding of bounds in scaled float comparison {pull}27207[#27207] (issue: {issue}27189[#27189])
@@ -1297,6 +1651,13 @@ Reindex API::
 Search::
 * Fix profiling naming issues {pull}27133[#27133]
 
+Security::
+* Fixed error that occurred when attempting to audit `system_access_granted`
+events.
+* Fixed the `setup-passwords` command such that it fails appropriately when
+invalid URLs are specified in the `--url` option and when {security} is not
+enabled.
+
 Sequence IDs::
 * Fix resync request serialization {pull}27418[#27418] (issue: {issue}24841[#24841])
 
@@ -1306,6 +1667,11 @@ Snapshot/Restore::
 * Fix snapshot getting stuck in INIT state {pull}27214[#27214] (issue: {issue}27180[#27180])
 * Fix default value of ignore_unavailable for snapshot REST API (#25359) {pull}27056[#27056] (issue: {issue}25359[#25359])
 * Do not create directory on readonly repository (#21495) {pull}26909[#26909] (issue: {issue}21495[#21495])
+
+Watcher::
+* Fixed handling of Hipchat rooms. For example, room names with spaces did not
+work as expected. For more information, see
+{stack-ov}/actions-hipchat.html[HipChat Action].
 
 //[float]
 //=== Regressions
@@ -1502,6 +1868,15 @@ Search::
 * ProfileResult and CollectorResult should print machine readable timing information {pull}22561[#22561]
 * Remove indices query {pull}21837[#21837] (issue: {issue}17710[#17710])
 * Remove ignored type parameter in search_shards api {pull}21688[#21688]
+
+Security::
+* Added new security limitations:
+** When a user's role enables document level security for an index and
+suggesters are specified, the specified suggesters are ignored. For more
+information about suggesters, see {ref}/search-suggesters.html[Suggesters].
+** When document level security is enabled, search requests cannot be profiled.
+For more information about profiling, see the
+{ref}/search-profile.html[Profile API].
 
 Sequence IDs::
 * Change certain replica failures not to fail the replica shard {pull}22874[#22874] (issue: {issue}10708[#10708])
@@ -2117,6 +2492,10 @@ Java REST Client::
 Logging::
 * Allow not configure logging without config {pull}26209[#26209] (issues: {issue}20575[#20575], {issue}24076[#24076])
 
+Machine Learning::
+* Fixed a race condition when simultaneous close requests are made for the same
+job.
+
 Mapping::
 * Allow copying from a field to another field that belongs to the same nested object. {pull}26774[#26774] (issue: {issue}26763[#26763])
 * Fixed bug that mapper_parsing_exception is thrown for numeric field with ignore_malformed=true when inserting "NaN" {pull}25967[#25967] (issue: {issue}25289[#25289])
@@ -2264,6 +2643,19 @@ Search::
 * Fix script field sort returning Double.MAX_VALUE for all documents {pull}24942[#24942] (issue: {issue}24940[#24940])
 * Compute the took time of the query after the expand phase of field collapsing {pull}24902[#24902] (issue: {issue}24900[#24900])
 
+Security::
+* Prevented 6.0 nodes from joining clusters with un-upgraded version 5
+`.security` indices. For upgrade instructions, see
+{stack-ref}/upgrading-elastic-stack.html[Upgrading the Elastic Stack].
+* Enabled read-only access to the index audit log by the `_xpack` internal user.
+For more information, see
+{stack-ov}/internal-users.html[Internal users].
+* Updated the concrete security index such that it is now always named
+`.security-6`. In 6.0 beta and RC releases, it was sometimes named `.security-v6`.
+* Fixed handling of exceptions when retrieving roles from a native roles store.
+For more information about configuring a native realm, see
+{stack-ov}/native-realm.html[Native User Authentication].
+
 Sequence IDs::
 * Fire global checkpoint sync under system context {pull}26984[#26984]
 * Fix pre-6.0 response to unknown replication actions {pull}25744[#25744] (issue: {issue}10708[#10708])
@@ -2388,6 +2780,14 @@ Core::
 Index Templates::
 * Fix error message for a put index template request without index_patterns {pull}27102[#27102] (issue: {issue}27100[#27100])
 
+Machine Learning::
+* Added the `xpack.ml.max_model_memory_limit` setting, which can be dynamically
+updated. For more information, see <<ml-settings>>.
+* Added checks and error messages for the `ml.enabled` and `ml.max_open_jobs`
+node attributes. These are reserved for internal use and their values should be
+set by using `xpack.ml.enabled` and `xpack.ml.max_open_jobs`
+<<ml-settings,{ml} settings>>.
+
 Mapping::
 * Don't detect source's XContentType in DocumentParser.parseDocument() {pull}26880[#26880]
 
@@ -2400,6 +2800,18 @@ Plugins::
 
 REST::
 * Cat shards bytes {pull}26952[#26952]
+
+Security::
+* Improved the error messages that are returned by the `setup-passwords` command.
+
+Watcher::
+* Added verification that the required templates exist before {watcher} starts.
+For more information, see
+{stack-ov}/how-watcher-works.html#scripts-templates[Scripts and Templates].
+* Added the `xpack.watcher.history.cleaner_service.enabled` setting. You can use
+this setting to enable or disable the cleaner service, which removes previous
+versions of {watcher} indices (for example, .watcher-history*) when it
+determines that they are old. For more information, see <<notification-settings>>.
 
 [float]
 === Bug Fixes
@@ -2433,6 +2845,13 @@ Java High Level REST Client::
 Java REST Client::
 * rest-client-sniffer: configurable threadfactory {pull}26897[#26897]
 
+Machine Learning::
+* Fixed a scenario where models were incorrectly combined. This problem occurred
+when anomaly detectors were considered to be the same despite having different
+partition field values.
+* Cleaned up the job closure process for situations where the job was still in
+the process of opening.
+
 Mapping::
 * wrong link target for datatype murmur3 {pull}27143[#27143]
 
@@ -2465,6 +2884,15 @@ Search::
 * Fix serialization errors when cross cluster search goes to a single shard {pull}26881[#26881] (issue: {issue}26833[#26833])
 * Early termination with index sorting should not set terminated_early in the response {pull}26597[#26597] (issue: {issue}26408[#26408])
 * Format doc values fields. {pull}22146[#22146]
+
+Security::
+* Enabled PKI realms to obtain the password for the truststore from either the
+`truststore.secure_password` or the `truststore.password` setting. For more
+information, see <<ref-pki-settings>>.
+* Fixed document level security such that if your role has authority to access a
+root document, you also have access to its nested documents.
+* Fixed an issue that caused LDAP authentication requests to be slow and
+to require multiple binds when authenticating in user search mode.
 
 Sequence IDs::
 * Fire global checkpoint sync under system context {pull}26984[#26984]
@@ -2509,6 +2937,11 @@ Query DSL::
 Plugins::
 * Plugins: Add backcompat for sha1 checksums {pull}26748[#26748] (issue: {issue}26746[#26746])
 
+Security::
+* The `xpack.security.authc.token.passphrase` is deprecated. If this setting is
+not used, the cluster automatically generates a key, which is the recommended
+method. See <<security-settings>>.
+
 //[float]
 //=== New Features
 
@@ -2533,6 +2966,15 @@ Plugin Repository HDFS::
 Recovery::
 * Introduce a History UUID as a requirement for ops based recovery  {pull}26577[#26577] (issue: {issue}10708[#10708])
 
+Security::
+* Added requirement for TLS/SSL when a cluster with security is running in
+production. If you try to upgrade to a production license when security is
+enabled, the upgrade is not successful until you configure TLS. For more
+information, see
+{stack-ov}/ssl-tls.html[Setting Up SSL/TLS on a Cluster].
+* Added bootstrap check that enforces the use of TLS when security is enabled
+and you are using a production license.
+
 Scripting::
 * ScriptService: Replace max compilation per minute setting with max compilation rate {pull}26399[#26399]
 
@@ -2545,7 +2987,6 @@ Sequence IDs::
 * Add global checkpoint tracking on the primary {pull}26666[#26666] (issue: {issue}26591[#26591])
 * Introduce global checkpoint background sync {pull}26591[#26591] (issues: {issue}26573[#26573], {issue}26630[#26630], {issue}26666[#26666])
 * Move `UNASSIGNED_SEQ_NO` and `NO_OPS_PERFORMED` to SequenceNumbers` {pull}26494[#26494] (issue: {issue}10708[#10708])
-
 
 [float]
 === Bug Fixes
@@ -2580,8 +3021,18 @@ Java High Level REST Client::
 Java REST Client::
 * Better message text for ResponseException {pull}26564[#26564]
 
+Machine Learning::
+* Fixed problem with dropped or duplicated data when datafeeds used aggregations.
+* Fixed problems when model plot is enabled and there are sparse metrics.
+* Improved modeling of long-term trends.
+* Fixed a bug in calculation of mean values for seasonal components.
+* Added more accurate adherence to model memory limit.
+
 Mapping::
 * Allow copying from a field to another field that belongs to the same nested object. {pull}26774[#26774] (issue: {issue}26763[#26763])
+
+Monitoring::
+* Fixed the email message when cluster license expiration issues are resolved.
 
 Plugin Analysis Kuromoji::
 * Fix kuromoji default stoptags {pull}26600[#26600] (issue: {issue}26519[#26519])
@@ -2603,11 +3054,19 @@ Search::
 * Fail query when a sort is provided in conjunction with rescorers {pull}26510[#26510]
 * Let search phases override max concurrent requests {pull}26484[#26484] (issue: {issue}26198[#26198])
 
+Security::
+* Added ability infer the keystore type from its pathname when the type is not specified.
+* Added usability improvements for the password bootstrap tool. For more
+information, see <<setup-passwords>>.
+
 Similarities::
 * Add boolean similarity to built in similarity types {pull}26613[#26613]
 
 Upgrade API::
 * Upgrade API: fix excessive logging and unnecessary template updates {pull}26698[#26698] (issue: {issue}26673[#26673])
+
+Watcher::
+* Fixed {watcher} such that it loads only active watches.
 
 //[float]
 //=== Regressions
@@ -2660,8 +3119,12 @@ Query DSL::
 Aggregations::
 * Fix NPE when `values` is omitted on percentile_ranks agg {pull}26046[#26046]
 
-//[float]
-//=== Deprecations
+[float]
+=== Deprecations
+
+Machine Learning::
+* The `max_running_jobs` node property is deprecated and is replaced by 
+`xpack.ml.max_open_jobs`. See <<ml-settings>>.
 
 //[float]
 //=== New Features
@@ -2688,12 +3151,26 @@ Internal::
 Java High Level REST Client::
 * Make RestHighLevelClient Closeable and simplify its creation {pull}26180[#26180] (issue: {issue}26086[#26086])
 
+Machine Learning::
+* Added `xpack.ml.max_open_jobs` as a node attribute. See <<ml-settings>>.
+
 Mapping::
 * Loosen the restrictions on disabling _all in 6.x {pull}26259[#26259]
 
 Percolator::
 * Store the QueryBuilder's Writable representation instead of its XContent representation {pull}25456[#25456]
 * Add support for selecting percolator query candidate matches containing wildcard / prefix queries {pull}25351[#25351]
+
+Security::
+* Added the `keystore.seed` setting to create a randomly generated bootstrap
+password if an actual password is not present.
+* The `bootstrap.password` secure setting is now managed locally on each node
+and no longer updates the security index.
+* The `xpack.security.authc.token.passphrase` setting is no longer mandatory
+when using the token service. The cluster automatically generates a secure key
+on startup. See {ref}/security-settings.html[Security Settings in {es}].
+* Added reserved `kibana_dashboard_only_user` role. For more information, see
+{kibana-ref}/xpack-dashboard-only-mode.html[Kibana Dashboard Only Mode].
 
 Settings::
 * Persist created keystore on startup unless keystore is present {pull}26253[#26253] (issue: {issue}26126[#26126])
@@ -2723,6 +3200,9 @@ Highlighting::
 Logging::
 * Allow not configure logging without config {pull}26209[#26209] (issues: {issue}20575[#20575], {issue}24076[#24076])
 
+Machine Learning::
+* Fixed calculation of bucket count and empty bucket count statistics.
+
 Mapping::
 * ICUCollationKeywordFieldMapper use SortedSetDocValuesField {pull}26267[#26267]
 * Fix serialization of the `_all` field. {pull}26143[#26143] (issue: {issue}26136[#26136])
@@ -2741,6 +3221,20 @@ Packaging::
 Search::
 * Refactor simple_query_string to handle text part like multi_match and query_string {pull}26145[#26145] (issue: {issue}25726[#25726])
 * Fix `_exists_` in query_string on empty indices. {pull}25993[#25993] (issue: {issue}25956[#25956])
+
+Security::
+* The `xpack.security.authc.token.enabled` setting now defaults to true when
+HTTPS is enabled. See <<token-service-settings>>.
+* Improved the safety of file updates in the `x-pack/users` tool.
+* Bootstrap checks no longer fail when checking secure settings.
+* The `setup-password` tool no longer fails when using a default
+`elasticsearch.yml` configuration file.
+* Fixed validation of the input parameters in the
+<<security-api-tokens,create token API>>.
+
+Watcher::
+* Ensured that a watch can be activated and deactivated during execution.
+* Ensured watch execution always uses the latest watch including its latest status.
 
 //[float]
 //=== Regressions
@@ -2827,6 +3321,18 @@ Search::
 * Removes FieldStats API {pull}25628[#25628] (issue: {issue}25577[#25577])
 * Remove deprecated fielddata_fields from search request {pull}25566[#25566] (issue: {issue}25537[#25537])
 * Removes deprecated fielddata_fields {pull}25537[#25537] (issue: {issue}19027[#19027])
+
+Security::
+* A new bootstrap check enforces that TLS/SSL is required for inter-node
+communication when running in
+{ref}/bootstrap-checks.html#_development_vs_production_mode[production mode]. See
+{stack-ov}/encrypting-communications.html[Encrypting Communications].
+* A new bootstrap check enforces that HTTPS is used by the built-in token
+service when running in
+{ref}/bootstrap-checks.html#_development_vs_production_mode[production mode].
+To disable the token service, set `xpack.security.authc.token.enabled`
+to `false` in your `elasticsearch.yml`. See
+<<token-service-settings>>.
 
 Settings::
 * Settings: Remove shared setting property {pull}24728[#24728]
@@ -3330,6 +3836,10 @@ Plugin Repository S3::
 Scripting::
 * Remove script access to term statistics {pull}19462[#19462] (issue: {issue}19359[#19359])
 
+Watcher::
+* The watch `_status` field has been renamed to `status`, as underscores in
+field names will not be allowed.
+
 [float]
 === Breaking Java Changes
 
@@ -3407,6 +3917,11 @@ Search::
 Search Templates::
 * Add max concurrent searches to multi template search {pull}24255[#24255] (issues: {issue}20912[#20912], {issue}21907[#21907])
 
+Security::
+* Adapted indices resolution to use new `ignoreAliases` index option.
+* Added the `logstash_admin` role, which provides access
+to `.logstash-*` indices for managing configurations.
+
 Sequence IDs::
 * Fill gaps on primary promotion {pull}24945[#24945] (issue: {issue}10708[#10708])
 * Introduce clean transition on primary promotion {pull}24925[#24925] (issue: {issue}10708[#10708])
@@ -3415,6 +3930,9 @@ Sequence IDs::
 
 Snapshot/Restore::
 * Enhances get snapshots API to allow retrieving repository index only {pull}24477[#24477] (issue: {issue}24288[#24288])
+
+Watcher::
+* Watcher indices no longer use multiple types.
 
 [float]
 === Bug Fixes
@@ -3434,6 +3952,10 @@ Cache::
 Core::
 * Fix cache expire after access {pull}24546[#24546]
 
+Graph::
+* Reinstated `_xpack/graph/_explore` as the correct graph endpoint.
+`_xpack/_graph/_explore` is deprecated and will be removed in v7.0.
+
 Index APIs::
 * Validates updated settings on closed indices {pull}24487[#24487] (issue: {issue}23787[#23787])
 
@@ -3446,6 +3968,10 @@ Inner Hits::
 
 Internal::
 * Ensure remote cluster is connected before fetching `_field_caps` {pull}24845[#24845] (issue: {issue}24763[#24763])
+
+Machine Learning::
+* If the initial cluster state update to install the Machine Learning
+Metadata fails, the update is now retried.
 
 Network::
 * Fix error message if an incompatible node connects {pull}24884[#24884]
@@ -3589,11 +4115,27 @@ Search::
 * Remove indices query {pull}21837[#21837] (issue: {issue}17710[#17710])
 * Remove ignored type parameter in search_shards api {pull}21688[#21688]
 
+Security::
+* A new bootstrap check enforces that default passwords are disabled for the
+built-in users when running in
+{ref}/bootstrap-checks.html#_development_vs_production_mode[production mode].
+You must set `xpack.security.authc.accept_default_password` to `false` in your
+`elasticsearch.yml`. For more information, see <<security-settings>> and
+{stack-ov}/setting-up-authentication.html[User authentication].
+* A new configuration setting is available to disable support for the default
+password (_"changeme"_). For more information, see
+{stack-ov}/built-in-users.html#disabling-default-password[Disable default password functionality].
+
 Sequence IDs::
 * Change certain replica failures not to fail the replica shard {pull}22874[#22874] (issue: {issue}10708[#10708])
 
 Shadow Replicas::
 * Remove shadow replicas {pull}23906[#23906] (issue: {issue}22024[#22024])
+
+Watcher::
+* The built-in HTTP client used in webhooks, the http input and the http email attachment has been replaced.
+This results in the need to always escape all parts of an URL.
+* The new built-in HTTP client also enforces a maximum request size, which defaults to 10mb.
 
 [float]
 === Breaking Java Changes
@@ -3750,6 +4292,9 @@ Snapshot/Restore::
 
 Translog::
 * Fix Translog.Delete serialization for sequence numbers {pull}22543[#22543]
+
+Watcher::
+* The HTTP client respects timeouts now and does not get stuck leading to stuck watches.
 
 [float]
 === Regressions

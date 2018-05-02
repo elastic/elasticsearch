@@ -29,15 +29,15 @@ include::internal-users.asciidoc[]
 
 include::realms.asciidoc[]
 
-include::native-realm.asciidoc[]
+include::active-directory-realm.asciidoc[]
+
+include::file-realm.asciidoc[]
 
 include::ldap-realm.asciidoc[]
 
-include::active-directory-realm.asciidoc[]
+include::native-realm.asciidoc[]
 
 include::pki-realm.asciidoc[]
-
-include::file-realm.asciidoc[]
 
 include::saml-realm.asciidoc[]
 

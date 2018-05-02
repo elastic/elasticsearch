@@ -50,7 +50,8 @@ public class PluginBuildPlugin extends BuildPlugin {
         // this afterEvaluate must happen before the afterEvaluate added by integTest creation,
         // so that the file name resolution for installing the plugin will be setup
         project.afterEvaluate {
-            boolean isModule = project.path.startsWith(':modules:')
+            boolean isXPackModule = project.path.startsWith(':x-pack:plugin')
+            boolean isModule = project.path.startsWith(':modules:') || isXPackModule
             String name = project.pluginProperties.extension.name
             project.archivesBaseName = name
 
@@ -70,9 +71,13 @@ public class PluginBuildPlugin extends BuildPlugin {
             if (isModule) {
                 project.integTestCluster.module(project)
                 project.tasks.run.clusterConfig.module(project)
+                project.tasks.run.clusterConfig.distribution = 'integ-test-zip'
             } else {
                 project.integTestCluster.plugin(project.path)
                 project.tasks.run.clusterConfig.plugin(project.path)
+            }
+
+            if (isModule == false || isXPackModule) {
                 addZipPomGeneration(project)
                 addNoticeGeneration(project)
             }
@@ -256,6 +261,7 @@ public class PluginBuildPlugin extends BuildPlugin {
         if (licenseFile != null) {
             project.bundlePlugin.from(licenseFile.parentFile) {
                 include(licenseFile.name)
+                rename { 'LICENSE.txt' }
             }
         }
         File noticeFile = project.pluginProperties.extension.noticeFile

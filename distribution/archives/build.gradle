@@ -23,7 +23,11 @@ import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.EmptyDirTask
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
+
+import java.nio.file.Files
+import java.nio.file.Path
 
 // need this so Zip/Tar tasks get basic defaults...
 apply plugin: 'base'
@@ -42,23 +46,23 @@ task createPluginsDir(type: EmptyDirTask) {
   dirMode 0755
 }
 
-CopySpec archiveFiles(CopySpec... innerFiles) {
+CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, boolean oss) {
   return copySpec {
     into("elasticsearch-${version}") {
       with libFiles
       into('config') {
         dirMode 0750
         fileMode 0660
-        with configFiles('def')
+        with configFiles(distributionType, oss)
       }
       into('bin') {
+        with binFiles(distributionType, oss)
         with copySpec {
-          with binFiles('def')
           from('../src/bin') {
             include '*.bat'
             filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
           }
-          MavenFilteringHack.filter(it, expansionsForDistribution('def'))
+          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss))
         }
       }
       into('') {
@@ -73,42 +77,64 @@ CopySpec archiveFiles(CopySpec... innerFiles) {
           pluginsDir.getParent()
         }
       }
-      with commonFiles
+      from(rootProject.projectDir) {
+        include 'README.textile'
+      }
+      from(rootProject.file('licenses')) {
+        include oss ? 'APACHE-LICENSE-2.0.txt' : 'ELASTIC-LICENSE.txt'
+        rename { 'LICENSE.txt' }
+      }
+
       with noticeFile
       from('../src') {
         include 'bin/*.exe'
       }
-      for (CopySpec files : innerFiles) {
-        with files
+      into('modules') {
+        with modulesFiles
       }
     }
   }
 }
 
-task buildIntegTestZip(type: Zip) {
+// common config across all zip/tar
+tasks.withType(AbstractArchiveTask) {
   dependsOn createLogsDir, createPluginsDir
-  destinationDir = file('integ-test-zip/build/distributions')
-  baseName = 'elasticsearch'
-  with archiveFiles(transportModulesFiles)
+  String subdir = it.name.substring('build'.size()).replaceAll(/[A-Z]/) { '-' + it.toLowerCase() }.substring(1)
+  destinationDir = file("${subdir}/build/distributions")
+  baseName = "elasticsearch${ subdir.contains('oss') ? '-oss' : ''}"
+}
+
+task buildIntegTestZip(type: Zip) {
+  with archiveFiles(transportModulesFiles, 'zip', false)
 }
 
 task buildZip(type: Zip) {
-  dependsOn createLogsDir, createPluginsDir
-  destinationDir = file('zip/build/distributions')
-  baseName = 'elasticsearch'
-  with archiveFiles(modulesFiles)
+  with archiveFiles(modulesFiles(false), 'zip', false)
 }
 
-task buildTar(type: Tar) {
-  dependsOn createLogsDir, createPluginsDir
-  destinationDir = file('tar/build/distributions')
-  baseName = 'elasticsearch'
+task buildOssZip(type: Zip) {
+  with archiveFiles(modulesFiles(true), 'zip', true)
+}
+
+Closure commonTarConfig = {
   extension = 'tar.gz'
   compression = Compression.GZIP
   dirMode 0755
   fileMode 0644
-  with archiveFiles(modulesFiles)
 }
+
+task buildTar(type: Tar) {
+  configure(commonTarConfig)
+  with archiveFiles(modulesFiles(false), 'tar', false)
+}
+
+task buildOssTar(type: Tar) {
+  configure(commonTarConfig)
+  with archiveFiles(modulesFiles(true), 'tar', true)
+}
+
+Closure tarExists = { it -> new File('/bin/tar').exists() || new File('/usr/bin/tar').exists() || new File('/usr/local/bin/tar').exists() }
+Closure unzipExists = { it -> new File('/bin/unzip').exists() || new File('/usr/bin/unzip').exists() || new File('/usr/local/bin/unzip').exists() }
 
 // This configures the default artifact for the distribution specific
 // subprojects. We have subprojects for two reasons:
@@ -119,35 +145,96 @@ task buildTar(type: Tar) {
 subprojects {
   apply plugin: 'distribution'
 
-  archivesBaseName = 'elasticsearch'
-
   String buildTask = "build${it.name.replaceAll(/-[a-z]/) { it.substring(1).toUpperCase() }.capitalize()}"
   ext.buildDist = parent.tasks.getByName(buildTask)
   artifacts {
     'default' buildDist
   }
 
-  // sanity checks if a archives can be extracted
-  File extractionDir = new File(buildDir, 'extracted')
-  task testExtraction(type: LoggedExec) {
+  // sanity checks if archives can be extracted
+  final File archiveExtractionDir
+  if (project.name.contains('tar')) {
+    archiveExtractionDir = new File(buildDir, 'tar-extracted')
+  } else {
+    assert project.name.contains('zip')
+    archiveExtractionDir = new File(buildDir, 'zip-extracted')
+  }
+  task checkExtraction(type: LoggedExec) {
     dependsOn buildDist
     doFirst {
-      project.delete(extractionDir)
-      extractionDir.mkdirs()
+      project.delete(archiveExtractionDir)
+      archiveExtractionDir.mkdirs()
     }
   }
-  if (project.name.contains('zip')) {
-    testExtraction {
-      onlyIf { new File('/bin/unzip').exists() || new File('/usr/bin/unzip').exists() || new File('/usr/local/bin/unzip').exists() }
-      commandLine 'unzip', "${-> buildDist.outputs.files.singleFile}", '-d', extractionDir
+  check.dependsOn checkExtraction
+  if (project.name.contains('tar')) {
+    checkExtraction {
+      onlyIf tarExists
+      commandLine 'tar', '-xvzf', "${-> buildDist.outputs.files.singleFile}", '-C', archiveExtractionDir
     }
-  } else { // tar
-    testExtraction {
-      onlyIf { new File('/bin/tar').exists() || new File('/usr/bin/tar').exists() || new File('/usr/local/bin/tar').exists() }
-      commandLine 'tar', '-xvzf', "${-> buildDist.outputs.files.singleFile}", '-C', extractionDir
+  } else {
+    assert project.name.contains('zip')
+    checkExtraction {
+      onlyIf unzipExists
+      commandLine 'unzip', "${-> buildDist.outputs.files.singleFile}", '-d', archiveExtractionDir
     }
   }
-  check.dependsOn testExtraction
+
+  final Closure toolExists
+  if (project.name.contains('tar')) {
+    toolExists = tarExists
+  } else {
+    assert project.name.contains('zip')
+    toolExists = unzipExists
+  }
+
+
+  task checkLicense {
+    dependsOn buildDist, checkExtraction
+    onlyIf toolExists
+    doLast {
+      final String licenseFilename
+      if (project.name.contains('oss-')) {
+        licenseFilename = "APACHE-LICENSE-2.0.txt"
+      } else {
+        licenseFilename = "ELASTIC-LICENSE.txt"
+      }
+      final List<String> licenseLines = Files.readAllLines(rootDir.toPath().resolve("licenses/" + licenseFilename))
+      final Path licensePath = archiveExtractionDir.toPath().resolve("elasticsearch-${VersionProperties.elasticsearch}/LICENSE.txt")
+      assertLinesInFile(licensePath, licenseLines)
+    }
+  }
+  check.dependsOn checkLicense
+
+  task checkNotice {
+    dependsOn buildDist, checkExtraction
+    onlyIf toolExists
+    doLast {
+      final List<String> noticeLines = Arrays.asList("Elasticsearch", "Copyright 2009-2018 Elasticsearch")
+      final Path noticePath = archiveExtractionDir.toPath().resolve("elasticsearch-${VersionProperties.elasticsearch}/NOTICE.txt")
+      assertLinesInFile(noticePath, noticeLines)
+    }
+  }
+  check.dependsOn checkNotice
+
+  if (project.name == 'zip' || project.name == 'tar') {
+    task checkMlCppNotice {
+      dependsOn buildDist, checkExtraction
+      onlyIf toolExists
+      doLast {
+        // this is just a small sample from the C++ notices, the idea being that if we've added these lines we've probably added all the required lines
+        final List<String> expectedLines = Arrays.asList("Apache log4cxx", "Boost Software License - Version 1.0 - August 17th, 2003")
+        final Path noticePath = archiveExtractionDir.toPath().resolve("elasticsearch-${VersionProperties.elasticsearch}/modules/x-pack/x-pack-ml/NOTICE.txt")
+        final List<String> actualLines = Files.readAllLines(noticePath)
+        for (final String expectedLine : expectedLines) {
+          if (actualLines.contains(expectedLine) == false) {
+            throw new GradleException("expected [${noticePath}] to contain [${expectedLine}] but it did not")
+          }
+        }
+      }
+    }
+    check.dependsOn checkMlCppNotice
+  }
 }
 
 /*****************************************************************************
@@ -158,7 +245,7 @@ configure(subprojects.findAll { it.name == 'integ-test-zip' }) {
   apply plugin: 'elasticsearch.rest-test'
 
   integTest {
-    includePackaged true
+    includePackaged = true
   }
 
   integTestCluster {
@@ -190,12 +277,16 @@ configure(subprojects.findAll { it.name.contains('zip') }) {
 
   // note: the group must be correct before applying the nexus plugin, or
   // it will capture the wrong value...
-  project.group = "org.elasticsearch.distribution.${project.name}"
+  String subgroup = project.name == 'integ-test-zip' ? 'integ-test-zip' : 'zip'
+  project.group = "org.elasticsearch.distribution.${subgroup}"
+
+  // make the pom file name use elasticsearch instead of the project name
+  archivesBaseName = "elasticsearch${it.name.contains('oss') ? '-oss' : ''}"
 
   publishing {
     publications {
       nebula {
-        artifactId 'elasticsearch'
+        artifactId archivesBaseName
         artifact buildDist
       }
       /*
@@ -215,7 +306,7 @@ configure(subprojects.findAll { it.name.contains('zip') }) {
        * local work, since we publish to maven central externally.
        */
       nebulaRealPom(MavenPublication) {
-        artifactId 'elasticsearch'
+        artifactId archivesBaseName
         pom.packaging = 'pom'
         pom.withXml { XmlProvider xml ->
           Node root = xml.asNode()
@@ -229,4 +320,3 @@ configure(subprojects.findAll { it.name.contains('zip') }) {
     }
   }
 }
-

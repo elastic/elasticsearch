@@ -98,7 +98,7 @@ include::getting-started.asciidoc[]
 
 include::how-security-works.asciidoc[]
 
-include::authentication.asciidoc[]
+include::authentication/overview.asciidoc[]
 
 include::authorization.asciidoc[]
 

@@ -33,7 +33,6 @@ subprojects {
 }
 
 File checkstyleSuppressions = file('dev-tools/checkstyle_suppressions.xml')
-File eclipseSettings = file('dev-tools/eclipse.settings')
 subprojects {
   tasks.withType(Checkstyle) {
     inputs.file(checkstyleSuppressions)

@@ -95,20 +95,20 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> check that both repositories can be retrieved by getRepositories query");
         GetRepositoriesResponse repositoriesResponse = client.admin().cluster()
             .prepareGetRepositories(randomFrom("_all", "*", "test-repo-*")).get();
-        assertThat(repositoriesResponse.repositories().size(), equalTo(2));
-        assertThat(findRepository(repositoriesResponse.repositories(), "test-repo-1"), notNullValue());
-        assertThat(findRepository(repositoriesResponse.repositories(), "test-repo-2"), notNullValue());
+        assertThat(repositoriesResponse.repositories().repositories().size(), equalTo(2));
+        assertThat(findRepository(repositoriesResponse.repositories().repositories(), "test-repo-1"), notNullValue());
+        assertThat(findRepository(repositoriesResponse.repositories().repositories(), "test-repo-2"), notNullValue());
 
         logger.info("--> delete repository test-repo-1");
         client.admin().cluster().prepareDeleteRepository("test-repo-1").get();
         repositoriesResponse = client.admin().cluster().prepareGetRepositories().get();
-        assertThat(repositoriesResponse.repositories().size(), equalTo(1));
-        assertThat(findRepository(repositoriesResponse.repositories(), "test-repo-2"), notNullValue());
+        assertThat(repositoriesResponse.repositories().repositories().size(), equalTo(1));
+        assertThat(findRepository(repositoriesResponse.repositories().repositories(), "test-repo-2"), notNullValue());
 
         logger.info("--> delete repository test-repo-2");
         client.admin().cluster().prepareDeleteRepository("test-repo-2").get();
         repositoriesResponse = client.admin().cluster().prepareGetRepositories().get();
-        assertThat(repositoriesResponse.repositories().size(), equalTo(0));
+        assertThat(repositoriesResponse.repositories().repositories().size(), equalTo(0));
     }
 
     private RepositoryMetaData findRepository(List<RepositoryMetaData> repositories, String name) {

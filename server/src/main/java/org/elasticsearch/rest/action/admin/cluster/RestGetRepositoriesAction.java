@@ -34,6 +34,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.Set;
@@ -69,18 +70,7 @@ public class RestGetRepositoriesAction extends BaseRestHandler {
         getRepositoriesRequest.local(request.paramAsBoolean("local", getRepositoriesRequest.local()));
         settingsFilter.addFilterSettingParams(request);
         return channel ->
-                client.admin().cluster().getRepositories(getRepositoriesRequest, new RestBuilderListener<GetRepositoriesResponse>(channel) {
-                    @Override
-                    public RestResponse buildResponse(GetRepositoriesResponse response, XContentBuilder builder) throws Exception {
-                        builder.startObject();
-                        for (RepositoryMetaData repositoryMetaData : response.repositories()) {
-                            RepositoriesMetaData.toXContent(repositoryMetaData, builder, request);
-                        }
-                        builder.endObject();
-
-                        return new BytesRestResponse(OK, builder);
-                    }
-        });
+                client.admin().cluster().getRepositories(getRepositoriesRequest, new RestToXContentListener<GetRepositoriesResponse>(channel));
     }
 
     @Override

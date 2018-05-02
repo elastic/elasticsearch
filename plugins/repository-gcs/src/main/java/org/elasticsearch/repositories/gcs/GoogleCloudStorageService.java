@@ -21,7 +21,7 @@ package org.elasticsearch.repositories.gcs;
 
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
-import com.google.api.gax.retrying.RetrySettings;
+import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
@@ -31,8 +31,6 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
-import org.threeten.bp.Duration;
-
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.Map;
@@ -41,18 +39,10 @@ public class GoogleCloudStorageService extends AbstractComponent {
 
     /** Clients settings identified by client name. */
     private final Map<String, GoogleCloudStorageClientSettings> clientsSettings;
-    private final RetrySettings retrySettings;
 
     public GoogleCloudStorageService(Environment environment, Map<String, GoogleCloudStorageClientSettings> clientsSettings) {
         super(environment.settings());
         this.clientsSettings = clientsSettings;
-        this.retrySettings = RetrySettings.newBuilder()
-                .setInitialRetryDelay(Duration.ofMillis(100))
-                .setMaxRetryDelay(Duration.ofMillis(6000))
-                .setTotalTimeout(Duration.ofMillis(900000))
-                .setRetryDelayMultiplier(1.5d)
-                .setJittered(true)
-                .build();
     }
 
     /**
@@ -62,7 +52,7 @@ public class GoogleCloudStorageService extends AbstractComponent {
      *            name of client settings to use from secure settings
      * @return a Client instance that can be used to manage Storage objects
      */
-    public Storage createClient(String clientName) throws GeneralSecurityException, IOException {
+    public Storage createClient(final String clientName) throws GeneralSecurityException, IOException {
         final GoogleCloudStorageClientSettings clientSettings = clientsSettings.get(clientName);
         if (clientSettings == null) {
             throw new IllegalArgumentException("Unknown client name [" + clientName + "]. Existing client configs: "
@@ -75,7 +65,6 @@ public class GoogleCloudStorageService extends AbstractComponent {
                 .setHttpTransportFactory(() -> netHttpTransport)
                 .build();
         final StorageOptions.Builder storageOptionsBuilder = StorageOptions.newBuilder()
-                .setRetrySettings(retrySettings)
                 .setTransportOptions(httpTransportOptions)
                 .setHeaderProvider(() -> {
                     final MapBuilder<String, String> mapBuilder = MapBuilder.newMapBuilder();
@@ -87,11 +76,20 @@ public class GoogleCloudStorageService extends AbstractComponent {
         if (Strings.hasLength(clientSettings.getHost())) {
             storageOptionsBuilder.setHost(clientSettings.getHost());
         }
-        if (clientSettings.getCredential() != null) {
-            storageOptionsBuilder.setCredentials(clientSettings.getCredential());
-        }
         if (Strings.hasLength(clientSettings.getProjectId())) {
             storageOptionsBuilder.setProjectId(clientSettings.getProjectId());
+        }
+        if (clientSettings.getCredential() == null) {
+            logger.warn("Application Default Credentials are not supported out of the box."
+                    + " Additional file system permissions have to be granted to the plugin.");
+        } else {
+            final ServiceAccountCredentials serviceAccountCredentials = clientSettings.getCredential();
+            if (Strings.hasLength(clientSettings.getTokenUri().toString())) {
+                storageOptionsBuilder
+                        .setCredentials(serviceAccountCredentials.toBuilder().setTokenServerUri(clientSettings.getTokenUri()).build());
+            } else {
+                storageOptionsBuilder.setCredentials(serviceAccountCredentials);
+            }
         }
         return storageOptionsBuilder.build().getService();
     }

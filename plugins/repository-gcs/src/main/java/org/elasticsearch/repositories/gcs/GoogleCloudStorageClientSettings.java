@@ -30,6 +30,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.net.URI;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -72,6 +73,10 @@ public class GoogleCloudStorageClientSettings {
     /** An override for the Google Project ID. */
     static final Setting.AffixSetting<String> PROJECT_ID_SETTING = Setting.affixKeySetting(PREFIX, "project_id",
             key -> Setting.simpleString(key, Setting.Property.NodeScope));
+
+    /** An override for the Token Server URI in the oauth flow. */
+    static final Setting.AffixSetting<URI> TOKEN_URI_SETTING = Setting.affixKeySetting(PREFIX, "token_uri",
+            key -> new Setting<>(key, "", URI::create, Setting.Property.NodeScope));
 
     /**
      * The timeout to establish a connection. A value of {@code -1} corresponds to an infinite timeout. A value of {@code 0}
@@ -116,18 +121,23 @@ public class GoogleCloudStorageClientSettings {
     /** The Storage client application name **/
     private final String applicationName;
 
+    /** The token server URI. This leases access tokens in the oauth flow. **/
+    private final URI tokenUri;
+
     GoogleCloudStorageClientSettings(final ServiceAccountCredentials credential,
                                      final String host,
                                      final String projectId,
                                      final TimeValue connectTimeout,
                                      final TimeValue readTimeout,
-                                     final String applicationName) {
+                                     final String applicationName,
+            final URI tokenUri) {
         this.credential = credential;
         this.host = host;
         this.projectId = projectId;
         this.connectTimeout = connectTimeout;
         this.readTimeout = readTimeout;
         this.applicationName = applicationName;
+        this.tokenUri = tokenUri;
     }
 
     public ServiceAccountCredentials getCredential() {
@@ -154,6 +164,10 @@ public class GoogleCloudStorageClientSettings {
         return applicationName;
     }
 
+    public URI getTokenUri() {
+        return tokenUri;
+    }
+
     public static Map<String, GoogleCloudStorageClientSettings> load(final Settings settings) {
         final Map<String, GoogleCloudStorageClientSettings> clients = new HashMap<>();
         for (final String clientName: settings.getGroups(PREFIX).keySet()) {
@@ -174,7 +188,8 @@ public class GoogleCloudStorageClientSettings {
             getConfigValue(settings, clientName, PROJECT_ID_SETTING),
             getConfigValue(settings, clientName, CONNECT_TIMEOUT_SETTING),
             getConfigValue(settings, clientName, READ_TIMEOUT_SETTING),
-            getConfigValue(settings, clientName, APPLICATION_NAME_SETTING)
+            getConfigValue(settings, clientName, APPLICATION_NAME_SETTING),
+            getConfigValue(settings, clientName, TOKEN_URI_SETTING)
         );
     }
 

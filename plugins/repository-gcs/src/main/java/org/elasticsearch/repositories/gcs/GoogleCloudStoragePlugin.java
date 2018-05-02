@@ -64,6 +64,7 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
             GoogleCloudStorageClientSettings.PROJECT_ID_SETTING,
             GoogleCloudStorageClientSettings.CONNECT_TIMEOUT_SETTING,
             GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING,
-            GoogleCloudStorageClientSettings.APPLICATION_NAME_SETTING);
+            GoogleCloudStorageClientSettings.APPLICATION_NAME_SETTING,
+            GoogleCloudStorageClientSettings.TOKEN_URI_SETTING);
     }
 }

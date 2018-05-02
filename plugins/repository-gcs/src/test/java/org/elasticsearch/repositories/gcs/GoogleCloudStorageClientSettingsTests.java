@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -174,7 +175,7 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             applicationName = APPLICATION_NAME_SETTING.getDefault(Settings.EMPTY);
         }
 
-        return new GoogleCloudStorageClientSettings(credential, host, projectId, connectTimeout, readTimeout, applicationName);
+        return new GoogleCloudStorageClientSettings(credential, host, projectId, connectTimeout, readTimeout, applicationName, new URI(""));
     }
 
     /** Generates a random GoogleCredential along with its corresponding Service Account file provided as a byte array **/

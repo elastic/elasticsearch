@@ -30,7 +30,6 @@ import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.Storage.BlobListOption;
 import com.google.cloud.storage.Storage.CopyRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -38,14 +37,15 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.internal.io.Streams;
+
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.WritableByteChannel;
 import java.nio.file.NoSuchFileException;
 import java.util.Collection;
 import java.util.List;
@@ -154,55 +154,27 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
      */
     InputStream readBlob(String blobName) throws IOException {
         final BlobId blobId = BlobId.of(bucket, blobName);
-        final Tuple<ReadChannel, Long> readerAndSize = SocketAccess.doPrivilegedIOException(() ->
-            {
-            final Blob blob = storage.get(blobId);
-                if (blob == null) {
-                    return null;
-                }
-            return new Tuple<>(blob.reader(), blob.getSize());
-            });
-        if (readerAndSize == null) {
+        final Blob blob = SocketAccess.doPrivilegedIOException(() -> storage.get(blobId));
+        if (blob == null) {
             throw new NoSuchFileException("Blob [" + blobName + "] does not exit.");
         }
-        final ByteBuffer buffer = ByteBuffer.allocate(8 * 1024);
-        // first read pull data
-        buffer.flip();
-        return new InputStream() {
-            long bytesRemaining = readerAndSize.v2();
-
-            @SuppressForbidden(reason = "the reader channel is backed by a socket instead of a file,"
-                    + "ie. it is not seekable and reading should advance the channel's internal position")
+        final ReadChannel readChannel = SocketAccess.doPrivilegedIOException(blob::reader);
+        return java.nio.channels.Channels.newInputStream(new ReadableByteChannel() {
             @Override
-            public int read() throws IOException {
-                while (true) {
-                    try {
-                        return (0xFF & buffer.get());
-                    } catch (final BufferUnderflowException e) {
-                        if (bytesRemaining == 0) {
-                            return -1;
-                        }
-                        // pull another chunck
-                        buffer.clear();
-                        final long bytesRead = SocketAccess.doPrivilegedIOException(() -> readerAndSize.v1().read(buffer));
-                        buffer.flip();
-                        if (bytesRead < 0) {
-                            return -1;
-                        } else if ((bytesRead == 0) && (bytesRemaining == 0)) {
-                            return -1;
-                        }
-                        bytesRemaining -= bytesRead;
-                        assert bytesRemaining >= 0;
-                        // retry in case of non-blocking socket
-                    }
-                }
+            public int read(ByteBuffer dst) throws IOException {
+                return SocketAccess.doPrivilegedIOException(() -> readChannel.read(dst));
+            }
+
+            @Override
+            public boolean isOpen() {
+                return readChannel.isOpen();
             }
 
             @Override
             public void close() throws IOException {
-                readerAndSize.v1().close();
+                SocketAccess.doPrivilegedVoidIOException(readChannel::close);
             }
-        };
+        });
     }
 
     /**
@@ -213,22 +185,23 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
      */
     void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
         final BlobInfo blobInfo = BlobInfo.newBuilder(bucket, blobName).build();
-        final byte[] buffer = new byte[64 * 1024];
-        SocketAccess.doPrivilegedVoidIOException(() -> {
-            long bytesWritten = 0;
-            try (WriteChannel writer = storage.writer(blobInfo)) {
-                int limit;
-                while ((limit = inputStream.read(buffer)) >= 0) {
-                    try {
-                        Channels.writeToChannel(buffer, 0, limit, writer);
-                        bytesWritten += limit;
-                    } catch (final Exception e) {
-                        throw new IOException("Failed to write blob [" + blobName + "] into bucket [" + bucket + "].", e);
-                    }
-                }
+        final WriteChannel writeChannel = SocketAccess.doPrivilegedIOException(() -> storage.writer(blobInfo));
+        Streams.copy(inputStream, java.nio.channels.Channels.newOutputStream(new WritableByteChannel() {
+            @Override
+            public boolean isOpen() {
+                return writeChannel.isOpen();
             }
-            assert blobSize == bytesWritten : "InputStream unexpected size, expected [" + blobSize + "] got [" + bytesWritten + "]";
-        });
+
+            @Override
+            public void close() throws IOException {
+                SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
+            }
+
+            @Override
+            public int write(ByteBuffer src) throws IOException {
+                return SocketAccess.doPrivilegedIOException(() -> writeChannel.write(src));
+            }
+        }));
     }
 
     /**
@@ -281,7 +254,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
      * Moves a blob within the same bucket
      *
      * @param sourceBlob name of the blob to move
-     * @param targetBlob new name of the blob in the target bucket
+     * @param targetBlob new name of the blob in the same bucket
      */
     void moveBlob(String sourceBlobName, String targetBlobName) throws IOException {
         final BlobId sourceBlobId = BlobId.of(bucket, sourceBlobName);
@@ -293,9 +266,9 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
         SocketAccess.doPrivilegedVoidIOException(() -> {
             // There's no atomic "move" in GCS so we need to copy and delete
             final CopyWriter copyWriter = storage.copy(request);
-            final Blob destBlob = copyWriter.getResult();
+            copyWriter.getResult();
             final boolean deleted = storage.delete(sourceBlobId);
-            if ((deleted == false) || (destBlob.reload() == null)) {
+            if (deleted == false) {
                 throw new IOException("Failed to move source [" + sourceBlobName + "] to target [" + targetBlobName + "].");
             }
         });

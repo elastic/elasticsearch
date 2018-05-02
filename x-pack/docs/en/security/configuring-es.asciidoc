@@ -47,7 +47,7 @@ information, see
 +
 --
 {security} provides
-{xpack-ref}/setting-up-authentication.html#built-in-users[built-in users] to
+{stack-ov}/built-in-users.html[built-in users] to
 help you get up and running. The +elasticsearch-setup-passwords+ command is the
 simplest method to set the built-in users' passwords for the first time.
 

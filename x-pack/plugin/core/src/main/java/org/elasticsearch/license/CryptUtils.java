@@ -29,7 +29,7 @@ import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 
 public class CryptUtils {
-    // SALT must be at least 128bits
+    // SALT must be at least 128bits for FIPS 140-2 compliance
     private static final byte[] SALT = {
             (byte) 0x74, (byte) 0x68, (byte) 0x69, (byte) 0x73,
             (byte) 0x69, (byte) 0x73, (byte) 0x74, (byte) 0x68,
@@ -141,7 +141,7 @@ public class CryptUtils {
 
     static byte[] encryptV3Format(byte[] data) {
         try {
-            SecretKey encryptionKey = getv3Key();
+            SecretKey encryptionKey = getV3Key();
             final Cipher encryptionCipher = getEncryptionCipher(encryptionKey);
             return encryptionCipher.doFinal(pad(data, 20));
         } catch (GeneralSecurityException e) {
@@ -151,7 +151,7 @@ public class CryptUtils {
 
     static byte[] decryptV3Format(byte[] data) {
         try {
-            SecretKey decryptionKey = getv3Key();
+            SecretKey decryptionKey = getV3Key();
             final Cipher decryptionCipher = getDecryptionCipher(decryptionKey);
             return unPad(decryptionCipher.doFinal(data));
         } catch (GeneralSecurityException e) {
@@ -159,7 +159,7 @@ public class CryptUtils {
         }
     }
 
-    private static SecretKey getv3Key() throws NoSuchAlgorithmException, InvalidKeySpecException {
+    private static SecretKey getV3Key() throws NoSuchAlgorithmException, InvalidKeySpecException {
         final byte[] salt = {
                 (byte) 0xA9, (byte) 0xA2, (byte) 0xB5, (byte) 0xDE,
                 (byte) 0x2A, (byte) 0x8A, (byte) 0x9A, (byte) 0xE6

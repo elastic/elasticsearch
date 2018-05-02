@@ -61,7 +61,7 @@ public class LicenseSigner {
                 Collections.singletonMap(License.LICENSE_SPEC_VIEW_MODE, "true");
         licenseSpec.toXContent(contentBuilder, new ToXContent.MapParams(licenseSpecViewMode));
         final byte[] signedContent;
-        final boolean legacy = licenseSpec.version() < License.VERSION_CRYPTO_ALGORITHMS;
+        final boolean preV4 = licenseSpec.version() < License.VERSION_CRYPTO_ALGORITHMS;
         try {
             final Signature rsa = Signature.getInstance("SHA512withRSA");
             PrivateKey decryptedPrivateKey = CryptUtils.readEncryptedPrivateKey(Files.readAllBytes(privateKeyPath));
@@ -83,7 +83,7 @@ public class LicenseSigner {
         random.nextBytes(magic);
         final byte[] publicKeyBytes = Files.readAllBytes(publicKeyPath);
         PublicKey publicKey = CryptUtils.readPublicKey(publicKeyBytes);
-        final byte[] pubKeyFingerprint = legacy ? Base64.getEncoder().encode(CryptUtils.writeEncryptedPublicKey(publicKey)) :
+        final byte[] pubKeyFingerprint = preV4 ? Base64.getEncoder().encode(CryptUtils.writeEncryptedPublicKey(publicKey)) :
                 getPublicKeyFingerprint(publicKeyBytes);
         byte[] bytes = new byte[4 + 4 + MAGIC_LENGTH + 4 + pubKeyFingerprint.length + 4 + signedContent.length];
         ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);

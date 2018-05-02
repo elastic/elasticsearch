@@ -107,7 +107,7 @@ public final class Booleans {
     }
 
     /**
-     * Returns <code>false</code> if text is in <tt>false</tt>, <tt>0</tt>, <tt>off</tt>, <tt>no</tt>; else, true
+     * Returns {@code false} if text is in "false", "0", "off", "no"; else, {@code true}.
      *
      * @deprecated Only kept to provide automatic upgrades for pre 6.0 indices. Use {@link #parseBoolean(String, Boolean)} instead.
      */
@@ -119,9 +119,7 @@ public final class Booleans {
         return parseBooleanLenient(value, false);
     }
     /**
-     * Returns <code>true</code> iff the value is neither of the following:
-     *   <tt>false</tt>, <tt>0</tt>, <tt>off</tt>, <tt>no</tt>
-     *   otherwise <code>false</code>
+     * Returns {@code false} if text is in "false", "0", "off", "no"; else, {@code true}.
      *
      * @deprecated Only kept to provide automatic upgrades for pre 6.0 indices. Use {@link #parseBoolean(String, boolean)} instead.
      */
@@ -134,21 +132,21 @@ public final class Booleans {
     }
 
     /**
-     * @return <code>true</code> iff the value is <tt>false</tt>, otherwise <code>false</code>.
+     * @return {@code true} iff the value is "false", otherwise {@code false}.
      */
     public static boolean isFalse(String value) {
         return "false".equals(value);
     }
 
     /**
-     * @return <code>true</code> iff the value is <tt>true</tt>, otherwise <code>false</code>
+     * @return {@code true} iff the value is "true", otherwise {@code false}.
      */
     public static boolean isTrue(String value) {
         return "true".equals(value);
     }
 
     /**
-     * Returns <code>false</code> if text is in <tt>false</tt>, <tt>0</tt>, <tt>off</tt>, <tt>no</tt>; else, true
+     * Returns {@code false} if text is in "false", "0", "off", "no"; else, {@code true}.
      *
      * @deprecated Only kept to provide automatic upgrades for pre 6.0 indices. Use {@link #parseBoolean(char[], int, int, boolean)} instead
      */

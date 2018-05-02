@@ -103,7 +103,7 @@ public interface ShardSearchRequest {
      * Returns the filter associated with listed filtering aliases.
      * <p>
      * The list of filtering aliases should be obtained by calling MetaData.filteringAliases.
-     * Returns <tt>null</tt> if no filtering is required.</p>
+     * Returns {@code null} if no filtering is required.</p>
      */
     static QueryBuilder parseAliasFilter(CheckedFunction<byte[], QueryBuilder, IOException> filterParser,
                                          IndexMetaData metaData, String... aliasNames) {

@@ -34,7 +34,7 @@ public abstract class ReplicationRequestBuilder<Request extends ReplicationReque
     }
 
     /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
+     * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
      */
     @SuppressWarnings("unchecked")
     public final RequestBuilder setTimeout(TimeValue timeout) {
@@ -43,7 +43,7 @@ public abstract class ReplicationRequestBuilder<Request extends ReplicationReque
     }
 
     /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
+     * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
      */
     @SuppressWarnings("unchecked")
     public final RequestBuilder setTimeout(String timeout) {

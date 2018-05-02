@@ -173,7 +173,7 @@ import java.util.stream.Stream;
 import static java.util.stream.Collectors.toList;
 
 /**
- * A node represent a node within a cluster (<tt>cluster.name</tt>). The {@link #client()} can be used
+ * A node represent a node within a cluster ({@code cluster.name}). The {@link #client()} can be used
  * in order to use a {@link Client} to perform actions/operations against the cluster.
  */
 public class Node implements Closeable {
@@ -851,7 +851,7 @@ public class Node implements Closeable {
 
 
     /**
-     * Returns <tt>true</tt> if the node is closed.
+     * Returns {@code true} if the node is closed.
      */
     public boolean isClosed() {
         return lifecycle.closed();

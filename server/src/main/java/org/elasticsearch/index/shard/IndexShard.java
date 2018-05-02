@@ -1416,7 +1416,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Returns <tt>true</tt> if this shard can ignore a recovery attempt made to it (since the already doing/done it)
+     * Returns {@code true} if this shard can ignore a recovery attempt made to it (since the already doing/done it)
      */
     public boolean ignoreRecoveryAttempt() {
         IndexShardState state = state(); // one time volatile read

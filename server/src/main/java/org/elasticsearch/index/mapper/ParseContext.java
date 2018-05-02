@@ -618,7 +618,7 @@ public abstract class ParseContext implements Iterable<ParseContext.Document>{
 
     /**
      * Is all included or not. Will always disable it if {@link org.elasticsearch.index.mapper.AllFieldMapper#enabled()}
-     * is <tt>false</tt>. If its enabled, then will return <tt>true</tt> only if the specific flag is <tt>null</tt> or
+     * is {@code false}. If its enabled, then will return {@code true} only if the specific flag is {@code null} or
      * its actual value (so, if not set, defaults to "true") and the field is indexed.
      */
     private boolean includeInAll(Boolean includeInAll, boolean indexed) {

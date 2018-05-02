@@ -249,7 +249,7 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
-     * Returns the node stats indices stats. The <tt>includePrevious</tt> flag controls
+     * Returns the node stats indices stats. The {@code includePrevious} flag controls
      * if old shards stats will be aggregated as well (only for relevant stats, such as
      * refresh and indexing, not for docs/store).
      */
@@ -1248,7 +1248,7 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
-     * Returns a new {@link QueryRewriteContext} with the given <tt>now</tt> provider
+     * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
         return new QueryRewriteContext(xContentRegistry, namedWriteableRegistry, client, nowInMillis);

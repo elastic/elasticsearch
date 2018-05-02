@@ -1104,7 +1104,8 @@ public final class InternalTestCluster extends TestCluster {
         // ElasticsearchIntegrationTest must override beforeIndexDeletion() to avoid failures.
         assertNoPendingIndexOperations();
         //check that shards that have same sync id also contain same number of documents
-        assertSameSyncIdSameDocs();
+        // norelease - AwaitsFix: https://github.com/elastic/elasticsearch/pull/30228
+        // assertSameSyncIdSameDocs();
         assertOpenTranslogReferences();
     }
 

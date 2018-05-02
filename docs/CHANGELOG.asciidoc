@@ -26,6 +26,7 @@ This section summarizes the changes in each release.
 <<write-thread-pool-fallback, Removed `thread_pool.bulk.*` settings and
 `es.thread_pool.write.use_bulk_as_display_name` system property>> ({pull}29609[#29609])
 
+<<systemd-service-file-config, Systemd service file is no longer marked as configuration>> ({pull}29004[#29004])
 <<remove-suggest-metric, Removed `suggest` metric on stats APIs>> ({pull}29635[#29635])
 
 <<remove-field-caps-body, In field capabilities APIs, removed support for providing fields in the request body>> ({pull}30185[#30185])

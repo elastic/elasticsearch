@@ -114,15 +114,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
                 return new DocValuesIndexFieldData.Builder();
             } else {
                 // means the index has a single type and the type field is implicit
-                Function<MapperService, String> typeFunction = mapperService -> {
-                    Collection<String> types = mapperService.types();
-                    if (types.size() > 1) {
-                        throw new AssertionError();
-                    }
-                    // If we reach here, there is necessarily one type since we were able to find a `_type` field
-                    String type = types.iterator().next();
-                    return type;
-                };
+                Function<MapperService, String> typeFunction = mapperService -> mapperService.documentMapper().type();
                 return new ConstantIndexFieldData.Builder(typeFunction);
             }
         }
@@ -144,12 +136,11 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query termsQuery(List<?> values, QueryShardContext context) {
-            Collection<String> indexTypes = context.getMapperService().types();
-            if (indexTypes.isEmpty()) {
+            DocumentMapper mapper = context.getMapperService().documentMapper();
+            if (mapper == null) {
                 return new MatchNoDocsQuery("No types");
             }
-            assert indexTypes.size() == 1;
-            BytesRef indexType = indexedValueForSearch(indexTypes.iterator().next());
+            BytesRef indexType = indexedValueForSearch(mapper.type());
             if (values.stream()
                     .map(this::indexedValueForSearch)
                     .anyMatch(indexType::equals)) {

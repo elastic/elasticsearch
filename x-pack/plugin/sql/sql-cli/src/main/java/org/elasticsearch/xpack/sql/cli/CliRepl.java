@@ -56,6 +56,11 @@ public class CliRepl {
                 multiLine.setLength(0);
             }
 
+            // Skip empty commands
+            if (line.isEmpty()) {
+                continue;
+            }
+
             // special case to handle exit
             if (isExit(line)) {
                 cliTerminal.line().em("Bye!").ln();

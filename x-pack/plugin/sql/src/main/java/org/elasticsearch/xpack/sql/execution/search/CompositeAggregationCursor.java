@@ -113,12 +113,36 @@ public class CompositeAggregationCursor implements Cursor {
 
         SearchRequest search = Querier.prepareRequest(client, query, cfg.pageTimeout(), indices);
 
-        client.search(search, ActionListener.wrap(r -> {
-            updateCompositeAfterKey(r, query);
-            CompositeAggsRowSet rowSet = new CompositeAggsRowSet(extractors, r, limit,
-                    serializeQuery(query), indices);
-            listener.onResponse(rowSet);
-        }, listener::onFailure));
+        client.search(search, new ActionListener<SearchResponse>() {
+            @Override
+            public void onResponse(SearchResponse r) {
+                try {
+                    // retry
+                    if (shouldRetryDueToEmptyPage(r)) {
+                        CompositeAggregationCursor.updateCompositeAfterKey(r, search.source());
+                        client.search(search, this);
+                        return;
+                    }
+
+                    updateCompositeAfterKey(r, query);
+                    CompositeAggsRowSet rowSet = new CompositeAggsRowSet(extractors, r, limit, serializeQuery(query), indices);
+                    listener.onResponse(rowSet);
+                } catch (Exception ex) {
+                    listener.onFailure(ex);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception ex) {
+                listener.onFailure(ex);
+            }
+        });
+    }
+
+    static boolean shouldRetryDueToEmptyPage(SearchResponse response) {
+        CompositeAggregation composite = getComposite(response);
+        // if there are no buckets but a next page, go fetch it instead of sending an empty response to the client
+        return composite != null && composite.getBuckets().isEmpty() && composite.afterKey() != null && !composite.afterKey().isEmpty();
     }
 
     static CompositeAggregation getComposite(SearchResponse response) {
@@ -134,7 +158,7 @@ public class CompositeAggregationCursor implements Cursor {
         throw new SqlIllegalArgumentException("Unrecognized root group found; {}", agg.getClass());
     }
 
-    static void updateCompositeAfterKey(SearchResponse r, SearchSourceBuilder next) {
+    static boolean updateCompositeAfterKey(SearchResponse r, SearchSourceBuilder next) {
         CompositeAggregation composite = getComposite(r);
 
         if (composite == null) {
@@ -152,7 +176,10 @@ public class CompositeAggregationCursor implements Cursor {
             } else {
                 throw new SqlIllegalArgumentException("Invalid client request; expected a group-by but instead got {}", aggBuilder);
             }
+
+            return true;
         }
+        return false;
     }
 
     /**

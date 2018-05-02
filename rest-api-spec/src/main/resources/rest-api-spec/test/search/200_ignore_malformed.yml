@@ -1,7 +1,7 @@
 ---
 setup:
   - skip:
-      version: " - 6.99.99" # TODO: change to 6.3.99 after backport to 6.4
+      version: " - 6.3.99"
       reason: _ignored was added in 6.4.0
 
   - do:

@@ -17,7 +17,7 @@ A `moving_fn` aggregation looks like this in isolation:
     "moving_fn": {
         "buckets_path": "the_sum",
         "window": 10,
-        "script": "MovingFunctions.windowMin(values)"
+        "script": "MovingFunctions.min(values)"
     }
 }
 --------------------------------------------------
@@ -53,7 +53,7 @@ POST /_search
                     "moving_fn": {
                         "buckets_path": "the_sum", <3>
                         "window": 10,
-                        "script": "MovingFunctions.simpleMovAvg(values)"
+                        "script": "MovingFunctions.unweightedAvg(values)"
                     }
                 }
             }
@@ -170,24 +170,24 @@ POST /_search
 
 For convenience, a number of functions have been prebuilt and are available inside the `moving_fn` script context:
 
-- `windowMax()`
-- `windowMin()`
-- `windowSum()`
-- `windowStdDev()`
-- `simpleMovAvg()`
-- `linearMovAvg()`
-- `ewmaMovAvg()`
-- `holtMovAvg()`
-- `holtWintersMovAvg()`
+- `max()`
+- `min()`
+- `sum()`
+- `stdDev()`
+- `unweightedAvg()`
+- `linearWeightedAvg()`
+- `ewma()`
+- `holt()`
+- `holtWinters()`
 
-The functions are available from the `MovingFunctions` namespace.  E.g. `MovingFunctions.windowMax()`
+The functions are available from the `MovingFunctions` namespace.  E.g. `MovingFunctions.max()`
 
-===== windowMax Function
+===== max Function
 
 This function accepts a collection of doubles and returns the maximum value in that window. `null` and `NaN` values are ignored; the maximum
 is only calculated over the real values. If the window is empty, or all values are `null`/`NaN`, `NaN` is returned as the result.
 
-.`windowMax(Collection<Double> values)` Parameters
+.`max(Collection<Double> values)` Parameters
 |===
 |Parameter Name |Description
 |`values` |The window of values to find the maximum
@@ -212,7 +212,7 @@ POST /_search
                     "moving_fn": {
                         "buckets_path": "the_sum",
                         "window": 10,
-                        "script": "MovingFunctions.windowMax(values)"
+                        "script": "MovingFunctions.max(values)"
                     }
                 }
             }
@@ -223,12 +223,12 @@ POST /_search
 // CONSOLE
 // TEST[setup:sales]
 
-===== windowMin Function
+===== min Function
 
 This function accepts a collection of doubles and returns the minimum value in that window.  `null` and `NaN` values are ignored; the minimum
 is only calculated over the real values. If the window is empty, or all values are `null`/`NaN`, `NaN` is returned as the result.
 
-.`windowMin(Collection<Double> values)` Parameters
+.`min(Collection<Double> values)` Parameters
 |===
 |Parameter Name |Description
 |`values` |The window of values to find the minimum
@@ -253,7 +253,7 @@ POST /_search
                     "moving_fn": {
                         "buckets_path": "the_sum",
                         "window": 10,
-                        "script": "MovingFunctions.windowMin(values)"
+                        "script": "MovingFunctions.min(values)"
                     }
                 }
             }
@@ -264,12 +264,12 @@ POST /_search
 // CONSOLE
 // TEST[setup:sales]
 
-===== windowSum Function
+===== sum Function
 
 This function accepts a collection of doubles and returns the sum of the values in that window.  `null` and `NaN` values are ignored;
 the sum is only calculated over the real values.  If the window is empty, or all values are `null`/`NaN`, `0.0` is returned as the result.
 
-.`windowSum(Collection<Double> values)` Parameters
+.`sum(Collection<Double> values)` Parameters
 |===
 |Parameter Name |Description
 |`values` |The window of values to find the sum of
@@ -294,7 +294,7 @@ POST /_search
                     "moving_fn": {
                         "buckets_path": "the_sum",
                         "window": 10,
-                        "script": "MovingFunctions.windowSum(values)"
+                        "script": "MovingFunctions.sum(values)"
                     }
                 }
             }
@@ -305,13 +305,13 @@ POST /_search
 // CONSOLE
 // TEST[setup:sales]
 
-===== windowStdDev Function
+===== stdDev Function
 
 This function accepts a collection of doubles and and average, then returns the standard deviation of the values in that window.
 `null` and `NaN` values are ignored; the sum is only calculated over the real values.  If the window is empty, or all values are
 `null`/`NaN`, `0.0` is returned as the result.
 
-.`windowSum(Collection<Double> values)` Parameters
+.`stdDev(Collection<Double> values)` Parameters
 |===
 |Parameter Name |Description
 |`values` |The window of values to find the standard deviation of
@@ -337,7 +337,7 @@ POST /_search
                     "moving_fn": {
                         "buckets_path": "the_sum",
                         "window": 10,
-                        "script": "MovingFunctions.windowStdDev(values, MovingFunctions.simpleMovAvg(values))"
+                        "script": "MovingFunctions.stdDev(values, MovingFunctions.unweightedAvg(values))"
                     }
                 }
             }
@@ -352,9 +352,9 @@ The `avg` parameter must be provided to the standard deviation function because 
 (simple, linearly weighted, etc).  The various moving averages that are detailed below can be used to calculate the average for the
 standard deviation function.
 
-===== simpleMovAvg Function
+===== unweightedAvg Function
 
-The `simpleMovAvg` function calculates the sum of all values in the window, then divides by the size of the window.  It is effectively
+The `unweightedAvg` function calculates the sum of all values in the window, then divides by the size of the window.  It is effectively
 a simple arithmetic mean of the window.  The simple moving average does not perform any time-dependent weighting, which means
 the values from a `simple` moving average tend to "lag" behind the real data.
 
@@ -362,7 +362,7 @@ the values from a `simple` moving average tend to "lag" behind the real data.
 `null`/`NaN`, `NaN` is returned as the result.  This means that the count used in the average calculation is count of non-`null`,non-`NaN`
 values.
 
-.`simpleMovAvg(Collection<Double> values)` Parameters
+.`unweightedAvg(Collection<Double> values)` Parameters
 |===
 |Parameter Name |Description
 |`values` |The window of values to find the sum of
@@ -387,7 +387,7 @@ POST /_search
                     "moving_fn": {
                         "buckets_path": "the_sum",
                         "window": 10,
-                        "script": "MovingFunctions.simpleMovAvg(values)"
+                        "script": "MovingFunctions.unweightedAvg(values)"
                     }
                 }
             }
@@ -398,15 +398,15 @@ POST /_search
 // CONSOLE
 // TEST[setup:sales]
 
-==== linearMovAvg Function
+==== linearWeightedAvg Function
 
-The `linearMovAvg` function assigns a linear weighting to points in the series, such that "older" datapoints (e.g. those at
+The `linearWeightedAvg` function assigns a linear weighting to points in the series, such that "older" datapoints (e.g. those at
 the beginning of the window) contribute a linearly less amount to the total average.  The linear weighting helps reduce
 the "lag" behind the data's mean, since older points have less influence.
 
 If the window is empty, or all values are `null`/`NaN`, `NaN` is returned as the result.
 
-.`linearMovAvg(Collection<Double> values)` Parameters
+.`linearWeightedAvg(Collection<Double> values)` Parameters
 |===
 |Parameter Name |Description
 |`values` |The window of values to find the sum of
@@ -431,7 +431,7 @@ POST /_search
                     "moving_fn": {
                         "buckets_path": "the_sum",
                         "window": 10,
-                        "script": "MovingFunctions.linearMovAvg(values)"
+                        "script": "MovingFunctions.linearWeightedAvg(values)"
                     }
                 }
             }
@@ -442,9 +442,9 @@ POST /_search
 // CONSOLE
 // TEST[setup:sales]
 
-==== ewmaMovAvg Function
+==== ewma Function
 
-The `ewmaMovAvg` function (aka "single-exponential") is similar to the `linearMovAvg` function,
+The `ewma` function (aka "single-exponential") is similar to the `linearMovAvg` function,
 except older data-points become exponentially less important,
 rather than linearly less important.  The speed at which the importance decays can be controlled with an `alpha`
 setting.  Small values make the weight decay slowly, which provides greater smoothing and takes into account a larger
@@ -455,7 +455,7 @@ moving average.  This tends to make the moving average track the data more close
 `null`/`NaN`, `NaN` is returned as the result.  This means that the count used in the average calculation is count of non-`null`,non-`NaN`
 values.
 
-.`ewmaMovAvg(Collection<Double> values, double alpha)` Parameters
+.`ewma(Collection<Double> values, double alpha)` Parameters
 |===
 |Parameter Name |Description
 |`values` |The window of values to find the sum of
@@ -481,7 +481,7 @@ POST /_search
                     "moving_fn": {
                         "buckets_path": "the_sum",
                         "window": 10,
-                        "script": "MovingFunctions.ewmaMovAvg(values, 0.3)"
+                        "script": "MovingFunctions.ewma(values, 0.3)"
                     }
                 }
             }
@@ -493,13 +493,13 @@ POST /_search
 // TEST[setup:sales]
 
 
-==== holtMovAvg Function
+==== holt Function
 
-The `holtMovAvg` function (aka "double exponential") incorporates a second exponential term which
+The `holt` function (aka "double exponential") incorporates a second exponential term which
 tracks the data's trend.  Single exponential does not perform well when the data has an underlying linear trend.  The
 double exponential model calculates two values internally: a "level" and a "trend".
 
-The level calculation is similar to `ewmaMovAvg`, and is an exponentially weighted view of the data.  The difference is
+The level calculation is similar to `ewma`, and is an exponentially weighted view of the data.  The difference is
 that the previously smoothed value is used instead of the raw value, which allows it to stay close to the original series.
 The trend calculation looks at the difference between the current and last value (e.g. the slope, or trend, of the
 smoothed data).  The trend value is also exponentially weighted.
@@ -510,7 +510,7 @@ Values are produced by multiplying the level and trend components.
 `null`/`NaN`, `NaN` is returned as the result.  This means that the count used in the average calculation is count of non-`null`,non-`NaN`
 values.
 
-.`holtMovAvg(Collection<Double> values, double alpha)` Parameters
+.`holt(Collection<Double> values, double alpha)` Parameters
 |===
 |Parameter Name |Description
 |`values` |The window of values to find the sum of
@@ -537,7 +537,7 @@ POST /_search
                     "moving_fn": {
                         "buckets_path": "the_sum",
                         "window": 10,
-                        "script": "MovingFunctions.holtMovAvg(values, 0.3, 0.1)"
+                        "script": "MovingFunctions.holt(values, 0.3, 0.1)"
                     }
                 }
             }
@@ -553,13 +553,13 @@ and more lag, while larger values produce closer tracking and less lag.  The val
 to see.  Small values emphasize long-term trends (such as a constant linear trend in the whole series), while larger
 values emphasize short-term trends.
 
-==== holtWintersMovAvg Function
+==== holtWinters Function
 
-The `holtWintersMovAvg` function (aka "triple exponential") incorporates a third exponential term which
+The `holtWinters` function (aka "triple exponential") incorporates a third exponential term which
 tracks the seasonal aspect of your data.  This aggregation therefore smooths based on three components: "level", "trend"
 and "seasonality".
 
-The level and trend calculation is identical to `holtMovAvg` The seasonal calculation looks at the difference between
+The level and trend calculation is identical to `holt` The seasonal calculation looks at the difference between
 the current point, and the point one period earlier.
 
 Holt-Winters requires a little more handholding than the other moving averages.  You need to specify the "periodicity"
@@ -571,7 +571,7 @@ for future enhancements.
 `null`/`NaN`, `NaN` is returned as the result.  This means that the count used in the average calculation is count of non-`null`,non-`NaN`
 values.
 
-.`holtWintersMovAvg(Collection<Double> values, double alpha)` Parameters
+.`holtWinters(Collection<Double> values, double alpha)` Parameters
 |===
 |Parameter Name |Description
 |`values` |The window of values to find the sum of
@@ -601,7 +601,7 @@ POST /_search
                     "moving_fn": {
                         "buckets_path": "the_sum",
                         "window": 10,
-                        "script": "if (values.size() > 5*2) {MovingFunctions.holtWintersMovAvg(values, 0.3, 0.1, 0.1, 5, false)}"
+                        "script": "if (values.size() > 5*2) {MovingFunctions.holtWinters(values, 0.3, 0.1, 0.1, 5, false)}"
                     }
                 }
             }

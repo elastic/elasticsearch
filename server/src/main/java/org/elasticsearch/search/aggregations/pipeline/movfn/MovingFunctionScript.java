@@ -28,7 +28,7 @@ import java.util.Map;
  * This class provides a custom script context for the Moving Function pipeline aggregation,
  * so that we can expose a number of pre-baked moving functions like min, max, movavg, etc
  */
-public abstract class MovFnScript {
+public abstract class MovingFunctionScript {
     /**
      * @param params The user-provided parameters
      * @param values The values in the window that we are moving a function across
@@ -37,7 +37,7 @@ public abstract class MovFnScript {
     public abstract double execute(Map<String, Object> params, Collection<Double> values);
 
     public interface Factory {
-        MovFnScript newInstance();
+        MovingFunctionScript newInstance();
     }
 
     public static final String[] PARAMETERS = new String[] {"params", "values"};

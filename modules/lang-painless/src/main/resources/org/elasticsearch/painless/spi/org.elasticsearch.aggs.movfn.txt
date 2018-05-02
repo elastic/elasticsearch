@@ -20,13 +20,13 @@
 # This file contains a whitelist for the Moving Function pipeline aggregator in core
 
 class org.elasticsearch.search.aggregations.pipeline.movfn.MovingFunctions {
-  double windowMax(Collection)
-  double windowMin(Collection)
-  double windowSum(Collection)
-  double windowStdDev(Collection, double)
-  double simpleMovAvg(Collection)
-  double linearMovAvg(Collection)
-  double ewmaMovAvg(Collection, double)
-  double holtMovAvg(Collection, double, double)
-  double holtWintersMovAvg(Collection, double, double, double, int, boolean)
+  double max(Collection)
+  double min(Collection)
+  double sum(Collection)
+  double stdDev(Collection, double)
+  double unweightedAvg(Collection)
+  double linearWeightedAvg(Collection)
+  double ewma(Collection, double)
+  double holt(Collection, double, double)
+  double holtWinters(Collection, double, double, double, int, boolean)
 }

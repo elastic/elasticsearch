@@ -102,7 +102,7 @@ public class EwmaModel extends MovAvgModel {
 
     @Override
     public double next(Collection<Double> values) {
-        return MovingFunctions.ewmaMovAvg(values, alpha);
+        return MovingFunctions.ewma(values, alpha);
     }
 
     @Override

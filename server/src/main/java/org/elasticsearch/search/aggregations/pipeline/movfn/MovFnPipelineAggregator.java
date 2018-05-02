@@ -49,13 +49,13 @@ import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resol
  *
  * Through custom script contexts, we expose a number of convenience methods:
  *
- *  - windowMax
- *  - windowMin
- *  - windowSum
- *  - simpleMovAvg
- *  - linearMovAvg
- *  - ewmaMovAvg
- *  - holtMovAvg
+ *  - max
+ *  - min
+ *  - sum
+ *  - unweightedAvg
+ *  - linearWeightedAvg
+ *  - ewma
+ *  - holt
  *  - holtWintersMovAvg
  *
  *  The user can also define any arbitrary logic via their own scripting, or combine with the above methods.
@@ -112,13 +112,13 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
         EvictingQueue<Double> values = new EvictingQueue<>(this.window);
 
         // Initialize the script
-        MovFnScript.Factory scriptFactory = reduceContext.scriptService().compile(script, MovFnScript.CONTEXT);
+        MovingFunctionScript.Factory scriptFactory = reduceContext.scriptService().compile(script, MovingFunctionScript.CONTEXT);
         Map<String, Object> vars = new HashMap<>();
         if (script.getParams() != null) {
             vars.putAll(script.getParams());
         }
 
-        MovFnScript executableScript = scriptFactory.newInstance();
+        MovingFunctionScript executableScript = scriptFactory.newInstance();
 
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
             Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], gapPolicy);

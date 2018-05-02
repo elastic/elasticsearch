@@ -59,7 +59,7 @@ setup:
         index: [test]
 
 ---
-"windowMax":
+"max":
 
   - do:
       search:
@@ -78,7 +78,7 @@ setup:
                   moving_fn:
                     buckets_path: "the_avg"
                     window: 3
-                    script: "MovingFunctions.windowMax(values)"
+                    script: "MovingFunctions.max(values)"
 
   - match: { hits.total: 6 }
   - length: { hits.hits: 0 }
@@ -90,7 +90,7 @@ setup:
   - match: { aggregations.the_histo.buckets.5.the_mov_fn.value: 5.0 }
 
 ---
-"windowMin":
+"min":
 
   - do:
       search:
@@ -109,7 +109,7 @@ setup:
                   moving_fn:
                     buckets_path: "the_avg"
                     window: 3
-                    script: "MovingFunctions.windowMin(values)"
+                    script: "MovingFunctions.min(values)"
 
   - match: { hits.total: 6 }
   - length: { hits.hits: 0 }
@@ -121,7 +121,7 @@ setup:
   - match: { aggregations.the_histo.buckets.5.the_mov_fn.value: 3.0 }
 
 ---
-"windowSum":
+"sum":
 
   - do:
       search:
@@ -140,7 +140,7 @@ setup:
                   moving_fn:
                     buckets_path: "the_avg"
                     window: 3
-                    script: "MovingFunctions.windowSum(values)"
+                    script: "MovingFunctions.sum(values)"
 
   - match: { hits.total: 6 }
   - length: { hits.hits: 0 }
@@ -152,7 +152,7 @@ setup:
   - match: { aggregations.the_histo.buckets.5.the_mov_fn.value: 12.0 }
 
 ---
-"simpleMovAvg":
+"unweightedAvg":
 
   - do:
       search:
@@ -171,14 +171,14 @@ setup:
                   moving_fn:
                     buckets_path: "the_avg"
                     window: 3
-                    script: "MovingFunctions.simpleMovAvg(values)"
+                    script: "MovingFunctions.unweightedAvg(values)"
 
   - match: { hits.total: 6 }
   - length: { hits.hits: 0 }
 
 
 ---
-"linearMovAvg":
+"linearWeightedAvg":
 
   - do:
       search:
@@ -197,14 +197,14 @@ setup:
                   moving_fn:
                     buckets_path: "the_avg"
                     window: 3
-                    script: "MovingFunctions.linearMovAvg(values)"
+                    script: "MovingFunctions.linearWeightedAvg(values)"
 
   - match: { hits.total: 6 }
   - length: { hits.hits: 0 }
 
 
 ---
-"ewmaMovAvg":
+"ewma":
 
   - do:
       search:
@@ -223,14 +223,14 @@ setup:
                   moving_fn:
                     buckets_path: "the_avg"
                     window: 3
-                    script: "MovingFunctions.ewmaMovAvg(values, 0.1)"
+                    script: "MovingFunctions.ewma(values, 0.1)"
 
   - match: { hits.total: 6 }
   - length: { hits.hits: 0 }
 
 
 ---
-"holtMovAvg":
+"holt":
 
   - do:
       search:
@@ -249,14 +249,14 @@ setup:
                   moving_fn:
                     buckets_path: "the_avg"
                     window: 3
-                    script: "MovingFunctions.holtMovAvg(values, 0.1, 0.1)"
+                    script: "MovingFunctions.holt(values, 0.1, 0.1)"
 
   - match: { hits.total: 6 }
   - length: { hits.hits: 0 }
 
 
 ---
-"holtWintersMovAvg":
+"holtWinters":
 
   - do:
       search:
@@ -275,11 +275,35 @@ setup:
                   moving_fn:
                     buckets_path: "the_avg"
                     window: 1
-                    script: "if (values.size() > 1) { MovingFunctions.holtWintersMovAvg(values, 0.1, 0.1, 0.1, 1, true)}"
+                    script: "if (values.size() > 1) { MovingFunctions.holtWinters(values, 0.1, 0.1, 0.1, 1, true)}"
 
   - match: { hits.total: 6 }
   - length: { hits.hits: 0 }
 
+---
+"stdDev":
+
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            the_histo:
+              date_histogram:
+                field: "date"
+                interval: "1d"
+              aggs:
+                the_avg:
+                  avg:
+                    field: "value_field"
+                the_mov_fn:
+                  moving_fn:
+                    buckets_path: "the_avg"
+                    window: 3
+                    script: "MovingFunctions.stdDev(values, MovingFunctions.unweightedAvg(values))"
+
+  - match: { hits.total: 6 }
+  - length: { hits.hits: 0 }
 
 
 

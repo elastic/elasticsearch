@@ -141,7 +141,7 @@ public class HoltLinearModel extends MovAvgModel {
         if (values.size() == 0) {
             return emptyPredictions(numForecasts);
         }
-        return MovingFunctions.holtMovAvgForecast(values, alpha, beta, numForecasts);
+        return MovingFunctions.holtForecast(values, alpha, beta, numForecasts);
     }
 
     @Override

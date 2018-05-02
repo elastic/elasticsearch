@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.pipeline.movfn;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.function.ToDoubleFunction;
 
 /**
  * Provides a collection of static utility methods that can be referenced from MovingFunction script contexts
@@ -32,7 +31,7 @@ public class MovingFunctions {
      * Find the maximum value in a window of values.
      * If all values are missing/null/NaN, the return value will be NaN
      */
-    public static double windowMax(Collection<Double> values) {
+    public static double max(Collection<Double> values) {
         return values.stream().max(Double::compareTo).orElse(Double.NaN);
     }
 
@@ -40,7 +39,7 @@ public class MovingFunctions {
      * Find the minimum value in a window of values
      * If all values are missing/null/NaN, the return value will be NaN
      */
-    public static double windowMin(Collection<Double> values) {
+    public static double min(Collection<Double> values) {
         return values.stream().min(Double::compareTo).orElse(Double.NaN);
     }
 
@@ -48,7 +47,7 @@ public class MovingFunctions {
      * Find the sum of a window of values
      * If all values are missing/null/NaN, the return value will be 0.0
      */
-    public static double windowSum(Collection<Double> values) {
+    public static double sum(Collection<Double> values) {
         if (values.size() == 0) {
             return 0.0;
         }
@@ -67,7 +66,7 @@ public class MovingFunctions {
      * If all values are missing/null/NaN, the return value will be NaN.
      * The average is based on the count of non-null, non-NaN values.
      */
-    public static double simpleMovAvg(Collection<Double> values) {
+    public static double unweightedAvg(Collection<Double> values) {
         double avg = 0.0;
         long count = 0;
         for (Double v : values) {
@@ -86,7 +85,7 @@ public class MovingFunctions {
      * If all values are missing/null/NaN, the return value will be NaN.
      * The average is based on the count of non-null, non-NaN values.
      */
-    public static double windowStdDev(Collection<Double> values, double avg) {
+    public static double stdDev(Collection<Double> values, double avg) {
         if (avg == Double.NaN) {
             return Double.NaN;
         } else {
@@ -110,7 +109,7 @@ public class MovingFunctions {
      * If all values are missing/null/NaN, the return value will be NaN
      * The average is based on the count of non-null, non-NaN values.
      */
-    public static double linearMovAvg(Collection<Double> values) {
+    public static double linearWeightedAvg(Collection<Double> values) {
         double avg = 0;
         long totalWeight = 1;
         long current = 1;
@@ -139,7 +138,7 @@ public class MovingFunctions {
      *
      * @param alpha A double between 0-1 inclusive, controls data smoothing
      */
-    public static double ewmaMovAvg(Collection<Double> values, double alpha) {
+    public static double ewma(Collection<Double> values, double alpha) {
         double avg = Double.NaN;
         boolean first = true;
 
@@ -172,19 +171,19 @@ public class MovingFunctions {
      * @param alpha A double between 0-1 inclusive, controls data smoothing
      * @param beta a double between 0-1 inclusive, controls trend smoothing
      */
-    public static double holtMovAvg(Collection<Double> values, double alpha, double beta) {
+    public static double holt(Collection<Double> values, double alpha, double beta) {
         if (values.size() == 0) {
             return Double.NaN;
         }
 
-        return holtMovAvgForecast(values, alpha, beta, 1)[0];
+        return holtForecast(values, alpha, beta, 1)[0];
     }
 
     /**
      * Version of holt that can "forecast", not exposed as a whitelisted function for moving_fn scripts, but
      * here as compatibility/code sharing for existing moving_avg agg.  Can be removed when moving_avg is gone.
      */
-    public static double[] holtMovAvgForecast(Collection<Double> values, double alpha, double beta, int numForecasts) {
+    public static double[] holtForecast(Collection<Double> values, double alpha, double beta, int numForecasts) {
 
         // Smoothed value
         double s = 0;
@@ -246,7 +245,7 @@ public class MovingFunctions {
      * @param period the expected periodicity of the data
      * @param multiplicative true if multiplicative HW should be used. False for additive
      */
-    public static double holtWintersMovAvg(Collection<Double> values, double alpha, double beta, double gamma,
+    public static double holtWinters(Collection<Double> values, double alpha, double beta, double gamma,
                                            int period, boolean multiplicative) {
 
         if (values.size() == 0) {
@@ -254,14 +253,14 @@ public class MovingFunctions {
         }
 
         double padding = multiplicative ? 0.0000000001 : 0.0;
-        return holtWintersMovAvgForecast(values, alpha, beta, gamma, period, padding, multiplicative, 1)[0];
+        return holtWintersForecast(values, alpha, beta, gamma, period, padding, multiplicative, 1)[0];
     }
 
     /**
      * Version of holt-winters that can "forecast", not exposed as a whitelisted function for moving_fn scripts, but
      * here as compatibility/code sharing for existing moving_avg agg.  Can be removed when moving_avg is gone.
      */
-    public static double[] holtWintersMovAvgForecast(Collection<Double> values, double alpha, double beta, double gamma,
+    public static double[] holtWintersForecast(Collection<Double> values, double alpha, double beta, double gamma,
                                              int period, double padding, boolean multiplicative, int numForecasts) {
         if (values.size() < period * 2) {
             // We need at least two full "seasons" to use HW

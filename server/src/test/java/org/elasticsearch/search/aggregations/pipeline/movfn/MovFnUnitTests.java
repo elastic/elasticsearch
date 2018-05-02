@@ -125,14 +125,14 @@ public class MovFnUnitTests extends AggregatorTestCase {
             }
 
             ScriptService scriptService = mock(ScriptService.class);
-            MovFnScript.Factory factory = mock(MovFnScript.Factory.class);
-            when(scriptService.compile(script, MovFnScript.CONTEXT)).thenReturn(factory);
+            MovingFunctionScript.Factory factory = mock(MovingFunctionScript.Factory.class);
+            when(scriptService.compile(script, MovingFunctionScript.CONTEXT)).thenReturn(factory);
 
-            MovFnScript scriptInstance = new MovFnScript() {
+            MovingFunctionScript scriptInstance = new MovingFunctionScript() {
                 @Override
                 public double execute(Map<String, Object> params, Collection<Double> values) {
                     assertNotNull(values);
-                    return MovingFunctions.windowMax(values);
+                    return MovingFunctions.max(values);
                 }
             };
 

@@ -40,7 +40,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.search.aggregations.pipeline.movfn.MovFnScript;
+import org.elasticsearch.search.aggregations.pipeline.movfn.MovingFunctionScript;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -70,7 +70,7 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         // Moving Function Pipeline Agg
         List<Whitelist> movFn = new ArrayList<>(Whitelist.BASE_WHITELISTS);
         movFn.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.aggs.movfn.txt"));
-        map.put(MovFnScript.CONTEXT, movFn);
+        map.put(MovingFunctionScript.CONTEXT, movFn);
 
         whitelists = map;
     }

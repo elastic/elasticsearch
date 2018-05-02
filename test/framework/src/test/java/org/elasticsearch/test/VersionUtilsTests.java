@@ -24,9 +24,10 @@ import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 import static java.util.stream.Collectors.toCollection;
 import static java.util.stream.Collectors.toList;
@@ -107,11 +108,13 @@ public class VersionUtilsTests extends ESTestCase {
     }
 
     public static class TestReleaseBranch {
-        public static final Version V_5_3_0 = Version.fromString("5.3.0");
-        public static final Version V_5_3_1 = Version.fromString("5.3.1");
-        public static final Version V_5_3_2 = Version.fromString("5.3.2");
-        public static final Version V_5_4_0 = Version.fromString("5.4.0");
-        public static final Version V_5_4_1 = Version.fromString("5.4.1");
+        public static final Version V_4_0_0 = Version.fromString("4.0.0");
+        public static final Version V_4_0_1 = Version.fromString("4.0.1");
+        public static final Version V_5_3_0 = Version.fromString("5.0.0");
+        public static final Version V_5_3_1 = Version.fromString("5.0.1");
+        public static final Version V_5_3_2 = Version.fromString("5.0.2");
+        public static final Version V_5_4_0 = Version.fromString("5.1.0");
+        public static final Version V_5_4_1 = Version.fromString("5.1.1");
         public static final Version CURRENT = V_5_4_1;
     }
     public void testResolveReleasedVersionsForReleaseBranch() {
@@ -120,19 +123,24 @@ public class VersionUtilsTests extends ESTestCase {
         List<Version> unreleased = t.v2();
 
         assertThat(released, equalTo(Arrays.asList(
+            TestReleaseBranch.V_4_0_0,
             TestReleaseBranch.V_5_3_0,
             TestReleaseBranch.V_5_3_1,
             TestReleaseBranch.V_5_3_2,
             TestReleaseBranch.V_5_4_0)));
-        assertThat(unreleased, equalTo(Collections.singletonList(TestReleaseBranch.V_5_4_1)));
+        assertThat(unreleased, equalTo(Arrays.asList(
+            TestReleaseBranch.V_4_0_1,
+            TestReleaseBranch.V_5_4_1)));
     }
 
     public static class TestStableBranch {
-        public static final Version V_5_3_0 = Version.fromString("5.3.0");
-        public static final Version V_5_3_1 = Version.fromString("5.3.1");
-        public static final Version V_5_3_2 = Version.fromString("5.3.2");
-        public static final Version V_5_4_0 = Version.fromString("5.4.0");
-        public static final Version CURRENT = V_5_4_0;
+        public static final Version V_4_0_0 = Version.fromString("4.0.0");
+        public static final Version V_4_0_1 = Version.fromString("4.0.1");
+        public static final Version V_5_0_0 = Version.fromString("5.0.0");
+        public static final Version V_5_0_1 = Version.fromString("5.0.1");
+        public static final Version V_5_0_2 = Version.fromString("5.0.2");
+        public static final Version V_5_1_0 = Version.fromString("5.1.0");
+        public static final Version CURRENT = V_5_1_0;
     }
     public void testResolveReleasedVersionsForUnreleasedStableBranch() {
         Tuple<List<Version>, List<Version>> t = VersionUtils.resolveReleasedVersions(TestStableBranch.CURRENT,
@@ -141,14 +149,18 @@ public class VersionUtilsTests extends ESTestCase {
         List<Version> unreleased = t.v2();
 
         assertThat(released, equalTo(Arrays.asList(
-            TestStableBranch.V_5_3_0,
-            TestStableBranch.V_5_3_1)));
+            TestStableBranch.V_4_0_0,
+            TestStableBranch.V_5_0_0,
+            TestStableBranch.V_5_0_1)));
         assertThat(unreleased, equalTo(Arrays.asList(
-            TestStableBranch.V_5_3_2,
-            TestStableBranch.V_5_4_0)));
+            TestStableBranch.V_4_0_1,
+            TestStableBranch.V_5_0_2,
+            TestStableBranch.V_5_1_0)));
     }
 
     public static class TestStableBranchBehindStableBranch {
+        public static final Version V_4_0_0 = Version.fromString("4.0.0");
+        public static final Version V_4_0_1 = Version.fromString("4.0.1");
         public static final Version V_5_3_0 = Version.fromString("5.3.0");
         public static final Version V_5_3_1 = Version.fromString("5.3.1");
         public static final Version V_5_3_2 = Version.fromString("5.3.2");
@@ -163,9 +175,11 @@ public class VersionUtilsTests extends ESTestCase {
         List<Version> unreleased = t.v2();
 
         assertThat(released, equalTo(Arrays.asList(
+            TestStableBranchBehindStableBranch.V_4_0_0,
             TestStableBranchBehindStableBranch.V_5_3_0,
             TestStableBranchBehindStableBranch.V_5_3_1)));
         assertThat(unreleased, equalTo(Arrays.asList(
+            TestStableBranchBehindStableBranch.V_4_0_1,
             TestStableBranchBehindStableBranch.V_5_3_2,
             TestStableBranchBehindStableBranch.V_5_4_0,
             TestStableBranchBehindStableBranch.V_5_5_0)));
@@ -221,13 +235,13 @@ public class VersionUtilsTests extends ESTestCase {
         assertThat(released, equalTo(Arrays.asList(
             TestNewMajorRelease.V_5_6_0,
             TestNewMajorRelease.V_5_6_1,
-            TestNewMajorRelease.V_5_6_2,
             TestNewMajorRelease.V_6_0_0_alpha1,
             TestNewMajorRelease.V_6_0_0_alpha2,
             TestNewMajorRelease.V_6_0_0_beta1,
             TestNewMajorRelease.V_6_0_0_beta2,
             TestNewMajorRelease.V_6_0_0)));
         assertThat(unreleased, equalTo(Arrays.asList(
+            TestNewMajorRelease.V_5_6_2,
             TestNewMajorRelease.V_6_0_1)));
     }
 
@@ -306,6 +320,8 @@ public class VersionUtilsTests extends ESTestCase {
     }
 
     public static class TestIncorrectCurrentVersion {
+        public static final Version V_4_0_0 = Version.fromString("4.0.0");
+        public static final Version V_4_0_1 = Version.fromString("4.0.1");
         public static final Version V_5_3_0 = Version.fromString("5.3.0");
         public static final Version V_5_3_1 = Version.fromString("5.3.1");
         public static final Version V_5_4_0 = Version.fromString("5.4.0");
@@ -321,6 +337,44 @@ public class VersionUtilsTests extends ESTestCase {
         String message = error.getMessage();
         assertThat(message, containsString(TestIncorrectCurrentVersion.CURRENT.toString()));
         assertThat(message, containsString(previousVersion.toString()));
+    }
+
+    public void testIsMajorReleased() {
+        TreeSet<Version> versions = new TreeSet<>(VersionUtils.allReleasedVersions());
+        assertTrue(VersionUtils.isMajorReleased(VersionUtils.generateVersion(6, 0, 0), versions));
+        assertFalse(VersionUtils.isMajorReleased(VersionUtils.generateVersion(versions.last().major + 1, 0, 0), versions));
+        assertFalse(VersionUtils.isMajorReleased(VersionUtils.generateVersion(6, 0, 0), new TreeSet<>()));
+    }
+
+    public void testGetHighestPreviousMinor() {
+        TreeSet<Version> versions = new TreeSet<>(VersionUtils.allReleasedVersions());
+        int majorVersion = 6;
+        Version highestPreviousMinor = VersionUtils.getHighestPreviousMinor(majorVersion, versions);
+        Version shouldBeVersion = null;
+        for (Version version: VersionUtils.allReleasedVersions()) {
+            if (highestPreviousMinor.compareTo(version) >= 0) {
+                shouldBeVersion = version;
+            } else {
+                break;
+            }
+        }
+        assertThat(highestPreviousMinor, equalTo(shouldBeVersion));
+    }
+
+    public void testGetMinorSetForMajor() {
+        TreeSet<Version> versions = new TreeSet<>(VersionUtils.allReleasedVersions());
+        int majorVersion = 6;
+        int minorVersion = 2;
+        SortedSet<Version> minorSet = VersionUtils.getMinorSetForMajor(majorVersion, minorVersion, versions);
+        SortedSet<Version> expectedSet = new TreeSet<>();
+
+        for (Version version: VersionUtils.allReleasedVersions()) {
+            if (version.major == majorVersion && version.minor == minorVersion) {
+                expectedSet.add(version);
+            }
+        }
+
+        assertThat(minorSet, equalTo(expectedSet));
     }
 
     /**

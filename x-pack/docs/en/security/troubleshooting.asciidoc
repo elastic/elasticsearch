@@ -64,15 +64,15 @@ the users. Any unknown roles are marked with `*`.
 --
 [source, shell]
 ------------------------------------------
-bin/xpack/users list
+bin/elasticsearch-users list
 rdeniro        : admin
 alpacino       : power_user
 jacknich       : monitoring,unknown_role* <1>
 ------------------------------------------
 <1> `unknown_role` was not found in `roles.yml`
 
-For more information about this command, see
-{ref}/users-command.html[Users Command].
+For more information about this command, see the 
+{ref}/users-command.html[`elasticsearch-users` command].
 --
 
 . If you are authenticating to LDAP, a number of configuration options can cause

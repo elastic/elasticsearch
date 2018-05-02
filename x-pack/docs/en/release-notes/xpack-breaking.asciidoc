@@ -12,8 +12,8 @@ your application from one version of {xpack} to another.
 See also:
 
 * <<breaking-changes,{es} Breaking Changes>>
-* {kibana-ref}/breaking-changes-xkb.html[{kib} {xpack} Breaking Changes]
-* {logstash-ref}/breaking-changes-xls.html[Logstash {xpack} Breaking Changes]
+* {kibana-ref}/breaking-changes.html[{kib} Breaking Changes]
+* {logstash-ref}/breaking-changes.html[Logstash Breaking Changes]
 
 --
 

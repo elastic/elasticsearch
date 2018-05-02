@@ -40,11 +40,15 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
     }
 
     @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
+    }
+
+    @Override
     public Settings nodeSettings(int nodeOrdinal) {
         logger.info("--> use SSL? {}", useSSL);
         Settings s = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .put("xpack.security.http.ssl.enabled", useSSL)
                 .build();
         return s;

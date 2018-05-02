@@ -51,7 +51,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
                 "  }" +
                 "}";
 
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(newParser(source));
+        SearchTemplateRequest request = SearchTemplateRequest.fromXContent(newParser(source));
         assertThat(request.getScript(), equalTo("{\"query\":{\"terms\":{\"status\":[\"{{#status}}\",\"{{.}}\",\"{{/status}}\"]}}}"));
         assertThat(request.getScriptType(), equalTo(ScriptType.INLINE));
         assertThat(request.getScriptParams(), nullValue());
@@ -70,7 +70,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
                 "    }" +
                 "}";
 
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(newParser(source));
+        SearchTemplateRequest request = SearchTemplateRequest.fromXContent(newParser(source));
         assertThat(request.getScript(), equalTo("{\"query\":{\"match\":{\"{{my_field}}\":\"{{my_value}}\"}},\"size\":\"{{my_size}}\"}"));
         assertThat(request.getScriptType(), equalTo(ScriptType.INLINE));
         assertThat(request.getScriptParams().size(), equalTo(3));
@@ -82,7 +82,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
     public void testParseInlineTemplateAsString() throws Exception {
         String source = "{'source' : '{\\\"query\\\":{\\\"bool\\\":{\\\"must\\\":{\\\"match\\\":{\\\"foo\\\":\\\"{{text}}\\\"}}}}}'}";
 
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(newParser(source));
+        SearchTemplateRequest request = SearchTemplateRequest.fromXContent(newParser(source));
         assertThat(request.getScript(), equalTo("{\"query\":{\"bool\":{\"must\":{\"match\":{\"foo\":\"{{text}}\"}}}}}"));
         assertThat(request.getScriptType(), equalTo(ScriptType.INLINE));
         assertThat(request.getScriptParams(), nullValue());
@@ -93,7 +93,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
         String source = "{'source' : '{\\\"query\\\":{\\\"match\\\":{\\\"{{field}}\\\":\\\"{{value}}\\\"}}}', " +
                 "'params': {'status': ['pending', 'published']}}";
 
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(newParser(source));
+        SearchTemplateRequest request = SearchTemplateRequest.fromXContent(newParser(source));
         assertThat(request.getScript(), equalTo("{\"query\":{\"match\":{\"{{field}}\":\"{{value}}\"}}}"));
         assertThat(request.getScriptType(), equalTo(ScriptType.INLINE));
         assertThat(request.getScriptParams().size(), equalTo(1));
@@ -104,7 +104,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
     public void testParseStoredTemplate() throws Exception {
         String source = "{'id' : 'storedTemplate'}";
 
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(newParser(source));
+        SearchTemplateRequest request = SearchTemplateRequest.fromXContent(newParser(source));
         assertThat(request.getScript(), equalTo("storedTemplate"));
         assertThat(request.getScriptType(), equalTo(ScriptType.STORED));
         assertThat(request.getScriptParams(), nullValue());
@@ -113,7 +113,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
     public void testParseStoredTemplateWithParams() throws Exception {
         String source = "{'id' : 'another_template', 'params' : {'bar': 'foo'}}";
 
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(newParser(source));
+        SearchTemplateRequest request = SearchTemplateRequest.fromXContent(newParser(source));
         assertThat(request.getScript(), equalTo("another_template"));
         assertThat(request.getScriptType(), equalTo(ScriptType.STORED));
         assertThat(request.getScriptParams().size(), equalTo(1));
@@ -122,7 +122,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
 
     public void testParseWrongTemplate() {
         // Unclosed template id
-        expectThrows(XContentParseException.class, () -> RestSearchTemplateAction.parse(newParser("{'id' : 'another_temp }")));
+        expectThrows(XContentParseException.class, () -> SearchTemplateRequest.fromXContent(newParser("{'id' : 'another_temp }")));
     }
 
     /**

@@ -23,8 +23,15 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ScriptType;
 
 import java.io.IOException;
@@ -132,6 +139,37 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
             }
         }
         return validationException;
+    }
+
+    private static final ObjectParser<SearchTemplateRequest, Void> PARSER;
+    static {
+        PARSER = new ObjectParser<>("search_template");
+        PARSER.declareField((parser, request, s) ->
+                request.setScriptParams(parser.map())
+            , new ParseField("params"), ObjectParser.ValueType.OBJECT);
+        PARSER.declareString((request, s) -> {
+            request.setScriptType(ScriptType.STORED);
+            request.setScript(s);
+        }, new ParseField("id"));
+        PARSER.declareBoolean(SearchTemplateRequest::setExplain, new ParseField("explain"));
+        PARSER.declareBoolean(SearchTemplateRequest::setProfile, new ParseField("profile"));
+        PARSER.declareField((parser, request, value) -> {
+            request.setScriptType(ScriptType.INLINE);
+            if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                //convert the template to json which is the only supported XContentType (see CustomMustacheFactory#createEncoder)
+                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                    request.setScript(Strings.toString(builder.copyCurrentStructure(parser)));
+                } catch (IOException e) {
+                    throw new ParsingException(parser.getTokenLocation(), "Could not parse inline template", e);
+                }
+            } else {
+                request.setScript(parser.text());
+            }
+        }, new ParseField("source", "inline", "template"), ObjectParser.ValueType.OBJECT_OR_STRING);
+    }
+
+    public static SearchTemplateRequest fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, new SearchTemplateRequest(), null);
     }
 
     @Override

@@ -95,6 +95,13 @@ Java High Level REST Client::
 Java Low Level REST Client::
 * REST client: hosts marked dead for the first time should not be immediately retried {pull}29230[#29230]
 
+Machine Learning::
+* Prevents failed jobs from mistakenly re-opening after node loss recovery. 
+* Returns an error when an operation cannot be submitted because the process was 
+killed. 
+* Respects the datafeed frequency when it is less or equal to the 
+`query_delay` setting.  
+
 Network::
 * Cross-cluster search and default connections can get crossed [OPEN] [ISSUE] {pull}29321[#29321]
 
@@ -110,8 +117,20 @@ Plugins::
 Search::
 * Propagate ignore_unmapped to inner_hits {pull}29261[#29261] (issue: {issue}29071[#29071])
 
+Security/Authentication::
+* Adds missing `idp.use_single_logout` and `populate_user_metadata` SAML realm 
+settings. See <<ref-saml-settings>>. 
+
 Settings::
 * Archive unknown or invalid settings on updates {pull}28888[#28888] (issue: {issue}28609[#28609])
+
+Watcher::
+* Re-enables `smtp.*` account configuration properties in the notification 
+settings. See <<email-notification-settings>>.  
+* Ensures starting and stopping {watcher} is properly acknowledged as a master 
+node action. 
+* Refrains from appending a question mark to an HTTP request if no parameters 
+are used. 
 
 //[float]
 //=== Regressions
@@ -161,6 +180,14 @@ Ingest::
 Java High Level REST Client::
 * REST high-level client: encode path parts {pull}28663[#28663] (issue: {issue}28625[#28625])
 
+Machine Learning::
+* Fixed the <<ml-get-datafeed-stats,get datafeed statistics API>> such that it
+returns only machine learning-specific node attributes.
+
+Monitoring::
+* Aligned reporting of index statistics that exist in the current cluster state.
+This fix avoids subtle race conditions in stats reporting.
+
 Packaging::
 * Delay path expansion on Windows {pull}28753[#28753] (issues: {issue}27675[#27675], {issue}28748[#28748])
 
@@ -168,11 +195,31 @@ Percolator::
 * Fix percolator query analysis for function_score query {pull}28854[#28854]
 * Improved percolator's random candidate query duel test {pull}28840[#28840]
 
+Security::
+* Fixed handling of comments in XML documents [ESA-2018-07].
+* Fixed auditing such that when you use a local audit index, it maintains the
+mappings automatically. Maintenance is necessary, for example, when new fields
+are introduced or document types change.
+* Added and changed settings for the SAML NameID policy. For example, added the
+`nameid.allow_create` setting and changed the default value for
+the SPNameQualifier setting to blank. See {xpack-ref}/saml-realm.html[SAML Authentication].
+* Fixed handling of an Assertion Consumer Service (ACS) URL with existing query
+parameters. See {xpack-ref}/saml-realm.html[SAML Authentication].
+* Fixed the PKI realm bootstrap check such that it works with secure settings.
+For more information, see <<bootstrap-checks-xpack>>.
+
 Snapshot/Restore::
 * Fix NPE when using deprecated Azure settings {pull}28769[#28769] (issues: {issue}23518[#23518], {issue}28299[#28299])
 
 Stats::
 * Fix AdaptiveSelectionStats serialization bug {pull}28718[#28718] (issue: {issue}28713[#28713])
+
+Watcher::
+* Fixed the serialization of failed hipchat messages, such that it no longer
+tries to write the status field twice.
+* Fixed TransformInput toXContent serialization errors. For more information,
+see
+{xpack-ref}/input-chain.html#_transforming_chained_input_data[Transforming Chained Input Data].
 
 //[float]
 //=== Regressions

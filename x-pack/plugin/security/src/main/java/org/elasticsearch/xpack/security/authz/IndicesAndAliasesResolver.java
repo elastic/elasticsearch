@@ -366,7 +366,7 @@ public class IndicesAndAliasesResolver {
             return indicesOptions.ignoreAliases() == false;
         }
         assert aliasOrIndex.getIndices().size() == 1 : "concrete index must point to a single index";
-        IndexMetaData indexMetaData = aliasOrIndex.getIndices().get(0);
+        IndexMetaData indexMetaData = aliasOrIndex.getIndices().iterator().next();
         if (indexMetaData.getState() == IndexMetaData.State.CLOSE && (indicesOptions.expandWildcardsClosed() || dateMathExpression)) {
             return true;
         }

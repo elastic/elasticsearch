@@ -500,7 +500,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     private static Index resolveSecurityIndex(MetaData metaData) {
         final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(SECURITY_INDEX_NAME);
         if (aliasOrIndex != null) {
-            return aliasOrIndex.getIndices().get(0).getIndex();
+            return aliasOrIndex.getIndices().iterator().next().getIndex();
         }
         return null;
     }

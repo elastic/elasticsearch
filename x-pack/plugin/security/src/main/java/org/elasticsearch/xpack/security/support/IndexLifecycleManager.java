@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.core.upgrade.IndexUpgradeCheckVersion;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -259,12 +260,12 @@ public class IndexLifecycleManager extends AbstractComponent {
     private static IndexMetaData resolveConcreteIndex(final String indexOrAliasName, final MetaData metaData) {
         final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(indexOrAliasName);
         if (aliasOrIndex != null) {
-            final List<IndexMetaData> indices = aliasOrIndex.getIndices();
+            final Collection<IndexMetaData> indices = aliasOrIndex.getIndices();
             if (aliasOrIndex.isAlias() && indices.size() > 1) {
                 throw new IllegalStateException("Alias [" + indexOrAliasName + "] points to more than one index: " +
                         indices.stream().map(imd -> imd.getIndex().getName()).collect(Collectors.toList()));
             }
-            return indices.get(0);
+            return indices.iterator().next();
         }
         return null;
     }

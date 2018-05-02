@@ -71,6 +71,7 @@ import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -338,12 +339,12 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail {
         AliasOrIndex aliasOrIndex = state.getMetaData().getAliasAndIndexLookup().get(index);
         if (aliasOrIndex != null) {
             // check mappings
-            final List<IndexMetaData> indices = aliasOrIndex.getIndices();
+            final Collection<IndexMetaData> indices = aliasOrIndex.getIndices();
             if (aliasOrIndex.isAlias() && indices.size() > 1) {
                 throw new IllegalStateException("Alias [" + index + "] points to more than one index: " +
                         indices.stream().map(imd -> imd.getIndex().getName()).collect(Collectors.toList()));
             }
-            IndexMetaData indexMetaData = indices.get(0);
+            IndexMetaData indexMetaData = indices.iterator().next();
             MappingMetaData docMapping = indexMetaData.mapping("doc");
             if (docMapping == null) {
                 if (indexToRemoteCluster || state.nodes().isLocalNodeElectedMaster()) {

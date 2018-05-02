@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.indices.shrink;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -55,6 +56,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
     private CreateIndexRequest targetIndexRequest;
     private String sourceIndex;
     private ResizeType type = ResizeType.SHRINK;
+    private boolean copySettings = false;
 
     ResizeRequest() {}
 
@@ -96,6 +98,11 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         } else {
             type = ResizeType.SHRINK; // BWC this used to be shrink only
         }
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+            copySettings = in.readBoolean();
+        } else {
+            copySettings = false;
+        }
     }
 
     @Override
@@ -105,6 +112,9 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         out.writeString(sourceIndex);
         if (out.getVersion().onOrAfter(ResizeAction.COMPATIBILITY_VERSION)) {
             out.writeEnum(type);
+        }
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+            out.writeBoolean(copySettings);
         }
     }
 
@@ -175,6 +185,14 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
      */
     public ResizeType getResizeType() {
         return type;
+    }
+
+    public void setCopySettings(final boolean copySettings) {
+        this.copySettings = copySettings;
+    }
+
+    public boolean getCopySettings() {
+        return copySettings;
     }
 
     @Override

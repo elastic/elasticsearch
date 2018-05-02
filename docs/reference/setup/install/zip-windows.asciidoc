@@ -9,6 +9,8 @@ TIP: Elasticsearch has historically been installed on Windows using the `.zip` a
 An <<windows, MSI installer package>> is available that provides the easiest getting started
 experience for Windows. You can continue using the `.zip` approach if you prefer.
 
+include::license.asciidoc[]
+
 The latest stable version of Elasticsearch can be found on the
 link:/downloads/elasticsearch[Download Elasticsearch] page.
 Other versions can be found on the
@@ -30,6 +32,10 @@ endif::[]
 ifeval::["{release-state}"!="unreleased"]
 
 Download the `.zip` archive for Elasticsearch v{version} from: https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.zip
+
+Alternatively, you can download the following package, which contains only 
+features that are available under the Apache 2.0 license: 
+https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}.zip
 
 Unzip it with your favourite unzip tool.  This will create a folder called
 +elasticsearch-{version}+, which we will refer to as `%ES_HOME%`. In a terminal

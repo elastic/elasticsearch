@@ -60,8 +60,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
-//animal-sniffer doesn't like our usage of com.sun.net.httpserver.* classes
-@IgnoreJRERequirement
 public class ElasticsearchHostsSnifferTests extends RestClientTestCase {
 
     private int sniffRequestTimeout;

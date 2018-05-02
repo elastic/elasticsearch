@@ -285,7 +285,7 @@ public enum FieldData {
 
     /**
      * Returns whether the provided values *might* be multi-valued. There is no
-     * guarantee that this method will return <tt>false</tt> in the single-valued case.
+     * guarantee that this method will return {@code false} in the single-valued case.
      */
     public static boolean isMultiValued(SortedSetDocValues values) {
         return DocValues.unwrapSingleton(values) == null;
@@ -293,7 +293,7 @@ public enum FieldData {
 
     /**
      * Returns whether the provided values *might* be multi-valued. There is no
-     * guarantee that this method will return <tt>false</tt> in the single-valued case.
+     * guarantee that this method will return {@code false} in the single-valued case.
      */
     public static boolean isMultiValued(SortedNumericDocValues values) {
         return DocValues.unwrapSingleton(values) == null;
@@ -301,7 +301,7 @@ public enum FieldData {
 
     /**
      * Returns whether the provided values *might* be multi-valued. There is no
-     * guarantee that this method will return <tt>false</tt> in the single-valued case.
+     * guarantee that this method will return {@code false} in the single-valued case.
      */
     public static boolean isMultiValued(SortedNumericDoubleValues values) {
         return unwrapSingleton(values) == null;
@@ -309,7 +309,7 @@ public enum FieldData {
 
     /**
      * Returns whether the provided values *might* be multi-valued. There is no
-     * guarantee that this method will return <tt>false</tt> in the single-valued case.
+     * guarantee that this method will return {@code false} in the single-valued case.
      */
     public static boolean isMultiValued(SortedBinaryDocValues values) {
         return unwrapSingleton(values) != null;
@@ -317,7 +317,7 @@ public enum FieldData {
 
     /**
      * Returns whether the provided values *might* be multi-valued. There is no
-     * guarantee that this method will return <tt>false</tt> in the single-valued case.
+     * guarantee that this method will return {@code false} in the single-valued case.
      */
     public static boolean isMultiValued(MultiGeoPointValues values) {
         return unwrapSingleton(values) == null;

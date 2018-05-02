@@ -31,7 +31,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
@@ -230,7 +229,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(operation.id()).thenReturn("_id");
         when(operation.type()).thenReturn(Watch.DOC_TYPE);
         when(shardId.getIndexName()).thenReturn("anything");
-        when(result.hasFailure()).thenReturn(false);
+        when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
 
         listener.postIndex(shardId, operation, new ElasticsearchParseException("whatever"));
         verifyZeroInteractions(triggerService);

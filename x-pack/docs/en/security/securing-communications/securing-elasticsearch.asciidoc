@@ -20,9 +20,13 @@ information, see <<security-settings>>.
 .. Required: <<tls-transport,Enable TLS on the transport layer>>.
 .. Recommended: <<tls-http,Enable TLS on the HTTP layer>>.
 
+. If you are using Active Directory user authentication, 
+<<tls-active-directory,encrypt communications between {es} and your Active Directory server>>. 
+
 For more information about encrypting communications across the Elastic Stack,
 see {xpack-ref}/encrypting-communications.html[Encrypting Communications].
 
 include::node-certificates.asciidoc[]
 include::tls-transport.asciidoc[]
 include::tls-http.asciidoc[]
+include::tls-ad.asciidoc[]

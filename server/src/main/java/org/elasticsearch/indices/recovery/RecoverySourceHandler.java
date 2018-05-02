@@ -144,7 +144,7 @@ public class RecoverySourceHandler {
                 throw new DelayRecoveryException("source node does not have the shard listed in its state as allocated on the node");
             }
             assert targetShardRouting.initializing() : "expected recovery target to be initializing but was " + targetShardRouting;
-        }, shardId + " validating recovery target ["+ request.targetAllocationId() + "] registered ", shard, cancellableThreads);
+        }, shardId + " validating recovery target ["+ request.targetAllocationId() + "] registered ", shard, cancellableThreads, logger);
 
         try (Closeable ignored = shard.acquireTranslogRetentionLock()) {
             final long startingSeqNo;
@@ -198,7 +198,7 @@ public class RecoverySourceHandler {
              * all documents up to maxSeqNo in phase2.
              */
             runUnderPrimaryPermit(() -> shard.initiateTracking(request.targetAllocationId()),
-                shardId + " initiating tracking of " + request.targetAllocationId(), shard, cancellableThreads);
+                shardId + " initiating tracking of " + request.targetAllocationId(), shard, cancellableThreads, logger);
 
             final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
             /*
@@ -230,7 +230,7 @@ public class RecoverySourceHandler {
     }
 
     static void runUnderPrimaryPermit(CancellableThreads.Interruptable runnable, String reason,
-                                      IndexShard primary, CancellableThreads cancellableThreads) {
+                                      IndexShard primary, CancellableThreads cancellableThreads, Logger logger) {
         cancellableThreads.execute(() -> {
             CompletableFuture<Releasable> permit = new CompletableFuture<>();
             final ActionListener<Releasable> onAcquired = new ActionListener<Releasable>() {
@@ -259,6 +259,9 @@ public class RecoverySourceHandler {
                 permit.whenComplete((r, e) -> {
                     if (r != null) {
                         r.close();
+                    }
+                    if (e != null) {
+                        logger.trace("suppressing exception on completion (it was already bubbled up or the operation was aborted)", e);
                     }
                 });
             }
@@ -512,11 +515,11 @@ public class RecoverySourceHandler {
          * the permit then the state of the shard will be relocated and this recovery will fail.
          */
         runUnderPrimaryPermit(() -> shard.markAllocationIdAsInSync(request.targetAllocationId(), targetLocalCheckpoint),
-            shardId + " marking " + request.targetAllocationId() + " as in sync", shard, cancellableThreads);
+            shardId + " marking " + request.targetAllocationId() + " as in sync", shard, cancellableThreads, logger);
         final long globalCheckpoint = shard.getGlobalCheckpoint();
         cancellableThreads.executeIO(() -> recoveryTarget.finalizeRecovery(globalCheckpoint));
         runUnderPrimaryPermit(() -> shard.updateGlobalCheckpointForShard(request.targetAllocationId(), globalCheckpoint),
-            shardId + " updating " + request.targetAllocationId() + "'s global checkpoint", shard, cancellableThreads);
+            shardId + " updating " + request.targetAllocationId() + "'s global checkpoint", shard, cancellableThreads, logger);
 
         if (request.isPrimaryRelocation()) {
             logger.trace("performing relocation hand-off");

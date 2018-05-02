@@ -445,7 +445,7 @@ public class RequestConvertersTests extends ESTestCase {
             }
         }
 
-        Request request = Request.getSettings(getSettingsRequest);
+        Request request = RequestConverters.getSettings(getSettingsRequest);
 
         assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
         assertThat(request.getParameters(), equalTo(expectedParams));

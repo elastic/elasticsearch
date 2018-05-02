@@ -77,6 +77,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.Segment;
@@ -237,7 +238,8 @@ public class IndexShardTests extends IndexShardTestCase {
         assertNotNull(shardPath);
         // fail shard
         shard.failShard("test shard fail", new CorruptIndexException("", ""));
-        closeShards(shard);
+        shard.close("do not assert history", false);
+        shard.store().close();
         // check state file still exists
         ShardStateMetaData shardStateMetaData = load(logger, shardPath.getShardStatePath());
         assertEquals(shardStateMetaData, getShardStateMetadata(shard));
@@ -3088,13 +3090,23 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testSupplyTombstoneDoc() throws Exception {
         IndexShard shard = newStartedShard();
         String id = randomRealisticUnicodeOfLengthBetween(1, 10);
-        ParsedDocument tombstone = shard.getEngine().config().getTombstoneDocSupplier().newTombstoneDoc("doc", id);
-        assertThat(tombstone.docs(), hasSize(1));
-        ParseContext.Document doc = tombstone.docs().get(0);
-        assertThat(doc.getFields().stream().map(IndexableField::name).collect(Collectors.toList()),
+        ParsedDocument deleteTombstone = shard.getEngine().config().getTombstoneDocSupplier().newDeleteTombstoneDoc("doc", id);
+        assertThat(deleteTombstone.docs(), hasSize(1));
+        ParseContext.Document deleteDoc = deleteTombstone.docs().get(0);
+        assertThat(deleteDoc.getFields().stream().map(IndexableField::name).collect(Collectors.toList()),
+            containsInAnyOrder(IdFieldMapper.NAME, VersionFieldMapper.NAME,
+                SeqNoFieldMapper.NAME, SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME, SeqNoFieldMapper.TOMBSTONE_NAME));
+        assertThat(deleteDoc.getField(IdFieldMapper.NAME).binaryValue(), equalTo(Uid.encodeId(id)));
+        assertThat(deleteDoc.getField(SeqNoFieldMapper.TOMBSTONE_NAME).numericValue().longValue(), equalTo(1L));
+
+        ParsedDocument noopTombstone = shard.getEngine().config().getTombstoneDocSupplier().newNoopTombstoneDoc();
+        assertThat(noopTombstone.docs(), hasSize(1));
+        ParseContext.Document noopDoc = noopTombstone.docs().get(0);
+        assertThat(noopDoc.getFields().stream().map(IndexableField::name).collect(Collectors.toList()),
             containsInAnyOrder(SeqNoFieldMapper.NAME, SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME,
-                IdFieldMapper.NAME, VersionFieldMapper.NAME));
-        assertThat(doc.getField(IdFieldMapper.NAME).binaryValue(), equalTo(Uid.encodeId(id)));
+                SeqNoFieldMapper.TOMBSTONE_NAME));
+        assertThat(noopDoc.getField(SeqNoFieldMapper.TOMBSTONE_NAME).numericValue().longValue(), equalTo(1L));
+
         closeShards(shard);
     }
 

@@ -391,6 +391,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
                 assertThat(shard.getLocalCheckpoint(), equalTo(numDocs + moreDocs));
             }
         }, 30, TimeUnit.SECONDS);
+        internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
     }
 
 }

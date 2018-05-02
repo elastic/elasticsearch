@@ -67,6 +67,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -784,7 +785,9 @@ public class InternalEngine extends Engine {
                         location = translog.add(new Translog.Index(index, indexResult));
                     } else if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                         // if we have document failure, record it as a no-op in the translog with the generated seq_no
-                        location = translog.add(new Translog.NoOp(indexResult.getSeqNo(), index.primaryTerm(), indexResult.getFailure().getMessage()));
+                        final NoOp noOp = new NoOp(indexResult.getSeqNo(), index.primaryTerm(), index.origin(),
+                            index.startTime(), indexResult.getFailure().getMessage());
+                        location = innerNoOp(noOp).getTranslogLocation();
                     } else {
                         location = null;
                     }
@@ -1226,11 +1229,13 @@ public class InternalEngine extends Engine {
         throws IOException {
         try {
             if (softDeleteEnabled) {
-                final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newTombstoneDoc(delete.type(), delete.id());
+                final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newDeleteTombstoneDoc(delete.type(), delete.id());
                 assert tombstone.docs().size() == 1 : "Tombstone doc should have single doc [" + tombstone + "]";
                 tombstone.updateSeqID(plan.seqNoOfDeletion, delete.primaryTerm());
                 tombstone.version().setLongValue(plan.versionOfDeletion);
                 final ParseContext.Document doc = tombstone.docs().get(0);
+                assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null :
+                    "Delete tombstone document but _tombstone field is not set [" + doc + " ]";
                 doc.add(softDeleteField);
                 if (plan.addStaleOpToLucene || plan.currentlyDeleted) {
                     indexWriter.addDocument(doc);
@@ -1334,7 +1339,25 @@ public class InternalEngine extends Engine {
         assert noOp.seqNo() > SequenceNumbers.NO_OPS_PERFORMED;
         final long seqNo = noOp.seqNo();
         try {
-            final NoOpResult noOpResult = new NoOpResult(noOp.seqNo());
+            Exception failure = null;
+            if (softDeleteEnabled) {
+                try {
+                    final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newNoopTombstoneDoc();
+                    tombstone.updateSeqID(noOp.seqNo(), noOp.primaryTerm());
+                    assert tombstone.docs().size() == 1 : "Tombstone should have a single doc [" + tombstone + "]";
+                    final ParseContext.Document doc = tombstone.docs().get(0);
+                    assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null
+                        : "Noop tombstone document but _tombstone field is not set [" + doc + " ]";
+                    doc.add(softDeleteField);
+                    indexWriter.addDocument(doc);
+                } catch (Exception ex) {
+                    if (maybeFailEngine("noop", ex)) {
+                        throw ex;
+                    }
+                    failure = ex;
+                }
+            }
+            final NoOpResult noOpResult = failure != null ? new NoOpResult(noOp.seqNo(), failure) : new NoOpResult(noOp.seqNo());
             if (noOp.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
                 final Translog.Location location = translog.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
                 noOpResult.setTranslogLocation(location);

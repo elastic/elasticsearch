@@ -282,7 +282,7 @@ public class FollowingEngineTests extends ESTestCase {
                 new NoneCircuitBreakerService(),
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 () -> primaryTerm.get(),
-                EngineTestCase::createTombstoneDoc
+                EngineTestCase.tombstoneDocSupplier()
         );
     }
 

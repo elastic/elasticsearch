@@ -67,10 +67,12 @@ public abstract class Predicates {
             return null;
         }
 
+        // clone the list (to modify it)
         List<Expression> result = new ArrayList<>(exps);
 
         while (result.size() > 1) {
             // combine (in place) expressions in pairs
+            // NB: this loop modifies the list (just like an array)
             for (int i = 0; i < result.size() - 1; i++) {
                 Expression l = result.remove(i);
                 Expression r = result.remove(i);

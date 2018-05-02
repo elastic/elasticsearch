@@ -1512,7 +1512,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             if (!main.lower().foldable() && !main.upper().foldable()) {
                 return false;
             }
-
+            // NB: the loop modifies the list (hence why the int is used)
             for (int i = 0; i < ranges.size(); i++) {
                 Range other = ranges.get(i);
 
@@ -1621,6 +1621,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         private boolean findConjunctiveComparisonInRange(BinaryComparison main, List<Range> ranges) {
             Object value = main.right().fold();
             
+            // NB: the loop modifies the list (hence why the int is used)
             for (int i = 0; i < ranges.size(); i++) {
                 Range other = ranges.get(i);
                 
@@ -1682,6 +1683,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         private static boolean findExistingComparison(BinaryComparison main, List<BinaryComparison> bcs, boolean conjunctive) {
             Object value = main.right().fold();
             
+            // NB: the loop modifies the list (hence why the int is used)
             for (int i = 0; i < bcs.size(); i++) {
                 BinaryComparison other = bcs.get(i);
                 // skip if cannot evaluate

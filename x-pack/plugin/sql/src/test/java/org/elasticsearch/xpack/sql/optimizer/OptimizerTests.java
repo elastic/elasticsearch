@@ -572,7 +572,7 @@ public class OptimizerTests extends ESTestCase {
         assertFalse(r.includeLower());
         assertEquals(L(2), r.upper());
         assertFalse(r.includeUpper());
-        assertEquals(Literal.FALSE, r.fold());
+        assertEquals(Boolean.FALSE, r.fold());
     }
 
     // (2 < a < 3) AND (2 < a <= 3) -> 2 < a < 3

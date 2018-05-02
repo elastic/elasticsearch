@@ -150,9 +150,9 @@ For a native realm, the `type` must be set to `native`. In addition to the
 <<ref-realm-settings,settings that are valid for all realms>>, you can specify  
 the following optional settings: 
 
-`cache.ttl`:: The time-to-live for cached user entries. User credentials are 
-cached for this period of time. Specify the time period using the standard 
-{es} <<time-units,time units>>. Defaults to `20m`.
+`cache.ttl`:: The time-to-live for cached user entries. A user and a hash of its 
+credentials are cached for this period of time. Specify the time period using 
+the standard {es} <<time-units,time units>>. Defaults to `20m`.
 
 `cache.max_users`:: The maximum number of user entries that can live in the 
 cache at any given time. Defaults to 100,000.
@@ -168,10 +168,14 @@ in-memory cached user credentials. For possible values, see
 [float]
 ===== File realm settings
 
+The `type` setting must be set to `file`. In addition to the 
+<<ref-realm-settings,settings that are valid for all realms>>, you can specify  
+the following settings: 
+
 `cache.ttl`::
-The time-to-live for cached user entries--user credentials are cached for
-this configured period of time. Defaults to `20m`. Specify values using the
-standard Elasticsearch {ref}/common-options.html#time-units[time units].
+The time-to-live for cached user entries. A user and a hash of its credentials 
+are cached for this configured period of time. Defaults to `20m`. Specify values 
+using the standard {es} {ref}/common-options.html#time-units[time units].
 Defaults to `20m`.
 
 `cache.max_users`::
@@ -186,12 +190,18 @@ all possible values. Defaults to `ssha256`.
 [[ref-ldap-settings]]
 [float]
 ===== LDAP realm settings
-`url`::
-An LDAP URL in the format `ldap[s]://<server>:<port>`. Required.
+
+The `type` setting must be set to `ldap`. In addition to the 
+<<ref-realm-settings>>, you can specify the following settings: 
+
+`url`:: Specifies one or more LDAP URLs in the format  
+`ldap[s]://<server>:<port>`. Multiple URLs can be defined using a comma 
+separated value or array syntax: `[ "ldaps://server1:636", "ldaps://server2:636" ]`. 
+`ldaps` and `ldap` URL protocols cannot be mixed in the same realm. Required.
 
 `load_balance.type`::
 The behavior to use when there are multiple LDAP URLs defined. For supported
-values see {xpack-ref}/ldap-realm.html#ldap-load-balancing[LDAP load balancing and failover types].
+values see <<load-balancing,load balancing and failover types>>.
 Defaults to `failover`.
 
 `load_balance.cache_ttl`::
@@ -200,36 +210,45 @@ this setting controls the amount of time to cache DNS lookups. Defaults
 to `1h`.
 
 `bind_dn`::
-The DN of the user that will be used to bind to the LDAP and perform searches.
-Only applicable in {xpack-ref}/ldap-realm.html#ldap-user-search[user search mode].
-If this is not specified, an anonymous bind will be attempted.
-Defaults to Empty.
+The DN of the user that is used to bind to the LDAP and perform searches.
+Only applicable in user search mode.
+If not specified, an anonymous bind is attempted.
+Defaults to Empty. Due to its potential security impact, `bind_dn` is not 
+exposed via the <<cluster-nodes-info,nodes info API>>.
 
 `bind_password`::
-The password for the user that will be used to bind to the LDAP directory.
-Defaults to Empty.
-*Deprecated.* Use `secure_bind_password` instead.
+deprecated[6.3] Use `secure_bind_password` instead. The password for the user 
+that is used to bind to the LDAP directory.
+Defaults to Empty. Due to its potential security impact, `bind_password` is not 
+exposed via the <<cluster-nodes-info,nodes info API>>.
+
 
 `secure_bind_password` (<<secure-settings,Secure>>)::
-The password for the user that will be used to bind to the LDAP directory.
+The password for the user that is used to bind to the LDAP directory.
 Defaults to Empty.
 
 `user_dn_templates`::
 The DN template that replaces the user name with the string `{0}`.
-This element is multivalued; you can specify multiple user contexts.
-Required to operate in user template mode. Not valid
-if `user_search.base_dn` is specified. For more information on
+This setting is multivalued; you can specify multiple user contexts.
+Required to operate in user template mode. If `user_search.base_dn` is specified, 
+this setting is not valid. For more information on
 the different modes, see {xpack-ref}/ldap-realm.html[LDAP realms].
++
+--
+NOTE: If any settings starting with `user_search` are specified, the 
+`user_dn_templates` settings are ignored.
+
+--
 
 `user_group_attribute`::
 Specifies the attribute to examine on the user for group membership.
-The default is `memberOf`. This setting will be ignored if any
-`group_search` settings are specified. Defaults to  `memberOf`.
+If any `group_search` settings are specified, this setting is ignored. Defaults 
+to `memberOf`.
 
 `user_search.base_dn`::
 Specifies a container DN to search for users. Required
-to operated in user search mode. Not valid if
-`user_dn_templates is specified. For more information on
+to operated in user search mode. If `user_dn_templates` is specified, this 
+setting is not valid. For more information on
 the different modes, see {xpack-ref}/ldap-realm.html[LDAP realms].
 
 `user_search.scope`::
@@ -240,18 +259,18 @@ The scope of the user search. Valid values are `sub_tree`, `one_level` or
 the only user considered. Defaults to  `sub_tree`.
 
 `user_search.filter`::
-Specifies the filter used to search the directory in attempt to match
+Specifies the filter used to search the directory in attempts to match
 an entry with the username provided by the user. Defaults to `(uid={0})`.
 `{0}` is substituted with the username provided when searching.
 
 `user_search.attribute`::
-This setting is deprecated; use `user_search.filter` instead.
-The attribute to match with the username presented to. Defaults to `uid`.
+deprecated[5.6] Use `user_search.filter` instead.
+The attribute to match with the username sent with the request. Defaults to `uid`.
 
 `user_search.pool.enabled`::
-Enables or disables connection pooling for user search. When
-disabled a new connection is created for every search. The
-default is `true` when `bind_dn` is provided.
+Enables or disables connection pooling for user search. If set to `false`, a new 
+connection is created for every search. The
+default is `true` when `bind_dn` is set.
 
 `user_search.pool.size`::
 The maximum number of connections to the LDAP server to allow in the
@@ -259,17 +278,18 @@ connection pool. Defaults to `20`.
 
 `user_search.pool.initial_size`::
 The initial number of connections to create to the LDAP server on startup.
-Defaults to `0`.
+Defaults to `0`. If the LDAP server is down, values greater than `0` could cause 
+startup failures.
 
 `user_search.pool.health_check.enabled`::
-Flag to enable or disable a health check on LDAP connections in the connection
+Enables or disables a health check on LDAP connections in the connection
 pool. Connections are checked in the background at the specified interval.
 Defaults to `true`.
 
 `user_search.pool.health_check.dn`::
-The distinguished name to be retrieved as part of the health check.
-Defaults to the value of `bind_dn` if present, and if
-not falls back to `user_search.base_dn`.
+The distinguished name that is retrieved as part of the health check.
+Defaults to the value of `bind_dn` if present; if
+not, falls back to `user_search.base_dn`.
 
 `user_search.pool.health_check.interval`::
 The interval to perform background checks of connections in the pool.
@@ -277,7 +297,7 @@ Defaults to `60s`.
 
 `group_search.base_dn`::
 The container DN to search for groups in which the user has membership. When
-this element is absent, Security searches for the attribute specified by
+this element is absent, {security} searches for the attribute specified by
 `user_group_attribute` set on the user in order to determine group membership.
 
 `group_search.scope`::
@@ -287,30 +307,33 @@ Specifies whether the group search should be `sub_tree`, `one_level` or
 `base` specifies that the `base_dn` is a group object, and that it is the
 only group considered. Defaults to  `sub_tree`.
 
-`group_search.filter`::
+`group_search.filter`:: 
+Specifies a filter to use to look up a group. 
 When not set, the realm searches for `group`, `groupOfNames`, `groupOfUniqueNames`,
 or `posixGroup` with the attributes `member`, `memberOf`, or `memberUid`.  Any
 instance of `{0}` in the filter is replaced by the user attribute defined in
 `group_search.user_attribute`.
 
 `group_search.user_attribute`::
-Specifies the user attribute that will be fetched and provided as a parameter to
+Specifies the user attribute that is fetched and provided as a parameter to
 the filter.  If not set, the user DN is passed into the filter. Defaults to Empty.
 
 `unmapped_groups_as_roles`::
-Takes a boolean variable. When this element is set to `true`, the names of any
-LDAP groups that are not referenced in a role-mapping _file_ are used as role
-names and assigned to the user. Defaults to `false`.
+If set to `true`, the names of any unmapped LDAP groups are used as role names 
+and assigned to the user. A group is considered to be _unmapped_ if it is not 
+not referenced in a 
+{xpack-ref}/mapping-roles.html#mapping-roles-file[role-mapping file]. API-based 
+role mappings are not considered. Defaults to `false`.
 
 `files.role_mapping`::
 The {xpack-ref}/security-files.html[location] for the {xpack-ref}/mapping-roles.html#mapping-roles[
 YAML role mapping configuration file]. Defaults to
-`CONFIG_DIR/x-pack/role_mapping.yml`.
+`CONFIG_DIR/role_mapping.yml`.
 
 `follow_referrals`::
-Boolean value that specifies whether Securityshould follow referrals returned
+Specifies whether {security} should follow referrals returned
 by the LDAP server. Referrals are URLs returned by the server that are to be
-used to continue the LDAP operation (e.g. search). Defaults to `true`.
+used to continue the LDAP operation (for example, search). Defaults to `true`.
 
 `metadata`::
 A list of additional LDAP attributes that should be loaded from the
@@ -332,7 +355,9 @@ An `s` at the end indicates seconds, or `ms` indicates milliseconds.
 Defaults to `5s` (5 seconds ).
 
 `ssl.key`::
-Path to a PEM encoded file containing the private key.
+Path to a PEM encoded file containing the private key, which is used if the 
+LDAP server requires client authentication. `ssl.key` and `ssl.keystore.path` 
+cannot be used at the same time.
 
 `ssl.key_passphrase`::
 The passphrase that is used to decrypt the private key. This value is
@@ -346,7 +371,9 @@ Path to a PEM encoded file containing the certificate (or certificate chain)
 that will be presented to clients when they connect.
 
 `ssl.certificate_authorities`::
-List of paths to PEM encoded certificate files that should be trusted.
+List of paths to PEM encoded certificate files that should be trusted. 
+`ssl.certificate_authorities` and `ssl.truststore.path` cannot be used at the 
+same time.
 
 `ssl.keystore.path`::
 The path to the Java Keystore file that contains a private key and certificate.
@@ -370,7 +397,7 @@ The password for the key in the keystore. Defaults to the keystore password.
 
 `ssl.truststore.path`::
 The path to the Java Keystore file that contains the certificates to trust.
-`ssl.certificate_authorities` and `ssl.truststore.path` may not be used at the same time.
+`ssl.certificate_authorities` and `ssl.truststore.path` cannot be used at the same time.
 
 `ssl.truststore.password`::
 The password to the truststore.
@@ -391,18 +418,19 @@ See <<ssl-tls-settings,`xpack.ssl.verification_mode`>> for an explanation of
 these values.
 
 `ssl.supported_protocols`::
-Supported protocols with versions. Defaults to the value of
+Supported protocols for TLS/SSL (with versions). Defaults to the value of
 `xpack.ssl.supported_protocols`.
 
-`ssl.cipher_suites`
+`ssl.cipher_suites`:: Specifies the cipher suites that should be supported when 
+communicating with the LDAP server. 
 Supported cipher suites can be found in Oracle's http://docs.oracle.com/javase/8/docs/technotes/guides/security/SunProviders.html[
 Java Cryptography Architecture documentation]. Defaults to the value of
 `xpack.ssl.cipher_suites`.
 
 `cache.ttl`::
-Specifies the time-to-live for cached user entries (a user and its credentials
-are cached for this period of time). Use the standard Elasticsearch
-{ref}/common-options.html#time-units[time units]). Defaults to  `20m`.
+Specifies the time-to-live for cached user entries. A user and a hash of its 
+credentials are cached for this period of time. Use the standard {es}
+<<time-units,time units>>. Defaults to  `20m`.
 
 `cache.max_users`::
 Specifies the maximum number of user entries that the cache can contain.
@@ -410,20 +438,28 @@ Defaults to `100000`.
 
 `cache.hash_algo`::
 (Expert Setting) Specifies the hashing algorithm that is used for the
-in-memory cached user credentials (see {xpack-ref}/controlling-user-cache.html#controlling-user-cache[Cache hash algorithms]
-table for all possible values). Defaults to `ssha256`.
+in-memory cached user credentials. See {xpack-ref}/controlling-user-cache.html#controlling-user-cache[Cache hash algorithms]
+table for all possible values. Defaults to `ssha256`.
 
 [[ref-ad-settings]]
 [float]
 ===== Active Directory realm settings
 
+The `type` setting must be set to `active_directory`. In addition to the 
+<<ref-realm-settings,settings that are valid for all realms>>, you can specify  
+the following settings: 
+
 `url`::
-A URL in the format `ldap[s]://<server>:<port>`. Defaults to `ldap://<domain_name>:389`.
+An LDAP URL of the form `ldap[s]://<server>:<port>`. {security} attempts to 
+authenticate against this URL. If the URL is not specified, it is derived from 
+the `domain_name` setting and assumes an unencrypted connection to port 389. 
+Defaults to `ldap://<domain_name>:389`. This setting is required when connecting 
+using SSL/TLS or when using a custom port.
 
 `load_balance.type`::
 The behavior to use when there are multiple LDAP URLs defined. For supported
-values see {xpack-ref}/active-directory-realm.html#ad-load-balancing[load balancing and failover types].
-Defaults to  `failover`.
+values see <<load-balancing,load balancing and failover types>>.
+Defaults to `failover`.
 
 `load_balance.cache_ttl`::
 When using `dns_failover` or `dns_round_robin` as the load balancing type,
@@ -431,31 +467,34 @@ this setting controls the amount of time to cache DNS lookups. Defaults
 to `1h`.
 
 `domain_name`::
-The domain name of Active Directory. The cluster can derive the URL and
-`user_search_dn` fields from values in this element if those fields are not
-otherwise specified. Required.
+The domain name of Active Directory. If the the `url` and `user_search_dn` 
+settings are not specified, the cluster can derive those values from this 
+setting. Required.
 
 `bind_dn`::
-The DN of the user that will be used to bind to Active Directory and perform searches.
-Defaults to Empty.
+The DN of the user that is used to bind to Active Directory and perform searches.
+Defaults to Empty. Due to its potential security impact, `bind_dn` is not 
+exposed via the <<cluster-nodes-info,nodes info API>>.
 
 `bind_password`::
-The password for the user that will be used to bind to Active Directory.
-Defaults to Empty.
-*Deprecated.* Use `secure_bind_password` instead.
+deprecated[6.3] Use `secure_bind_password` instead. The password for the user 
+that is used to bind to Active Directory. Defaults to Empty. Due to its 
+potential security impact, `bind_password` is not exposed via the 
+<<cluster-nodes-info,nodes info API>>.
 
 `secure_bind_password` (<<secure-settings,Secure>>)::
-The password for the user that will be used to bind to Active Directory.
+The password for the user that is used to bind to Active Directory.
 Defaults to Empty.
 
 `unmapped_groups_as_roles`::
-Takes a boolean variable. When this element is set to `true`, the names of any
-LDAP groups that are not referenced in a role-mapping _file_ are used as role
-names and assigned to the user. Defaults to `false`.
+If set to `true`, the names of any unmapped Active Directory groups are used as 
+role names and assigned to the user. A group is considered _unmapped_ when it 
+is not referenced in any role-mapping files. API-based role mappings are not 
+considered. Defaults to `false`.
 
 `files.role_mapping`::
 The {xpack-ref}/security-files.html[location] for the YAML
-role mapping configuration file. Defaults to  `CONFIG_DIR/x-pack/role_mapping.yml`.
+role mapping configuration file. Defaults to `CONFIG_DIR/role_mapping.yml`.
 
 `user_search.base_dn`::
 The context to search for a user. Defaults to the root
@@ -471,22 +510,27 @@ only user considered. Defaults to `sub_tree`.
 `user_search.filter`::
 Specifies a filter to use to lookup a user given a username.  The default
 filter looks up `user` objects with either `sAMAccountName` or
-`userPrincipalName`.
+`userPrincipalName`. If specified, this must be a valid LDAP user search filter. 
+For example `(&(objectClass=user)(sAMAccountName={0}))`. For more information, 
+see 
+https://msdn.microsoft.com/en-us/library/aa746475(v=vs.85).aspx[Search Filter Syntax].
 
 `user_search.upn_filter`::
 Specifies a filter to use to lookup a user given a user principal name.
 The default filter looks up `user` objects with
 a matching `userPrincipalName`. If specified, this
-must be a valid LDAP user search filter, for example
+must be a valid LDAP user search filter. For example,
 `(&(objectClass=user)(userPrincipalName={1}))`. `{1}` is the full user principal name
-provided by the user.
+provided by the user. For more information, see 
+https://msdn.microsoft.com/en-us/library/aa746475(v=vs.85).aspx[Search Filter Syntax].
 
 `user_search.down_level_filter`::
 Specifies a filter to use to lookup a user given a down level logon name
 (DOMAIN\user). The default filter looks up `user` objects with a matching
 `sAMAccountName` in the domain provided. If specified, this
-must be a valid LDAP user search filter, for example
-`(&(objectClass=user)(sAMAccountName={0}))`.
+must be a valid LDAP user search filter. For example,
+`(&(objectClass=user)(sAMAccountName={0}))`. For more information, see 
+https://msdn.microsoft.com/en-us/library/aa746475(v=vs.85).aspx[Search Filter Syntax]. 
 
 `user_search.pool.enabled`::
 Enables or disables connection pooling for user search. When
@@ -499,16 +543,18 @@ connection pool. Defaults to `20`.
 
 `user_search.pool.initial_size`::
 The initial number of connections to create to the Active Directory server on startup.
-Defaults to `0`.
+Defaults to `0`. If the LDAP server is down, values greater than 0 
+could cause startup failures. 
 
 `user_search.pool.health_check.enabled`::
-Flag to enable or disable a health check on Active Directory connections in the connection
+Enables or disables a health check on Active Directory connections in the connection
 pool. Connections are checked in the background at the specified interval.
 Defaults to `true`.
 
 `user_search.pool.health_check.dn`::
 The distinguished name to be retrieved as part of the health check.
-Defaults to the value of `bind_dn` if it is a distinguished name.
+Defaults to the value of `bind_dn` if that setting is present. Otherwise, it 
+defaults to the value of the `user_search.base_dn` setting. 
 
 `user_search.pool.health_check.interval`::
 The interval to perform background checks of connections in the pool.
@@ -516,7 +562,7 @@ Defaults to `60s`.
 
 `group_search.base_dn`::
 The context to search for groups in which the user has membership.  Defaults
-to the root of the  Active Directory domain.
+to the root of the Active Directory domain.
 
 `group_search.scope`::
 Specifies whether the group search should be `sub_tree`, `one_level` or
@@ -546,13 +592,18 @@ Defaults to `5s` (5 seconds ).
 
 `ssl.certificate`::
 Path to a PEM encoded file containing the certificate (or certificate chain)
-that will be presented to clients when they connect.
+that will be presented to clients when they connect. 
 
 `ssl.certificate_authorities`::
-List of paths to PEM encoded certificate files that should be trusted.
+List of paths to PEM encoded certificate files that should be trusted. 
+`ssl.certificate_authorities` and `ssl.truststore.path` cannot be used at the 
+same time.
 
 `ssl.key`::
-Path to the PEM encoded file containing the private key.
+Path to the PEM encoded file containing the private key, which is used when the 
+Active Directory server requires client authentication. `ssl.key` and 
+`ssl.keystore.path` cannot be used at the same time.
+
 
 `ssl.key_passphrase`::
 The passphrase that is used to decrypt the private key. This value is
@@ -576,6 +627,7 @@ The password to the keystore.
 
 `ssl.keystore.path`::
 The path to the Java Keystore file that contains a private key and certificate.
+`ssl.key` and `ssl.keystore.path` cannot be used at the same time.
 
 `ssl.keystore.type`::
 The format of the keystore file. Should be either `jks` to use the Java
@@ -589,6 +641,8 @@ The password to the truststore.
 
 `ssl.truststore.path`::
 The path to the Java Keystore file that contains the certificates to trust.
+`ssl.certificate_authorities` and `ssl.truststore.path` cannot be used at the 
+same time.
 
 `ssl.truststore.type`::
 The format of the truststore file. Should be either `jks` to use the Java
@@ -603,17 +657,18 @@ See <<ssl-tls-settings,`xpack.ssl.verification_mode`>> for an explanation of
 these values.
 
 `ssl.supported_protocols`::
-Supported protocols with versions. Defaults to the value of
+Supported protocols for TLS/SSL (with versions). Defaults to the value of
 `xpack.ssl.supported_protocols`.
 
-`ssl.cipher_suites`::
+`ssl.cipher_suites`:: Specifies the cipher suites that should be supported when 
+communicating with the Active Directory server. 
 Supported cipher suites can be found in Oracle's http://docs.oracle.com/javase/8/docs/technotes/guides/security/SunProviders.html[
 Java Cryptography Architecture documentation]. Defaults to the value of
 `xpack.ssl.cipher_suites`.
 
 `cache.ttl`::
-Specifies the time-to-live for cached user entries (user
-credentials are cached for this configured period of time). Use the
+Specifies the time-to-live for cached user entries. A user and a hash of its 
+credentials are cached for this configured period of time. Use the
 standard Elasticsearch {ref}/common-options.html#time-units[time units]).
 Defaults to `20m`.
 
@@ -622,12 +677,21 @@ Specifies the maximum number of user entries that the cache can contain.
 Defaults to `100000`.
 
 `cache.hash_algo`::
-(Expert Setting) Specifies the hashing algorithm that will be used for
+(Expert Setting) Specifies the hashing algorithm that is used for
 the in-memory cached user credentials (see {xpack-ref}/controlling-user-cache.html#controlling-user-cache[Cache hash algorithms] table for all possible values). Defaults to `ssha256`.
+
+`follow_referrals`::
+If set to `true` {security} follows referrals returned by the LDAP server. 
+Referrals are URLs returned by the server that are to be used to continue the 
+LDAP operation (such as `search`). Defaults to `true`.
 
 [[ref-pki-settings]]
 [float]
 ===== PKI realm settings
+
+The `type` setting must be set to `pki`. In addition to the 
+<<ref-realm-settings,settings that are valid for all realms>>, you can specify  
+the following settings: 
 
 `username_pattern`::
 The regular expression pattern used to extract the username from the
@@ -637,9 +701,7 @@ Defaults to `CN=(.*?)(?:,\|$)`.
 `certificate_authorities`::
 List of paths to the PEM certificate files that should be used to authenticate a
 user's certificate as trusted. Defaults to the trusted certificates configured
-for SSL. See the {xpack-ref}/pki-realm.html#pki-ssl-config[SSL settings]
-section of the PKI realm documentation for more information.
-This setting cannot be used with `truststore.path`.
+for SSL. This setting cannot be used with `truststore.path`. 
 
 `truststore.algorithm`::
 Algorithm for the truststore. Defaults to `SunX509`.
@@ -652,19 +714,17 @@ The password for the truststore.
 
 `truststore.path`::
 The path of a truststore to use. Defaults to the trusted certificates configured
-for SSL. See the
-{xpack-ref}/pki-realm.html#pki-ssl-config[SSL settings] section of the PKI realm
-documentation for more information. This setting cannot be used with
-`certificate_authorities`.
+for SSL. This setting cannot be used with `certificate_authorities`.
 
 `files.role_mapping`::
 Specifies the {xpack-ref}/security-files.html[location] of the
 {xpack-ref}/mapping-roles.html[YAML role  mapping configuration file].
-Defaults to `CONFIG_DIR/x-pack/role_mapping.yml`.
+Defaults to `CONFIG_DIR/role_mapping.yml`.
 
 `cache.ttl`::
-Specifies the time-to-live for cached user entries. Use the
-standard Elasticsearch {ref}/common-options.html#time-units[time units]).
+Specifies the time-to-live for cached user entries. A user and a hash of its 
+credentials are cached for this period of time. Use the
+standard {es} {ref}/common-options.html#time-units[time units]).
 Defaults to `20m`.
 
 `cache.max_users`::
@@ -674,8 +734,16 @@ Defaults to `100000`.
 [[ref-saml-settings]]
 [float]
 ===== SAML realm settings
+
+The `type` setting must be set to `saml`. In addition to the 
+<<ref-realm-settings,settings that are valid for all realms>>, you can specify  
+the following settings: 
+
 `idp.entity_id`::
-The Entity ID of the SAML Identity Provider
+The Entity ID of the SAML Identity Provider. An Entity ID is a URI with a 
+maximum length of 1024 characters. It can be a URL (https://idp.example.com/) or 
+a URN (`urn:example.com:idp`) and can be found in the configuration or the SAML 
+metadata of the Identity Provider.
 
 `idp.metadata.path`::
 The path _(recommended)_ or URL to a SAML 2.0 metadata file describing the
@@ -683,7 +751,7 @@ capabilities and configuration of the Identity Provider.
 If a path is provided, then it is resolved relative to the {es} config
 directory.
 If a URL is provided, then it must be either a `file` URL or a `https` URL.
-{security} will automatically poll this metadata resource and will reload
+{security} automatically polls this metadata resource and reloads 
 the IdP configuration when changes are detected.
 File based resources are polled at a frequency determined by the global {es}
 `resource.reload.interval.high` setting, which defaults to 5 seconds.
@@ -700,39 +768,47 @@ Indicates whether to utilise the Identity Provider's Single Logout service
 Defaults to `true`.
 
 `sp.entity_id`::
-The Entity ID to use for this SAML Service Provider, entered as a URI.
+The Entity ID to use for this SAML Service Provider. This should be entered as a 
+URI. We recommend that you use the base URL of your Kibana instance. For example, 
+`https://kibana.example.com/`. 
 
 `sp.acs`::
-The URL of the Assertion Consumer Service within {kib}.
+The URL of the Assertion Consumer Service within {kib}. Typically this is the 
+"api/security/v1/saml" endpoint of your Kibana server. For example, 
+`https://kibana.example.com/api/security/v1/saml`. 
 
 `sp.logout`::
-The URL of the Single Logout service within {kib}.
+The URL of the Single Logout service within {kib}. Typically this is the 
+"logout" endpoint of your Kibana server. For example, 
+`https://kibana.example.com/logout`.
 
 `attributes.principal`::
 The Name of the SAML attribute that should be used as the {security} user's
-principal (username)
+principal (username).
 
 `attributes.groups`::
 The Name of the SAML attribute that should be used to populate {security}
-user's groups
+user's groups. 
 
 `attributes.name`::
 The Name of the SAML attribute that should be used to populate {security}
-user's full name
+user's full name. 
 
 `attributes.mail`::
 The Name of the SAML attribute that should be used to populate {security}
-user's email address
+user's email address. 
 
 `attributes.dn`::
 The Name of the SAML attribute that should be used to populate {security}
-user's X.500 _Distinguished Name_
+user's X.500 _Distinguished Name_. 
 
 `attribute_patterns.principal`::
-A java regular expression that is matched against the SAML attribute specified
+A Java regular expression that is matched against the SAML attribute specified
 by `attributes.pattern` before it is applied to the user's _principal_ property.
-The attribute value must match the pattern, and the value of the first
-_capturing group_ is used as the principal.
+The attribute value must match the pattern and the value of the first
+_capturing group_ is used as the principal. For example, `^([^@]+)@example\\.com$` 
+matches email addresses from the "example.com" domain and uses the local-part as 
+the principal.
 
 `attribute_patterns.groups`::
 As per `attribute_patterns.principal`, but for the _group_ property.
@@ -748,26 +824,41 @@ As per `attribute_patterns.principal`, but for the _dn_ property.
 
 `nameid_format`::
 The NameID format that should be requested when asking the IdP to authenticate
-the current user.
-Defaults to `urn:oasis:names:tc:SAML:2.0:nameid-format:transient`
+the current user. Defaults to requesting _transient_ names 
+(`urn:oasis:names:tc:SAML:2.0:nameid-format:transient`). 
+
+`nameid.allow_create`:: The value of the `AllowCreate` attribute of the 
+`NameIdPolicy` element in an authentication request. Defaults to `false`. 
+
+`nameid.sp_qualifier`:: The value of the `SPNameQualifier` attribute of the 
+`NameIdPolicy` element in an authentication request. The default is to not 
+include the `SPNameQualifier` attribute.
 
 `force_authn`::
-Whether to set the `ForceAuthn` attribute when requesting that the IdP
-authenticate the current user.
+Specifies whether to set the `ForceAuthn` attribute when requesting that the IdP
+authenticate the current user. If set to `true`, the IdP is required to verify 
+the user’s identity, irrespective of any existing sessions they might have. 
 Defaults to `false`.
 
 `populate_user_metadata`::
-Whether to populate the {es} user's metadata with the values that are provided
-by the SAML attributes.
-Defaults to `true`.
+Specifies whether to populate the {es} user's metadata with the values that are 
+provided by the SAML attributes. Defaults to `true`.
 
 `allowed_clock_skew`::
 The maximum amount of skew that can be tolerated between the IdP's clock and the
 {es} node's clock.
 Defaults to `3m` (3 minutes).
 
+[float]
+[[ref-saml-signing-settings]]
+===== SAML realm signing settings
+
+If a signing key is configured (that is, either `signing.key` or 
+`signing.keystore.path` is set), then {security} signs outgoing SAML messages. 
+Signing can be configured using the following settings:
+
 `signing.saml_messages`::
-A list of SAML message types that should be signed, or `*` to sign all messages.
+A list of SAML message types that should be signed or `*` to sign all messages.
 Each element in the list should be the local name of a SAML XML Element.
 Supported element types are `AuthnRequest`, `LogoutRequest` and `LogoutResponse`.
 Only valid if `signing.key` or `signing.keystore.path` is also specified.
@@ -775,152 +866,177 @@ Defaults to `*`.
 
 `signing.key`::
 Specifies the path to the PEM encoded private key to use for SAML message signing.
-`signing.key` and `signing.keystore.path` may not be used at the same time.
+`signing.key` and `signing.keystore.path` cannot be used at the same time.
 
 `signing.secure_key_passphrase` (<<secure-settings,Secure>>)::
 Specifies the passphrase to decrypt the PEM encoded private key (`signing.key`)
 if it is encrypted.
 
 `signing.certificate`::
-Specifies the path to the PEM encoded certificate that corresponds to the
-`signing.key`.  May only be used if `signing.key` is set.
+Specifies the path to the PEM encoded certificate (or certificate chain) that 
+corresponds to the `signing.key`. This certificate must also be included in the 
+Service Provider metadata or manually configured within the IdP to allow for 
+signature validation. This setting can only be used if `signing.key` is set.
 
 `signing.keystore.path`::
 The path to the keystore that contains a private key and certificate.
 Must be either a Java Keystore (jks) or a PKCS#12 file.
-`signing.key` and `signing.keystore.path` may not be used at the same time.
+`signing.key` and `signing.keystore.path` cannot be used at the same time.
 
 `signing.keystore.type`::
-The type of the keystore (`signing.keystore.path`).
-Must be one of "jks" or "PKCS12".  Defaults to "PKCS12" if the keystore path
-ends in ".p12", ".pfx" or "pkcs12", otherwise uses "jks".
+The type of the keystore in `signing.keystore.path`.
+Must be either `jks` or `PKCS12`. If the keystore path ends in ".p12", ".pfx", 
+or "pkcs12", this setting defaults to `PKCS12`. Otherwise, it defaults to `jks`.
 
 `signing.keystore.alias`::
 Specifies the alias of the key within the keystore that should be
-used for SAML message signing. Must be specified if the keystore
-contains more than one private key.
+used for SAML message signing. If the keystore contains more than one private 
+key, this setting must be specified. 
 
 `signing.keystore.secure_password` (<<secure-settings,Secure>>)::
-The password to the keystore (`signing.keystore.path`).
+The password to the keystore in `signing.keystore.path`.
 
 `signing.keystore.secure_key_password` (<<secure-settings,Secure>>)::
 The password for the key in the keystore (`signing.keystore.path`).
 Defaults to the keystore password.
 
+[float]
+[[ref-saml-encryption-settings]]
+===== SAML realm encryption settings
+
+If an encryption key is configured (that is, either `encryption.key` or 
+`encryption.keystore.path` is set), then {security} publishes an encryption 
+certificate when generating metadata and attempts to decrypt incoming SAML 
+content. Encryption can be configured using the following settings:
+
 `encryption.key`::
 Specifies the path to the PEM encoded private key to use for SAML message
 decryption.
-`encryption.key` and `encryption.keystore.path` may not be used at the same time.
+`encryption.key` and `encryption.keystore.path` cannot be used at the same time.
 
 `encryption.secure_key_passphrase` (<<secure-settings,Secure>>)::
 Specifies the passphrase to decrypt the PEM encoded private key
 (`encryption.key`) if it is encrypted.
 
 `encryption.certificate`::
-Specifies the path to the PEM encoded certificate chain that is associated with
-the `encryption.key`.  May only be used if `encryption.key` is set.
+Specifies the path to the PEM encoded certificate (or certificate chain) that is 
+associated with the `encryption.key`. This certificate must also be included in 
+the Service Provider metadata or manually configured within the IdP to enable 
+message encryption. This setting can be used only if `encryption.key` is set.
 
 `encryption.keystore.path`::
 The path to the keystore that contains a private key and certificate.
 Must be either a Java Keystore (jks) or a PKCS#12 file.
-`encryption.key` and `encryption.keystore.path` may not be used at the same time.
+`encryption.key` and `encryption.keystore.path` cannot be used at the same time.
 
 `encryption.keystore.type`::
 The type of the keystore (`encryption.keystore.path`).
-Must be one of "jks" or "PKCS12".  Defaults to "PKCS12" if the keystore path
-ends in ".p12", ".pfx" or "pkcs12", otherwise uses "jks".
+Must be either `jks` or `PKCS12`. If the keystore path ends in ".p12", ".pfx", 
+or "pkcs12", this setting defaults to `PKCS12`. Otherwise, it defaults to `jks`.
 
 `encryption.keystore.alias`::
 Specifies the alias of the key within the keystore (`encryption.keystore.path`)
 that should be used for SAML message decryption. If not specified, all compatible
-key pairs from the keystore will be considered as candidate keys for decryption.
+key pairs from the keystore are considered as candidate keys for decryption.
 
 `encryption.keystore.secure_password` (<<secure-settings,Secure>>)::
 The password to the keystore (`encryption.keystore.path`).
 
 `encryption.keystore.secure_key_password` (<<secure-settings,Secure>>)::
 The password for the key in the keystore (`encryption.keystore.path`). Only a
-single password is supported. If you are using multiple decryption keys, then
+single password is supported. If you are using multiple decryption keys, 
 they cannot have individual passwords.
 
+[float]
+[[ref-saml-ssl-settings]]
+===== SAML realm SSL settings
+
+If you are loading the IdP metadata over SSL/TLS (that is, `idp.metadata.path` 
+is a URL using the `https` protocol), the following settings can be used to 
+configure SSL. If these are not specified, then the 
+<<ssl-tls-settings,default SSL settings>> are used.
+
+NOTE: These settings are not used for any purpose other than loading metadata 
+over https.
+
 `ssl.key`::
-If retrieving IDP metadata via https (see `idp.metadata.path`), specifies the
-path to the PEM encoded private key to use for http client authentication (if
-required). `ssl.key` and `ssl.keystore.path` may not be used at the same time.
+Specifies the path to the PEM encoded private key to use for http client 
+authentication (if required). `ssl.key` and `ssl.keystore.path` cannot be used 
+at the same time.
 
 `ssl.key_passphrase`::
-If retrieving IDP metadata via https (see `idp.metadata.path`), specifies the
+Specifies the
 passphrase to decrypt the PEM encoded private key (`ssl.key`) if it is
-encrypted. May not be used with `ssl.secure_key_passphrase`
+encrypted. Cannot be used with `ssl.secure_key_passphrase`. 
 
 `ssl.secure_key_passphrase` (<<secure-settings,Secure>>)::
-If retrieving IDP metadata via https (see `idp.metadata.path`), specifies the
+Specifies the
 passphrase to decrypt the PEM encoded private key (`ssl.key`) if it is
-encrypted. May not be used with `ssl.key_passphrase`
+encrypted. Cannot be used with `ssl.key_passphrase`. 
 
 `ssl.certificate`::
-If retrieving IDP metadata via https (see `idp.metadata.path`), specifies the
+Specifies the
 path to the PEM encoded certificate (or certificate chain) that is associated
-with the key (`ssl.key`). May only be used if `ssl.key` is set.
+with the key (`ssl.key`). This setting can be used only if `ssl.key` is set.
 
 `ssl.certificate_authorities`::
-If retrieving IDP metadata via https (see `idp.metadata.path`), specifies the
+Specifies the
 paths to the PEM encoded certificate authority certificates that should be
-trusted. `ssl.certificate_authorities` and `ssl.truststore.path` may not be
+trusted. `ssl.certificate_authorities` and `ssl.truststore.path` cannot be
 used at the same time.
 
 `ssl.keystore.path`::
-If retrieving IDP metadata via https (see `idp.metadata.path`), the path to
+Specifies the path to
 the keystore that contains a private key and certificate.
 Must be either a Java Keystore (jks) or a PKCS#12 file.
-`ssl.key` and `ssl.keystore.path` may not be used at the same time.
+`ssl.key` and `ssl.keystore.path` cannot be used at the same time.
 
 `ssl.keystore.type`::
-The type of the keystore (`ssl.keystore.path`). Must be one of "jks" or "PKCS12".
-Defaults to "PKCS12" if the keystore path ends in ".p12", ".pfx" or "pkcs12",
-otherwise uses "jks"
+The type of the keystore (`ssl.keystore.path`). Must be either `jks` or `PKCS12`.
+If the keystore path ends in ".p12", ".pfx" or "pkcs12", this setting defaults 
+to `PKCS12`. Otherwise, it defaults to `jks`.
 
 `ssl.keystore.password`::
-The password to the keystore (`ssl.keystore.path`).
-May not be used with `ssl.keystore.secure_password`.
+The password to the keystore (`ssl.keystore.path`). This setting cannot be used 
+with `ssl.keystore.secure_password`.
 
 `ssl.keystore.secure_password` (<<secure-settings,Secure>>)::
 The password to the keystore (`ssl.keystore.path`).
-May not be used with `ssl.keystore.password`.
+This setting cannot be used with `ssl.keystore.password`.
 
 `ssl.keystore.key_password`::
 The password for the key in the keystore (`ssl.keystore.path`).
-Defaults to the keystore password.
-May not be used with `ssl.keystore.secure_key_password`.
+Defaults to the keystore password. This setting cannot be used with 
+`ssl.keystore.secure_key_password`.
 
 `ssl.keystore.secure_key_password` (<<secure-settings,Secure>>)::
 The password for the key in the keystore (`ssl.keystore.path`).
-Defaults to the keystore password.
-May not be used with `ssl.keystore.key_password`.
+Defaults to the keystore password. This setting cannot be used with 
+`ssl.keystore.key_password`.
 
 `ssl.truststore.path`::
-If retrieving IDP metadata via https (see `idp.metadata.path`), the path to the
+The path to the
 keystore that contains the certificates to trust.
 Must be either a Java Keystore (jks) or a PKCS#12 file.
-`ssl.certificate_authorities` and `ssl.truststore.path` may not be used at the
+`ssl.certificate_authorities` and `ssl.truststore.path` cannot be used at the
 same time.
 
 `ssl.truststore.type`::
-The type of the truststore (`ssl.truststore.path`). Must be one of "jks" or "PKCS12".
-Defaults to "PKCS12" if the keystore path ends in ".p12", ".pfx" or "pkcs12",
-otherwise uses "jks"
+The type of the truststore (`ssl.truststore.path`). Must be either `jks` or 
+`PKCS12`. If the keystore path ends in ".p12", ".pfx" or "pkcs12", this setting 
+defaults to `PKCS12`. Otherwise, it defaults to `jks`.
 
 `ssl.truststore.password`::
-The password to the truststore (`ssl.truststore.path`).
-May not be used with `ssl.truststore.secure_password`.
+The password to the truststore (`ssl.truststore.path`). This setting cannot be 
+used with `ssl.truststore.secure_password`.
 
 `ssl.truststore.secure_password` (<<secure-settings,Secure>>)::
-The password to the truststore (`ssl.truststore.path`).
-May not be used with `ssl.truststore.password`.
+The password to the truststore (`ssl.truststore.path`). This setting cannot be 
+used with `ssl.truststore.password`.
 
 `ssl.verification_mode`::
-If retrieving IDP metadata via https (see `idp.metadata.path`), one of `full`
-(verify the hostname and the certicate path), `certificate` (verify the
+One of `full`
+(verify the hostname and the certificate path), `certificate` (verify the
 certificate path, but not the hostname) or `none` (perform no verification).
 Defaults to `full`.
 +
@@ -928,12 +1044,37 @@ See <<ssl-tls-settings,`xpack.ssl.verification_mode`>> for a more detailed
 explanation of these values.
 
 `ssl.supported_protocols`::
-If retrieving IDP metadata via https (see `idp.metadata.path`), specifies the
-supported protocols for TLS/SSL.
+Specifies the supported protocols for TLS/SSL.
 
 `ssl.cipher_suites`::
-If retrieving IDP metadata via https (see `idp.metadata.path`), specifies the
+Specifies the
 cipher suites that should be supported.
+
+[float]
+[[load-balancing]]
+===== Load balancing and failover
+
+The `load_balance.type` setting can have the following values: 
+
+* `failover`: The URLs specified are used in the order that they are specified. 
+The first server that can be connected to will be used for all subsequent 
+connections. If a connection to that server fails then the next server that a 
+connection can be established to will be used for subsequent connections.
+* `dns_failover`: In this mode of operation, only a single URL may be specified.
+This URL must contain a DNS name. The system will be queried for all IP 
+addresses that correspond to this DNS name. Connections to the Active Directory 
+or LDAP server will always be tried in the order in which they were retrieved. 
+This differs from `failover` in that there is no reordering of the list and if a 
+server has failed at the beginning of the list, it will still be tried for each 
+subsequent connection.
+* `round_robin`: Connections will continuously iterate through the list of 
+provided URLs. If a server is unavailable, iterating through the list of URLs 
+will continue until a successful connection is made.
+* `dns_round_robin`: In this mode of operation, only a single URL may be 
+specified. This URL must contain a DNS name. The system will be queried for all 
+IP addresses that correspond to this DNS name. Connections will continuously 
+iterate through the list of addresses. If a server is unavailable, iterating 
+through the list of URLs will continue until a successful connection is made.
 
 [float]
 [[ssl-tls-settings]]

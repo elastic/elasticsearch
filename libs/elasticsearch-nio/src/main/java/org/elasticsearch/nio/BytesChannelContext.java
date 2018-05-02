@@ -81,12 +81,6 @@ public class BytesChannelContext extends SocketChannelContext {
     }
 
     @Override
-    public boolean hasQueuedWriteOps() {
-        getSelector().assertOnSelectorThread();
-        return hasPendingFlush();
-    }
-
-    @Override
     public void closeChannel() {
         if (isClosing.compareAndSet(false, true)) {
             getSelector().queueChannelClose(channel);

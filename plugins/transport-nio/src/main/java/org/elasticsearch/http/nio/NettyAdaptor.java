@@ -34,7 +34,9 @@ import org.elasticsearch.nio.WriteOperation;
 
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
+import java.util.ArrayList;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.function.BiConsumer;
 
 public class NettyAdaptor implements AutoCloseable {
@@ -130,5 +132,14 @@ public class NettyAdaptor implements AutoCloseable {
 
     public FlushOperation pollFlushOperations() {
         return flushOperations.pollFirst();
+    }
+
+    public List<FlushOperation> pollAllFlushOperations() {
+        ArrayList<FlushOperation> copiedOperations = new ArrayList<>(flushOperations.size());
+        FlushOperation flushOperation;
+        while ((flushOperation = flushOperations.pollFirst()) != null) {
+            copiedOperations.add(flushOperation);
+        }
+        return copiedOperations;
     }
 }

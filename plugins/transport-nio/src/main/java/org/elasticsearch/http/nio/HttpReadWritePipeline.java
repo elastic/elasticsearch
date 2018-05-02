@@ -100,6 +100,12 @@ public class HttpReadWritePipeline implements ReadConsumer, FlushProducer {
     }
 
     @Override
+    public List<FlushOperation> write(WriteOperation writeOperation) {
+        adaptor.write(writeOperation);
+        return adaptor.pollAllFlushOperations();
+    }
+
+    @Override
     public FlushOperation pollFlushOperation() {
         return adaptor.pollFlushOperations();
     }

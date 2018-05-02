@@ -167,15 +167,6 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         return pendingFlush;
     }
 
-    protected boolean hasPendingFlush() {
-        if (pendingFlush != null) {
-            return true;
-        } else {
-            pendingFlush = flushProducer.pollFlushOperation();
-            return pendingFlush != null;
-        }
-    }
-
     @Override
     public void closeFromSelector() throws IOException {
         getSelector().assertOnSelectorThread();
@@ -210,7 +201,15 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         }
     }
 
-    public abstract boolean hasQueuedWriteOps();
+    public boolean hasQueuedWriteOps() {
+        getSelector().assertOnSelectorThread();
+        if (pendingFlush != null) {
+            return true;
+        } else {
+            pendingFlush = flushProducer.pollFlushOperation();
+            return pendingFlush != null;
+        }
+    }
 
     /**
      * This method indicates if a selector should close this channel.

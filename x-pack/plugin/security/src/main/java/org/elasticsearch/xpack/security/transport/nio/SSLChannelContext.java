@@ -113,7 +113,7 @@ public final class SSLChannelContext extends SocketChannelContext {
     public boolean hasQueuedWriteOps() {
         getSelector().assertOnSelectorThread();
         if (sslDriver.readyForApplicationWrites()) {
-            return sslDriver.hasFlushPending() || getPendingFlush() != null;
+            return sslDriver.hasFlushPending() || super.hasQueuedWriteOps();
         } else {
             return sslDriver.hasFlushPending() || sslDriver.needsNonApplicationWrite();
         }

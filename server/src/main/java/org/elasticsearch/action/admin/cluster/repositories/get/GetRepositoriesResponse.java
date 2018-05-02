@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.repositories.get;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -73,5 +75,12 @@ public class GetRepositoriesResponse extends ActionResponse implements ToXConten
         repositories.toXContent(builder, params);
         builder.endObject();
         return builder;
+    }
+
+    public static GetRepositoriesResponse fromXContent(XContentParser parser) throws IOException {
+        if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+            throw new ElasticsearchParseException("failed to parse repositories, expected start object token");
+        }
+        return new GetRepositoriesResponse(RepositoriesMetaData.fromXContent(parser));
     }
 }

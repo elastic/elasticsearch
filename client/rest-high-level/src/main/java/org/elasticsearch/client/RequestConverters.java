@@ -29,6 +29,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -630,6 +631,17 @@ final class RequestConverters {
         return request;
     }
 
+    static Request modulesGetRepositories(GetRepositoriesRequest getRepositoriesRequest) {
+        Request request = new Request(HttpGet.METHOD_NAME, "/_snapshot");
+
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(getRepositoriesRequest.masterNodeTimeout());
+        parameters.withLocal(getRepositoriesRequest.local());
+        parameters.withRepository(getRepositoriesRequest.repositories());
+
+        return request;
+    }
+
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
         BytesRef source = XContentHelper.toXContent(toXContent, xContentType, false).toBytesRef();
         return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
@@ -759,6 +771,13 @@ final class RequestConverters {
         Params withRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
             if (refreshPolicy != WriteRequest.RefreshPolicy.NONE) {
                 return putParam("refresh", refreshPolicy.getValue());
+            }
+            return this;
+        }
+
+        Params withRepository(String[] repositories) {
+            if (repositories != null && repositories.length > 0) {
+                return putParam("repository", Strings.arrayToCommaDelimitedString(repositories));
             }
             return this;
         }

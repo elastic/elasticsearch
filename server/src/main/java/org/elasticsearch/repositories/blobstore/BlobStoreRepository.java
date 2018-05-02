@@ -780,7 +780,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } catch (IOException ex) {
             // temporary blob creation or move failed - try cleaning up
             try {
-                snapshotsBlobContainer.deleteBlob(tempBlobName);
+                snapshotsBlobContainer.deleteBlobIgnoringIfNotExists(tempBlobName);
             } catch (IOException e) {
                 ex.addSuppressed(e);
             }
@@ -921,7 +921,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         /**
          * Loads information about shard snapshot
          */
-        public BlobStoreIndexShardSnapshot loadSnapshot() {
+        BlobStoreIndexShardSnapshot loadSnapshot() {
             try {
                 return indexShardSnapshotFormat(version).read(blobContainer, snapshotId.getUUID());
             } catch (IOException ex) {
@@ -946,7 +946,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             for (String blobName : blobs.keySet()) {
                 if (indexShardSnapshotsFormat.isTempBlobName(blobName) || blobName.startsWith(SNAPSHOT_INDEX_PREFIX)) {
                     try {
-                        blobContainer.deleteBlob(blobName);
+                        blobContainer.deleteBlobIgnoringIfNotExists(blobName);
                     } catch (IOException e) {
                         // We cannot delete index file - this is fatal, we cannot continue, otherwise we might end up
                         // with references to non-existing files
@@ -962,7 +962,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 if (blobName.startsWith(DATA_BLOB_PREFIX)) {
                     if (newSnapshots.findNameFile(BlobStoreIndexShardSnapshot.FileInfo.canonicalName(blobName)) == null) {
                         try {
-                            blobContainer.deleteBlob(blobName);
+                            blobContainer.deleteBlobIgnoringIfNotExists(blobName);
                         } catch (IOException e) {
                             // TODO: don't catch and let the user handle it?
                             logger.debug(() -> new ParameterizedMessage("[{}] [{}] error deleting blob [{}] during cleanup", snapshotId, shardId, blobName), e);

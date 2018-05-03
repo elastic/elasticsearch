@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -14,6 +13,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 import org.junit.Before;
@@ -21,7 +21,7 @@ import org.junit.Before;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class MoveToNextStepUpdateTaskTests extends ESTestCase {
+public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
 
     String policy;
     ClusterState clusterState;
@@ -44,32 +44,27 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
 
     public void testExecuteSuccessfullyMoved() {
         StepKey currentStepKey = new StepKey("current-phase", "current-action", "current-name");
-        StepKey nextStepKey = new StepKey("next-phase", "next-action", "next-name");
         long now = randomNonNegativeLong();
 
         setStateToKey(currentStepKey);
 
-        SetOnce<Boolean> changed = new SetOnce<>();
-        MoveToNextStepUpdateTask.Listener listener = (c) -> changed.set(true);
-        MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(index, policy, currentStepKey, nextStepKey, () -> now, listener);
+        MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(index, policy, currentStepKey, () -> now);
         ClusterState newState = task.execute(clusterState);
         StepKey actualKey = IndexLifecycleRunner.getCurrentStepKey(newState.metaData().index(index).getSettings());
-        assertThat(actualKey, equalTo(nextStepKey));
-        assertThat(LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(now));
-        assertThat(LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(now));
+        assertThat(actualKey, equalTo(new StepKey(currentStepKey.getPhase(), currentStepKey.getAction(), ErrorStep.NAME)));
+        assertThat(LifecycleSettings.LIFECYCLE_FAILED_STEP_SETTING.get(newState.metaData().index(index).getSettings()),
+                equalTo(currentStepKey.getName()));
+        assertThat(LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(-1L));
+        assertThat(LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(-1L));
         assertThat(LifecycleSettings.LIFECYCLE_STEP_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(now));
-        task.clusterStateProcessed("source", clusterState, newState);
-        assertTrue(changed.get());
     }
 
-    public void testExecuteNoopifferentStep() {
+    public void testExecuteNoopDifferentStep() {
         StepKey currentStepKey = new StepKey("current-phase", "current-action", "current-name");
         StepKey notCurrentStepKey = new StepKey("not-current", "not-current", "not-current");
         long now = randomNonNegativeLong();
         setStateToKey(notCurrentStepKey);
-        MoveToNextStepUpdateTask.Listener listener = (c) -> {
-        };
-        MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(index, policy, currentStepKey, null, () -> now, listener);
+        MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(index, policy, currentStepKey, () -> now);
         ClusterState newState = task.execute(clusterState);
         assertThat(newState, sameInstance(clusterState));
     }
@@ -79,21 +74,9 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         long now = randomNonNegativeLong();
         setStateToKey(currentStepKey);
         setStatePolicy("not-" + policy);
-        MoveToNextStepUpdateTask.Listener listener = (c) -> {};
-        MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(index, policy, currentStepKey, null, () -> now, listener);
+        MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(index, policy, currentStepKey, () -> now);
         ClusterState newState = task.execute(clusterState);
         assertThat(newState, sameInstance(clusterState));
-    }
-
-    public void testClusterProcessedWithNoChange() {
-        StepKey currentStepKey = new StepKey("current-phase", "current-action", "current-name");
-        long now = randomNonNegativeLong();
-        setStateToKey(currentStepKey);
-        SetOnce<Boolean> changed = new SetOnce<>();
-        MoveToNextStepUpdateTask.Listener listener = (c) -> changed.set(true);
-        MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(index, policy, currentStepKey, null, () -> now, listener);
-        task.clusterStateProcessed("source", clusterState, clusterState);
-        assertNull(changed.get());
     }
 
     private void setStatePolicy(String policy) {

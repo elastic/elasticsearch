@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.common.geo.QuadKeyHash;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashType;
@@ -41,6 +42,9 @@ public class GeoHashGridTests extends BaseAggregationTestCase<GeoGridAggregation
             case GEOHASH:
                 precision = randomIntBetween(1, 12);
                 break;
+            case QUADKEY:
+                precision = randomIntBetween(0, QuadKeyHash.MAX_ZOOM);
+                break;
             default:
                 throw new IllegalArgumentException("GeoHashType." + type.name() + " was not added to the test");
         }
@@ -51,6 +55,8 @@ public class GeoHashGridTests extends BaseAggregationTestCase<GeoGridAggregation
         switch (type) {
             case GEOHASH:
                 return 12;
+            case QUADKEY:
+                return QuadKeyHash.MAX_ZOOM;
             default:
                 throw new IllegalArgumentException("GeoHashType." + type.name() + " was not added to the test");
         }

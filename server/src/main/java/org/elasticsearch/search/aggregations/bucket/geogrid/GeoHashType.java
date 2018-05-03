@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.geo.QuadKeyHash;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -28,7 +29,8 @@ import java.io.IOException;
 import java.util.Locale;
 
 public enum GeoHashType implements Writeable {
-    GEOHASH(new GeoHashHandler());
+    GEOHASH(new GeoHashHandler()),
+    QUADKEY(new QuadKeyHash());
 
     public static final GeoHashType DEFAULT = GEOHASH;
 

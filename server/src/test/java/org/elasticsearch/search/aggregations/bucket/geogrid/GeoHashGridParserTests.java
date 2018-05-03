@@ -142,6 +142,9 @@ public class GeoHashGridParserTests extends ESTestCase {
                 case GEOHASH:
                     expectedMsg = "Invalid geohash aggregation precision of 13. Must be between 1 and 12.";
                     break;
+                case QUADKEY:
+                    expectedMsg = "Invalid geohash quadkey aggregation precision of 30. Must be between 0 and 29.";
+                    break;
                 default:
                     throw new IllegalArgumentException("GeoHashType." + type.name() + " was not added to the test");
             }

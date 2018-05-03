@@ -206,7 +206,7 @@ public class SocketChannelContextTests extends ESTestCase {
 
             ByteBuffer[] buffer = {ByteBuffer.allocate(10)};
             WriteOperation writeOperation = mock(WriteOperation.class);
-            BiConsumer listener2 = mock(BiConsumer.class);
+            BiConsumer<Void, Throwable> listener2 = mock(BiConsumer.class);
             when(readWriteHandler.writeToBytes(writeOperation)).thenReturn(Arrays.asList(new FlushOperation(buffer, listener),
                 new FlushOperation(buffer, listener2)));
             context.queueWriteOperation(writeOperation);

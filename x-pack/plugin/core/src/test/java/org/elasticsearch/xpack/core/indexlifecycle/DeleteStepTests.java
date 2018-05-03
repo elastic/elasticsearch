@@ -34,8 +34,8 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
 
     @Override
     public DeleteStep createRandomInstance() {
-        StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-        StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        StepKey stepKey = randomStepKey();
+        StepKey nextStepKey = randomStepKey();
 
         return new DeleteStep(stepKey, nextStepKey, client);
     }

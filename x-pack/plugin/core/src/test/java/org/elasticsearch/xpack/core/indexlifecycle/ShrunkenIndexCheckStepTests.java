@@ -18,8 +18,8 @@ public class ShrunkenIndexCheckStepTests extends AbstractStepTestCase<ShrunkenIn
 
     @Override
     public ShrunkenIndexCheckStep createRandomInstance() {
-        StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-        StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        StepKey stepKey = randomStepKey();
+        StepKey nextStepKey = randomStepKey();
         String shrunkIndexPrefix = randomAlphaOfLength(10);
         return new ShrunkenIndexCheckStep(stepKey, nextStepKey, shrunkIndexPrefix);
     }

@@ -42,8 +42,8 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
 
     @Override
     public ShrinkStep createRandomInstance() {
-        StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-        StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        StepKey stepKey = randomStepKey();
+        StepKey nextStepKey = randomStepKey();
         int numberOfShards = randomIntBetween(1, 20);
         String shrunkIndexPrefix = randomAlphaOfLength(10);
         return new ShrinkStep(stepKey, nextStepKey, client, numberOfShards, shrunkIndexPrefix);

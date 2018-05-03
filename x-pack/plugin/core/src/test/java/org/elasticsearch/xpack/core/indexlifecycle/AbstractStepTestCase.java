@@ -24,7 +24,10 @@ public abstract class AbstractStepTestCase<T extends Step> extends ESTestCase {
     }
 
     public static StepKey randomStepKey() {
-        return new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        String randomPhase = randomAlphaOfLength(10);
+        String randomAction = randomAlphaOfLength(10);
+        String randomStepName = randomAlphaOfLength(10);
+        return new StepKey(randomPhase, randomAction, randomStepName);
     }
 
     public void testStepNameNotError() {

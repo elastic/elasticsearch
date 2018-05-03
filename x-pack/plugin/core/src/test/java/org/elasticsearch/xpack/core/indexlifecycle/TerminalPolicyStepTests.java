@@ -11,8 +11,8 @@ public class TerminalPolicyStepTests extends AbstractStepTestCase<TerminalPolicy
 
     @Override
     public TerminalPolicyStep createRandomInstance() {
-        StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-        StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        StepKey stepKey = randomStepKey();
+        StepKey nextStepKey = randomStepKey();
         return new TerminalPolicyStep(stepKey, nextStepKey);
     }
 

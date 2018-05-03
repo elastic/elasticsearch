@@ -21,8 +21,8 @@ public class PhaseAfterStepTests extends AbstractStepTestCase<PhaseAfterStep> {
 
     @Override
     public PhaseAfterStep createRandomInstance() {
-        StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-        StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        StepKey stepKey = randomStepKey();
+        StepKey nextStepKey = randomStepKey();
         TimeValue after = createRandomTimeValue();
         return new PhaseAfterStep(null, after, stepKey, nextStepKey);
     }

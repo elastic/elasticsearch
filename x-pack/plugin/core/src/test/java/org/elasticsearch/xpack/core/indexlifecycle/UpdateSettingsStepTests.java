@@ -35,8 +35,8 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
 
     @Override
     public UpdateSettingsStep createRandomInstance() {
-        StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-        StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        StepKey stepKey = randomStepKey();
+        StepKey nextStepKey = randomStepKey();
         Settings settings = Settings.builder().put(randomAlphaOfLength(10), randomAlphaOfLength(10)).build();
 
         return new UpdateSettingsStep(stepKey, nextStepKey, client, settings);

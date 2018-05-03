@@ -109,6 +109,23 @@ Do not ignore request analysis/similarity settings on index resize operations wh
 
 Fix NPE when CumulativeSum agg encounters null value/empty bucket ({pull}29641[#29641])
 
+Machine Learning::
+
+* Account for gaps in data counts after job is reopened ({pull}30294[#30294])
+
+== Elasticsearch version 6.3.1
+
+=== New Features
+
+=== Enhancements
+
+=== Bug Fixes
+
+Reduce the number of object allocations made by {security} when resolving the indices and aliases for a request ({pull}30180[#30180])
+
+=== Regressions
+
+=== Known Issues
 //[float]
 //=== Regressions
 

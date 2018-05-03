@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.List;
@@ -59,11 +58,6 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
     @Override
     protected boolean timeWarped() {
         return false;
-    }
-
-    @Before
-    public void deleteAllWatchHistoryIndices() {
-        assertAcked(client().admin().indices().prepareDelete(HistoryStoreField.INDEX_PREFIX + "*"));
     }
 
     public void testLoadMalformedWatchRecord() throws Exception {
@@ -140,8 +134,10 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         stopWatcher();
         startWatcher();
 
-        WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
-        assertThat(response.getWatchesCount(), equalTo(1L));
+        assertBusy(() -> {
+            WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
+            assertThat(response.getWatchesCount(), equalTo(1L));
+        });
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1915")

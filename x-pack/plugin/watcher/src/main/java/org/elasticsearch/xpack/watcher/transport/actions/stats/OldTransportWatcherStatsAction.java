@@ -23,7 +23,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
-import org.elasticsearch.xpack.watcher.WatcherService;
+import org.elasticsearch.xpack.watcher.WatcherLifeCycleService;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 
@@ -32,7 +32,7 @@ import org.elasticsearch.xpack.watcher.trigger.TriggerService;
  */
 public class OldTransportWatcherStatsAction extends TransportMasterNodeAction<OldWatcherStatsRequest, OldWatcherStatsResponse> {
 
-    private final WatcherService watcherService;
+    private final WatcherLifeCycleService watcherLifeCycleService;
     private final ExecutionService executionService;
     private final XPackLicenseState licenseState;
     private final TriggerService triggerService;
@@ -40,12 +40,12 @@ public class OldTransportWatcherStatsAction extends TransportMasterNodeAction<Ol
     @Inject
     public OldTransportWatcherStatsAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                           ThreadPool threadPool, ActionFilters actionFilters,
-                                          IndexNameExpressionResolver indexNameExpressionResolver, WatcherService watcherService,
-                                          ExecutionService executionService, XPackLicenseState licenseState,
-                                          TriggerService triggerService) {
-        super(settings, OldWatcherStatsAction.NAME, transportService, clusterService, threadPool, actionFilters, 
+                                          IndexNameExpressionResolver indexNameExpressionResolver,
+                                          WatcherLifeCycleService watcherLifeCycleService, ExecutionService executionService,
+                                          XPackLicenseState licenseState, TriggerService triggerService) {
+        super(settings, OldWatcherStatsAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, OldWatcherStatsRequest::new);
-        this.watcherService = watcherService;
+        this.watcherLifeCycleService = watcherLifeCycleService;
         this.executionService = executionService;
         this.licenseState = licenseState;
         this.triggerService = triggerService;
@@ -75,7 +75,7 @@ public class OldTransportWatcherStatsAction extends TransportMasterNodeAction<Ol
     protected void masterOperation(OldWatcherStatsRequest request, ClusterState state,
                                    ActionListener<OldWatcherStatsResponse> listener) throws ElasticsearchException {
         OldWatcherStatsResponse statsResponse = new OldWatcherStatsResponse();
-        statsResponse.setWatcherState(watcherService.state());
+        statsResponse.setWatcherState(watcherLifeCycleService.getState());
         statsResponse.setThreadPoolQueueSize(executionService.executionThreadPoolQueueSize());
         statsResponse.setWatchesCount(triggerService.count());
         statsResponse.setThreadPoolMaxSize(executionService.executionThreadPoolMaxSize());

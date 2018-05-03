@@ -88,9 +88,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
         assertThat(a1CountAfterAck, greaterThan(0L));
         assertThat(a2CountAfterAck, greaterThan(0L));
 
-        logger.info("###3");
         timeWarp().trigger("_id", 4, TimeValue.timeValueSeconds(5));
-        logger.info("###4");
         flush();
         refresh();
 
@@ -107,9 +105,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
         assertEquals(DocWriteResponse.Result.DELETED, response.getResult());
         refresh();
 
-        logger.info("###5");
         timeWarp().trigger("_id", 4, TimeValue.timeValueSeconds(5));
-        logger.info("###6");
 
         GetWatchResponse getWatchResponse = watcherClient().prepareGetWatch("_id").get();
         assertThat(getWatchResponse.isFound(), is(true));

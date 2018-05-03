@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
 import org.elasticsearch.xpack.core.rollup.action.RollableIndexCaps;
 import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
+import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 
 import java.util.List;
 import java.util.Map;
@@ -49,7 +50,14 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
     @Override
     protected void doExecute(GetRollupCapsAction.Request request, ActionListener<GetRollupCapsAction.Response> listener) {
 
-        Map<String, RollableIndexCaps> allCaps = getCaps(request.getIndexPattern(), clusterService.state().getMetaData().indices());
+        Map<String, RollableIndexCaps> allCaps;
+        if (request.getKey().equals(GetRollupCapsAction.KeyOrder.INDEX_PATTERN)) {
+            allCaps = getCaps(request.getIndexPattern(), clusterService.state().getMetaData().indices());
+        } else if (request.getKey().equals(GetRollupCapsAction.KeyOrder.ROLLUP_INDEX)) {
+            allCaps = getCapsByRollupIndex(request.getIndexPattern(), clusterService.state().getMetaData().indices());
+        } else {
+            throw new IllegalArgumentException("Unknown key ordering: [" + request.getKey() + "]");
+        }
         listener.onResponse(new GetRollupCapsAction.Response(allCaps));
     }
 
@@ -82,6 +90,37 @@ public class TransportGetRollupCapsAction extends HandledTransportAction<GetRoll
                     allCaps.put(pattern, indexCaps);
                 });
             });
+        }
+        return allCaps;
+    }
+
+    static Map<String, RollableIndexCaps> getCapsByRollupIndex(String rollupIndex, ImmutableOpenMap<String, IndexMetaData> indices) {
+        Map<String, RollableIndexCaps> allCaps = new TreeMap<>();
+        if (rollupIndex.equals(MetaData.ALL)) {
+            for (ObjectObjectCursor<String, IndexMetaData> entry : indices) {
+
+                // Does this index have rollup metadata?
+                TransportGetRollupCapsAction.findRollupIndexCaps(entry.key, entry.value)
+                    .ifPresent(cap -> {
+                        cap.getJobCaps().forEach(jobCap -> {
+                            // Do we already have an entry for this index?
+                            RollableIndexCaps indexCaps = allCaps.get(jobCap.getRollupIndex());
+                            if (indexCaps == null) {
+                                indexCaps = new RollableIndexCaps(jobCap.getRollupIndex());
+                            }
+                            indexCaps.addJobCap(jobCap);
+                            allCaps.put(jobCap.getRollupIndex(), indexCaps);
+                        });
+                    });
+            }
+        } else {
+           findRollupIndexCaps(rollupIndex, indices.get(rollupIndex)).ifPresent(cap -> {
+               RollableIndexCaps indexCaps = new RollableIndexCaps(rollupIndex);
+               cap.getJobCaps().forEach(jobCap -> {
+                   indexCaps.addJobCap(jobCap);
+                   allCaps.put(jobCap.getRollupIndex(), indexCaps);
+               });
+           });
         }
         return allCaps;
     }

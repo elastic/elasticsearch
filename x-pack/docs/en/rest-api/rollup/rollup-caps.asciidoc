@@ -29,6 +29,13 @@ live?
   rollup job capabilities will be returned
 
 
+==== Query String parameters
+
+`key`::
+  (string) How the response should be keyed.  `index_pattern`, which groups rollup capabilities by their index pattern.
+  Alternative option is `rollup_index`, which groups capabilities by the index the rollup is stored in.  If omitted,
+  the default is `index_pattern`
+
 ==== Request Body
 
 There is no request body for the Get Jobs API.
@@ -178,3 +185,78 @@ Why is this?  The original rollup job was configured against a specific index pa
 (`sensor-1`).  So while the index belongs to the pattern, the rollup job is only valid across the entirety of the pattern
 not just one of it's containing indices.  So for that reason, the Rollup Capabilities API only returns information based
 on the originally configured index name or pattern.
+
+===== Changing key grouping
+
+It is possible to change how rollup capabilities are grouped.  By default, they are grouped by their index pattern.  Instead,
+they can be grouped by the concrete index the rollups are stored in.  This is sometimes a useful operation if you are managing
+the rollup data itself.
+
+To change the grouping, you can specify a `key` parameter in the URL:
+
+[source,js]
+--------------------------------------------------
+GET _xpack/rollup/data/sensor_rollup?key=rollup_index
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Note how we are requesting the concrete rollup index name (`sensor_rollup`) instead of a pattern, and specifying `key=rollup_index`.
+This  will yield the following response:
+
+[source,js]
+----
+{
+  "sensor_rollup" : { <1>
+    "rollup_jobs" : [
+      {
+        "job_id" : "sensor",
+        "rollup_index" : "sensor_rollup",
+        "index_pattern" : "sensor-*",
+        "fields" : {
+          "node" : [
+            {
+              "agg" : "terms"
+            }
+          ],
+          "temperature" : [
+            {
+              "agg" : "min"
+            },
+            {
+              "agg" : "max"
+            },
+            {
+              "agg" : "sum"
+            }
+          ],
+          "timestamp" : [
+            {
+              "agg" : "date_histogram",
+              "time_zone" : "UTC",
+              "interval" : "1h",
+              "delay": "7d"
+            }
+          ],
+          "voltage" : [
+            {
+              "agg" : "avg"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE
+<1> The response is now grouped by the rollup index name at the top level
+
+You can also get the capabilities for all rollups using `_all`, grouped by the rollup index:
+
+[source,js]
+--------------------------------------------------
+GET _xpack/rollup/data/_all?key=rollup_index
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]

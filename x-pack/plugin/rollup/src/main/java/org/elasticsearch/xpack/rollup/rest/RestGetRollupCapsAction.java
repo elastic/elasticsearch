@@ -19,6 +19,7 @@ import java.io.IOException;
 
 public class RestGetRollupCapsAction extends BaseRestHandler {
     public static final ParseField ID = new ParseField("id");
+    public static final ParseField KEY = new ParseField("key");
 
     public RestGetRollupCapsAction(Settings settings, RestController controller) {
         super(settings);
@@ -28,7 +29,8 @@ public class RestGetRollupCapsAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String id = restRequest.param(ID.getPreferredName());
-        GetRollupCapsAction.Request request = new GetRollupCapsAction.Request(id);
+        String key = restRequest.param(KEY.getPreferredName(), "index_pattern");
+        GetRollupCapsAction.Request request = new GetRollupCapsAction.Request(id, key);
 
         return channel -> client.execute(GetRollupCapsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

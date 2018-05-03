@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.rollup.action;
 
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -52,13 +54,15 @@ public class GetRollupCapsAction extends Action<GetRollupCapsAction.Request, Get
 
     public static class Request extends ActionRequest implements ToXContent {
         private String indexPattern;
+        private KeyOrder key = KeyOrder.INDEX_PATTERN;
 
-        public Request(String indexPattern) {
+        public Request(String indexPattern, String key) {
             if (Strings.isNullOrEmpty(indexPattern) || indexPattern.equals("*")) {
                 this.indexPattern = MetaData.ALL;
             } else {
                 this.indexPattern = indexPattern;
             }
+            this.key = KeyOrder.fromString(key);
         }
 
         public Request() {}
@@ -67,16 +71,26 @@ public class GetRollupCapsAction extends Action<GetRollupCapsAction.Request, Get
             return indexPattern;
         }
 
+        public KeyOrder getKey() {
+            return key;
+        }
+
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             this.indexPattern = in.readString();
+            if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+                this.key = KeyOrder.fromStream(in);
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(indexPattern);
+            if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+                key.writeTo(out);
+            }
         }
 
         @Override
@@ -87,12 +101,13 @@ public class GetRollupCapsAction extends Action<GetRollupCapsAction.Request, Get
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(RollupField.ID.getPreferredName(), indexPattern);
+            builder.field(KeyOrder.KEY.getPreferredName(), key);
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(indexPattern);
+            return Objects.hash(indexPattern, key);
         }
 
         @Override
@@ -104,7 +119,8 @@ public class GetRollupCapsAction extends Action<GetRollupCapsAction.Request, Get
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(indexPattern, other.indexPattern);
+            return Objects.equals(indexPattern, other.indexPattern)
+                && Objects.equals(key, other.key);
         }
     }
 
@@ -173,4 +189,29 @@ public class GetRollupCapsAction extends Action<GetRollupCapsAction.Request, Get
             return Strings.toString(this);
         }
     }
+
+    public enum KeyOrder implements Writeable {
+        INDEX_PATTERN, ROLLUP_INDEX;
+
+        public static final ParseField KEY = new ParseField("key");
+
+        public static KeyOrder fromString(String name) {
+            return valueOf(name.trim().toUpperCase(Locale.ROOT));
+        }
+
+        public static KeyOrder fromStream(StreamInput in) throws IOException {
+            return in.readEnum(KeyOrder.class);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            KeyOrder state = this;
+            out.writeEnum(state);
+        }
+
+        public String value() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+    }
+
 }

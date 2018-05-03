@@ -80,7 +80,7 @@ public class GoogleCloudStorageService extends AbstractComponent {
             storageOptionsBuilder.setProjectId(clientSettings.getProjectId());
         }
         if (clientSettings.getCredential() == null) {
-            logger.warn("Application Default Credentials are not supported out of the box."
+            logger.warn("\"Application Default Credentials\" are not supported out of the box."
                     + " Additional file system permissions have to be granted to the plugin.");
         } else {
             final ServiceAccountCredentials serviceAccountCredentials = clientSettings.getCredential();

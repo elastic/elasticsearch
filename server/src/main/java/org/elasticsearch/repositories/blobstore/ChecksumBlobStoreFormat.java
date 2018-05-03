@@ -139,7 +139,7 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
         } catch (IOException ex) {
             // Move failed - try cleaning up
             try {
-                blobContainer.deleteBlobIgnoringIfNotExists(tempBlobName);
+                blobContainer.deleteBlob(tempBlobName);
             } catch (Exception e) {
                 ex.addSuppressed(e);
             }

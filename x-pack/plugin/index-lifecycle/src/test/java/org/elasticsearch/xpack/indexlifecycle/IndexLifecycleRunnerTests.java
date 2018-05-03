@@ -5,13 +5,18 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncActionStep;
@@ -28,6 +33,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -183,7 +189,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         assertEquals(1, step.getExecuteCount());
         Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ILM"),
-                Mockito.argThat(new MoveToErrorStepUpdateTaskMatcher(indexMetaData.getIndex(), policyName, stepKey)));
+                Mockito.argThat(new MoveToErrorStepUpdateTaskMatcher(indexMetaData.getIndex(), policyName, stepKey, expectedException)));
         Mockito.verifyNoMoreInteractions(clusterService);
     }
 
@@ -257,7 +263,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         assertEquals(1, step.getExecuteCount());
         Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ILM"),
-                Mockito.argThat(new MoveToErrorStepUpdateTaskMatcher(indexMetaData.getIndex(), policyName, stepKey)));
+                Mockito.argThat(new MoveToErrorStepUpdateTaskMatcher(indexMetaData.getIndex(), policyName, stepKey, expectedException)));
         Mockito.verifyNoMoreInteractions(clusterService);
     }
 
@@ -529,18 +535,19 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         assertClusterStateOnNextStep(clusterState, index, currentStep, nextStep, newClusterState, now);
     }
 
-    public void testMoveClusterStateToErrorStep() {
+    public void testMoveClusterStateToErrorStep() throws IOException {
         String indexName = "my_index";
         StepKey currentStep = new StepKey("current_phase", "current_action", "current_step");
         long now = randomNonNegativeLong();
+        Exception cause = new ElasticsearchException("THIS IS AN EXPECTED CAUSE");
 
         ClusterState clusterState = buildClusterState(indexName,
                 Settings.builder().put(LifecycleSettings.LIFECYCLE_PHASE, currentStep.getPhase())
                         .put(LifecycleSettings.LIFECYCLE_ACTION, currentStep.getAction())
                         .put(LifecycleSettings.LIFECYCLE_STEP, currentStep.getName()));
         Index index = clusterState.metaData().index(indexName).getIndex();
-        ClusterState newClusterState = IndexLifecycleRunner.moveClusterStateToErrorStep(index, clusterState, currentStep, () -> now);
-        assertClusterStateOnErrorStep(clusterState, index, currentStep, newClusterState, now);
+        ClusterState newClusterState = IndexLifecycleRunner.moveClusterStateToErrorStep(index, clusterState, currentStep, cause, () -> now);
+        assertClusterStateOnErrorStep(clusterState, index, currentStep, newClusterState, cause, now);
     }
 
     private ClusterState buildClusterState(String indexName, Settings.Builder indexSettingsBuilder) {
@@ -581,7 +588,12 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
     }
 
     private void assertClusterStateOnErrorStep(ClusterState oldClusterState, Index index, StepKey currentStep, ClusterState newClusterState,
-            long now) {
+            Exception cause, long now) throws IOException {
+        XContentBuilder causeXContentBuilder = JsonXContent.contentBuilder();
+        causeXContentBuilder.startObject();
+        ElasticsearchException.generateFailureXContent(causeXContentBuilder, ToXContent.EMPTY_PARAMS, cause, false);
+        causeXContentBuilder.endObject();
+        String expectedCauseValue = BytesReference.bytes(causeXContentBuilder).utf8ToString();
         assertNotSame(oldClusterState, newClusterState);
         MetaData newMetadata = newClusterState.metaData();
         assertNotSame(oldClusterState.metaData(), newMetadata);
@@ -593,6 +605,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         assertEquals(currentStep.getAction(), LifecycleSettings.LIFECYCLE_ACTION_SETTING.get(newIndexSettings));
         assertEquals(ErrorStep.NAME, LifecycleSettings.LIFECYCLE_STEP_SETTING.get(newIndexSettings));
         assertEquals(currentStep.getName(), LifecycleSettings.LIFECYCLE_FAILED_STEP_SETTING.get(newIndexSettings));
+        assertEquals(expectedCauseValue, LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING.get(newIndexSettings));
         assertEquals(LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(oldClusterState.metaData().index(index).getSettings()),
                 LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(newIndexSettings));
         assertEquals(LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(oldClusterState.metaData().index(index).getSettings()),
@@ -771,11 +784,13 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         private Index index;
         private String policy;
         private StepKey currentStepKey;
+        private Exception cause;
 
-        MoveToErrorStepUpdateTaskMatcher(Index index, String policy, StepKey currentStepKey) {
+        MoveToErrorStepUpdateTaskMatcher(Index index, String policy, StepKey currentStepKey, Exception cause) {
             this.index = index;
             this.policy = policy;
             this.currentStepKey = currentStepKey;
+            this.cause = cause;
         }
 
         @Override
@@ -784,8 +799,11 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 return false;
             }
             MoveToErrorStepUpdateTask task = (MoveToErrorStepUpdateTask) argument;
-            return Objects.equals(index, task.getIndex()) && Objects.equals(policy, task.getPolicy())
-                    && Objects.equals(currentStepKey, task.getCurrentStepKey());
+            return Objects.equals(index, task.getIndex()) && 
+                    Objects.equals(policy, task.getPolicy())&& 
+                    Objects.equals(currentStepKey, task.getCurrentStepKey()) &&
+                    Objects.equals(cause.getClass(), task.getCause().getClass()) &&
+                    Objects.equals(cause.getMessage(), task.getCause().getMessage());
         }
 
     }

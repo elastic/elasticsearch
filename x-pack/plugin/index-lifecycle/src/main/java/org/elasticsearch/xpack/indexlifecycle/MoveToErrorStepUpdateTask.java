@@ -13,6 +13,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 
+import java.io.IOException;
 import java.util.function.LongSupplier;
 
 public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
@@ -20,12 +21,13 @@ public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
     private final String policy;
     private final Step.StepKey currentStepKey;
     private LongSupplier nowSupplier;
+    private Exception cause;
 
-    public MoveToErrorStepUpdateTask(Index index, String policy, Step.StepKey currentStepKey,
-            LongSupplier nowSupplier) {
+    public MoveToErrorStepUpdateTask(Index index, String policy, Step.StepKey currentStepKey, Exception cause, LongSupplier nowSupplier) {
         this.index = index;
         this.policy = policy;
         this.currentStepKey = currentStepKey;
+        this.cause = cause;
         this.nowSupplier = nowSupplier;
     }
 
@@ -41,12 +43,16 @@ public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
         return currentStepKey;
     }
 
+    Exception getCause() {
+        return cause;
+    }
+
     @Override
-    public ClusterState execute(ClusterState currentState) {
+    public ClusterState execute(ClusterState currentState) throws IOException {
         Settings indexSettings = currentState.getMetaData().index(index).getSettings();
         if (policy.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings))
             && currentStepKey.equals(IndexLifecycleRunner.getCurrentStepKey(indexSettings))) {
-            return IndexLifecycleRunner.moveClusterStateToErrorStep(index, currentState, currentStepKey, nowSupplier);
+            return IndexLifecycleRunner.moveClusterStateToErrorStep(index, currentState, currentStepKey, cause, nowSupplier);
         } else {
             // either the policy has changed or the step is now
             // not the same as when we submitted the update task. In

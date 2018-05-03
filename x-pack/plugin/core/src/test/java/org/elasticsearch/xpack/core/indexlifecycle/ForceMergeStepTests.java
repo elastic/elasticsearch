@@ -28,8 +28,8 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
 
     @Override
     public ForceMergeStep createRandomInstance() {
-        Step.StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-        StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        Step.StepKey stepKey = randomStepKey();
+        StepKey nextStepKey = randomStepKey();
         int maxNumSegments = randomIntBetween(1, 10);
 
         return new ForceMergeStep(stepKey, nextStepKey, null, maxNumSegments);
@@ -67,8 +67,8 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
     public void testPerformActionComplete() {
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-        Step.StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-        StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        Step.StepKey stepKey = randomStepKey();
+        StepKey nextStepKey = randomStepKey();
         int maxNumSegments = randomIntBetween(1, 10);
         Client client = mock(Client.class);
         AdminClient adminClient = mock(AdminClient.class);
@@ -106,8 +106,8 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         Exception exception = new RuntimeException("error");
-        Step.StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-        StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        Step.StepKey stepKey = randomStepKey();
+        StepKey nextStepKey = randomStepKey();
         int maxNumSegments = randomIntBetween(1, 10);
         Client client = mock(Client.class);
         AdminClient adminClient = mock(AdminClient.class);

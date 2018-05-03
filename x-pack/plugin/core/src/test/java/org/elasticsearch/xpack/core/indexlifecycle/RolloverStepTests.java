@@ -46,9 +46,8 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
 
     @Override
     public RolloverStep createRandomInstance() {
-        StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-        StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-        String alias = randomAlphaOfLengthBetween(1, 20);
+        StepKey stepKey = randomStepKey();
+        StepKey nextStepKey = randomStepKey();
         ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
         ByteSizeValue maxSize = randomBoolean() ? null : new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
         Long maxDocs = randomBoolean() ? null : randomNonNegativeLong();

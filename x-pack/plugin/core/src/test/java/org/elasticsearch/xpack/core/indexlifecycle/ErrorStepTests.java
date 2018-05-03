@@ -32,7 +32,7 @@ public class ErrorStepTests extends AbstractStepTestCase<ErrorStep> {
     }
 
     public void testInvalidStepKey() {
-        StepKey invalidKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        StepKey invalidKey = randomStepKey();
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new ErrorStep(invalidKey));
         assertEquals("An error step must have a step key whose step name is " + ErrorStep.NAME, exception.getMessage());
     }

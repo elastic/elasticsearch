@@ -18,7 +18,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
-
 import org.mockito.Mockito;
 
 import java.util.ArrayList;
@@ -34,8 +33,8 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
 
     @Override
     public SegmentCountStep createRandomInstance() {
-        Step.StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-        StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        Step.StepKey stepKey = randomStepKey();
+        StepKey nextStepKey = randomStepKey();
         int maxNumSegments = randomIntBetween(1, 10);
         boolean bestCompression = randomBoolean();
 
@@ -101,8 +100,8 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         Mockito.when(client.admin()).thenReturn(adminClient);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
-        Step.StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-        StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        Step.StepKey stepKey = randomStepKey();
+        StepKey nextStepKey = randomStepKey();
         boolean bestCompression = randomBoolean();
 
         Mockito.doAnswer(invocationOnMock -> {
@@ -156,8 +155,8 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         Mockito.when(client.admin()).thenReturn(adminClient);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
-        Step.StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-        StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        Step.StepKey stepKey = randomStepKey();
+        StepKey nextStepKey = randomStepKey();
         boolean bestCompression = randomBoolean();
 
         Mockito.doAnswer(invocationOnMock -> {
@@ -194,8 +193,8 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         Mockito.when(client.admin()).thenReturn(adminClient);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
-        Step.StepKey stepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-        StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
+        Step.StepKey stepKey = randomStepKey();
+        StepKey nextStepKey = randomStepKey();
         int maxNumSegments = randomIntBetween(3, 10);
         boolean bestCompression = randomBoolean();
 

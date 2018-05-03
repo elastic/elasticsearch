@@ -37,6 +37,8 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
     private static final String TEST_ADMIN_USERNAME = "test_admin";
     private static final String TEST_ADMIN_PASSWORD = "x-pack-test-password";
 
+    private String watchId = randomAlphaOfLength(20);
+
     @Before
     public void startWatcher() throws Exception {
         StringEntity entity = new StringEntity("{ \"value\" : \"15\" }", ContentType.APPLICATION_JSON);
@@ -87,7 +89,6 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
 
     @After
     public void stopWatcher() throws Exception {
-        adminClient().performRequest("DELETE", "_xpack/watcher/watch/my_watch");
         assertOK(adminClient().performRequest("DELETE", "my_test_index"));
 
         assertBusy(() -> {
@@ -147,14 +148,14 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
             builder.startObject("condition").startObject("compare").startObject("ctx.payload.hits.total").field("gte", 1)
                     .endObject().endObject().endObject();
             builder.startObject("actions").startObject("logging").startObject("logging")
-                    .field("text", "successfully ran my_watch to test for search inpput").endObject().endObject().endObject();
+                    .field("text", "successfully ran " + watchId + "to test for search inpput").endObject().endObject().endObject();
             builder.endObject();
 
-            indexWatch("my_watch", builder);
+            indexWatch(watchId, builder);
         }
 
         // check history, after watch has fired
-        ObjectPath objectPath = getWatchHistoryEntry("my_watch", "executed");
+        ObjectPath objectPath = getWatchHistoryEntry(watchId, "executed");
         boolean conditionMet = objectPath.evaluate("hits.hits.0._source.result.condition.met");
         assertThat(conditionMet, is(true));
     }
@@ -174,11 +175,11 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
                     .field("text", "this should never be logged").endObject().endObject().endObject();
             builder.endObject();
 
-            indexWatch("my_watch", builder);
+            indexWatch(watchId, builder);
         }
 
         // check history, after watch has fired
-        ObjectPath objectPath = getWatchHistoryEntry("my_watch");
+        ObjectPath objectPath = getWatchHistoryEntry(watchId);
         String state = objectPath.evaluate("hits.hits.0._source.state");
         assertThat(state, is("execution_not_needed"));
         boolean conditionMet = objectPath.evaluate("hits.hits.0._source.result.condition.met");
@@ -201,11 +202,11 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
                     .endObject().endObject().endObject();
             builder.endObject();
 
-            indexWatch("my_watch", builder);
+            indexWatch(watchId, builder);
         }
 
         // check history, after watch has fired
-        ObjectPath objectPath = getWatchHistoryEntry("my_watch", "executed");
+        ObjectPath objectPath = getWatchHistoryEntry(watchId, "executed");
         boolean conditionMet = objectPath.evaluate("hits.hits.0._source.result.condition.met");
         assertThat(conditionMet, is(true));
 
@@ -232,10 +233,10 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
                     .endObject().endObject().endObject();
             builder.endObject();
 
-            indexWatch("my_watch", builder);
+            indexWatch(watchId, builder);
         }
 
-        getWatchHistoryEntry("my_watch");
+        getWatchHistoryEntry(watchId);
 
         Response response = adminClient().performRequest("GET", "my_test_index/doc/some-id",
                 Collections.singletonMap("ignore", "404"));
@@ -254,10 +255,10 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
                     .endObject().endObject().endObject();
             builder.endObject();
 
-            indexWatch("my_watch", builder);
+            indexWatch(watchId, builder);
         }
 
-        ObjectPath objectPath = getWatchHistoryEntry("my_watch", "executed");
+        ObjectPath objectPath = getWatchHistoryEntry(watchId, "executed");
         boolean conditionMet = objectPath.evaluate("hits.hits.0._source.result.condition.met");
         assertThat(conditionMet, is(true));
 
@@ -278,10 +279,10 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
                     .endObject().endObject().endObject();
             builder.endObject();
 
-            indexWatch("my_watch", builder);
+            indexWatch(watchId, builder);
         }
 
-        ObjectPath objectPath = getWatchHistoryEntry("my_watch", "executed");
+        ObjectPath objectPath = getWatchHistoryEntry(watchId, "executed");
         boolean conditionMet = objectPath.evaluate("hits.hits.0._source.result.condition.met");
         assertThat(conditionMet, is(true));
 
@@ -293,7 +294,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
     private void indexWatch(String watchId, XContentBuilder builder) throws Exception {
         StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
 
-        Response response = client().performRequest("PUT", "_xpack/watcher/watch/my_watch", Collections.emptyMap(), entity);
+        Response response = client().performRequest("PUT", "_xpack/watcher/watch/" + watchId, Collections.emptyMap(), entity);
         assertOK(response);
         Map<String, Object> responseMap = entityAsMap(response);
         assertThat(responseMap, hasEntry("_id", watchId));

@@ -121,12 +121,7 @@ public class SearchActionTests extends ESTestCase {
         RollupJobCaps cap = new RollupJobCaps(job.build());
         Set<RollupJobCaps> caps = new HashSet<>();
         caps.add(cap);
-        QueryBuilder rewritten = null;
-        try {
-            rewritten = TransportRollupSearchAction.rewriteQuery(new RangeQueryBuilder("foo").gt(1).timeZone("UTC"), caps);
-        } catch (Exception e) {
-            fail("Should not have thrown exception when parsing query.");
-        }
+        QueryBuilder rewritten = TransportRollupSearchAction.rewriteQuery(new RangeQueryBuilder("foo").gt(1).timeZone("UTC"), caps);
         assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
         assertThat(((RangeQueryBuilder)rewritten).fieldName(), equalTo("foo.date_histogram.timestamp"));
     }
@@ -139,12 +134,7 @@ public class SearchActionTests extends ESTestCase {
         RollupJobCaps cap = new RollupJobCaps(job.build());
         Set<RollupJobCaps> caps = new HashSet<>();
         caps.add(cap);
-        QueryBuilder rewritten = null;
-        try {
-            rewritten = TransportRollupSearchAction.rewriteQuery(new RangeQueryBuilder("foo").gt(1), caps);
-        } catch (Exception e) {
-            fail("Should not have thrown exception when parsing query.");
-        }
+        QueryBuilder rewritten = TransportRollupSearchAction.rewriteQuery(new RangeQueryBuilder("foo").gt(1), caps);
         assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
         assertThat(((RangeQueryBuilder)rewritten).fieldName(), equalTo("foo.date_histogram.timestamp"));
     }
@@ -171,12 +161,7 @@ public class SearchActionTests extends ESTestCase {
         RollupJobCaps cap = new RollupJobCaps(job.build());
         Set<RollupJobCaps> caps = new HashSet<>();
         caps.add(cap);
-        QueryBuilder rewritten = null;
-        try {
-            rewritten = TransportRollupSearchAction.rewriteQuery(new TermQueryBuilder("foo", "bar"), caps);
-        } catch (Exception e) {
-            fail("Should not have thrown exception when parsing query.");
-        }
+        QueryBuilder rewritten = TransportRollupSearchAction.rewriteQuery(new TermQueryBuilder("foo", "bar"), caps);
         assertThat(rewritten, instanceOf(TermQueryBuilder.class));
         assertThat(((TermQueryBuilder)rewritten).fieldName(), equalTo("foo.terms.value"));
     }
@@ -192,12 +177,7 @@ public class SearchActionTests extends ESTestCase {
 
         BoolQueryBuilder builder = new BoolQueryBuilder();
         builder.must(getQueryBuilder(2));
-        QueryBuilder rewritten = null;
-        try {
-            rewritten = TransportRollupSearchAction.rewriteQuery(builder, caps);
-        } catch (Exception e) {
-            fail("Should not have thrown exception when parsing query.");
-        }
+        QueryBuilder rewritten = TransportRollupSearchAction.rewriteQuery(builder, caps);
         assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
         assertThat(((BoolQueryBuilder)rewritten).must().size(), equalTo(1));
     }
@@ -210,12 +190,8 @@ public class SearchActionTests extends ESTestCase {
         RollupJobCaps cap = new RollupJobCaps(job.build());
         Set<RollupJobCaps> caps = new HashSet<>();
         caps.add(cap);
-        try {
-            QueryBuilder rewritten = TransportRollupSearchAction.rewriteQuery(new MatchAllQueryBuilder(), caps);
-            assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
-        } catch (Exception e) {
-            fail("Should not have thrown exception when parsing query.");
-        }
+        QueryBuilder rewritten = TransportRollupSearchAction.rewriteQuery(new MatchAllQueryBuilder(), caps);
+        assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
     }
 
     public void testAmbiguousResolution() {

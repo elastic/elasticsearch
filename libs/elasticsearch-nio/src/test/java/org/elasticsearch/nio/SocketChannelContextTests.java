@@ -232,7 +232,7 @@ public class SocketChannelContextTests extends ESTestCase {
 
 
             ByteBuffer[] buffer = {ByteBuffer.allocate(10)};
-            BiConsumer listener2 = mock(BiConsumer.class);
+            BiConsumer<Void, Throwable> listener2 = mock(BiConsumer.class);
 
             assertFalse(context.readyForFlush());
             when(channel.isOpen()).thenReturn(true);

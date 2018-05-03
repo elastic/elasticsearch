@@ -16,6 +16,7 @@ project.rootProject.subprojects.findAll { it.path.startsWith(':plugins:') }.each
 
 integTestCluster {
   setting 'xpack.security.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'trial'
   setupCommand 'setupDummyUser',
                'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
   waitCondition = { node, ant ->

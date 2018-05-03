@@ -64,6 +64,7 @@ thirdPartyAudit.excludes = [
         // classes are missing
 ]
 
+<<<<<<< HEAD
 forbiddenApisTest {
   // we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
   bundledSignatures -= 'jdk-non-portable'
@@ -108,3 +109,9 @@ integTestCluster {
   setting 'gcs.client.integration_test.host', "http://${ -> googleCloudStorageFixture.addressAndPort }"
   setting 'gcs.client.integration_test.token_uri', "http://${ -> googleCloudStorageFixture.addressAndPort }/o/oauth2/token"
 }
+=======
+check {
+  // also execute the QA tests when testing the plugin
+  dependsOn 'qa:google-cloud-storage:check'
+}
+>>>>>>> master

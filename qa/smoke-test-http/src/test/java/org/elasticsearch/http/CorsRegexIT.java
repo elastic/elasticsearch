@@ -49,7 +49,6 @@ public class CorsRegexIT extends HttpSmokeTestCase {
                 .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
                 .put(SETTING_CORS_ALLOW_METHODS.getKey(), "get, options, post")
                 .put(SETTING_CORS_ENABLED.getKey(), true)
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();
     }
 

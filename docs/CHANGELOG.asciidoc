@@ -3,6 +3,10 @@
 
 [partintro]
 --
+// To add a release, copy and paste the placeholder text at the bottom
+// and add a link to the new section. Note that release subheads must
+// be floated and sections cannot be empty.
+
 // Use these for links to issue and pulls. Note issues and pulls redirect one to
 // each other on Github, so don't worry too much on using the right prefix.
 // :issue: https://github.com/elastic/elasticsearch/issues/
@@ -30,6 +34,9 @@ This section summarizes the changes in each release.
 * <<release-notes-6.0.0-alpha2>>
 * <<release-notes-6.0.0-alpha1>>
 * <<release-notes-6.0.0-alpha1-5x>>
+* <<release-notes-7.0.0>>
+* <<release-notes-6.4.0>>
+* <<release-notes-6.3.1>>
 
 --
 
@@ -281,6 +288,8 @@ Machine Learning::
 * Fixed an exception that occurred when a categorization field contained an
 empty string.
 
+[float]
+=== Deprecations
 Monitoring::
 * Properly registered `xpack.monitoring.exporters.*.headers.*` settings, which
 were broken in 6.2.0 and 6.2.1. For more information, see
@@ -349,14 +358,15 @@ Plugin Lang Painless::
 
 Plugins::
 * Fix the ability to remove old plugin {pull}28540[#28540] (issue: {issue}28538[#28538])
+[float]
+=== Regressions
+Fail snapshot operations early when creating or deleting a snapshot on a repository that has been
+written to by an older Elasticsearch after writing to it with a newer Elasticsearch version. ({pull}30140[#30140])
 
 Security::
 * Fixed missing dependencies for x-pack-transport.
 * Fixed `saml-metadata` env file such that it sources the appropriate 
 environment file.
-
-//[float]
-//=== Regressions
 
 //[float]
 //=== Known Issues
@@ -794,19 +804,52 @@ Watcher::
 * Replaced group settings with affix key settings where filters are needed.
 For more information, see https://github.com/elastic/elasticsearch/pull/28338.
 
+[[release-notes-6.3.1]]
 == Elasticsearch version 6.3.1
 
-=== New Features
+//[float]
+//=== New Features
 
-=== Enhancements
+//[float]
+//=== Enhancements
 
+[float]
 === Bug Fixes
 
 Reduce the number of object allocations made by {security} when resolving the indices and aliases for a request ({pull}30180[#30180])
 
-=== Regressions
+//[float]
+//=== Regressions
 
-=== Known Issues
+//[float]
+//=== Known Issues
+
+// To add a release, copy and paste the following text,  uncomment the relevant
+// sections, and add a link to the new section in the list of releases at the
+// top of the page. Note that release subheads must be floated and sections
+// cannot be empty.
+
+// [[release-notes-n.n.n]]
+// == {es} n.n.n
+
+//[float]
+//=== Breaking Changes
+
+//[float]
+//=== Breaking Java Changes
+
+//[float]
+//=== Deprecations
+
+//[float]
+//=== New Features
+
+//[float]
+//=== Enhancements
+
+//[float]
+//=== Bug Fixes
+
 //[float]
 //=== Regressions
 

@@ -119,7 +119,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
      */
     private XContentLocation precisionLocation = null;
 
-    private int precision = -1;
+    private int precision = Integer.MIN_VALUE;
 
     private int requiredSize = DEFAULT_MAX_NUM_CELLS;
     private int shardSize = -1;

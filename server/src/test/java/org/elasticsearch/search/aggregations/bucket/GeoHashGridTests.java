@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashType;
 
 public class GeoHashGridTests extends BaseAggregationTestCase<GeoGridAggregationBuilder> {
 
@@ -29,8 +30,23 @@ public class GeoHashGridTests extends BaseAggregationTestCase<GeoGridAggregation
         String name = randomAlphaOfLengthBetween(3, 20);
         GeoGridAggregationBuilder factory = new GeoGridAggregationBuilder(name);
         if (randomBoolean()) {
-            int precision = randomIntBetween(1, 12);
+            factory.type(randomFrom(GeoHashType.values()).toString());
+        }
+        if (randomBoolean()) {
+            int precision;
+            switch (factory.type()) {
+                case GEOHASH:
+                    precision = randomIntBetween(1, 12);
+                    break;
+                default:
+                    throw new IllegalArgumentException(
+                        "GeoHashType." + factory.type().name() + " was not added to the test");
+            }
             factory.precision(precision);
+        } else {
+            // precision gets initialized during the parse stage, so we have to force it
+            // to the default value for the chosen hashing type.
+            factory.precision(factory.type().getHandler().getDefaultPrecision());
         }
         if (randomBoolean()) {
             factory.size(randomIntBetween(1, Integer.MAX_VALUE));

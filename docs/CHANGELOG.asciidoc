@@ -794,6 +794,19 @@ Watcher::
 * Replaced group settings with affix key settings where filters are needed.
 For more information, see https://github.com/elastic/elasticsearch/pull/28338.
 
+== Elasticsearch version 6.3.1
+
+=== New Features
+
+=== Enhancements
+
+=== Bug Fixes
+
+Reduce the number of object allocations made by {security} when resolving the indices and aliases for a request ({pull}30180[#30180])
+
+=== Regressions
+
+=== Known Issues
 //[float]
 //=== Regressions
 

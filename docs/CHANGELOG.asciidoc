@@ -96,6 +96,11 @@ option. ({pull}30140[#29658])
 Added new "Request" object flavored request methods. Prefer these instead of the
 multi-argument versions. ({pull}29623[#29623])
 
+The cluster state listener to decide if watcher should be
+stopped/started/paused now runs far less code in an executor but is more
+synchronous and predictable. Also the trigger engine thread is only started on
+data nodes. And the Execute Watch API can be triggered regardless is watcher is
+started or stopped. ({pull}30118[#30118])
 
 [float]
 === Bug Fixes

@@ -67,21 +67,21 @@ public class PemUtils {
      * @return a private key from the contents of the file
      */
     public static PrivateKey readPrivateKey(Path keyPath, Supplier<char[]> passwordSupplier) {
+        char[] keyPassword = passwordSupplier.get();
         try (BufferedReader bReader = Files.newBufferedReader(keyPath, StandardCharsets.UTF_8)) {
             String line = bReader.readLine();
             if (null == line) {
                 throw new IllegalStateException("Error parsing Private Key from: " + keyPath.toString() + ". File is empty");
             }
             if (PKCS8_ENCRYPTED_HEADER.equals(line.trim())) {
-                char[] password = passwordSupplier.get();
-                if (password == null) {
+                if (keyPassword == null) {
                     throw new IllegalArgumentException("cannot read encrypted key without a password");
                 }
-                return parsePKCS8Encrypted(bReader, password);
+                return parsePKCS8Encrypted(bReader, keyPassword);
             } else if (PKCS8_HEADER.equals(line.trim())) {
                 return parsePKCS8(bReader);
             } else if (PKCS1_HEADER.equals(line.trim())) {
-                return parsePKCS1(bReader, passwordSupplier);
+                return parsePKCS1(bReader, keyPassword);
             } else if (OPENSSL_EC_HEADER.equals(line.trim())) {
                 return parseOpenSslEC(bReader);
             } else if (OPENSSL_EC_PARAMS_HEADER.equals(line.trim())) {
@@ -92,6 +92,10 @@ public class PemUtils {
             }
         } catch (IOException | GeneralSecurityException e) {
             throw new IllegalStateException("Error parsing Private Key from: " + keyPath.toString(), e);
+        }finally {
+            if (null != keyPassword) {
+                Arrays.fill(keyPassword, '\u0000');
+            }
         }
     }
 
@@ -162,7 +166,7 @@ public class PemUtils {
         return keyFactory.generatePrivate(new PKCS8EncodedKeySpec(keyBytes));
     }
 
-    private static PrivateKey parsePKCS1(BufferedReader bReader, Supplier<char[]> passwordSupplier) throws IOException,
+    private static PrivateKey parsePKCS1(BufferedReader bReader, char[] keyPassword) throws IOException,
             GeneralSecurityException {
         StringBuilder sb = new StringBuilder();
         String line = bReader.readLine();
@@ -185,13 +189,13 @@ public class PemUtils {
         if (null == line || PKCS1_FOOTER.equals(line.trim()) == false) {
             throw new IOException("Malformed PEM file, PEM footer is invalid or missing");
         }
-        byte[] keyBytes = possiblyDecryptPKCS1Key(pemHeaders, sb.toString(), passwordSupplier);
+        byte[] keyBytes = possiblyDecryptPKCS1Key(pemHeaders, sb.toString(), keyPassword);
         RSAPrivateCrtKeySpec spec = parseRsaDer(keyBytes);
         KeyFactory keyFactory = KeyFactory.getInstance("RSA");
         return keyFactory.generatePrivate(spec);
     }
 
-    private static byte[] possiblyDecryptPKCS1Key(Map<String, String> pemHeaders, String keyContents, Supplier<char[]> passwordSupplier)
+    private static byte[] possiblyDecryptPKCS1Key(Map<String, String> pemHeaders, String keyContents, char[] keyPassword)
             throws GeneralSecurityException, IOException {
         byte[] keyBytes = Base64.getDecoder().decode(keyContents);
         String procType = pemHeaders.get("Proc-Type");
@@ -202,11 +206,10 @@ public class PemUtils {
                 //malformed pem
                 throw new IOException("Malformed PEM File, DEK-Info header is missing");
             }
-            char[] password = passwordSupplier.get();
-            if (password == null) {
+            if (keyPassword == null) {
                 throw new IOException("cannot read encrypted key without a password");
             }
-            Cipher cipher = getCipherFromParameters(encryptionParameters, password);
+            Cipher cipher = getCipherFromParameters(encryptionParameters, keyPassword);
             byte[] decryptedKeyBytes = cipher.doFinal(keyBytes);
             return decryptedKeyBytes;
         }

@@ -79,9 +79,7 @@ public abstract class SamlTestCase extends ESTestCase {
      * @throws Exception
      */
     protected static Tuple<X509Certificate, PrivateKey> readKeyPair(String algorithm) throws Exception {
-        KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance(algorithm);
         int keySize;
-
         switch (algorithm) {
             case "EC":
                 keySize = randomFrom(256, 384);

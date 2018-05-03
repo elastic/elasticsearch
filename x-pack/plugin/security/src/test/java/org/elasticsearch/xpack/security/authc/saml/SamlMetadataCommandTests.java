@@ -384,7 +384,6 @@ public class SamlMetadataCommandTests extends SamlTestCase {
 
         final EntityDescriptor descriptor = command.buildEntityDescriptor(terminal, options, env);
         Element e = command.possiblySignDescriptor(terminal, options, descriptor, env);
-        String a = SamlUtils.toString(e);
         assertThat(descriptor, notNullValue());
         // Verify generated signature
         assertThat(descriptor.getSignature(), notNullValue());

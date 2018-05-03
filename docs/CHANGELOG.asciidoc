@@ -399,6 +399,10 @@ Security::
 * Fixed `saml-metadata` env file such that it sources the appropriate 
 environment file.
 
+Machine Learning::
+
+* Account for gaps in data counts after job is reopened ({pull}30294[#30294])
+
 //[float]
 //=== Regressions
 

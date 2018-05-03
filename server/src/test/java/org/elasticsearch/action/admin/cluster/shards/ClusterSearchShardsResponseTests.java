@@ -20,58 +20,61 @@
 package org.elasticsearch.action.admin.cluster.shards;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.function.Predicate;
 
-public class ClusterSearchShardsResponseTests extends ESTestCase {
+import static java.util.Collections.emptyList;
 
-    public void testSerialization() throws Exception {
-        Map<String, AliasFilter> indicesAndFilters = new HashMap<>();
-        Set<DiscoveryNode> nodes = new HashSet<>();
-        int numShards = randomIntBetween(1, 10);
-        ClusterSearchShardsGroup[] clusterSearchShardsGroups = new ClusterSearchShardsGroup[numShards];
-        for (int i = 0; i < numShards; i++) {
-            String index = randomAlphaOfLengthBetween(3, 10);
-            ShardId shardId = new ShardId(index, randomAlphaOfLength(12), i);
-            String nodeId = randomAlphaOfLength(10);
-            ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, nodeId, randomBoolean(), ShardRoutingState.STARTED);
-            clusterSearchShardsGroups[i] = new ClusterSearchShardsGroup(shardId, new ShardRouting[]{shardRouting});
-            DiscoveryNode node = new DiscoveryNode(shardRouting.currentNodeId(),
-                    new TransportAddress(TransportAddress.META_ADDRESS, randomInt(0xFFFF)), VersionUtils.randomVersion(random()));
-            nodes.add(node);
-            AliasFilter aliasFilter;
-            if (randomBoolean()) {
-                aliasFilter = new AliasFilter(RandomQueryBuilder.createQuery(random()), "alias-" + index);
-            } else {
-                aliasFilter = new AliasFilter(null, Strings.EMPTY_ARRAY);
-            }
-            indicesAndFilters.put(index, aliasFilter);
-        }
-        ClusterSearchShardsResponse clusterSearchShardsResponse = new ClusterSearchShardsResponse(clusterSearchShardsGroups,
-                nodes.toArray(new DiscoveryNode[nodes.size()]), indicesAndFilters);
+public class ClusterSearchShardsResponseTests extends AbstractStreamableXContentTestCase<ClusterSearchShardsResponse> {
+
+    protected static NamedWriteableRegistry namedWriteableRegistry;
+    private static NamedXContentRegistry xContentRegistry;
+
+    @BeforeClass
+    public static void init() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
+        xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
+    }
+
+    @AfterClass
+    public static void cleanup() {
+        namedWriteableRegistry = null;
+        xContentRegistry = null;
+    }
+
+    public void testStreamOutputSerialization() throws Exception {
+        ClusterSearchShardsResponse clusterSearchShardsResponse = createTestInstance();
 
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
@@ -100,5 +103,163 @@ public class ClusterSearchShardsResponseTests extends ESTestCase {
                 }
             }
         }
+    }
+
+
+    @Override
+    protected ClusterSearchShardsResponse doParseInstance(XContentParser parser) {
+        return ClusterSearchShardsResponse.fromXContent(parser);
+    }
+
+    @Override
+    protected ClusterSearchShardsResponse mutateInstance(ClusterSearchShardsResponse response) {
+        int i = randomIntBetween(0, 2);
+        switch(i) {
+            case 0:
+                return new ClusterSearchShardsResponse(mutate(response.getGroups()), response.getNodes(), response.getIndicesAndFilters());
+            case 1:
+                return new ClusterSearchShardsResponse(response.getGroups(), mutate(response.getNodes()), response.getIndicesAndFilters());
+            case 2:
+                return new ClusterSearchShardsResponse(response.getGroups(), response.getNodes(), mutate(response.getIndicesAndFilters()));
+            default:
+                throw new UnsupportedOperationException();
+        }
+    }
+
+    private ClusterSearchShardsGroup[] mutate(ClusterSearchShardsGroup[] groups) {
+        int size = groups.length;
+        for(;;){
+            groups = randomShardsGroups(3);
+            if (size != groups.length) {
+                break;
+            }
+        }
+        return groups;
+    }
+
+    private DiscoveryNode[] mutate(DiscoveryNode[] nodes) {
+        int size = nodes.length;
+        for(;;){
+            nodes = randomDiscoveryNodes(3);
+            if (size != nodes.length) {
+                break;
+            }
+        }
+        return nodes;
+    }
+
+    private Map<String, AliasFilter> mutate(Map<String, AliasFilter> indicesAndFilters) {
+        final int size = indicesAndFilters.size();
+        for(;;){
+            indicesAndFilters = randomIndicesAndFilters(3);
+            if (size != indicesAndFilters.size()) {
+                break;
+            }
+        }
+        return indicesAndFilters;
+    }
+
+    @Override
+    protected String[] getShuffleFieldsExceptions() {
+        return new String[]{"nodes"};
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return p -> p.startsWith("nodes") || p.startsWith("indices") || p.startsWith("shards");
+    }
+
+    @Override
+    protected ClusterSearchShardsResponse createTestInstance() {
+        return new ClusterSearchShardsResponse(randomShardsGroups(), randomDiscoveryNodes(), randomIndicesAndFilters());
+    }
+
+    private ClusterSearchShardsGroup[] randomShardsGroups() {
+        return randomShardsGroups(5);
+    }
+
+    private ClusterSearchShardsGroup[] randomShardsGroups(int max) {
+        ClusterSearchShardsGroup[] groups = new ClusterSearchShardsGroup[randomIntBetween(1, max)];
+        for(int i = 0; i < groups.length; i++ ){
+            final String index = "index-" + randomIntBetween(1, 10);
+            ShardId shardId = new ShardId(index,
+                // TODO: impossible to recreate uuid - see ShardRouting#PARSER
+                IndexMetaData.INDEX_UUID_NA_VALUE,
+                randomIntBetween(1, 10));
+            ShardRouting[] shardRoutings = new ShardRouting[randomIntBetween(1, 2)];
+            for(int j = 0; j < shardRoutings.length; j++){
+                final Snapshot snapshot = new Snapshot("repo-" + randomIntBetween(1, 10),
+                    new SnapshotId("snapshot-" + randomIntBetween(1, 5), // TODO: impossible to recreate uuid - see ShardRouting#PARSER
+                        IndexMetaData.INDEX_UUID_NA_VALUE));
+                final String nodeId = randomAlphaOfLength(10);
+                final boolean primary = randomBoolean();
+                final RecoverySource recoverySource =
+                    primary
+                        ? new RecoverySource.SnapshotRecoverySource(snapshot, Version.CURRENT, index)
+                        : RecoverySource.PeerRecoverySource.INSTANCE;
+                shardRoutings[j] = TestShardRouting.newShardRouting(shardId, null, primary,
+                    recoverySource, ShardRoutingState.UNASSIGNED);
+            }
+            groups[i] = new ClusterSearchShardsGroup(shardId, shardRoutings);
+        }
+        return groups;
+    }
+
+    private DiscoveryNode[] randomDiscoveryNodes() {
+        return randomDiscoveryNodes(5);
+    }
+
+    private DiscoveryNode[] randomDiscoveryNodes(int max) {
+        DiscoveryNode[] nodes = new DiscoveryNode[randomIntBetween(1, max)];
+        for(int i = 0; i < nodes.length; i++ ){
+            nodes[i] = new DiscoveryNode("node_" + randomIntBetween(1, nodes.length), randomAlphaOfLengthBetween(3, 10),
+                buildNewFakeTransportAddress(), randomAttributes(), Collections.emptySet(), Version.CURRENT);
+        }
+        return nodes;
+    }
+
+    private Map<String, AliasFilter> randomIndicesAndFilters() {
+        return randomIndicesAndFilters(5);
+    }
+
+    private Map<String, AliasFilter> randomIndicesAndFilters(int max) {
+        Map<String, AliasFilter> map = new HashMap<>();
+        for(int i = 0, len = randomIntBetween(0, max); i < len; i++) {
+            String[] aliases = new String[randomIntBetween(0, 5)];
+            for(int j = 0; j < aliases.length; j++){
+                aliases[j] = "alias" + randomAlphaOfLengthBetween(3, 10);
+            }
+            // aliases are stored in sorted order...
+            Arrays.sort(aliases);
+            final QueryBuilder filter = RandomQueryBuilder.createQuery(random());
+            // de-facto - no aliases - filter does not make any sense
+            AliasFilter aliasFilter = new AliasFilter(aliases.length > 0 ? filter : null, aliases);
+            map.put("index-" + randomIntBetween(0, 5), aliasFilter);
+        }
+
+        return map;
+    }
+
+    private Map<String, String> randomAttributes() {
+        Map<String, String> map = new HashMap<>();
+        for(int i = 0, len = randomIntBetween(0, 5); i < len; i++) {
+            map.put("attr-" + randomIntBetween(0, 5), randomAlphaOfLengthBetween(3, 10));
+        }
+        return map;
+    }
+
+    @Override
+    protected ClusterSearchShardsResponse createBlankInstance() {
+        return new ClusterSearchShardsResponse();
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return xContentRegistry;
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return namedWriteableRegistry;
     }
 }

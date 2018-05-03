@@ -23,6 +23,8 @@ import org.apache.http.Header;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 
 import java.io.IOException;
 
@@ -62,5 +64,29 @@ public final class ClusterClient {
             ActionListener<ClusterUpdateSettingsResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(clusterUpdateSettingsRequest, RequestConverters::clusterPutSettings,
                 ClusterUpdateSettingsResponse::fromXContent, listener, emptySet(), headers);
+    }
+
+    /**
+     * The Search Shard API returns the indices and shards that a search request would be executed against.
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/search-shards.html">Search Shard API
+     * on elastic.co</a>
+     */
+    public ClusterSearchShardsResponse searchShards(ClusterSearchShardsRequest clusterSearchShardsRequest, Header... headers)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(clusterSearchShardsRequest, RequestConverters::clusterSearchShards,
+            ClusterSearchShardsResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * The Search Shard API asynchronously returns the indices and shards that a search request would be executed against.
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-shards.html">Search Shard API
+     * on elastic.co</a>
+     */
+    public void searchShardsAsync(ClusterSearchShardsRequest clusterSearchShardsRequest,
+                                 ActionListener<ClusterSearchShardsResponse> listener, Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(clusterSearchShardsRequest, RequestConverters::clusterSearchShards,
+            ClusterSearchShardsResponse::fromXContent, listener, emptySet(), headers);
     }
 }

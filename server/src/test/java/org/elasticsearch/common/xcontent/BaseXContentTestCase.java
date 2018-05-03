@@ -95,7 +95,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         expectObjectException(() -> Strings.toString(builder().endObject()));
 
         expectValueException(() -> builder().startObject("foo").endObject());
-        expectNonNullFieldException(() -> builder().startObject().startObject(null));
+        expectNonNullFieldException(() -> builder().startObject().startObject((String)null));
 
         assertResult("{}", () -> builder().startObject().endObject());
         assertResult("{'foo':{}}", () -> builder().startObject().startObject("foo").endObject().endObject());
@@ -120,7 +120,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
         expectValueException(() -> builder().startArray("foo").endObject());
         expectFieldException(() -> builder().startObject().startArray().endArray().endObject());
-        expectNonNullFieldException(() -> builder().startObject().startArray(null).endArray().endObject());
+        expectNonNullFieldException(() -> builder().startObject().startArray((String)null).endArray().endObject());
 
         assertResult("{'foo':[]}", () -> builder().startObject().startArray("foo").endArray().endObject());
         assertResult("{'foo':[1,2,3]}", () -> builder()
@@ -135,7 +135,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
     public void testField() throws IOException {
         expectValueException(() -> BytesReference.bytes(builder().field("foo")));
-        expectNonNullFieldException(() -> BytesReference.bytes(builder().field(null)));
+        expectNonNullFieldException(() -> BytesReference.bytes(builder().field((String)null)));
         expectUnclosedException(() -> BytesReference.bytes(builder().startObject().field("foo")));
 
         assertResult("{'foo':'bar'}", () -> builder().startObject().field("foo").value("bar").endObject());

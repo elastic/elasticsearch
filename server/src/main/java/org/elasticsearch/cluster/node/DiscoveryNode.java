@@ -20,17 +20,22 @@
 package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.node.Node;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -38,11 +43,53 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+
 
 /**
  * A discovery node represents a node that is part of the cluster.
  */
 public class DiscoveryNode implements Writeable, ToXContentFragment {
+
+    private static final ParseField NAME = new ParseField("name");
+    private static final ParseField EPHEMERAL_ID = new ParseField("ephemeral_id");
+    private static final ParseField TRANSPORT_ADDRESS = new ParseField("transport_address");
+    private static final ParseField ATTRIBUTES = new ParseField("attributes");
+
+    private static final ConstructingObjectParser<DiscoveryNode, String> PARSER =
+        new ConstructingObjectParser<>("innerDiscoveryNode",
+        true,
+            (a, c) -> {
+                final String nodeName = (String) a[0];
+                final String nodeId = c;
+                final String ephemeralId = (String) a[1];
+                final TransportAddress address = (TransportAddress) a[2];
+                final String hostName = address.address().getHostString();
+                final String hostAddress = address.getAddress();
+                final Map<String, String> attributes = (Map<String, String>) a[3];
+                // TODO: impossible to recreate roles
+                final Set<Role> roles = Collections.emptySet();
+                // TODO: impossible to recreate version
+                final Version version = Version.CURRENT;
+
+                return new DiscoveryNode(nodeName, nodeId, ephemeralId, hostName, hostAddress, address, attributes,
+                    roles, version);
+            });
+
+    static {
+        PARSER.declareField(constructorArg(), (p, c) -> p.text(), NAME, ObjectParser.ValueType.STRING);
+        PARSER.declareField(constructorArg(), (p, c) -> p.text(), EPHEMERAL_ID, ObjectParser.ValueType.STRING);
+        PARSER.declareField(constructorArg(), (p, c) -> {
+            final String text = p.text();
+            final int colonIdx = text.indexOf(':');
+            final String host = text.substring(0, colonIdx);
+            final int port = Integer.parseInt(text.substring(colonIdx + 1));
+            // TODO: ACHTUNG ! DNS lookup !
+            return new TransportAddress(InetAddress.getByName(host), port);
+        }, TRANSPORT_ADDRESS, ObjectParser.ValueType.STRING);
+        PARSER.declareField(constructorArg(), (p, c) -> p.map(), ATTRIBUTES, ObjectParser.ValueType.OBJECT);
+    }
 
     public static boolean nodeRequiresLocalStorage(Settings settings) {
         boolean localStorageEnable = Node.NODE_LOCAL_STORAGE_SETTING.get(settings);
@@ -375,18 +422,21 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getId());
-        builder.field("name", getName());
-        builder.field("ephemeral_id", getEphemeralId());
-        builder.field("transport_address", getAddress().toString());
-
-        builder.startObject("attributes");
-        for (Map.Entry<String, String> entry : attributes.entrySet()) {
-            builder.field(entry.getKey(), entry.getValue());
-        }
-        builder.endObject();
-
+        builder.field( NAME.getPreferredName(), getName());
+        builder.field(EPHEMERAL_ID.getPreferredName(), getEphemeralId());
+        builder.field(TRANSPORT_ADDRESS.getPreferredName(), getAddress().toString());
+        builder.field(ATTRIBUTES.getPreferredName(), attributes);
         builder.endObject();
         return builder;
+    }
+
+    public static DiscoveryNode fromXContent(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+        String nodeId = parser.currentName();
+        final DiscoveryNode node = PARSER.apply(parser, nodeId);
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        parser.nextToken();
+        return node;
     }
 
     /**

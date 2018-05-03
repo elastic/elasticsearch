@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.ParseField;
+
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.Flushable;
@@ -253,6 +255,10 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
+    public XContentBuilder startObject(ParseField field) throws IOException {
+        return startObject(field.getPreferredName());
+    }
+
     public XContentBuilder startObject(String name) throws IOException {
         return field(name).startObject();
     }
@@ -267,6 +273,10 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
+    public XContentBuilder startArray(ParseField field) throws IOException {
+        return startArray(field.getPreferredName());
+    }
+
     public XContentBuilder startArray(String name) throws IOException {
         return field(name).startArray();
     }
@@ -274,6 +284,10 @@ public final class XContentBuilder implements Closeable, Flushable {
     public XContentBuilder endArray() throws IOException {
         generator.writeEndArray();
         return this;
+    }
+
+    public XContentBuilder field(ParseField field) throws IOException {
+        return field(field.getPreferredName());
     }
 
     public XContentBuilder field(String name) throws IOException {
@@ -297,8 +311,16 @@ public final class XContentBuilder implements Closeable, Flushable {
     // Boolean
     //////////////////////////////////
 
+    public XContentBuilder field(ParseField field, Boolean value) throws IOException {
+        return field(field.getPreferredName(), value);
+    }
+
     public XContentBuilder field(String name, Boolean value) throws IOException {
         return (value == null) ? nullField(name) : field(name, value.booleanValue());
+    }
+
+    public XContentBuilder field(ParseField field, boolean value) throws IOException {
+        return field(field.getPreferredName(), value);
     }
 
     public XContentBuilder field(String name, boolean value) throws IOException {
@@ -434,10 +456,18 @@ public final class XContentBuilder implements Closeable, Flushable {
     ////////////////////////////////////////////////////////////////////////////
     // Integer
     //////////////////////////////////
+    public XContentBuilder field(ParseField field, Integer value) throws IOException {
+        return field(field.getPreferredName(), value);
+    }
 
     public XContentBuilder field(String name, Integer value) throws IOException {
         return (value == null) ? nullField(name) : field(name, value.intValue());
     }
+
+    public XContentBuilder field(ParseField field, int value) throws IOException {
+        return field(field.getPreferredName(), value);
+    }
+
 
     public XContentBuilder field(String name, int value) throws IOException {
         ensureNameNotNull(name);
@@ -474,8 +504,16 @@ public final class XContentBuilder implements Closeable, Flushable {
     // Long
     //////////////////////////////////
 
+    public XContentBuilder field(ParseField field, Long value) throws IOException {
+        return field(field.getPreferredName(), value);
+    }
+
     public XContentBuilder field(String name, Long value) throws IOException {
         return (value == null) ? nullField(name) : field(name, value.longValue());
+    }
+
+    public XContentBuilder field(ParseField field, long value) throws IOException {
+        return field(field.getPreferredName(), value);
     }
 
     public XContentBuilder field(String name, long value) throws IOException {
@@ -550,6 +588,10 @@ public final class XContentBuilder implements Closeable, Flushable {
     // String
     //////////////////////////////////
 
+    public XContentBuilder field(ParseField field, String value) throws IOException {
+        return field(field.getPreferredName(), value);
+    }
+
     public XContentBuilder field(String name, String value) throws IOException {
         if (value == null) {
             return nullField(name);
@@ -557,6 +599,10 @@ public final class XContentBuilder implements Closeable, Flushable {
         ensureNameNotNull(name);
         generator.writeStringField(name, value);
         return this;
+    }
+
+    public XContentBuilder array(ParseField field, String... values) throws IOException {
+        return array(field.getPreferredName(), values);
     }
 
     public XContentBuilder array(String name, String... values) throws IOException {
@@ -707,6 +753,10 @@ public final class XContentBuilder implements Closeable, Flushable {
     // typed methods over this.
     //////////////////////////////////
 
+    public XContentBuilder field(ParseField field, Object value) throws IOException {
+        return field(field.getPreferredName(), value);
+    }
+
     public XContentBuilder field(String name, Object value) throws IOException {
         return field(name).value(value);
     }
@@ -760,8 +810,16 @@ public final class XContentBuilder implements Closeable, Flushable {
     // ToXContent
     //////////////////////////////////
 
+    public XContentBuilder field(ParseField field, ToXContent value) throws IOException {
+        return field(field.getPreferredName(), value);
+    }
+
     public XContentBuilder field(String name, ToXContent value) throws IOException {
         return field(name).value(value);
+    }
+
+    public XContentBuilder field(ParseField field, ToXContent value, ToXContent.Params params) throws IOException {
+        return field(field.getPreferredName(), value, params);
     }
 
     public XContentBuilder field(String name, ToXContent value, ToXContent.Params params) throws IOException {
@@ -784,7 +842,7 @@ public final class XContentBuilder implements Closeable, Flushable {
     // Maps & Iterable
     //////////////////////////////////
 
-    public XContentBuilder field(String name, Map<String, Object> values) throws IOException {
+    public XContentBuilder field(String name, Map<String, ?> values) throws IOException {
         return field(name).map(values);
     }
 

@@ -565,6 +565,7 @@ public class GoogleCloudStorageTestServer {
     private static XContentBuilder buildBucketResource(final String name) throws IOException {
         return jsonBuilder().startObject()
                                 .field("kind", "storage#bucket")
+                                .field("name", name)
                                 .field("id", name)
                             .endObject();
     }

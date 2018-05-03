@@ -1531,7 +1531,7 @@ public class InternalEngineTests extends EngineTestCase {
             lastFieldValueDoc2 = null;
         }
         // randomly interleave
-        AtomicLong seqNoGenerator = new AtomicLong();
+        final AtomicLong seqNoGenerator = new AtomicLong();
         Function<Engine.Operation, Engine.Operation> seqNoUpdater = operation -> {
             final long newSeqNo = seqNoGenerator.getAndIncrement();
             if (operation instanceof Engine.Index) {
@@ -1558,7 +1558,6 @@ public class InternalEngineTests extends EngineTestCase {
 
         shuffle(allOps, random());
         concurrentlyApplyOps(allOps, engine);
-
 
         engine.refresh("test");
 

@@ -3,6 +3,10 @@
 
 [partintro]
 --
+// To add a release, copy and paste the placeholder text at the bottom
+// and add a link to the new section. Note that release subheads must
+// be floated and sections cannot be empty.
+
 // Use these for links to issue and pulls. Note issues and pulls redirect one to
 // each other on Github, so don't worry too much on using the right prefix.
 :issue: https://github.com/elastic/elasticsearch/issues/
@@ -12,7 +16,7 @@ This section summarizes the changes in each release.
 
 * <<release-notes-7.0.0>>
 * <<release-notes-6.4.0>>
-
+* <<release-notes-6.3.1>>
 
 --
 
@@ -37,6 +41,7 @@ Machine Learning::
 
 * <<remove-http-enabled, Removed `http.enabled` setting>> ({pull}29601[#29601])
 
+[float]
 === Deprecations
 Monitoring::
 * The `xpack.monitoring.collection.interval` setting can no longer be set to `-1`
@@ -66,14 +71,12 @@ ones that the user is authorized to access in case field level security is enabl
 Fixed prerelease version of elasticsearch in the `deb` package to sort before GA versions
 ({pull}29000[#29000])
 
+[float]
 === Regressions
 Fail snapshot operations early when creating or deleting a snapshot on a repository that has been
 written to by an older Elasticsearch after writing to it with a newer Elasticsearch version. ({pull}30140[#30140])
 
 Fix NPE when CumulativeSum agg encounters null value/empty bucket ({pull}29641[#29641])
-
-//[float]
-//=== Regressions
 
 //[float]
 //=== Known Issues
@@ -113,19 +116,52 @@ Machine Learning::
 
 * Account for gaps in data counts after job is reopened ({pull}30294[#30294])
 
+[[release-notes-6.3.1]]
 == Elasticsearch version 6.3.1
 
-=== New Features
+//[float]
+//=== New Features
 
-=== Enhancements
+//[float]
+//=== Enhancements
 
+[float]
 === Bug Fixes
 
 Reduce the number of object allocations made by {security} when resolving the indices and aliases for a request ({pull}30180[#30180])
 
-=== Regressions
+//[float]
+//=== Regressions
 
-=== Known Issues
+//[float]
+//=== Known Issues
+
+// To add a release, copy and paste the following text,  uncomment the relevant
+// sections, and add a link to the new section in the list of releases at the
+// top of the page. Note that release subheads must be floated and sections
+// cannot be empty.
+
+// [[release-notes-n.n.n]]
+// == {es} n.n.n
+
+//[float]
+//=== Breaking Changes
+
+//[float]
+//=== Breaking Java Changes
+
+//[float]
+//=== Deprecations
+
+//[float]
+//=== New Features
+
+//[float]
+//=== Enhancements
+
+//[float]
+//=== Bug Fixes
+
 //[float]
 //=== Regressions
 

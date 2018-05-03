@@ -14,8 +14,7 @@ include::install_remove.asciidoc[]
 The plugin provides a hosts provider for zen discovery named `ec2`. This hosts provider
 finds other Elasticsearch instances in EC2 through AWS metadata. Authentication is done using 
 http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html[IAM Role]
-credentials by default. The only necessary configuration change to enable the plugin
-is setting the unicast host provider for zen discovery:
+credentials by default. To enable the plugin, set the unicast host provider for zen discovery:
 
 [source,yaml]
 ----

@@ -24,7 +24,6 @@ import org.elasticsearch.gradle.VersionProperties
 import org.gradle.api.artifacts.Dependency
 import org.gradle.api.file.FileCollection
 import org.gradle.api.tasks.Input
-import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.OutputFile
 /**
  * Runs NamingConventionsCheck on a classpath/directory combo to verify that
@@ -66,9 +65,9 @@ public class NamingConventionsTask extends LoggedExec {
     @Input
     boolean checkForTestsInMain = false;
 
-    public NamingConventionsTask() {
+    NamingConventionsTask() {
         // Extra classpath contains the actual test
-        if (false == project.configurations.names.contains('namingConventions')) {
+        if (!project.configurations.names.contains('namingConventions')) {
             project.configurations.create('namingConventions')
             Dependency buildToolsDep = project.dependencies.add('namingConventions',
                     "org.elasticsearch.gradle:build-tools:${VersionProperties.elasticsearch}")
@@ -81,11 +80,18 @@ public class NamingConventionsTask extends LoggedExec {
         inputs.files(classpath)
         description = "Tests that test classes aren't misnamed or misplaced"
         executable = new File(project.runtimeJavaHome, 'bin/java')
-        if (false == checkForTestsInMain) {
+
+        def dirsToUse = (checkForTestsInMain ?
+            project.sourceSets.main.output.classesDirs :
+            project.sourceSets.test.output.classesDirs)
+                .filter {it.exists()}
+                .collect {it.getAbsolutePath()}
+
+        if (!checkForTestsInMain) {
             /* This task is created by default for all subprojects with this
              * setting and there is no point in running it if the files don't
              * exist. */
-            onlyIf { project.sourceSets.test.output.classesDir.exists() }
+            onlyIf { dirsToUse.size() != 0 }
         }
 
         /*
@@ -111,16 +117,17 @@ public class NamingConventionsTask extends LoggedExec {
                 if (':build-tools'.equals(project.path)) {
                     args('--self-test')
                 }
+
                 if (checkForTestsInMain) {
                     args('--main')
                     args('--')
-                    args(project.sourceSets.main.output.classesDir.absolutePath)
                 } else {
                     args('--')
-                    args(project.sourceSets.test.output.classesDir.absolutePath)
                 }
+                args(dirsToUse.join(File.pathSeparator))
             }
         }
         doLast { successMarker.setText("", 'UTF-8') }
     }
+
 }

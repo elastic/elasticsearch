@@ -6,18 +6,20 @@ import groovy.xml.NamespaceBuilder
 import groovy.xml.NamespaceBuilderSupport
 import org.apache.tools.ant.BuildException
 import org.apache.tools.ant.DefaultLogger
+import org.apache.tools.ant.Project
 import org.apache.tools.ant.RuntimeConfigurable
 import org.apache.tools.ant.UnknownElement
+import org.elasticsearch.gradle.BuildPlugin
 import org.gradle.api.DefaultTask
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.file.FileCollection
 import org.gradle.api.file.FileTreeElement
-import org.gradle.api.internal.tasks.options.Option
 import org.gradle.api.specs.Spec
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputDirectory
 import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.TaskAction
+import org.gradle.api.tasks.options.Option
 import org.gradle.api.tasks.util.PatternFilterable
 import org.gradle.api.tasks.util.PatternSet
 import org.gradle.internal.logging.progress.ProgressLoggerFactory
@@ -43,8 +45,8 @@ class RandomizedTestingTask extends DefaultTask {
     @Input
     String parallelism = '1'
 
-    @InputDirectory
-    File testClassesDir
+    @Input
+    FileCollection testClassesDirs
 
     @Optional
     @Input
@@ -93,6 +95,17 @@ class RandomizedTestingTask extends DefaultTask {
         outputs.upToDateWhen {false} // randomized tests are never up to date
         listenersConfig.listeners.add(new TestProgressLogger(factory: getProgressLoggerFactory()))
         listenersConfig.listeners.add(new TestReportLogger(logger: logger, config: testLoggingConfig))
+    }
+
+    void basedOn(RandomizedTestingTask other) {
+        configure(BuildPlugin.commonTestConfig(project))
+        classpath = other.classpath;
+        testClassesDirs = other.testClassesDirs;
+        dependsOn = other.dependsOn
+        other.mustRunAfter this
+        if (project.tasks.findByPath("check") != null) {
+            project.tasks.check.dependsOn this
+        }
     }
 
     @Inject
@@ -211,7 +224,7 @@ class RandomizedTestingTask extends DefaultTask {
 
         DefaultLogger listener = null
         ByteArrayOutputStream antLoggingBuffer = null
-        if (logger.isInfoEnabled() == false) {
+        if (!logger.isInfoEnabled()) {
             // in info logging, ant already outputs info level, so we see everything
             // but on errors or when debugging, we want to see info level messages
             // because junit4 emits jvm output with ant logging
@@ -220,7 +233,7 @@ class RandomizedTestingTask extends DefaultTask {
                 listener = new DefaultLogger(
                         errorPrintStream: System.err,
                         outputPrintStream: System.out,
-                        messageOutputLevel: org.apache.tools.ant.Project.MSG_INFO)
+                        messageOutputLevel: Project.MSG_INFO)
             } else {
                 // we want to buffer the info, and emit it if the test fails
                 antLoggingBuffer = new ByteArrayOutputStream()
@@ -228,7 +241,7 @@ class RandomizedTestingTask extends DefaultTask {
                 listener = new DefaultLogger(
                         errorPrintStream: stream,
                         outputPrintStream: stream,
-                        messageOutputLevel: org.apache.tools.ant.Project.MSG_INFO)
+                        messageOutputLevel: Project.MSG_INFO)
             }
             project.ant.project.addBuildListener(listener)
         }
@@ -251,12 +264,10 @@ class RandomizedTestingTask extends DefaultTask {
                 if (argLine != null) {
                     jvmarg(line: argLine)
                 }
-                fileset(dir: testClassesDir) {
-                    for (String includePattern : patternSet.getIncludes()) {
-                        include(name: includePattern)
-                    }
-                    for (String excludePattern : patternSet.getExcludes()) {
-                        exclude(name: excludePattern)
+                testClassesDirs.each { testClassDir ->
+                    fileset(dir: testClassDir) {
+                        patternSet.getIncludes().each { include(name: it) }
+                        patternSet.getExcludes().each { exclude(name: it) }
                     }
                 }
                 for (Map.Entry<String, Object> prop : systemProperties) {

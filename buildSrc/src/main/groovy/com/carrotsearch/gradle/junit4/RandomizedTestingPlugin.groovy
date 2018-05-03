@@ -13,7 +13,7 @@ class RandomizedTestingPlugin implements Plugin<Project> {
 
     void apply(Project project) {
         setupSeed(project)
-        replaceTestTask(project.tasks)
+        replaceTestTask(project)
         configureAnt(project.ant)
     }
 
@@ -44,7 +44,8 @@ class RandomizedTestingPlugin implements Plugin<Project> {
         }
     }
 
-    static void replaceTestTask(TaskContainer tasks) {
+    static void replaceTestTask(Project project) {
+        def tasks = project.tasks
         Test oldTestTask = tasks.findByPath('test')
         if (oldTestTask == null) {
             // no test task, ok, user will use testing task on their own
@@ -52,16 +53,15 @@ class RandomizedTestingPlugin implements Plugin<Project> {
         }
         tasks.remove(oldTestTask)
 
-        Map properties = [
+        RandomizedTestingTask newTestTask = tasks.create([
             name: 'test',
             type: RandomizedTestingTask,
             dependsOn: oldTestTask.dependsOn,
             group: JavaBasePlugin.VERIFICATION_GROUP,
             description: 'Runs unit tests with the randomized testing framework'
-        ]
-        RandomizedTestingTask newTestTask = tasks.create(properties)
+        ])
         newTestTask.classpath = oldTestTask.classpath
-        newTestTask.testClassesDir = oldTestTask.project.sourceSets.test.output.classesDir
+        newTestTask.testClassesDirs = oldTestTask.project.sourceSets.test.output.classesDirs
         // since gradle 4.5, tasks immutable dependencies are "hidden" (do not show up in dependsOn)
         // so we must explicitly add a dependency on generating the test classpath
         newTestTask.dependsOn('testClasses')

@@ -19,7 +19,6 @@ nbactions.xml
 # gradle stuff
 .gradle/
 build/
-generated-resources/
 
 # vscode stuff
 .vscode/

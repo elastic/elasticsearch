@@ -1,0 +1,28 @@
+grant {
+  // needed for multiple server implementations used in tests
+  permission java.net.SocketPermission "*", "accept,connect";
+
+  // needed for Windows named pipes in machine learning
+  permission java.io.FilePermission "\\\\.\\pipe\\*", "read,write";
+};
+
+grant codeBase "${codebase.netty-common}" {
+   // for reading the system-wide configuration for the backlog of established sockets
+   permission java.io.FilePermission "/proc/sys/net/core/somaxconn", "read";
+};
+
+grant codeBase "${codebase.netty-transport}" {
+   // Netty NioEventLoop wants to change this, because of https://bugs.openjdk.java.net/browse/JDK-6427854
+   // the bug says it only happened rarely, and that its fixed, but apparently it still happens rarely!
+   permission java.util.PropertyPermission "sun.nio.ch.bugLevel", "write";
+};
+
+grant codeBase "${codebase.elasticsearch-rest-client}" {
+  // rest client uses system properties which gets the default proxy
+  permission java.net.NetPermission "getProxySelector";
+};
+
+grant codeBase "${codebase.httpasyncclient}" {
+  // rest client uses system properties which gets the default proxy
+  permission java.net.NetPermission "getProxySelector";
+};

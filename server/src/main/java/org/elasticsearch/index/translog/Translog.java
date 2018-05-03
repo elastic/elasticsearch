@@ -78,15 +78,15 @@ import java.util.stream.Stream;
  * different engine.
  * <p>
  * Each Translog has only one translog file open for writes at any time referenced by a translog generation ID. This ID is written to a
- * <tt>translog.ckp</tt> file that is designed to fit in a single disk block such that a write of the file is atomic. The checkpoint file
+ * {@code translog.ckp} file that is designed to fit in a single disk block such that a write of the file is atomic. The checkpoint file
  * is written on each fsync operation of the translog and records the number of operations written, the current translog's file generation,
  * its fsynced offset in bytes, and other important statistics.
  * </p>
  * <p>
  * When the current translog file reaches a certain size ({@link IndexSettings#INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING}, or when
  * a clear separation between old and new operations (upon change in primary term), the current file is reopened for read only and a new
- * write only file is created. Any non-current, read only translog file always has a <tt>translog-${gen}.ckp</tt> associated with it
- * which is an fsynced copy of its last <tt>translog.ckp</tt> such that in disaster recovery last fsynced offsets, number of
+ * write only file is created. Any non-current, read only translog file always has a {@code translog-${gen}.ckp} associated with it
+ * which is an fsynced copy of its last {@code translog.ckp} such that in disaster recovery last fsynced offsets, number of
  * operation etc. are still preserved.
  * </p>
  */

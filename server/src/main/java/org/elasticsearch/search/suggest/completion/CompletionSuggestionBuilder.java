@@ -231,7 +231,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     }
 
     /**
-     * Should duplicates be filtered or not. Defaults to <tt>false</tt>.
+     * Should duplicates be filtered or not. Defaults to {@code false}.
      */
     public CompletionSuggestionBuilder skipDuplicates(boolean skipDuplicates) {
         this.skipDuplicates = skipDuplicates;

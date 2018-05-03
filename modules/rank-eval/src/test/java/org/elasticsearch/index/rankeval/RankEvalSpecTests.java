@@ -52,7 +52,6 @@ import java.util.function.Supplier;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.startsWith;
 
 public class RankEvalSpecTests extends ESTestCase {
 

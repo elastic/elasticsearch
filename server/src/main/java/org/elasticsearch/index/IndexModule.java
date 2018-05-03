@@ -72,7 +72,7 @@ import java.util.function.Function;
  *     <li>{@link Similarity} - New {@link Similarity} implementations can be registered through
  *     {@link #addSimilarity(String, TriFunction)} while existing Providers can be referenced through Settings under the
  *     {@link IndexModule#SIMILARITY_SETTINGS_PREFIX} prefix along with the "type" value.  For example, to reference the
- *     {@link BM25Similarity}, the configuration <tt>"index.similarity.my_similarity.type : "BM25"</tt> can be used.</li>
+ *     {@link BM25Similarity}, the configuration {@code "index.similarity.my_similarity.type : "BM25"} can be used.</li>
  *      <li>{@link IndexStore} - Custom {@link IndexStore} instances can be registered via {@link #addIndexStore(String, Function)}</li>
  *      <li>{@link IndexEventListener} - Custom {@link IndexEventListener} instances can be registered via
  *      {@link #addIndexEventListener(IndexEventListener)}</li>

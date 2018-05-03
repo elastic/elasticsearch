@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -78,7 +79,13 @@ public class RestIndexAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        IndexRequest indexRequest = new IndexRequest(request.param("index"), request.param("type"), request.param("id"));
+        final boolean includeTypeName = request.paramAsBoolean("include_type_name", true);
+        final String type = request.param("type");
+        if (includeTypeName == false && MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
+            throw new IllegalArgumentException("You may only use the [include_type_name=false] option with the index APIs with the " +
+                    "[{index}/_doc/{id}] and [{index}/_doc] endpoints.");
+        }
+        IndexRequest indexRequest = new IndexRequest(request.param("index"), type, request.param("id"));
         indexRequest.routing(request.param("routing"));
         indexRequest.setPipeline(request.param("pipeline"));
         indexRequest.source(request.requiredContent(), request.getXContentType());

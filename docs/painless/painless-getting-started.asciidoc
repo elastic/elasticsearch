@@ -389,3 +389,5 @@ dispatch *feels* like it'd add a ton of complexity which'd make maintenance and
 other improvements much more difficult.
 
 include::painless-debugging.asciidoc[]
+
+include::painless-execute-script.asciidoc[]

@@ -1380,7 +1380,7 @@ public class InternalEngineTests extends EngineTestCase {
 
         create = new Engine.Index(newUid(doc), doc, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, Versions.MATCH_DELETED, VersionType.INTERNAL, PRIMARY, 0, -1, false);
         indexResult = engine.index(create);
-        assertTrue(indexResult.hasFailure());
+        assertThat(indexResult.getResultType(), equalTo(Engine.Result.Type.FAILURE));
         assertThat(indexResult.getFailure(), instanceOf(VersionConflictEngineException.class));
     }
 
@@ -1478,7 +1478,7 @@ public class InternalEngineTests extends EngineTestCase {
                 // intentional
                 assertThat(result.isCreated(), equalTo(firstOp));
                 assertThat(result.getVersion(), equalTo(op.version()));
-                assertThat(result.hasFailure(), equalTo(false));
+                assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
 
             } else {
                 Engine.DeleteResult result = replicaEngine.delete((Engine.Delete) op);
@@ -1489,7 +1489,7 @@ public class InternalEngineTests extends EngineTestCase {
                 // intentional
                 assertThat(result.isFound(), equalTo(firstOp == false));
                 assertThat(result.getVersion(), equalTo(op.version()));
-                assertThat(result.hasFailure(), equalTo(false));
+                assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
             }
             if (randomBoolean()) {
                 engine.refresh("test");
@@ -1576,6 +1576,23 @@ public class InternalEngineTests extends EngineTestCase {
         assertOpsOnPrimary(ops, Versions.NOT_FOUND, true, engine);
     }
 
+    public void testVersionOnPrimaryWithConcurrentRefresh() throws Exception {
+        List<Engine.Operation> ops = generateSingleDocHistory(false, VersionType.INTERNAL, false, 2, 10, 100);
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean running = new AtomicBoolean(true);
+        Thread refreshThread = new Thread(() -> {
+            latch.countDown();
+            while (running.get()) {
+                engine.refresh("test");
+            }
+        });
+        refreshThread.start();
+        latch.await();
+        assertOpsOnPrimary(ops, Versions.NOT_FOUND, true, engine);
+        running.set(false);
+        refreshThread.join();
+    }
+
     private int assertOpsOnPrimary(List<Engine.Operation> ops, long currentOpVersion, boolean docDeleted, InternalEngine engine)
         throws IOException {
         String lastFieldValue = null;
@@ -1604,13 +1621,13 @@ public class InternalEngineTests extends EngineTestCase {
                     Engine.IndexResult result = engine.index(indexWithVersion.apply(conflictingVersion, index));
                     assertThat(result.isCreated(), equalTo(false));
                     assertThat(result.getVersion(), equalTo(lastOpVersion));
-                    assertThat(result.hasFailure(), equalTo(true));
+                    assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
                     assertThat(result.getFailure(), instanceOf(VersionConflictEngineException.class));
                 } else {
                     Engine.IndexResult result = engine.index(versionedOp ? indexWithVersion.apply(correctVersion, index) : index);
                     assertThat(result.isCreated(), equalTo(docDeleted));
                     assertThat(result.getVersion(), equalTo(Math.max(lastOpVersion + 1, 1)));
-                    assertThat(result.hasFailure(), equalTo(false));
+                    assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
                     assertThat(result.getFailure(), nullValue());
                     lastFieldValue = index.docs().get(0).get("value");
                     docDeleted = false;
@@ -1624,13 +1641,13 @@ public class InternalEngineTests extends EngineTestCase {
                     Engine.DeleteResult result = engine.delete(delWithVersion.apply(conflictingVersion, delete));
                     assertThat(result.isFound(), equalTo(docDeleted == false));
                     assertThat(result.getVersion(), equalTo(lastOpVersion));
-                    assertThat(result.hasFailure(), equalTo(true));
+                    assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
                     assertThat(result.getFailure(), instanceOf(VersionConflictEngineException.class));
                 } else {
                     Engine.DeleteResult result = engine.delete(versionedOp ? delWithVersion.apply(correctVersion, delete) : delete);
                     assertThat(result.isFound(), equalTo(docDeleted == false));
                     assertThat(result.getVersion(), equalTo(Math.max(lastOpVersion + 1, 1)));
-                    assertThat(result.hasFailure(), equalTo(false));
+                    assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
                     assertThat(result.getFailure(), nullValue());
                     docDeleted = true;
                     lastOpVersion = result.getVersion();
@@ -1708,14 +1725,14 @@ public class InternalEngineTests extends EngineTestCase {
                     assertThat(result.getSeqNo(), equalTo(seqNo));
                     assertThat(result.isCreated(), equalTo(docDeleted));
                     assertThat(result.getVersion(), equalTo(op.version()));
-                    assertThat(result.hasFailure(), equalTo(false));
+                    assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
                     assertThat(result.getFailure(), nullValue());
                     docDeleted = false;
                     highestOpVersion = op.version();
                 } else {
                     assertThat(result.isCreated(), equalTo(false));
                     assertThat(result.getVersion(), equalTo(highestOpVersion));
-                    assertThat(result.hasFailure(), equalTo(true));
+                    assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
                     assertThat(result.getFailure(), instanceOf(VersionConflictEngineException.class));
                 }
             } else {
@@ -1726,14 +1743,14 @@ public class InternalEngineTests extends EngineTestCase {
                     assertThat(result.getSeqNo(), equalTo(seqNo));
                     assertThat(result.isFound(), equalTo(docDeleted == false));
                     assertThat(result.getVersion(), equalTo(op.version()));
-                    assertThat(result.hasFailure(), equalTo(false));
+                    assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
                     assertThat(result.getFailure(), nullValue());
                     docDeleted = true;
                     highestOpVersion = op.version();
                 } else {
                     assertThat(result.isFound(), equalTo(docDeleted == false));
                     assertThat(result.getVersion(), equalTo(highestOpVersion));
-                    assertThat(result.hasFailure(), equalTo(true));
+                    assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
                     assertThat(result.getFailure(), instanceOf(VersionConflictEngineException.class));
                 }
             }
@@ -1846,7 +1863,7 @@ public class InternalEngineTests extends EngineTestCase {
                             get.version(), VersionType.INTERNAL,
                             PRIMARY, System.currentTimeMillis(), -1, false);
                         Engine.IndexResult indexResult = engine.index(index);
-                        if (indexResult.hasFailure() == false) {
+                        if (indexResult.getResultType() == Engine.Result.Type.SUCCESS) {
                             history.add(new OpAndVersion(indexResult.getVersion(), removed, added));
                         }
 
@@ -1988,7 +2005,7 @@ public class InternalEngineTests extends EngineTestCase {
                         "test", id, newUid(id), SequenceNumbers.UNASSIGNED_SEQ_NO, 0,
                         rarely() ? 100 : Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, 0);
                     final Engine.DeleteResult result = initialEngine.delete(delete);
-                    if (!result.hasFailure()) {
+                    if (result.getResultType() == Engine.Result.Type.SUCCESS) {
                         assertThat(result.getSeqNo(), equalTo(primarySeqNo + 1));
                         assertThat(initialEngine.getLocalCheckpointTracker().getMaxSeqNo(), equalTo(primarySeqNo + 1));
                         indexedIds.remove(id);
@@ -2006,7 +2023,7 @@ public class InternalEngineTests extends EngineTestCase {
                         rarely() ? 100 : Versions.MATCH_ANY, VersionType.INTERNAL,
                         PRIMARY, 0, -1, false);
                     final Engine.IndexResult result = initialEngine.index(index);
-                    if (!result.hasFailure()) {
+                    if (result.getResultType() == Engine.Result.Type.SUCCESS) {
                         assertThat(result.getSeqNo(), equalTo(primarySeqNo + 1));
                         assertThat(initialEngine.getLocalCheckpointTracker().getMaxSeqNo(), equalTo(primarySeqNo + 1));
                         indexedIds.add(id);
@@ -2280,7 +2297,7 @@ public class InternalEngineTests extends EngineTestCase {
             // Try to index uid=1 with a too-old version, should fail:
             Engine.Index index = new Engine.Index(newUid(doc), doc, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, 2, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), -1, false);
             Engine.IndexResult indexResult = engine.index(index);
-            assertTrue(indexResult.hasFailure());
+            assertThat(indexResult.getResultType(), equalTo(Engine.Result.Type.FAILURE));
             assertThat(indexResult.getFailure(), instanceOf(VersionConflictEngineException.class));
 
             // Get should still not find the document
@@ -2290,7 +2307,7 @@ public class InternalEngineTests extends EngineTestCase {
             // Try to index uid=2 with a too-old version, should fail:
             Engine.Index index1 = new Engine.Index(newUid(doc), doc, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, 2, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), -1, false);
             indexResult = engine.index(index1);
-            assertTrue(indexResult.hasFailure());
+            assertThat(indexResult.getResultType(), equalTo(Engine.Result.Type.FAILURE));
             assertThat(indexResult.getFailure(), instanceOf(VersionConflictEngineException.class));
 
             // Get should not find the document
@@ -3169,7 +3186,7 @@ public class InternalEngineTests extends EngineTestCase {
 
         index = new Engine.Index(newUid(doc), doc, indexResult.getSeqNo(), index.primaryTerm(), indexResult.getVersion(), index.versionType().versionTypeForReplicationAndRecovery(), REPLICA, System.nanoTime(), autoGeneratedIdTimestamp, isRetry);
         indexResult = replicaEngine.index(index);
-        assertThat(indexResult.hasFailure(), equalTo(false));
+        assertThat(indexResult.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
         replicaEngine.refresh("test");
         try (Engine.Searcher searcher = replicaEngine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), 10);
@@ -3707,15 +3724,13 @@ public class InternalEngineTests extends EngineTestCase {
             noOpEngine.recoverFromTranslog();
             final int gapsFilled = noOpEngine.fillSeqNoGaps(primaryTerm.get());
             final String reason = randomAlphaOfLength(16);
-            noOpEngine.noOp(
-                    new Engine.NoOp(
-                            maxSeqNo + 1,
-                            primaryTerm.get(),
-                            randomFrom(PRIMARY, REPLICA, PEER_RECOVERY, LOCAL_TRANSLOG_RECOVERY),
-                            System.nanoTime(),
-                            reason));
+            noOpEngine.noOp(new Engine.NoOp(maxSeqNo + 1, primaryTerm.get(), LOCAL_TRANSLOG_RECOVERY, System.nanoTime(), reason));
             assertThat(noOpEngine.getLocalCheckpointTracker().getCheckpoint(), equalTo((long) (maxSeqNo + 1)));
-            assertThat(noOpEngine.getTranslog().stats().getUncommittedOperations(), equalTo(1 + gapsFilled));
+            assertThat(noOpEngine.getTranslog().stats().getUncommittedOperations(), equalTo(gapsFilled));
+            noOpEngine.noOp(
+                new Engine.NoOp(maxSeqNo + 2, primaryTerm.get(), randomFrom(PRIMARY, REPLICA, PEER_RECOVERY), System.nanoTime(), reason));
+            assertThat(noOpEngine.getLocalCheckpointTracker().getCheckpoint(), equalTo((long) (maxSeqNo + 2)));
+            assertThat(noOpEngine.getTranslog().stats().getUncommittedOperations(), equalTo(gapsFilled + 1));
             // skip to the op that we added to the translog
             Translog.Operation op;
             Translog.Operation last = null;
@@ -3727,7 +3742,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertNotNull(last);
             assertThat(last, instanceOf(Translog.NoOp.class));
             final Translog.NoOp noOp = (Translog.NoOp) last;
-            assertThat(noOp.seqNo(), equalTo((long) (maxSeqNo + 1)));
+            assertThat(noOp.seqNo(), equalTo((long) (maxSeqNo + 2)));
             assertThat(noOp.primaryTerm(), equalTo(primaryTerm.get()));
             assertThat(noOp.reason(), equalTo(reason));
         } finally {

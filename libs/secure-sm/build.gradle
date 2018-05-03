@@ -19,7 +19,6 @@
 
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 
-apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
 

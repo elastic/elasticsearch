@@ -65,8 +65,8 @@ public class GeoHashGridParserTests extends ESTestCase {
         // can create a factory
         GeoGridAggregationBuilder builder = GeoGridAggregationBuilder.parse("geohash_grid", stParser);
         assertNotNull(builder);
-        assertThat(Integer.parseInt(builder.precision()), greaterThanOrEqualTo(0));
-        assertThat(Integer.parseInt(builder.precision()), lessThanOrEqualTo(12));
+        assertThat(builder.precision(), greaterThanOrEqualTo(0));
+        assertThat(builder.precision(), lessThanOrEqualTo(12));
     }
 
     public void testParseInvalidUnitPrecision() throws Exception {

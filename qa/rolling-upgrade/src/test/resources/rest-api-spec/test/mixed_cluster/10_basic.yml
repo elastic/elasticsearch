@@ -63,3 +63,19 @@
                 field3: value
   - match: { hits.total: 1 }
   - match: { hits.hits.0._id: q3 }
+
+
+---
+"Verify geo aggregations work during upgrade":
+  - do:
+      search:
+        index: geo_agg_index
+        body:
+          aggregations:
+            mygrid:
+              geohash_grid:
+                field : location
+                precision : 1
+  - match: { hits.total: 6 }
+  - match: { aggregations.mygrid.buckets.0.key: u }
+  - match: { aggregations.mygrid.buckets.0.doc_count: 6 }

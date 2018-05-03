@@ -40,10 +40,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
-
-import org.elasticsearch.common.geo.GeoHashUtils;
 
 public class GeoHashGridAggregatorTests extends AggregatorTestCase {
 
@@ -67,12 +64,10 @@ public class GeoHashGridAggregatorTests extends AggregatorTestCase {
 
     public void testHashcodeWithSeveralDocs() throws IOException {
         int precision = randomIntBetween(1, 12);
-        testWithSeveralDocs(GeoHashType.GEOHASH, precision, (lng, lat) -> {
-            return GeoHashUtils.stringEncode(lng, lat, precision);
-        });
+        testWithSeveralDocs(GeoHashType.GEOHASH, precision);
     }
 
-    private void testWithSeveralDocs(GeoHashType type, int precision, BiFunction<Double, Double, String> hasher)
+    private void testWithSeveralDocs(GeoHashType type, int precision)
             throws IOException {
         int numPoints = randomIntBetween(8, 128);
         Map<String, Integer> expectedCountPerGeoHash = new HashMap<>();
@@ -83,7 +78,7 @@ public class GeoHashGridAggregatorTests extends AggregatorTestCase {
                 double lat = (180d * randomDouble()) - 90d;
                 double lng = (360d * randomDouble()) - 180d;
                 points.add(new LatLonDocValuesField(FIELD_NAME, lat, lng));
-                String hash = hasher.apply(lng, lat);
+                String hash = type.getHandler().hashAsString(type.getHandler().calculateHash(lng, lat, precision));
                 if (distinctHashesPerDoc.contains(hash) == false) {
                     expectedCountPerGeoHash.put(hash, expectedCountPerGeoHash.getOrDefault(hash, 0) + 1);
                 }
@@ -105,8 +100,9 @@ public class GeoHashGridAggregatorTests extends AggregatorTestCase {
         });
     }
 
-    private void testCase(Query query, String field, GeoHashType type, int precision, CheckedConsumer<RandomIndexWriter,
-                          IOException> buildIndex, Consumer<InternalGeoHashGrid> verify) throws IOException {
+    private void testCase(Query query, String field, GeoHashType type, int precision,
+                          CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+                          Consumer<InternalGeoHashGrid> verify) throws IOException {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         buildIndex.accept(indexWriter);

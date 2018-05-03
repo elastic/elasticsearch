@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -27,7 +28,15 @@ import java.io.IOException;
 import java.util.Locale;
 
 public enum GeoHashType implements Writeable {
-    GEOHASH;
+    GEOHASH(new GeoHashHandler());
+
+    public static final GeoHashType DEFAULT = GEOHASH;
+
+    private GeoHashTypeProvider handler;
+
+    GeoHashType(GeoHashTypeProvider handler) {
+        this.handler = handler;
+    }
 
     /**
      * Case-insensitive from string method.
@@ -40,16 +49,36 @@ public enum GeoHashType implements Writeable {
     }
 
     public static GeoHashType readFromStream(StreamInput in) throws IOException {
-        return in.readEnum(GeoHashType.class);
+
+        // FIXME: update version after backport
+
+        if(in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            return in.readEnum(GeoHashType.class);
+        } else {
+            return DEFAULT;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeEnum(this);
+
+        // FIXME: update version after backport
+
+        // To maintain binary compatibility, only include type after the given version
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeEnum(this);
+        } else if (this != DEFAULT) {
+            throw new UnsupportedOperationException("Geo aggregation type [" + this +
+                "] is not supported by the node version " + out.getVersion().toString());
+        }
     }
 
     @Override
     public String toString() {
         return name().toLowerCase(Locale.ROOT);
+    }
+
+    public GeoHashTypeProvider getHandler() {
+        return handler;
     }
 }

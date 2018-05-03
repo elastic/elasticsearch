@@ -198,3 +198,34 @@
       tasks.get:
         wait_for_completion: true
         task_id: $task
+
+---
+"Create geo data records in the old cluster":
+  - do:
+      indices.create:
+        index: geo_agg_index
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+          mappings:
+            doc:
+              properties:
+                location:
+                  type: geo_point
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "geo_agg_index", "_type": "doc"}}'
+          - '{"location": "52.374081,4.912350", "name": "NEMO Science Museum"}'
+          - '{"index": {"_index": "geo_agg_index", "_type": "doc"}}'
+          - '{"location": "52.369219,4.901618", "name": "Museum Het Rembrandthuis"}'
+          - '{"index": {"_index": "geo_agg_index", "_type": "doc"}}'
+          - '{"location": "52.371667,4.914722", "name": "Nederlands Scheepvaartmuseum"}'
+          - '{"index": {"_index": "geo_agg_index", "_type": "doc"}}'
+          - '{"location": "51.222900,4.405200", "name": "Letterenhuis"}'
+          - '{"index": {"_index": "geo_agg_index", "_type": "doc"}}'
+          - '{"location": "48.861111,2.336389", "name": "Musée du Louvre"}'
+          - '{"index": {"_index": "geo_agg_index", "_type": "doc"}}'
+          - '{"location": "48.860000,2.327000", "name": "Musée Orsay"}'

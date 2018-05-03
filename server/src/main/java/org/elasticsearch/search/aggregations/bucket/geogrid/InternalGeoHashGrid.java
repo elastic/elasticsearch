@@ -81,22 +81,13 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
 
         @Override
         public String getKeyAsString() {
-            switch(type) {
-                case GEOHASH:
-                    return GeoHashUtils.stringEncode(geohashAsLong);
-                default:
-                    throw new IllegalArgumentException();
-            }
+            return type.getHandler().hashAsString(geohashAsLong);
         }
 
         @Override
-        public Object getKey() {
-            switch(type) {
-                case GEOHASH:
-                    return GeoPoint.fromGeohash(geohashAsLong);
-                default:
-                    throw new IllegalArgumentException();
-            }
+        public GeoPoint getKey() {
+            // TODO/FIXME:  is it ok to change from GeoPoint to Object, and return different types?
+            return type.getHandler().hashAsObject(geohashAsLong);
         }
 
         @Override

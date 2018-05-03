@@ -117,3 +117,19 @@
         wait_for_completion: true
         task_id: $task_id
   - match: { task.headers.X-Opaque-Id: "Reindexing Again" }
+
+---
+"Verify geo aggregations work after upgrade with new types":
+  - do:
+      search:
+        index: geo_agg_index
+        body:
+          aggregations:
+            mygrid:
+              geohash_grid:
+                type: geohash
+                field : location
+                precision : 1
+  - match: { hits.total: 6 }
+  - match: { aggregations.mygrid.buckets.0.key: u }
+  - match: { aggregations.mygrid.buckets.0.doc_count: 6 }

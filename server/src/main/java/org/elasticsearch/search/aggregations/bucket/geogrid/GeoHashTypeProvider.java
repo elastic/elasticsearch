@@ -21,6 +21,9 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.common.geo.GeoPoint;
 
+/**
+ * Instances implement different hashing algorithms for geo-grid aggregations
+ */
 public interface GeoHashTypeProvider {
     /**
      * Returns default precision for the type, e.g. 5 for geohash
@@ -28,7 +31,7 @@ public interface GeoHashTypeProvider {
     int getDefaultPrecision();
 
     /**
-     * Parses precision string into an integer, e.g. 100km -> 4
+     * Parses precision string into an integer, e.g. "100km" into 4
      */
     int parsePrecisionString(String precision);
 

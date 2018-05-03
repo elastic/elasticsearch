@@ -19,10 +19,9 @@ final class TokenSSLBootstrapCheck implements BootstrapCheck {
 
     @Override
     public BootstrapCheckResult check(BootstrapContext context) {
-        final Boolean httpEnabled = NetworkModule.HTTP_ENABLED.get(context.settings);
         final Boolean httpsEnabled = XPackSettings.HTTP_SSL_ENABLED.get(context.settings);
         final Boolean tokenServiceEnabled = XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.get(context.settings);
-        if (httpEnabled && httpsEnabled == false && tokenServiceEnabled) {
+        if (httpsEnabled == false && tokenServiceEnabled) {
             final String message = String.format(
                     Locale.ROOT,
                     "HTTPS is required in order to use the token service; "

@@ -9,6 +9,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.Order;
@@ -49,8 +50,10 @@ import org.elasticsearch.xpack.sql.expression.regex.RLike;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.BinaryComparisonSimplification;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.BooleanSimplification;
+import org.elasticsearch.xpack.sql.optimizer.Optimizer.CombineBinaryComparisons;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.CombineProjections;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.ConstantFolding;
+import org.elasticsearch.xpack.sql.optimizer.Optimizer.PropagateEquals;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.PruneDuplicateFunctions;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.PruneSubqueryAliases;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.ReplaceFoldableAttributes;
@@ -65,7 +68,7 @@ import org.elasticsearch.xpack.sql.session.EmptyExecutable;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.joda.time.DateTimeZone;
+import org.elasticsearch.xpack.sql.type.EsField;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -74,6 +77,7 @@ import java.util.TimeZone;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
 
@@ -217,6 +221,10 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(10, lt.right().fold());
     }
 
+    //
+    // Constant folding
+    //
+
     public void testConstantFolding() {
         Expression exp = new Add(EMPTY, L(2), L(3));
 
@@ -314,6 +322,10 @@ public class OptimizerTests extends ESTestCase {
         return l.value();
     }
 
+    //
+    // Logical simplifications
+    //
+
     public void testBinaryComparisonSimplification() {
         assertEquals(Literal.TRUE, new BinaryComparisonSimplification().rule(new Equals(EMPTY, L(5), L(5))));
         assertEquals(Literal.TRUE, new BinaryComparisonSimplification().rule(new GreaterThanOrEqual(EMPTY, L(5), L(5))));
@@ -368,5 +380,513 @@ public class OptimizerTests extends ESTestCase {
         Expression expected = new And(EMPTY, a1, new Or(EMPTY, b, c));
 
         assertEquals(expected, simplification.rule(actual));
+    }
+
+    //
+    // Range optimization
+    //
+
+    // 6 < a <= 5  -> FALSE
+    public void testFoldExcludingRangeToFalse() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+
+        Range r = new Range(EMPTY, fa, L(6), false, L(5), true);
+        assertTrue(r.foldable());
+        assertEquals(Boolean.FALSE, r.fold());
+    }
+
+    // 6 < a <= 5.5 -> FALSE
+    public void testFoldExcludingRangeWithDifferentTypesToFalse() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+
+        Range r = new Range(EMPTY, fa, L(6), false, L(5.5d), true);
+        assertTrue(r.foldable());
+        assertEquals(Boolean.FALSE, r.fold());
+    }
+
+    // Conjunction
+
+    public void testCombineBinaryComparisonsNotComparable() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        LessThanOrEqual lte = new LessThanOrEqual(EMPTY, fa, L(6));
+        LessThan lt = new LessThan(EMPTY, fa, Literal.FALSE);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        And and = new And(EMPTY, lte, lt);
+        Expression exp = rule.rule(and);
+        assertEquals(exp, and);
+    }
+
+    // a <= 6 AND a < 5  -> a < 5
+    public void testCombineBinaryComparisonsUpper() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        LessThanOrEqual lte = new LessThanOrEqual(EMPTY, fa, L(6));
+        LessThan lt = new LessThan(EMPTY, fa, L(5));
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+
+        Expression exp = rule.rule(new And(EMPTY, lte, lt));
+        assertEquals(LessThan.class, exp.getClass());
+        LessThan r = (LessThan) exp;
+        assertEquals(L(5), r.right());
+    }
+
+    // 6 <= a AND 5 < a  -> 6 <= a
+    public void testCombineBinaryComparisonsLower() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        GreaterThanOrEqual gte = new GreaterThanOrEqual(EMPTY, fa, L(6));
+        GreaterThan gt = new GreaterThan(EMPTY, fa, L(5));
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+
+        Expression exp = rule.rule(new And(EMPTY, gte, gt));
+        assertEquals(GreaterThanOrEqual.class, exp.getClass());
+        GreaterThanOrEqual r = (GreaterThanOrEqual) exp;
+        assertEquals(L(6), r.right());
+    }
+
+    // 5 <= a AND 5 < a  -> 5 < a
+    public void testCombineBinaryComparisonsInclude() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        GreaterThanOrEqual gte = new GreaterThanOrEqual(EMPTY, fa, L(5));
+        GreaterThan gt = new GreaterThan(EMPTY, fa, L(5));
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+
+        Expression exp = rule.rule(new And(EMPTY, gte, gt));
+        assertEquals(GreaterThan.class, exp.getClass());
+        GreaterThan r = (GreaterThan) exp;
+        assertEquals(L(5), r.right());
+    }
+
+    // 3 <= a AND 4 < a AND a <= 7 AND a < 6 -> 4 < a < 6
+    public void testCombineMultipleBinaryComparisons() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        GreaterThanOrEqual gte = new GreaterThanOrEqual(EMPTY, fa, L(3));
+        GreaterThan gt = new GreaterThan(EMPTY, fa, L(4));
+        LessThanOrEqual lte = new LessThanOrEqual(EMPTY, fa, L(7));
+        LessThan lt = new LessThan(EMPTY, fa, L(6));
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+
+        Expression exp = rule.rule(new And(EMPTY, gte, new And(EMPTY, gt, new And(EMPTY, lt, lte))));
+        assertEquals(Range.class, exp.getClass());
+        Range r = (Range) exp;
+        assertEquals(L(4), r.lower());
+        assertFalse(r.includeLower());
+        assertEquals(L(6), r.upper());
+        assertFalse(r.includeUpper());
+    }
+
+    // 3 <= a AND TRUE AND 4 < a AND a != 5 AND a <= 7 -> 4 < a <= 7 AND a != 5 AND TRUE
+    public void testCombineMixedMultipleBinaryComparisons() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        GreaterThanOrEqual gte = new GreaterThanOrEqual(EMPTY, fa, L(3));
+        GreaterThan gt = new GreaterThan(EMPTY, fa, L(4));
+        LessThanOrEqual lte = new LessThanOrEqual(EMPTY, fa, L(7));
+        Expression ne = new Not(EMPTY, new Equals(EMPTY, fa, L(5)));
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+
+        // TRUE AND a != 5 AND 4 < a <= 7
+        Expression exp = rule.rule(new And(EMPTY, gte, new And(EMPTY, Literal.TRUE, new And(EMPTY, gt, new And(EMPTY, ne, lte)))));
+        assertEquals(And.class, exp.getClass());
+        And and = ((And) exp);
+        assertEquals(Range.class, and.right().getClass());
+        Range r = (Range) and.right();
+        assertEquals(L(4), r.lower());
+        assertFalse(r.includeLower());
+        assertEquals(L(7), r.upper());
+        assertTrue(r.includeUpper());
+    }
+
+    // 1 <= a AND a < 5  -> 1 <= a < 5
+    public void testCombineComparisonsIntoRange() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        GreaterThanOrEqual gte = new GreaterThanOrEqual(EMPTY, fa, L(1));
+        LessThan lt = new LessThan(EMPTY, fa, L(5));
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(new And(EMPTY, gte, lt));
+        assertEquals(Range.class, rule.rule(exp).getClass());
+
+        Range r = (Range) exp;
+        assertEquals(L(1), r.lower());
+        assertTrue(r.includeLower());
+        assertEquals(L(5), r.upper());
+        assertFalse(r.includeUpper());
+    }
+
+    // a != NULL AND a > 1 AND a < 5 AND a == 10  -> (a != NULL AND a == 10) AND 1 <= a < 5
+    public void testCombineUnbalancedComparisonsMixedWithEqualsIntoRange() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        IsNotNull isn = new IsNotNull(EMPTY, fa);
+        GreaterThanOrEqual gte = new GreaterThanOrEqual(EMPTY, fa, L(1));
+
+        Equals eq = new Equals(EMPTY, fa, L(10));
+        LessThan lt = new LessThan(EMPTY, fa, L(5));
+
+        And and = new And(EMPTY, new And(EMPTY, isn, gte), new And(EMPTY, lt, eq));
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(and);
+        assertEquals(And.class, exp.getClass());
+        And a = (And) exp;
+        assertEquals(Range.class, a.right().getClass());
+
+        Range r = (Range) a.right();
+        assertEquals(L(1), r.lower());
+        assertTrue(r.includeLower());
+        assertEquals(L(5), r.upper());
+        assertFalse(r.includeUpper());
+    }
+
+    // (2 < a < 3) AND (1 < a < 4) -> (2 < a < 3)
+    public void testCombineBinaryComparisonsConjunctionOfIncludedRange() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+
+        Range r1 = new Range(EMPTY, fa, L(2), false, L(3), false);
+        Range r2 = new Range(EMPTY, fa, L(1), false, L(4), false);
+
+        And and = new And(EMPTY, r1, r2);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(and);
+        assertEquals(r1, exp);
+    }
+
+    // (2 < a < 3) AND a < 2 -> 2 < a < 2
+    public void testCombineBinaryComparisonsConjunctionOfNonOverlappingBoundaries() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+
+        Range r1 = new Range(EMPTY, fa, L(2), false, L(3), false);
+        Range r2 = new Range(EMPTY, fa, L(1), false, L(2), false);
+
+        And and = new And(EMPTY, r1, r2);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(and);
+        assertEquals(Range.class, exp.getClass());
+        Range r = (Range) exp;
+        assertEquals(L(2), r.lower());
+        assertFalse(r.includeLower());
+        assertEquals(L(2), r.upper());
+        assertFalse(r.includeUpper());
+        assertEquals(Boolean.FALSE, r.fold());
+    }
+
+    // (2 < a < 3) AND (2 < a <= 3) -> 2 < a < 3
+    public void testCombineBinaryComparisonsConjunctionOfUpperEqualsOverlappingBoundaries() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+
+        Range r1 = new Range(EMPTY, fa, L(2), false, L(3), false);
+        Range r2 = new Range(EMPTY, fa, L(2), false, L(3), true);
+
+        And and = new And(EMPTY, r1, r2);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(and);
+        assertEquals(r1, exp);
+    }
+
+    // (2 < a < 3) AND (1 < a < 3) -> 2 < a < 3
+    public void testCombineBinaryComparisonsConjunctionOverlappingUpperBoundary() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+
+        Range r2 = new Range(EMPTY, fa, L(2), false, L(3), false);
+        Range r1 = new Range(EMPTY, fa, L(1), false, L(3), false);
+
+        And and = new And(EMPTY, r1, r2);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(and);
+        assertEquals(r2, exp);
+    }
+
+    // (2 < a <= 3) AND (1 < a < 3) -> 2 < a < 3
+    public void testCombineBinaryComparisonsConjunctionWithDifferentUpperLimitInclusion() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+
+        Range r1 = new Range(EMPTY, fa, L(1), false, L(3), false);
+        Range r2 = new Range(EMPTY, fa, L(2), false, L(3), true);
+
+        And and = new And(EMPTY, r1, r2);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(and);
+        assertEquals(Range.class, exp.getClass());
+        Range r = (Range) exp;
+        assertEquals(L(2), r.lower());
+        assertFalse(r.includeLower());
+        assertEquals(L(3), r.upper());
+        assertFalse(r.includeUpper());
+    }
+
+    // (0 < a <= 1) AND (0 <= a < 2) -> 0 < a <= 1
+    public void testRangesOverlappingConjunctionNoLowerBoundary() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+
+        Range r1 = new Range(EMPTY, fa, L(0), false, L(1), true);
+        Range r2 = new Range(EMPTY, fa, L(0), true, L(2), false);
+
+        And and = new And(EMPTY, r1, r2);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(and);
+        assertEquals(r1, exp);
+    }
+
+    // Disjunction
+
+    public void testCombineBinaryComparisonsDisjunctionNotComparable() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+
+        GreaterThan gt1 = new GreaterThan(EMPTY, fa, L(1));
+        GreaterThan gt2 = new GreaterThan(EMPTY, fa, Literal.FALSE);
+
+        Or or = new Or(EMPTY, gt1, gt2);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(or);
+        assertEquals(exp, or);
+    }
+
+
+    // 2 < a OR 1 < a OR 3 < a -> 1 < a
+    public void testCombineBinaryComparisonsDisjunctionLowerBound() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+
+        GreaterThan gt1 = new GreaterThan(EMPTY, fa, L(1));
+        GreaterThan gt2 = new GreaterThan(EMPTY, fa, L(2));
+        GreaterThan gt3 = new GreaterThan(EMPTY, fa, L(3));
+
+        Or or = new Or(EMPTY, gt1, new Or(EMPTY, gt2, gt3));
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(or);
+        assertEquals(GreaterThan.class, exp.getClass());
+
+        GreaterThan gt = (GreaterThan) exp;
+        assertEquals(L(1), gt.right());
+    }
+
+    // 2 < a OR 1 < a OR 3 <= a -> 1 < a
+    public void testCombineBinaryComparisonsDisjunctionIncludeLowerBounds() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+
+        GreaterThan gt1 = new GreaterThan(EMPTY, fa, L(1));
+        GreaterThan gt2 = new GreaterThan(EMPTY, fa, L(2));
+        GreaterThanOrEqual gte3 = new GreaterThanOrEqual(EMPTY, fa, L(3));
+
+        Or or = new Or(EMPTY, new Or(EMPTY, gt1, gt2), gte3);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(or);
+        assertEquals(GreaterThan.class, exp.getClass());
+
+        GreaterThan gt = (GreaterThan) exp;
+        assertEquals(L(1), gt.right());
+    }
+
+    // a < 1 OR a < 2 OR a < 3 ->  a < 3
+    public void testCombineBinaryComparisonsDisjunctionUpperBound() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+
+        LessThan lt1 = new LessThan(EMPTY, fa, L(1));
+        LessThan lt2 = new LessThan(EMPTY, fa, L(2));
+        LessThan lt3 = new LessThan(EMPTY, fa, L(3));
+
+        Or or = new Or(EMPTY, new Or(EMPTY, lt1, lt2), lt3);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(or);
+        assertEquals(LessThan.class, exp.getClass());
+
+        LessThan lt = (LessThan) exp;
+        assertEquals(L(3), lt.right());
+    }
+
+    // a < 2 OR a <= 2 OR a < 1 ->  a <= 2
+    public void testCombineBinaryComparisonsDisjunctionIncludeUpperBounds() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+
+        LessThan lt1 = new LessThan(EMPTY, fa, L(1));
+        LessThan lt2 = new LessThan(EMPTY, fa, L(2));
+        LessThanOrEqual lte2 = new LessThanOrEqual(EMPTY, fa, L(2));
+
+        Or or = new Or(EMPTY, lt2, new Or(EMPTY, lte2, lt1));
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(or);
+        assertEquals(LessThanOrEqual.class, exp.getClass());
+
+        LessThanOrEqual lte = (LessThanOrEqual) exp;
+        assertEquals(L(2), lte.right());
+    }
+
+    // a < 2 OR 3 < a OR a < 1 OR 4 < a ->  a < 2 OR 3 < a
+    public void testCombineBinaryComparisonsDisjunctionOfLowerAndUpperBounds() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+
+        LessThan lt1 = new LessThan(EMPTY, fa, L(1));
+        LessThan lt2 = new LessThan(EMPTY, fa, L(2));
+
+        GreaterThan gt3 = new GreaterThan(EMPTY, fa, L(3));
+        GreaterThan gt4 = new GreaterThan(EMPTY, fa, L(4));
+
+        Or or = new Or(EMPTY, new Or(EMPTY, lt2, gt3), new Or(EMPTY, lt1, gt4));
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(or);
+        assertEquals(Or.class, exp.getClass());
+
+        Or ro = (Or) exp;
+
+        assertEquals(LessThan.class, ro.left().getClass());
+        LessThan lt = (LessThan) ro.left();
+        assertEquals(L(2), lt.right());
+        assertEquals(GreaterThan.class, ro.right().getClass());
+        GreaterThan gt = (GreaterThan) ro.right();
+        assertEquals(L(3), gt.right());
+    }
+
+    // (2 < a < 3) OR (1 < a < 4) -> (1 < a < 4)
+    public void testCombineBinaryComparisonsDisjunctionOfIncludedRangeNotComparable() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+
+        Range r1 = new Range(EMPTY, fa, L(2), false, L(3), false);
+        Range r2 = new Range(EMPTY, fa, L(1), false, Literal.FALSE, false);
+
+        Or or = new Or(EMPTY, r1, r2);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(or);
+        assertEquals(or, exp);
+    }
+
+
+    // (2 < a < 3) OR (1 < a < 4) -> (1 < a < 4)
+    public void testCombineBinaryComparisonsDisjunctionOfIncludedRange() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+
+        Range r1 = new Range(EMPTY, fa, L(2), false, L(3), false);
+        Range r2 = new Range(EMPTY, fa, L(1), false, L(4), false);
+
+        Or or = new Or(EMPTY, r1, r2);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(or);
+        assertEquals(Range.class, exp.getClass());
+
+        Range r = (Range) exp;
+        assertEquals(L(1), r.lower());
+        assertFalse(r.includeLower());
+        assertEquals(L(4), r.upper());
+        assertFalse(r.includeUpper());
+    }
+
+    // (2 < a < 3) OR (1 < a < 2) -> same
+    public void testCombineBinaryComparisonsDisjunctionOfNonOverlappingBoundaries() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+
+        Range r1 = new Range(EMPTY, fa, L(2), false, L(3), false);
+        Range r2 = new Range(EMPTY, fa, L(1), false, L(2), false);
+
+        Or or = new Or(EMPTY, r1, r2);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(or);
+        assertEquals(or, exp);
+    }
+
+    // (2 < a < 3) OR (2 < a <= 3) -> 2 < a <= 3
+    public void testCombineBinaryComparisonsDisjunctionOfUpperEqualsOverlappingBoundaries() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+
+        Range r1 = new Range(EMPTY, fa, L(2), false, L(3), false);
+        Range r2 = new Range(EMPTY, fa, L(2), false, L(3), true);
+
+        Or or = new Or(EMPTY, r1, r2);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(or);
+        assertEquals(r2, exp);
+    }
+
+    // (2 < a < 3) OR (1 < a < 3) -> 1 < a < 3
+    public void testCombineBinaryComparisonsOverlappingUpperBoundary() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+
+        Range r2 = new Range(EMPTY, fa, L(2), false, L(3), false);
+        Range r1 = new Range(EMPTY, fa, L(1), false, L(3), false);
+
+        Or or = new Or(EMPTY, r1, r2);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(or);
+        assertEquals(r1, exp);
+    }
+
+    // (2 < a <= 3) OR (1 < a < 3) -> same (the <= prevents the ranges from being combined)
+    public void testCombineBinaryComparisonsWithDifferentUpperLimitInclusion() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+
+        Range r1 = new Range(EMPTY, fa, L(1), false, L(3), false);
+        Range r2 = new Range(EMPTY, fa, L(2), false, L(3), true);
+
+        Or or = new Or(EMPTY, r1, r2);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(or);
+        assertEquals(or, exp);
+    }
+
+    // (0 < a <= 1) OR (0 < a < 2) -> 0 < a < 2
+    public void testRangesOverlappingNoLowerBoundary() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+
+        Range r2 = new Range(EMPTY, fa, L(0), false, L(2), false);
+        Range r1 = new Range(EMPTY, fa, L(0), false, L(1), true);
+
+        Or or = new Or(EMPTY, r1, r2);
+
+        CombineBinaryComparisons rule = new CombineBinaryComparisons();
+        Expression exp = rule.rule(or);
+        assertEquals(r2, exp);
+    }
+
+    // Equals
+
+    // a == 1 AND a == 2 -> FALSE
+    public void testDualEqualsConjunction() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        Equals eq1 = new Equals(EMPTY, fa, L(1));
+        Equals eq2 = new Equals(EMPTY, fa, L(2));
+
+        PropagateEquals rule = new PropagateEquals();
+        Expression exp = rule.rule(new And(EMPTY, eq1, eq2));
+        assertEquals(Literal.FALSE, rule.rule(exp));
+    }
+
+    // 1 <= a < 10 AND a == 1 -> a == 1
+    public void testEliminateRangeByEqualsInInterval() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        Equals eq1 = new Equals(EMPTY, fa, L(1));
+        Range r = new Range(EMPTY, fa, L(1), true, L(10), false);
+
+        PropagateEquals rule = new PropagateEquals();
+        Expression exp = rule.rule(new And(EMPTY, eq1, r));
+        assertEquals(eq1, rule.rule(exp));
+    }
+
+    // 1 < a < 10 AND a == 10 -> FALSE
+    public void testEliminateRangeByEqualsOutsideInterval() {
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        Equals eq1 = new Equals(EMPTY, fa, L(10));
+        Range r = new Range(EMPTY, fa, L(1), false, L(10), false);
+
+        PropagateEquals rule = new PropagateEquals();
+        Expression exp = rule.rule(new And(EMPTY, eq1, r));
+        assertEquals(Literal.FALSE, rule.rule(exp));
     }
 }

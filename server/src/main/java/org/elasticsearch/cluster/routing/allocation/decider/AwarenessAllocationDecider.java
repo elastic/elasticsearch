@@ -36,7 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 
 /**
  * This {@link AllocationDecider} controls shard allocation based on
- * <tt>awareness</tt> key-value pairs defined in the node configuration.
+ * {@code awareness} key-value pairs defined in the node configuration.
  * Awareness explicitly controls where replicas should be allocated based on
  * attributes like node or physical rack locations. Awareness attributes accept
  * arbitrary configuration keys like a rack data-center identifier. For example
@@ -48,7 +48,7 @@ import org.elasticsearch.common.settings.Settings;
  * will cause allocations to be distributed over different racks such that
  * ideally at least one replicas of the all shard is available on the same rack.
  * To enable allocation awareness in this example nodes should contain a value
- * for the <tt>rack_id</tt> key like:
+ * for the {@code rack_id} key like:
  * <pre>
  * node.attr.rack_id:1
  * </pre>
@@ -67,7 +67,7 @@ import org.elasticsearch.common.settings.Settings;
  * </pre>
  * <p>
  * In contrast to regular awareness this setting will prevent over-allocation on
- * <tt>zone1</tt> even if <tt>zone2</tt> fails partially or becomes entirely
+ * {@code zone1} even if {@code zone2} fails partially or becomes entirely
  * unavailable. Nodes that belong to a certain zone / group should be started
  * with the zone id configured on the node-level settings like:
  * <pre>

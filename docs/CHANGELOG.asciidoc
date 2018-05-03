@@ -109,6 +109,10 @@ Do not ignore request analysis/similarity settings on index resize operations wh
 
 Fix NPE when CumulativeSum agg encounters null value/empty bucket ({pull}29641[#29641])
 
+Machine Learning::
+
+* Account for gaps in data counts after job is reopened ({pull}30294[#30294])
+
 //[float]
 //=== Regressions
 

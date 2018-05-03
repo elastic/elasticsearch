@@ -28,6 +28,7 @@ import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -52,6 +53,7 @@ import org.junit.Before;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class KeyStoreWrapperTests extends ESTestCase {
 
@@ -132,6 +134,7 @@ public class KeyStoreWrapperTests extends ESTestCase {
         KeyStoreWrapper keystore = KeyStoreWrapper.load(configDir);
         SecurityException e = expectThrows(SecurityException.class, () -> keystore.decrypt(new char[0]));
         assertThat(e.getMessage(), containsString("Keystore has been corrupted or tampered with"));
+        assertThat(e.getCause(), instanceOf(EOFException.class));
     }
 
     public void testFailWhenCannotConsumeEncryptedBytesStream() throws Exception {
@@ -160,6 +163,7 @@ public class KeyStoreWrapperTests extends ESTestCase {
         KeyStoreWrapper keystore = KeyStoreWrapper.load(configDir);
         SecurityException e = expectThrows(SecurityException.class, () -> keystore.decrypt(new char[0]));
         assertThat(e.getMessage(), containsString("Keystore has been corrupted or tampered with"));
+        assertThat(e.getCause(), instanceOf(EOFException.class));
     }
 
     public void testFailWhenSecretStreamNotConsumed() throws Exception {

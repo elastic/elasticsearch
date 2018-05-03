@@ -329,7 +329,7 @@ public class KeyStoreWrapper implements SecureSettings {
                 throw new SecurityException("Keystore has been corrupted or tampered with");
             }
         } catch (EOFException e) {
-            throw new SecurityException("Keystore has been corrupted or tampered with");
+            throw new SecurityException("Keystore has been corrupted or tampered with", e);
         }
 
         Cipher cipher = createCipher(Cipher.DECRYPT_MODE, password, salt, iv);
@@ -350,7 +350,7 @@ public class KeyStoreWrapper implements SecureSettings {
                 throw new SecurityException("Keystore has been corrupted or tampered with");
             }
         } catch (EOFException e) {
-            throw new SecurityException("Keystore has been corrupted or tampered with");
+            throw new SecurityException("Keystore has been corrupted or tampered with", e);
         }
     }
 

@@ -23,7 +23,7 @@ There are a few concepts that are core to Elasticsearch. Understanding these con
 [float]
 === Near Realtime (NRT)
 
-Elasticsearch is a near realtime search platform. What this means is there is a slight latency (normally one second) from the time you index a document until the time it becomes searchable.
+Elasticsearch is a near-realtime search platform. What this means is there is a slight latency (normally one second) from the time you index a document until the time it becomes searchable.
 
 [float]
 === Cluster

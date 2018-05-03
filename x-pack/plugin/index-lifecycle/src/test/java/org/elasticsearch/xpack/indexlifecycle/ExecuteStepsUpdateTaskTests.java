@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -165,6 +166,19 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertThat(secondStep.getExecuteCount(), equalTo(1L));
         assertThat(LifecycleSettings.LIFECYCLE_PHASE_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(-1L));
         assertThat(LifecycleSettings.LIFECYCLE_ACTION_TIME_SETTING.get(newState.metaData().index(index).getSettings()), equalTo(-1L));
+    }
+
+    public void testOnFailure() {
+        setStateToKey(secondStepKey);
+        Step startStep = policyStepsRegistry.getStep(mixedPolicyName, secondStepKey);
+        long now = randomNonNegativeLong();
+        ExecuteStepsUpdateTask task = new ExecuteStepsUpdateTask(mixedPolicyName, index, startStep, policyStepsRegistry, () -> now);
+        Exception expectedException = new RuntimeException();
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+                () -> task.onFailure(randomAlphaOfLength(10), expectedException));
+        assertEquals("policy [" + mixedPolicyName + "] for index [" + index.getName() + "] failed on step [" + startStep.getKey() + "].",
+                exception.getMessage());
+        assertSame(expectedException, exception.getCause());
     }
 
     private void setStateToKey(StepKey stepKey) {

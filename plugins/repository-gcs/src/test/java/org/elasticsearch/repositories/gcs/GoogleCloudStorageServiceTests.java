@@ -48,9 +48,12 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         final String hostName = randomAlphaOfLength(4);
         final String projectIdName = randomAlphaOfLength(4);
         final Settings settings = Settings.builder()
-                .put(GoogleCloudStorageClientSettings.CONNECT_TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), connectTimeValue.getStringRep())
-                .put(GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), readTimeValue.getStringRep())
-                .put(GoogleCloudStorageClientSettings.APPLICATION_NAME_SETTING.getConcreteSettingForNamespace(clientName).getKey(), applicationName)
+                .put(GoogleCloudStorageClientSettings.CONNECT_TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
+                        connectTimeValue.getStringRep())
+                .put(GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
+                        readTimeValue.getStringRep())
+                .put(GoogleCloudStorageClientSettings.APPLICATION_NAME_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
+                        applicationName)
                 .put(GoogleCloudStorageClientSettings.HOST_SETTING.getConcreteSettingForNamespace(clientName).getKey(), hostName)
                 .put(GoogleCloudStorageClientSettings.PROJECT_ID_SETTING.getConcreteSettingForNamespace(clientName).getKey(), projectIdName)
                 .build();

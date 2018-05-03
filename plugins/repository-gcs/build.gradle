@@ -28,18 +28,18 @@ esplugin {
 }
 
 dependencies {
-  compile 'com.google.cloud:google-cloud-storage:1.26.0'
-  compile 'com.google.cloud:google-cloud-core:1.26.0'
-  compile 'com.google.cloud:google-cloud-core-http:1.26.0'
-  compile 'com.google.auth:google-auth-library-oauth2-http:0.9.0'
-  compile 'com.google.auth:google-auth-library-credentials:0.9.0'
+  compile 'com.google.cloud:google-cloud-storage:1.28.0'
+  compile 'com.google.cloud:google-cloud-core:1.28.0'
+  compile 'com.google.cloud:google-cloud-core-http:1.28.0'
+  compile 'com.google.auth:google-auth-library-oauth2-http:0.9.1'
+  compile 'com.google.auth:google-auth-library-credentials:0.9.1'
   compile 'com.google.oauth-client:google-oauth-client:1.23.0'
   compile 'com.google.http-client:google-http-client:1.23.0'
   compile 'com.google.http-client:google-http-client-jackson:1.23.0'
   compile 'com.google.http-client:google-http-client-jackson2:1.23.0'
   compile 'com.google.http-client:google-http-client-appengine:1.23.0'
   compile 'com.google.api-client:google-api-client:1.23.0'
-  compile 'com.google.api:gax:1.23.0'
+  compile 'com.google.api:gax:1.25.0'
   compile 'com.google.api:gax-httpjson:0.40.0'
   compile 'com.google.api:api-common:1.5.0'
   compile 'com.google.api.grpc:proto-google-common-protos:1.8.0'
@@ -62,6 +62,19 @@ dependencyLicenses {
 
 thirdPartyAudit.excludes = [
         // classes are missing
+        'com.google.appengine.api.datastore.Blob',
+        'com.google.appengine.api.datastore.DatastoreService',
+        'com.google.appengine.api.datastore.DatastoreServiceFactory',
+        'com.google.appengine.api.datastore.Entity',
+        'com.google.appengine.api.datastore.Key',
+        'com.google.appengine.api.datastore.KeyFactory',
+        'com.google.appengine.api.datastore.PreparedQuery',
+        'com.google.appengine.api.datastore.Query',
+        'com.google.appengine.api.memcache.Expiration',
+        'com.google.appengine.api.memcache.MemcacheService',
+        'com.google.appengine.api.memcache.MemcacheServiceFactory',
+        'com.google.appengine.api.urlfetch.FetchOptions$Builder',
+        'com.google.appengine.api.urlfetch.FetchOptions'
 ]
 
 check {

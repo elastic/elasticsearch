@@ -30,6 +30,7 @@ import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.Storage.BlobListOption;
 import com.google.cloud.storage.Storage.CopyRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -160,6 +161,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
         }
         final ReadChannel readChannel = SocketAccess.doPrivilegedIOException(blob::reader);
         return java.nio.channels.Channels.newInputStream(new ReadableByteChannel() {
+            @SuppressForbidden(reason = "Channel is based of a socket not a file.")
             @Override
             public int read(ByteBuffer dst) throws IOException {
                 return SocketAccess.doPrivilegedIOException(() -> readChannel.read(dst));
@@ -197,6 +199,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
                 SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
             }
 
+            @SuppressForbidden(reason = "Channel is based of a socket not a file.")
             @Override
             public int write(ByteBuffer src) throws IOException {
                 return SocketAccess.doPrivilegedIOException(() -> writeChannel.write(src));

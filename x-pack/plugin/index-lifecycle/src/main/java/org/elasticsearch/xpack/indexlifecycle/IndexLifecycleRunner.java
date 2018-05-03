@@ -60,7 +60,7 @@ public class IndexLifecycleRunner {
         } else if (currentStep instanceof AsyncWaitStep) {
             if (fromClusterStateChange == false) {
                 ((AsyncWaitStep) currentStep).evaluateCondition(indexMetaData.getIndex(), new AsyncWaitStep.Listener() {
-    
+
                     @Override
                     public void onResponse(boolean conditionMet, ToXContentObject stepInfo) {
                         logger.debug("cs-change-async-wait-callback. current-step:" + currentStep.getKey());
@@ -70,18 +70,18 @@ public class IndexLifecycleRunner {
                             setStepInfo(indexMetaData.getIndex(), policy, currentStep.getKey(), stepInfo);
                         }
                     }
-    
+
                     @Override
                     public void onFailure(Exception e) {
                         moveToErrorStep(indexMetaData.getIndex(), policy, currentStep.getKey(), e);
                     }
-                    
+
                 });
             }
         } else if (currentStep instanceof AsyncActionStep) {
             if (fromClusterStateChange == false) {
                 ((AsyncActionStep) currentStep).performAction(indexMetaData, currentState, new AsyncActionStep.Listener() {
-    
+
                     @Override
                     public void onResponse(boolean complete) {
                         logger.debug("cs-change-async-action-callback. current-step:" + currentStep.getKey());
@@ -89,7 +89,7 @@ public class IndexLifecycleRunner {
                             moveToStep(indexMetaData.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
                         }
                     }
-    
+
                     @Override
                     public void onFailure(Exception e) {
                         moveToErrorStep(indexMetaData.getIndex(), policy, currentStep.getKey(), e);
@@ -118,7 +118,7 @@ public class IndexLifecycleRunner {
      * it is illegal for the step to be set with the phase and/or action unset,
      * or for the step to be unset with the phase and/or action set. All three
      * settings must be either present or missing.
-     * 
+     *
      * @param indexSettings
      *            the index settings to extract the {@link StepKey} from.
      */
@@ -150,7 +150,7 @@ public class IndexLifecycleRunner {
             LongSupplier nowSupplier) {
         IndexMetaData idxMeta = clusterState.getMetaData().index(index);
         Settings.Builder indexSettings = moveIndexSettingsToNextStep(idxMeta.getSettings(), currentStep, nextStep, nowSupplier);
-        ClusterState.Builder newClusterStateBuilder = newClusterStateWithIndexSettings(index, clusterState, indexSettings);
+        ClusterState.Builder newClusterStateBuilder = newClusterStateWithIndexSettings(idxMeta.getIndex(), clusterState, indexSettings);
         return newClusterStateBuilder.build();
     }
 
@@ -198,7 +198,7 @@ public class IndexLifecycleRunner {
         logger.debug("moveToStep[" + policy + "] [" + index.getName() + "]" + currentStepKey + " -> "
                 + nextStepKey);
         clusterService.submitStateUpdateTask("ILM", new MoveToNextStepUpdateTask(index, policy, currentStepKey,
-                nextStepKey, nowSupplier, newState -> runPolicy(newState.getMetaData().index(index), newState)));
+                nextStepKey, nowSupplier, stepRegistry, newState -> runPolicy(newState.getMetaData().index(index), newState)));
     }
 
     private void moveToErrorStep(Index index, String policy, StepKey currentStepKey, Exception e) {

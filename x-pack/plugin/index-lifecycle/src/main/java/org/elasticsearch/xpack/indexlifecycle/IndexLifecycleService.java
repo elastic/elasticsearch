@@ -61,6 +61,10 @@ public class IndexLifecycleService extends AbstractComponent
         clusterService.addListener(this);
     }
 
+    public PolicyStepsRegistry getStepsRegistry() {
+        return policyRegistry;
+    }
+
     SchedulerEngine getScheduler() {
         return scheduler.get();
     }
@@ -142,7 +146,7 @@ public class IndexLifecycleService extends AbstractComponent
                 }
             }));
     }
-    
+
     public void triggerPolicies(ClusterState clusterState, boolean fromClusterStateChange) {
         // loop through all indices in cluster state and filter for ones that are
         // managed by the Index Lifecycle Service they have a index.lifecycle.name setting

@@ -331,7 +331,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Settings indexSettings = Settings.EMPTY;
         StepKey stepKey = IndexLifecycleRunner.getCurrentStepKey(indexSettings);
         assertNull(stepKey);
-        
+
         String phase = randomAlphaOfLength(20);
         String action = randomAlphaOfLength(20);
         String step = randomAlphaOfLength(20);
@@ -345,7 +345,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         assertEquals(phase, stepKey.getPhase());
         assertEquals(action, stepKey.getAction());
         assertEquals(step, stepKey.getName());
-        
+
         phase = randomAlphaOfLength(20);
         action = randomAlphaOfLength(20);
         step = randomBoolean() ? null : "";
@@ -356,7 +356,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 .build();
         AssertionError error3 = expectThrows(AssertionError.class, () -> IndexLifecycleRunner.getCurrentStepKey(indexSettings3));
         assertEquals("Current phase is not empty: " + phase, error3.getMessage());
-        
+
         phase = randomBoolean() ? null : "";
         action = randomAlphaOfLength(20);
         step = randomBoolean() ? null : "";
@@ -367,7 +367,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 .build();
         AssertionError error4 = expectThrows(AssertionError.class, () -> IndexLifecycleRunner.getCurrentStepKey(indexSettings4));
         assertEquals("Current action is not empty: " + action, error4.getMessage());
-        
+
         phase = randomBoolean() ? null : "";
         action = randomAlphaOfLength(20);
         step = randomAlphaOfLength(20);
@@ -378,7 +378,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 .build();
         AssertionError error5 = expectThrows(AssertionError.class, () -> IndexLifecycleRunner.getCurrentStepKey(indexSettings5));
         assertEquals(null, error5.getMessage());
-        
+
         phase = randomBoolean() ? null : "";
         action = randomBoolean() ? null : "";
         step = randomAlphaOfLength(20);
@@ -390,7 +390,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         AssertionError error6 = expectThrows(AssertionError.class, () -> IndexLifecycleRunner.getCurrentStepKey(indexSettings6));
         assertEquals(null, error6.getMessage());
     }
-    
+
     public void testGetCurrentStep() {
         SortedMap<String, LifecyclePolicy> lifecyclePolicyMap = null; // Not used in the methods tested here
         String policyName = "policy_1";
@@ -490,13 +490,13 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 .build();
         IllegalStateException exception = expectThrows(IllegalStateException.class,
                 () -> IndexLifecycleRunner.getCurrentStep(registry, policyName, invalidIndexSettings));
-        assertEquals("step [[phase_1][action_1][step_3]] does not exist", exception.getMessage());
+        assertEquals("step [{\"phase\":\"phase_1\",\"action\":\"action_1\",\"name\":\"step_3\"}] does not exist", exception.getMessage());
 
         exception = expectThrows(IllegalStateException.class,
                 () -> IndexLifecycleRunner.getCurrentStep(registry, "policy_does_not_exist", invalidIndexSettings));
         assertEquals("policy [policy_does_not_exist] does not exist", exception.getMessage());
     }
-    
+
     public void testMoveClusterStateToNextStep() {
         String indexName = "my_index";
         StepKey currentStep = new StepKey("current_phase", "current_action", "current_step");
@@ -878,15 +878,15 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 return false;
             }
             MoveToErrorStepUpdateTask task = (MoveToErrorStepUpdateTask) argument;
-            return Objects.equals(index, task.getIndex()) && 
-                    Objects.equals(policy, task.getPolicy())&& 
+            return Objects.equals(index, task.getIndex()) &&
+                    Objects.equals(policy, task.getPolicy())&&
                     Objects.equals(currentStepKey, task.getCurrentStepKey()) &&
                     Objects.equals(cause.getClass(), task.getCause().getClass()) &&
                     Objects.equals(cause.getMessage(), task.getCause().getMessage());
         }
 
     }
-    
+
     private static class SetStepInfoUpdateTaskMatcher extends ArgumentMatcher<SetStepInfoUpdateTask> {
 
         private Index index;
@@ -907,8 +907,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 return false;
             }
             SetStepInfoUpdateTask task = (SetStepInfoUpdateTask) argument;
-            return Objects.equals(index, task.getIndex()) && 
-                    Objects.equals(policy, task.getPolicy())&& 
+            return Objects.equals(index, task.getIndex()) &&
+                    Objects.equals(policy, task.getPolicy())&&
                     Objects.equals(currentStepKey, task.getCurrentStepKey()) &&
                     Objects.equals(stepInfo, task.getStepInfo());
         }

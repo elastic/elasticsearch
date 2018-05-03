@@ -21,16 +21,18 @@ public class MoveToNextStepUpdateTask extends ClusterStateUpdateTask {
     private final Step.StepKey currentStepKey;
     private final Step.StepKey nextStepKey;
     private final Listener listener;
-    private LongSupplier nowSupplier;
+    private final LongSupplier nowSupplier;
+    private final PolicyStepsRegistry policyStepsRegistry;
 
     public MoveToNextStepUpdateTask(Index index, String policy, Step.StepKey currentStepKey, Step.StepKey nextStepKey,
-            LongSupplier nowSupplier, Listener listener) {
+            LongSupplier nowSupplier, PolicyStepsRegistry policyStepsRegistry, Listener listener) {
         this.index = index;
         this.policy = policy;
         this.currentStepKey = currentStepKey;
         this.nextStepKey = nextStepKey;
         this.nowSupplier = nowSupplier;
         this.listener = listener;
+        this.policyStepsRegistry = policyStepsRegistry;
     }
 
     Index getIndex() {
@@ -52,15 +54,25 @@ public class MoveToNextStepUpdateTask extends ClusterStateUpdateTask {
     @Override
     public ClusterState execute(ClusterState currentState) {
         Settings indexSettings = currentState.getMetaData().index(index).getSettings();
-        if (policy.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings))
-            && currentStepKey.equals(IndexLifecycleRunner.getCurrentStepKey(indexSettings))) {
-            return IndexLifecycleRunner.moveClusterStateToNextStep(index, currentState, currentStepKey, nextStepKey, nowSupplier);
-        } else {
-            // either the policy has changed or the step is now
-            // not the same as when we submitted the update task. In
-            // either case we don't want to do anything now
-            return currentState;
+        String indexPolicySetting = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings);
+
+        // policy could be updated in-between execution
+        if (policy.equals(indexPolicySetting) == false) {
+            throw new IllegalArgumentException("policy [" + policy + "] does not match " + LifecycleSettings.LIFECYCLE_NAME
+                + " [" + indexPolicySetting + "]");
         }
+
+        if (currentStepKey.equals(IndexLifecycleRunner.getCurrentStepKey(indexSettings)) == false) {
+            throw new IllegalArgumentException("index [" + index.getName() + "] is not on current step [" + currentStepKey + "]");
+        }
+
+        try {
+            policyStepsRegistry.getStep(policy, nextStepKey);
+        } catch (IllegalStateException e) {
+            throw new IllegalArgumentException(e.getMessage());
+        }
+
+        return IndexLifecycleRunner.moveClusterStateToNextStep(index, currentState, currentStepKey, nextStepKey, nowSupplier);
     }
 
     @Override

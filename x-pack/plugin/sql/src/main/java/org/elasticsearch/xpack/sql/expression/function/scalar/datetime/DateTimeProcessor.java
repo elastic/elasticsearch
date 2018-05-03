@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder;
 import org.joda.time.DateTimeFieldType;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableDateTime;
@@ -16,9 +18,22 @@ import org.joda.time.ReadableDateTime;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.TimeZone;
+import org.joda.time.DateTime;
+
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoField;
+import java.util.Objects;
+import java.util.TimeZone;
+
+import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate.formatTemplate;
 
 public class DateTimeProcessor implements Processor {
-    
+
+    private final static TimeZone UTC = TimeZone.getTimeZone("UTC");
+
     public enum DateTimeExtractor {
         DAY_OF_MONTH(DateTimeFieldType.dayOfMonth()),
         DAY_OF_WEEK(DateTimeFieldType.dayOfWeek()),
@@ -29,19 +44,29 @@ public class DateTimeProcessor implements Processor {
         MONTH_OF_YEAR(DateTimeFieldType.monthOfYear()),
         SECOND_OF_MINUTE(DateTimeFieldType.secondOfMinute()),
         WEEK_OF_YEAR(DateTimeFieldType.weekOfWeekyear()),
-        YEAR(DateTimeFieldType.year());
+        YEAR(DateTimeFieldType.year()),
+        DAYNAME(DateTimeFieldType.dayOfWeek()) {
 
-        private final DateTimeFieldType field;
+            public Object extract(ReadableDateTime dateTime, DateTimeProcessor processor) {
+                final Instant instant = Instant.ofEpochMilli(dateTime.getMillis());
+                final ZoneId zoneId = ZoneId.of(dateTime.getZone().getID(), ZoneId.SHORT_IDS);
+                final ZonedDateTime zdt = ZonedDateTime.ofInstant(instant, zoneId);
+
+                return zdt.format(DateTimeFormatter.ofPattern(DayName.FORMAT)); // long form name of week.
+            }
+        };
+
+        final DateTimeFieldType field;
 
         DateTimeExtractor(DateTimeFieldType field) {
             this.field = field;
         }
 
-        public int extract(ReadableDateTime dt) {
+        public Object extract(ReadableDateTime dt, DateTimeProcessor processor) {
             return dt.get(field);
         }
     }
-    
+
     public static final String NAME = "dt";
 
     private final DateTimeExtractor extractor;
@@ -84,10 +109,10 @@ public class DateTimeProcessor implements Processor {
 
         ReadableDateTime dt = (ReadableDateTime) l;
 
-        if (!TimeZone.getTimeZone("UTC").equals(timeZone)) {
+        if (!UTC.equals(timeZone)) {
             dt = dt.toDateTime().withZone(DateTimeZone.forTimeZone(timeZone));
         }
-        return extractor.extract(dt);
+        return extractor.extract(dt, this);
     }
 
     @Override

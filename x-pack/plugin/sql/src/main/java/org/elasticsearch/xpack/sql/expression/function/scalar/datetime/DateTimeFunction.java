@@ -34,8 +34,11 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.script.Scri
 
 public abstract class DateTimeFunction extends UnaryScalarFunction {
 
+    final static TimeZone UTC = TimeZone.getTimeZone("UTC");
+
     private final TimeZone timeZone;
     private final String name;
+    private DateTimeProcessor dateTimeProcessor;
 
     DateTimeFunction(Location location, Expression field, TimeZone timeZone) {
         super(location, field);
@@ -70,9 +73,8 @@ public abstract class DateTimeFunction extends UnaryScalarFunction {
             return null;
         }
 
-        ZonedDateTime time = ZonedDateTime.ofInstant(
-            Instant.ofEpochMilli(folded.getMillis()), ZoneId.of(timeZone.getID()));
-        return time.get(chronoField());
+        DateTimeProcessor p = this.dateTimeProcessor();
+        return p.extractor().extract(folded, p);
     }
 
     @Override
@@ -88,32 +90,27 @@ public abstract class DateTimeFunction extends UnaryScalarFunction {
     protected ScriptTemplate asScriptFrom(FieldAttribute field) {
         ParamsBuilder params = paramsBuilder();
 
-        String template = null;
-        if (TimeZone.getTimeZone("UTC").equals(timeZone)) {
-            // TODO: it would be nice to be able to externalize the extract function and reuse the script across all extractors
-            template = formatTemplate("doc[{}].value.get" + extractFunction() + "()");
-            params.variable(field.name());
-        } else {
-            // TODO ewwww
-            /*
-             * This uses the Java 8 time API because Painless doesn't whitelist creation of new
-             * Joda classes.
-             *
-             * The actual script is
-             * ZonedDateTime.ofInstant(Instant.ofEpochMilli(<insert doc field>.value.millis),
-             *      ZoneId.of(<insert user tz>)).get(ChronoField.get(MONTH_OF_YEAR))
-             */
-
-            template = formatTemplate("ZonedDateTime.ofInstant(Instant.ofEpochMilli(doc[{}].value.millis), "
-                    + "ZoneId.of({})).get(ChronoField.valueOf({}))");
-            params.variable(field.name())
-                  .variable(timeZone.getID())
-                  .variable(chronoField().name());
-        }
+        String template = UTC.equals(timeZone) ?
+            this.scriptTemplateUTC(field, params) :
+            this.scriptTemplateTimezone(field, params);
 
         return new ScriptTemplate(template, params.build(), dataType());
     }
 
+    private String scriptTemplateUTC(final FieldAttribute field, final ParamsBuilder params) {
+        params.variable(field.name());
+
+        return formatTemplate("doc[{}].value.get" + this.extractFunction() + "()");
+    }
+
+    String scriptTemplateTimezone(final FieldAttribute field, final ParamsBuilder params) {
+        params.variable(field.name())
+            .variable(this.timeZone().getID())
+            .variable(this.chronoField().name());
+
+        return formatTemplate("ZonedDateTime.ofInstant(Instant.ofEpochMilli(doc[{}].value.millis), " +
+            "ZoneId.of({})).get(ChronoField.valueOf({}))");
+    }
 
     @Override
     protected ScriptTemplate asScriptFrom(AggregateFunctionAttribute aggregate) {
@@ -132,7 +129,14 @@ public abstract class DateTimeFunction extends UnaryScalarFunction {
     @Override
     protected final ProcessorDefinition makeProcessorDefinition() {
         return new UnaryProcessorDefinition(location(), this, ProcessorDefinitions.toProcessorDefinition(field()),
-                new DateTimeProcessor(extractor(), timeZone));
+                this.dateTimeProcessor());
+    }
+
+    private DateTimeProcessor dateTimeProcessor() {
+        if(null==this.dateTimeProcessor) {
+            dateTimeProcessor = new DateTimeProcessor(extractor(), timeZone);
+        }
+        return this.dateTimeProcessor;
     }
 
     protected abstract DateTimeExtractor extractor();

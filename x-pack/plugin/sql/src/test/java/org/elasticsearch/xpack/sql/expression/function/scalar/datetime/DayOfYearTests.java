@@ -5,32 +5,32 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
+import java.util.Locale;
 import java.util.TimeZone;
 
-public class DayOfYearTests extends ESTestCase {
-    private static final TimeZone UTC = TimeZone.getTimeZone("UTC");
+public class DayOfYearTests extends DateTimeFunctionTestcase<DayOfYear> {
 
-    public void testAsColumnProcessor() {
-        assertEquals(1, extract(dateTime(0), UTC));
-        assertEquals(1, extract(dateTime(0), TimeZone.getTimeZone("GMT+01:00")));
-        assertEquals(365, extract(dateTime(0), TimeZone.getTimeZone("GMT-01:00")));
+    public void testUTC() {
+        processAndCheck(dateTime(0), UTC, 1);
     }
 
-    private DateTime dateTime(long millisSinceEpoch) {
-        return new DateTime(millisSinceEpoch, DateTimeZone.forTimeZone(UTC));
+    public void testGMT_plus0100() {
+        processAndCheck(dateTime(0), "GMT+01:00", 1);
     }
 
-    private Object extract(Object value, TimeZone timeZone) {
-        return build(value, timeZone).asProcessorDefinition().asProcessor().process(value);
+    public void testGMT_minus0100() {
+        processAndCheck(dateTime(0), "GMT-01:00", 365);
     }
 
-    private DayOfYear build(Object value, TimeZone timeZone) {
+    @Override
+    DayOfYear build(Object value, TimeZone timeZone) {
         return new DayOfYear(null, new Literal(null, value, DataType.DATE), timeZone);
+    }
+
+    Locale defaultLocale() {
+        return null;
     }
 }

@@ -232,8 +232,8 @@ public class WatcherService extends AbstractComponent {
      * manual watch execution, i.e. via the execute watch API
      */
     public void pauseExecution(String reason) {
-        int cancelledTaskCount = executionService.pause();
         triggerService.pauseExecution();
+        int cancelledTaskCount = executionService.pause();
         logger.info("paused watch execution, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
     }
 

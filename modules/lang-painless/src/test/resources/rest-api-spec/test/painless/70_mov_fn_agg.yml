@@ -275,7 +275,7 @@ setup:
                   moving_fn:
                     buckets_path: "the_avg"
                     window: 1
-                    script: "if (values.size() > 1) { MovingFunctions.holtWinters(values, 0.1, 0.1, 0.1, 1, true)}"
+                    script: "if (values.length > 1) { MovingFunctions.holtWinters(values, 0.1, 0.1, 0.1, 1, true)}"
 
   - match: { hits.total: 6 }
   - length: { hits.hits: 0 }

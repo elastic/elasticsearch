@@ -31,28 +31,28 @@ public class MovingFunctions {
      * Find the maximum value in a window of values.
      * If all values are missing/null/NaN, the return value will be NaN
      */
-    public static double max(Collection<Double> values) {
-        return values.stream().max(Double::compareTo).orElse(Double.NaN);
+    public static double max(double[] values) {
+        return Arrays.stream(values).max().orElse(Double.NaN);
     }
 
     /**
      * Find the minimum value in a window of values
      * If all values are missing/null/NaN, the return value will be NaN
      */
-    public static double min(Collection<Double> values) {
-        return values.stream().min(Double::compareTo).orElse(Double.NaN);
+    public static double min(double[] values) {
+        return Arrays.stream(values).min().orElse(Double.NaN);
     }
 
     /**
      * Find the sum of a window of values
      * If all values are missing/null/NaN, the return value will be 0.0
      */
-    public static double sum(Collection<Double> values) {
-        if (values.size() == 0) {
+    public static double sum(double[] values) {
+        if (values.length == 0) {
             return 0.0;
         }
-        return values.stream().mapToDouble(value -> {
-            if (value != null && value.isNaN() == false) {
+        return Arrays.stream(values).map(value -> {
+            if (Double.isNaN(value) == false) {
                 return value;
             }
             return 0.0;
@@ -66,11 +66,11 @@ public class MovingFunctions {
      * If all values are missing/null/NaN, the return value will be NaN.
      * The average is based on the count of non-null, non-NaN values.
      */
-    public static double unweightedAvg(Collection<Double> values) {
+    public static double unweightedAvg(double[] values) {
         double avg = 0.0;
         long count = 0;
-        for (Double v : values) {
-            if (v != null && v.isNaN() == false) {
+        for (double v : values) {
+            if (Double.isNaN(v) == false) {
                 avg += v;
                 count += 1;
             }
@@ -85,14 +85,14 @@ public class MovingFunctions {
      * If all values are missing/null/NaN, the return value will be NaN.
      * The average is based on the count of non-null, non-NaN values.
      */
-    public static double stdDev(Collection<Double> values, double avg) {
+    public static double stdDev(double[] values, double avg) {
         if (avg == Double.NaN) {
             return Double.NaN;
         } else {
             long count = 0;
             double squaredMean = 0;
-            for (Double v : values) {
-                if (v != null && v.isNaN() == false) {
+            for (double v : values) {
+                if (Double.isNaN(v) == false) {
                     squaredMean += Math.pow(v - avg, 2);
                     count += 1;
                 }
@@ -109,13 +109,13 @@ public class MovingFunctions {
      * If all values are missing/null/NaN, the return value will be NaN
      * The average is based on the count of non-null, non-NaN values.
      */
-    public static double linearWeightedAvg(Collection<Double> values) {
+    public static double linearWeightedAvg(double[] values) {
         double avg = 0;
         long totalWeight = 1;
         long current = 1;
 
-        for (Double v : values) {
-            if (v != null && v.isNaN() == false) {
+        for (double v : values) {
+            if (Double.isNaN(v) == false) {
                 avg += v * current;
                 totalWeight += current;
                 current += 1;
@@ -138,12 +138,12 @@ public class MovingFunctions {
      *
      * @param alpha A double between 0-1 inclusive, controls data smoothing
      */
-    public static double ewma(Collection<Double> values, double alpha) {
+    public static double ewma(double[] values, double alpha) {
         double avg = Double.NaN;
         boolean first = true;
 
-        for (Double v : values) {
-            if (v != null && v.isNaN() == false) {
+        for (double v : values) {
+            if (Double.isNaN(v) == false) {
                 if (first) {
                     avg = v;
                     first = false;
@@ -171,8 +171,8 @@ public class MovingFunctions {
      * @param alpha A double between 0-1 inclusive, controls data smoothing
      * @param beta a double between 0-1 inclusive, controls trend smoothing
      */
-    public static double holt(Collection<Double> values, double alpha, double beta) {
-        if (values.size() == 0) {
+    public static double holt(double[] values, double alpha, double beta) {
+        if (values.length == 0) {
             return Double.NaN;
         }
 
@@ -183,7 +183,7 @@ public class MovingFunctions {
      * Version of holt that can "forecast", not exposed as a whitelisted function for moving_fn scripts, but
      * here as compatibility/code sharing for existing moving_avg agg.  Can be removed when moving_avg is gone.
      */
-    public static double[] holtForecast(Collection<Double> values, double alpha, double beta, int numForecasts) {
+    public static double[] holtForecast(double[] values, double alpha, double beta, int numForecasts) {
 
         // Smoothed value
         double s = 0;
@@ -196,8 +196,8 @@ public class MovingFunctions {
         int counter = 0;
 
         Double last;
-        for (Double v : values) {
-            if (v != null && v.isNaN() == false) {
+        for (double v : values) {
+            if (Double.isNaN(v) == false) {
                 last = v;
                 if (counter == 0) {
                     s = v;
@@ -245,10 +245,10 @@ public class MovingFunctions {
      * @param period the expected periodicity of the data
      * @param multiplicative true if multiplicative HW should be used. False for additive
      */
-    public static double holtWinters(Collection<Double> values, double alpha, double beta, double gamma,
+    public static double holtWinters(double[] values, double alpha, double beta, double gamma,
                                            int period, boolean multiplicative) {
 
-        if (values.size() == 0) {
+        if (values.length == 0) {
             return Double.NaN;
         }
 
@@ -260,13 +260,13 @@ public class MovingFunctions {
      * Version of holt-winters that can "forecast", not exposed as a whitelisted function for moving_fn scripts, but
      * here as compatibility/code sharing for existing moving_avg agg.  Can be removed when moving_avg is gone.
      */
-    public static double[] holtWintersForecast(Collection<Double> values, double alpha, double beta, double gamma,
+    public static double[] holtWintersForecast(double[] values, double alpha, double beta, double gamma,
                                              int period, double padding, boolean multiplicative, int numForecasts) {
-        if (values.size() < period * 2) {
+        if (values.length < period * 2) {
             // We need at least two full "seasons" to use HW
             // This should have been caught earlier, we can't do anything now...bail
             throw new IllegalArgumentException("Holt-Winters aggregation requires at least (2 * period == 2 * "
-                + period + " == "+(2 * period)+") data-points to function.  Only [" + values.size() + "] were provided.");
+                + period + " == "+(2 * period)+") data-points to function.  Only [" + values.length + "] were provided.");
         }
 
         // Smoothed value
@@ -278,12 +278,12 @@ public class MovingFunctions {
         double last_b = 0;
 
         // Seasonal value
-        double[] seasonal = new double[values.size()];
+        double[] seasonal = new double[values.length];
 
         int counter = 0;
-        double[] vs = new double[values.size()];
-        for (Double v : values) {
-            if (v != null && v.isNaN() == false) {
+        double[] vs = new double[values.length];
+        for (double v : values) {
+            if (Double.isNaN(v) == false) {
                 vs[counter] = v + padding;
                 counter += 1;
             }
@@ -334,7 +334,7 @@ public class MovingFunctions {
 
         double[] forecastValues = new double[numForecasts];
         for (int i = 1; i <= numForecasts; i++) {
-            int idx = values.size() - period + ((i - 1) % period);
+            int idx = values.length - period + ((i - 1) % period);
 
             // TODO perhaps pad out seasonal to a power of 2 and use a mask instead of modulo?
             if (multiplicative) {

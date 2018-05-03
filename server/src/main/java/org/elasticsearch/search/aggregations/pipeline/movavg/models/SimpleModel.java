@@ -84,7 +84,7 @@ public class SimpleModel extends MovAvgModel {
 
     @Override
     public double next(Collection<Double> values) {
-        return MovingFunctions.unweightedAvg(values);
+        return MovingFunctions.unweightedAvg(values.stream().mapToDouble(Double::doubleValue).toArray());
     }
 
     @Override

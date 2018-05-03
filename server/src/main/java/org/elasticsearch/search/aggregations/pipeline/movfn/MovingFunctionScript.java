@@ -34,12 +34,12 @@ public abstract class MovingFunctionScript {
      * @param values The values in the window that we are moving a function across
      * @return A double representing the value from this particular window
      */
-    public abstract double execute(Map<String, Object> params, Collection<Double> values);
+    public abstract double execute(Map<String, Object> params, double[] values);
 
     public interface Factory {
         MovingFunctionScript newInstance();
     }
 
     public static final String[] PARAMETERS = new String[] {"params", "values"};
-    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("movfn", Factory.class);
+    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("moving-function", Factory.class);
 }

@@ -130,7 +130,7 @@ public class MovFnUnitTests extends AggregatorTestCase {
 
             MovingFunctionScript scriptInstance = new MovingFunctionScript() {
                 @Override
-                public double execute(Map<String, Object> params, Collection<Double> values) {
+                public double execute(Map<String, Object> params, double[] values) {
                     assertNotNull(values);
                     return MovingFunctions.max(values);
                 }

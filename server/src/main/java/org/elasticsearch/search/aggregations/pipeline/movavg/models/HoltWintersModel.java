@@ -281,8 +281,8 @@ public class HoltWintersModel extends MovAvgModel {
      * @return       Returns a Double containing the moving avg for the window
      */
     public double[] next(Collection<Double> values, int numForecasts) {
-        return MovingFunctions.holtWintersForecast(values, alpha, beta, gamma, period, padding,
-            seasonalityType.equals(SeasonalityType.MULTIPLICATIVE), numForecasts);
+        return MovingFunctions.holtWintersForecast(values.stream().mapToDouble(Double::doubleValue).toArray(),
+            alpha, beta, gamma, period, padding, seasonalityType.equals(SeasonalityType.MULTIPLICATIVE), numForecasts);
     }
 
     @Override

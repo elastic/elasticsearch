@@ -131,7 +131,7 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
 
                 // The custom context mandates that the script returns a double (not Double) so we
                 // don't need null checks, etc.
-                double movavg = executableScript.execute(vars, values);
+                double movavg = executableScript.execute(vars, values.stream().mapToDouble(Double::doubleValue).toArray());
 
                 List<InternalAggregation> aggs = StreamSupport
                     .stream(bucket.getAggregations().spliterator(), false)

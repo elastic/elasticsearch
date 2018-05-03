@@ -62,14 +62,6 @@ dependencyLicenses {
 
 thirdPartyAudit.excludes = [
         // classes are missing
-        //'com.google.appengine.api'
-        //'com.google.common.base.Splitter',
-        //'com.google.common.collect.Lists',
-        //'javax.servlet.ServletContextEvent',
-        //'javax.servlet.ServletContextListener',
-        //'org.apache.avalon.framework.logger.Logger',
-        //'org.apache.log.Hierarchy',
-        //'org.apache.log.Logger',
 ]
 
 forbiddenApisTest {
@@ -81,7 +73,6 @@ forbiddenApisTest {
 /** A task to start the GoogleCloudStorageFixture which emulates a Google Cloud Storage service **/
 task googleCloudStorageFixture(type: AntFixture) {
     dependsOn compileTestJava
-    args '-Djavax.net.debug=all'
     env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
     executable = new File(project.runtimeJavaHome, 'bin/java')
     args 'org.elasticsearch.repositories.gcs.GoogleCloudStorageFixture', baseDir, 'bucket_test'
@@ -109,14 +100,8 @@ task createServiceAccountFile() {
   }
 }
 
-//"  \"auth_uri\": \"http://${googleCloudStorageFixture.addressAndPort}/o/oauth2/auth\",\n" +
-//"  \"token_uri\": \"http://${googleCloudStorageFixture.addressAndPort}/o/oauth2/token\",\n" +
-//'  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",\n' +
-//'  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/integration_test%40appspot.gserviceaccount.com"\n' +
-
 integTestCluster {
   dependsOn createServiceAccountFile, googleCloudStorageFixture
-  systemProperty 'javax.net.debug', 'all'
   keystoreFile 'gcs.client.integration_test.credentials_file', "${serviceAccountFile.absolutePath}"
 
   /* Use a closure on the string to delay evaluation until tests are executed */

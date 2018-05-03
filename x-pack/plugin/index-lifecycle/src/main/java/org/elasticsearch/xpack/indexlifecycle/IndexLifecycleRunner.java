@@ -156,14 +156,15 @@ public class IndexLifecycleRunner {
 
     private static Settings.Builder moveIndexSettingsToNextStep(Settings existingSettings, StepKey currentStep, StepKey nextStep,
             LongSupplier nowSupplier) {
+        long nowAsMillis = nowSupplier.getAsLong();
         Settings.Builder newSettings = Settings.builder().put(existingSettings).put(LifecycleSettings.LIFECYCLE_PHASE, nextStep.getPhase())
                 .put(LifecycleSettings.LIFECYCLE_ACTION, nextStep.getAction()).put(LifecycleSettings.LIFECYCLE_STEP, nextStep.getName())
-                .put(LifecycleSettings.LIFECYCLE_STEP_TIME, nowSupplier.getAsLong());
+                .put(LifecycleSettings.LIFECYCLE_STEP_TIME, nowAsMillis);
         if (currentStep.getPhase().equals(nextStep.getPhase()) == false) {
-            newSettings.put(LifecycleSettings.LIFECYCLE_PHASE_TIME, nowSupplier.getAsLong());
+            newSettings.put(LifecycleSettings.LIFECYCLE_PHASE_TIME, nowAsMillis);
         }
         if (currentStep.getAction().equals(nextStep.getAction()) == false) {
-            newSettings.put(LifecycleSettings.LIFECYCLE_ACTION_TIME, nowSupplier.getAsLong());
+            newSettings.put(LifecycleSettings.LIFECYCLE_ACTION_TIME, nowAsMillis);
         }
         return newSettings;
     }

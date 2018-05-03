@@ -126,12 +126,12 @@ class MockStorage implements Storage {
 
     @Override
     public Blob create(BlobInfo blobInfo, BlobTargetOption... options) {
-        throw new RuntimeException("Mock not implemented");
+        return constructMockBlob(blobInfo.getName(), new byte[0], blobsMap);
     }
 
     @Override
     public Blob create(BlobInfo blobInfo, byte[] content, BlobTargetOption... options) {
-        throw new RuntimeException("Mock not implemented");
+        return constructMockBlob(blobInfo.getName(), content, blobsMap);
     }
 
     @Override

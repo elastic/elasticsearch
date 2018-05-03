@@ -42,6 +42,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.Streams;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -187,24 +188,30 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
      */
     void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
         final BlobInfo blobInfo = BlobInfo.newBuilder(bucket, blobName).build();
-        final WriteChannel writeChannel = SocketAccess.doPrivilegedIOException(() -> storage.writer(blobInfo));
-        Streams.copy(inputStream, java.nio.channels.Channels.newOutputStream(new WritableByteChannel() {
-            @Override
-            public boolean isOpen() {
-                return writeChannel.isOpen();
-            }
+        if (blobSize > 1_000_000) {
+            final WriteChannel writeChannel = SocketAccess.doPrivilegedIOException(() -> storage.writer(blobInfo));
+            Streams.copy(inputStream, java.nio.channels.Channels.newOutputStream(new WritableByteChannel() {
+                @Override
+                public boolean isOpen() {
+                    return writeChannel.isOpen();
+                }
 
-            @Override
-            public void close() throws IOException {
-                SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
-            }
+                @Override
+                public void close() throws IOException {
+                    SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
+                }
 
-            @SuppressForbidden(reason = "Channel is based of a socket not a file.")
-            @Override
-            public int write(ByteBuffer src) throws IOException {
-                return SocketAccess.doPrivilegedIOException(() -> writeChannel.write(src));
-            }
-        }));
+                @SuppressForbidden(reason = "Channel is based of a socket not a file.")
+                @Override
+                public int write(ByteBuffer src) throws IOException {
+                    return SocketAccess.doPrivilegedIOException(() -> writeChannel.write(src));
+                }
+            }));
+        } else {
+            final ByteArrayOutputStream baos = new ByteArrayOutputStream(Math.toIntExact(blobSize));
+            Streams.copy(inputStream, baos);
+            SocketAccess.doPrivilegedVoidIOException(() -> storage.create(blobInfo, baos.toByteArray()));
+        }
     }
 
     /**

@@ -27,6 +27,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
@@ -72,10 +74,11 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
         // In some cases, this value cannot be fully parsed until after we know the type
         // Store precision as is until the end of parsing.
         // ValueType.INT could be either a number or a string
+        builder.precisionLocation = parser.getTokenLocation();
         if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
-            builder.tempPrecision = parser.intValue();
+            builder.precisionRaw = parser.intValue();
         } else {
-            builder.tempPrecision = parser.text();
+            builder.precisionRaw = parser.text();
         }
     }
 
@@ -83,27 +86,38 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
         GeoGridAggregationBuilder builder = PARSER.parse(parser,
             new GeoGridAggregationBuilder(aggregationName), null);
 
-        // delayed precision validation
-        final GeoHashTypeProvider typeHandler = builder.type.getHandler();
+        try {
+            // delayed precision validation
+            final GeoHashTypeProvider typeHandler = builder.type.getHandler();
 
-        if (builder.tempPrecision == null) {
-            builder.precision(typeHandler.getDefaultPrecision());
-        } else if (builder.tempPrecision instanceof String) {
-            builder.precision(typeHandler.parsePrecisionString((String) builder.tempPrecision));
-        } else {
-            builder.precision((int) builder.tempPrecision);
+            if (builder.precisionRaw == null) {
+                builder.precision(typeHandler.getDefaultPrecision());
+            } else if (builder.precisionRaw instanceof String) {
+                builder.precision(typeHandler.parsePrecisionString((String) builder.precisionRaw));
+            } else {
+                builder.precision((int) builder.precisionRaw);
+            }
+
+            return builder;
+        } catch (Exception e) {
+            throw new XContentParseException(builder.precisionLocation,
+                "[geohash_grid] failed to parse field [precision]", e);
         }
-
-        return builder;
     }
 
     private GeoHashType type = GeoHashType.DEFAULT;
 
     /**
-     * Contains temporary value during the parsing.
+     * Contains unparsed precision value during the parsing.
      * This value will be converted into an integer precision at the end of parsing.
      */
-    private Object tempPrecision = null;
+    private Object precisionRaw = null;
+
+    /**
+     * Stores the location of the precision parameter, in case precision is
+     * incorrect and an error has to be reported to the user.  Only valid during parsing.
+     */
+    private XContentLocation precisionLocation = null;
 
     private int precision = -1;
 

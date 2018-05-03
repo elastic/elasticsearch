@@ -30,7 +30,7 @@ task internalClusterTest(type: RandomizedTestingTask,
 }
 
 check {
-    dependsOn = [internalClusterTest, 'qa:multi-cluster:followClusterTest']
+    dependsOn = [internalClusterTest, 'qa:multi-cluster:followClusterTest', 'qa:multi-cluster-with-security:followClusterTest']
 }
 
 internalClusterTest.mustRunAfter test

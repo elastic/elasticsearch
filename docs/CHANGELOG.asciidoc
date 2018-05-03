@@ -113,6 +113,19 @@ Machine Learning::
 
 * Account for gaps in data counts after job is reopened ({pull}30294[#30294])
 
+== Elasticsearch version 6.3.1
+
+=== New Features
+
+=== Enhancements
+
+=== Bug Fixes
+
+Reduce the number of object allocations made by {security} when resolving the indices and aliases for a request ({pull}30180[#30180])
+
+=== Regressions
+
+=== Known Issues
 //[float]
 //=== Regressions
 

@@ -38,7 +38,7 @@ public class SocketEventHandlerTests extends ESTestCase {
 
     private Consumer<Exception> exceptionHandler;
 
-    private BytesFlushProducer flushProducer;
+    private ReadWriteHandler readWriteHandler;
     private SocketEventHandler handler;
     private NioSocketChannel channel;
     private SocketChannel rawChannel;
@@ -48,14 +48,14 @@ public class SocketEventHandlerTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void setUpHandler() throws IOException {
         exceptionHandler = mock(Consumer.class);
-        flushProducer = mock(BytesFlushProducer.class);
+        readWriteHandler = mock(ReadWriteHandler.class);
         SocketSelector selector = mock(SocketSelector.class);
         handler = new SocketEventHandler(logger);
         rawChannel = mock(SocketChannel.class);
         channel = new NioSocketChannel(rawChannel);
         when(rawChannel.finishConnect()).thenReturn(true);
 
-        context = new DoNotRegisterContext(channel, selector, exceptionHandler, new TestSelectionKey(0), flushProducer);
+        context = new DoNotRegisterContext(channel, selector, exceptionHandler, new TestSelectionKey(0), readWriteHandler);
         channel.setContext(context);
         handler.handleRegistration(context);
 
@@ -87,7 +87,7 @@ public class SocketEventHandlerTests extends ESTestCase {
 
     public void testRegisterWithPendingWritesAddsOP_CONNECTAndOP_READAndOP_WRITEInterest() throws IOException {
         FlushReadyWrite flushReadyWrite = mock(FlushReadyWrite.class);
-        when(flushProducer.write(flushReadyWrite)).thenReturn(Collections.singletonList(flushReadyWrite));
+        when(readWriteHandler.writeToBytes(flushReadyWrite)).thenReturn(Collections.singletonList(flushReadyWrite));
         channel.getContext().queueWriteOperation(flushReadyWrite);
         handler.handleRegistration(context);
         assertEquals(SelectionKey.OP_READ | SelectionKey.OP_CONNECT | SelectionKey.OP_WRITE, context.getSelectionKey().interestOps());
@@ -167,7 +167,7 @@ public class SocketEventHandlerTests extends ESTestCase {
         TestSelectionKey selectionKey = new TestSelectionKey(SelectionKey.OP_READ);
         SocketChannelContext context = mock(SocketChannelContext.class);
         when(context.getSelectionKey()).thenReturn(selectionKey);
-        when(context.hasQueuedWriteOps()).thenReturn(true);
+        when(context.readyForFlush()).thenReturn(true);
 
         NioSocketChannel channel = mock(NioSocketChannel.class);
         when(channel.getContext()).thenReturn(context);
@@ -181,7 +181,7 @@ public class SocketEventHandlerTests extends ESTestCase {
         TestSelectionKey key = new TestSelectionKey(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
         SocketChannelContext context = mock(SocketChannelContext.class);
         when(context.getSelectionKey()).thenReturn(key);
-        when(context.hasQueuedWriteOps()).thenReturn(false);
+        when(context.readyForFlush()).thenReturn(false);
 
         NioSocketChannel channel = mock(NioSocketChannel.class);
         when(channel.getContext()).thenReturn(context);
@@ -197,9 +197,8 @@ public class SocketEventHandlerTests extends ESTestCase {
         private final TestSelectionKey selectionKey;
 
         DoNotRegisterContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,
-                             TestSelectionKey selectionKey, FlushProducer flushProducer) {
-            super(channel, selector, exceptionHandler, mock(ReadConsumer.class), flushProducer,
-                InboundChannelBuffer.allocatingInstance());
+                             TestSelectionKey selectionKey, ReadWriteHandler handler) {
+            super(channel, selector, exceptionHandler, handler, InboundChannelBuffer.allocatingInstance());
             this.selectionKey = selectionKey;
         }
 

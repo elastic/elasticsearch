@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.security.transport.nio;
 
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.nio.BytesFlushProducer;
+import org.elasticsearch.nio.BytesWriteHandler;
 import org.elasticsearch.nio.FlushReadyWrite;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioSocketChannel;
-import org.elasticsearch.nio.ReadConsumer;
 import org.elasticsearch.nio.SocketSelector;
 import org.elasticsearch.nio.WriteOperation;
 import org.elasticsearch.test.ESTestCase;
@@ -35,8 +35,7 @@ import static org.mockito.Mockito.when;
 
 public class SSLChannelContextTests extends ESTestCase {
 
-    private ReadConsumer readConsumer;
-    private BytesFlushProducer writeProducer;
+    private CheckedFunction<InboundChannelBuffer, Integer, IOException> readConsumer;
     private NioSocketChannel channel;
     private SocketChannel rawChannel;
     private SSLChannelContext context;
@@ -52,8 +51,8 @@ public class SSLChannelContextTests extends ESTestCase {
     @Before
     @SuppressWarnings("unchecked")
     public void init() {
-        readConsumer = mock(ReadConsumer.class);
-        writeProducer = new BytesFlushProducer();
+        readConsumer = mock(CheckedFunction.class);
+        TestReadWriteHandler readWriteHandler = new TestReadWriteHandler(readConsumer);
 
         messageLength = randomInt(96) + 20;
         selector = mock(SocketSelector.class);
@@ -64,7 +63,7 @@ public class SSLChannelContextTests extends ESTestCase {
         channelBuffer = InboundChannelBuffer.allocatingInstance();
         when(channel.getRawChannel()).thenReturn(rawChannel);
         exceptionHandler = mock(Consumer.class);
-        context = new SSLChannelContext(channel, selector, exceptionHandler, sslDriver, readConsumer, writeProducer, channelBuffer);
+        context = new SSLChannelContext(channel, selector, exceptionHandler, sslDriver, readWriteHandler, channelBuffer);
 
         when(selector.isOnCurrentThread()).thenReturn(true);
         when(sslDriver.getNetworkReadBuffer()).thenReturn(readBuffer);
@@ -77,13 +76,13 @@ public class SSLChannelContextTests extends ESTestCase {
         when(rawChannel.read(same(readBuffer))).thenReturn(bytes.length);
         doAnswer(getAnswerForBytes(bytes)).when(sslDriver).read(channelBuffer);
 
-        when(readConsumer.consumeReads(channelBuffer)).thenReturn(messageLength, 0);
+        when(readConsumer.apply(channelBuffer)).thenReturn(messageLength, 0);
 
         assertEquals(messageLength, context.read());
 
         assertEquals(0, channelBuffer.getIndex());
         assertEquals(BigArrays.BYTE_PAGE_SIZE - bytes.length, channelBuffer.getCapacity());
-        verify(readConsumer, times(1)).consumeReads(channelBuffer);
+        verify(readConsumer, times(1)).apply(channelBuffer);
     }
 
     public void testMultipleReadsConsumed() throws IOException {
@@ -92,13 +91,13 @@ public class SSLChannelContextTests extends ESTestCase {
         when(rawChannel.read(same(readBuffer))).thenReturn(bytes.length);
         doAnswer(getAnswerForBytes(bytes)).when(sslDriver).read(channelBuffer);
 
-        when(readConsumer.consumeReads(channelBuffer)).thenReturn(messageLength, messageLength, 0);
+        when(readConsumer.apply(channelBuffer)).thenReturn(messageLength, messageLength, 0);
 
         assertEquals(bytes.length, context.read());
 
         assertEquals(0, channelBuffer.getIndex());
         assertEquals(BigArrays.BYTE_PAGE_SIZE - bytes.length, channelBuffer.getCapacity());
-        verify(readConsumer, times(2)).consumeReads(channelBuffer);
+        verify(readConsumer, times(2)).apply(channelBuffer);
     }
 
     public void testPartialRead() throws IOException {
@@ -108,20 +107,20 @@ public class SSLChannelContextTests extends ESTestCase {
         doAnswer(getAnswerForBytes(bytes)).when(sslDriver).read(channelBuffer);
 
 
-        when(readConsumer.consumeReads(channelBuffer)).thenReturn(0);
+        when(readConsumer.apply(channelBuffer)).thenReturn(0);
 
         assertEquals(messageLength, context.read());
 
         assertEquals(bytes.length, channelBuffer.getIndex());
-        verify(readConsumer, times(1)).consumeReads(channelBuffer);
+        verify(readConsumer, times(1)).apply(channelBuffer);
 
-        when(readConsumer.consumeReads(channelBuffer)).thenReturn(messageLength * 2, 0);
+        when(readConsumer.apply(channelBuffer)).thenReturn(messageLength * 2, 0);
 
         assertEquals(messageLength, context.read());
 
         assertEquals(0, channelBuffer.getIndex());
         assertEquals(BigArrays.BYTE_PAGE_SIZE - (bytes.length * 2), channelBuffer.getCapacity());
-        verify(readConsumer, times(2)).consumeReads(channelBuffer);
+        verify(readConsumer, times(2)).apply(channelBuffer);
     }
 
     public void testReadThrowsIOException() throws IOException {
@@ -152,7 +151,8 @@ public class SSLChannelContextTests extends ESTestCase {
     public void testSSLDriverClosedOnClose() throws IOException {
         try (SocketChannel realChannel = SocketChannel.open()) {
             when(channel.getRawChannel()).thenReturn(realChannel);
-            context = new SSLChannelContext(channel, selector, exceptionHandler, sslDriver, readConsumer, channelBuffer);
+            TestReadWriteHandler readWriteHandler = new TestReadWriteHandler(readConsumer);
+            context = new SSLChannelContext(channel, selector, exceptionHandler, sslDriver, readWriteHandler, channelBuffer);
             when(channel.isOpen()).thenReturn(true);
             context.closeFromSelector();
 
@@ -167,7 +167,7 @@ public class SSLChannelContextTests extends ESTestCase {
 
         context.queueWriteOperation(mock(FlushReadyWrite.class));
 
-        assertFalse(context.hasQueuedWriteOps());
+        assertFalse(context.readyForFlush());
     }
 
     public void testPendingFlushMeansWriteInterested() {
@@ -175,7 +175,7 @@ public class SSLChannelContextTests extends ESTestCase {
         when(sslDriver.hasFlushPending()).thenReturn(true);
         when(sslDriver.needsNonApplicationWrite()).thenReturn(false);
 
-        assertTrue(context.hasQueuedWriteOps());
+        assertTrue(context.readyForFlush());
     }
 
     public void testNeedsNonAppWritesMeansWriteInterested() {
@@ -183,14 +183,14 @@ public class SSLChannelContextTests extends ESTestCase {
         when(sslDriver.hasFlushPending()).thenReturn(false);
         when(sslDriver.needsNonApplicationWrite()).thenReturn(true);
 
-        assertTrue(context.hasQueuedWriteOps());
+        assertTrue(context.readyForFlush());
     }
 
     public void testNotWritesInterestInAppMode() {
         when(sslDriver.readyForApplicationWrites()).thenReturn(true);
         when(sslDriver.hasFlushPending()).thenReturn(false);
 
-        assertFalse(context.hasQueuedWriteOps());
+        assertFalse(context.readyForFlush());
 
         verify(sslDriver, times(0)).needsNonApplicationWrite();
     }
@@ -242,7 +242,7 @@ public class SSLChannelContextTests extends ESTestCase {
         verify(flushOperation).incrementIndex(10);
         verify(rawChannel, times(1)).write(sslDriver.getNetworkWriteBuffer());
         verify(selector).executeListener(listener, null);
-        assertFalse(context.hasQueuedWriteOps());
+        assertFalse(context.readyForFlush());
     }
 
     public void testPartialFlush() throws IOException {
@@ -261,7 +261,7 @@ public class SSLChannelContextTests extends ESTestCase {
         verify(flushOperation).incrementIndex(5);
         verify(rawChannel, times(1)).write(sslDriver.getNetworkWriteBuffer());
         verify(selector, times(0)).executeListener(listener, null);
-        assertTrue(context.hasQueuedWriteOps());
+        assertTrue(context.readyForFlush());
     }
 
     @SuppressWarnings("unchecked")
@@ -290,7 +290,7 @@ public class SSLChannelContextTests extends ESTestCase {
         verify(rawChannel, times(3)).write(sslDriver.getNetworkWriteBuffer());
         verify(selector).executeListener(listener, null);
         verify(selector, times(0)).executeListener(listener2, null);
-        assertTrue(context.hasQueuedWriteOps());
+        assertTrue(context.readyForFlush());
     }
 
     public void testWhenIOExceptionThrownListenerIsCalled() throws IOException {
@@ -310,7 +310,7 @@ public class SSLChannelContextTests extends ESTestCase {
 
         verify(flushOperation).incrementIndex(5);
         verify(selector).executeFailedListener(listener, exception);
-        assertFalse(context.hasQueuedWriteOps());
+        assertFalse(context.readyForFlush());
     }
 
     public void testWriteIOExceptionMeansChannelReadyToClose() throws Exception {
@@ -358,7 +358,8 @@ public class SSLChannelContextTests extends ESTestCase {
             realSocket.configureBlocking(false);
             when(selector.rawSelector()).thenReturn(realSelector);
             when(channel.getRawChannel()).thenReturn(realSocket);
-            context = new SSLChannelContext(channel, selector, exceptionHandler, sslDriver, readConsumer, channelBuffer);
+            TestReadWriteHandler readWriteHandler = new TestReadWriteHandler(readConsumer);
+            context = new SSLChannelContext(channel, selector, exceptionHandler, sslDriver, readWriteHandler, channelBuffer);
             context.register();
             verify(sslDriver).init();
         }
@@ -382,5 +383,19 @@ public class SSLChannelContextTests extends ESTestCase {
             bytes[i] = randomByte();
         }
         return bytes;
+    }
+
+    private static class TestReadWriteHandler extends BytesWriteHandler {
+
+        private final CheckedFunction<InboundChannelBuffer, Integer, IOException> fn;
+
+        private TestReadWriteHandler(CheckedFunction<InboundChannelBuffer, Integer, IOException> fn) {
+            this.fn = fn;
+        }
+
+        @Override
+        public int consumeReads(InboundChannelBuffer channelBuffer) throws IOException {
+            return fn.apply(channelBuffer);
+        }
     }
 }

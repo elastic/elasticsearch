@@ -19,17 +19,15 @@
 
 package org.elasticsearch.nio;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.ClosedChannelException;
 import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.function.BiConsumer;
 
-public class BytesFlushProducer implements FlushProducer {
+public abstract class BytesWriteHandler implements ReadWriteHandler {
 
-    @Override
+    private static final List<FlushOperation> EMPTY_LIST = Collections.emptyList();
+
     public WriteOperation createWriteOperation(SocketChannelContext context, Object message, BiConsumer<Void, Throwable> listener) {
         if (message instanceof ByteBuffer[]) {
             return new FlushReadyWrite(context, (ByteBuffer[]) message, listener);
@@ -38,13 +36,14 @@ public class BytesFlushProducer implements FlushProducer {
         }
     }
 
-    @Override
-    public List<FlushOperation> write(WriteOperation writeOperation) {
+    public List<FlushOperation> writeToBytes(WriteOperation writeOperation) {
         assert writeOperation instanceof FlushReadyWrite : "Write operation must be flush ready";
         return Collections.singletonList((FlushReadyWrite) writeOperation);
     }
 
-    @Override
-    public void close() throws IOException {
+    public List<FlushOperation> pollFlushOperations() {
+        return EMPTY_LIST;
     }
+
+    public void close() {}
 }

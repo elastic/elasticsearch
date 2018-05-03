@@ -52,8 +52,7 @@ public class SocketChannelContextTests extends ESTestCase {
     private NioSocketChannel channel;
     private BiConsumer<Void, Throwable> listener;
     private SocketSelector selector;
-    private FlushProducer flushProducer;
-    private ReadConsumer readConsumer;
+    private ReadWriteHandler readWriteHandler;
 
     @SuppressWarnings("unchecked")
     @Before
@@ -66,10 +65,9 @@ public class SocketChannelContextTests extends ESTestCase {
         when(channel.getRawChannel()).thenReturn(rawChannel);
         exceptionHandler = mock(Consumer.class);
         selector = mock(SocketSelector.class);
-        flushProducer = mock(FlushProducer.class);
-        readConsumer = mock(ReadConsumer.class);
+        readWriteHandler = mock(ReadWriteHandler.class);
         InboundChannelBuffer channelBuffer = InboundChannelBuffer.allocatingInstance();
-        context = new TestSocketChannelContext(channel, selector, exceptionHandler, readConsumer, flushProducer, channelBuffer);
+        context = new TestSocketChannelContext(channel, selector, exceptionHandler, readWriteHandler, channelBuffer);
 
         when(selector.isOnCurrentThread()).thenReturn(true);
     }
@@ -155,7 +153,7 @@ public class SocketChannelContextTests extends ESTestCase {
 
         ByteBuffer[] buffers = {ByteBuffer.wrap(createMessage(10))};
         WriteOperation writeOperation = mock(WriteOperation.class);
-        when(flushProducer.createWriteOperation(context, buffers, listener)).thenReturn(writeOperation);
+        when(readWriteHandler.createWriteOperation(context, buffers, listener)).thenReturn(writeOperation);
         context.sendMessage(buffers, listener);
 
         verify(selector).queueWrite(writeOpCaptor.capture());
@@ -169,7 +167,7 @@ public class SocketChannelContextTests extends ESTestCase {
 
         ByteBuffer[] buffers = {ByteBuffer.wrap(createMessage(10))};
         WriteOperation writeOperation = mock(WriteOperation.class);
-        when(flushProducer.createWriteOperation(context, buffers, listener)).thenReturn(writeOperation);
+        when(readWriteHandler.createWriteOperation(context, buffers, listener)).thenReturn(writeOperation);
         context.sendMessage(buffers, listener);
 
         verify(selector).queueWriteInChannelBuffer(writeOpCaptor.capture());
@@ -179,15 +177,22 @@ public class SocketChannelContextTests extends ESTestCase {
     }
 
     public void testWriteIsQueuedInChannel() {
-        assertFalse(context.hasQueuedWriteOps());
+        assertFalse(context.readyForFlush());
 
         ByteBuffer[] buffer = {ByteBuffer.allocate(10)};
         FlushReadyWrite writeOperation = new FlushReadyWrite(context, buffer, listener);
-        when(flushProducer.write(writeOperation)).thenReturn(Collections.singletonList(writeOperation));
+        when(readWriteHandler.writeToBytes(writeOperation)).thenReturn(Collections.singletonList(writeOperation));
         context.queueWriteOperation(writeOperation);
 
-        verify(flushProducer).write(writeOperation);
-        assertTrue(context.hasQueuedWriteOps());
+        verify(readWriteHandler).writeToBytes(writeOperation);
+        assertTrue(context.readyForFlush());
+    }
+
+    public void testHandleReadBytesWillCheckForNewFlushOperations() throws IOException {
+        assertFalse(context.readyForFlush());
+        when(readWriteHandler.pollFlushOperations()).thenReturn(Collections.singletonList(mock(FlushOperation.class)));
+        context.handleReadBytes();
+        assertTrue(context.readyForFlush());
     }
 
     @SuppressWarnings({"unchecked", "varargs"})
@@ -195,18 +200,18 @@ public class SocketChannelContextTests extends ESTestCase {
         try (SocketChannel realChannel = SocketChannel.open()) {
             when(channel.getRawChannel()).thenReturn(realChannel);
             InboundChannelBuffer channelBuffer = InboundChannelBuffer.allocatingInstance();
-            context = new TestSocketChannelContext(channel, selector, exceptionHandler, readConsumer, flushProducer, channelBuffer);
+            context = new TestSocketChannelContext(channel, selector, exceptionHandler, readWriteHandler, channelBuffer);
 
-            assertFalse(context.hasQueuedWriteOps());
+            assertFalse(context.readyForFlush());
 
             ByteBuffer[] buffer = {ByteBuffer.allocate(10)};
             WriteOperation writeOperation = mock(WriteOperation.class);
             BiConsumer listener2 = mock(BiConsumer.class);
-            when(flushProducer.write(writeOperation)).thenReturn(Arrays.asList(new FlushOperation(buffer, listener),
+            when(readWriteHandler.writeToBytes(writeOperation)).thenReturn(Arrays.asList(new FlushOperation(buffer, listener),
                 new FlushOperation(buffer, listener2)));
             context.queueWriteOperation(writeOperation);
 
-            assertTrue(context.hasQueuedWriteOps());
+            assertTrue(context.readyForFlush());
 
             when(channel.isOpen()).thenReturn(true);
             context.closeFromSelector();
@@ -214,7 +219,31 @@ public class SocketChannelContextTests extends ESTestCase {
             verify(selector, times(1)).executeFailedListener(same(listener), any(ClosedChannelException.class));
             verify(selector, times(1)).executeFailedListener(same(listener2), any(ClosedChannelException.class));
 
-            assertFalse(context.hasQueuedWriteOps());
+            assertFalse(context.readyForFlush());
+        }
+    }
+
+    @SuppressWarnings({"unchecked", "varargs"})
+    public void testWillPollForFlushOpsToClose() throws Exception {
+        try (SocketChannel realChannel = SocketChannel.open()) {
+            when(channel.getRawChannel()).thenReturn(realChannel);
+            InboundChannelBuffer channelBuffer = InboundChannelBuffer.allocatingInstance();
+            context = new TestSocketChannelContext(channel, selector, exceptionHandler, readWriteHandler, channelBuffer);
+
+
+            ByteBuffer[] buffer = {ByteBuffer.allocate(10)};
+            BiConsumer listener2 = mock(BiConsumer.class);
+
+            assertFalse(context.readyForFlush());
+            when(channel.isOpen()).thenReturn(true);
+            when(readWriteHandler.pollFlushOperations()).thenReturn(Arrays.asList(new FlushOperation(buffer, listener),
+                new FlushOperation(buffer, listener2)));
+            context.closeFromSelector();
+
+            verify(selector, times(1)).executeFailedListener(same(listener), any(ClosedChannelException.class));
+            verify(selector, times(1)).executeFailedListener(same(listener2), any(ClosedChannelException.class));
+
+            assertFalse(context.readyForFlush());
         }
     }
 
@@ -223,9 +252,9 @@ public class SocketChannelContextTests extends ESTestCase {
             when(channel.getRawChannel()).thenReturn(realChannel);
             when(channel.isOpen()).thenReturn(true);
             InboundChannelBuffer buffer = InboundChannelBuffer.allocatingInstance();
-            BytesChannelContext context = new BytesChannelContext(channel, selector, exceptionHandler, readConsumer, flushProducer, buffer);
+            BytesChannelContext context = new BytesChannelContext(channel, selector, exceptionHandler, readWriteHandler, buffer);
             context.closeFromSelector();
-            verify(flushProducer).close();
+            verify(readWriteHandler).close();
         }
     }
 
@@ -238,7 +267,7 @@ public class SocketChannelContextTests extends ESTestCase {
             Supplier<InboundChannelBuffer.Page> pageSupplier = () -> new InboundChannelBuffer.Page(ByteBuffer.allocate(1 << 14), closer);
             InboundChannelBuffer buffer = new InboundChannelBuffer(pageSupplier);
             buffer.ensureCapacity(1);
-            BytesChannelContext context = new BytesChannelContext(channel, selector, exceptionHandler, readConsumer, flushProducer, buffer);
+            TestSocketChannelContext context = new TestSocketChannelContext(channel, selector, exceptionHandler, readWriteHandler, buffer);
             context.closeFromSelector();
             verify(closer).run();
         }
@@ -247,8 +276,8 @@ public class SocketChannelContextTests extends ESTestCase {
     private static class TestSocketChannelContext extends SocketChannelContext {
 
         private TestSocketChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,
-                                         ReadConsumer readConsumer, FlushProducer flushProducer, InboundChannelBuffer channelBuffer) {
-            super(channel, selector, exceptionHandler, readConsumer, flushProducer, channelBuffer);
+                                         ReadWriteHandler readWriteHandler, InboundChannelBuffer channelBuffer) {
+            super(channel, selector, exceptionHandler, readWriteHandler, channelBuffer);
         }
 
         @Override

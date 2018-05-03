@@ -6,11 +6,10 @@
 package org.elasticsearch.xpack.security.transport.nio;
 
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.nio.BytesFlushProducer;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioSocketChannel;
-import org.elasticsearch.nio.ReadConsumer;
+import org.elasticsearch.nio.ReadWriteHandler;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.nio.SocketSelector;
 import org.elasticsearch.nio.WriteOperation;
@@ -22,21 +21,16 @@ import java.util.function.Consumer;
 /**
  * Provides a TLS/SSL read/write layer over a channel. This context will use a {@link SSLDriver} to handshake
  * with the peer channel. Once the handshake is complete, any data from the peer channel will be decrypted
- * before being passed to the {@link ReadConsumer}. Outbound data will
- * be encrypted before being flushed to the channel.
+ * before being passed to the {@link ReadWriteHandler}. Outbound data will be encrypted before being flushed
+ * to the channel.
  */
 public final class SSLChannelContext extends SocketChannelContext {
 
     private final SSLDriver sslDriver;
 
     SSLChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler, SSLDriver sslDriver,
-                      ReadConsumer readConsumer, InboundChannelBuffer channelBuffer) {
-        this(channel, selector, exceptionHandler, sslDriver, readConsumer, new BytesFlushProducer(), channelBuffer);
-    }
-
-    SSLChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler, SSLDriver sslDriver,
-                      ReadConsumer readConsumer, BytesFlushProducer flushProducer, InboundChannelBuffer channelBuffer) {
-        super(channel, selector, exceptionHandler, readConsumer, flushProducer, channelBuffer);
+                      ReadWriteHandler readWriteHandler, InboundChannelBuffer channelBuffer) {
+        super(channel, selector, exceptionHandler, readWriteHandler, channelBuffer);
         this.sslDriver = sslDriver;
     }
 
@@ -110,10 +104,10 @@ public final class SSLChannelContext extends SocketChannelContext {
     }
 
     @Override
-    public boolean hasQueuedWriteOps() {
+    public boolean readyForFlush() {
         getSelector().assertOnSelectorThread();
         if (sslDriver.readyForApplicationWrites()) {
-            return sslDriver.hasFlushPending() || super.hasQueuedWriteOps();
+            return sslDriver.hasFlushPending() || super.readyForFlush();
         } else {
             return sslDriver.hasFlushPending() || sslDriver.needsNonApplicationWrite();
         }
@@ -132,11 +126,7 @@ public final class SSLChannelContext extends SocketChannelContext {
 
         sslDriver.read(channelBuffer);
 
-        int bytesConsumed = Integer.MAX_VALUE;
-        while (bytesConsumed > 0 && channelBuffer.getIndex() > 0) {
-            bytesConsumed = readConsumer.consumeReads(channelBuffer);
-            channelBuffer.release(bytesConsumed);
-        }
+        handleReadBytes();
 
         return bytesRead;
     }

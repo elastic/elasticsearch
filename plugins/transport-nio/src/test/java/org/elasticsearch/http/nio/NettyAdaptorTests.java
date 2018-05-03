@@ -27,7 +27,6 @@ import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
 import org.elasticsearch.nio.FlushOperation;
-import org.elasticsearch.nio.SocketSelector;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.ByteBuffer;
@@ -35,13 +34,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.mockito.Mockito.mock;
-
 public class NettyAdaptorTests extends ESTestCase {
 
     public void testBasicRead() {
         TenIntsToStringsHandler handler = new TenIntsToStringsHandler();
-        NettyAdaptor nettyAdaptor = new NettyAdaptor(mock(SocketSelector.class), handler);
+        NettyAdaptor nettyAdaptor = new NettyAdaptor(handler);
         ByteBuffer message = ByteBuffer.allocate(40);
         for (int i = 0; i < 10; ++i) {
             message.putInt(i);
@@ -54,7 +51,7 @@ public class NettyAdaptorTests extends ESTestCase {
 
     public void testBasicReadWithExcessData() {
         TenIntsToStringsHandler handler = new TenIntsToStringsHandler();
-        NettyAdaptor nettyAdaptor = new NettyAdaptor(mock(SocketSelector.class), handler);
+        NettyAdaptor nettyAdaptor = new NettyAdaptor(handler);
         ByteBuffer message = ByteBuffer.allocate(52);
         for (int i = 0; i < 13; ++i) {
             message.putInt(i);
@@ -66,7 +63,7 @@ public class NettyAdaptorTests extends ESTestCase {
     }
 
     public void testUncaughtReadExceptionsBubbleUp() {
-        NettyAdaptor nettyAdaptor = new NettyAdaptor(mock(SocketSelector.class), new TenIntsToStringsHandler());
+        NettyAdaptor nettyAdaptor = new NettyAdaptor(new TenIntsToStringsHandler());
         ByteBuffer message = ByteBuffer.allocate(40);
         for (int i = 0; i < 9; ++i) {
             message.putInt(i);
@@ -79,18 +76,17 @@ public class NettyAdaptorTests extends ESTestCase {
     public void testWriteInsidePipelineIsCaptured() {
         TenIntsToStringsHandler tenIntsToStringsHandler = new TenIntsToStringsHandler();
         PromiseCheckerHandler promiseCheckerHandler = new PromiseCheckerHandler();
-        NettyAdaptor nettyAdaptor = new NettyAdaptor(mock(SocketSelector.class),
-            new CapitalizeWriteHandler(),
+        NettyAdaptor nettyAdaptor = new NettyAdaptor(new CapitalizeWriteHandler(),
             promiseCheckerHandler,
             new WriteInMiddleHandler(),
             tenIntsToStringsHandler);
         byte[] bytes = "SHOULD_WRITE".getBytes(StandardCharsets.UTF_8);
         ByteBuffer message = ByteBuffer.wrap(bytes);
         ByteBuffer[] buffers = {message};
-        assertNull(nettyAdaptor.pollFlushOperations());
+        assertNull(nettyAdaptor.pollOutboundOperation());
         nettyAdaptor.read(buffers);
         assertFalse(tenIntsToStringsHandler.wasCalled);
-        FlushOperation flushOperation = nettyAdaptor.pollFlushOperations();
+        FlushOperation flushOperation = nettyAdaptor.pollOutboundOperation();
         assertNotNull(flushOperation);
         assertEquals("FAILED", Unpooled.wrappedBuffer(flushOperation.getBuffersToWrite()).toString(StandardCharsets.UTF_8));
         assertFalse(promiseCheckerHandler.isCalled.get());
@@ -101,7 +97,7 @@ public class NettyAdaptorTests extends ESTestCase {
     public void testCloseListener() {
         AtomicBoolean listenerCalled = new AtomicBoolean(false);
         CloseChannelHandler handler = new CloseChannelHandler();
-        NettyAdaptor nettyAdaptor = new NettyAdaptor(mock(SocketSelector.class), handler);
+        NettyAdaptor nettyAdaptor = new NettyAdaptor(handler);
         byte[] bytes = "SHOULD_CLOSE".getBytes(StandardCharsets.UTF_8);
         ByteBuffer[] buffers = {ByteBuffer.wrap(bytes)};
         nettyAdaptor.addCloseListener((v, e) -> listenerCalled.set(true));

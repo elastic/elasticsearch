@@ -269,11 +269,11 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         @Override
         public NioSocketChannel createChannel(SocketSelector selector, SocketChannel channel) throws IOException {
             NioSocketChannel nioChannel = new NioSocketChannel(channel);
-            HttpReadWritePipeline httpReadWritePipeline = new HttpReadWritePipeline(nioChannel, selector, NioHttpServerTransport.this,
+            HttpReadWriteHandler httpReadWritePipeline = new HttpReadWriteHandler(nioChannel,NioHttpServerTransport.this,
                 httpHandlingSettings, xContentRegistry, threadPool.getThreadContext());
             Consumer<Exception> exceptionHandler = (e) -> exceptionCaught(nioChannel, e);
             SocketChannelContext context = new BytesChannelContext(nioChannel, selector, exceptionHandler, httpReadWritePipeline,
-                httpReadWritePipeline, InboundChannelBuffer.allocatingInstance());
+                InboundChannelBuffer.allocatingInstance());
             nioChannel.setContext(context);
             return nioChannel;
         }

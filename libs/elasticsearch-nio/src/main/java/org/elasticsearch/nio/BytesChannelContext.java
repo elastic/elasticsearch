@@ -24,17 +24,9 @@ import java.util.function.Consumer;
 
 public class BytesChannelContext extends SocketChannelContext {
 
-    private final InboundChannelBuffer channelBuffer;
-
     public BytesChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,
-                               ReadConsumer readConsumer, InboundChannelBuffer channelBuffer) {
-        this(channel, selector, exceptionHandler, readConsumer, new BytesFlushProducer(), channelBuffer);
-    }
-
-    public BytesChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,
-                               ReadConsumer readConsumer, FlushProducer writeProducer, InboundChannelBuffer channelBuffer) {
-        super(channel, selector, exceptionHandler, readConsumer, writeProducer, channelBuffer);
-        this.channelBuffer = channelBuffer;
+                               ReadWriteHandler handler, InboundChannelBuffer channelBuffer) {
+        super(channel, selector, exceptionHandler, handler, channelBuffer);
     }
 
     @Override
@@ -52,11 +44,7 @@ public class BytesChannelContext extends SocketChannelContext {
 
         channelBuffer.incrementIndex(bytesRead);
 
-        int bytesConsumed = Integer.MAX_VALUE;
-        while (bytesConsumed > 0 && channelBuffer.getIndex() > 0) {
-            bytesConsumed = readConsumer.consumeReads(channelBuffer);
-            channelBuffer.release(bytesConsumed);
-        }
+        handleReadBytes();
 
         return bytesRead;
     }

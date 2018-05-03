@@ -44,10 +44,9 @@ import java.util.function.Consumer;
 public abstract class SocketChannelContext extends ChannelContext<SocketChannel> {
 
     protected final NioSocketChannel channel;
-    protected final ReadConsumer readConsumer;
-    protected final FlushProducer flushProducer;
     protected final InboundChannelBuffer channelBuffer;
     protected final AtomicBoolean isClosing = new AtomicBoolean(false);
+    private final ReadWriteHandler readWriteHandler;
     private final SocketSelector selector;
     private final CompletableFuture<Void> connectContext = new CompletableFuture<>();
     private final LinkedList<FlushOperation> pendingFlushes = new LinkedList<>();
@@ -56,12 +55,11 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     private Exception connectException;
 
     protected SocketChannelContext(NioSocketChannel channel, SocketSelector selector, Consumer<Exception> exceptionHandler,
-                                   ReadConsumer readConsumer, FlushProducer flushProducer, InboundChannelBuffer channelBuffer) {
+                                   ReadWriteHandler readWriteHandler, InboundChannelBuffer channelBuffer) {
         super(channel.getRawChannel(), exceptionHandler);
         this.selector = selector;
         this.channel = channel;
-        this.readConsumer = readConsumer;
-        this.flushProducer = flushProducer;
+        this.readWriteHandler = readWriteHandler;
         this.channelBuffer = channelBuffer;
     }
 
@@ -129,7 +127,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             return;
         }
 
-        WriteOperation writeOperation = flushProducer.createWriteOperation(this, message, listener);
+        WriteOperation writeOperation = readWriteHandler.createWriteOperation(this, message, listener);
 
         SocketSelector selector = getSelector();
         if (selector.isOnCurrentThread() == false) {
@@ -142,7 +140,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
 
     public void queueWriteOperation(WriteOperation writeOperation) {
         getSelector().assertOnSelectorThread();
-        pendingFlushes.addAll(flushProducer.write(writeOperation));
+        pendingFlushes.addAll(readWriteHandler.writeToBytes(writeOperation));
     }
 
     public abstract int read() throws IOException;
@@ -175,18 +173,16 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             }
             // Set to true in order to reject new writes before queuing with selector
             isClosing.set(true);
+
+            // Poll for new flush operations to close
+            pendingFlushes.addAll(readWriteHandler.pollFlushOperations());
             FlushOperation flushOperation;
             while ((flushOperation = pendingFlushes.pollFirst()) != null) {
                 selector.executeFailedListener(flushOperation.getListener(), new ClosedChannelException());
             }
 
             try {
-                flushProducer.close();
-            } catch (IOException e) {
-                closingExceptions.add(e);
-            }
-            try {
-                readConsumer.close();
+                readWriteHandler.close();
             } catch (IOException e) {
                 closingExceptions.add(e);
             }
@@ -198,7 +194,18 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         }
     }
 
-    public boolean hasQueuedWriteOps() {
+    protected void handleReadBytes() throws IOException {
+        int bytesConsumed = Integer.MAX_VALUE;
+        while (bytesConsumed > 0 && channelBuffer.getIndex() > 0) {
+            bytesConsumed = readWriteHandler.consumeReads(channelBuffer);
+            channelBuffer.release(bytesConsumed);
+        }
+
+        // Some protocols might produce messages to flush during a read operation.
+        pendingFlushes.addAll(readWriteHandler.pollFlushOperations());
+    }
+
+    public boolean readyForFlush() {
         getSelector().assertOnSelectorThread();
         return pendingFlushes.isEmpty() == false;
     }
@@ -263,5 +270,4 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             throw e;
         }
     }
-
 }

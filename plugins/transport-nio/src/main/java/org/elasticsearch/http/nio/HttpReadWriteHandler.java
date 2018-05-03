@@ -36,12 +36,10 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.nio.FlushOperation;
-import org.elasticsearch.nio.FlushProducer;
 import org.elasticsearch.nio.InboundChannelBuffer;
+import org.elasticsearch.nio.ReadWriteHandler;
 import org.elasticsearch.nio.NioSocketChannel;
-import org.elasticsearch.nio.ReadConsumer;
 import org.elasticsearch.nio.SocketChannelContext;
-import org.elasticsearch.nio.SocketSelector;
 import org.elasticsearch.nio.WriteOperation;
 import org.elasticsearch.rest.RestRequest;
 
@@ -51,7 +49,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
 
-public class HttpReadWritePipeline implements ReadConsumer, FlushProducer {
+public class HttpReadWriteHandler implements ReadWriteHandler {
 
     private final NettyAdaptor adaptor;
     private final NioSocketChannel nioChannel;
@@ -60,8 +58,8 @@ public class HttpReadWritePipeline implements ReadConsumer, FlushProducer {
     private final NamedXContentRegistry xContentRegistry;
     private final ThreadContext threadContext;
 
-    HttpReadWritePipeline(NioSocketChannel nioChannel, SocketSelector selector, NioHttpServerTransport transport,
-                          HttpHandlingSettings settings, NamedXContentRegistry xContentRegistry, ThreadContext threadContext) {
+    HttpReadWriteHandler(NioSocketChannel nioChannel, NioHttpServerTransport transport, HttpHandlingSettings settings,
+                         NamedXContentRegistry xContentRegistry, ThreadContext threadContext) {
         this.nioChannel = nioChannel;
         this.transport = transport;
         this.settings = settings;
@@ -80,7 +78,7 @@ public class HttpReadWritePipeline implements ReadConsumer, FlushProducer {
             handlers.add(new HttpContentCompressor(settings.getCompressionLevel()));
         }
 
-        adaptor = new NettyAdaptor(selector, handlers.toArray(new ChannelHandler[0]));
+        adaptor = new NettyAdaptor(handlers.toArray(new ChannelHandler[0]));
     }
 
     @Override
@@ -95,18 +93,28 @@ public class HttpReadWritePipeline implements ReadConsumer, FlushProducer {
     }
 
     @Override
-    public List<FlushOperation> write(WriteOperation writeOperation) {
-        adaptor.write(writeOperation);
-        return adaptor.pollAllFlushOperations();
-    }
-
-    @Override
     public WriteOperation createWriteOperation(SocketChannelContext context, Object message, BiConsumer<Void, Throwable> listener) {
         if (message instanceof FullHttpResponse) {
             return new HttpWriteOperation(context, (FullHttpResponse) message, listener);
         } else {
             throw new IllegalArgumentException("This channel only supports messages that are of type: " + FullHttpResponse.class);
         }
+    }
+
+    @Override
+    public List<FlushOperation> writeToBytes(WriteOperation writeOperation) {
+        adaptor.write(writeOperation);
+        return pollFlushOperations();
+    }
+
+    @Override
+    public List<FlushOperation> pollFlushOperations() {
+        ArrayList<FlushOperation> copiedOperations = new ArrayList<>(adaptor.getOutboundCount());
+        FlushOperation flushOperation;
+        while ((flushOperation = adaptor.pollOutboundOperation()) != null) {
+            copiedOperations.add(flushOperation);
+        }
+        return copiedOperations;
     }
 
     @Override

@@ -43,10 +43,8 @@ public class NettyAdaptor implements AutoCloseable {
 
     private final EmbeddedChannel nettyChannel;
     private final LinkedList<FlushOperation> flushOperations = new LinkedList<>();
-    private final SocketSelector selector;
 
-    NettyAdaptor(SocketSelector selector, ChannelHandler... handlers) {
-        this.selector = selector;
+    NettyAdaptor(ChannelHandler... handlers) {
         nettyChannel = new EmbeddedChannel();
         nettyChannel.pipeline().addLast("write_captor", new ChannelOutboundHandlerAdapter() {
 
@@ -76,11 +74,7 @@ public class NettyAdaptor implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
-        // TODO: Should not have any flushes queued
-        for (FlushOperation flushOperation : flushOperations) {
-            selector.executeFailedListener(flushOperation.getListener(), new ClosedChannelException());
-        }
-        flushOperations.clear();
+        assert flushOperations.isEmpty() : "Should close outbound operations before calling close";
 
         ChannelFuture closeFuture = nettyChannel.close();
         // This should be safe as we are not a real network channel
@@ -131,16 +125,11 @@ public class NettyAdaptor implements AutoCloseable {
         nettyChannel.writeAndFlush(writeOperation.getObject(), new NettyListener(channelPromise));
     }
 
-    public FlushOperation pollFlushOperations() {
+    public FlushOperation pollOutboundOperation() {
         return flushOperations.pollFirst();
     }
 
-    public List<FlushOperation> pollAllFlushOperations() {
-        ArrayList<FlushOperation> copiedOperations = new ArrayList<>(flushOperations.size());
-        FlushOperation flushOperation;
-        while ((flushOperation = flushOperations.pollFirst()) != null) {
-            copiedOperations.add(flushOperation);
-        }
-        return copiedOperations;
+    public int getOutboundCount() {
+        return flushOperations.size();
     }
 }

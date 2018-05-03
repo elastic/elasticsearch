@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.indexlifecycle;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -94,6 +95,24 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(index, policy, currentStepKey, null, () -> now, listener);
         task.clusterStateProcessed("source", clusterState, clusterState);
         assertNull(changed.get());
+    }
+
+    public void testOnFailure() {
+        StepKey currentStepKey = new StepKey("current-phase", "current-action", "current-name");
+        StepKey nextStepKey = new StepKey("next-phase", "next-action", "next-name");
+        long now = randomNonNegativeLong();
+
+        setStateToKey(currentStepKey);
+
+        SetOnce<Boolean> changed = new SetOnce<>();
+        MoveToNextStepUpdateTask.Listener listener = (c) -> changed.set(true);
+        MoveToNextStepUpdateTask task = new MoveToNextStepUpdateTask(index, policy, currentStepKey, nextStepKey, () -> now, listener);
+        Exception expectedException = new RuntimeException();
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+                () -> task.onFailure(randomAlphaOfLength(10), expectedException));
+        assertEquals("policy [" + policy + "] for index [" + index.getName() + "] failed trying to move from step [" + currentStepKey
+                + "] to step [" + nextStepKey + "].", exception.getMessage());
+        assertSame(expectedException, exception.getCause());
     }
 
     private void setStatePolicy(String policy) {

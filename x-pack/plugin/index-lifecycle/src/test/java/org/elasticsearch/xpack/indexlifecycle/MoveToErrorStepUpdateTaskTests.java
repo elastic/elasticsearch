@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.indexlifecycle;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -77,6 +78,21 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
         MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(index, policy, currentStepKey, () -> now);
         ClusterState newState = task.execute(clusterState);
         assertThat(newState, sameInstance(clusterState));
+    }
+
+    public void testOnFailure() {
+        StepKey currentStepKey = new StepKey("current-phase", "current-action", "current-name");
+        long now = randomNonNegativeLong();
+
+        setStateToKey(currentStepKey);
+
+        MoveToErrorStepUpdateTask task = new MoveToErrorStepUpdateTask(index, policy, currentStepKey, () -> now);
+        Exception expectedException = new RuntimeException();
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+                () -> task.onFailure(randomAlphaOfLength(10), expectedException));
+        assertEquals("policy [" + policy + "] for index [" + index.getName() + "] failed trying to move from step [" + currentStepKey
+                + "] to the ERROR step.", exception.getMessage());
+        assertSame(expectedException, exception.getCause());
     }
 
     private void setStatePolicy(String policy) {

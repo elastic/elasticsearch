@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.indexlifecycle;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.common.logging.ESLoggerFactory;
@@ -98,6 +99,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
 
     @Override
     public void onFailure(String source, Exception e) {
-        throw new RuntimeException(e); // NORELEASE implement error handling
+        throw new ElasticsearchException(
+                "policy [" + policy + "] for index [" + index.getName() + "] failed on step [" + startStep.getKey() + "].", e);
     }
 }

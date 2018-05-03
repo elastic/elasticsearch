@@ -98,6 +98,11 @@ multi-argument versions. ({pull}29623[#29623])
 
 Watcher HTTP client used in watches now allows more parallel connections to the
 same endpoint and evicts long running connections. ({pull}30130[#30130])
+The cluster state listener to decide if watcher should be
+stopped/started/paused now runs far less code in an executor but is more
+synchronous and predictable. Also the trigger engine thread is only started on
+data nodes. And the Execute Watch API can be triggered regardless is watcher is
+started or stopped. ({pull}30118[#30118])
 
 [float]
 === Bug Fixes

@@ -79,8 +79,8 @@ public class UnresolvedFunction extends Function implements Unresolvable {
     /**
      * Build a function to replace this one after resolving the function.
      */
-    public Function buildResolved(TimeZone timeZone, FunctionDefinition def) {
-        return resolutionType.buildResolved(this, timeZone, def);
+    public Function buildResolved(FunctionContext context, FunctionDefinition def) {
+        return resolutionType.buildResolved(this, context, def);
     }
 
     /**
@@ -191,8 +191,8 @@ public class UnresolvedFunction extends Function implements Unresolvable {
                 return uf;
             }
             @Override
-            public Function buildResolved(UnresolvedFunction uf, TimeZone tz, FunctionDefinition def) {
-                return def.builder().build(uf, false, tz);
+            public Function buildResolved(UnresolvedFunction uf, FunctionContext context, FunctionDefinition def) {
+                return def.builder().build(uf, false, context);
             }
             @Override
             protected boolean isValidAlternative(FunctionDefinition def) {
@@ -212,8 +212,8 @@ public class UnresolvedFunction extends Function implements Unresolvable {
                 return uf.withMessage("* is not valid with DISTINCT");
             }
             @Override
-            public Function buildResolved(UnresolvedFunction uf, TimeZone tz, FunctionDefinition def) {
-                return def.builder().build(uf, true, tz);
+            public Function buildResolved(UnresolvedFunction uf, FunctionContext context, FunctionDefinition def) {
+                return def.builder().build(uf, true, context);
             }
             @Override
             protected boolean isValidAlternative(FunctionDefinition def) {
@@ -233,9 +233,9 @@ public class UnresolvedFunction extends Function implements Unresolvable {
                 return uf.withMessage("Can't extract from *");
             }
             @Override
-            public Function buildResolved(UnresolvedFunction uf, TimeZone tz, FunctionDefinition def) {
+            public Function buildResolved(UnresolvedFunction uf, FunctionContext context, FunctionDefinition def) {
                 if (def.datetime()) {
-                    return def.builder().build(uf, false, tz);
+                    return def.builder().build(uf, false, context);
                 }
                 return uf.withMessage("Invalid datetime field [" + uf.name() + "]. Use any datetime function.");
             }
@@ -260,7 +260,9 @@ public class UnresolvedFunction extends Function implements Unresolvable {
         /**
          * Build the real function from this one and resolution metadata.
          */
-        protected abstract Function buildResolved(UnresolvedFunction uf, TimeZone tz, FunctionDefinition def);
+        protected abstract Function buildResolved(UnresolvedFunction uf,
+                                                  FunctionContext context,
+                                                  FunctionDefinition def);
         /**
          * Is {@code def} a valid alternative for function invocations
          * of this kind. Used to filter the list of "did you mean"

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.sql.expression.UnresolvedAlias;
 import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.sql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.sql.expression.function.Function;
+import org.elasticsearch.xpack.sql.expression.function.FunctionContext;
 import org.elasticsearch.xpack.sql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
@@ -50,7 +51,6 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.type.UnsupportedEsField;
-import org.joda.time.DateTimeZone;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -61,7 +61,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TimeZone;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -86,16 +85,14 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
      * Information about the index against which the SQL is being analyzed.
      */
     private final IndexResolution indexResolution;
-    /**
-     * Time zone in which we're executing this SQL. It is attached to functions
-     * that deal with date and time.
-     */
-    private final TimeZone timeZone;
 
-    public Analyzer(FunctionRegistry functionRegistry, IndexResolution results, TimeZone timeZone) {
+
+    private final FunctionContext context;
+
+    public Analyzer(FunctionRegistry functionRegistry, IndexResolution results, FunctionContext context) {
         this.functionRegistry = functionRegistry;
         this.indexResolution = results;
-        this.timeZone = timeZone;
+        this.context = context;
     }
 
     @Override
@@ -197,7 +194,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                  .collect(toList())
                 );
     }
-    
+
     private static boolean hasStar(List<? extends Expression> exprs) {
         for (Expression expression : exprs) {
             if (expression instanceof UnresolvedStar) {
@@ -794,7 +791,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     }
                     // TODO: look into Generator for significant terms, etc..
                     FunctionDefinition def = functionRegistry.resolveFunction(normalizedName);
-                    Function f = uf.buildResolved(timeZone, def);
+                    Function f = uf.buildResolved(context, def);
 
                     list.add(f);
                     return f;

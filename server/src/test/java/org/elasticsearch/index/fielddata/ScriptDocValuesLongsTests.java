@@ -95,7 +95,7 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
                 assertEquals(dates[d][i], longs.getDates().get(i));
             }
 
-            Exception e = expectThrows(UnsupportedOperationException.class, () -> longs.getDates().add(new DateTime()));
+            Exception e = expectThrows(UnsupportedOperationException.class, () -> longs.getDates().add(null));
             assertEquals("doc values are unmodifiable", e.getMessage());
         }
 

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer.PreAnalysis;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
 import org.elasticsearch.xpack.sql.analysis.index.MappingException;
+import org.elasticsearch.xpack.sql.expression.function.FunctionContext;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.sql.plugin.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Function;
 
 import static org.elasticsearch.action.ActionListener.wrap;
@@ -94,7 +96,7 @@ public class SqlSession {
         }
 
         preAnalyze(parsed, c -> {
-            Analyzer analyzer = new Analyzer(functionRegistry, c, settings.timeZone());
+            Analyzer analyzer = analyzer(c);
             LogicalPlan p = analyzer.analyze(parsed);
             return verify ? analyzer.verify(p) : p;
         }, listener);
@@ -107,9 +109,15 @@ public class SqlSession {
         }
 
         preAnalyze(parsed, r -> {
-            Analyzer analyzer = new Analyzer(functionRegistry, r, settings.timeZone());
+            Analyzer analyzer = analyzer(r);
             return analyzer.debugAnalyze(parsed);
         }, listener);
+    }
+
+    private Analyzer analyzer(final IndexResolution resolution) {
+        return new Analyzer(functionRegistry,
+            resolution,
+            new FunctionContext(settings.timeZone(), Locale.getDefault())); // TODO read from settings or something.
     }
 
     private <T> void preAnalyze(LogicalPlan parsed, Function<IndexResolution, T> action, ActionListener<T> listener) {

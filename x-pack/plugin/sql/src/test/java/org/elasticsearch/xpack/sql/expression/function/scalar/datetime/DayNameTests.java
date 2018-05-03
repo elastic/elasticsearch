@@ -6,34 +6,40 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Literal;
+import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.FunctionContext;
 import org.elasticsearch.xpack.sql.type.DataType;
+import org.joda.time.DateTime;
+import org.junit.After;
+import org.junit.Before;
 
+import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.TimeZone;
 
-public class DayOfYearTests extends DateTimeFunctionTestcase<DayOfYear> {
+public class DayNameTests extends DateTimeFunctionTestcase<DayName> {
 
-    public void testUTC() {
-        processAndCheck(dateTime(0), UTC, 1);
+    public void test19700101_Thursday() {
+        processAndCheck(dateTime(0), UTC, "Thursday");
     }
 
-    public void testGMT_plus0100() {
-        processAndCheck(dateTime(0), "GMT+01:00", 1);
+    public void test20180503_GMT_Plus100_Thursday() {
+        processAndCheck(dateTime(2018,5,3), "GMT+01:00", "Thursday");
     }
 
-    public void testGMT_minus0100() {
-        processAndCheck(dateTime(0), "GMT-01:00", 365);
+    public void test20180502_GMTMinus100_Friday() {
+        processAndCheck(dateTime(2018,5,4), "GMT-01:00", "Friday");
     }
 
     @Override
-    DayOfYear build(Object value, FunctionContext context) {
-        return new DayOfYear(null,
+    DayName build(Object value, FunctionContext context) {
+        return new DayName(null,
             Collections.singletonList(new Literal(null, value, DataType.DATE)),
             context);
     }
 
+    // test expectations assume English
     Locale defaultLocale() {
         return Locale.ENGLISH;
     }

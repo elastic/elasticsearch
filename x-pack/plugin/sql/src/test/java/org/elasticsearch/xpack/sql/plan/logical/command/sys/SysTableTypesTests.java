@@ -12,12 +12,14 @@ import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
+import org.elasticsearch.xpack.sql.expression.function.FunctionContext;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.type.TypesTests;
 
+import java.util.Locale;
 import java.util.TimeZone;
 
 import static org.mockito.Mockito.mock;
@@ -28,7 +30,7 @@ public class SysTableTypesTests extends ESTestCase {
 
     private Tuple<Command, SqlSession> sql(String sql) {
         EsIndex test = new EsIndex("test", TypesTests.loadMapping("mapping-multi-field-with-nested.json", true));
-        Analyzer analyzer = new Analyzer(new FunctionRegistry(), IndexResolution.valid(test), TimeZone.getTimeZone("UTC"));
+        Analyzer analyzer = new Analyzer(new FunctionRegistry(), IndexResolution.valid(test), functionContext());
         Command cmd = (Command) analyzer.analyze(parser.createStatement(sql), true);
 
         IndexResolver resolver = mock(IndexResolver.class);
@@ -45,5 +47,9 @@ public class SysTableTypesTests extends ESTestCase {
             r.advanceRow();
             assertEquals("ALIAS", r.column(0));
         }, ex -> fail(ex.getMessage())));
+    }
+
+    private FunctionContext functionContext() {
+        return new FunctionContext(TimeZone.getTimeZone("UTC"), Locale.getDefault());
     }
 }

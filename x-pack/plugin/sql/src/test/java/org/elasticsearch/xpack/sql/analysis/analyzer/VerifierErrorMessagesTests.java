@@ -9,11 +9,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
+import org.elasticsearch.xpack.sql.expression.function.FunctionContext;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
 
+import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
 
@@ -27,7 +29,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     private String verify(IndexResolution getIndexResult, String sql) {
-        Analyzer analyzer = new Analyzer(new FunctionRegistry(), getIndexResult, TimeZone.getTimeZone("UTC"));
+        Analyzer analyzer = new Analyzer(new FunctionRegistry(), getIndexResult, functionContext());
         AnalysisException e = expectThrows(AnalysisException.class, () -> analyzer.analyze(parser.createStatement(sql), true));
         assertTrue(e.getMessage().startsWith("Found "));
         String header = "Found 1 problem(s)\nline ";
@@ -143,5 +145,9 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testUnsupportedType() {
         assertEquals("1:8: Cannot use field [unsupported] type [ip_range] as is unsupported",
                 verify("SELECT unsupported FROM test"));
+    }
+
+    private FunctionContext functionContext() {
+        return new FunctionContext(TimeZone.getTimeZone("UTC"), Locale.getDefault());
     }
 }

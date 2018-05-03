@@ -17,7 +17,7 @@ public class FunctionDefinition {
      */
     @FunctionalInterface
     public interface Builder {
-        Function build(UnresolvedFunction uf, boolean distinct, TimeZone tz);
+        Function build(UnresolvedFunction uf, boolean distinct, FunctionContext context);
     }
     private final String name;
     private final List<String> aliases;

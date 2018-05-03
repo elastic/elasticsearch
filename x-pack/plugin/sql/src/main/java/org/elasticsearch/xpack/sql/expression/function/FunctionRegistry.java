@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.SumOfSquares;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.VarPop;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Mod;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayName;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfWeek;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfYear;
@@ -61,7 +62,6 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.Tan;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.util.StringUtils;
-import org.joda.time.DateTimeZone;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -95,16 +95,17 @@ public class FunctionRegistry {
             def(Kurtosis.class, Kurtosis::new),
         // Scalar functions
             // Date
-            def(DayOfMonth.class, DayOfMonth::new, "DAY", "DOM"),
-            def(DayOfWeek.class, DayOfWeek::new, "DOW"),
-            def(DayOfYear.class, DayOfYear::new, "DOY"),
-            def(HourOfDay.class, HourOfDay::new, "HOUR"),
-            def(MinuteOfDay.class, MinuteOfDay::new),
-            def(MinuteOfHour.class, MinuteOfHour::new, "MINUTE"),
-            def(SecondOfMinute.class, SecondOfMinute::new, "SECOND"),
-            def(MonthOfYear.class, MonthOfYear::new, "MONTH"),
-            def(Year.class, Year::new),
-            def(WeekOfYear.class, WeekOfYear::new, "WEEK"),
+            def(DayOfMonth.class, (Location location, List<Expression> field, FunctionContext context) -> new DayOfMonth(location, field, context), "DAY", "DOM"),
+            def(DayOfWeek.class, (Location location, List<Expression> field, FunctionContext context) -> new DayOfWeek(location, field, context), "DOW"),
+            def(DayOfYear.class, (Location location, List<Expression> field, FunctionContext context) -> new DayOfYear(location, field, context), "DOY"),
+            def(HourOfDay.class, (Location location, List<Expression> field, FunctionContext context) -> new HourOfDay(location, field, context), "HOUR"),
+            def(MinuteOfDay.class, (Location location, List<Expression> field, FunctionContext context) -> new MinuteOfDay(location, field, context)),
+            def(MinuteOfHour.class, (Location location, List<Expression> field, FunctionContext context) -> new MinuteOfHour(location, field, context), "MINUTE"),
+            def(SecondOfMinute.class, (Location location, List<Expression> field, FunctionContext context) -> new SecondOfMinute(location, field, context), "SECOND"),
+            def(MonthOfYear.class, (Location location, List<Expression> field, FunctionContext context) -> new MonthOfYear(location, field, context), "MONTH"),
+            def(Year.class, (Location location, List<Expression> field, FunctionContext context) -> new Year(location, field, context)),
+            def(WeekOfYear.class, (Location location, List<Expression> field, FunctionContext context) -> new WeekOfYear(location, field, context), "WEEK"),
+            def(DayName.class, (Location location, List<Expression> field, FunctionContext context) -> new DayName(location, field, context), "DAYNAME"),
             // Math
             def(Abs.class, Abs::new),
             def(ACos.class, ACos::new),
@@ -262,20 +263,17 @@ public class FunctionRegistry {
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     static <T extends Function> FunctionDefinition def(Class<T> function,
-            DatetimeUnaryFunctionBuilder<T> ctorRef, String... aliases) {
-        FunctionBuilder builder = (location, children, distinct, tz) -> {
-            if (children.size() != 1) {
-                throw new IllegalArgumentException("expects exactly one argument");
-            }
+                                                       DatetimeFunctionBuilder<T> ctorRef, String... aliases) {
+        FunctionBuilder builder = (location, children, distinct, context) -> {
             if (distinct) {
                 throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
             }
-            return ctorRef.build(location, children.get(0), tz);
+            return ctorRef.build(location, children, context);
         };
         return def(function, builder, true, aliases);
     }
-    interface DatetimeUnaryFunctionBuilder<T> {
-        T build(Location location, Expression target, TimeZone tz);
+    interface DatetimeFunctionBuilder<T> {
+        T build(Location location, List<Expression> arguments, FunctionContext context);
     }
 
     /**
@@ -285,7 +283,7 @@ public class FunctionRegistry {
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     static <T extends Function> FunctionDefinition def(Class<T> function,
             BinaryFunctionBuilder<T> ctorRef, String... aliases) {
-        FunctionBuilder builder = (location, children, distinct, tz) -> {
+        FunctionBuilder builder = (location, children, distinct, context) -> {
             if (children.size() != 2) {
                 throw new IllegalArgumentException("expects exactly two arguments");
             }
@@ -303,9 +301,9 @@ public class FunctionRegistry {
     private static FunctionDefinition def(Class<? extends Function> function, FunctionBuilder builder,
             boolean datetime, String... aliases) {
         String primaryName = normalize(function.getSimpleName());
-        FunctionDefinition.Builder realBuilder = (uf, distinct, tz) -> {
+        FunctionDefinition.Builder realBuilder = (uf, distinct, context) -> {
             try {
-                return builder.build(uf.location(), uf.children(), distinct, tz);
+                return builder.build(uf.location(), uf.children(), distinct, context);
             } catch (IllegalArgumentException e) {
                 throw new ParsingException("error building [" + primaryName + "]: " + e.getMessage(), e,
                         uf.location().getLineNumber(), uf.location().getColumnNumber());
@@ -314,7 +312,7 @@ public class FunctionRegistry {
         return new FunctionDefinition(primaryName, unmodifiableList(Arrays.asList(aliases)), function, datetime, realBuilder);
     }
     private interface FunctionBuilder {
-        Function build(Location location, List<Expression> children, boolean distinct, TimeZone tz);
+        Function build(Location location, List<Expression> children, boolean distinct, FunctionContext context);
     }
 
     private static String normalize(String name) {

@@ -86,6 +86,50 @@ class org.elasticsearch.index.fielddata.ScriptDocValues$Dates {
   List getDates()
 }
 
+class org.elasticsearch.index.fielddata.ScriptDocValues$Dates {
+  org.joda.time.ReadableDateTime get(int)
+  org.joda.time.ReadableDateTime getValue()
+  List getValues()
+  org.joda.time.ReadableDateTime getDate()
+  List getDates()
+}
+
+# Extends joda times ReadableDateTime and adds "extension methods" like getDayName
+class org.elasticsearch.index.fielddata.ScriptDocValues$PainlessDateTime {
+  String getDayName()
+  String getDayName(String)
+  String getDayName(String,String)
+  int getCenturyOfEra()
+  int getDayOfMonth()
+  int getDayOfMonth(String)
+  int getDayOfWeek()
+  int getDayOfWeek(String)
+  int getDayOfYear()
+  int getDayOfYear(String)
+  int getEra()
+  int getHourOfDay()
+  int getHourOfDay(String)
+  int getMillisOfDay()
+  int getMillisOfSecond()
+  int getMinuteOfDay()
+  int getMinuteOfDay(String)
+  int getMinuteOfHour()
+  int getMinuteOfHour(String)
+  int getMonthOfYear()
+  int getMonthOfYear(String)
+  int getSecondOfDay()
+  int getSecondOfMinute()
+  int getWeekOfWeekyear()
+  int getWeekOfWeekyear(String)
+  int getWeekyear()
+  int getYear()
+  int getYear(String)
+  int getYearOfCentury()
+  int getYearOfEra()
+  String toString(String)
+  String toString(String,Locale)
+}
+
 class org.elasticsearch.index.fielddata.ScriptDocValues$Doubles {
   Double get(int)
   double getValue()

@@ -6,29 +6,29 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.function.FunctionContext;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
-import java.time.temporal.ChronoField;
-import java.util.TimeZone;
+import java.util.List;
 
 /**
  * Extract the second of the minute from a datetime.
  */
-public class SecondOfMinute extends DateTimeFunction {
-    public SecondOfMinute(Location location, Expression field, TimeZone timeZone) {
-        super(location, field, timeZone);
+public class SecondOfMinute extends NumberDateTimeFunction {
+    public SecondOfMinute(Location location, List<Expression> arguments, FunctionContext context) {
+        super(location, arguments, context);
     }
 
     @Override
-    protected NodeCtor2<Expression, TimeZone, DateTimeFunction> ctorForInfo() {
+    NodeCtor2<List<Expression>, FunctionContext, DateTimeFunction> ctorForInfo() {
         return SecondOfMinute::new;
     }
 
     @Override
-    protected SecondOfMinute replaceChild(Expression newChild) {
-        return new SecondOfMinute(location(), newChild, timeZone());
+    public Expression replaceChildren(Location location, List<Expression> newChildren, FunctionContext context) {
+        return new SecondOfMinute(location, newChildren, context);
     }
 
     @Override
@@ -37,12 +37,7 @@ public class SecondOfMinute extends DateTimeFunction {
     }
 
     @Override
-    protected ChronoField chronoField() {
-        return ChronoField.SECOND_OF_MINUTE;
-    }
-
-    @Override
-    protected DateTimeExtractor extractor() {
+    DateTimeExtractor extractor() {
         return DateTimeExtractor.SECOND_OF_MINUTE;
     }
 }

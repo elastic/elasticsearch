@@ -6,43 +6,38 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
+import org.elasticsearch.xpack.sql.expression.function.FunctionContext;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
-import java.time.temporal.ChronoField;
-import java.util.TimeZone;
+import java.util.List;
 
 /**
  * Extract the week of the year from a datetime.
  */
-public class WeekOfYear extends DateTimeFunction {
-    public WeekOfYear(Location location, Expression field, TimeZone timeZone) {
-        super(location, field, timeZone);
+public class WeekOfYear extends NumberDateTimeFunction {
+
+    public WeekOfYear(Location location, List<Expression> arguments, FunctionContext context) {
+        super(location, arguments, context);
     }
 
     @Override
-    protected NodeCtor2<Expression, TimeZone, DateTimeFunction> ctorForInfo() {
+    NodeCtor2<List<Expression>, FunctionContext, DateTimeFunction> ctorForInfo() {
         return WeekOfYear::new;
     }
 
     @Override
-    protected WeekOfYear replaceChild(Expression newChild) {
-        return new WeekOfYear(location(), newChild, timeZone());
+    Expression replaceChildren(Location location, List<Expression> newChildren, FunctionContext context) {
+        return new WeekOfYear(location, newChildren, context);
+    }
+
+    @Override
+    DateTimeProcessor.DateTimeExtractor extractor() {
+        return DateTimeProcessor.DateTimeExtractor.WEEK_OF_YEAR;
     }
 
     @Override
     public String dateTimeFormat() {
         return "w";
-    }
-
-    @Override
-    protected ChronoField chronoField() {
-        return ChronoField.ALIGNED_WEEK_OF_YEAR;
-    }
-
-    @Override
-    protected DateTimeExtractor extractor() {
-        return DateTimeExtractor.WEEK_OF_YEAR;
     }
 }

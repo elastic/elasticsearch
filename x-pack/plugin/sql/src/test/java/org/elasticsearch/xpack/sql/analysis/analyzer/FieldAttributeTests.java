@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
+import org.elasticsearch.xpack.sql.expression.function.FunctionContext;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
 
@@ -49,7 +51,7 @@ public class FieldAttributeTests extends ESTestCase {
 
         EsIndex test = new EsIndex("test", mapping);
         getIndexResult = IndexResolution.valid(test);
-        analyzer = new Analyzer(functionRegistry, getIndexResult, TimeZone.getTimeZone("UTC"));
+        analyzer = analyzer();
     }
 
     private LogicalPlan plan(String sql) {
@@ -166,7 +168,7 @@ public class FieldAttributeTests extends ESTestCase {
 
         EsIndex index = new EsIndex("test", mapping);
         getIndexResult = IndexResolution.valid(index);
-        analyzer = new Analyzer(functionRegistry, getIndexResult, TimeZone.getTimeZone("UTC"));
+        analyzer = analyzer();
 
         VerificationException ex = expectThrows(VerificationException.class, () -> plan("SELECT test.bar FROM test"));
         assertEquals(
@@ -193,5 +195,13 @@ public class FieldAttributeTests extends ESTestCase {
         assertThat(attribute, instanceOf(FieldAttribute.class));
         assertThat(attribute.qualifier(), is("test"));
         assertThat(attribute.name(), is("test.test"));
+    }
+
+    private Analyzer analyzer() {
+        return new Analyzer(functionRegistry, getIndexResult, functionContext());
+    }
+
+    private FunctionContext functionContext() {
+        return new FunctionContext(TimeZone.getTimeZone("UTC"), Locale.getDefault());
     }
 }

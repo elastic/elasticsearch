@@ -9,12 +9,14 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
+import org.elasticsearch.xpack.sql.expression.function.FunctionContext;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
 
+import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
 
@@ -34,8 +36,12 @@ public class OptimizerRunTests extends ESTestCase {
 
         EsIndex test = new EsIndex("test", mapping);
         getIndexResult = IndexResolution.valid(test);
-        analyzer = new Analyzer(functionRegistry, getIndexResult, TimeZone.getTimeZone("UTC"));
+        analyzer = new Analyzer(functionRegistry, getIndexResult, functionContext());
         optimizer = new Optimizer();
+    }
+
+    private FunctionContext functionContext() {
+        return new FunctionContext(TimeZone.getTimeZone("UTC"), Locale.getDefault());
     }
 
     private LogicalPlan plan(String sql) {

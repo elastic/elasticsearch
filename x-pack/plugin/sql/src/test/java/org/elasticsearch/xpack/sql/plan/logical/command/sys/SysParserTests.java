@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
+import org.elasticsearch.xpack.sql.expression.function.FunctionContext;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
 
@@ -39,7 +41,7 @@ public class SysParserTests extends ESTestCase {
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private Tuple<Command, SqlSession> sql(String sql) {
         EsIndex test = new EsIndex("test", mapping);
-        Analyzer analyzer = new Analyzer(new FunctionRegistry(), IndexResolution.valid(test), TimeZone.getTimeZone("UTC"));
+        Analyzer analyzer = new Analyzer(new FunctionRegistry(), IndexResolution.valid(test), functionContext());
         Command cmd = (Command) analyzer.analyze(parser.createStatement(sql), true);
 
         IndexResolver resolver = mock(IndexResolver.class);
@@ -68,7 +70,7 @@ public class SysParserTests extends ESTestCase {
             assertFalse(r.column(9, Boolean.class));
             // make sure precision is returned as boolean (not int)
             assertFalse(r.column(10, Boolean.class));
-            
+
             for (int i = 0; i < r.size(); i++) {
                 assertEquals(names.get(i), r.column(0));
                 r.advanceRow();
@@ -150,5 +152,9 @@ public class SysParserTests extends ESTestCase {
             }
 
         }, ex -> fail(ex.getMessage())));
+    }
+
+    private FunctionContext functionContext() {
+        return new FunctionContext(TimeZone.getTimeZone("UTC"), Locale.getDefault());
     }
 }

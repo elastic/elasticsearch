@@ -290,7 +290,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                          */
                                         if (exp instanceof DateTimeHistogramFunction) {
                                             action = ((UnaryProcessorDefinition) p).action();
-                                            tz = ((DateTimeFunction) exp).timeZone();
+                                            tz = ((DateTimeFunction) exp).context().timeZone();
                                         }
                                         return new AggPathInput(exp.location(), exp, new GroupByRef(matchingGroup.id(), null, tz), action);
                                     }

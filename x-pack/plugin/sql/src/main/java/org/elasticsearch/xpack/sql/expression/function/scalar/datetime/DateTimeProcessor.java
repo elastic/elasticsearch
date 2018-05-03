@@ -7,18 +7,30 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.function.FunctionContext;
 import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.VarArgsProcessor;
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeFieldType;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableDateTime;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.TimeZone;
 
-public class DateTimeProcessor implements Processor {
-    
+public class DateTimeProcessor extends VarArgsProcessor {
+
+    private final static TimeZone UTC = TimeZone.getTimeZone("UTC");
+
     public enum DateTimeExtractor {
         DAY_OF_MONTH(DateTimeFieldType.dayOfMonth()),
         DAY_OF_WEEK(DateTimeFieldType.dayOfWeek()),
@@ -27,40 +39,75 @@ public class DateTimeProcessor implements Processor {
         MINUTE_OF_DAY(DateTimeFieldType.minuteOfDay()),
         MINUTE_OF_HOUR(DateTimeFieldType.minuteOfHour()),
         MONTH_OF_YEAR(DateTimeFieldType.monthOfYear()),
-        SECOND_OF_MINUTE(DateTimeFieldType.secondOfMinute()),
+        SECOND_OF_MINUTE(DateTimeFieldType.secondOfMinute()){
+            // no overload involving timezone
+            int maxArgumentCount() {
+                return 1;
+            }
+        },
         WEEK_OF_YEAR(DateTimeFieldType.weekOfWeekyear()),
-        YEAR(DateTimeFieldType.year());
+        YEAR(DateTimeFieldType.year()),
+        DAYNAME(DateTimeFieldType.dayOfWeek()) {
 
-        private final DateTimeFieldType field;
+            int maxArgumentCount() {
+                return 3;
+            }
+
+            public Object extract(ReadableDateTime dateTime, Locale locale) {
+                final Instant instant = Instant.ofEpochMilli(dateTime.getMillis());
+                final ZoneId zoneId = ZoneId.of(dateTime.getZone().getID(), ZoneId.SHORT_IDS);
+                final ZonedDateTime zdt = ZonedDateTime.ofInstant(instant, zoneId);
+
+                return zdt.format(DateTimeFormatter.ofPattern(DayName.FORMAT, locale)); // long form name of week.
+            }
+        };
+
+        final DateTimeFieldType field;
 
         DateTimeExtractor(DateTimeFieldType field) {
             this.field = field;
         }
 
-        public int extract(ReadableDateTime dt) {
+        public void checkArgumentCount(final List<? extends Object> arguments) {
+            final int count = arguments.size();
+            final int max = this.maxArgumentCount();
+            if(count < 1 || count > max) {
+                throw new IllegalArgumentException("Expected between 1 and " + max + " parameters but got " +
+                    count + "=" + arguments);
+            }
+        }
+
+        int maxArgumentCount() {
+            return 2;
+        }
+
+        public Object extract(ReadableDateTime dt, Locale locale) {
             return dt.get(field);
         }
     }
-    
+
     public static final String NAME = "dt";
 
     private final DateTimeExtractor extractor;
-    private final TimeZone timeZone;
+    private final FunctionContext context;
 
-    public DateTimeProcessor(DateTimeExtractor extractor, TimeZone timeZone) {
+    public DateTimeProcessor(List<Processor> arguments, DateTimeExtractor extractor, FunctionContext context) {
+        super(arguments);
+        extractor.checkArgumentCount(arguments);
         this.extractor = extractor;
-        this.timeZone = timeZone;
+        this.context = context;
     }
 
     public DateTimeProcessor(StreamInput in) throws IOException {
+        super(in);
         extractor = in.readEnum(DateTimeExtractor.class);
-        timeZone = TimeZone.getTimeZone(in.readString());
+        context = FunctionContext.read(in);
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    protected void writeToAdditional(StreamOutput out) throws IOException {
         out.writeEnum(extractor);
-        out.writeString(timeZone.getID());
+        this.context.writeTo(out);
     }
 
     @Override
@@ -68,41 +115,63 @@ public class DateTimeProcessor implements Processor {
         return NAME;
     }
 
+    @Override
+    protected Object doProcess(List<Object> parameters) {
+        ReadableDateTime dateTime = null;
+
+        FunctionContext context = this.context;
+        TimeZone timeZone = context.timeZone();
+        Object locale = context.locale();
+
+        final int count = parameters.size();
+        for(int i = 0; i < count; i++) {
+            final Object p = parameters.get(i);
+            switch(i) {
+                case 0:
+                    if (!(p instanceof ReadableDateTime)) {
+                        throw new SqlIllegalArgumentException("First parameter date/time is required; received {}", p);
+                    }
+                    dateTime = (ReadableDateTime)p;
+                    break;
+                case 1:
+                    if (!(p instanceof String)) {
+                        throw new SqlIllegalArgumentException("2nd parameter date/time is required; received {}", p);
+                    }
+                    timeZone = TimeZone.getTimeZone((String)p);
+                    break;
+                case 2:
+                    if (!(p instanceof String)) {
+                        throw new SqlIllegalArgumentException("3rd parameter string is required; received {}", p);
+                    }
+                    locale = LocaleUtils.parse((String)p);
+                    break;
+            }
+        }
+
+        if (!UTC.equals(timeZone)) {
+            dateTime = dateTime.toDateTime().withZone(DateTimeZone.forTimeZone(timeZone));
+        }
+
+        return extractor().extract((DateTime)dateTime, (Locale) locale);
+    }
+
     DateTimeExtractor extractor() {
         return extractor;
     }
 
     @Override
-    public Object process(Object l) {
-        if (l == null) {
-            return null;
-        }
-
-        if (!(l instanceof ReadableDateTime)) {
-            throw new SqlIllegalArgumentException("A date/time is required; received {}", l);
-        }
-
-        ReadableDateTime dt = (ReadableDateTime) l;
-
-        if (!TimeZone.getTimeZone("UTC").equals(timeZone)) {
-            dt = dt.toDateTime().withZone(DateTimeZone.forTimeZone(timeZone));
-        }
-        return extractor.extract(dt);
+    protected int hashCode(List<Processor> processors) {
+        return Objects.hash(processors, this.extractor, this.context);
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(extractor, timeZone);
+    protected boolean equals0(VarArgsProcessor other) {
+        return equals1((DateTimeProcessor)other);
     }
 
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        DateTimeProcessor other = (DateTimeProcessor) obj;
-        return Objects.equals(extractor, other.extractor)
-                && Objects.equals(timeZone, other.timeZone);
+    private boolean equals1(DateTimeProcessor other) {
+        return this.extractor.equals(other.extractor) &&
+            this.context.equals(other.context);
     }
 
     @Override

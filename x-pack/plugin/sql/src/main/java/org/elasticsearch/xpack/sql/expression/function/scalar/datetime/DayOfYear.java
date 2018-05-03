@@ -6,44 +6,38 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.sql.expression.function.FunctionContext;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
-import java.time.temporal.ChronoField;
-import java.util.TimeZone;
+import java.util.List;
 
 /**
  * Extract the day of the year from a datetime.
  */
-public class DayOfYear extends DateTimeFunction {
-    public DayOfYear(Location location, Expression field, TimeZone timeZone) {
-        super(location, field, timeZone);
+public class DayOfYear extends NumberDateTimeFunction {
+    public DayOfYear(Location location, List<Expression> arguments, FunctionContext context) {
+        super(location, arguments, context);
     }
 
     @Override
-    protected NodeCtor2<Expression, TimeZone, DateTimeFunction> ctorForInfo() {
+    NodeCtor2<List<Expression>, FunctionContext, DateTimeFunction> ctorForInfo() {
         return DayOfYear::new;
     }
 
     @Override
-    protected UnaryScalarFunction replaceChild(Expression newChild) {
-        return new DayOfYear(location(), newChild, timeZone());
+    Expression replaceChildren(Location location, List<Expression> newChildren, FunctionContext context) {
+        return new DayOfYear(location, newChildren, context);
+    }
+
+    @Override
+    DateTimeExtractor extractor() {
+        return DateTimeExtractor.DAY_OF_YEAR;
     }
 
     @Override
     public String dateTimeFormat() {
         return "D";
-    }
-
-    @Override
-    protected ChronoField chronoField() {
-        return ChronoField.DAY_OF_YEAR;
-    }
-
-    @Override
-    protected DateTimeExtractor extractor() {
-        return DateTimeExtractor.DAY_OF_YEAR;
     }
 }

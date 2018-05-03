@@ -7,22 +7,20 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.FunctionContext;
+import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.List;
 
-/**
- * DateTimeFunctions that can be mapped as histogram. This means the dates order is maintained
- * Unfortunately this means only YEAR works since everything else changes the order
- */
-public abstract class DateTimeHistogramFunction extends NumberDateTimeFunction {
+abstract class NumberDateTimeFunction extends DateTimeFunction {
 
-    DateTimeHistogramFunction(Location location, List<Expression> arguments, FunctionContext context) {
+    NumberDateTimeFunction(Location location, List<Expression> arguments, FunctionContext context) {
         super(location, arguments, context);
     }
 
-    /**
-     * used for aggregration (date histogram)
-     */
-    public abstract String interval();
+    @Override
+    public final DataType dataType() {
+        return DataType.INTEGER;
+    }
 }

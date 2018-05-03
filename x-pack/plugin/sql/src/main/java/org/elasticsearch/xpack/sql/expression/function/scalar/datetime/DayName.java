@@ -10,34 +10,49 @@ import org.elasticsearch.xpack.sql.expression.function.FunctionContext;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
+import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.List;
 
 /**
- * Extract the hour of the day from a datetime.
+ * Extract the day name from a datetime.
+ * <pre>
+ * DATENAME("2017-12-05T00:00:00")
+ * returns "Tuesday"
+ * </pre>
+ *
  */
-public class HourOfDay extends NumberDateTimeFunction {
-    public HourOfDay(Location location, List<Expression> arguments, FunctionContext context) {
+public class DayName extends DateTimeFunction {
+
+    // DateTimeFormatter.ofPattern
+    static final String FORMAT = "EEEE";
+
+    public DayName(Location location, List<Expression> arguments, FunctionContext context) {
         super(location, arguments, context);
     }
 
     @Override
     NodeCtor2<List<Expression>, FunctionContext, DateTimeFunction> ctorForInfo() {
-        return HourOfDay::new;
+        return DayName::new;
     }
 
     @Override
     Expression replaceChildren(Location location, List<Expression> newChildren, FunctionContext context) {
-        return new HourOfDay(location, newChildren, context);
+        return new DayName(location, newChildren, context);
     }
 
     @Override
     DateTimeExtractor extractor() {
-        return DateTimeExtractor.HOUR_OF_DAY;
+        return DateTimeExtractor.DAYNAME;
     }
 
     @Override
     public String dateTimeFormat() {
-        return "hour";
+        return FORMAT;
+    }
+
+    @Override
+    public DataType dataType() {
+        return DataType.KEYWORD;
     }
 }

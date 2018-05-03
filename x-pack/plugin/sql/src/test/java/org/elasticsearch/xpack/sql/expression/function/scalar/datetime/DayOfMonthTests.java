@@ -11,25 +11,24 @@ import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.Collections;
 import java.util.Locale;
-import java.util.TimeZone;
 
-public class DayOfYearTests extends DateTimeFunctionTestcase<DayOfYear> {
+public class DayOfMonthTests extends DateTimeFunctionTestcase<DayOfMonth> {
 
-    public void testUTC() {
+    public void test19700101() {
         processAndCheck(dateTime(0), UTC, 1);
     }
 
-    public void testGMT_plus0100() {
-        processAndCheck(dateTime(0), "GMT+01:00", 1);
+    public void test20170102() {
+        processAndCheck(dateTime(2017, 1, 2), UTC, 2);
     }
 
-    public void testGMT_minus0100() {
-        processAndCheck(dateTime(0), "GMT-01:00", 365);
+    public void test20170131() {
+        processAndCheck(dateTime(2017,1,31), UTC, 31);
     }
 
     @Override
-    DayOfYear build(Object value, FunctionContext context) {
-        return new DayOfYear(null,
+    DayOfMonth build(Object value, FunctionContext context) {
+        return new DayOfMonth(null,
             Collections.singletonList(new Literal(null, value, DataType.DATE)),
             context);
     }

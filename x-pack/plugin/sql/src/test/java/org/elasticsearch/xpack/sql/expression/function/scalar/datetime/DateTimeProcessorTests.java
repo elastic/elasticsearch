@@ -5,20 +5,31 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.sql.expression.Literal;
+import org.elasticsearch.xpack.sql.expression.function.FunctionContext;
+import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ConstantInput;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.ConstantProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
+import org.elasticsearch.xpack.sql.type.DataType;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Locale;
 import java.util.TimeZone;
 
 public class DateTimeProcessorTests extends AbstractWireSerializingTestCase<DateTimeProcessor> {
     private static final TimeZone UTC = TimeZone.getTimeZone("UTC");
 
     public static DateTimeProcessor randomDateTimeProcessor() {
-        return new DateTimeProcessor(randomFrom(DateTimeExtractor.values()), UTC);
+        return processor(DateTime.now(), randomFrom(DateTimeExtractor.values()));
     }
 
     @Override
@@ -34,17 +45,21 @@ public class DateTimeProcessorTests extends AbstractWireSerializingTestCase<Date
     @Override
     protected DateTimeProcessor mutateInstance(DateTimeProcessor instance) throws IOException {
         DateTimeExtractor replaced = randomValueOtherThan(instance.extractor(), () -> randomFrom(DateTimeExtractor.values()));
-        return new DateTimeProcessor(replaced, UTC);
+        return processor(DateTime.now(), replaced);
     }
 
-    public void testApply() {
-        DateTimeProcessor proc = new DateTimeProcessor(DateTimeExtractor.YEAR, UTC);
-        assertEquals(1970, proc.process(new DateTime(0L, DateTimeZone.UTC)));
-        assertEquals(2017, proc.process(new DateTime(2017, 01, 02, 10, 10, DateTimeZone.UTC)));
+    private static DateTimeProcessor processor(final DateTime value, final DateTimeExtractor extractor) {
+        return new DateTimeProcessor(Collections.singletonList(new ConstantProcessor(value)),
+            extractor,
+            functionContext());
+    }
 
-        proc = new DateTimeProcessor(DateTimeExtractor.DAY_OF_MONTH, UTC);
-        assertEquals(1, proc.process(new DateTime(0L, DateTimeZone.UTC)));
-        assertEquals(2, proc.process(new DateTime(2017, 01, 02, 10, 10, DateTimeZone.UTC)));
-        assertEquals(31, proc.process(new DateTime(2017, 01, 31, 10, 10, DateTimeZone.UTC)));
+    private static FunctionContext functionContext() {
+        return new FunctionContext(UTC, Locale.getDefault());
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(Processors.getNamedWriteables());
     }
 }

@@ -1011,7 +1011,8 @@ public final class Definition {
                     "and parameters " + whitelistMethod.painlessParameterTypeNames, iae);
         }
 
-        if (javaMethod.getReturnType() != defClassToObjectClass(painlessReturnClass)) {
+        // allow convariant return types in implementing classes.
+        if (!defClassToObjectClass(painlessReturnClass).isAssignableFrom(javaMethod.getReturnType())) {
             throw new IllegalArgumentException("specified return type class [" + painlessReturnClass + "] " +
                     "does not match the return type class [" + javaMethod.getReturnType() + "] for the " +
                     "method with name [" + whitelistMethod.javaMethodName + "] " +

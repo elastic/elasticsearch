@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexInfo;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexType;
+import org.elasticsearch.xpack.sql.expression.function.FunctionContext;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.sql.type.TypesTests;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
 import java.util.function.Consumer;
@@ -203,7 +205,7 @@ public class SysTablesTests extends ESTestCase {
 
     private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params) {
         EsIndex test = new EsIndex("test", mapping);
-        Analyzer analyzer = new Analyzer(new FunctionRegistry(), IndexResolution.valid(test), TimeZone.getTimeZone("UTC"));
+        Analyzer analyzer = new Analyzer(new FunctionRegistry(), IndexResolution.valid(test), functionContext());
         Command cmd = (Command) analyzer.analyze(parser.createStatement(sql, params), true);
 
         IndexResolver resolver = mock(IndexResolver.class);
@@ -211,6 +213,10 @@ public class SysTablesTests extends ESTestCase {
 
         SqlSession session = new SqlSession(null, null, null, resolver, null, null, null);
         return new Tuple<>(cmd, session);
+    }
+
+    private FunctionContext functionContext() {
+        return new FunctionContext(TimeZone.getTimeZone("UTC"), Locale.getDefault());
     }
 
     private void executeCommand(String sql, Consumer<SchemaRowSet> consumer, IndexInfo... infos) throws Exception {

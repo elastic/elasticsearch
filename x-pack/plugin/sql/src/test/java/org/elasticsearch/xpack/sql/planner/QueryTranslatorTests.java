@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.analysis.index.MappingException;
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.function.FunctionContext;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
 import org.joda.time.DateTime;
 
+import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
 
@@ -34,7 +36,7 @@ public class QueryTranslatorTests extends ESTestCase {
     private IndexResolution getIndexResult;
     private FunctionRegistry functionRegistry;
     private Analyzer analyzer;
-    
+
     public QueryTranslatorTests() {
         parser = new SqlParser();
         functionRegistry = new FunctionRegistry();
@@ -43,7 +45,7 @@ public class QueryTranslatorTests extends ESTestCase {
 
         EsIndex test = new EsIndex("test", mapping);
         getIndexResult = IndexResolution.valid(test);
-        analyzer = new Analyzer(functionRegistry, getIndexResult, TimeZone.getTimeZone("UTC"));
+        analyzer = new Analyzer(functionRegistry, getIndexResult, functionContext());
     }
 
     private LogicalPlan plan(String sql) {
@@ -138,5 +140,9 @@ public class QueryTranslatorTests extends ESTestCase {
         RangeQuery rq = (RangeQuery) query;
         assertEquals("date", rq.field());
         assertEquals(DateTime.parse("1969-05-13T12:34:56Z"), rq.lower());
+    }
+
+    private FunctionContext functionContext() {
+        return new FunctionContext(TimeZone.getTimeZone("UTC"), Locale.getDefault());
     }
 }

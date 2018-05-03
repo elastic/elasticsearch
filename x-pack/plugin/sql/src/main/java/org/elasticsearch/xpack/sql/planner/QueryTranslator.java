@@ -250,7 +250,7 @@ abstract class QueryTranslator {
                     // dates are handled differently because of date histograms
                     if (exp instanceof DateTimeHistogramFunction) {
                         DateTimeHistogramFunction dthf = (DateTimeHistogramFunction) exp;
-                        key = new GroupByDateKey(aggId, nameOf(exp), dthf.interval(), dthf.timeZone());
+                        key = new GroupByDateKey(aggId, nameOf(exp), dthf.interval(), dthf.context().timeZone());
                     }
                     // all other scalar functions become a script
                     else if (exp instanceof ScalarFunction) {

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.sql.expression.function.Function;
+import org.elasticsearch.xpack.sql.expression.function.FunctionContext;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
@@ -73,6 +74,7 @@ import org.elasticsearch.xpack.sql.type.EsField;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.TimeZone;
 
 import static java.util.Arrays.asList;
@@ -83,6 +85,7 @@ import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
 
 public class OptimizerTests extends ESTestCase {
 
+    private static final FunctionContext CONTEXT = new FunctionContext(TimeZone.getTimeZone("UTC"), Locale.getDefault());
     private static final Expression DUMMY_EXPRESSION = new DummyBooleanExpression(EMPTY, 0);
 
     public static class DummyBooleanExpression extends Expression {
@@ -286,13 +289,16 @@ public class OptimizerTests extends ESTestCase {
     public void testConstantFoldingDatetime() {
         final TimeZone UTC = TimeZone.getTimeZone("UTC");
         Expression cast = new Cast(EMPTY, Literal.of(EMPTY, "2018-01-19T10:23:27Z"), DataType.DATE);
-        assertEquals(2018, foldFunction(new Year(EMPTY, cast, UTC)));
-        assertEquals(1, foldFunction(new MonthOfYear(EMPTY, cast, UTC)));
-        assertEquals(19, foldFunction(new DayOfMonth(EMPTY, cast, UTC)));
-        assertEquals(19, foldFunction(new DayOfYear(EMPTY, cast, UTC)));
-        assertEquals(3, foldFunction(new WeekOfYear(EMPTY, cast, UTC)));
+        List<Expression> source = Collections.singletonList(cast);
+        assertEquals(2018, foldFunction(new Year(EMPTY, source, CONTEXT)));
+        assertEquals(1, foldFunction(new MonthOfYear(EMPTY, source, CONTEXT)));
+        assertEquals(19, foldFunction(new DayOfMonth(EMPTY, source, CONTEXT)));
+        assertEquals(19, foldFunction(new DayOfYear(EMPTY, source, CONTEXT)));
+        assertEquals(3, foldFunction(new WeekOfYear(EMPTY, source, CONTEXT)));
         assertNull(foldFunction(
-                new WeekOfYear(EMPTY, new Literal(EMPTY, null, DataType.NULL), UTC)));
+                new WeekOfYear(EMPTY,
+                    Collections.singletonList(new Literal(EMPTY, null, DataType.NULL)),
+                    CONTEXT)));
     }
 
     public void testArithmeticFolding() {

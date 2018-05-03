@@ -6,43 +6,39 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.function.FunctionContext;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
-import java.time.temporal.ChronoField;
-import java.util.TimeZone;
+import java.util.List;
 
 /**
  * Extract the day of the week from a datetime. 1 is Monday, 2 is Tuesday, etc.
  */
-public class DayOfWeek extends DateTimeFunction {
-    public DayOfWeek(Location location, Expression field, TimeZone timeZone) {
-        super(location, field, timeZone);
+public class DayOfWeek extends NumberDateTimeFunction {
+
+    public DayOfWeek(Location location, List<Expression> arguments, FunctionContext context) {
+        super(location, arguments, context);
     }
 
     @Override
-    protected NodeCtor2<Expression, TimeZone, DateTimeFunction> ctorForInfo() {
+    NodeCtor2<List<Expression>, FunctionContext, DateTimeFunction> ctorForInfo() {
         return DayOfWeek::new;
     }
 
     @Override
-    protected DayOfWeek replaceChild(Expression newChild) {
-        return new DayOfWeek(location(), newChild, timeZone());
+    Expression replaceChildren(Location location, List<Expression> newChildren, FunctionContext context) {
+        return new DayOfWeek(location, newChildren, context);
+    }
+
+    @Override
+    DateTimeExtractor extractor() {
+        return DateTimeExtractor.DAY_OF_YEAR;
     }
 
     @Override
     public String dateTimeFormat() {
         return "e";
-    }
-
-    @Override
-    protected ChronoField chronoField() {
-        return ChronoField.DAY_OF_WEEK;
-    }
-
-    @Override
-    protected DateTimeExtractor extractor() {
-        return DateTimeExtractor.DAY_OF_WEEK;
     }
 }

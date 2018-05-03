@@ -9,6 +9,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
+import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
@@ -69,6 +70,7 @@ public class PolicyStepsRegistry {
                     stepMap.put(policy.getName(), new HashMap<>());
                     Map<Step.StepKey, Step> stepMapForPolicy = stepMap.get(policy.getName());
                     for (Step step : policyAsSteps) {
+                        assert ErrorStep.NAME.equals(step.getKey().getName()) == false;
                         stepMapForPolicy.put(step.getKey(), step);
                     }
                 }
@@ -92,6 +94,9 @@ public class PolicyStepsRegistry {
      * @return step
      */
     public Step getStep(String policy, Step.StepKey stepKey) {
+        if (ErrorStep.NAME.equals(stepKey.getName())) {
+            return new ErrorStep(new Step.StepKey(stepKey.getPhase(), stepKey.getAction(), ErrorStep.NAME));
+        }
         Map<Step.StepKey, Step> steps = stepMap.get(policy);
         if (steps == null) {
             throw new IllegalStateException("policy [" + policy + "] does not exist");

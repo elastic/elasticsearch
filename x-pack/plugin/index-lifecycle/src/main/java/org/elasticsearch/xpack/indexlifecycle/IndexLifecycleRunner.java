@@ -13,11 +13,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncActionStep;
 import org.elasticsearch.xpack.core.indexlifecycle.AsyncWaitStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep;
+import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
 import org.elasticsearch.xpack.core.indexlifecycle.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
@@ -45,6 +45,9 @@ public class IndexLifecycleRunner {
         logger.warn("running policy with current-step[" + currentStep.getKey() + "]");
         if (currentStep instanceof TerminalPolicyStep) {
             logger.debug("policy [" + policy + "] for index [" + indexMetaData.getIndex().getName() + "] complete, skipping execution");
+        } else if (currentStep instanceof ErrorStep) {
+            logger.debug(
+                    "policy [" + policy + "] for index [" + indexMetaData.getIndex().getName() + "] on an error step, skipping execution");
         } else if (currentStep instanceof InitializePolicyContextStep || currentStep instanceof ClusterStateWaitStep) {
             executeClusterStateSteps(indexMetaData.getIndex(), policy, currentStep);
         } else if (currentStep instanceof AsyncWaitStep) {
@@ -61,7 +64,7 @@ public class IndexLifecycleRunner {
     
                     @Override
                     public void onFailure(Exception e) {
-                        throw new RuntimeException(e); // NORELEASE implement error handling
+                        moveToErrorStep(indexMetaData.getIndex(), policy, currentStep.getKey(), e);
                     }
                     
                 });
@@ -80,7 +83,7 @@ public class IndexLifecycleRunner {
     
                     @Override
                     public void onFailure(Exception e) {
-                        throw new RuntimeException(e); // NORELEASE implement error handling
+                        moveToErrorStep(indexMetaData.getIndex(), policy, currentStep.getKey(), e);
                     }
                 });
             }
@@ -136,20 +139,42 @@ public class IndexLifecycleRunner {
 
     static ClusterState moveClusterStateToNextStep(Index index, ClusterState clusterState, StepKey currentStep, StepKey nextStep,
             LongSupplier nowSupplier) {
-        ClusterState.Builder newClusterStateBuilder = ClusterState.builder(clusterState);
         IndexMetaData idxMeta = clusterState.getMetaData().index(index);
-        Builder indexSettings = Settings.builder().put(idxMeta.getSettings()).put(LifecycleSettings.LIFECYCLE_PHASE, nextStep.getPhase())
-                .put(LifecycleSettings.LIFECYCLE_ACTION, nextStep.getAction()).put(LifecycleSettings.LIFECYCLE_STEP, nextStep.getName());
+        Settings.Builder indexSettings = moveIndexSettingsToNextStep(idxMeta.getSettings(), currentStep, nextStep, nowSupplier);
+        ClusterState.Builder newClusterStateBuilder = newClusterStateWithIndexSettings(index, clusterState, indexSettings);
+        return newClusterStateBuilder.build();
+    }
+
+    static ClusterState moveClusterStateToErrorStep(Index index, ClusterState clusterState, StepKey currentStep, LongSupplier nowSupplier) {
+        IndexMetaData idxMeta = clusterState.getMetaData().index(index);
+        Settings.Builder indexSettings = moveIndexSettingsToNextStep(idxMeta.getSettings(), currentStep,
+                new StepKey(currentStep.getPhase(), currentStep.getAction(), ErrorStep.NAME), nowSupplier)
+                        .put(LifecycleSettings.LIFECYCLE_FAILED_STEP, currentStep.getName());
+        ClusterState.Builder newClusterStateBuilder = newClusterStateWithIndexSettings(index, clusterState, indexSettings);
+        return newClusterStateBuilder.build();
+    }
+
+    private static Settings.Builder moveIndexSettingsToNextStep(Settings existingSettings, StepKey currentStep, StepKey nextStep,
+            LongSupplier nowSupplier) {
+        long nowAsMillis = nowSupplier.getAsLong();
+        Settings.Builder newSettings = Settings.builder().put(existingSettings).put(LifecycleSettings.LIFECYCLE_PHASE, nextStep.getPhase())
+                .put(LifecycleSettings.LIFECYCLE_ACTION, nextStep.getAction()).put(LifecycleSettings.LIFECYCLE_STEP, nextStep.getName())
+                .put(LifecycleSettings.LIFECYCLE_STEP_TIME, nowAsMillis);
         if (currentStep.getPhase().equals(nextStep.getPhase()) == false) {
-            indexSettings.put(LifecycleSettings.LIFECYCLE_PHASE_TIME, nowSupplier.getAsLong());
+            newSettings.put(LifecycleSettings.LIFECYCLE_PHASE_TIME, nowAsMillis);
         }
         if (currentStep.getAction().equals(nextStep.getAction()) == false) {
-            indexSettings.put(LifecycleSettings.LIFECYCLE_ACTION_TIME, nowSupplier.getAsLong());
+            newSettings.put(LifecycleSettings.LIFECYCLE_ACTION_TIME, nowAsMillis);
         }
-        newClusterStateBuilder.metaData(MetaData.builder(clusterState.getMetaData()).put(IndexMetaData
-                .builder(clusterState.getMetaData().index(index))
-                .settings(indexSettings)));
-        return newClusterStateBuilder.build();
+        return newSettings;
+    }
+
+    private static ClusterState.Builder newClusterStateWithIndexSettings(Index index, ClusterState clusterState,
+            Settings.Builder newSettings) {
+        ClusterState.Builder newClusterStateBuilder = ClusterState.builder(clusterState);
+        newClusterStateBuilder.metaData(MetaData.builder(clusterState.getMetaData())
+                .put(IndexMetaData.builder(clusterState.getMetaData().index(index)).settings(newSettings)));
+        return newClusterStateBuilder;
     }
 
     private void moveToStep(Index index, String policy, StepKey currentStepKey, StepKey nextStepKey) {
@@ -157,5 +182,11 @@ public class IndexLifecycleRunner {
                 + nextStepKey);
         clusterService.submitStateUpdateTask("ILM", new MoveToNextStepUpdateTask(index, policy, currentStepKey,
                 nextStepKey, nowSupplier, newState -> runPolicy(newState.getMetaData().index(index), newState)));
+    }
+
+    private void moveToErrorStep(Index index, String policy, StepKey currentStepKey, Exception e) {
+        logger.error("policy [" + policy + "] for index [" + index.getName() + "] failed on step [" + currentStepKey
+                + "]. Moving to ERROR step.", e);
+        clusterService.submitStateUpdateTask("ILM", new MoveToErrorStepUpdateTask(index, policy, currentStepKey, nowSupplier));
     }
 }

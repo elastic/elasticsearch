@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsRequest;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
-import org.elasticsearch.xpack.core.ClientHelper;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -376,7 +375,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     @SuppressWarnings("try")
     static Client wrapClient(Client client, ShardFollowTask shardFollowTask) {
         if (shardFollowTask.getHeaders().isEmpty()) {
-            return ClientHelper.clientWithOrigin(client, ClientHelper.CCR_ORIGIN);
+            return client;
         } else {
             final ThreadContext threadContext = client.threadPool().getThreadContext();
             Map<String, String> filteredHeaders = shardFollowTask.getHeaders().entrySet().stream()

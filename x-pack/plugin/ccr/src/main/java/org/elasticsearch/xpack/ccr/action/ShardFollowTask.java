@@ -29,7 +29,7 @@ public class ShardFollowTask implements PersistentTaskParams {
 
     // list of headers that will be stored when a job is created
     public static final Set<String> HEADER_FILTERS =
-        new HashSet<>(Arrays.asList("es-security-runas-user", "_xpack_security_authentication"));
+        Collections.unmodifiableSet(new HashSet<>(Arrays.asList("es-security-runas-user", "_xpack_security_authentication")));
 
     static final ParseField LEADER_CLUSTER_ALIAS_FIELD = new ParseField("leader_cluster_alias");
     static final ParseField FOLLOW_SHARD_INDEX_FIELD = new ParseField("follow_shard_index");

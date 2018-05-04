@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.shrink;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestTests;
@@ -29,13 +30,38 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.junit.Assert;
 
 import java.io.IOException;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class ResizeRequestTests extends ESTestCase {
+
+    public void testCopySettingsValidation() {
+        runTestCopySettingsValidation(false, e -> {
+            assertNotNull(e);
+            assertThat(e.validationErrors(), hasSize(1));
+            assertThat(e.validationErrors().get(0), equalTo("[copySettings] can not be explicitly set to [false]"));
+        });
+
+        runTestCopySettingsValidation(null, Assert::assertNull);
+        runTestCopySettingsValidation(true, Assert::assertNull);
+    }
+
+    private void runTestCopySettingsValidation(final Boolean copySettings, final Consumer<ActionRequestValidationException> consumer) {
+        final ResizeRequest request = new ResizeRequest();
+        request.setSourceIndex("source");
+        request.setTargetIndex(new CreateIndexRequest("target"));
+        request.setCopySettings(copySettings);
+        final ActionRequestValidationException e = request.validate();
+        consumer.accept(e);
+
+    }
 
     public void testToXContent() throws IOException {
         {

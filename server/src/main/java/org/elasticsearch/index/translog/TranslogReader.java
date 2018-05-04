@@ -21,6 +21,8 @@ package org.elasticsearch.index.translog;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.io.Channels;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -28,7 +30,10 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.elasticsearch.index.translog.Translog.getCommitCheckpointFileName;
 
 /**
  * an immutable translog filereader
@@ -37,7 +42,7 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
     protected final long length;
     private final int totalOperations;
     private final Checkpoint checkpoint;
-    protected final AtomicBoolean closed;
+    protected final AtomicBoolean closed = new AtomicBoolean(false);
 
     /**
      * Create a translog writer against the specified translog file channel.
@@ -48,24 +53,10 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
      * @param header     the header of the translog file
      */
     TranslogReader(final Checkpoint checkpoint, final FileChannel channel, final Path path, final TranslogHeader header) {
-        this(checkpoint, channel, path, header,  new AtomicBoolean(false));
-    }
-
-    /**
-     * Create a translog writer against the specified translog file channel.
-     *
-     * @param checkpoint the translog checkpoint
-     * @param channel    the translog file channel to open a translog reader against
-     * @param path       the path to the translog
-     * @param header     the header of the translog file
-     *
-     */
-    TranslogReader(final Checkpoint checkpoint, final FileChannel channel, final Path path, final TranslogHeader header, AtomicBoolean closed) {
         super(checkpoint.generation, channel, path, header);
         this.length = checkpoint.offset;
         this.totalOperations = checkpoint.numOps;
         this.checkpoint = checkpoint;
-        this.closed = closed;
     }
 
     /**
@@ -85,10 +76,27 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
     }
 
     /**
-     * Create a new reader with new checkoint that shares resources with current one
+     * Closes current reader and creates new one with new checkoint and same file channel
      */
-    TranslogReader withNewCheckpoint(final Checkpoint newCheckpoint){
-        return new TranslogReader(newCheckpoint, channel, path, header,  closed);
+    TranslogReader closeIntoTrimmedReader(long belowTerm, long aboveSeqNo, ChannelFactory channelFactory) throws IOException {
+        if (!closed.get()
+            && getPrimaryTerm() < belowTerm
+            && checkpoint.maxSeqNo != SequenceNumbers.NO_OPS_PERFORMED
+            && (aboveSeqNo < checkpoint.trimmedAboveSeqNo || checkpoint.trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO)) {
+            final Path checkpointFile = path.getParent().resolve(getCommitCheckpointFileName(checkpoint.generation));
+            final Checkpoint newCheckpoint = new Checkpoint(checkpoint.offset, checkpoint.numOps,
+                checkpoint.generation, checkpoint.minSeqNo, checkpoint.maxSeqNo,
+                checkpoint.globalCheckpoint, checkpoint.minTranslogGeneration, aboveSeqNo);
+            Checkpoint.write(channelFactory, checkpointFile, newCheckpoint, StandardOpenOption.WRITE);
+
+            IOUtils.fsync(checkpointFile, false);
+            IOUtils.fsync(checkpointFile.getParent(), true);
+
+            closed.set(true);
+
+            return new TranslogReader(newCheckpoint, channel, path, header);
+        }
+        return this;
     }
 
     public long sizeInBytes() {

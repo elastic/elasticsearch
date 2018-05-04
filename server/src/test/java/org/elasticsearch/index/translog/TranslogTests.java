@@ -1545,6 +1545,49 @@ public class TranslogTests extends ESTestCase {
         assertThat(expectedSeqNo, hasSize(0));
     }
 
+    public void testExceptionOnTrimAboveSeqNo( ) throws Exception {
+        Path tempDir = createTempDir();
+        final FailSwitch fail = new FailSwitch();
+        fail.failNever();
+        TranslogConfig config = getTranslogConfig(tempDir);
+        final Translog failableTLog = getFailableTranslog(fail, config, randomBoolean(), false, null, createTranslogDeletionPolicy());
+
+        List<Translog.Index> operations = new ArrayList<>();
+        int translogOperations = randomIntBetween(10, 100);
+        int maxTrimmedSeqNo = translogOperations - randomIntBetween(4, 8);
+
+        for (int op = 0; op < translogOperations; op++) {
+            String ascii = randomAlphaOfLengthBetween(1, 50);
+            Translog.Index operation = new Translog.Index("test", "" + op, op,
+                primaryTerm.get(), ascii.getBytes("UTF-8"));
+            operations.add(operation);
+        }
+        // shuffle a bit - move several first items to the end
+        for(int i = 0, len = randomIntBetween(5, 10); i < len; i++){
+            operations.add(operations.remove(0));
+        }
+
+        for (Translog.Index operation : operations) {
+            failableTLog.add(operation);
+        }
+
+        failableTLog.rollGeneration();
+        fail.failAlways();
+        try {
+            failableTLog.trim(primaryTerm.get() + 1, maxTrimmedSeqNo);
+            fail();
+        } catch (MockDirectoryWrapper.FakeIOException ex) {
+            // all is fine
+        }
+
+        try {
+            failableTLog.newSnapshot();
+            fail();
+        } catch (AlreadyClosedException e){
+            assertThat(e.getMessage(), is("translog [" + failableTLog.currentFileGeneration() + "] is already closed"));
+        }
+    }
+
     public void testLocationHashCodeEquals() throws IOException {
         List<Translog.Location> locations = new ArrayList<>();
         List<Translog.Location> locations2 = new ArrayList<>();

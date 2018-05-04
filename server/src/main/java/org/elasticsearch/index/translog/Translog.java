@@ -706,27 +706,16 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
             // update all existed ones (if it is necessary) as checkpoint and reader are immutable
             final List<TranslogReader> newReaders = new ArrayList<>(readers.size());
-            for (TranslogReader reader : readers) {
-                final Checkpoint checkpoint = reader.getCheckpoint();
-                final Path checkpointFile = location.resolve(getCommitCheckpointFileName(checkpoint.generation));
-
-                final TranslogReader newReader;
-                if (reader.getPrimaryTerm() < belowTerm
-                    && checkpoint.maxSeqNo != SequenceNumbers.NO_OPS_PERFORMED
-                    && (aboveSeqNo < checkpoint.trimmedAboveSeqNo || checkpoint.trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO)) {
-                    final Checkpoint newCheckpoint = new Checkpoint(checkpoint.offset, checkpoint.numOps,
-                        checkpoint.generation, checkpoint.minSeqNo, checkpoint.maxSeqNo,
-                        checkpoint.globalCheckpoint, checkpoint.minTranslogGeneration, aboveSeqNo);
-                    Checkpoint.write(FileChannel::open, checkpointFile, newCheckpoint, StandardOpenOption.WRITE);
-
-                    IOUtils.fsync(checkpointFile, false);
-                    IOUtils.fsync(checkpointFile.getParent(), true);
-
-                    newReader = reader.withNewCheckpoint(newCheckpoint);
-                } else {
-                    newReader = reader;
+            try {
+                for (TranslogReader reader : readers) {
+                    final TranslogReader newReader = reader.closeIntoTrimmedReader(belowTerm, aboveSeqNo, getChannelFactory());
+                    newReaders.add(newReader);
                 }
-                newReaders.add(newReader);
+            } catch (IOException e){
+                IOUtils.closeWhileHandlingException(newReaders);
+                IOUtils.closeWhileHandlingException(current);
+                IOUtils.closeWhileHandlingException(readers);
+                throw e;
             }
 
             this.readers.clear();

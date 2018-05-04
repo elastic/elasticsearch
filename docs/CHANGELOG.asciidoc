@@ -12,8 +12,44 @@ This section summarizes the changes in each release.
 
 //* <<release-notes-5.6.10>>
 * <<release-notes-5.6.9>>
+* <<release-notes-5.6.8>>
+* <<release-notes-5.6.7>>
+* <<release-notes-5.6.6>>
+* <<release-notes-5.6.5>>
+* <<release-notes-5.6.4>>
+* <<release-notes-5.6.3>>
+* <<release-notes-5.6.2>>
+* <<release-notes-5.6.1>>
+* <<release-notes-5.6.0>>
+* <<release-notes-5.5.3>>
+* <<release-notes-5.5.2>>
+* <<release-notes-5.5.1>>
+* <<release-notes-5.5.0>>
+* <<release-notes-5.4.3>>
+* <<release-notes-5.4.2>>
+* <<release-notes-5.4.1>>
+* <<release-notes-5.4.0>>
+* <<release-notes-5.3.3>>
+* <<release-notes-5.3.2>>
+* <<release-notes-5.3.1>>
+* <<release-notes-5.3.0>>
+* <<release-notes-5.2.2>>
+* <<release-notes-5.2.1>>
+* <<release-notes-5.2.0>>
+* <<release-notes-5.1.2>>
+* <<release-notes-5.1.1>>
+* <<release-notes-5.1.0>>
+* <<release-notes-5.0.2>>
+* <<release-notes-5.0.1>>
 * <<release-notes-5.0.0>>
 * <<release-notes-5.0.0-GA>>
+* <<release-notes-5.0.0-rc1>>
+* <<release-notes-5.0.0-beta1>>
+* <<release-notes-5.0.0-alpha5>>
+* <<release-notes-5.0.0-alpha4>>
+* <<release-notes-5.0.0-alpha3>>
+* <<release-notes-5.0.0-alpha2>>
+* <<release-notes-5.0.0-alpha1>>
 * <<release-notes-5.0.0-alpha1-2x>>
 --
 

@@ -561,7 +561,7 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     protected Engine.Delete replicaDeleteForDoc(String id, long version, long seqNo, long startTime) {
-        return new Engine.Delete("test", id, newUid(id), seqNo, 1, version, VersionType.EXTERNAL,
+        return new Engine.Delete("test", id, newUid(id), seqNo, primaryTerm.get(), version, VersionType.EXTERNAL,
             Engine.Operation.Origin.REPLICA, startTime);
     }
     protected static void assertVisibleCount(InternalEngine engine, int numDocs) throws IOException {

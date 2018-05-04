@@ -116,6 +116,8 @@ Machine Learning::
 
 * Account for gaps in data counts after job is reopened ({pull}30294[#30294])
 
+Add validation that geohashes are not empty and don't contain unsupported characters ({pull}30376[#30376])
+
 [[release-notes-6.3.1]]
 == Elasticsearch version 6.3.1
 

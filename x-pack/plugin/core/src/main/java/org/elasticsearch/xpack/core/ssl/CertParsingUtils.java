@@ -87,7 +87,7 @@ public class CertParsingUtils {
         CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
         for (Path path : certPaths) {
             try (InputStream input = Files.newInputStream(path)) {
-                certificates = (Collection<Certificate>) certFactory.generateCertificates(input);
+                certificates.addAll((Collection<Certificate>) certFactory.generateCertificates(input));
             }
         }
         return certificates.toArray(new Certificate[0]);
@@ -98,7 +98,7 @@ public class CertParsingUtils {
         CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
         for (Path path : certPaths) {
             try (InputStream input = Files.newInputStream(path)) {
-                certificates = (Collection<X509Certificate>) certFactory.generateCertificates(input);
+                certificates.addAll((Collection<X509Certificate>) certFactory.generateCertificates(input));
             }
         }
         return certificates.toArray(new X509Certificate[0]);

@@ -188,6 +188,10 @@ fi
     install_and_check_plugin analysis kuromoji
 }
 
+@test "[$GROUP] install nori plugin" {
+    install_and_check_plugin analysis nori
+}
+
 @test "[$GROUP] install phonetic plugin" {
     install_and_check_plugin analysis phonetic commons-codec-*.jar
 }
@@ -314,6 +318,10 @@ fi
 
 @test "[$GROUP] remove kuromoji plugin" {
     remove_plugin analysis-kuromoji
+}
+
+@test "[$GROUP] remove nori plugin" {
+    remove_plugin analysis-nori
 }
 
 @test "[$GROUP] remove phonetic plugin" {

@@ -521,7 +521,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /**
      * Helper method to create a byte array of a given length populated with random byte values
-     * 
+     *
      * @see #randomByte()
      */
     public static byte[] randomByteArrayOfLength(int size) {

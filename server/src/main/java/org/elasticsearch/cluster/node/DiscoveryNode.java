@@ -422,10 +422,10 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getId());
-        builder.field( NAME.getPreferredName(), getName());
-        builder.field(EPHEMERAL_ID.getPreferredName(), getEphemeralId());
-        builder.field(TRANSPORT_ADDRESS.getPreferredName(), getAddress().toString());
-        builder.field(ATTRIBUTES.getPreferredName(), attributes);
+        builder.field( NAME, getName());
+        builder.field(EPHEMERAL_ID, getEphemeralId());
+        builder.field(TRANSPORT_ADDRESS, getAddress().toString());
+        builder.field(ATTRIBUTES, attributes);
         builder.endObject();
         return builder;
     }

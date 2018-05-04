@@ -51,11 +51,16 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter>, T
     private static final ParseField FILTER = new ParseField("filter");
 
     private static final ConstructingObjectParser<AliasFilter, String> PARSER =
-        new ConstructingObjectParser<>("alias_filter", false, a -> new AliasFilter((QueryBuilder)a[1], (String[])a[0]));
+        new ConstructingObjectParser<>("alias_filter", false,
+            a -> {
+                final String[] aliases = (String[]) a[0];
+                final QueryBuilder queryBuilder = (QueryBuilder) a[1];
+                return new AliasFilter(queryBuilder, aliases);
+            });
 
     static {
         PARSER.declareField(optionalConstructorArg(),
-            (p, c) -> p.list().toArray(new String[0]), ALIASES, ObjectParser.ValueType.STRING_ARRAY);
+            (p, c) -> p.list().toArray(Strings.EMPTY_ARRAY), ALIASES, ObjectParser.ValueType.STRING_ARRAY);
         PARSER.declareField(optionalConstructorArg(),
             (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), FILTER, ObjectParser.ValueType.OBJECT);
     }

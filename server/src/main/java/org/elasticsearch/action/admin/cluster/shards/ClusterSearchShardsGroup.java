@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.shards;
 
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -48,11 +49,16 @@ public class ClusterSearchShardsGroup implements Streamable, ToXContentObject {
     private static final ParseField FILTER = new ParseField("filter");
 
     private static final ConstructingObjectParser<AliasFilter, String> PARSER =
-        new ConstructingObjectParser<>("alias_filter", false, a -> new AliasFilter((QueryBuilder)a[1], (String[])a[0]));
+        new ConstructingObjectParser<>("alias_filter", false,
+            a -> {
+                final String[] aliases = (String[]) a[0];
+                final QueryBuilder filter = (QueryBuilder) a[1];
+                return new AliasFilter(filter, aliases);
+            });
 
     static {
         PARSER.declareField(constructorArg(),
-            (p, c) -> p.list().toArray(new String[0]), ALIASES, ObjectParser.ValueType.STRING_ARRAY);
+            (p, c) -> p.list().toArray(Strings.EMPTY_ARRAY), ALIASES, ObjectParser.ValueType.STRING_ARRAY);
         PARSER.declareField(constructorArg(),
             (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), FILTER, ObjectParser.ValueType.OBJECT);
     }
@@ -123,12 +129,12 @@ public class ClusterSearchShardsGroup implements Streamable, ToXContentObject {
 
         ensureExpectedToken(XContentParser.Token.END_ARRAY, parser.currentToken(), parser::getTokenLocation);
 
-        if (!routings.isEmpty()) {
-            final ShardRouting[] shards = routings.toArray(new ShardRouting[0]);
-            ShardId shardId = shards[0].shardId();
-            return new ClusterSearchShardsGroup(shardId, shards);
+        if (routings.isEmpty()) {
+            return new ClusterSearchShardsGroup();
         }
-        return new ClusterSearchShardsGroup();
+        final ShardRouting[] shards = routings.toArray(new ShardRouting[0]);
+        ShardId shardId = shards[0].shardId();
+        return new ClusterSearchShardsGroup(shardId, shards);
     }
 
     @Override

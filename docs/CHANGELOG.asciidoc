@@ -109,7 +109,6 @@ Search::
 === New Features
 A new Moving Function pipeline aggregation has been added, which allows user-scriptable
 functions to be executed on moving windows of values ({pull}29594[#29594])
-//=== New Features
 
 //[float]
 //=== Enhancements

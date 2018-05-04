@@ -43,7 +43,7 @@ public class JdbcConnection implements Connection, JdbcWrapper {
     private String catalog;
     private String schema;
 
-    public JdbcConnection(JdbcConfiguration connectionInfo) throws SQLException {
+    public JdbcConnection(JdbcConfiguration connectionInfo) {
         cfg = connectionInfo;
         client = new JdbcHttpClient(connectionInfo);
 

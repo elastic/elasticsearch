@@ -107,6 +107,8 @@ ones that the user is authorized to access in case field level security is enabl
 Fixed prerelease version of elasticsearch in the `deb` package to sort before GA versions
 ({pull}29000[#29000])
 
+Respect accept header on requests with no handler ({pull}30383[#30383])
+
 [float]
 === Regressions
 Fail snapshot operations early when creating or deleting a snapshot on a repository that has been

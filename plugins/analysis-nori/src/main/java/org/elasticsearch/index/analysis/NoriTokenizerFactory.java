@@ -48,11 +48,7 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
             if (reader == null) {
                 return null;
             } else {
-                try {
-                    return UserDictionary.open(reader);
-                } finally {
-                    reader.close();
-                }
+                return UserDictionary.open(reader);
             }
         } catch (IOException e) {
             throw new ElasticsearchException("failed to load nori user dictionary", e);

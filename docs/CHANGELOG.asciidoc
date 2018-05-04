@@ -98,8 +98,12 @@ ones that the user is authorized to access in case field level security is enabl
 //[float]
 //=== New Features
 
-//[float]
-//=== Enhancements
+=== Enhancements
+
+Rollup::
+* Exceptions thrown when validating rollup job configs on job creation have been
+specialized to `rollup_action_request_validation_exception`, to make it easier for
+clients to handle/parse ({pull}30339[#30339])
 
 [float]
 === Bug Fixes
@@ -155,6 +159,11 @@ stopped/started/paused now runs far less code in an executor but is more
 synchronous and predictable. Also the trigger engine thread is only started on
 data nodes. And the Execute Watch API can be triggered regardless is watcher is
 started or stopped. ({pull}30118[#30118])
+
+Rollup::
+* Exceptions thrown when validating rollup job configs on job creation have been
+specialized to `rollup_action_request_validation_exception`, to make it easier for
+clients to handle/parse ({pull}30339[#30339])
 
 [float]
 === Bug Fixes

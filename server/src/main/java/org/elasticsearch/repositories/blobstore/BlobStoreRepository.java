@@ -955,26 +955,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     indexShardSnapshotsFormat.writeAtomic(updatedSnapshots, blobContainer, indexGeneration);
                 }
 
-                // Delete all temporary index files
-                for (final String blobName : blobs.keySet()) {
-                    if (indexShardSnapshotsFormat.isTempBlobName(blobName)) {
-                        try {
-                            blobContainer.deleteBlobIgnoringIfNotExists(blobName);
-                        } catch (IOException e) {
-                            logger.debug("[{}][{}] failed to delete temporary index blob [{}] during finalization",
-                                snapshotId, shardId, blobName, e);
-                        }
-                    }
-                }
-
                 // Delete old index files
                 for (final String blobName : blobs.keySet()) {
-                    if (blobName.startsWith(SNAPSHOT_INDEX_PREFIX)) {
+                    if (indexShardSnapshotsFormat.isTempBlobName(blobName) || blobName.startsWith(SNAPSHOT_INDEX_PREFIX)) {
                         try {
                             blobContainer.deleteBlobIgnoringIfNotExists(blobName);
                         } catch (IOException e) {
-                            logger.debug("[{}][{}] failed to delete index blob [{}] during finalization",
-                                snapshotId, shardId, blobName, e);
+                            logger.warn("[{}][{}] failed to delete index blob [{}] during finalization", snapshotId, shardId, blobName, e);
+                            throw e;
                         }
                     }
                 }
@@ -985,8 +973,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         try {
                             blobContainer.deleteBlobIgnoringIfNotExists(blobName);
                         } catch (IOException e) {
-                            logger.debug("[{}][{}] failed to delete data blob [{}] during finalization",
-                                snapshotId, shardId, blobName, e);
+                            logger.warn("[{}][{}] failed to delete data blob [{}] during finalization", snapshotId, shardId, blobName, e);
                         }
                     }
                 }

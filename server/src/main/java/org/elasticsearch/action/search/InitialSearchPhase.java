@@ -41,7 +41,7 @@ import java.util.stream.Stream;
  * This is an abstract base class that encapsulates the logic to fan out to all shards in provided {@link GroupShardsIterator}
  * and collect the results. If a shard request returns a failure this class handles the advance to the next replica of the shard until
  * the shards replica iterator is exhausted. Each shard is referenced by position in the {@link GroupShardsIterator} which is later
- * referred to as the <tt>shardIndex</tt>.
+ * referred to as the {@code shardIndex}.
  * The fan out and collect algorithm is traditionally used as the initial phase which can either be a query execution or collection
  * distributed frequencies
  */

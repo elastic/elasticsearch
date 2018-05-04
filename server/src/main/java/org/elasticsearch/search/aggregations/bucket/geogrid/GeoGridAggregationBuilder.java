@@ -119,7 +119,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
      */
     private XContentLocation precisionLocation = null;
 
-    private int precision = Integer.MIN_VALUE;
+    private int precision = GeoHashType.DEFAULT.getHandler().getDefaultPrecision();
 
     private int requiredSize = DEFAULT_MAX_NUM_CELLS;
     private int shardSize = -1;
@@ -171,6 +171,9 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
                         .collect(Collectors.joining(", ")) +
                     ". Found [" + type + "] in [" + name + "]");
         }
+        // Some tests bypass parsing steps, so keep the default precision consistent.
+        // Note that tests must set precision after setting the type
+        this.precision = this.type.getHandler().getDefaultPrecision();
         return this;
     }
 

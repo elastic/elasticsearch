@@ -167,6 +167,7 @@ public class WatcherService extends AbstractComponent {
     void stopExecutor() {
         ThreadPool.terminate(executor, 10L, TimeUnit.SECONDS);
     }
+
     /**
      * Reload the watcher service, does not switch the state from stopped to started, just keep going
      * @param state cluster state, which is needed to find out about local shards
@@ -231,6 +232,7 @@ public class WatcherService extends AbstractComponent {
      * manual watch execution, i.e. via the execute watch API
      */
     public void pauseExecution(String reason) {
+        triggerService.pauseExecution();
         int cancelledTaskCount = executionService.pause();
         logger.info("paused watch execution, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
     }

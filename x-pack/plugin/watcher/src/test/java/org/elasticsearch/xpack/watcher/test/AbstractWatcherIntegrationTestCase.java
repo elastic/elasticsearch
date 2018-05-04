@@ -71,6 +71,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -558,9 +559,8 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
         public void trigger(String watchId, int times, TimeValue timeValue) {
             boolean isTriggered = schedulers.stream().anyMatch(scheduler -> scheduler.trigger(watchId, times, timeValue));
-            if (isTriggered == false) {
-                logger.error("could not find watch [{}] to trigger", watchId);
-            }
+            String msg = String.format(Locale.ROOT, "could not find watch [%s] to trigger", watchId);
+            assertThat(msg, isTriggered, is(true));
         }
     }
 

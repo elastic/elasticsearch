@@ -27,6 +27,8 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
@@ -74,6 +76,7 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
+import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
 import org.elasticsearch.test.disruption.IntermittentLongGCDisruption;
 import org.elasticsearch.test.disruption.LongGCDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption;
@@ -121,6 +124,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_NUMBER_OF_R
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -1371,6 +1375,51 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             cause = cause.getCause();
             assertThat(cause, instanceOf(Discovery.FailedToCommitClusterStateException.class));
         }
+    }
+
+    @TestLogging(
+        "_root:DEBUG,"
+            + "org.elasticsearch.action.bulk:TRACE,"
+            + "org.elasticsearch.action.get:TRACE,"
+            + "org.elasticsearch.cluster.service:TRACE,"
+            + "org.elasticsearch.discovery:TRACE,"
+            + "org.elasticsearch.indices.cluster:TRACE,"
+            + "org.elasticsearch.indices.recovery:TRACE,"
+            + "org.elasticsearch.index.seqno:TRACE,"
+            + "org.elasticsearch.index.shard:TRACE")
+    public void testMappingTimeout() throws Exception {
+        startCluster(3);
+        assertAcked(prepareCreate("test").setSettings(Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 1)
+            .put("index.routing.allocation.exclude._name", internalCluster().getMasterName())
+            .build()));
+
+        // create one field
+        index("test", "doc", "1", "{ \"f\": 1 }");
+
+        ensureGreen();
+
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+            Settings.builder().put("indices.mapping.dynamic_timeout", "1ms")));
+
+        ServiceDisruptionScheme disruption = new BlockMasterServiceOnMaster(random());
+        setDisruptionScheme(disruption);
+
+        disruption.startDisrupting();
+
+        BulkRequestBuilder bulk = client().prepareBulk();
+        bulk.add(client().prepareIndex("test", "doc", "2").setSource("{ \"f\": 1 }", XContentType.JSON));
+        bulk.add(client().prepareIndex("test", "doc", "3").setSource("{ \"g\": 1 }", XContentType.JSON));
+        bulk.add(client().prepareIndex("test", "doc", "4").setSource("{ \"f\": 1 }", XContentType.JSON));
+        BulkResponse bulkResponse = bulk.get();
+        assertTrue(bulkResponse.hasFailures());
+
+        disruption.stopDisrupting();
+
+        refresh("test");
+        assertSearchHits(client().prepareSearch("test").setPreference("_primary").get(), "1", "2", "4");
+        assertSearchHits(client().prepareSearch("test").setPreference("_replica").get(), "1", "2", "4");
     }
 
     private void createRandomIndex(String idxName) throws ExecutionException, InterruptedException {

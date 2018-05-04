@@ -52,7 +52,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
@@ -475,8 +474,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             // which are bubbled up
             try {
                 mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), request.type(), update);
-            } catch (IllegalArgumentException e) {
-                // throws IAE on conflicts merging dynamic mappings
+            } catch (Exception e) {
+                // failure to update the mapping should translate to a failure of specific requests. Other requests
+                // still need to be executed and replicated.
                 return new Engine.IndexResult(e, request.version());
             }
             try {
@@ -511,7 +511,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     mappingUpdateNeeded = true;
                     mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), request.type(), update);
                 }
-            } catch (MapperParsingException | IllegalArgumentException e) {
+            } catch (Exception e) {
+                // failure to update the mapping should translate to a failure of specific requests. Other requests
+                // still need to be executed and replicated.
                 return new Engine.DeleteResult(e, request.version(), false);
             }
         }

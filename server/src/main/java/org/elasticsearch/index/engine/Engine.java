@@ -112,7 +112,7 @@ public abstract class Engine implements Closeable {
     protected final ReleasableLock writeLock = new ReleasableLock(rwl.writeLock());
     protected final SetOnce<Exception> failedEngine = new SetOnce<>();
     /*
-     * on <tt>lastWriteNanos</tt> we use System.nanoTime() to initialize this since:
+     * on {@code lastWriteNanos} we use System.nanoTime() to initialize this since:
      *  - we use the value for figuring out if the shard / engine is active so if we startup and no write has happened yet we still consider it active
      *    for the duration of the configured active to inactive period. If we initialize to 0 or Long.MAX_VALUE we either immediately or never mark it
      *    inactive if no writes at all happen to the shard.

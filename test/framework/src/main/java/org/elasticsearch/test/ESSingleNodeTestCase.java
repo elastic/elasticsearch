@@ -161,6 +161,11 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return Settings.EMPTY;
     }
 
+    /** True if a dummy http transport should be used, or false if the real http transport should be used. */
+    protected boolean addMockHttpTransport() {
+        return true;
+    }
+
     private Node newNode() {
         final Path tempDir = createTempDir();
         Settings settings = Settings.builder()
@@ -173,7 +178,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put("node.name", "node_s_0")
             .put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE.getKey(), "1000/1m")
             .put(EsExecutors.PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
-            .put(NetworkModule.HTTP_ENABLED.getKey(), false)
             .put("transport.type", getTestTransportType())
             .put(Node.NODE_DATA_SETTING.getKey(), true)
             .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
@@ -191,6 +195,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         if (plugins.contains(TestZenDiscovery.TestPlugin.class) == false) {
             plugins = new ArrayList<>(plugins);
             plugins.add(TestZenDiscovery.TestPlugin.class);
+        }
+        if (addMockHttpTransport()) {
+            plugins.add(MockHttpTransport.TestPlugin.class);
         }
         Node build = new MockNode(settings, plugins);
         try {

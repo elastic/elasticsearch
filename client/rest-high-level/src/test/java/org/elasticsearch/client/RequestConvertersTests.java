@@ -47,6 +47,7 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -76,6 +77,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -403,6 +405,52 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(expectedParams, request.getParameters());
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertNull(request.getEntity());
+    }
+
+    public void testGetSettings() throws IOException {
+        String[] indicesUnderTest = randomBoolean() ? null : randomIndicesNames(0, 5);
+
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(indicesUnderTest);
+
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(getSettingsRequest, expectedParams);
+        setRandomIndicesOptions(getSettingsRequest::indicesOptions, getSettingsRequest::indicesOptions, expectedParams);
+
+        setRandomLocal(getSettingsRequest, expectedParams);
+
+        if (randomBoolean()) {
+            //the request object will not have include_defaults present unless it is set to true
+            getSettingsRequest.includeDefaults(randomBoolean());
+            if (getSettingsRequest.includeDefaults()) {
+                expectedParams.put("include_defaults", Boolean.toString(true));
+            }
+        }
+
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        if (indicesUnderTest != null && indicesUnderTest.length > 0) {
+            endpoint.add(String.join(",", indicesUnderTest));
+        }
+        endpoint.add("_settings");
+
+        if (randomBoolean()) {
+            String[] names = randomBoolean() ? null : new String[randomIntBetween(0, 3)];
+            if (names != null) {
+                for (int x = 0; x < names.length; x++) {
+                    names[x] = randomAlphaOfLengthBetween(3, 10);
+                }
+            }
+            getSettingsRequest.names(names);
+            if (names != null && names.length > 0) {
+                endpoint.add(String.join(",", names));
+            }
+        }
+
+        Request request = RequestConverters.getSettings(getSettingsRequest);
+
+        assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
+        assertThat(request.getEntity(), nullValue());
     }
 
     public void testDeleteIndexEmptyIndices() {

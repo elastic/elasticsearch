@@ -108,6 +108,9 @@ Fixed prerelease version of elasticsearch in the `deb` package to sort before GA
 ({pull}29000[#29000])
 
 Respect accept header on requests with no handler ({pull}30383[#30383])
+Rollup::
+* Validate timezone in range queries to ensure they match the selected job when
+searching ({pull}30338[#30338])
 
 [float]
 === Regressions
@@ -168,6 +171,10 @@ Fix NPE when CumulativeSum agg encounters null value/empty bucket ({pull}29641[#
 Machine Learning::
 
 * Account for gaps in data counts after job is reopened ({pull}30294[#30294])
+
+Rollup::
+* Validate timezone in range queries to ensure they match the selected job when
+searching ({pull}30338[#30338])
 
 //[float]
 //=== Regressions

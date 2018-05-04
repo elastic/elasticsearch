@@ -84,9 +84,8 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
         ActionListener<ResyncTask> resyncListener = null;
         try {
             final long startingSeqNo = indexShard.getGlobalCheckpoint() + 1;
-            final SeqNoStats seqNoStats = indexShard.seqNoStats();
-            final long maxSeqNo = seqNoStats != null ? seqNoStats.getMaxSeqNo() : SequenceNumbers.UNASSIGNED_SEQ_NO;
             Translog.Snapshot snapshot = indexShard.newTranslogSnapshotFromMinSeqNo(startingSeqNo);
+            final long maxSeqNo = indexShard.seqNoStats().getMaxSeqNo();
             resyncListener = new ActionListener<ResyncTask>() {
                 @Override
                 public void onResponse(final ResyncTask resyncTask) {

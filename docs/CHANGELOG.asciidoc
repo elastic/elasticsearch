@@ -107,6 +107,10 @@ ones that the user is authorized to access in case field level security is enabl
 Fixed prerelease version of elasticsearch in the `deb` package to sort before GA versions
 ({pull}29000[#29000])
 
+Rollup::
+* Validate timezone in range queries to ensure they match the selected job when
+searching ({pull}30338[#30338])
+
 [float]
 === Regressions
 Fail snapshot operations early when creating or deleting a snapshot on a repository that has been
@@ -166,6 +170,10 @@ Fix NPE when CumulativeSum agg encounters null value/empty bucket ({pull}29641[#
 Machine Learning::
 
 * Account for gaps in data counts after job is reopened ({pull}30294[#30294])
+
+Rollup::
+* Validate timezone in range queries to ensure they match the selected job when
+searching ({pull}30338[#30338])
 
 //[float]
 //=== Regressions

@@ -22,6 +22,7 @@ import java.security.MessageDigest;
 import java.security.PrivateKey;
 import java.security.interfaces.ECKey;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.DSAPrivateKeySpec;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECParameterSpec;
 import java.security.spec.ECPrivateKeySpec;
@@ -45,6 +46,10 @@ public class PemUtils {
 
     private static final String PKCS1_HEADER = "-----BEGIN RSA PRIVATE KEY-----";
     private static final String PKCS1_FOOTER = "-----END RSA PRIVATE KEY-----";
+    private static final String OPENSSL_DSA_HEADER = "-----BEGIN DSA PRIVATE KEY-----";
+    private static final String OPENSSL_DSA_FOOTER = "-----END DSA PRIVATE KEY-----";
+    private static final String OPENSSL_DSA_PARAMS_HEADER ="-----BEGIN DSA PARAMETERS-----";
+    private static final String OPENSSL_DSA_PARAMS_FOOTER ="-----END DSA PARAMETERS-----";
     private static final String PKCS8_HEADER = "-----BEGIN PRIVATE KEY-----";
     private static final String PKCS8_FOOTER = "-----END PRIVATE KEY-----";
     private static final String PKCS8_ENCRYPTED_HEADER = "-----BEGIN ENCRYPTED PRIVATE KEY-----";
@@ -67,35 +72,35 @@ public class PemUtils {
      * @return a private key from the contents of the file
      */
     public static PrivateKey readPrivateKey(Path keyPath, Supplier<char[]> passwordSupplier) {
-        char[] keyPassword = passwordSupplier.get();
         try (BufferedReader bReader = Files.newBufferedReader(keyPath, StandardCharsets.UTF_8)) {
             String line = bReader.readLine();
             if (null == line) {
                 throw new IllegalStateException("Error parsing Private Key from: " + keyPath.toString() + ". File is empty");
             }
             if (PKCS8_ENCRYPTED_HEADER.equals(line.trim())) {
-                if (keyPassword == null) {
+                char[] password = passwordSupplier.get();
+                if (password == null) {
                     throw new IllegalArgumentException("cannot read encrypted key without a password");
                 }
-                return parsePKCS8Encrypted(bReader, keyPassword);
+                return parsePKCS8Encrypted(bReader, password);
             } else if (PKCS8_HEADER.equals(line.trim())) {
                 return parsePKCS8(bReader);
             } else if (PKCS1_HEADER.equals(line.trim())) {
-                return parsePKCS1(bReader, keyPassword);
+                return parsePKCS1Rsa(bReader, passwordSupplier);
+            } else if (OPENSSL_DSA_HEADER.equals(line.trim())) {
+                return parseOpenSslDsa(bReader, passwordSupplier);
+            } else if (OPENSSL_DSA_PARAMS_HEADER.equals(line.trim())) {
+                return parseOpenSslDsa(removeDsaHeaders(bReader), passwordSupplier);
             } else if (OPENSSL_EC_HEADER.equals(line.trim())) {
-                return parseOpenSslEC(bReader);
+                return parseOpenSslEC(bReader, passwordSupplier);
             } else if (OPENSSL_EC_PARAMS_HEADER.equals(line.trim())) {
-                return parseOpenSslEC(removeECHeaders(bReader));
+                return parseOpenSslEC(removeECHeaders(bReader), passwordSupplier);
             } else {
                 throw new IllegalStateException("Error parsing Private Key from: " + keyPath.toString() + ". File did not contain a " +
                         "supported key format");
             }
         } catch (IOException | GeneralSecurityException e) {
             throw new IllegalStateException("Error parsing Private Key from: " + keyPath.toString(), e);
-        }finally {
-            if (null != keyPassword) {
-                Arrays.fill(keyPassword, '\u0000');
-            }
         }
     }
 
@@ -124,24 +129,29 @@ public class PemUtils {
         return bReader;
     }
 
-    private static PrivateKey parseOpenSslEC(BufferedReader bReader) throws IOException, GeneralSecurityException {
-        StringBuilder sb = new StringBuilder();
+    /**
+     * Removes the DSA Params Headers that OpenSSL adds to DSA private keys as the information in them
+     * is redundant
+     *
+     * @param bReader
+     * @throws IOException if the EC Parameter footer is missing
+     */
+    private static BufferedReader removeDsaHeaders(BufferedReader bReader) throws IOException {
         String line = bReader.readLine();
         while (line != null) {
-            if (OPENSSL_EC_FOOTER.equals(line.trim())) {
+            if (OPENSSL_DSA_PARAMS_FOOTER.equals(line.trim())) {
                 break;
             }
-            sb.append(line.trim());
             line = bReader.readLine();
         }
-        if (null == line || OPENSSL_EC_FOOTER.equals(line.trim()) == false) {
-            throw new IOException("Malformed PEM file, PEM footer is invalid or missing");
+        if (null == line || OPENSSL_DSA_PARAMS_FOOTER.equals(line.trim()) == false) {
+            throw new IOException("Malformed PEM file, DSA Parameters footer is missing");
         }
-        byte[] keyBytes = Base64.getDecoder().decode(sb.toString());
-        KeyFactory keyFactory = KeyFactory.getInstance("EC");
-        ECPrivateKeySpec ecSpec = parseEcDer(keyBytes);
-        return keyFactory.generatePrivate(ecSpec);
-
+        // Verify that the key starts with the correct header before passing it to parseOpenSslDsa
+        if (OPENSSL_DSA_HEADER.equals(bReader.readLine()) == false) {
+            throw new IOException("Malformed PEM file, DSA Key header is missing");
+        }
+        return bReader;
     }
 
     private static PrivateKey parsePKCS8(BufferedReader bReader) throws IOException, GeneralSecurityException {
@@ -166,7 +176,35 @@ public class PemUtils {
         return keyFactory.generatePrivate(new PKCS8EncodedKeySpec(keyBytes));
     }
 
-    private static PrivateKey parsePKCS1(BufferedReader bReader, char[] keyPassword) throws IOException,
+    private static PrivateKey parseOpenSslEC(BufferedReader bReader, Supplier<char[]> passwordSupplier) throws IOException,
+            GeneralSecurityException {
+        StringBuilder sb = new StringBuilder();
+        String line = bReader.readLine();
+        Map<String, String> pemHeaders = new HashMap<>();
+        while (line != null) {
+            if (OPENSSL_EC_FOOTER.equals(line.trim())) {
+                break;
+            }
+            // Parse PEM headers according to https://www.ietf.org/rfc/rfc1421.txt
+            if (line.contains(":")) {
+                String[] header = line.split(":");
+                pemHeaders.put(header[0].trim(), header[1].trim());
+            } else {
+                sb.append(line.trim());
+            }
+            line = bReader.readLine();
+        }
+        if (null == line || OPENSSL_EC_FOOTER.equals(line.trim()) == false) {
+            throw new IOException("Malformed PEM file, PEM footer is invalid or missing");
+        }
+        byte[] keyBytes = possiblyDecryptPKCS1Key(pemHeaders, sb.toString(), passwordSupplier);
+        KeyFactory keyFactory = KeyFactory.getInstance("EC");
+        ECPrivateKeySpec ecSpec = parseEcDer(keyBytes);
+        return keyFactory.generatePrivate(ecSpec);
+
+    }
+
+    private static PrivateKey parsePKCS1Rsa(BufferedReader bReader, Supplier<char[]> passwordSupplier) throws IOException,
             GeneralSecurityException {
         StringBuilder sb = new StringBuilder();
         String line = bReader.readLine();
@@ -189,13 +227,42 @@ public class PemUtils {
         if (null == line || PKCS1_FOOTER.equals(line.trim()) == false) {
             throw new IOException("Malformed PEM file, PEM footer is invalid or missing");
         }
-        byte[] keyBytes = possiblyDecryptPKCS1Key(pemHeaders, sb.toString(), keyPassword);
+        byte[] keyBytes = possiblyDecryptPKCS1Key(pemHeaders, sb.toString(), passwordSupplier);
         RSAPrivateCrtKeySpec spec = parseRsaDer(keyBytes);
         KeyFactory keyFactory = KeyFactory.getInstance("RSA");
         return keyFactory.generatePrivate(spec);
     }
 
-    private static byte[] possiblyDecryptPKCS1Key(Map<String, String> pemHeaders, String keyContents, char[] keyPassword)
+    private static PrivateKey parseOpenSslDsa(BufferedReader bReader, Supplier<char[]> passwordSupplier) throws IOException,
+            GeneralSecurityException {
+        StringBuilder sb = new StringBuilder();
+        String line = bReader.readLine();
+        Map<String, String> pemHeaders = new HashMap<>();
+
+        while (line != null) {
+            if (OPENSSL_DSA_FOOTER.equals(line.trim())) {
+                // Unencrypted
+                break;
+            }
+            // Parse PEM headers according to https://www.ietf.org/rfc/rfc1421.txt
+            if (line.contains(":")) {
+                String[] header = line.split(":");
+                pemHeaders.put(header[0].trim(), header[1].trim());
+            } else {
+                sb.append(line.trim());
+            }
+            line = bReader.readLine();
+        }
+        if (null == line || OPENSSL_DSA_FOOTER.equals(line.trim()) == false) {
+            throw new IOException("Malformed PEM file, PEM footer is invalid or missing");
+        }
+        byte[] keyBytes = possiblyDecryptPKCS1Key(pemHeaders, sb.toString(), passwordSupplier);
+        DSAPrivateKeySpec spec = parseDsaDer(keyBytes);
+        KeyFactory keyFactory = KeyFactory.getInstance("DSA");
+        return keyFactory.generatePrivate(spec);
+    }
+
+    private static byte[] possiblyDecryptPKCS1Key(Map<String, String> pemHeaders, String keyContents, Supplier<char[]> passwordSupplier)
             throws GeneralSecurityException, IOException {
         byte[] keyBytes = Base64.getDecoder().decode(keyContents);
         String procType = pemHeaders.get("Proc-Type");
@@ -206,10 +273,11 @@ public class PemUtils {
                 //malformed pem
                 throw new IOException("Malformed PEM File, DEK-Info header is missing");
             }
-            if (keyPassword == null) {
+            char[] password = passwordSupplier.get();
+            if (password == null) {
                 throw new IOException("cannot read encrypted key without a password");
             }
-            Cipher cipher = getCipherFromParameters(encryptionParameters, keyPassword);
+            Cipher cipher = getCipherFromParameters(encryptionParameters, password);
             byte[] decryptedKeyBytes = cipher.doFinal(keyBytes);
             return decryptedKeyBytes;
         }
@@ -237,24 +305,22 @@ public class PemUtils {
         String algorithm = valueTokens[0];
         String ivString = valueTokens[1];
         byte[] iv = hexStringToByteArray(ivString);
-        byte[] passwordBytes = CharArrays.toUtf8Bytes(password);
         if ("DES-CBC".equals(algorithm)) {
-            byte[] key = generateOpenSslKey(passwordBytes, iv, 8);
+            byte[] key = generateOpenSslKey(password, iv, 8);
             encryptionKey = new SecretKeySpec(key, "DES");
         } else if ("DES-EDE3-CBC".equals(algorithm)) {
-            byte[] key = generateOpenSslKey(passwordBytes, iv, 24);
+            byte[] key = generateOpenSslKey(password, iv, 24);
             encryptionKey = new SecretKeySpec(key, "DESede");
         } else if ("AES-128-CBC".equals(algorithm)) {
-            byte[] key = generateOpenSslKey(passwordBytes, iv, 16);
+            byte[] key = generateOpenSslKey(password, iv, 16);
             encryptionKey = new SecretKeySpec(key, "AES");
         } else if ("AES-192-CBC".equals(algorithm)) {
-            byte[] key = generateOpenSslKey(passwordBytes, iv, 24);
+            byte[] key = generateOpenSslKey(password, iv, 24);
             encryptionKey = new SecretKeySpec(key, "AES");
         } else if ("AES-256-CBC".equals(algorithm)) {
-            byte[] key = generateOpenSslKey(passwordBytes, iv, 32);
+            byte[] key = generateOpenSslKey(password, iv, 32);
             encryptionKey = new SecretKeySpec(key, "AES");
         } else {
-            Arrays.fill(passwordBytes, (byte) 0);
             throw new GeneralSecurityException("Private Key encrypted with unsupported algorithm: " + algorithm);
         }
         String transformation = encryptionKey.getAlgorithm() + "/" + "CBC" + "/" + padding;
@@ -269,14 +335,15 @@ public class PemUtils {
      * <p>
      * https://www.openssl.org/docs/man1.1.0/crypto/PEM_write_bio_PrivateKey_traditional.html
      */
-    private static byte[] generateOpenSslKey(byte[] password, byte[] salt, int keyLength) {
+    private static byte[] generateOpenSslKey(char[] password, byte[] salt, int keyLength) {
+        byte[] passwordBytes = CharArrays.toUtf8Bytes(password);
         MessageDigest md5 = MessageDigests.md5();
         byte[] key = new byte[keyLength];
         int copied = 0;
         int remaining;
         while (copied < keyLength) {
             remaining = keyLength - copied;
-            md5.update(password, 0, password.length);
+            md5.update(passwordBytes, 0, passwordBytes.length);
             md5.update(salt, 0, 8);// AES IV (salt) is longer but we only need 8 bytes
             byte[] tempDigest = md5.digest();
             int bytesToCopy = (remaining > 16) ? 16 : remaining; // MD5 digests are 16 bytes
@@ -287,7 +354,7 @@ public class PemUtils {
             }
             md5.update(tempDigest, 0, 16); // use previous round digest as IV
         }
-        Arrays.fill(password, (byte) 0);
+        Arrays.fill(passwordBytes, (byte) 0);
         return key;
     }
 
@@ -376,6 +443,23 @@ public class PemUtils {
         BigInteger coefficient = parser.readAsn1Object().getInteger();
 
         return new RSAPrivateCrtKeySpec(modulus, publicExponent, privateExponent, prime1, prime2, exponent1, exponent2, coefficient);
+    }
+
+    /**
+     * Parses a DER encoded DSA key to a {@link DSAPrivateKeySpec} using a minimal {@link DerParser}
+     */
+    private static DSAPrivateKeySpec parseDsaDer(byte[] keyBytes) throws IOException {
+        DerParser parser = new DerParser(keyBytes);
+        DerParser.Asn1Object sequence = parser.readAsn1Object();
+        parser = sequence.getParser();
+        parser.readAsn1Object().getInteger(); // (version) We don't need it but must read to get to p
+        BigInteger p = parser.readAsn1Object().getInteger();
+        BigInteger q = parser.readAsn1Object().getInteger();
+        BigInteger g = parser.readAsn1Object().getInteger();
+        parser.readAsn1Object().getInteger(); // we don't need x
+        BigInteger x = parser.readAsn1Object().getInteger();
+
+        return new DSAPrivateKeySpec(x, p, q, g);
     }
 
     /**

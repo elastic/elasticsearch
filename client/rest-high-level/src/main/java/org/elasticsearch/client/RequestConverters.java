@@ -44,6 +44,7 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -597,6 +598,22 @@ final class RequestConverters {
         }
 
         request.setEntity(createEntity(rolloverRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request getSettings(GetSettingsRequest getSettingsRequest) throws IOException {
+        String[] indices = getSettingsRequest.indices() == null ? Strings.EMPTY_ARRAY : getSettingsRequest.indices();
+        String[] names = getSettingsRequest.names() == null ? Strings.EMPTY_ARRAY : getSettingsRequest.names();
+
+        String endpoint = endpoint(indices, "_settings", names);
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+
+        Params params = new Params(request);
+        params.withIndicesOptions(getSettingsRequest.indicesOptions());
+        params.withLocal(getSettingsRequest.local());
+        params.withIncludeDefaults(getSettingsRequest.includeDefaults());
+        params.withMasterTimeout(getSettingsRequest.masterNodeTimeout());
+
         return request;
     }
 

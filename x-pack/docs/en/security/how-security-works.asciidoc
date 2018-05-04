@@ -9,61 +9,10 @@ layers.
 
 {security} provides the means to secure the Elastic cluster on several levels:
 
-  * User authentication
+  * <<setting-up-authentication>>
   * Authorization and Role Based Access Control (a.k.a RBAC)
   * Node/Client Authentication and Channel Encryption
   * Auditing
-
-
-[float]
-=== User Authentication
-
-User authentication is the process of identifying the users behind the requests
-that hit the cluster and verifying that indeed they are who they claim to be. The
-authentication process is handled by one or more authentication services called
-_realms_. {security} provides the following built-in realms:
-
-|======
-| `native`            | | | An internal realm where users are stored in a dedicated
-                            Elasticsearch index. With this realm, users are
-                            authenticated by usernames and passwords. The users
-                            are managed via the
-                            {ref}/security-api-users.html[User Management API].
-
-| `ldap`              | | | A realm that uses an external LDAP server to authenticate
-                            the users. With this realm, users are authenticated by
-                            usernames and passwords.
-
-| `active_directory`  | | | A realm that uses an external Active Directory Server
-                            to authenticate the users. With this realm, users
-                            are authenticated by usernames and passwords.
-
-| `pki`               | | | A realm that authenticates users using Public Key
-                            Infrastructure (PKI). This realm works in conjunction
-                            with SSL/TLS and identifies the users through the
-                            Distinguished Name (DN) of the client's X.509
-                            certificates.
-
-| `file`              | | | An internal realm where users are defined in files
-                            stored on each node in the Elasticsearch cluster.
-                            With this realm, users are authenticated by usernames
-                            and passwords. The users are managed via dedicated
-                            tools that are provided by {xpack} on installation.
-
-| `saml`              | | | A realm that uses SAML 2.0 Web SSO. This realm is
-                            designed to be used with {kib}.
-|======
-
-If none of the built-in realms meets your needs, you can also build your own
-custom realm and plug it into {xpack}.
-
-When {security} is enabled, depending on the realms you've configured, you will
-need to attach your user credentials to the requests sent to Elasticsearch. For
-example, when using realms that support usernames and passwords you can simply
-attach {wikipedia}/Basic_access_authentication[basic auth] header to the requests.
-
-For more information on user authentication see <<setting-up-authentication>>
-
 
 [float]
 === Authorization

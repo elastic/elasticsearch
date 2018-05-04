@@ -130,6 +130,8 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("brazilianstem", BrazilianStemTokenFilterFactory.class);
         filters.put("czechstem", CzechStemTokenFilterFactory.class);
         filters.put("germanstem", GermanStemTokenFilterFactory.class);
+        // this filter is not exposed and should only be used internally
+        filters.put("fixedshingle", Void.class);
         return filters;
     }
 

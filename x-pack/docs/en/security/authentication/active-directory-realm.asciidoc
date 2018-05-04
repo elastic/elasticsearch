@@ -1,5 +1,5 @@
 [[active-directory-realm]]
-=== Active Directory User Authentication
+=== Active Directory user authentication
 
 You can configure {security} to communicate with Active Directory to authenticate
 users. To integrate with Active Directory, you configure an `active_directory`
@@ -33,7 +33,7 @@ retrieves the user's group memberships from the `tokenGroups` attribute on the
 user's entry in Active Directory.
 
 [[ad-load-balancing]]
-==== Load Balancing and Failover
+==== Load balancing and failover
 The `load_balance.type` setting can be used at the realm level to configure how
 {security} should interact with multiple Active Directory servers. Two modes of
 operation are supported: failover and load balancing.
@@ -41,18 +41,17 @@ operation are supported: failover and load balancing.
 See {ref}/security-settings.html#load-balancing[Load Balancing and Failover Settings].
 
 [[ad-settings]]
-==== Active Directory Realm Settings
+==== Active Directory realm settings
 
 See {ref}/security-settings.html#ref-ad-settings[Active Directory Realm Settings].
 
 [[mapping-roles-ad]]
-==== Mapping Active Directory Users and Groups to Roles
+==== Mapping Active Directory users and groups to roles
 
 See {ref}/configuring-ad-realm.html[Configuring an Active Directory realm]. 
 
 [[ad-user-metadata]]
-==== User Metadata in Active Directory Realms
-
+==== User metadata in Active Directory realms
 When a user is authenticated via an Active Directory realm, the following
 properties are populated in the user's _metadata_:
 
@@ -72,7 +71,7 @@ Additional metadata can be extracted from the Active Directory server by configu
 the `metadata` setting on the Active Directory realm.
 
 [[active-directory-ssl]]
-==== Setting up SSL Between Elasticsearch and Active Directory
+==== Setting up SSL between Elasticsearch and Active Directory
 
 See 
 {ref}/configuring-tls.html#tls-active-directory[Encrypting communications between {es} and Active Directory].

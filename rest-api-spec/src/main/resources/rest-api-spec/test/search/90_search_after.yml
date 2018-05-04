@@ -30,9 +30,6 @@ setup:
 ---
 "search with search_after parameter":
 
-  - skip:
-      version: " - 5.99.99"
-      reason: fielddata on _id is only available as of 6.0.0
   - do:
       search:
         index: test

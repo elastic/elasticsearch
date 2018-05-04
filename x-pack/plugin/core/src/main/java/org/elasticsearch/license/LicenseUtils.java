@@ -37,4 +37,13 @@ public class LicenseUtils {
     public static boolean licenseNeedsExtended(License license) {
         return "basic".equals(license.type()) && license.expiryDate() != LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
     }
+
+    /**
+     * Checks if the signature of a self generated license with older version needs to be
+     * recreated with the new key
+     */
+    public static boolean signatureNeedsUpdate(License license) {
+        return ("basic".equals(license.type()) || "trial".equals(license.type())) &&
+                (license.version() < License.VERSION_CRYPTO_ALGORITHMS);
+    }
 }

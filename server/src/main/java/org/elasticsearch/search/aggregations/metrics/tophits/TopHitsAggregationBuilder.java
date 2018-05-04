@@ -176,7 +176,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     /**
-     * From index to start the search from. Defaults to <tt>0</tt>.
+     * From index to start the search from. Defaults to {@code 0}.
      */
     public TopHitsAggregationBuilder from(int from) {
         if (from < 0) {
@@ -194,7 +194,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     /**
-     * The number of search hits to return. Defaults to <tt>10</tt>.
+     * The number of search hits to return. Defaults to {@code 10}.
      */
     public TopHitsAggregationBuilder size(int size) {
         if (size < 0) {
@@ -535,7 +535,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
 
     /**
      * Applies when sorting, and controls if scores will be tracked as well.
-     * Defaults to <tt>false</tt>.
+     * Defaults to {@code false}.
      */
     public TopHitsAggregationBuilder trackScores(boolean trackScores) {
         this.trackScores = trackScores;

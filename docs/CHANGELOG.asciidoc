@@ -105,6 +105,10 @@ analysis module.  ({pull}30397[#30397])
 
 {ref-64}/breaking_64_api_changes.html#copy-source-settings-on-resize[Allow copying source settings on index resize operations] ({pull}30255[#30255])
 
+Rollup::
+* Validate timezone in range queries to ensure they match the selected job when
+searching ({pull}30338[#30338])
+
 [float]
 === Bug Fixes
 
@@ -221,6 +225,7 @@ Engine::
 
 Ingest::
 * Don't allow referencing the pattern bank name in the pattern bank {pull}29295[#29295] (issue: {issue}29257[#29257])
+
 [float]
 === Regressions
 Fail snapshot operations early when creating or deleting a snapshot on a repository that has been

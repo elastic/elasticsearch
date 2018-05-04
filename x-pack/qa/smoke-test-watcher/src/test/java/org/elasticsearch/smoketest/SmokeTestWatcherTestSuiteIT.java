@@ -69,9 +69,6 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
                 assertThat(templateExistsResponse.getStatusLine().getStatusCode(), is(200));
             }
         });
-
-        // TODO why does the test fail without this? relaoding isseu with the new approach? Make sure to write a unit test!
-        assertOK(adminClient().performRequest("PUT", ".watches"));
     }
 
     @After

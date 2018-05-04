@@ -121,11 +121,19 @@ public class ExecutionService extends AbstractComponent {
     }
 
     /**
-     * Pause the execution of the watcher executor
+     * Pause the execution of the watcher executor, and empty the state
      * @return the number of tasks that have been removed
      */
     public int pause() {
         paused.set(true);
+        return reload();
+    }
+
+    /**
+     * Empty the currently queued tasks and wait for current executions to finish
+     * @return the number of tasks that have been removed
+     */
+    public int reload() {
         int cancelledTaskCount = executor.queue().drainTo(new ArrayList<>());
         this.clearExecutions();
         return cancelledTaskCount;

@@ -132,7 +132,7 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
     }
 
     /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
+     * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
      */
     public final BulkRequestBuilder setTimeout(TimeValue timeout) {
         request.timeout(timeout);
@@ -140,7 +140,7 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
     }
 
     /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
+     * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
      */
     public final BulkRequestBuilder setTimeout(String timeout) {
         request.timeout(timeout);

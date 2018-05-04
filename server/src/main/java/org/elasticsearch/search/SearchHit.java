@@ -227,7 +227,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
     }
 
     /**
-     * The source of the document as string (can be <tt>null</tt>).
+     * The source of the document as string (can be {@code null}).
      */
     public String getSourceAsString() {
         if (source == null) {
@@ -242,7 +242,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
 
 
     /**
-     * The source of the document as a map (can be <tt>null</tt>).
+     * The source of the document as a map (can be {@code null}).
      */
     public Map<String, Object> getSourceAsMap() {
         if (source == null) {

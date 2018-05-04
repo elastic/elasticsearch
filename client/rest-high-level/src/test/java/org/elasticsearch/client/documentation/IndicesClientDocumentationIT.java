@@ -787,7 +787,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
 
         // tag::get-settings-request
-        GetSettingsRequest request = new GetSettingsRequest().indices("index");
+        GetSettingsRequest request = new GetSettingsRequest().indices("index"); // <1>
         // end::get-settings-request
 
         // tag::get-settings-request-names

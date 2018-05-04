@@ -44,8 +44,7 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     public static UserDictionary getUserDictionary(Environment env, Settings settings) {
-        try {
-            final Reader reader = Analysis.getReaderFromFile(env, settings, USER_DICT_OPTION);
+        try (Reader reader = Analysis.getReaderFromFile(env, settings, USER_DICT_OPTION)) {
             if (reader == null) {
                 return null;
             } else {

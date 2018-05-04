@@ -43,13 +43,13 @@ It can be set to:
 
 `discard`::
 
-    Decompose compounds and discards the original form (*default*). Example output:
+    Decomposes compounds and discards the original form (*default*). Example output:
 
     가곡역 => 가곡, 역
 
 `mixed`::
 
-    Decompose compounds and keeps the original form. Example output:
+    Decomposes compounds and keeps the original form. Example output:
 
     가곡역 => 가곡역, 가곡, 역
 --

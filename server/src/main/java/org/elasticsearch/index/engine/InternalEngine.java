@@ -2019,6 +2019,9 @@ public class InternalEngine extends Engine {
         return iwc;
     }
 
+    /**
+     * Documents including tombstones are soft-deleted and matched this query will be retained and won't cleaned up by merges.
+     */
     private Query softDeletesRetentionQuery() {
         ensureOpen();
         // TODO: We send the safe commit in peer-recovery, thus we need to retain all operations after the local checkpoint of that commit.

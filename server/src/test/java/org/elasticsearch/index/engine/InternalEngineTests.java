@@ -1350,10 +1350,14 @@ public class InternalEngineTests extends EngineTestCase {
                 liveDocs.add(doc.id());
             }
             for (int i = 0; i < numDocs; i++) {
+                ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null);
                 if (randomBoolean()) {
-                    ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null);
                     engine.delete(new Engine.Delete(doc.type(), doc.id(), newUid(doc.id()), primaryTerm.get()));
                     liveDocs.remove(doc.id());
+                }
+                if (randomBoolean()) {
+                    engine.index(indexForDoc(doc));
+                    liveDocs.add(doc.id());
                 }
             }
             long localCheckpoint = engine.getLocalCheckpointTracker().getCheckpoint();

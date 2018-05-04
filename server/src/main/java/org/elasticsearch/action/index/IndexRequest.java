@@ -416,7 +416,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
 
     /**
-     * Set to <tt>true</tt> to force this index to use {@link OpType#CREATE}.
+     * Set to {@code true} to force this index to use {@link OpType#CREATE}.
      */
     public IndexRequest create(boolean create) {
         if (create) {

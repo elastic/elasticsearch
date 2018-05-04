@@ -549,22 +549,6 @@ class BuildPlugin implements Plugin<Project> {
             javadoc.classpath = javadoc.getClasspath().filter { f ->
                 return classes.contains(f) == false
             }
-            /*
-             * Force html5 on projects that support it to silence the warning
-             * that `javadoc` will change its defaults in the future.
-             *
-             * But not all of our javadoc is actually valid html5. So we
-             * have to become valid incrementally. We only set html5 on the
-             * projects we have converted so that we still get the annoying
-             * warning on the unconverted ones. That will give us an
-             * incentive to convert them....
-             */
-            List html4Projects = [
-                ':server',
-            ]
-            if (false == html4Projects.contains(project.path)) {
-                javadoc.options.addBooleanOption('html5', true)
-            }
         }
         configureJavadocJar(project)
     }

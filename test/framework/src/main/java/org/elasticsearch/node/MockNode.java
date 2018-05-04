@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -41,6 +43,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -142,6 +145,15 @@ public class MockNode extends Node {
             return super.newClusterInfoService(settings, clusterService, threadPool, client, listener);
         } else {
             return new MockInternalClusterInfoService(settings, clusterService, threadPool, client, listener);
+        }
+    }
+
+    @Override
+    protected HttpServerTransport newHttpTransport(NetworkModule networkModule) {
+        if (getPluginsService().filterPlugins(MockHttpTransport.TestPlugin.class).isEmpty()) {
+            return super.newHttpTransport(networkModule);
+        } else {
+            return new MockHttpTransport();
         }
     }
 }

@@ -42,12 +42,12 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Implements the wildcard search query. Supported wildcards are <tt>*</tt>, which
- * matches any character sequence (including the empty one), and <tt>?</tt>,
+ * Implements the wildcard search query. Supported wildcards are {@code *}, which
+ * matches any character sequence (including the empty one), and {@code ?},
  * which matches any single character. Note this query can be slow, as it
  * needs to iterate over many terms. In order to prevent extremely slow WildcardQueries,
- * a Wildcard term should not start with one of the wildcards <tt>*</tt> or
- * <tt>?</tt>.
+ * a Wildcard term should not start with one of the wildcards {@code *} or
+ * {@code ?}.
  */
 public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuilder> implements MultiTermQueryBuilder {
     public static final String NAME = "wildcard";
@@ -63,12 +63,12 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
     private String rewrite;
 
     /**
-     * Implements the wildcard search query. Supported wildcards are <tt>*</tt>, which
-     * matches any character sequence (including the empty one), and <tt>?</tt>,
+     * Implements the wildcard search query. Supported wildcards are {@code *}, which
+     * matches any character sequence (including the empty one), and {@code ?},
      * which matches any single character. Note this query can be slow, as it
      * needs to iterate over many terms. In order to prevent extremely slow WildcardQueries,
-     * a Wildcard term should not start with one of the wildcards <tt>*</tt> or
-     * <tt>?</tt>.
+     * a Wildcard term should not start with one of the wildcards {@code *} or
+     * {@code ?}.
      *
      * @param fieldName The field name
      * @param value The wildcard query string

@@ -156,6 +156,10 @@ synchronous and predictable. Also the trigger engine thread is only started on
 data nodes. And the Execute Watch API can be triggered regardless is watcher is
 started or stopped. ({pull}30118[#30118])
 
+Removes runtime dependency on BouncyCastle for reading/parsing PEM encoded private keys
+and certificates from files. Adds support for PKCS#8 encoded, encrypted private keys
+({pull}30358[#30358])
+
 [float]
 === Bug Fixes
 

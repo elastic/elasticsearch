@@ -19,7 +19,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.UUID;
 
-import static org.elasticsearch.license.CryptUtils.encrypt;
+import static org.elasticsearch.license.CryptUtils.encryptV3Format;
 import static org.hamcrest.Matchers.equalTo;
 
 
@@ -98,7 +98,7 @@ public class SelfGeneratedLicenseTests extends ESTestCase {
         try {
             XContentBuilder contentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
             spec.toXContent(contentBuilder, new ToXContent.MapParams(Collections.singletonMap(License.LICENSE_SPEC_VIEW_MODE, "true")));
-            byte[] encrypt = encrypt(BytesReference.toBytes(BytesReference.bytes(contentBuilder)));
+            byte[] encrypt = encryptV3Format(BytesReference.toBytes(BytesReference.bytes(contentBuilder)));
             byte[] bytes = new byte[4 + 4 + encrypt.length];
             ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
             byteBuffer.putInt(-spec.version())

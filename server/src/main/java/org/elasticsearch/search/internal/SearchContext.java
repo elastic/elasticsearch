@@ -243,7 +243,7 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
     public abstract SearchContext trackTotalHits(boolean trackTotalHits);
 
     /**
-     * Indicates if the total hit count for the query should be tracked. Defaults to <tt>true</tt>
+     * Indicates if the total hit count for the query should be tracked. Defaults to {@code true}
      */
     public abstract boolean trackTotalHits();
 

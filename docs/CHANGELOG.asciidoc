@@ -3,7 +3,7 @@
 
 [partintro]
 --
-// To add a release, copy and paste the placeholder text at the bottom
+// To add a release, copy and paste the template text 
 // and add a link to the new section. Note that release subheads must
 // be floated and sections cannot be empty.
 
@@ -15,6 +15,7 @@
 This section summarizes the changes in each release.
 
 * <<release-notes-6.4.0>>
+* <<release-notes-6.3.1>>
 * <<release-notes-6.3.0>>
 * <<release-notes-6.2.4>>
 * <<release-notes-6.2.3>>
@@ -35,12 +36,49 @@ This section summarizes the changes in each release.
 * <<release-notes-6.0.0-alpha2>>
 * <<release-notes-6.0.0-alpha1>>
 * <<release-notes-6.0.0-alpha1-5x>>
-* <<release-notes-6.3.1>>
 
 --
 
+////
+// To add a release, copy and paste the following text,  uncomment the relevant
+// sections, and add a link to the new section in the list of releases at the
+// top of the page. Note that release subheads must be floated and sections
+// cannot be empty.
+// TEMPLATE
+
+// [[release-notes-n.n.n]]
+// == {es} n.n.n
+
+//[float]
+[[breaking-n.n.n]]
+//=== Breaking Changes
+
+//[float]
+//=== Breaking Java Changes
+
+//[float]
+//=== Deprecations
+
+//[float]
+//=== New Features
+
+//[float]
+//=== Enhancements
+
+//[float]
+//=== Bug Fixes
+
+//[float]
+//=== Regressions
+
+//[float]
+//=== Known Issues
+////
+
 [[release-notes-6.4.0]]
 == {es} version 6.4.0
+
+coming[6.4.0]
 
 //[float]
 //[[breaking-6.4.0]]
@@ -77,8 +115,42 @@ Fix NPE when CumulativeSum agg encounters null value/empty bucket ({pull}29641[#
 //[float]
 //=== Known Issues
 
+[[release-notes-6.3.1]]
+== Elasticsearch version 6.3.1
+
+coming[6.3.1]
+
+//[float]
+[[breaking-6.3.1]]
+//=== Breaking Changes
+
+//[float]
+//=== Breaking Java Changes
+
+//[float]
+//=== Deprecations
+
+//[float]
+//=== New Features
+
+//[float]
+//=== Enhancements
+
+[float]
+=== Bug Fixes
+
+Reduce the number of object allocations made by {security} when resolving the indices and aliases for a request ({pull}30180[#30180])
+
+//[float]
+//=== Regressions
+
+//[float]
+//=== Known Issues
+
 [[release-notes-6.3.0]]
 == {es} version 6.3.0
+
+coming[6.3.0]
 
 [float]
 [[breaking-6.3.0]]
@@ -410,58 +482,6 @@ environment file.
 Machine Learning::
 
 * Account for gaps in data counts after job is reopened ({pull}30294[#30294])
-
-[[release-notes-6.3.1]]
-== Elasticsearch version 6.3.1
-
-//[float]
-//=== New Features
-
-//[float]
-//=== Enhancements
-
-[float]
-=== Bug Fixes
-
-Reduce the number of object allocations made by {security} when resolving the indices and aliases for a request ({pull}30180[#30180])
-
-//[float]
-//=== Regressions
-
-//[float]
-//=== Known Issues
-
-// To add a release, copy and paste the following text,  uncomment the relevant
-// sections, and add a link to the new section in the list of releases at the
-// top of the page. Note that release subheads must be floated and sections
-// cannot be empty.
-
-// [[release-notes-n.n.n]]
-// == {es} n.n.n
-
-//[float]
-//=== Breaking Changes
-
-//[float]
-//=== Breaking Java Changes
-
-//[float]
-//=== Deprecations
-
-//[float]
-//=== New Features
-
-//[float]
-//=== Enhancements
-
-//[float]
-//=== Bug Fixes
-
-//[float]
-//=== Regressions
-
-//[float]
-//=== Known Issues
 
 [[release-notes-6.2.0]]
 == {es} version 6.2.0

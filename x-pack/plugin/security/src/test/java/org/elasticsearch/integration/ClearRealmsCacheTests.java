@@ -174,11 +174,8 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
     }
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .build();
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
     }
 
     @Override

@@ -88,6 +88,8 @@ verify_package_installation() {
     id elasticsearch
 
     getent group elasticsearch
+    # homedir is set in /etc/passwd but to a non existent directory
+    assert_file_not_exist $(getent passwd elasticsearch | cut -d: -f6)
 
     assert_file "$ESHOME" d root root 755
     assert_file "$ESHOME/bin" d root root 755
@@ -116,9 +118,10 @@ verify_package_installation() {
         # Env file
         assert_file "/etc/default/elasticsearch" f root elasticsearch 660
 
-        # Doc files
-        assert_file "/usr/share/doc/elasticsearch" d root root 755
-        assert_file "/usr/share/doc/elasticsearch/copyright" f root root 644
+        # Machine-readable debian/copyright file
+        local copyrightDir=$(readlink -f /usr/share/doc/$PACKAGE_NAME)
+        assert_file $copyrightDir d root root 755
+        assert_file "$copyrightDir/copyright" f root root 644
     fi
 
     if is_rpm; then

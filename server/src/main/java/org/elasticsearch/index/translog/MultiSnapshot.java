@@ -87,7 +87,7 @@ final class MultiSnapshot implements Translog.Snapshot {
         private final LongObjectHashMap<CountedBitSet> bitSets = new LongObjectHashMap<>();
 
         /**
-         * Marks this sequence number and returns <tt>true</tt> if it is seen before.
+         * Marks this sequence number and returns {@code true} if it is seen before.
          */
         boolean getAndSet(long value) {
             assert value >= 0;

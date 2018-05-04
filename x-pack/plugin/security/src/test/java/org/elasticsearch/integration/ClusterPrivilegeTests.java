@@ -57,9 +57,13 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
     }
 
     @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
+    }
+
+    @Override
     protected Settings nodeSettings() {
         return Settings.builder().put(super.nodeSettings())
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .put("path.repo", repositoryLocation)
                 .build();
     }

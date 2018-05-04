@@ -110,16 +110,3 @@ client HTTP responses, defaults to unbounded.
 
 It also uses the common
 <<modules-network,network settings>>.
-
-[float]
-=== Disable HTTP
-
-The http module can be completely disabled and not started by setting
-`http.enabled` to `false`. Elasticsearch nodes (and Java clients) communicate
-internally using the <<modules-transport,transport interface>>, not HTTP. It
-might make  sense to disable the `http` layer entirely on nodes which are not
-meant to serve REST requests directly. For instance, you could disable HTTP on
-<<modules-node,data-only nodes>> if you also have
-<<modules-node,client nodes>> which are intended to serve all REST requests.
-Be aware, however, that you will not be able to send any REST requests (eg to
-retrieve node stats) directly to nodes which have HTTP disabled.

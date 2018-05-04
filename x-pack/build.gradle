@@ -23,10 +23,8 @@ subprojects {
   ext.licenseName = 'Elastic License'
   ext.licenseUrl = "https://raw.githubusercontent.com/elastic/elasticsearch/${licenseCommit}/licenses/ELASTIC-LICENSE.txt"
 
-  plugins.withType(BuildPlugin).whenPluginAdded {
-    project.licenseFile = rootProject.file('licenses/ELASTIC-LICENSE.txt')
-    project.noticeFile = xpackRootProject.file('NOTICE.txt')
-  }
+  project.ext.licenseFile = rootProject.file('licenses/ELASTIC-LICENSE.txt')
+  project.ext.noticeFile = xpackRootProject.file('NOTICE.txt')
 
   plugins.withType(PluginBuildPlugin).whenPluginAdded {
     project.esplugin.licenseFile = rootProject.file('licenses/ELASTIC-LICENSE.txt')

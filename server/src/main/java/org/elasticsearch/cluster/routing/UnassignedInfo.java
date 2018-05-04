@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -34,13 +35,18 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
+import org.joda.time.DateTime;
+
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * Holds additional information as to why the shard is in unassigned state.
@@ -48,6 +54,8 @@ import java.util.Objects;
 public final class UnassignedInfo implements ToXContentFragment, Writeable {
 
     public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("dateOptionalTime");
+
+    private static final String MSG_DELIMITER = ",";
 
     public static final Setting<TimeValue> INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING =
         Setting.positiveTimeSetting("index.unassigned.node_left.delayed_timeout", TimeValue.timeValueMinutes(1), Property.Dynamic,
@@ -347,7 +355,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         if (message == null) {
             return null;
         }
-        return message + (failure == null ? "" : ", failure " + ExceptionsHelper.detailedMessage(failure));
+        return message + (failure == null ? "" : MSG_DELIMITER + " failure " + ExceptionsHelper.detailedMessage(failure));
     }
 
     /**
@@ -431,19 +439,94 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("unassigned_info");
-        builder.field("reason", reason);
-        builder.field("at", DATE_TIME_FORMATTER.printer().print(unassignedTimeMillis));
+        builder.field(Fields.REASON, reason);
+        builder.field(Fields.AT, DATE_TIME_FORMATTER.printer().print(unassignedTimeMillis));
         if (failedAllocations >  0) {
-            builder.field("failed_attempts", failedAllocations);
+            builder.field(Fields.FAILED_ATTEMPTS, failedAllocations);
         }
-        builder.field("delayed", delayed);
+        builder.field(Fields.DELAYED, delayed);
         String details = getDetails();
         if (details != null) {
-            builder.field("details", details);
+            builder.field(Fields.DETAILS, details);
         }
-        builder.field("allocation_status", lastAllocationStatus.value());
+        builder.field(Fields.ALLOCATION_STATUS, lastAllocationStatus.value());
         builder.endObject();
         return builder;
+    }
+
+    public static UnassignedInfo fromXContent(XContentParser parser) throws IOException {
+        ensureExpectedToken(Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        XContentLocation startingLocation = parser.getTokenLocation();
+        Reason reason = null;
+        String message = null;
+        // The exception always remains null as constructing an exception from 'details'
+        // is too much work
+        Exception failure = null;
+        int failedAllocations = 0;
+        // See UnassignedInfo(StreamInput in) constructor for details on why we reset the time here
+        Long unassignedTimeNanos = System.nanoTime();
+        Long unassignedTimeMillis = null;
+        Boolean delayed = null;
+        AllocationStatus allocationStatus = null;
+
+        for (Token t = parser.nextToken(); t != Token.END_OBJECT; t = parser.nextToken()) {
+            ensureExpectedToken(Token.FIELD_NAME, t, parser::getTokenLocation);
+            String fieldName = parser.currentName();
+            t = parser.nextToken();
+            switch (fieldName) {
+                case Fields.REASON:
+                    ensureExpectedToken(Token.VALUE_STRING, t, parser::getTokenLocation);
+                    reason = Reason.valueOf(parser.text().toUpperCase(Locale.ROOT));
+                    break;
+                case Fields.AT:
+                    ensureExpectedToken(Token.VALUE_STRING, t, parser::getTokenLocation);
+                    DateTime dt = DATE_TIME_FORMATTER.parser().parseDateTime(parser.text());
+                    unassignedTimeMillis = dt.getMillis();
+                    break;
+                case Fields.FAILED_ATTEMPTS:
+                    ensureExpectedToken(Token.VALUE_NUMBER, t, parser::getTokenLocation);
+                    failedAllocations = parser.intValue();
+                    break;
+                case Fields.DELAYED:
+                    ensureExpectedToken(Token.VALUE_BOOLEAN, t, parser::getTokenLocation);
+                    delayed = parser.booleanValue();
+                    break;
+                case Fields.DETAILS:
+                    ensureExpectedToken(Token.VALUE_STRING, t, parser::getTokenLocation);
+                    // We ignore the exception but take the message out
+                    // This only works if the message itself did not contain the delimiter
+                    // The length of the resulting array from split can never be smaller than 1
+                    // The pattern MSG_DELIMITER is applied limit-1 times which serves our purpose
+                    message = parser.text().split(MSG_DELIMITER, 2)[0];
+                    break;
+                case Fields.ALLOCATION_STATUS:
+                    ensureExpectedToken(Token.VALUE_STRING, t, parser::getTokenLocation);
+                    allocationStatus = AllocationStatus.valueOf(parser.text().toUpperCase(Locale.ROOT));
+                    break;
+                default:
+                    parser.skipChildren(); // else skip the whole tree with this fieldname
+                    break;
+            }
+        }
+        if (reason != null &&
+            unassignedTimeMillis != null &&
+            delayed != null &&
+            allocationStatus != null
+            ) {
+            return new UnassignedInfo(reason, message, null, failedAllocations, unassignedTimeNanos,
+                unassignedTimeMillis, delayed, allocationStatus);
+        } else {
+            throw new ParsingException(startingLocation, "Unable to construct UnassignedInfo from JSON");
+        }
+    }
+
+    static final class Fields {
+        public static final String REASON = "reason";
+        public static final String AT = "at";
+        public static final String FAILED_ATTEMPTS = "failed_attempts";
+        public static final String DELAYED = "delayed";
+        public static final String DETAILS = "details";
+        public static final String ALLOCATION_STATUS = "allocation_status";
     }
 
     @Override

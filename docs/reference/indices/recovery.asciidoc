@@ -88,6 +88,7 @@ Response:
       "total_time_in_millis" : 175576,
       "source" : {
         "repository" : "my_repository",
+        "snapshot_uuid" : "faOyRKQOQwy8ze5yhwlAcQ",
         "snapshot" : "my_snapshot",
         "index" : "index1",
         "version" : "{version}"

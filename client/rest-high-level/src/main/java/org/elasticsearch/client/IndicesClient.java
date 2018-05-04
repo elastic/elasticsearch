@@ -34,6 +34,8 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
@@ -263,6 +265,27 @@ public final class IndicesClient {
     public void flushAsync(FlushRequest flushRequest, ActionListener<FlushResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(flushRequest, RequestConverters::flush, FlushResponse::fromXContent,
                 listener, emptySet(), headers);
+    }
+
+    /** Initiate a synced flush manually using the synced flush API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-synced-flush.html">
+     *     Synced flush API on elastic.co</a>
+     */
+    public SyncedFlushResponse flushSynced(SyncedFlushRequest syncedFlushRequest, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(syncedFlushRequest, RequestConverters::syncedFlush,
+            SyncedFlushResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously initiate a synced flush manually using the synced flush API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-synced-flush.html">
+     *     Synced flush API on elastic.co</a>
+     */
+    public void flushSyncedAsync(SyncedFlushRequest syncedFlushRequest, ActionListener<SyncedFlushResponse> listener, Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(syncedFlushRequest, RequestConverters::syncedFlush,
+            SyncedFlushResponse::fromXContent, listener, emptySet(), headers);
     }
 
     /**

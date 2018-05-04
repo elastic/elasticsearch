@@ -21,6 +21,12 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -232,5 +238,33 @@ public class ShardRoutingTests extends ESTestCase {
                 assertEquals(byteSize, routing.getExpectedShardSize());
             }
         }
+    }
+
+    public void testXContentSerialization() throws IOException {
+        final XContentType xContentType = randomFrom(XContentType.values());
+        ShardRouting routing = randomShardRouting("index", randomInt(5));
+        assertNotNull(routing);
+        XContentBuilder builder = XContentBuilder.builder(xContentType.xContent());
+        routing.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        XContentParser parser = builder
+            .generator()
+            .contentType()
+            .xContent()
+            .createParser(
+                xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput()
+            );
+        parser.nextToken();
+        ShardRouting deserializedRouting = ShardRouting.fromXContent(parser);
+        assertNotNull(deserializedRouting);
+        assertEquals(routing.state(), deserializedRouting.state());
+        assertEquals(routing.primary(), deserializedRouting.primary());
+        assertEquals(routing.currentNodeId(), deserializedRouting.currentNodeId());
+        assertEquals(routing.relocatingNodeId(), deserializedRouting.relocatingNodeId());
+        assertEquals(routing.id(), deserializedRouting.id()); // Check if shardId is equals
+        assertEquals(routing.getIndexName(), deserializedRouting.getIndexName());
+        assertEquals(routing.getExpectedShardSize(), deserializedRouting.getExpectedShardSize());
+        assertEquals(routing.allocationId(), deserializedRouting.allocationId());
+        // We skip RecoverySource and UnassignedInfo here. Will test the serialization for them in
+        // a different class
     }
 }

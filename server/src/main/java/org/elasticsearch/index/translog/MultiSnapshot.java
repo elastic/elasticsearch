@@ -35,7 +35,6 @@ final class MultiSnapshot implements Translog.Snapshot {
     private final TranslogSnapshot[] translogs;
     private final int totalOperations;
     private int overriddenOperations;
-    private int skippedOperations;
     private final Closeable onClose;
     private int index;
     private final SeqNoSet seenSeqNo;
@@ -47,7 +46,6 @@ final class MultiSnapshot implements Translog.Snapshot {
         this.translogs = translogs;
         this.totalOperations = Arrays.stream(translogs).mapToInt(TranslogSnapshot::totalOperations).sum();
         this.overriddenOperations = 0;
-        this.skippedOperations = 0;
         this.onClose = onClose;
         this.seenSeqNo = new SeqNoSet();
         this.index = translogs.length - 1;
@@ -60,7 +58,11 @@ final class MultiSnapshot implements Translog.Snapshot {
 
     @Override
     public int skippedOperations() {
-        return skippedOperations + overriddenOperations;
+        int skippedOperations = overriddenOperations;
+        for (TranslogSnapshot translog : translogs) {
+            skippedOperations += translog.skippedOperations();
+        }
+        return skippedOperations;
     }
 
     @Override
@@ -80,7 +82,6 @@ final class MultiSnapshot implements Translog.Snapshot {
                     overriddenOperations++;
                 }
             }
-            skippedOperations += current.skippedOperations();
         }
         return null;
     }

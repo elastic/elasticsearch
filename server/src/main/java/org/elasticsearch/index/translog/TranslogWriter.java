@@ -91,7 +91,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         this.minSeqNo = initialCheckpoint.minSeqNo;
         assert initialCheckpoint.maxSeqNo == SequenceNumbers.NO_OPS_PERFORMED : initialCheckpoint.maxSeqNo;
         this.maxSeqNo = initialCheckpoint.maxSeqNo;
-        assert initialCheckpoint.trimmedAboveSeqNo == SequenceNumbers.NO_OPS_PERFORMED : initialCheckpoint.trimmedAboveSeqNo;
+        assert initialCheckpoint.trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO : initialCheckpoint.trimmedAboveSeqNo;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.seenSequenceNumbers = Assertions.ENABLED ? new HashMap<>() : null;
     }

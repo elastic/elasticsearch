@@ -697,15 +697,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Trims translog (effectively moves max visible seq# {@link Checkpoint#trimmedAboveSeqNo}) for terms below <code>belowTerm</code>
-     * and seq# above <code>aboveSeqNo</code>
+     * Trims translog for terms of files below <code>belowTerm</code> and seq# above <code>aboveSeqNo</code>.
+     * Effectively it moves max visible seq# {@link Checkpoint#trimmedAboveSeqNo} therefore {@link TranslogSnapshot} skips those operations.
      */
     public void trim(long belowTerm, long aboveSeqNo) throws IOException {
-        if (aboveSeqNo < 0) {
-            return;
-        }
-
-        final ChannelFactory channelFactory = FileChannel::open;
+        assert aboveSeqNo > 0 : "aboveSeqNo has to be positive number";
         try (ReleasableLock lock = writeLock.acquire()) {
 
             // update all existed ones (if it is necessary) as checkpoint and reader are immutable
@@ -716,11 +712,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
                 final TranslogReader newReader;
                 if (reader.getPrimaryTerm() < belowTerm
+                    && checkpoint.maxSeqNo != SequenceNumbers.NO_OPS_PERFORMED
                     && (aboveSeqNo < checkpoint.trimmedAboveSeqNo || checkpoint.trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO)) {
                     final Checkpoint newCheckpoint = new Checkpoint(checkpoint.offset, checkpoint.numOps,
                         checkpoint.generation, checkpoint.minSeqNo, checkpoint.maxSeqNo,
                         checkpoint.globalCheckpoint, checkpoint.minTranslogGeneration, aboveSeqNo);
-                    Checkpoint.write(channelFactory, checkpointFile, newCheckpoint, StandardOpenOption.WRITE);
+                    Checkpoint.write(FileChannel::open, checkpointFile, newCheckpoint, StandardOpenOption.WRITE);
 
                     IOUtils.fsync(checkpointFile, false);
                     IOUtils.fsync(checkpointFile.getParent(), true);

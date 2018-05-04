@@ -192,7 +192,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
         private final long maxSeqNo;
         private final int chunkSizeInBytes;
         private final ActionListener<Void> listener;
-        private final AtomicInteger totalPackets = new AtomicInteger();
+        private final AtomicBoolean firstMessage = new AtomicBoolean(true);
         private final AtomicInteger totalSentOps = new AtomicInteger();
         private final AtomicInteger totalSkippedOps = new AtomicInteger();
         private AtomicBoolean closed = new AtomicBoolean();
@@ -254,15 +254,15 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
                 }
             }
 
-            final long trimmedAboveSeqNo = totalPackets.get() == 0 ? maxSeqNo : SequenceNumbers.UNASSIGNED_SEQ_NO;
+            final long trimmedAboveSeqNo = firstMessage.get() && maxSeqNo > 0 ? maxSeqNo : SequenceNumbers.UNASSIGNED_SEQ_NO;
             // have to send sync request even in case of there are no operations to sync - have to sync trimmedAboveSeqNo at least
-            if (!operations.isEmpty() || totalPackets.get() == 0) {
+            if (!operations.isEmpty() || firstMessage.get()) {
                 task.setPhase("sending_ops");
                 ResyncReplicationRequest request =
-                    new ResyncReplicationRequest(shardId, primaryTerm, trimmedAboveSeqNo, operations.toArray(EMPTY_ARRAY));
+                    new ResyncReplicationRequest(shardId, trimmedAboveSeqNo, operations.toArray(EMPTY_ARRAY));
                 logger.trace("{} sending batch of [{}][{}] (total sent: [{}], skipped: [{}])", shardId, operations.size(),
                     new ByteSizeValue(size), totalSentOps.get(), totalSkippedOps.get());
-                totalPackets.incrementAndGet();
+                firstMessage.set(false);
                 syncAction.sync(request, task, primaryAllocationId, primaryTerm, this);
             } else if (closed.compareAndSet(false, true)) {
                 logger.trace("{} resync completed (total sent: [{}], skipped: [{}])", shardId, totalSentOps.get(), totalSkippedOps.get());

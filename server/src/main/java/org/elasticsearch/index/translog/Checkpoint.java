@@ -49,13 +49,13 @@ final class Checkpoint {
 
     private static final int INITIAL_VERSION = 1; // start with 1, just to recognize there was some magic serialization logic before
     private static final int VERSION_6_0_0 = 2; // introduction of global checkpoints
-    private static final int CURRENT_VERSION = 3; // introduction of global checkpoints
+    private static final int CURRENT_VERSION = 3; // introduction of trimmed above seq#
 
     private static final String CHECKPOINT_CODEC = "ckp";
 
     // size of 6.4.0 checkpoint
 
-    static final int FILE_SIZE = CodecUtil.headerLength(CHECKPOINT_CODEC)
+    static final int V3_FILE_SIZE = CodecUtil.headerLength(CHECKPOINT_CODEC)
         + Integer.BYTES  // ops
         + Long.BYTES // offset
         + Long.BYTES // generation
@@ -87,14 +87,15 @@ final class Checkpoint {
     /**
      * Create a new translog checkpoint.
      *
-     * @param offset           the current offset in the translog
-     * @param numOps           the current number of operations in the translog
-     * @param generation       the current translog generation
-     * @param minSeqNo         the current minimum sequence number of all operations in the translog
-     * @param maxSeqNo         the current maximum sequence number of all operations in the translog
-     * @param globalCheckpoint the last-known global checkpoint
+     * @param offset                the current offset in the translog
+     * @param numOps                the current number of operations in the translog
+     * @param generation            the current translog generation
+     * @param minSeqNo              the current minimum sequence number of all operations in the translog
+     * @param maxSeqNo              the current maximum sequence number of all operations in the translog
+     * @param globalCheckpoint      the last-known global checkpoint
      * @param minTranslogGeneration the minimum generation referenced by the translog at this moment.
-     * @param trimmedAboveSeqNo   the current maximum reachable (trimmed) sequence number of all operations in the translog
+     * @param trimmedAboveSeqNo     all operations with seq# above trimmedAboveSeqNo should be ignored and not read from the
+     *                              corresponding translog file
      */
     Checkpoint(long offset, int numOps, long generation, long minSeqNo, long maxSeqNo, long globalCheckpoint,
                long minTranslogGeneration, long trimmedAboveSeqNo) {
@@ -127,7 +128,8 @@ final class Checkpoint {
                                               long minTranslogGeneration) {
         final long minSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         final long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
-        return new Checkpoint(offset, 0, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration, maxSeqNo);
+        final long trimmedAboveSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+        return new Checkpoint(offset, 0, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration, trimmedAboveSeqNo);
     }
 
     static Checkpoint readCheckpointV6_4_0(final DataInput in) throws IOException {
@@ -193,7 +195,7 @@ final class Checkpoint {
                     return Checkpoint.readCheckpointV6_0_0(indexInput);
                 } else {
                     assert fileVersion == CURRENT_VERSION : fileVersion;
-                    assert indexInput.length() == FILE_SIZE : indexInput.length();
+                    assert indexInput.length() == V3_FILE_SIZE : indexInput.length();
                     return Checkpoint.readCheckpointV6_4_0(indexInput);
                 }
             }
@@ -201,7 +203,7 @@ final class Checkpoint {
     }
 
     public static void write(ChannelFactory factory, Path checkpointFile, Checkpoint checkpoint, OpenOption... options) throws IOException {
-        final ByteArrayOutputStream byteOutputStream = new ByteArrayOutputStream(FILE_SIZE) {
+        final ByteArrayOutputStream byteOutputStream = new ByteArrayOutputStream(V3_FILE_SIZE) {
             @Override
             public synchronized byte[] toByteArray() {
                 // don't clone
@@ -210,13 +212,13 @@ final class Checkpoint {
         };
         final String resourceDesc = "checkpoint(path=\"" + checkpointFile + "\", gen=" + checkpoint + ")";
         try (OutputStreamIndexOutput indexOutput =
-                 new OutputStreamIndexOutput(resourceDesc, checkpointFile.toString(), byteOutputStream, V2_FILE_SIZE)) {
+                 new OutputStreamIndexOutput(resourceDesc, checkpointFile.toString(), byteOutputStream, V3_FILE_SIZE)) {
             CodecUtil.writeHeader(indexOutput, CHECKPOINT_CODEC, CURRENT_VERSION);
             checkpoint.write(indexOutput);
             CodecUtil.writeFooter(indexOutput);
 
-            assert indexOutput.getFilePointer() == FILE_SIZE :
-                "get you numbers straight; bytes written: " + indexOutput.getFilePointer() + ", buffer size: " + FILE_SIZE;
+            assert indexOutput.getFilePointer() == V3_FILE_SIZE :
+                "get you numbers straight; bytes written: " + indexOutput.getFilePointer() + ", buffer size: " + V3_FILE_SIZE;
             assert indexOutput.getFilePointer() < 512 :
                 "checkpoint files have to be smaller than 512 bytes for atomic writes; size: " + indexOutput.getFilePointer();
 

@@ -328,9 +328,8 @@ public class SamlRealmTests extends SamlTestCase {
                 .put("path.home", dir);
         final Path ksFile = dir.resolve("cred.p12");
         final boolean testMultipleEncryptionKeyPair = randomBoolean();
-        final Tuple<X509Certificate, PrivateKey> certKeyPair1 = readKeyPair("RSA");
-        final Tuple<X509Certificate, PrivateKey> certKeyPair2 = readKeyPair("RSA");
-
+        final Tuple<X509Certificate, PrivateKey> certKeyPair1 = readKeyPair("RSA_4096");
+        final Tuple<X509Certificate, PrivateKey> certKeyPair2 = readKeyPair("RSA_2048");
         final KeyStore ks = KeyStore.getInstance("PKCS12");
         ks.load(null);
         ks.setKeyEntry(getAliasName(certKeyPair1), certKeyPair1.v2(), "key-password".toCharArray(),
@@ -374,8 +373,8 @@ public class SamlRealmTests extends SamlTestCase {
         final Path dir = createTempDir();
         final Settings.Builder builder = Settings.builder().put(REALM_SETTINGS_PREFIX + ".type", "saml").put("path.home", dir);
         final Path ksFile = dir.resolve("cred.p12");
-        final Tuple<X509Certificate, PrivateKey> certKeyPair1 = readKeyPair("RSA");
-        final Tuple<X509Certificate, PrivateKey> certKeyPair2 = readKeyPair("EC");
+        final Tuple<X509Certificate, PrivateKey> certKeyPair1 = readRandomKeyPair("RSA");
+        final Tuple<X509Certificate, PrivateKey> certKeyPair2 = readRandomKeyPair("EC");
 
         final KeyStore ks = KeyStore.getInstance("PKCS12");
         ks.load(null);
@@ -413,9 +412,9 @@ public class SamlRealmTests extends SamlTestCase {
         final Path dir = createTempDir();
         final Settings.Builder builder = Settings.builder().put(REALM_SETTINGS_PREFIX + ".type", "saml").put("path.home", dir);
         final Path ksFile = dir.resolve("cred.p12");
-        final Tuple<X509Certificate, PrivateKey> certKeyPair1 = readKeyPair("RSA");
-        final Tuple<X509Certificate, PrivateKey> certKeyPair2 = readKeyPair("RSA");
-        final Tuple<X509Certificate, PrivateKey> certKeyPair3 = readKeyPair("EC");
+        final Tuple<X509Certificate, PrivateKey> certKeyPair1 = readKeyPair("RSA_4096");
+        final Tuple<X509Certificate, PrivateKey> certKeyPair2 = readKeyPair("RSA_2048");
+        final Tuple<X509Certificate, PrivateKey> certKeyPair3 = readRandomKeyPair("EC");
 
         final KeyStore ks = KeyStore.getInstance("PKCS12");
         ks.load(null);
@@ -501,7 +500,9 @@ public class SamlRealmTests extends SamlTestCase {
     }
 
     private String getAliasName(final Tuple<X509Certificate, PrivateKey> certKeyPair) {
-        return certKeyPair.v1().getSubjectX500Principal().getName().toLowerCase(Locale.US) + "-alias";
+        // Keys are pre-generated with the same name, so add the serial no to the alias so that keystore entries won't be overwritten
+        return certKeyPair.v1().getSubjectX500Principal().getName().toLowerCase(Locale.US) + "-"+
+            certKeyPair.v1().getSerialNumber()+"-alias";
     }
 
     public void testBuildLogoutRequest() throws Exception {

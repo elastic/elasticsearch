@@ -20,7 +20,6 @@ import org.opensaml.security.credential.Credential;
 import org.opensaml.security.x509.impl.X509KeyManagerX509CredentialAdapter;
 
 import java.nio.file.Path;
-import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
@@ -63,12 +62,12 @@ public abstract class SamlTestCase extends ESTestCase {
 
     /**
      * Generates signed certificate and associates with generated key pair.
-     * @see #readKeyPair(String)
+     * @see #readRandomKeyPair(String)
      * @return X509Certificate a signed certificate, it's PrivateKey {@link Tuple}
      * @throws Exception
      */
-    protected static Tuple<X509Certificate, PrivateKey> readKeyPair() throws Exception {
-        return readKeyPair("RSA");
+    protected static Tuple<X509Certificate, PrivateKey> readRandomKeyPair() throws Exception {
+        return readRandomKeyPair("RSA");
     }
 
     /**
@@ -78,7 +77,7 @@ public abstract class SamlTestCase extends ESTestCase {
      * @return X509Certificate a signed certificate, it's PrivateKey {@link Tuple}
      * @throws Exception
      */
-    protected static Tuple<X509Certificate, PrivateKey> readKeyPair(String algorithm) throws Exception {
+    protected static Tuple<X509Certificate, PrivateKey> readRandomKeyPair(String algorithm) throws Exception {
         int keySize;
         switch (algorithm) {
             case "EC":
@@ -97,6 +96,16 @@ public abstract class SamlTestCase extends ESTestCase {
                 ("/org/elasticsearch/xpack/security/authc/saml/saml_" + algorithm + "_" + keySize + ".key").toURI());
         Path certPath = PathUtils.get(SamlTestCase.class.getResource
                 ("/org/elasticsearch/xpack/security/authc/saml/saml_" + algorithm + "_" + keySize + ".crt").toURI());
+        X509Certificate certificate = CertParsingUtils.readX509Certificates(Collections.singletonList(certPath))[0];
+        PrivateKey privateKey = PemUtils.readPrivateKey(keyPath, ""::toCharArray);
+        return new Tuple<>(certificate, privateKey);
+    }
+
+    protected static Tuple<X509Certificate, PrivateKey> readKeyPair(String keyName) throws Exception {
+        Path keyPath = PathUtils.get(SamlTestCase.class.getResource
+            ("/org/elasticsearch/xpack/security/authc/saml/saml_" + keyName + ".key").toURI());
+        Path certPath = PathUtils.get(SamlTestCase.class.getResource
+            ("/org/elasticsearch/xpack/security/authc/saml/saml_" + keyName+ ".crt").toURI());
         X509Certificate certificate = CertParsingUtils.readX509Certificates(Collections.singletonList(certPath))[0];
         PrivateKey privateKey = PemUtils.readPrivateKey(keyPath, ""::toCharArray);
         return new Tuple<>(certificate, privateKey);

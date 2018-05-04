@@ -549,8 +549,8 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final Path dir = createTempDir();
 
         final Path ksEncryptionFile = dir.resolve("saml-encryption.p12");
-        final Tuple<java.security.cert.X509Certificate, PrivateKey> certEncKeyPair1 = readKeyPair("RSA");
-        final Tuple<java.security.cert.X509Certificate, PrivateKey> certEncKeyPair2 = readKeyPair("RSA");
+        final Tuple<java.security.cert.X509Certificate, PrivateKey> certEncKeyPair1 = readKeyPair("RSA_2048");
+        final Tuple<java.security.cert.X509Certificate, PrivateKey> certEncKeyPair2 = readKeyPair("RSA_4096");
         final KeyStore ksEncrypt = KeyStore.getInstance("PKCS12");
         ksEncrypt.load(null);
         ksEncrypt.setKeyEntry(getAliasName(certEncKeyPair1), certEncKeyPair1.v2(), "key-password".toCharArray(),
@@ -562,7 +562,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         }
 
         final Path ksSigningFile = dir.resolve("saml-signing.p12");
-        final Tuple<java.security.cert.X509Certificate, PrivateKey> certKeyPairSign = readKeyPair("RSA");
+        final Tuple<java.security.cert.X509Certificate, PrivateKey> certKeyPairSign = readRandomKeyPair("RSA");
         final KeyStore ksSign = KeyStore.getInstance("PKCS12");
         ksSign.load(null);
         ksSign.setKeyEntry(getAliasName(certKeyPairSign), certKeyPairSign.v2(), "key-password".toCharArray(),
@@ -677,7 +677,9 @@ public class SamlMetadataCommandTests extends SamlTestCase {
     }
 
     private String getAliasName(final Tuple<java.security.cert.X509Certificate, PrivateKey> certKeyPair) {
-        return certKeyPair.v1().getSubjectX500Principal().getName().toLowerCase(Locale.US) + "-alias";
+        // Keys are pre-generated with the same name, so add the serial no to the alias so that keystore entries won't be overwritten
+        return certKeyPair.v1().getSubjectX500Principal().getName().toLowerCase(Locale.US) + "-"+
+            certKeyPair.v1().getSerialNumber()+"-alias";
     }
 
     private boolean validateSignature(Signature signature) {

@@ -82,11 +82,9 @@ C샤프
 세종
 세종시 세종 시        <2>
 -----------------------
---
 
 <1> A simple noun
 <2> A compound noun (`세종시`) followed by its decomposition: `세종` and `시`.
-
 
 Then create an analyzer as follows:
 

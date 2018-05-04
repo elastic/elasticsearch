@@ -1,65 +1,110 @@
 [[painless-casting]]
 === Casting
 
-Casting is the conversion of one type to another. Implicit casts are casts that
-occur automatically, such as during an assignment operation. Explicit casts are
-casts where you use the casting operator to explicitly convert one type to
-another. This is necessary during operations where the cast cannot be inferred.
+A cast is the conversion of the value of one type to the equivalent value of an
+inferred or specified type. Implicit casts are an inferred operation that
+automatically convert values between types within a statement or
+<<painless-operators, expression>> when necessary. Explicit casts are a
+specified operation that forcefully convert values between types and are
+required when an appropriate type for a statement or
+<<painless-operators, expression>> cannot be inferred.  If there exists no
+equivalent value for the type converted to during a cast operation an error
+will occur.  If an implicit cast is given but an explicit cast is required an
+error will occur.
 
-To cast to a new type, precede the expression by the new type enclosed in
-parentheses, for example
-`(int)x`.
-
-The following sections specify the implicit casts that can be performed and the
-explicit casts that are allowed. The only other permitted cast is casting
-a single character `String` to a `char`.
-
-*Grammar:*
+*Grammar*
 [source,ANTLR4]
 ----
 cast: '(' TYPE ')' expression
 ----
 
+*Examples*
+
+* General casts.
++
+[source,Painless]
+----
+<1> int i = (int)5L;
+<2> Map m = new HashMap();
+<3> HashMap hm = (HashMap)m;
+----
++
+<1> declare `int i`;
+    explicitly cast `long 5` to `int`;
+    assign `5` to `i`
+<2> declare `Map m`;
+    implicit cast new `HashMap` to `Map`;
+    assign `Map` value to `m`
+<3> declare `HashMap hm`;
+    explicit cast `Map m` to `HashMap`;
+    assign `Map` value to `hm`
+
 [[numeric-casting]]
 ==== Numeric Casting
 
-The following table shows the allowed implicit and explicit casts between
-numeric types. Read the table by row. To find out if you need to explicitly
-cast from type A to type B, find the row for type A and scan across to the
-column for type B.
+A numeric cast is the conversion of the value of one
+<<primitive-types, numeric type>> to the equivalent value of an inferred or
+specified <<primitive-types, numeric type>>. Casts between values of
+<<primitive-types, numeric types>> will result in data loss when the value of
+the type converted from is larger than the equivalent value of the type
+converted to can accommodate. Casts between values of integral types and values
+of floating point types will result in precision loss when the value of the
+integral type converted from is unable to accurately represent the equivalent
+value of the floating point type converted to and vice versa.
 
-IMPORTANT: Explicit casts between numeric types can result in some data loss. A
-smaller numeric type cannot necessarily accommodate the value from a larger
-numeric type. You might also lose precision when casting from integer types
-to floating point types.
+The table below illustrates legal casts between values of
+<<primitive-types, numeric types>> and if the cast must be explicit.  Each cast
+is read as a conversion of row to column.
 
 |====
-|       | byte     | short    | char     | int      | long     | float    | double
-| byte  |          | implicit | implicit | implicit | implicit | implicit | implicit
-| short | explicit |          | explicit | implicit | implicit | implicit | implicit
-| char  | explicit | explicit |          | implicit | implicit | implicit | implicit
-| int   | explicit | explicit | explicit |          | implicit | implicit | implicit
-| long  | explicit | explicit | explicit | explicit |          | implicit | implicit
-| float | explicit | explicit | explicit | explicit | explicit |          | implicit
+|        | byte     | short    | char     | int      | long     | float    | double
+| byte   |          | implicit | implicit | implicit | implicit | implicit | implicit
+| short  | explicit |          | explicit | implicit | implicit | implicit | implicit
+| char   | explicit | explicit |          | implicit | implicit | implicit | implicit
+| int    | explicit | explicit | explicit |          | implicit | implicit | implicit
+| long   | explicit | explicit | explicit | explicit |          | implicit | implicit
+| float  | explicit | explicit | explicit | explicit | explicit |          | implicit
 | double | explicit | explicit | explicit | explicit | explicit | explicit |
 |====
 
+*Examples*
 
-Example(s)
-[source,Java]
+* Valid numeric casts.
++
+[source,Painless]
 ----
-int a = 1;            // Declare int variable a and set it to the literal
-                      //   value 1
-long b = a;           // Declare long variable b and set it to int variable
-                      //    a with an implicit cast to convert from int to long
-short c = (short)b;   // Declare short variable c, explicitly cast b to a
-                      //   short, and assign b to c
-byte d = a;           // ERROR: Casting an int to a byte requires an explicit
-                      //   cast
-double e = (double)a; // Explicitly cast int variable a to a double and assign
-                      //   it to the double variable e. The explicit cast is
-                      //   allowed, but it is not necessary.
+<1> int a = 1;
+<2> long b = a;
+<3> short c = (short)b;
+<4> double e = (double)a;
 ----
++
+<1> declare `int a`;
+    assign `1` to `a`
+<2> declare `long b`;
+    implicit cast `long b` to `int`;
+    assign `int` value to `b`
+<3> declare `short c`;
+    explicit cast `long b` to `short`;
+    assign `short` value to `c`
+<4> declare `double e`;
+    explicit cast `int a` to `double`;
+    assign `double` value to `e`;
+    note this cast is extraneous and can be implicit
++
+* Invalid numeric casts resulting in errors.
++
+[source,Painless]
+----
+<1> int a = 1.0;
+<2> int b = 2;
+<3> byte c = b;
+----
++
+<1> declare `int i`;
+    *error*: cannot implicitly cast `double 1.0` to `int`
+<2> declare `int b`;
+    assign `int 2` to `b`;
 
 [[reference-casting]]
 ==== Reference Casting

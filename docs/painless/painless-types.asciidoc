@@ -17,7 +17,7 @@ and are allocated to non-heap memory.  Primitive type values are copied when
 function as arguments.
 
 Primitive types have corresponding <<reference-types, reference types>> (also
-known as a <<boxing-unboxing, boxed type>>). Any member of the corresponding
+known as <<boxing-unboxing, boxed types>>). Any member of the corresponding
 <<reference-types, reference type>> can be <<field-access, accessed>> or
 <<method-access, called>> by executing the appropriate operation on the
 primitive type value. Operations performed in this manner convert
@@ -86,11 +86,11 @@ logical quantity with two possible values of `true` and `false`
 ----
 +
 <1> declare `int i`;
-    assign `1` to `i`
+    assign `int 1` to `i`
 <2> declare `double d`;
-    assign the default value of `0.0` to `d`
+    assign the default value `double 0.0` to `d`
 <3> declare `boolean b`;
-    assign `true` to `b`
+    assign `boolean true` to `b`
 +
 * Method call on a primitive type from the corresponding
 <<reference-types, reference type>>.
@@ -102,9 +102,9 @@ logical quantity with two possible values of `true` and `false`
 ----
 +
 <1> declare `int i`;
-    assign `1` to `i`
-<2> implicitly convert (box) `i` to the reference type `Integer`;
-    call the non-static member method `toString` on the converted (boxed) value
+    assign `int 1` to `i`
+<2> box `i` to `Integer`;
+    return `String '1'` from call `toString`
 
 [[reference-types]]
 ==== Reference Types
@@ -187,12 +187,14 @@ relationships.
 ----
 +
 <1> declare `List l`;
-    assign a new `ArrayList` to `l`
-<2> call non-static member method `add` on `l` with arguments of `1`
+    implicit cast `new Arraylist` to `List`;
+    assign to `l`
+<2> call `add` on `l` with arguments `(box int 1)`
 <3> declare `int i`;
-    call non-static member method `get` on `l` with arguments `0`;
-    add `1` to `2`;
-    assign `3` to `i`
+    return `Integer 1` from call `get` on `l` with arguments `(int 0)`;
+    unbox Integer `1`;
+    add `int 1` and `int 2`;
+    assign to `i`
 +
 * Sharing a reference type instance.
 +
@@ -206,16 +208,19 @@ relationships.
 ----
 +
 <1> declare `List l0`;
-    assign a new `ArrayList` to `l0`
+    implicit cast `new ArrayList` to `List`;
+    assign to `l0`
 <2> declare `List l1`;
-    assign a shallow-copy of `l0` to `l1`
-<3> call non-static member method `add` on l0 with arguments of `1`
-<4> call non-static member method `add` on l1 with arguments of `2`
+    assign shallow-copy of `l0` to `l1`
+<3> call `add` on `l0` with arguments `(box int 1)`
+<4> call `add` on `l1` with arguments `(box int 2)`
 <5> note `l0` and `l1` refer to the same reference type instance;
-    call non-static member method `get` on `l1` with arguments `0`;
-    call non-static member method `get` on `l0` with arguments `1`;
-    add `1` to `2`;
-    assign `3` to `i`;
+    return `Integer 1` from call `get` on `l1` with arguments `(int 0)`;
+    unbox `Integer 1`;
+    return `Integer 2` from call get` on `l0` with arguments `(int 1)`;
+    unbox `Integer 2`;
+    add `int 1` and `int 2`;
+    assign to `i`;
 +
 * Using the static members of a reference type.
 +

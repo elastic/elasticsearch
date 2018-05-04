@@ -44,14 +44,22 @@ assignment: '=' expression;
 <7> Map[][] m;
 ----
 +
-<1> declare a variable of type `int` and identifier `x`
-<2> declare a variable of type `List` and identifier `y`
-<3> declare three variables of type `int` and identifiers `x`, `y`, `z`
-<4> declare a variable of type `def` and identifier `d`
-<5> declare a variable of type `int` and identifier `i`;
-    assign the integer literal `10` to `i`
-<6> declare a 1-dimensional array type variable of `float` and identifier `f`
-<7> declare a 2-dimensional array type variable of `Map` and identifier `m`
+<1> declare `int x`;
+    assign default value `null` to `x`
+<2> declare `List y`;
+    assign default value `null` to `y`
+<3> declare `int x`, `int y`, and int `z`;
+    assign default value `int 0` to `x`;
+    assign default value `int 0` to `y`;
+    assign default value `int 0` to `z`;
+<4> declare `def d`;
+    assign default value `null` to `d`
+<5> declare `int i`;
+    assign `int 10` to `i`
+<6> declare `float[] f`;
+    assign default value `null` to `f`
+<7> declare `Map[][] m`;
+    assign default value `null` to `m`
 
 [[assignment]]
 ==== Assignment
@@ -60,7 +68,7 @@ Use the `equals` operator (`=`) to assign a value to a variable. Any expression
 that produces a value can be assigned to any variable as long as the
 <<painless-types, types>> are the same or the resultant
 <<painless-types, type>> can be implicitly <<painless-casting, cast>> to
-the variable <<painless-types, type>>.  Otherwise, an error will occur.
+the variable <<painless-types, type>>.
 
 *Grammar*
 [source,ANTLR4]
@@ -79,8 +87,8 @@ assignment: ID '=' expression
 ----
 +
 <1> declare `int i`;
-    assign default value `0` to `i`
-<2> assign `10` to `i`
+    assign default value `int 0` to `i`
+<2> assign `int 10` to `i`
 +
 * <<declaration, Declaration>> combined with immediate variable assignment.
 +
@@ -91,9 +99,9 @@ assignment: ID '=' expression
 ----
 +
 <1> declare `int i`;
-    assign `10` to `i`
+    assign `int 10` to `i`
 <2> declare `double j`;
-    assign `2.0` to `j`
+    assign `double 2.0` to `j`
 +
 * Assignment of one variable to another using
 <<primitive-types, primitive types>>.
@@ -105,7 +113,7 @@ assignment: ID '=' expression
 ----
 +
 <1> declare `int i`;
-    assign `10` to `i`
+    assign `int 10` to `i`
 <2> declare `int j`;
     assign `j` to `i`
 +
@@ -119,9 +127,10 @@ assignment: ID '=' expression
 ----
 +
 <1> declare `ArrayList l`;
-    assign a newly-allocated `Arraylist` to `l`
+    assign `new Arraylist` to `l`
 <2> declare `Map m`;
-    assign a newly-allocated `HashMap` to `m` with an implicit cast to `Map`
+    implicit cast `new HashMap` to `Map`;
+    assign to `m`
 +
 * Assignment of one variable to another using
 <<reference-types, reference types>>.
@@ -135,12 +144,13 @@ assignment: ID '=' expression
 ----
 +
 <1> declare `List l`;
-    assign a newly-allocated `Arraylist` to `l` with an implicit cast to `List`
+    implicit cast `new ArrayList` to `List`;
+    assign to `l`
 <2> declare `List k`;
-    assign a shallow-copy of `l` to `k`
+    assign shallow-copy of `l` to `k`;
 <3> declare `List m`;
     assign default value `null` to `m`
-<4> assign a shallow-copy of `k` to `m`
+<4> assign shallow-copy of `k` to `m`
 +
 * Assignment with the <<array-type, array type>> using the
 <<new-array, new operator>>.
@@ -152,16 +162,17 @@ assignment: ID '=' expression
 <3> ia1[0] = 1;
 <4> int[] ib1 = ia1;
 <5> int[][] ic2 = new int[2][5];
-<6> ic2[0][0] = 2;
+<6> ic2[1][3] = 2;
 <7> ic2[0] = ia1;
 ----
 +
-<1> declare `int[] ia1`
-<2> assign a newly-allocated 1-dimensional array type of `int` to `ia1`
-<3> assign `1` to the 0th index of `ia1`
+<1> declare `int[] ia1`;
+    assign default value `null` to `ia1`
+<2> assign `new 1-d int array` to `ia1` with length `[2]`
+<3> assign `int 1` to index `[0]` of `ia1`
 <4> declare `int[] ib1`;
-    assign a shallow-copy of `ia1` to `ib1`
+    assign shallow-copy of `ia1` to `ib1`
 <5> declare `int[][] ic2`;
-    assign a newly-allocated 2-dimensional array type of `int` to `ic2`
-<6> assign `2` to the 0th index of the 0th index of `ic2`
-<7> assign a shallow-copy of `ia1` to the 0th index of `ic2`
+    assign `new 2-d int array` to `ic2` with length `[2, 5]`
+<6> assign `int 2` to index `[1, 3]` of `ic2`
+<7> assign shallow-copy of `ia1` to index `[0]` of `ic2`;

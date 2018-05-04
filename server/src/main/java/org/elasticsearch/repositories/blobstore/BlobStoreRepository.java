@@ -931,7 +931,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
 
         /**
-         * Writes a new shard's index file and removes all unreferenced files from the repository.
+         * Writes a new index file for the shard and removes all unreferenced files from the repository.
          *
          * We need to be really careful in handling index files in case of failures to make sure we don't
          * have index file that points to files that were deleted.
@@ -958,21 +958,36 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 // Delete all temporary index files
                 for (final String blobName : blobs.keySet()) {
                     if (indexShardSnapshotsFormat.isTempBlobName(blobName)) {
-                        blobContainer.deleteBlobIgnoringIfNotExists(blobName);
+                        try {
+                            blobContainer.deleteBlobIgnoringIfNotExists(blobName);
+                        } catch (IOException e) {
+                            logger.debug("[{}][{}] failed to delete temporary index blob [{}] during finalization",
+                                snapshotId, shardId, blobName, e);
+                        }
                     }
                 }
 
                 // Delete old index files
                 for (final String blobName : blobs.keySet()) {
-                    if (blobName.startsWith(SNAPSHOT_INDEX_PREFIX) && (blobName.equals(currentIndexGen) == false)) {
-                        blobContainer.deleteBlobIgnoringIfNotExists(blobName);
+                    if (blobName.startsWith(SNAPSHOT_INDEX_PREFIX)) {
+                        try {
+                            blobContainer.deleteBlobIgnoringIfNotExists(blobName);
+                        } catch (IOException e) {
+                            logger.debug("[{}][{}] failed to delete index blob [{}] during finalization",
+                                snapshotId, shardId, blobName, e);
+                        }
                     }
                 }
 
                 // Delete all blobs that don't exist in a snapshot
                 for (final String blobName : blobs.keySet()) {
                     if (blobName.startsWith(DATA_BLOB_PREFIX) && (updatedSnapshots.findNameFile(canonicalName(blobName)) == null)) {
-                        blobContainer.deleteBlobIgnoringIfNotExists(blobName);
+                        try {
+                            blobContainer.deleteBlobIgnoringIfNotExists(blobName);
+                        } catch (IOException e) {
+                            logger.debug("[{}][{}] failed to delete data blob [{}] during finalization",
+                                snapshotId, shardId, blobName, e);
+                        }
                     }
                 }
             } catch (IOException e) {

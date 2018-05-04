@@ -86,11 +86,11 @@ logical quantity with two possible values of `true` and `false`
 ----
 +
 <1> declare `int i`;
-    assign `int 1` to `i`
+    assign value of `int 1` to `i`
 <2> declare `double d`;
-    assign the default value `double 0.0` to `d`
+    assign default value of `double 0.0` to `d`
 <3> declare `boolean b`;
-    assign `boolean true` to `b`
+    assign value of `boolean true` to `b`
 +
 * Method call on a primitive type from the corresponding
 <<reference-types, reference type>>.
@@ -102,9 +102,9 @@ logical quantity with two possible values of `true` and `false`
 ----
 +
 <1> declare `int i`;
-    assign `int 1` to `i`
-<2> box `i` to `Integer`;
-    return `String '1'` from call `toString`
+    assign value of `int 1` to `i`
+<2> box value of `i` -> `Integer 1`;
+    call `toString` on `Integer 1` -> `String '1'`
 
 [[reference-types]]
 ==== Reference Types
@@ -116,7 +116,7 @@ use in scripts.
 
 A reference type instance is a single set of data for one reference type
 object allocated to the heap. A reference type instance is allocated using the
-<<constructor-call, `new` operator>>.
+<<constructor-call, `new operator`>>.
 
 Reference type values refer to reference type instances, and multiple reference
 type values may refer to a single reference type instance. A change to a
@@ -177,7 +177,7 @@ relationships.
 
 *Examples*
 
-* Reference types used in several different <<painless-operators, operations>>.
+* Reference types used in several different <<painless-operators, operators>>.
 +
 [source,Painless]
 ----
@@ -187,14 +187,16 @@ relationships.
 ----
 +
 <1> declare `List l`;
-    implicit cast `new Arraylist` to `List`;
-    assign to `l`
-<2> call `add` on `l` with arguments `(box int 1)`
+    allocate `ArrayList` instance -> `ArrayList`;
+    implicit cast value of `Arraylist` to `List` -> `List`;
+    assign value of `List` to `l`
+<2> box value of `int 1` -> `Integer 1`;
+    call `add` on `l` with arguments `(Integer 1)`
 <3> declare `int i`;
-    return `Integer 1` from call `get` on `l` with arguments `(int 0)`;
-    unbox Integer `1`;
-    add `int 1` and `int 2`;
-    assign to `i`
+    call `get` on `l` with arguments `(int 0)` -> `Integer 1`;
+    unbox value of Integer `1` -> `int 1`;
+    add value of `int 1` and value of `int 2` -> `int 3`;
+    assign value of `int 3` to `i`
 +
 * Sharing a reference type instance.
 +
@@ -208,31 +210,37 @@ relationships.
 ----
 +
 <1> declare `List l0`;
-    implicit cast `new ArrayList` to `List`;
-    assign to `l0`
+    allocate `ArrayList` instance -> `ArrayList`;
+    implicit cast value of `ArrayList` to `List` -> `List`;
+    assign value of `List` to `l0`
 <2> declare `List l1`;
-    assign shallow-copy of `l0` to `l1`
-<3> call `add` on `l0` with arguments `(box int 1)`
-<4> call `add` on `l1` with arguments `(box int 2)`
-<5> note `l0` and `l1` refer to the same reference type instance;
-    return `Integer 1` from call `get` on `l1` with arguments `(int 0)`;
-    unbox `Integer 1`;
-    return `Integer 2` from call get` on `l0` with arguments `(int 1)`;
-    unbox `Integer 2`;
-    add `int 1` and `int 2`;
-    assign to `i`;
+    assign shallow-copy of value of `l0` to `l1`
+    (note `l0` and `l1` refer to the same instance)
+<3> box value of `int 1` -> `Integer 1`;
+    call `add` on `l0` with arguments `(Integer 1)`
+<4> box value of `int 2` -> `Integer 2`;
+    call `add` on `l1` with arguments `(Integer 2)`
+<5> call `get` on `l1` with arguments `(int 0)` -> `Integer 1`;
+    unbox value of `Integer 1` -> `int 1`;
+    call get` on `l0` with arguments `(int 1)` -> `Integer 2`;
+    unbox value of `Integer 2` -> `int 2`;
+    add `int 1` and `int 2` -> `int 3`;
+    assign value of `int 3` to `i`;
 +
 * Using the static members of a reference type.
 +
 [source,Painless]
 ----
-<1> Integer.MAX_VALUE
-<2> Long.parseLong("123L")
+<1> int i = Integer.MAX_VALUE;
+<2> Long l = Long.parseLong("123L");
 ----
 +
-<1> access static field `MAX_VALUE` on reference type `Integer`
-<2> call static member method `parseLong` on reference type `Long` with
-    arguments `long 123`
+<1> declare `int i`;
+    access `MAX_VALUE` on `Integer` -> `int 2147483647`;
+    assign value of `int 2147483647` to `i`
+<2> declare `Long l`;
+    call `parseLong` on `Long` with arguments `(long 123)` -> `Long 123`;
+    assign shallow-copy of value of `Long 123` to `l`
 
 [[dynamic-types]]
 ==== Dynamic Types
@@ -262,17 +270,18 @@ reference types directly when performance is critical.
 +
 [source,Painless]
 ----
-<1> def i = 1;
-<2> def l = new ArrayList();
-<3> l = i;
+<1> def dp = 1;
+<2> def dr = new ArrayList();
+<3> dr = dp;
 ----
 +
-<1> declare `def i`;
-    assign `1` to `i`
-<2> declare `def l`;
-    assign a new `ArrayList` to `l`
-<3> assign `i` to `l`;
-    note the switch in type from `ArrayList` to `int`
+<1> declare `def dp`;
+    assign value of `int 1` to `dp`
+<2> declare `def dr`;
+    allocate `ArrayList` instance -> `ArrayList`;
+    assign value of `ArrayList` to `dr`
+<3> assign value of `dp` to `dr`;
+    (note the switch in type of `dr` from `ArrayList` to `int`)
 
 [[string-type]]
 ==== String Type
@@ -296,13 +305,15 @@ While not required, the <<constructor-call, `new` operator>> can allocate
 ----
 +
 <1> declare `String r`;
-    assign `"some text"` to `r`
+    assign value of `"some text"` to `r`
 <2> declare `String s`;
-    assign `'some text'` to `s`
+    assign value of `'some text'` to `s`
 <3> declare `String t`;
-    assign new `String` with arguments `"some text"` to `t`
+    allocate `String` instance with arguments `("some text")`
+    -> `String "some text"`;
+    assign value of `String "some text"` to `t`
 <4> declare `String u`;
-    assign the default value of `null` to `u`
+    assign default value of `null` to `u`
 
 [[void-type]]
 ==== void Type
@@ -361,8 +372,10 @@ the array type `int[][]`.
 <5> z[0] = y[9];
 ----
 +
-<1> declare `int[] x`
+<1> declare `int[] x`;
+    assign default value of `null` to `x`
 <2> declare `float[] y`;
+    
     assign a newly-allocated array type of `float` to `y`
 <3> declare `def z`;
     assign a newly-allocated array type of `float` to `z`

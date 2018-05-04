@@ -49,8 +49,8 @@ HEX:     '-'? '0' [xX] [0-9a-fA-F]+ [lL]?;
 Use floating point literals to specify a floating point value of the
 <<primitive-types, primitive types>> `float` or `double`. Use the following
 single letter designations to specify the <<primitive-types, primitive type>>:
-`f` or `F` for `float` and `d` or `D` for `double`. If not specified, the type defaults
-to `double`.
+`f` or `F` for `float` and `d` or `D` for `double`. If not specified, the type
+defaults to `double`.
 
 *Grammar*
 [source,ANTLR4]
@@ -117,26 +117,19 @@ STRING: ( '"'  ( '\\"'  | '\\\\' | ~[\\"] )*? '"'  )
 [[characters]]
 ==== Characters
 
-Use the <<painless-casting, casting operator>> to convert string literals or
-<<string-type, String>> values into <<primitive-types, char>> values.
-<<string-type, String>> values converted into
-<<primitive-types, char>> values must be exactly one character in length
-or an error will occur.
+Character literals cannot be specified directly. Instead, use the
+<<painless-casting, `cast operator '()'`>> to convert <<string-type, String>>
+values into <<primitive-types, char>> values. <<string-type, String>> values
+converted into <<primitive-types, char>> values must be exactly one character
+in length or an error will occur.
 
 *Examples*
 
-* Casting string literals into <<primitive-types, char>> values.
+* <<character-string-casting, Casting>> string literals into
+<<primitive-types, char>> values.
 +
 [source,Painless]
 ----
 (char)"C"
 (char)'c'
-----
-+
-* Casting a <<string-type, String>> value into a <<primitive-types, char>> value.
-+
-[source,Painless]
-----
-String s = "s";
-char c = (char)s;
 ----

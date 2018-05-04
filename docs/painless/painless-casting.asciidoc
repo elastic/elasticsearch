@@ -105,6 +105,7 @@ is read as a conversion of row to column.
     *error*: cannot implicitly cast `double 1.0` to `int`
 <2> declare `int b`;
     assign `int 2` to `b`;
+<3> exist
 
 [[reference-casting]]
 ==== Reference Casting
@@ -157,6 +158,16 @@ int b = x;      // ERROR: Results in a run-time error because an explicit cast i
                 //   required to cast from a double to an int
 int c = (int)x; // Declare int variable c, explicitly cast def variable x to an
                 //   int, and assign x to c
+----
+
+[[character-string-casting]]
+==== Character-String Casting
+* Casting a <<string-type, String>> value into a <<primitive-types, char>> value.
++
+[source,Painless]
+----
+String s = "s";
+char c = (char)s;
 ----
 
 [[boxing-unboxing]]

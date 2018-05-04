@@ -128,7 +128,7 @@ public class FollowingEngineTests extends ESTestCase {
             try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
                 final VersionType versionType =
                         randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE, VersionType.FORCE);
-                final List<Engine.Operation> ops = EngineTestCase.generateSingleDocHistory(true, versionType, false, 2, 2, 20);
+                final List<Engine.Operation> ops = EngineTestCase.generateSingleDocHistory(true, versionType, 2, 2, 20, "id");
                 EngineTestCase.assertOpsOnReplica(ops, followingEngine, true, logger);
             }
         }

@@ -579,24 +579,13 @@ public abstract class EngineTestCase extends ESTestCase {
         }
     }
 
-    public static List<Engine.Operation> generateSingleDocHistory(
-            final boolean forReplica,
-            final VersionType versionType,
-            final boolean partialOldPrimary,
-            final long primaryTerm,
-            final int minOpCount,
-            final int maxOpCount) {
+    public static List<Engine.Operation> generateSingleDocHistory(boolean forReplica, VersionType versionType,
+                                                                  long primaryTerm, int minOpCount, int maxOpCount, String docId) {
         final int numOfOps = randomIntBetween(minOpCount, maxOpCount);
         final List<Engine.Operation> ops = new ArrayList<>();
-        final Term id = newUid("1");
-        final int startWithSeqNo;
-        if (partialOldPrimary) {
-            startWithSeqNo = randomBoolean() ? numOfOps - 1 : randomIntBetween(0, numOfOps - 1);
-        } else {
-            startWithSeqNo = 0;
-        }
-        final int seqNoGap = randomBoolean() ? 1 : 2;
-        final String valuePrefix = forReplica ? "r_" : "p_";
+        final Term id = newUid(docId);
+        final int startWithSeqNo = 0;
+        final String valuePrefix = (forReplica ? "r_" : "p_" ) + docId + "_";
         final boolean incrementTermWhenIntroducingSeqNo = randomBoolean();
         for (int i = 0; i < numOfOps; i++) {
             final Engine.Operation op;
@@ -618,22 +607,22 @@ public abstract class EngineTestCase extends ESTestCase {
                     throw new UnsupportedOperationException("unknown version type: " + versionType);
             }
             if (randomBoolean()) {
-                op = new Engine.Index(id, testParsedDocument("1", null, testDocumentWithTextField(valuePrefix + i), B_1, null),
-                        forReplica && i >= startWithSeqNo ? i * seqNoGap : SequenceNumbers.UNASSIGNED_SEQ_NO,
-                        forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? primaryTerm + 1 : primaryTerm,
-                        version,
-                        forReplica ? versionType.versionTypeForReplicationAndRecovery() : versionType,
-                        forReplica ? REPLICA : PRIMARY,
-                        System.currentTimeMillis(), -1, false
+                op = new Engine.Index(id, testParsedDocument(docId, null, testDocumentWithTextField(valuePrefix + i), B_1, null),
+                    forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbers.UNASSIGNED_SEQ_NO,
+                    forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? primaryTerm + 1 : primaryTerm,
+                    version,
+                    forReplica ? versionType.versionTypeForReplicationAndRecovery() : versionType,
+                    forReplica ? REPLICA : PRIMARY,
+                    System.currentTimeMillis(), -1, false
                 );
             } else {
-                op = new Engine.Delete("test", "1", id,
-                        forReplica && i >= startWithSeqNo ? i * seqNoGap : SequenceNumbers.UNASSIGNED_SEQ_NO,
-                        forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? primaryTerm + 1 : primaryTerm,
-                        version,
-                        forReplica ? versionType.versionTypeForReplicationAndRecovery() : versionType,
-                        forReplica ? REPLICA : PRIMARY,
-                        System.currentTimeMillis());
+                op = new Engine.Delete("test", docId, id,
+                    forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbers.UNASSIGNED_SEQ_NO,
+                    forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? primaryTerm + 1 : primaryTerm,
+                    version,
+                    forReplica ? versionType.versionTypeForReplicationAndRecovery() : versionType,
+                    forReplica ? REPLICA : PRIMARY,
+                    System.currentTimeMillis());
             }
             ops.add(op);
         }

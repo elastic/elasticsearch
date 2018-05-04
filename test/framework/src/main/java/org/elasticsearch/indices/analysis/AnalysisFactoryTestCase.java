@@ -131,6 +131,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("englishminimalstem",        MovedToAnalysisCommon.class)
         .put("englishpossessive",         MovedToAnalysisCommon.class)
         .put("finnishlightstem",          MovedToAnalysisCommon.class)
+        .put("fixedshingle",              MovedToAnalysisCommon.class)
         .put("frenchlightstem",           MovedToAnalysisCommon.class)
         .put("frenchminimalstem",         MovedToAnalysisCommon.class)
         .put("galicianminimalstem",       MovedToAnalysisCommon.class)

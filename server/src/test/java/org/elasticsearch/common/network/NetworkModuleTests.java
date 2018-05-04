@@ -127,9 +127,7 @@ public class NetworkModuleTests extends ModuleTestCase {
     }
 
     public void testRegisterTransport() {
-        Settings settings = Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, "custom")
-            .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-            .build();
+        Settings settings = Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, "custom").build();
         Supplier<Transport> custom = () -> null; // content doesn't matter we check reference equality
         NetworkPlugin plugin = new NetworkPlugin() {
             @Override
@@ -143,14 +141,12 @@ public class NetworkModuleTests extends ModuleTestCase {
         };
         NetworkModule module = newNetworkModule(settings, false, plugin);
         assertFalse(module.isTransportClient());
-        assertFalse(module.isHttpEnabled());
         assertSame(custom, module.getTransportSupplier());
 
         // check it works with transport only as well
         module = newNetworkModule(settings, true, plugin);
         assertSame(custom, module.getTransportSupplier());
         assertTrue(module.isTransportClient());
-        assertFalse(module.isHttpEnabled());
     }
 
     public void testRegisterHttpTransport() {
@@ -173,13 +169,10 @@ public class NetworkModuleTests extends ModuleTestCase {
         });
         assertSame(custom, module.getHttpServerTransportSupplier());
         assertFalse(module.isTransportClient());
-        assertTrue(module.isHttpEnabled());
 
-        settings = Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false)
-            .put(NetworkModule.TRANSPORT_TYPE_KEY, "local").build();
+        settings = Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, "local").build();
         NetworkModule newModule = newNetworkModule(settings, false);
         assertFalse(newModule.isTransportClient());
-        assertFalse(newModule.isHttpEnabled());
         expectThrows(IllegalStateException.class, () -> newModule.getHttpServerTransportSupplier());
     }
 
@@ -258,7 +251,6 @@ public class NetworkModuleTests extends ModuleTestCase {
 
     public void testRegisterInterceptor() {
         Settings settings = Settings.builder()
-            .put(NetworkModule.HTTP_ENABLED.getKey(), false)
             .put(NetworkModule.TRANSPORT_TYPE_KEY, "local").build();
         AtomicInteger called = new AtomicInteger(0);
 
@@ -306,7 +298,6 @@ public class NetworkModuleTests extends ModuleTestCase {
             });
         });
         assertEquals("interceptor must not be null", nullPointerException.getMessage());
-
     }
 
     private NetworkModule newNetworkModule(Settings settings, boolean transportClient, NetworkPlugin... plugins) {

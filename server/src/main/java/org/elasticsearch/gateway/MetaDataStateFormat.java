@@ -90,7 +90,7 @@ public abstract class MetaDataStateFormat<T> {
      * Writes the given state to the given directories. The state is written to a
      * state directory ({@value #STATE_DIR_NAME}) underneath each of the given file locations and is created if it
      * doesn't exist. The state is serialized to a temporary file in that directory and is then atomically moved to
-     * it's target filename of the pattern <tt>{prefix}{version}.st</tt>.
+     * it's target filename of the pattern {@code {prefix}{version}.st}.
      *
      * @param state the state object to write
      * @param locations the locations where the state should be written to.

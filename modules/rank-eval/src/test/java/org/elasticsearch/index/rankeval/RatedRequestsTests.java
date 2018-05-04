@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
@@ -54,7 +52,6 @@ import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.startsWith;
 
 public class RatedRequestsTests extends ESTestCase {
 
@@ -139,8 +136,8 @@ public class RatedRequestsTests extends ESTestCase {
             Exception exception = expectThrows(Exception.class, () -> RatedRequest.fromXContent(parser));
             if (exception instanceof XContentParseException) {
                 XContentParseException xcpe = (XContentParseException) exception;
-                assertThat(ExceptionsHelper.detailedMessage(xcpe), containsString("unknown field"));
-                assertThat(ExceptionsHelper.detailedMessage(xcpe), containsString("parser not found"));
+                assertThat(xcpe.getCause().getMessage(), containsString("unknown field"));
+                assertThat(xcpe.getCause().getMessage(), containsString("parser not found"));
             }
             if (exception instanceof XContentParseException) {
                 assertThat(exception.getMessage(), containsString("[request] failed to parse field"));

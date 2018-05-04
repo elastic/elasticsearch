@@ -56,6 +56,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -262,11 +263,9 @@ public class QueryShardContext extends QueryRewriteContext {
      */
     public Collection<String> queryTypes() {
         String[] types = getTypes();
-        if (types == null || types.length == 0) {
-            return getMapperService().types();
-        }
-        if (types.length == 1 && types[0].equals("_all")) {
-            return getMapperService().types();
+        if (types == null || types.length == 0 || (types.length == 1 && types[0].equals("_all"))) {
+            DocumentMapper mapper = getMapperService().documentMapper();
+            return mapper == null ? Collections.emptyList() : Collections.singleton(mapper.type());
         }
         return Arrays.asList(types);
     }

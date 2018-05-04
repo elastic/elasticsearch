@@ -119,7 +119,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         } else {
             throw e;
         }
-        assertFalse(indexService.mapperService().hasMapping(MapperService.DEFAULT_MAPPING));
+        assertNull(indexService.mapperService().documentMapper(MapperService.DEFAULT_MAPPING));
     }
 
     public void testTotalFieldsExceedsLimit() throws Throwable {

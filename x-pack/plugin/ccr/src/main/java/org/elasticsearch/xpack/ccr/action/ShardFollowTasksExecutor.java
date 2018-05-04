@@ -103,12 +103,14 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         Client followerClient = wrapClient(this.client, params);
         logger.info("Starting shard following [{}]", params);
         fetchGlobalCheckpoint(followerClient, params.getFollowShardId(),
-                followGlobalCheckPoint ->{
-                        shardFollowNodeTask.updateProcessedGlobalCheckpoint(followGlobalCheckPoint); prepare(leaderClient, followerClient,shardFollowNodeTask, params, followGlobalCheckPoint);
+                followGlobalCheckPoint -> {
+                        shardFollowNodeTask.updateProcessedGlobalCheckpoint(followGlobalCheckPoint);
+                        prepare(leaderClient, followerClient,shardFollowNodeTask, params, followGlobalCheckPoint);
                     }, task::markAsFailed);
     }
 
-    void prepare(Client leaderClient, Client followerClient, ShardFollowNodeTask task, ShardFollowTask params, long followGlobalCheckPoint) {
+    void prepare(Client leaderClient, Client followerClient, ShardFollowNodeTask task, ShardFollowTask params,
+                 long followGlobalCheckPoint) {
         if (task.getState() != AllocatedPersistentTask.State.STARTED) {
             // TODO: need better cancellation control
             return;
@@ -383,7 +385,9 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
             return new FilterClient(client) {
                 @Override
-                protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+                protected <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends
+                    ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response,
+                    RequestBuilder> action, Request request, ActionListener<Response> listener) {
                     final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
                     try (ThreadContext.StoredContext ignore = stashWithHeaders(threadContext, filteredHeaders)) {
                         super.doExecute(action, request, new ContextPreservingActionListener<>(supplier, listener));

@@ -1,0 +1,125 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+
+package org.elasticsearch.xpack.ml.job.process;
+
+import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.env.Environment;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+/**
+ * Provide storage for native components.
+ */
+@SuppressForbidden(reason = "provides storage to external components")
+public class NativeStorageProvider {
+
+    private static final Logger LOGGER = Loggers.getLogger(NativeStorageProvider.class);
+
+    // do not allow any usage below this threshold
+    private static final ByteSizeValue MINIMUM_LOCAL_STORAGE_AVAILABLE = new ByteSizeValue(5, ByteSizeUnit.GB);
+
+    private static final String LOCAL_STORAGE_SUBFOLDER = "ml-local-data";
+    private static final String LOCAL_STORAGE_TMP_FOLDER = "tmp";
+
+    private final Environment environment;
+
+    public NativeStorageProvider(Environment environment) {
+        this.environment = environment;
+    }
+
+    /**
+     * Removes any temporary storage leftovers.
+     *
+     * Removes all temp files and folder which might be there as a result of
+     * an unclean node shutdown or broken clients.
+     *
+     * Do not call while there are running jobs.
+     * @throws IOException if cleanup fails
+     */
+    public void cleanupLocalTmpStorageInCaseOfUncleanShutdown () throws IOException {
+        for (Path p : environment.dataFiles()) {
+            IOUtils.rm(p.resolve(LOCAL_STORAGE_SUBFOLDER).resolve(LOCAL_STORAGE_TMP_FOLDER));
+        }
+    }
+
+    /**
+     * Tries to find local storage for storing temporary data.
+     *
+     * @param uniqueIdentifier
+     *            An identifier to be used as sub folder
+     * @param requestedSizeAsBytes
+     *            The maximum size required
+     * @return Path for temporary storage if available, null otherwise
+     */
+    public Path tryGetLocalTmpStorage(String uniqueIdentifier, long requestedSizeAsBytes) {
+        for (Path path : environment.dataFiles()) {
+            try {
+                if (getUsableSpace(path) >= requestedSizeAsBytes + MINIMUM_LOCAL_STORAGE_AVAILABLE.getBytes()) {
+                    Path tmpDirectory = path.resolve(LOCAL_STORAGE_SUBFOLDER).resolve(LOCAL_STORAGE_TMP_FOLDER).resolve(uniqueIdentifier);
+                    Files.createDirectories(tmpDirectory);
+                    return tmpDirectory;
+                }
+            } catch (IOException e) {
+                LOGGER.debug("Failed to optain information about path [{}]: {}", path, e);
+            }
+
+        }
+        LOGGER.debug("Failed to find native storage for [{}], returning null", uniqueIdentifier);
+        return null;
+    }
+
+    public boolean localTmpStorageHasEnoughSpace(Path path, long requestedSizeAsBytes) {
+        Path realPath = path.toAbsolutePath();
+        for (Path p : environment.dataFiles()) {
+            try {
+                if (realPath.startsWith(p.resolve(LOCAL_STORAGE_SUBFOLDER).resolve(LOCAL_STORAGE_TMP_FOLDER))) {
+                    return getUsableSpace(p) >= requestedSizeAsBytes + MINIMUM_LOCAL_STORAGE_AVAILABLE.getBytes();
+                }
+            } catch (IOException e) {
+                LOGGER.debug("Failed to optain information about path [{}]: {}", path, e);
+            }
+        }
+
+        LOGGER.debug("Not enough space left for path [{}]", path);
+        return false;
+    }
+
+    /**
+     * Delete temporary storage, previously allocated
+     *
+     * @param path
+     *            Path to temporary storage
+     * @throws IOException
+     *             if path can not be cleaned up
+     */
+    public void cleanupLocalTmpStorage(Path path) throws IOException {
+        // do not allow to breakout from the tmp storage provided
+        Path realPath = path.toAbsolutePath();
+        for (Path p : environment.dataFiles()) {
+            if (realPath.startsWith(p.resolve(LOCAL_STORAGE_SUBFOLDER).resolve(LOCAL_STORAGE_TMP_FOLDER))) {
+                IOUtils.rm(path);
+            }
+        }
+    }
+
+    long getUsableSpace(Path path) throws IOException {
+        long freeSpaceInBytes = Environment.getFileStore(path).getUsableSpace();
+
+        /* See: https://bugs.openjdk.java.net/browse/JDK-8162520 */
+        if (freeSpaceInBytes < 0) {
+            freeSpaceInBytes = Long.MAX_VALUE;
+        }
+        return freeSpaceInBytes;
+    }
+}

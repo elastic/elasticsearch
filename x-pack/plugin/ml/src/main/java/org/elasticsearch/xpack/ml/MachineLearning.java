@@ -403,6 +403,9 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         // This object's constructor attaches to the license state, so there's no need to retain another reference to it
         new InvalidLicenseEnforcer(settings, getLicenseState(), threadPool, datafeedManager, autodetectProcessManager);
 
+        // run node startup tasks
+        autodetectProcessManager.onNodeStartup();
+
         return Arrays.asList(
                 mlLifeCycleService,
                 jobProvider,

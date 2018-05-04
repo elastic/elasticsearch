@@ -30,11 +30,11 @@ import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class BlockMasterServiceOnMaster extends SingleNodeDisruption {
+public class BlockClusterServiceOnMaster extends SingleNodeDisruption {
 
     AtomicReference<CountDownLatch> disruptionLatch = new AtomicReference<>();
 
-    public BlockMasterServiceOnMaster(Random random) {
+    public BlockClusterServiceOnMaster(Random random) {
         super(random);
     }
 

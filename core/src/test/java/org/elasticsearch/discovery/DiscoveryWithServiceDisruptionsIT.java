@@ -76,7 +76,7 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
-import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
+import org.elasticsearch.test.disruption.BlockClusterServiceOnMaster;
 import org.elasticsearch.test.disruption.IntermittentLongGCDisruption;
 import org.elasticsearch.test.disruption.LongGCDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption;
@@ -1403,7 +1403,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
             Settings.builder().put("indices.mapping.dynamic_timeout", "1ms")));
 
-        ServiceDisruptionScheme disruption = new BlockMasterServiceOnMaster(random());
+        ServiceDisruptionScheme disruption = new BlockClusterServiceOnMaster(random());
         setDisruptionScheme(disruption);
 
         disruption.startDisrupting();

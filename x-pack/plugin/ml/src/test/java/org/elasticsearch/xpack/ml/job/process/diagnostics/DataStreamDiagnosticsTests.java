@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.job.process;
+package org.elasticsearch.xpack.ml.job.process.diagnostics;
 
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -11,9 +11,9 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Date;
 
@@ -21,9 +21,10 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
 
     private static final long BUCKET_SPAN = 60000;
     private Job job;
-    
+    private DataCounts dataCounts;
+
     @Before
-    public void setUpMocks() throws IOException {
+    public void setUpMocks() {
         AnalysisConfig.Builder acBuilder = new AnalysisConfig.Builder(Arrays.asList(new Detector.Builder("metric", "field").build()));
         acBuilder.setBucketSpan(TimeValue.timeValueMillis(BUCKET_SPAN));
         acBuilder.setLatency(TimeValue.ZERO);
@@ -32,11 +33,12 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
         Job.Builder builder = new Job.Builder("job_id");
         builder.setAnalysisConfig(acBuilder);
         builder.setDataDescription(new DataDescription.Builder());
-        job = builder.build(new Date());
+        job = createJob(TimeValue.timeValueMillis(BUCKET_SPAN), null);
+        dataCounts = new DataCounts(job.getId());
     }
 
     public void testIncompleteBuckets() {
-        DataStreamDiagnostics d = new DataStreamDiagnostics(job);
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job, dataCounts);
 
         d.checkRecord(1000);
         d.checkRecord(2000);
@@ -80,8 +82,9 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
         assertEquals(null, d.getLatestSparseBucketTime());
         assertEquals(new Date(BUCKET_SPAN * 2), d.getLatestEmptyBucketTime());
     }
+
     public void testSimple() {
-        DataStreamDiagnostics d = new DataStreamDiagnostics(job);
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job, dataCounts);
 
         d.checkRecord(70000);
         d.checkRecord(130000);
@@ -102,8 +105,60 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
         assertEquals(null, d.getLatestEmptyBucketTime());
     }
 
+    public void testSimpleReverse() {
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job, dataCounts);
+
+        d.checkRecord(610000);
+        d.checkRecord(550000);
+        d.checkRecord(490000);
+        d.checkRecord(430000);
+        d.checkRecord(370000);
+        d.checkRecord(310000);
+        d.checkRecord(250000);
+        d.checkRecord(190000);
+        d.checkRecord(130000);
+        d.checkRecord(70000);
+
+        d.flush();
+        assertEquals(9, d.getBucketCount());
+        assertEquals(0, d.getEmptyBucketCount());
+        assertEquals(0, d.getSparseBucketCount());
+        assertEquals(null, d.getLatestSparseBucketTime());
+        assertEquals(null, d.getLatestEmptyBucketTime());
+    }
+
+    public void testWithLatencyLessThanTenBuckets() {
+        job = createJob(TimeValue.timeValueMillis(BUCKET_SPAN), TimeValue.timeValueMillis(3 * BUCKET_SPAN));
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job, dataCounts);
+
+        long timestamp = 70000;
+        while (timestamp < 70000 + 20 * BUCKET_SPAN) {
+            sendManyDataPoints(d, timestamp - BUCKET_SPAN, timestamp + timestamp, 100);
+            timestamp += BUCKET_SPAN;
+        }
+
+        assertEquals(10, d.getBucketCount());
+        d.flush();
+        assertEquals(19, d.getBucketCount());
+    }
+
+    public void testWithLatencyGreaterThanTenBuckets() {
+        job = createJob(TimeValue.timeValueMillis(BUCKET_SPAN), TimeValue.timeValueMillis(13 * BUCKET_SPAN + 10000));
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job, dataCounts);
+
+        long timestamp = 70000;
+        while (timestamp < 70000 + 20 * BUCKET_SPAN) {
+            sendManyDataPoints(d, timestamp - BUCKET_SPAN, timestamp + timestamp, 100);
+            timestamp += BUCKET_SPAN;
+        }
+
+        assertEquals(6, d.getBucketCount());
+        d.flush();
+        assertEquals(19, d.getBucketCount());
+    }
+
     public void testEmptyBuckets() {
-        DataStreamDiagnostics d = new DataStreamDiagnostics(job);
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job, dataCounts);
 
         d.checkRecord(10000);
         d.checkRecord(70000);
@@ -125,7 +180,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
     }
 
     public void testEmptyBucketsStartLater() {
-        DataStreamDiagnostics d = new DataStreamDiagnostics(job);
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job, dataCounts);
 
         d.checkRecord(1110000);
         d.checkRecord(1170000);
@@ -147,7 +202,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
     }
 
     public void testSparseBuckets() {
-        DataStreamDiagnostics d = new DataStreamDiagnostics(job);
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job, dataCounts);
 
         sendManyDataPoints(d, 10000, 69000, 1000);
         sendManyDataPoints(d, 70000, 129000, 1200);
@@ -175,7 +230,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
      * signal
      */
     public void testSparseBucketsLast() {
-        DataStreamDiagnostics d = new DataStreamDiagnostics(job);
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job, dataCounts);
 
         sendManyDataPoints(d, 10000, 69000, 1000);
         sendManyDataPoints(d, 70000, 129000, 1200);
@@ -203,7 +258,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
      * signal on the 2nd to last
      */
     public void testSparseBucketsLastTwo() {
-        DataStreamDiagnostics d = new DataStreamDiagnostics(job);
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job, dataCounts);
 
         sendManyDataPoints(d, 10000, 69000, 1000);
         sendManyDataPoints(d, 70000, 129000, 1200);
@@ -228,7 +283,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
     }
 
     public void testMixedEmptyAndSparseBuckets() {
-        DataStreamDiagnostics d = new DataStreamDiagnostics(job);
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job, dataCounts);
 
         sendManyDataPoints(d, 10000, 69000, 1000);
         sendManyDataPoints(d, 70000, 129000, 1200);
@@ -256,7 +311,7 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
      * whether counts are right.
      */
     public void testEmptyBucketsLongerOutage() {
-        DataStreamDiagnostics d = new DataStreamDiagnostics(job);
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job, dataCounts);
 
         d.checkRecord(10000);
         d.checkRecord(70000);
@@ -280,11 +335,11 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
 
     /**
      * Send signals, make a longer period of sparse signals, then go up again
-     * 
+     *
      * The number of sparse buckets should not be to much, it could be normal.
      */
     public void testSparseBucketsLongerPeriod() {
-        DataStreamDiagnostics d = new DataStreamDiagnostics(job);
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job, dataCounts);
 
         sendManyDataPoints(d, 10000, 69000, 1000);
         sendManyDataPoints(d, 70000, 129000, 1200);
@@ -307,8 +362,22 @@ public class DataStreamDiagnosticsTests extends ESTestCase {
         assertEquals(null, d.getLatestEmptyBucketTime());
     }
 
+    private static Job createJob(TimeValue bucketSpan, TimeValue latency) {
+        AnalysisConfig.Builder acBuilder = new AnalysisConfig.Builder(Arrays.asList(new Detector.Builder("metric", "field").build()));
+        acBuilder.setBucketSpan(bucketSpan);
+        if (latency != null) {
+            acBuilder.setLatency(latency);
+        }
+        acBuilder.setDetectors(Arrays.asList(new Detector.Builder("metric", "field").build()));
+
+        Job.Builder builder = new Job.Builder("job_id");
+        builder.setAnalysisConfig(acBuilder);
+        builder.setDataDescription(new DataDescription.Builder());
+        return builder.build(new Date());
+    }
+
     public void testFlushAfterZeroRecords() {
-        DataStreamDiagnostics d = new DataStreamDiagnostics(job);
+        DataStreamDiagnostics d = new DataStreamDiagnostics(job, dataCounts);
         d.flush();
         assertEquals(0, d.getBucketCount());
     }

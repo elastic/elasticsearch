@@ -325,6 +325,5 @@ the <<cluster.name,`cluster.name`>>, the <<node.name,`node.name`>> and the
 <<modules-network,network settings>>.
 
 ifdef::include-xpack[]
-:edit_url!:
 include::{xes-repo-dir}/node.asciidoc[]
 endif::include-xpack[]

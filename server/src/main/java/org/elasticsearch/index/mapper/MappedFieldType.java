@@ -382,7 +382,7 @@ public abstract class MappedFieldType extends FieldType {
         return Relation.INTERSECTS;
     }
 
-    /** A term query to use when parsing a query string. Can return <tt>null</tt>. */
+    /** A term query to use when parsing a query string. Can return {@code null}. */
     @Nullable
     public Query queryStringTermQuery(Term term) {
         return null;

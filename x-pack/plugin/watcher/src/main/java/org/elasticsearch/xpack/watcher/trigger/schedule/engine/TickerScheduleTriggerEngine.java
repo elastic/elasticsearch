@@ -9,6 +9,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.trigger.schedule.Schedule;
@@ -32,7 +33,7 @@ import static org.joda.time.DateTimeZone.UTC;
 public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
 
     public static final Setting<TimeValue> TICKER_INTERVAL_SETTING =
-            positiveTimeSetting("xpack.watcher.trigger.schedule.ticker.tick_interval", TimeValue.timeValueMillis(500), Property.NodeScope);
+        positiveTimeSetting("xpack.watcher.trigger.schedule.ticker.tick_interval", TimeValue.timeValueMillis(500), Property.NodeScope);
 
     private final TimeValue tickInterval;
     private volatile Map<String, ActiveSchedule> schedules;
@@ -42,26 +43,31 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
         super(settings, scheduleRegistry, clock);
         this.tickInterval = TICKER_INTERVAL_SETTING.get(settings);
         this.schedules = new ConcurrentHashMap<>();
+        this.ticker = new Ticker(Node.NODE_DATA_SETTING.get(settings));
     }
 
     @Override
-    public void start(Collection<Watch> jobs) {
-        long starTime = clock.millis();
+    public synchronized void start(Collection<Watch> jobs) {
+        long startTime = clock.millis();
         Map<String, ActiveSchedule> schedules = new ConcurrentHashMap<>();
         for (Watch job : jobs) {
             if (job.trigger() instanceof ScheduleTrigger) {
                 ScheduleTrigger trigger = (ScheduleTrigger) job.trigger();
-                schedules.put(job.id(), new ActiveSchedule(job.id(), trigger.getSchedule(), starTime));
+                schedules.put(job.id(), new ActiveSchedule(job.id(), trigger.getSchedule(), startTime));
             }
         }
-        this.schedules = schedules;
-        this.ticker = new Ticker();
+        this.schedules.putAll(schedules);
     }
 
     @Override
     public void stop() {
+        schedules.clear();
         ticker.close();
-        pauseExecution();
+    }
+
+    @Override
+    public synchronized void pauseExecution() {
+        schedules.clear();
     }
 
     @Override
@@ -69,11 +75,6 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
         assert watch.trigger() instanceof ScheduleTrigger;
         ScheduleTrigger trigger = (ScheduleTrigger) watch.trigger();
         schedules.put(watch.id(), new ActiveSchedule(watch.id(), trigger.getSchedule(), clock.millis()));
-    }
-
-    @Override
-    public void pauseExecution() {
-        schedules.clear();
     }
 
     @Override
@@ -93,9 +94,9 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
             long scheduledTime = schedule.check(triggeredTime);
             if (scheduledTime > 0) {
                 logger.debug("triggered job [{}] at [{}] (scheduled time was [{}])", schedule.name,
-                        new DateTime(triggeredTime, UTC), new DateTime(scheduledTime, UTC));
+                    new DateTime(triggeredTime, UTC), new DateTime(scheduledTime, UTC));
                 events.add(new ScheduleTriggerEvent(schedule.name, new DateTime(triggeredTime, UTC),
-                        new DateTime(scheduledTime, UTC)));
+                    new DateTime(scheduledTime, UTC)));
                 if (events.size() >= 1000) {
                     notifyListeners(events);
                     events.clear();
@@ -145,11 +146,15 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
 
         private volatile boolean active = true;
         private final CountDownLatch closeLatch = new CountDownLatch(1);
+        private boolean isDataNode;
 
-        Ticker() {
+        Ticker(boolean isDataNode) {
             super("ticker-schedule-trigger-engine");
+            this.isDataNode = isDataNode;
             setDaemon(true);
-            start();
+            if (isDataNode) {
+                start();
+            }
         }
 
         @Override
@@ -167,15 +172,17 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
         }
 
         public void close() {
-            logger.trace("stopping ticker thread");
-            active = false;
-            try {
-                closeLatch.await();
-            } catch (InterruptedException e) {
-                logger.warn("caught an interrupted exception when waiting while closing ticker thread", e);
-                Thread.currentThread().interrupt();
+            if (isDataNode) {
+                logger.trace("stopping ticker thread");
+                active = false;
+                try {
+                    closeLatch.await();
+                } catch (InterruptedException e) {
+                    logger.warn("caught an interrupted exception when waiting while closing ticker thread", e);
+                    Thread.currentThread().interrupt();
+                }
+                logger.trace("ticker thread stopped");
             }
-            logger.trace("ticker thread stopped");
         }
     }
 }

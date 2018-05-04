@@ -51,6 +51,8 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
@@ -189,6 +191,108 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testGetSettings() throws IOException {
+        String indexName = "get_settings_index";
+        Settings basicSettings = Settings.builder()
+            .put("number_of_shards", 1)
+            .put("number_of_replicas", 0)
+            .build();
+        createIndex(indexName, basicSettings);
+
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(indexName);
+        GetSettingsResponse getSettingsResponse = execute(getSettingsRequest, highLevelClient().indices()::getSettings,
+            highLevelClient().indices()::getSettingsAsync);
+
+        assertNull(getSettingsResponse.getSetting(indexName, "index.refresh_interval"));
+        assertEquals("1", getSettingsResponse.getSetting(indexName, "index.number_of_shards"));
+
+        updateIndexSettings(indexName, Settings.builder().put("refresh_interval", "30s"));
+
+        GetSettingsResponse updatedResponse = execute(getSettingsRequest, highLevelClient().indices()::getSettings,
+            highLevelClient().indices()::getSettingsAsync);
+        assertEquals("30s", updatedResponse.getSetting(indexName, "index.refresh_interval"));
+    }
+
+    public void testGetSettingsNonExistentIndex() throws IOException {
+        String nonExistentIndex = "index_that_doesnt_exist";
+        assertFalse(indexExists(nonExistentIndex));
+
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(nonExistentIndex);
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+            () -> execute(getSettingsRequest, highLevelClient().indices()::getSettings, highLevelClient().indices()::getSettingsAsync));
+        assertEquals(RestStatus.NOT_FOUND, exception.status());
+    }
+
+    public void testGetSettingsFromMultipleIndices() throws IOException {
+        String indexName1 = "get_multiple_settings_one";
+        createIndex(indexName1, Settings.builder().put("number_of_shards", 2).build());
+
+        String indexName2 = "get_multiple_settings_two";
+        createIndex(indexName2, Settings.builder().put("number_of_shards", 3).build());
+
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices("get_multiple_settings*");
+        GetSettingsResponse getSettingsResponse = execute(getSettingsRequest, highLevelClient().indices()::getSettings,
+            highLevelClient().indices()::getSettingsAsync);
+
+        assertEquals("2", getSettingsResponse.getSetting(indexName1, "index.number_of_shards"));
+        assertEquals("3", getSettingsResponse.getSetting(indexName2, "index.number_of_shards"));
+    }
+
+    public void testGetSettingsFiltered() throws IOException {
+        String indexName = "get_settings_index";
+        Settings basicSettings = Settings.builder()
+            .put("number_of_shards", 1)
+            .put("number_of_replicas", 0)
+            .build();
+        createIndex(indexName, basicSettings);
+
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(indexName).names("index.number_of_shards");
+        GetSettingsResponse getSettingsResponse = execute(getSettingsRequest, highLevelClient().indices()::getSettings,
+            highLevelClient().indices()::getSettingsAsync);
+
+        assertNull(getSettingsResponse.getSetting(indexName, "index.number_of_replicas"));
+        assertEquals("1", getSettingsResponse.getSetting(indexName, "index.number_of_shards"));
+        assertEquals(1, getSettingsResponse.getIndexToSettings().get("get_settings_index").size());
+    }
+
+    public void testGetSettingsWithDefaults() throws IOException {
+        String indexName = "get_settings_index";
+        Settings basicSettings = Settings.builder()
+            .put("number_of_shards", 1)
+            .put("number_of_replicas", 0)
+            .build();
+        createIndex(indexName, basicSettings);
+
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(indexName).includeDefaults(true);
+        GetSettingsResponse getSettingsResponse = execute(getSettingsRequest, highLevelClient().indices()::getSettings,
+            highLevelClient().indices()::getSettingsAsync);
+
+        assertNotNull(getSettingsResponse.getSetting(indexName, "index.refresh_interval"));
+        assertEquals(IndexSettings.DEFAULT_REFRESH_INTERVAL,
+            getSettingsResponse.getIndexToDefaultSettings().get("get_settings_index").getAsTime("index.refresh_interval", null));
+        assertEquals("1", getSettingsResponse.getSetting(indexName, "index.number_of_shards"));
+    }
+
+    public void testGetSettingsWithDefaultsFiltered() throws IOException {
+        String indexName = "get_settings_index";
+        Settings basicSettings = Settings.builder()
+            .put("number_of_shards", 1)
+            .put("number_of_replicas", 0)
+            .build();
+        createIndex(indexName, basicSettings);
+
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest()
+            .indices(indexName)
+            .names("index.refresh_interval")
+            .includeDefaults(true);
+        GetSettingsResponse getSettingsResponse = execute(getSettingsRequest, highLevelClient().indices()::getSettings,
+            highLevelClient().indices()::getSettingsAsync);
+
+        assertNull(getSettingsResponse.getSetting(indexName, "index.number_of_replicas"));
+        assertNull(getSettingsResponse.getSetting(indexName, "index.number_of_shards"));
+        assertEquals(0, getSettingsResponse.getIndexToSettings().get("get_settings_index").size());
+        assertEquals(1, getSettingsResponse.getIndexToDefaultSettings().get("get_settings_index").size());
+    }
     public void testPutMapping() throws IOException {
         {
             // Add mappings to index

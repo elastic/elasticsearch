@@ -146,6 +146,9 @@ The new <<mapping-ignored-field,`_ignored`>> field allows to know which fields
 got ignored at index time because of the <<ignore-malformed,`ignore_malformed`>>
 option. ({pull}30140[#29658])
 
+A new analysis plugin called `analysis_nori` that exposes the Lucene Korean
+analysis module.  ({pull}30397[#30397])
+
 [float]
 === Enhancements
 

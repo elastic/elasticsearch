@@ -5,8 +5,6 @@ include::setup/setup-xes.asciidoc[]
 
 include::{es-repo-dir}/index-shared2.asciidoc[]
 
-include::release-notes/xpack-breaking.asciidoc[]
-
 include::{es-repo-dir}/index-shared3.asciidoc[]
 
 include::sql/index.asciidoc[]

@@ -146,7 +146,7 @@ public class PutIndexTemplateRequestTests extends ESTestCase {
         if (randomBoolean()){
             request.order(randomInt());
         }
-        request.patterns(randomStringList(1, 20, 1, 50));
+        request.patterns(Arrays.asList(generateRandomStringArray(20, 100, false, false)));
         int numAlias = between(0, 5);
         for (int i = 0; i < numAlias; i++) {
             Alias alias = new Alias(randomRealisticUnicodeOfLengthBetween(1, 10));

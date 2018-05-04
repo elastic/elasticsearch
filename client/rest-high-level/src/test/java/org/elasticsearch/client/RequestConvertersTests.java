@@ -1436,7 +1436,7 @@ public class RequestConvertersTests extends ESTestCase {
 
         PutIndexTemplateRequest putTemplateRequest = new PutIndexTemplateRequest()
             .name(randomFrom(names.keySet()))
-            .patterns(randomStringList(1, 10, 1, 20));
+            .patterns(Arrays.asList(generateRandomStringArray(20, 100, false, false)));
         if (randomBoolean()) {
             putTemplateRequest.order(randomInt());
         }

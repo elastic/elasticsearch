@@ -662,15 +662,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         return generateRandomStringArray(maxArraySize, maxStringSize, allowNull, true);
     }
 
-    public static List<String> randomStringList(int minListSize, int maxListSize, int minStringLength, int maxStringLength) {
-        int size = randomIntBetween(minListSize, maxListSize);
-        final List<String> strings = new ArrayList<>();
-        for (int i = 0; i < size; i++) {
-            strings.add(randomRealisticUnicodeOfCodepointLengthBetween(minStringLength, maxStringLength));
-        }
-        return strings;
-    }
-
     private static final String[] TIME_SUFFIXES = new String[]{"d", "h", "ms", "s", "m", "micros", "nanos"};
 
     public static String randomTimeValue(int lower, int upper, String... suffixes) {

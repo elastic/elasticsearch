@@ -1,0 +1,6 @@
+[[sql-data-types]]
+=== Data Type and Mapping
+
+// TODO finish this
+List of data types in SQL and how they actually map to Elasticsearch.
+Also mention the corner cases - multi-fields, names with dots, etc...

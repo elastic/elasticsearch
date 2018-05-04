@@ -78,12 +78,12 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             2, randomBoolean(), primaryNode, replicaNode);
         final SearchRequest searchRequest = new SearchRequest();
         searchRequest.allowPartialSearchResults(true);
-        
+
         CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(logger,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-            Collections.emptyMap(), EsExecutors.newDirectExecutorService(),
+            Collections.emptyMap(), Collections.emptyMap(), EsExecutors.newDirectExecutorService(),
             searchRequest, null, shardsIter, timeProvider, 0, null,
             (iter) -> new SearchPhase("test") {
                     @Override
@@ -159,12 +159,12 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
         final SearchRequest searchRequest = new SearchRequest();
         searchRequest.allowPartialSearchResults(true);
-        
+
         CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(logger,
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-            Collections.emptyMap(), EsExecutors.newDirectExecutorService(),
+            Collections.emptyMap(), Collections.emptyMap(), EsExecutors.newDirectExecutorService(),
             searchRequest, null, shardsIter, timeProvider, 0, null,
             (iter) -> new SearchPhase("test") {
                 @Override
@@ -221,6 +221,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 searchTransportService,
                 (clusterAlias, node) -> lookup.get(node),
                 Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+                Collections.emptyMap(),
                 Collections.emptyMap(),
                 EsExecutors.newDirectExecutorService(),
                 searchRequest,

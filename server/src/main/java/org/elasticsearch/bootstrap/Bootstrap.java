@@ -162,7 +162,7 @@ final class Bootstrap {
         Settings settings = environment.settings();
 
         try {
-            spawner.spawnNativePluginControllers(environment);
+            spawner.spawnNativeControllers(environment);
         } catch (IOException e) {
             throw new BootstrapException(e);
         }

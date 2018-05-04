@@ -1,0 +1,87 @@
+Project idpFixtureProject = xpackProject("test:idp-fixture")
+evaluationDependsOn(idpFixtureProject.path)
+
+apply plugin: 'elasticsearch.vagrantsupport'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+    testCompile project(path: xpackModule('core'), configuration: 'runtime')
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
+    testCompile 'com.google.jimfs:jimfs:1.1'
+}
+
+task idpFixture {
+    dependsOn "vagrantCheckVersion", "virtualboxCheckVersion", idpFixtureProject.up
+}
+
+String outputDir = "generated-resources/${project.name}"
+task copyIdpCertificate(type: Copy) {
+    from idpFixtureProject.file('src/main/resources/certs/ca.crt');
+    into outputDir
+}
+if (project.rootProject.vagrantSupported) {
+  project.sourceSets.test.output.dir(outputDir, builtBy: copyIdpCertificate)
+  integTestCluster.dependsOn idpFixture, copyIdpCertificate
+  integTest.finalizedBy idpFixtureProject.halt
+} else {
+  integTest.enabled = false
+}
+
+integTestCluster {
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.security.http.ssl.enabled', 'false'
+  setting 'xpack.security.authc.token.enabled', 'true'
+  setting 'xpack.security.authc.realms.file.type', 'file'
+  setting 'xpack.security.authc.realms.file.order', '0'
+  setting 'xpack.security.authc.realms.shibboleth.type', 'saml'
+  setting 'xpack.security.authc.realms.shibboleth.order', '1'
+  setting 'xpack.security.authc.realms.shibboleth.idp.entity_id', 'https://test.shibboleth.elastic.local/'
+  setting 'xpack.security.authc.realms.shibboleth.idp.metadata.path', 'idp-metadata.xml'
+  setting 'xpack.security.authc.realms.shibboleth.sp.entity_id', 'http://mock.http.elastic.local/'
+  // The port in the ACS URL is fake - the test will bind the mock webserver
+  // to a random port and then whenever it needs to connect to a URL on the
+  // mock webserver it will replace 54321 with the real port
+  setting 'xpack.security.authc.realms.shibboleth.sp.acs', 'http://localhost:54321/saml/acs'
+  setting 'xpack.security.authc.realms.shibboleth.attributes.principal', 'uid'
+  setting 'xpack.security.authc.realms.shibboleth.attributes.name', 'urn:oid:2.5.4.3'
+  setting 'xpack.ml.enabled', 'false'
+
+  extraConfigFile 'idp-metadata.xml', idpFixtureProject.file("src/main/resources/provision/generated/idp-metadata.xml")
+
+  setupCommand 'setupTestAdmin',
+            'bin/elasticsearch-users', 'useradd', "test_admin", '-p', 'x-pack-test-password', '-r', "superuser"
+
+  waitCondition = { node, ant ->
+        File tmpFile = new File(node.cwd, 'wait.success')
+        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
+                dest: tmpFile.toString(),
+                username: 'test_admin',
+                password: 'x-pack-test-password',
+                ignoreerrors: true,
+                retries: 10)
+        return tmpFile.exists()
+    }
+}
+
+forbiddenPatterns {
+  exclude '**/*.der'
+  exclude '**/*.p12'
+  exclude '**/*.key'
+}
+
+thirdPartyAudit.excludes = [
+  // uses internal java api: sun.misc.Unsafe
+  'com.google.common.cache.Striped64',
+  'com.google.common.cache.Striped64$1',
+  'com.google.common.cache.Striped64$Cell',
+  'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+  'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+  'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+  'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+  // missing
+  'com.ibm.icu.lang.UCharacter'
+]
+

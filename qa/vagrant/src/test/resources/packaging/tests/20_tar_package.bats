@@ -55,7 +55,8 @@ setup() {
 }
 
 @test "[TAR] archive is available" {
-    count=$(find . -type f -name 'elasticsearch*.tar.gz' | wc -l)
+    local version=$(cat version)
+    count=$(find . -type f -name "${PACKAGE_NAME}-${version}.tar.gz" | wc -l)
     [ "$count" -eq 1 ]
 }
 

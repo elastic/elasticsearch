@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
@@ -77,6 +78,11 @@ public class GeoHashGridAggregatorTests extends AggregatorTestCase {
             for (int pointId = 0; pointId < numPoints; pointId++) {
                 double lat = (180d * randomDouble()) - 90d;
                 double lng = (360d * randomDouble()) - 180d;
+
+                // Precision-adjust longitude/latitude to avoid wrong bucket placement
+                lng = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lng));
+                lat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
+
                 points.add(new LatLonDocValuesField(FIELD_NAME, lat, lng));
                 String hash = type.getHandler().hashAsString(type.getHandler().calculateHash(lng, lat, precision));
                 if (distinctHashesPerDoc.contains(hash) == false) {

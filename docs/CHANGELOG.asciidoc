@@ -167,6 +167,15 @@ Machine Learning::
 
 * Account for gaps in data counts after job is reopened ({pull}30294[#30294])
 
+Watcher::
+
+* The watch history template was dynamically mapping fields for dynamic slack
+attachments, which could end up with the wrong mapping, depending on the data
+written in such an attachment (i.e. if only a date was specified). The new
+template includes an explicit string based mapping for this field.
+({pull}30172[#30172])
+
+
 //[float]
 //=== Regressions
 

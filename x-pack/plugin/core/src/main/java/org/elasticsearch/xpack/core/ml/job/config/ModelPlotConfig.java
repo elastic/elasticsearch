@@ -53,10 +53,6 @@ public class ModelPlotConfig implements ToXContentObject, Writeable {
         this(true, null);
     }
 
-    public ModelPlotConfig(boolean enabled) {
-        this(false, null);
-    }
-
     public ModelPlotConfig(boolean enabled, String terms) {
         this.enabled = enabled;
         this.terms = terms;

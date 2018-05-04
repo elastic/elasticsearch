@@ -15,6 +15,6 @@ the desired network layers (transport or http), and map the Distinguished Names
 See {ref}/configuring-pki-realm.html[Configuring a PKI realm].
 
 [[pki-settings]]
-==== PKI Realm Settings
+==== PKI realm settings
 
 See {ref}/security-settings.html#ref-pki-settings[PKI realm settings].

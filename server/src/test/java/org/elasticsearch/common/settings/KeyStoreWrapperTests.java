@@ -25,30 +25,27 @@ import javax.crypto.spec.PBEKeySpec;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.CharBuffer;
-import java.nio.charset.CharsetEncoder;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
 import java.nio.file.Path;
 import java.security.KeyStore;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class KeyStoreWrapperTests extends ESTestCase {
 
@@ -90,6 +87,19 @@ public class KeyStoreWrapperTests extends ESTestCase {
     public void testCreate() throws Exception {
         KeyStoreWrapper keystore = KeyStoreWrapper.create();
         assertTrue(keystore.getSettingNames().contains(KeyStoreWrapper.SEED_SETTING.getKey()));
+    }
+
+    public void testCannotReadStringFromClosedKeystore() throws Exception {
+        KeyStoreWrapper keystore = KeyStoreWrapper.create();
+        assertThat(keystore.getSettingNames(), Matchers.hasItem(KeyStoreWrapper.SEED_SETTING.getKey()));
+        assertThat(keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey()), notNullValue());
+
+        keystore.close();
+
+        assertThat(keystore.getSettingNames(), Matchers.hasItem(KeyStoreWrapper.SEED_SETTING.getKey()));
+        final IllegalStateException exception = expectThrows(IllegalStateException.class,
+            () -> keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey()));
+        assertThat(exception.getMessage(), containsString("closed"));
     }
 
     public void testUpgradeNoop() throws Exception {

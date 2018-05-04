@@ -32,6 +32,7 @@ integTestCluster {
   configFile 'analysis/synonym.txt'
   configFile 'analysis/stemmer_override.txt'
   configFile 'userdict_ja.txt'
+  configFile 'userdict_ko.txt'
   configFile 'KeywordTokenizer.rbbi'
   extraConfigFile 'hunspell/en_US/en_US.aff', '../server/src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.aff'
   extraConfigFile 'hunspell/en_US/en_US.dic', '../server/src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic'

@@ -402,7 +402,7 @@ public class RestController extends AbstractComponent implements HttpServerTrans
      * error).
      */
     private void handleBadRequest(RestRequest request, RestChannel channel) throws IOException {
-        try (XContentBuilder builder = channel.newBuilder()) {
+        try (XContentBuilder builder = channel.newErrorBuilder()) {
             builder.startObject();
             {
                 builder.field("error", "no handler found for uri [" + request.uri() + "] and method [" + request.method() + "]");

@@ -49,4 +49,18 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:32: Currently, only a single expression can be used with GROUP BY; please select one of [bool, keyword]",
                 verify("SELECT bool FROM test GROUP BY bool, keyword"));
     }
+
+    //
+    // TODO potential improvements
+    //
+    // regarding resolution
+    //    public void testGroupByOrderByKeyAlias() {
+    //        assertEquals("1:8: Cannot use field [unsupported] type [ip_range] as is unsupported",
+    //                verify("SELECT int i FROM test GROUP BY int ORDER BY i"));
+    //    }
+    //
+    //    public void testGroupByAlias() {
+    //        assertEquals("1:8: Cannot use field [unsupported] type [ip_range] as is unsupported",
+    //                verify("SELECT int i FROM test GROUP BY i ORDER BY int"));
+    //    }
 }

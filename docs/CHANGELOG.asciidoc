@@ -48,14 +48,20 @@ Security::
 mappings, get field mappings, and field capabilities API are now only the
 ones that the user is authorized to access in case field level security is enabled.
 
+Search::
+* The `moving_avg` pipeline aggregation has been deprecated in favor of the new
+`moving_fn` aggregation
+
 //[float]
 //=== Breaking Java Changes
 
 //[float]
 //=== Deprecations
 
-//[float]
-//=== New Features
+[float]
+=== New Features
+A new Moving Function pipeline aggregation has been added, which allows user-scriptable
+functions to be executed on moving windows of values ({pull}29594[#29594])
 
 //[float]
 //=== Enhancements
@@ -87,6 +93,9 @@ Fix NPE when CumulativeSum agg encounters null value/empty bucket ({pull}29641[#
 The new <<mapping-ignored-field,`_ignored`>> field allows to know which fields
 got ignored at index time because of the <<ignore-malformed,`ignore_malformed`>>
 option. ({pull}30140[#29658])
+
+A new Moving Function pipeline aggregation has been added, which allows user-scriptable
+functions to be executed on moving windows of values ({pull}29594[#29594])
 
 [float]
 === Enhancements

@@ -22,12 +22,15 @@ package org.elasticsearch.index.engine;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.Term;
@@ -38,6 +41,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
@@ -93,8 +97,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -601,7 +609,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 default:
                     throw new UnsupportedOperationException("unknown version type: " + versionType);
             }
-            if (randomBoolean()) {
+            if (true || randomBoolean()) {
                 op = new Engine.Index(id, testParsedDocument(docId, null, testDocumentWithTextField(valuePrefix + i), B_1, null),
                     forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbers.UNASSIGNED_SEQ_NO,
                     forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? primaryTerm + 1 : primaryTerm,
@@ -693,6 +701,71 @@ public abstract class EngineTestCase extends ESTestCase {
         }
     }
 
+    protected void concurrentlyApplyOps(List<Engine.Operation> ops, InternalEngine engine) throws InterruptedException {
+        Thread[] thread = new Thread[randomIntBetween(3, 5)];
+        CountDownLatch startGun = new CountDownLatch(thread.length);
+        AtomicInteger offset = new AtomicInteger(-1);
+        for (int i = 0; i < thread.length; i++) {
+            thread[i] = new Thread(() -> {
+                startGun.countDown();
+                try {
+                    startGun.await();
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+                int docOffset;
+                while ((docOffset = offset.incrementAndGet()) < ops.size()) {
+                    try {
+                        final Engine.Operation op = ops.get(docOffset);
+                        if (op instanceof Engine.Index) {
+                            engine.index((Engine.Index) op);
+                        } else if (op instanceof Engine.Delete){
+                            engine.delete((Engine.Delete) op);
+                        } else {
+                            engine.noOp((Engine.NoOp) op);
+                        }
+                        if ((docOffset + 1) % 4 == 0) {
+                            engine.refresh("test");
+                        }
+                        if (rarely()) {
+                            engine.flush();
+                        }
+                    } catch (IOException e) {
+                        throw new AssertionError(e);
+                    }
+                }
+            });
+            thread[i].start();
+        }
+        for (int i = 0; i < thread.length; i++) {
+            thread[i].join();
+        }
+    }
+
+    /**
+     * Gets all docId from the given engine.
+     */
+    public static Set<String> getDocIds(Engine engine, boolean refresh) throws IOException {
+        if (refresh) {
+            engine.refresh("test_get_doc_ids");
+        }
+        try (Engine.Searcher searcher = engine.acquireSearcher("test_get_doc_ids")) {
+            Set<String> ids = new HashSet<>();
+            for (LeafReaderContext leafContext : searcher.reader().leaves()) {
+                LeafReader reader = leafContext.reader();
+                Bits liveDocs = reader.getLiveDocs();
+                for (int i = 0; i < reader.maxDoc(); i++) {
+                    if (liveDocs == null || liveDocs.get(i)) {
+                        Document uuid = reader.document(i, Collections.singleton(IdFieldMapper.NAME));
+                        BytesRef binaryID = uuid.getBinaryValue(IdFieldMapper.NAME);
+                        ids.add(Uid.decodeId(Arrays.copyOfRange(binaryID.bytes, binaryID.offset, binaryID.offset + binaryID.length)));
+                    }
+                }
+            }
+            return ids;
+        }
+    }
+
     /**
      * Reads all engine operations that have been processed by the engine from Lucene index.
      * The returned operations are sorted and de-duplicated, thus each sequence number will be have at most one operation.
@@ -739,7 +812,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 }
             }
             assertThat(luceneOp, notNullValue());
-            assertThat(luceneOp.primaryTerm(), equalTo(translogOp.primaryTerm()));
+            assertThat(luceneOp.toString(), luceneOp.primaryTerm(), equalTo(translogOp.primaryTerm()));
             assertThat(luceneOp.opType(), equalTo(translogOp.opType()));
             if (luceneOp.opType() == Translog.Operation.Type.INDEX) {
                 assertThat(luceneOp.getSource().source, equalTo(translogOp.getSource().source));

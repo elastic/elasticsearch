@@ -66,13 +66,13 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     private final Closeable onClose;
 
     /**
-     * Creates a new "translog" snapshot from Lucene including all operations whose seq# between the specified range.
+     * Creates a new "translog" snapshot from Lucene for reading operations whose seq# in the specified range.
      *
      * @param searcherFactory   the engine searcher factory (prefer the internal searcher)
      * @param mapperService     the mapper service which will be mainly used to resolve the document's type and uid
      * @param fromSeqNo         the min requesting seq# - inclusive
      * @param toSeqNo           the maximum requesting seq# - inclusive
-     * @param requiredFullRange if true, the snapshot must contains all seq# between fromSeqNo and toSeqNo
+     * @param requiredFullRange if true, the snapshot will strictly check for the existence of operations between fromSeqNo and toSeqNo
      * @param onClose           a callback to be called when this snapshot is closed
      */
     LuceneChangesSnapshot(Supplier<Engine.Searcher> searcherFactory, MapperService mapperService,
@@ -89,6 +89,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         final Engine.Searcher engineSearcher = searcherFactory.get();
         try {
             this.searcher = new IndexSearcher(Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader()));
+            this.searcher.setQueryCache(null);
             this.topDocs = searchOperations(searcher);
             success = true;
             this.onClose = () -> IOUtils.close(onClose, engineSearcher);
@@ -117,18 +118,16 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     @Override
     public Translog.Operation next() throws IOException {
         final Translog.Operation op = nextOp();
-        if (requiredFullRange == false || lastSeenSeqNo == toSeqNo) {
-            if (op != null){
-                lastSeenSeqNo = op.seqNo();
+        if (requiredFullRange && lastSeenSeqNo < toSeqNo) {
+            final long expectedSeqNo = lastSeenSeqNo + 1;
+            if (op == null || op.seqNo() != expectedSeqNo) {
+                throw new IllegalStateException("Not all operations between min_seqno [" + fromSeqNo + "] " +
+                    "and max_seqno [" + toSeqNo + "] found; expected seqno [" + expectedSeqNo + "]; found [" + op + "]");
             }
-            return op;
         }
-        final long expectedSeqNo = lastSeenSeqNo + 1;
-        if (op == null || op.seqNo() != expectedSeqNo) {
-            throw new IllegalStateException("not all operations between min_seqno [" + fromSeqNo + "] " +
-                "and max_seqno [" + toSeqNo + "] found; expected seqno [" + expectedSeqNo + "]; found [" + op + "]");
+        if (op != null) {
+            lastSeenSeqNo = op.seqNo();
         }
-        lastSeenSeqNo = op.seqNo();
         return op;
     }
 
@@ -138,7 +137,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             if (scoreDocs[docIndex].doc == DocIdSetIterator.NO_MORE_DOCS) {
                 return null;
             }
-            final Translog.Operation op = readDocAsOperation(scoreDocs[docIndex].doc);
+            final Translog.Operation op = readDocAsOp(scoreDocs[docIndex].doc);
             if (op != null) {
                 return op;
             }
@@ -155,12 +154,11 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         return searcher.search(rangeQuery, Integer.MAX_VALUE, sortedBySeqNoThenByTerm);
     }
 
-    private Translog.Operation readDocAsOperation(int docID) throws IOException {
+    private Translog.Operation readDocAsOp(int docID) throws IOException {
         final List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
         final LeafReaderContext leaf = leaves.get(ReaderUtil.subIndex(docID, leaves));
         final int segmentDocID = docID - leaf.docBase;
         final long seqNo = readNumericDV(leaf, SeqNoFieldMapper.NAME, segmentDocID);
-
         // This operation has seen and will be skipped anyway - do not visit other fields.
         if (seqNo == lastSeenSeqNo) {
             skippedOperations++;

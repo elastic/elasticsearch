@@ -19,56 +19,50 @@
 
 package org.elasticsearch.index.engine;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.SnapshotMatchers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
-import java.util.stream.LongStream;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.nullValue;
 
 public class LuceneChangesSnapshotTests extends EngineTestCase {
+    private MapperService mapperService;
 
-    public void testEmptyEngine() throws Exception {
-        MapperService mapper = createMapperService("test");
-        long fromSeqNo = randomNonNegativeLong();
-        long toSeqNo = randomLongBetween(fromSeqNo, Long.MAX_VALUE);
-        try (Translog.Snapshot snapshot = engine.newLuceneChangesSnapshot("test", mapper, fromSeqNo, toSeqNo, true)) {
-            IllegalStateException error = expectThrows(IllegalStateException.class, () -> drainAll(snapshot));
-            assertThat(error.getMessage(),
-                containsString("not all operations between min_seqno [" + fromSeqNo + "] and max_seqno [" + toSeqNo + "] found"));
-        }
-        try (Translog.Snapshot snapshot = engine.newLuceneChangesSnapshot("test", mapper, fromSeqNo, toSeqNo, false)) {
-            assertThat(drainAll(snapshot), empty());
-        }
+    @Before
+    public void createMapper() throws Exception {
+        mapperService = createMapperService("test");
     }
 
-    public void testRequiredFullRange() throws Exception {
-        MapperService mapper = createMapperService("test");
-        int numOps = between(0, 100);
+    public void testBasics() throws Exception {
+        long fromSeqNo = randomNonNegativeLong();
+        long toSeqNo = randomLongBetween(fromSeqNo, Long.MAX_VALUE);
+        // Empty engine
+        try (Translog.Snapshot snapshot = engine.newLuceneChangesSnapshot("test", mapperService, fromSeqNo, toSeqNo, true)) {
+            IllegalStateException error = expectThrows(IllegalStateException.class, () -> drainAll(snapshot));
+            assertThat(error.getMessage(),
+                containsString("Not all operations between min_seqno [" + fromSeqNo + "] and max_seqno [" + toSeqNo + "] found"));
+        }
+        try (Translog.Snapshot snapshot = engine.newLuceneChangesSnapshot("test", mapperService, fromSeqNo, toSeqNo, false)) {
+            assertThat(snapshot, SnapshotMatchers.size(0));
+        }
+        int numOps = between(1, 100);
+        int refreshedSeqNo = -1;
         for (int i = 0; i < numOps; i++) {
             String id = Integer.toString(randomIntBetween(i, i + 5));
             ParsedDocument doc = createParsedDoc(id, null);
@@ -78,135 +72,182 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                 engine.delete(new Engine.Delete(doc.type(), doc.id(), newUid(doc.id()), primaryTerm.get()));
             }
             if (rarely()) {
-                engine.flush();
+                if (randomBoolean()) {
+                    engine.flush();
+                } else {
+                    engine.refresh("test");
+                }
+                refreshedSeqNo = i;
             }
         }
-        int iters = between(1, 10);
-        for (int i = 0; i < iters; i++) {
-            int fromSeqNo = between(0, numOps * 2);
-            int toSeqNo = between(Math.max(numOps + 1, fromSeqNo), numOps * 10);
-            try (Translog.Snapshot snapshot = engine.newLuceneChangesSnapshot("test", mapper, fromSeqNo, toSeqNo, true)) {
+        if (refreshedSeqNo == -1) {
+            fromSeqNo = between(0, numOps);
+            toSeqNo = randomLongBetween(fromSeqNo, numOps * 2);
+            try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(
+                () -> engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL), mapperService, fromSeqNo, toSeqNo, false, ()->{})) {
+                assertThat(snapshot, SnapshotMatchers.size(0));
+            }
+            try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(
+                () -> engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL), mapperService, fromSeqNo, toSeqNo, true,  ()->{})) {
                 IllegalStateException error = expectThrows(IllegalStateException.class, () -> drainAll(snapshot));
                 assertThat(error.getMessage(),
-                    containsString("not all operations between min_seqno [" + fromSeqNo + "] and max_seqno [" + toSeqNo + "] found"));
+                    containsString("Not all operations between min_seqno [" + fromSeqNo + "] and max_seqno [" + toSeqNo + "] found"));
             }
-            try (Translog.Snapshot snapshot = engine.newLuceneChangesSnapshot("test", mapper, fromSeqNo, toSeqNo, false)) {
-                List<Translog.Operation> ops = drainAll(snapshot);
-                int readOps = Math.min(toSeqNo, numOps) - Math.min(fromSeqNo, numOps);
-                assertThat(ops, hasSize(readOps));
+        }else {
+            fromSeqNo = randomLongBetween(0, refreshedSeqNo);
+            toSeqNo = randomLongBetween(refreshedSeqNo + 1, numOps * 2);
+            try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(
+                () -> engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL), mapperService, fromSeqNo, toSeqNo, false, ()->{})) {
+                assertThat(snapshot, SnapshotMatchers.containsSeqNoRange(fromSeqNo, refreshedSeqNo));
             }
+            try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(
+                () -> engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL), mapperService, fromSeqNo, toSeqNo, true,  ()->{})) {
+                IllegalStateException error = expectThrows(IllegalStateException.class, () -> drainAll(snapshot));
+                assertThat(error.getMessage(),
+                    containsString("Not all operations between min_seqno [" + fromSeqNo + "] and max_seqno [" + toSeqNo + "] found"));
+            }
+            toSeqNo = randomLongBetween(fromSeqNo, refreshedSeqNo);
+            try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(
+                () -> engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL), mapperService, fromSeqNo, toSeqNo, true,  ()->{})) {
+                assertThat(snapshot, SnapshotMatchers.containsSeqNoRange(fromSeqNo, toSeqNo));
+            }
+        }
+        // Get snapshot via engine will auto refresh
+        fromSeqNo = randomLongBetween(0, numOps - 1);
+        toSeqNo = randomLongBetween(fromSeqNo, numOps - 1);
+        try (Translog.Snapshot snapshot = engine.newLuceneChangesSnapshot("test", mapperService, fromSeqNo, toSeqNo, randomBoolean())) {
+            assertThat(snapshot, SnapshotMatchers.containsSeqNoRange(fromSeqNo, toSeqNo));
         }
     }
 
     public void testDedupByPrimaryTerm() throws Exception {
-        MapperService mapper = createMapperService("test");
         Map<Long, Long> latestOperations = new HashMap<>();
-        int numOps = scaledRandomIntBetween(10, 2000);
-        List<Long> seqNos = LongStream.range(0, numOps).boxed().collect(Collectors.toList());
-        Randomness.shuffle(seqNos);
-        for (int i = 0; i < numOps; i++) {
-            if (randomBoolean()) {
-                primaryTerm.set(randomLongBetween(primaryTerm.get(), Long.MAX_VALUE));
-                engine.rollTranslogGeneration();
-            }
-            if (randomBoolean()) {
-                primaryTerm.set(randomLongBetween(1, primaryTerm.get()));
-            }
-            String id = Integer.toString(randomIntBetween(i, i + 5));
-            ParsedDocument doc = createParsedDoc(id, null);
-            final long seqNo = seqNos.remove(0);
-            if (randomBoolean()) {
-                engine.index(replicaIndexForDoc(doc, randomNonNegativeLong(), seqNo, false));
-            } else {
-                engine.delete(replicaDeleteForDoc(doc.id(), randomNonNegativeLong(), seqNo, threadPool.relativeTimeInMillis()));
-            }
-            latestOperations.put(seqNo, primaryTerm.get());
-            if (rarely()) {
-                engine.flush();
-            }
-            if (rarely()){
-                engine.forceMerge(randomBoolean(), between(1, 2), false, false, false);
-            }
-        }
-        final boolean requiredFullRange = randomBoolean();
-        long fromSeqNo = randomLongBetween(0, numOps);
-        long toSeqNo = randomLongBetween(fromSeqNo, requiredFullRange ? numOps : numOps * 2);
-        try (Translog.Snapshot snapshot = engine.newLuceneChangesSnapshot("test", mapper, fromSeqNo, toSeqNo, requiredFullRange)) {
-            List<Translog.Operation> ops = drainAll(snapshot);
-            for (Translog.Operation op : ops) {
-                assertThat(op.toString(), op.primaryTerm(), equalTo(latestOperations.get(op.seqNo())));
-            }
-        }
-    }
-
-    public void testHistoryOnPrimary() throws Exception {
-        final List<Engine.Operation> operations = generateSingleDocHistory(false,
-            randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL), primaryTerm.get(), 10, 1000, "1");
-        assertOperationHistoryInLucene(operations, true);
-    }
-
-    public void testHistoryOnReplica() throws Exception {
-        final List<Engine.Operation> operations = generateSingleDocHistory(true,
-            randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL), 2, 10, 1000, "2");
-        Randomness.shuffle(operations);
-        assertOperationHistoryInLucene(operations, false);
-    }
-
-    private void assertOperationHistoryInLucene(List<Engine.Operation> operations, boolean requiredFullRange) throws IOException {
-        Set<Long> expectedSeqNos = new HashSet<>();
-        Settings settings = Settings.builder()
-            .put(defaultSettings.getSettings())
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), operations.size())
-            .build();
-        final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
-        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
-        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        List<Integer> terms = Arrays.asList(between(1, 1000), between(1000, 2000));
         try (Store store = createStore();
-             InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get))) {
-            for (Engine.Operation op : operations) {
-                if (op instanceof Engine.Index) {
-                    Engine.IndexResult indexResult = engine.index((Engine.Index) op);
-                    assertThat(indexResult.getFailure(), nullValue());
-                    expectedSeqNos.add(indexResult.getSeqNo());
-                } else {
-                    Engine.DeleteResult deleteResult = engine.delete((Engine.Delete) op);
-                    assertThat(deleteResult.getFailure(), nullValue());
-                    expectedSeqNos.add(deleteResult.getSeqNo());
-                }
-                if (randomBoolean()) {
-                    globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpointTracker().getCheckpoint()));
-                }
-                if (rarely()) {
-                    engine.refresh("test");
-                }
-                if (rarely()) {
-                    engine.flush();
-                }
-                if (rarely()) {
-                    engine.forceMerge(true);
+             InternalEngine engine = createEngine(store, createTempDir())) {
+            for (long term : terms) {
+                final List<Engine.Operation> ops = generateSingleDocHistory(true,
+                    randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE), term, 2, 20, "1");
+                primaryTerm.set(Math.max(primaryTerm.get(), term));
+                engine.rollTranslogGeneration();
+                for (Engine.Operation op : ops) {
+                    // Only ops after local checkpoint get into the engine
+                    if (engine.getLocalCheckpointTracker().getCheckpoint() < op.seqNo()) {
+                        latestOperations.put(op.seqNo(), op.primaryTerm());
+                    }
+                    if (op instanceof Engine.Index) {
+                        engine.index((Engine.Index) op);
+                    } else if (op instanceof Engine.Delete) {
+                        engine.delete((Engine.Delete) op);
+                    }
+                    if (rarely()) {
+                        engine.refresh("test");
+                    }
+                    if (rarely()) {
+                        engine.flush();
+                    }
                 }
             }
             long maxSeqNo = engine.getLocalCheckpointTracker().getMaxSeqNo();
-            long toSeqNo = requiredFullRange ? maxSeqNo : randomLongBetween(maxSeqNo, Long.MAX_VALUE);
-            MapperService mapperService = createMapperService("test");
-            try (Translog.Snapshot snapshot = engine.newLuceneChangesSnapshot("test", mapperService, 0, toSeqNo, requiredFullRange)) {
-                List<Translog.Operation> actualOps = drainAll(snapshot);
-                List<Long> sortedSeqNo = new ArrayList<>(expectedSeqNos);
-                Collections.sort(sortedSeqNo);
-                assertThat(actualOps.stream().map(o -> o.seqNo()).collect(Collectors.toList()),
-                    containsInAnyOrder(sortedSeqNo.toArray()));
+            try (Translog.Snapshot snapshot = engine.newLuceneChangesSnapshot("test", mapperService, 0, maxSeqNo, false)) {
+                Translog.Operation op;
+                while ((op = snapshot.next()) != null) {
+                    assertThat(op.toString(), op.primaryTerm(), equalTo(latestOperations.get(op.seqNo())));
+                }
             }
-
-            assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
         }
     }
 
-    List<Translog.Operation> drainAll(Translog.Snapshot snapshot) throws IOException {
+    public void testUpdateAndReadChangesConcurrently() throws Exception {
+        Follower[] followers = new Follower[between(1, 3)];
+        CountDownLatch readyLatch = new CountDownLatch(followers.length + 1);
+        AtomicBoolean isDone = new AtomicBoolean();
+        for (int i = 0; i < followers.length; i++) {
+            followers[i] = new Follower(engine, isDone, readyLatch);
+            followers[i].start();
+        }
+        boolean onPrimary = randomBoolean();
+        List<Engine.Operation> operations = new ArrayList<>();
+        int numOps = scaledRandomIntBetween(1, 1000);
+        for (int i = 0; i < numOps; i++) {
+            String id = Integer.toString(randomIntBetween(1, 10));
+            ParsedDocument doc = createParsedDoc(id, randomAlphaOfLengthBetween(1, 5));
+            final Engine.Operation op;
+            if (onPrimary) {
+                if (randomBoolean()) {
+                    op = new Engine.Index(newUid(doc), primaryTerm.get(), doc);
+                } else {
+                    op = new Engine.Delete(doc.type(), doc.id(), newUid(doc.id()), primaryTerm.get());
+                }
+            } else {
+                if (randomBoolean()) {
+                    op = replicaIndexForDoc(doc, randomNonNegativeLong(), i, randomBoolean());
+                } else {
+                    op = replicaDeleteForDoc(doc.id(), randomNonNegativeLong(), i, randomNonNegativeLong());
+                }
+            }
+            operations.add(op);
+        }
+        readyLatch.countDown();
+        concurrentlyApplyOps(operations, engine);
+        assertThat(engine.getLocalCheckpointTracker().getCheckpoint(), equalTo(operations.size() - 1L));
+        isDone.set(true);
+        for (Follower follower : followers) {
+            follower.join();
+        }
+    }
+
+    class Follower extends Thread {
+        private final Engine leader;
+        private final TranslogHandler translogHandler;
+        private final AtomicBoolean isDone;
+        private final CountDownLatch readLatch;
+
+        Follower(Engine leader, AtomicBoolean isDone, CountDownLatch readLatch) {
+            this.leader = leader;
+            this.isDone = isDone;
+            this.readLatch = readLatch;
+            this.translogHandler = new TranslogHandler(xContentRegistry(), IndexSettingsModule.newIndexSettings(shardId.getIndexName(),
+                engine.engineConfig.getIndexSettings().getSettings()));
+        }
+
+        void pullOperations(Engine follower) throws IOException {
+            long leaderCheckpoint = leader.getLocalCheckpointTracker().getCheckpoint();
+            long followerCheckpoint = follower.getLocalCheckpointTracker().getCheckpoint();
+            if (followerCheckpoint < leaderCheckpoint) {
+                long fromSeqNo = followerCheckpoint + 1;
+                long batchSize = randomLongBetween(0, 100);
+                long toSeqNo = Math.min(fromSeqNo + batchSize, leaderCheckpoint);
+                try (Translog.Snapshot snapshot = leader.newLuceneChangesSnapshot("test", mapperService, fromSeqNo, toSeqNo, true)) {
+                    translogHandler.run(follower, snapshot);
+                }
+            }
+        }
+
+        @Override
+        public void run() {
+            try (Store store = createStore();
+                 InternalEngine follower = createEngine(store, createTempDir())) {
+                readLatch.countDown();
+                readLatch.await();
+                while (isDone.get() == false ||
+                    follower.getLocalCheckpointTracker().getCheckpoint() < leader.getLocalCheckpointTracker().getCheckpoint()) {
+                    pullOperations(follower);
+                }
+                assertConsistentHistoryBetweenTranslogAndLuceneIndex(follower, mapperService);
+                assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
+            } catch (Exception ex) {
+                throw new AssertionError(ex);
+            }
+        }
+    }
+
+    private List<Translog.Operation> drainAll(Translog.Snapshot snapshot) throws IOException {
         List<Translog.Operation> operations = new ArrayList<>();
         Translog.Operation op;
         while ((op = snapshot.next()) != null) {
             final Translog.Operation newOp = op;
+            logger.error("Reading [{}]", op);
             assert operations.stream().allMatch(o -> o.seqNo() < newOp.seqNo()) : "Operations [" + operations + "], op [" + op + "]";
             operations.add(newOp);
         }

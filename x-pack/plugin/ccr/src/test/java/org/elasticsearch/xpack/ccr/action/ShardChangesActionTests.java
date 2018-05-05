@@ -54,13 +54,13 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
         // get operations for a range no operations exists:
         Exception e = expectThrows(IllegalStateException.class,
                 () -> ShardChangesAction.getOperationsBetween(indexShard, numWrites, numWrites + 1, Long.MAX_VALUE));
-        assertThat(e.getMessage(), containsString("not all operations between min_seqno [" + numWrites + "] and max_seqno [" +
+        assertThat(e.getMessage(), containsString("Not all operations between min_seqno [" + numWrites + "] and max_seqno [" +
                 (numWrites + 1) +"] found"));
 
         // get operations for a range some operations do not exist:
         e = expectThrows(IllegalStateException.class,
                 () -> ShardChangesAction.getOperationsBetween(indexShard, numWrites  - 10, numWrites + 10, Long.MAX_VALUE));
-        assertThat(e.getMessage(), containsString("not all operations between min_seqno [" + (numWrites - 10) + "] and max_seqno [" +
+        assertThat(e.getMessage(), containsString("Not all operations between min_seqno [" + (numWrites - 10) + "] and max_seqno [" +
                 (numWrites + 10) +"] found"));
     }
 

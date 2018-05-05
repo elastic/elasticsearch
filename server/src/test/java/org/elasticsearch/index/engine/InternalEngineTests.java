@@ -1545,42 +1545,6 @@ public class InternalEngineTests extends EngineTestCase {
         assertVisibleCount(engine, totalExpectedOps);
     }
 
-    private void concurrentlyApplyOps(List<Engine.Operation> ops, InternalEngine engine) throws InterruptedException {
-        Thread[] thread = new Thread[randomIntBetween(3, 5)];
-        CountDownLatch startGun = new CountDownLatch(thread.length);
-        AtomicInteger offset = new AtomicInteger(-1);
-        for (int i = 0; i < thread.length; i++) {
-            thread[i] = new Thread(() -> {
-                startGun.countDown();
-                try {
-                    startGun.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
-                int docOffset;
-                while ((docOffset = offset.incrementAndGet()) < ops.size()) {
-                    try {
-                        final Engine.Operation op = ops.get(docOffset);
-                        if (op instanceof Engine.Index) {
-                            engine.index((Engine.Index) op);
-                        } else {
-                            engine.delete((Engine.Delete) op);
-                        }
-                        if ((docOffset + 1) % 4 == 0) {
-                            engine.refresh("test");
-                        }
-                    } catch (IOException e) {
-                        throw new AssertionError(e);
-                    }
-                }
-            });
-            thread[i].start();
-        }
-        for (int i = 0; i < thread.length; i++) {
-            thread[i].join();
-        }
-    }
-
     public void testInternalVersioningOnPrimary() throws IOException {
         final List<Engine.Operation> ops = generateSingleDocHistory(false, VersionType.INTERNAL, 2, 2, 20, "1");
         assertOpsOnPrimary(ops, Versions.NOT_FOUND, true, engine);
@@ -4701,6 +4665,52 @@ public class InternalEngineTests extends EngineTestCase {
                     }
                 }
             }
+        }
+    }
+
+    public void testLuceneHistoryOnPrimary() throws Exception {
+        final List<Engine.Operation> operations = generateSingleDocHistory(false,
+            randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL), 2, 10, 300, "1");
+        assertOperationHistoryInLucene(operations);
+    }
+
+    public void testLuceneHistoryOnReplica() throws Exception {
+        final List<Engine.Operation> operations = generateSingleDocHistory(true,
+            randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL), 2, 10, 300, "2");
+        Randomness.shuffle(operations);
+        assertOperationHistoryInLucene(operations);
+    }
+
+    private void assertOperationHistoryInLucene(List<Engine.Operation> operations) throws IOException {
+        final MergePolicy keepSoftDeleteDocsMP = new SoftDeletesRetentionMergePolicy(
+            Lucene.SOFT_DELETE_FIELD, () -> new MatchAllDocsQuery(), engine.config().getMergePolicy());
+        Set<Long> expectedSeqNos = new HashSet<>();
+        try (Store store = createStore();
+             Engine engine = createEngine(config(defaultSettings, store, createTempDir(), keepSoftDeleteDocsMP, null))) {
+            for (Engine.Operation op : operations) {
+                if (op instanceof Engine.Index) {
+                    Engine.IndexResult indexResult = engine.index((Engine.Index) op);
+                    assertThat(indexResult.getFailure(), nullValue());
+                    expectedSeqNos.add(indexResult.getSeqNo());
+                } else {
+                    Engine.DeleteResult deleteResult = engine.delete((Engine.Delete) op);
+                    assertThat(deleteResult.getFailure(), nullValue());
+                    expectedSeqNos.add(deleteResult.getSeqNo());
+                }
+                if (rarely()) {
+                    engine.refresh("test");
+                }
+                if (rarely()) {
+                    engine.flush();
+                }
+                if (rarely()) {
+                    engine.forceMerge(true);
+                }
+            }
+            MapperService mapperService = createMapperService("test");
+            List<Translog.Operation> actualOps = readAllOperationsInLucene(engine, mapperService);
+            assertThat(actualOps.stream().map(o -> o.seqNo()).collect(Collectors.toList()), containsInAnyOrder(expectedSeqNos.toArray()));
+            assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
         }
     }
 

@@ -32,6 +32,7 @@ import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.bucket.GeoHashGridTests;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,24 +49,22 @@ public class GeoHashGridAggregatorTests extends AggregatorTestCase {
     private static final String FIELD_NAME = "location";
 
     public void testNoDocs() throws IOException {
-        testCase(new MatchAllDocsQuery(), FIELD_NAME, GeoHashType.GEOHASH, 1, iw -> {
+        final GeoHashType type = GeoHashGridTests.randomType();
+        testCase(new MatchAllDocsQuery(), FIELD_NAME, type, GeoHashGridTests.randomPrecision(type), iw -> {
             // Intentionally not writing any docs
-        }, geoHashGrid -> {
-            assertEquals(0, geoHashGrid.getBuckets().size());
-        });
+        }, geoHashGrid -> assertEquals(0, geoHashGrid.getBuckets().size()));
     }
 
     public void testFieldMissing() throws IOException {
-        testCase(new MatchAllDocsQuery(), "wrong_field", GeoHashType.GEOHASH, 1, iw -> {
+        final GeoHashType type = GeoHashGridTests.randomType();
+        testCase(new MatchAllDocsQuery(), "wrong_field", type, GeoHashGridTests.randomPrecision(type), iw -> {
             iw.addDocument(Collections.singleton(new LatLonDocValuesField(FIELD_NAME, 10D, 10D)));
-        }, geoHashGrid -> {
-            assertEquals(0, geoHashGrid.getBuckets().size());
-        });
+        }, geoHashGrid -> assertEquals(0, geoHashGrid.getBuckets().size()));
     }
 
     public void testHashcodeWithSeveralDocs() throws IOException {
-        int precision = randomIntBetween(1, 12);
-        testWithSeveralDocs(GeoHashType.GEOHASH, precision);
+        final GeoHashType type = GeoHashGridTests.randomType();
+        testWithSeveralDocs(type, GeoHashGridTests.randomPrecision(type));
     }
 
     private void testWithSeveralDocs(GeoHashType type, int precision)

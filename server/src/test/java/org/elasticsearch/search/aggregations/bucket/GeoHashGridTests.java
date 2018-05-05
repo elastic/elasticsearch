@@ -25,28 +25,46 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashType;
 
 public class GeoHashGridTests extends BaseAggregationTestCase<GeoGridAggregationBuilder> {
 
+    /**
+     * Pick a random hash type
+     */
+    public static GeoHashType randomType() {
+        return randomFrom(GeoHashType.values());
+    }
+
+    /**
+     * Pick a random precision for the given hash type.
+     */
+    public static int randomPrecision(final GeoHashType type) {
+        int precision;
+        switch (type) {
+            case GEOHASH:
+                precision = randomIntBetween(1, 12);
+                break;
+            default:
+                throw new IllegalArgumentException("GeoHashType." + type.name() + " was not added to the test");
+        }
+        return precision;
+    }
+
+    public static int maxPrecision(GeoHashType type) {
+        switch (type) {
+            case GEOHASH:
+                return 12;
+            default:
+                throw new IllegalArgumentException("GeoHashType." + type.name() + " was not added to the test");
+        }
+    }
+
     @Override
     protected GeoGridAggregationBuilder createTestAggregatorBuilder() {
         String name = randomAlphaOfLengthBetween(3, 20);
         GeoGridAggregationBuilder factory = new GeoGridAggregationBuilder(name);
         if (randomBoolean()) {
-            factory.type(randomFrom(GeoHashType.values()).toString());
+            factory.type(randomType().toString());
         }
         if (randomBoolean()) {
-            int precision;
-            switch (factory.type()) {
-                case GEOHASH:
-                    precision = randomIntBetween(1, 12);
-                    break;
-                default:
-                    throw new IllegalArgumentException(
-                        "GeoHashType." + factory.type().name() + " was not added to the test");
-            }
-            factory.precision(precision);
-        } else {
-            // precision gets initialized during the parse stage, so we have to force it
-            // to the default value for the chosen hashing type.
-            factory.precision(factory.type().getHandler().getDefaultPrecision());
+            factory.precision(randomPrecision(factory.type()));
         }
         if (randomBoolean()) {
             factory.size(randomIntBetween(1, Integer.MAX_VALUE));

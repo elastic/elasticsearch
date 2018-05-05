@@ -23,6 +23,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.search.aggregations.bucket.GeoHashGridTests;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.containsString;
@@ -32,9 +33,11 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class GeoHashGridParserTests extends ESTestCase {
     public void testParseValidFromInts() throws Exception {
-        int precision = randomIntBetween(1, 12);
+        GeoHashType type = GeoHashGridTests.randomType();
+        int precision = GeoHashGridTests.randomPrecision(type);
         XContentParser stParser = createParser(JsonXContent.jsonXContent,
-                "{\"field\":\"my_loc\", \"precision\":" + precision + ", \"size\": 500, \"shard_size\": 550}");
+                "{\"field\":\"my_loc\", \"type\":\"" + type + "\", \"precision\":" + precision +
+                    ", \"size\": 500, \"shard_size\": 550}");
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory
@@ -42,9 +45,11 @@ public class GeoHashGridParserTests extends ESTestCase {
     }
 
     public void testParseValidFromStrings() throws Exception {
-        int precision = randomIntBetween(1, 12);
+        GeoHashType type = GeoHashGridTests.randomType();
+        int precision = GeoHashGridTests.randomPrecision(type);
         XContentParser stParser = createParser(JsonXContent.jsonXContent,
-                "{\"field\":\"my_loc\", \"precision\":\"" + precision + "\", \"size\": \"500\", \"shard_size\": \"550\"}");
+                "{\"field\":\"my_loc\", \"type\":\"" + type + "\", \"precision\":\"" + precision +
+                    "\", \"size\": \"500\", \"shard_size\": \"550\"}");
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory
@@ -94,7 +99,9 @@ public class GeoHashGridParserTests extends ESTestCase {
     }
 
     public void testParseErrorOnBooleanPrecision() throws Exception {
-        XContentParser stParser = createParser(JsonXContent.jsonXContent, "{\"field\":\"my_loc\", \"precision\":false}");
+        GeoHashType type = GeoHashGridTests.randomType();
+        XContentParser stParser = createParser(JsonXContent.jsonXContent,
+            "{\"field\":\"my_loc\", \"type\":\"" + type + "\", \"precision\":false}");
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         XContentParseException e = expectThrows(XContentParseException.class,
@@ -104,7 +111,10 @@ public class GeoHashGridParserTests extends ESTestCase {
     }
 
     public void testParseErrorOnPrecisionOutOfRange() throws Exception {
-        XContentParser stParser = createParser(JsonXContent.jsonXContent, "{\"field\":\"my_loc\", \"precision\":\"13\"}");
+        final GeoHashType type = GeoHashGridTests.randomType();
+        final int precision = GeoHashGridTests.maxPrecision(type) + 1;
+        XContentParser stParser = createParser(JsonXContent.jsonXContent,
+            "{\"field\":\"my_loc\", \"type\":\"" + type + "\", \"precision\":\""+ precision +"\"}");
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         try {
@@ -112,7 +122,17 @@ public class GeoHashGridParserTests extends ESTestCase {
             fail();
         } catch (XContentParseException ex) {
             assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
-            assertEquals("Invalid geohash aggregation precision of 13. Must be between 1 and 12.", ex.getCause().getMessage());
+            if (type == GeoHashType.GEOHASH) {
+                String expectedMsg;
+                switch (type) {
+                    case GEOHASH:
+                        expectedMsg = "Invalid geohash aggregation precision of 13. Must be between 1 and 12.";
+                        break;
+                    default:
+                        throw new IllegalArgumentException("GeoHashType." + type.name() + " was not added to the test");
+                }
+                assertEquals(expectedMsg, ex.getCause().getMessage());
+            }
         }
     }
 }

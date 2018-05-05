@@ -346,7 +346,6 @@ Supported metrics are:
 * `search`
 * `segments`
 * `store`
-* `suggest`
 * `translog`
 * `warmer`
 

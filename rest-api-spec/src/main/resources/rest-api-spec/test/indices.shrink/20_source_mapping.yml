@@ -1,9 +1,5 @@
 ---
 "Shrink index ignores target template mapping":
-    - skip:
-        version: " - 5.99.99"
-        reason: bug fixed in 5.6.0
-
     - do:
         cluster.state: {}
         # Get master node id

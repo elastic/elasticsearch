@@ -1113,6 +1113,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             BlobStoreIndexShardSnapshots snapshots = tuple.v1();
             int fileListGeneration = tuple.v2();
 
+            if (snapshots.snapshots().stream().anyMatch(sf -> sf.snapshot().equals(snapshotId.getName()))) {
+                throw new IndexShardSnapshotFailedException(shardId,
+                    "Duplicate snapshot name [" + snapshotId.getName() + "] detected, aborting");
+            }
+
             final List<BlobStoreIndexShardSnapshot.FileInfo> indexCommitPointFiles = new ArrayList<>();
 
             store.incRef();
@@ -1319,7 +1324,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     /**
      * This is a BWC layer to ensure we update the snapshots metadata with the corresponding hashes before we compare them.
-     * The new logic for StoreFileMetaData reads the entire <tt>.si</tt> and <tt>segments.n</tt> files to strengthen the
+     * The new logic for StoreFileMetaData reads the entire {@code .si} and {@code segments.n} files to strengthen the
      * comparison of the files on a per-segment / per-commit level.
      */
     private static void maybeRecalculateMetadataHash(final BlobContainer blobContainer, final BlobStoreIndexShardSnapshot.FileInfo fileInfo, Store.MetadataSnapshot snapshot) throws Exception {

@@ -86,7 +86,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.INDEX;
+        return ThreadPool.Names.WRITE;
     }
 
     @Override

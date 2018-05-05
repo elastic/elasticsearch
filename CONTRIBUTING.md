@@ -107,6 +107,8 @@ We support development in the Eclipse and IntelliJ IDEs. For Eclipse, the
 minimum version that we support is [Eclipse Oxygen][eclipse] (version 4.7). For
 IntelliJ, the minimum version that we support is [IntelliJ 2017.2][intellij].
 
+### Configuring IDEs And Running Tests
+
 Eclipse users can automatically configure their IDE: `./gradlew eclipse`
 then `File: Import: Existing Projects into Workspace`. Select the
 option `Search for nested projects`. Additionally you will want to
@@ -144,6 +146,9 @@ For IntelliJ, go to
 For Eclipse, go to `Preferences->Java->Installed JREs` and add `-ea` to
 `VM Arguments`.
 
+
+### Java Language Formatting Guidelines
+
 Please follow these formatting guidelines:
 
 * Java indent is 4 spaces
@@ -154,6 +159,33 @@ Please follow these formatting guidelines:
  * Eclipse: `Preferences->Java->Code Style->Organize Imports`. There are two boxes labeled "`Number of (static )? imports needed for .*`". Set their values to 99999 or some other absurdly high value.
  * IntelliJ: `Preferences/Settings->Editor->Code Style->Java->Imports`. There are two configuration options: `Class count to use import with '*'` and `Names count to use static import with '*'`. Set their values to 99999 or some other absurdly high value.
 * Don't worry too much about import order. Try not to change it but don't worry about fighting your IDE to stop it from doing so.
+
+### License Headers
+
+We require license headers on all Java files. You will notice that all the Java files in
+the top-level `x-pack` directory contain a separate license from the rest of the repository. This
+directory contains commercial code that is associated with a separate license. It can be helpful
+to have the IDE automatically insert the appropriate license header depending which part of the project
+contributions are made to.
+
+#### IntelliJ: Copyright & Scope Profiles
+
+To have IntelliJ insert the correct license, it is necessary to create to copyright profiles.
+These may potentially be called `apache2` and `commercial`. These can be created in
+`Preferences/Settings->Editor->Copyright->Copyright Profiles`. To associate these profiles to
+their respective directories, two "Scopes" will need to be created. These can be created in
+`Preferences/Settings->Appearances & Behavior->Scopes`. When creating scopes, be sure to choose
+the `shared` scope type. Create a scope, `apache2`, with
+the associated pattern of `!file[group:x-pack]:*/`. This pattern will exclude all the files contained in
+the `x-pack` directory. The other scope, `commercial`, will have the inverse pattern of `file[group:x-pack]:*/`.
+The two scopes, together, should account for all the files in the project. To associate the scopes
+with their copyright-profiles, go into `Preferences/Settings->Editor>Copyright` and use the `+` to add
+the associations `apache2/apache2` and `commercial/commercial`.
+
+Configuring these options in IntelliJ can be quite buggy, so do not be alarmed if you have to open/close
+the settings window and/or restart IntelliJ to see your changes take effect.
+
+### Creating A Distribution
 
 To create a distribution from the source, simply run:
 
@@ -168,6 +200,8 @@ The package distributions (Debian and RPM) can be found under:
 The archive distributions (tar and zip) can be found under:
 `./distribution/archives/(tar|zip)/build/distributions/`
 
+
+### Running The Full Test Suite
 
 Before submitting your changes, run the test suite to make sure that nothing is broken, with:
 

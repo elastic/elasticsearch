@@ -87,9 +87,9 @@ public class ThreadPoolSerializationTests extends ESTestCase {
     }
 
     public void testThatNegativeSettingAllowsToStart() throws InterruptedException {
-        Settings settings = Settings.builder().put("node.name", "bulk").put("thread_pool.bulk.queue_size", "-1").build();
+        Settings settings = Settings.builder().put("node.name", "write").put("thread_pool.write.queue_size", "-1").build();
         ThreadPool threadPool = new ThreadPool(settings);
-        assertThat(threadPool.info("bulk").getQueueSize(), is(nullValue()));
+        assertThat(threadPool.info("write").getQueueSize(), is(nullValue()));
         terminate(threadPool);
     }
 

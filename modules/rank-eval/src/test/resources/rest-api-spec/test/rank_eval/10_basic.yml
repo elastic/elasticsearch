@@ -1,10 +1,4 @@
----
-"Response format":
-
-  - skip:
-      version: " - 6.2.99"
-      reason: response format was updated in 6.3
-
+setup: 
   - do:
      indices.create:
          index: foo
@@ -44,7 +38,20 @@
       indices.refresh: {}
 
   - do:
+      indices.put_alias:
+        index: foo
+        name: alias
+
+---
+"Response format":
+
+  - skip:
+      version: " - 6.2.99"
+      reason: response format was updated in 6.3
+
+  - do:
       rank_eval:
+        index: foo,
         body: {  
           "requests" : [
             {
@@ -84,7 +91,36 @@
   - match: { details.berlin_query.hits.0.hit._id: "doc1" }
   - match: { details.berlin_query.hits.0.rating: 1}
   - match: { details.berlin_query.hits.1.hit._id: "doc4" }
-  - is_false: details.berlin_query.hits.1.rating 
+  - is_false: details.berlin_query.hits.1.rating
+
+---
+"Alias resolution":
+
+  - do:
+      rank_eval:
+        index: alias
+        body: {  
+          "requests" : [
+            {
+                "id": "amsterdam_query",
+                "request": { "query": { "match" : {"text" : "amsterdam" }}},
+                "ratings": [
+                    {"_index": "foo", "_id": "doc1", "rating": 0},
+                    {"_index": "foo", "_id": "doc2", "rating": 1},
+                    {"_index": "foo", "_id": "doc3", "rating": 1}]
+            },
+            {
+                "id" : "berlin_query",
+                "request": { "query": { "match" : { "text" : "berlin" } }, "size" : 10 },
+                "ratings": [{"_index": "foo", "_id": "doc1", "rating": 1}]
+            }
+          ],
+          "metric" : { "precision": { "ignore_unlabeled" : true }}
+        }
+
+  - match: { quality_level: 1}
+  - match: { details.amsterdam_query.quality_level: 1.0}
+  - match: { details.berlin_query.quality_level: 1.0}
 
 ---
 "Mean Reciprocal Rank":
@@ -92,44 +128,6 @@
   - skip:
       version: " - 6.2.99"
       reason: response format was updated in 6.3
-
-  - do:
-     indices.create:
-         index: foo
-         body:
-           settings:
-             index:
-               number_of_shards: 1
-  - do:
-      index:
-        index:   foo
-        type:    bar
-        id:      doc1
-        body:    { "text": "berlin" }
-
-  - do:
-      index:
-        index:  foo
-        type:   bar
-        id:     doc2
-        body:   { "text": "amsterdam" }
-
-  - do:
-      index:
-        index:  foo
-        type:   bar
-        id:     doc3
-        body:   { "text": "amsterdam" }
-        
-  - do:
-      index:
-        index:  foo
-        type:   bar
-        id:     doc4
-        body:   { "text": "something about amsterdam and berlin" }
-
-  - do:
-      indices.refresh: {}
 
   - do:
       rank_eval:

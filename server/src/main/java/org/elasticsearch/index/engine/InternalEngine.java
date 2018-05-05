@@ -22,6 +22,7 @@ package org.elasticsearch.index.engine;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
@@ -34,8 +35,10 @@ import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
@@ -2002,8 +2005,8 @@ public class InternalEngine extends Engine {
         // background merges
         MergePolicy mergePolicy = config().getMergePolicy();
         if (softDeleteEnabled) {
-            // TODO: soft-delete retention policy
             iwc.setSoftDeletesField(Lucene.SOFT_DELETE_FIELD);
+            mergePolicy = new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETE_FIELD, this::softDeletesRetentionQuery, mergePolicy);
         }
         iwc.setMergePolicy(new ElasticsearchMergePolicy(mergePolicy));
         iwc.setSimilarity(engineConfig.getSimilarity());
@@ -2014,6 +2017,20 @@ public class InternalEngine extends Engine {
             iwc.setIndexSort(config().getIndexSort());
         }
         return iwc;
+    }
+
+    /**
+     * Documents including tombstones are soft-deleted and matched this query will be retained and won't cleaned up by merges.
+     */
+    private Query softDeletesRetentionQuery() {
+        ensureOpen();
+        // TODO: We send the safe commit in peer-recovery, thus we need to retain all operations after the local checkpoint of that commit.
+        final long retainedExtraOps = engineConfig.getIndexSettings().getSoftDeleteRetentionOperations();
+        // Prefer using the global checkpoint which is persisted on disk than an in-memory value.
+        // If we failed to fsync checkpoint but already used a higher global checkpoint value to clean up soft-deleted ops,
+        // then we may not have all required operations whose seq# greater than the global checkpoint after restarted.
+        final long persistedGlobalCheckpoint = translog.getLastSyncedGlobalCheckpoint();
+        return LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, persistedGlobalCheckpoint + 1 - retainedExtraOps, Long.MAX_VALUE);
     }
 
     /** Extended SearcherFactory that warms the segments if needed when acquiring a new searcher */

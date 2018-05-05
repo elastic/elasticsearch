@@ -245,6 +245,12 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
         if ((blobNames == null) || blobNames.isEmpty()) {
             return;
         }
+        if (blobNames.size() < 5) {
+            for (final String blobName : blobNames) {
+                deleteBlob(blobName);
+            }
+            return;
+        }
         final List<BlobId> blobIdsToDelete = blobNames.stream().map(blobName -> BlobId.of(bucket, blobName)).collect(Collectors.toList());
         final List<Boolean> deletedStatuses = SocketAccess.doPrivilegedIOException(() -> storage.delete(blobIdsToDelete));
         assert blobIdsToDelete.size() == deletedStatuses.size();

@@ -250,6 +250,14 @@ public final class IndexSettings {
         Setting.boolSetting("index.soft_deletes.enabled", true, Property.IndexScope);
 
     /**
+     * Controls how many soft-deleted documents will be kept around before being merged away. Keeping more deleted
+     * documents increases the chance of operation-based recoveries and allows querying a longer history of documents.
+     * If soft-deletes is enabled, an engine by default will retain all operations up to the global checkpoint.
+     **/
+    public static final Setting<Long> INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING =
+        Setting.longSetting("index.soft_deletes.retention.operations", 0, 0, Property.IndexScope, Property.Dynamic);
+
+    /**
      * The maximum number of refresh listeners allows on this shard.
      */
     public static final Setting<Integer> MAX_REFRESH_LISTENERS_PER_SHARD = Setting.intSetting("index.max_refresh_listeners", 1000, 0,
@@ -302,6 +310,7 @@ public final class IndexSettings {
     private final IndexScopedSettings scopedSettings;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private final boolean softDeleteEnabled;
+    private volatile long softDeleteRetentionOperations;
     private volatile boolean warmerEnabled;
     private volatile int maxResultWindow;
     private volatile int maxInnerResultWindow;
@@ -410,6 +419,7 @@ public final class IndexSettings {
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         softDeleteEnabled = version.onOrAfter(Version.V_6_4_0) && scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
+        softDeleteRetentionOperations = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
         maxResultWindow = scopedSettings.get(MAX_RESULT_WINDOW_SETTING);
         maxInnerResultWindow = scopedSettings.get(MAX_INNER_RESULT_WINDOW_SETTING);
@@ -466,6 +476,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(MAX_TERMS_COUNT_SETTING, this::setMaxTermsCount);
         scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_SCROLL, this::setMaxSlicesPerScroll);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_FIELD_SETTING, this::setDefaultFields);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
     }
 
     private void setTranslogFlushThresholdSize(ByteSizeValue byteSizeValue) {
@@ -821,5 +832,16 @@ public final class IndexSettings {
      */
     public boolean isSoftDeleteEnabled() {
         return softDeleteEnabled;
+    }
+
+    private void setSoftDeleteRetentionOperations(long ops) {
+        this.softDeleteRetentionOperations = ops;
+    }
+
+    /**
+     * Returns the number of extra operations (i.e. soft-deleted documents) to be kept for recoveries and history purpose.
+     */
+    public long getSoftDeleteRetentionOperations() {
+        return this.softDeleteRetentionOperations;
     }
 }

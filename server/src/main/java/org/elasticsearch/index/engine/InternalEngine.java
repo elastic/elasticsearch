@@ -2346,20 +2346,15 @@ public class InternalEngine extends Engine {
         return numDocUpdates.count();
     }
 
-    /**
-     * Creates a new "translog" snapshot containing changes between <code>minSeqNo</code> and <code>maxSeqNo</code>
-     * from the Lucene index.
-     */
     public Translog.Snapshot newLuceneChangesSnapshot(String source, MapperService mapperService,
-                                                      long minSeqNo, long maxSeqNo) throws IOException {
+                                                      long minSeqNo, long maxSeqNo, boolean requiredFullRange) throws IOException {
         // TODO: Should we defer the refresh until we really need it?
         ensureOpen();
         if (lastRefreshedCheckpointListener.refreshedLocalCheckpoint.get() < maxSeqNo) {
             refresh(source, SearcherScope.INTERNAL);
         }
-        return new LuceneChangesSnapshot(() -> acquireSearcher(source, SearcherScope.INTERNAL),
-            mapperService, minSeqNo, maxSeqNo, true, () -> {
-        });
+        return new LuceneChangesSnapshot(() -> acquireSearcher(source, SearcherScope.INTERNAL), mapperService,
+            minSeqNo, maxSeqNo, requiredFullRange, () -> { });
     }
 
     @Override

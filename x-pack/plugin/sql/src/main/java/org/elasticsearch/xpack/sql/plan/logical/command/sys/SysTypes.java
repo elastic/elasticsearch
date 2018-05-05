@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import java.sql.DatabaseMetaData;
 import java.util.Comparator;
@@ -70,6 +71,7 @@ public class SysTypes extends Command {
                 .sorted(Comparator.comparing(t -> t.jdbcType))
                 .map(t -> asList(t.esType.toUpperCase(Locale.ROOT),
                         t.jdbcType.getVendorTypeNumber(),
+                        //https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/column-size?view=sql-server-2017
                         t.defaultPrecision,
                         "'",
                         "'",
@@ -86,13 +88,13 @@ public class SysTypes extends Command {
                         false,
                         null,
                         null,
-                        null,
-                        null,
+                        DataTypes.metaSqlMinimumScale(t),
+                        DataTypes.metaSqlMaximumScale(t),
                         // SQL_DATA_TYPE - ODBC wants this to be not null
-                        0,
-                        null,
+                        DataTypes.metaSqlDataType(t),
+                        DataTypes.metaSqlDateTimeSub(t),
                         // Radix
-                        t.isInteger ? Integer.valueOf(10) : (t.isRational ? Integer.valueOf(2) : null),
+                        DataTypes.metaSqlRadix(t),
                         null
                         ))
                 .collect(toList());

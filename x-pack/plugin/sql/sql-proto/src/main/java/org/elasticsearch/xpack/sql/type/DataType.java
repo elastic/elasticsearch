@@ -25,8 +25,8 @@ public enum DataType {
     SHORT(       JDBCType.SMALLINT,  Short.class,     Short.BYTES,       5,                 6, true, false, true),
     INTEGER(     JDBCType.INTEGER,   Integer.class,   Integer.BYTES,     10,                11, true, false, true),
     LONG(        JDBCType.BIGINT,    Long.class,      Long.BYTES,        19,                20, true, false, true),
-    // 53 bits defaultPrecision ~ 16(15.95) decimal digits (53log10(2)),
-    DOUBLE(      JDBCType.DOUBLE,    Double.class,    Double.BYTES,      16,                25, false, true, true),
+    // 53 bits defaultPrecision ~ 15(15.95) decimal digits (53log10(2)),
+    DOUBLE(      JDBCType.DOUBLE,    Double.class,    Double.BYTES,      15,                25, false, true, true),
     // 24 bits defaultPrecision - 24*log10(2) =~ 7 (7.22)
     FLOAT(       JDBCType.REAL,      Float.class,     Float.BYTES,       7,                 15, false, true, true),
     HALF_FLOAT(  JDBCType.FLOAT,     Double.class,    Double.BYTES,      16,                25, false, true, true),
@@ -37,7 +37,9 @@ public enum DataType {
     OBJECT(      JDBCType.STRUCT,    null,            -1,                0,                 0),
     NESTED(      JDBCType.STRUCT,    null,            -1,                0,                 0),
     BINARY(      JDBCType.VARBINARY, byte[].class,    -1,                Integer.MAX_VALUE, 0),
-    DATE(        JDBCType.TIMESTAMP, Timestamp.class, Long.BYTES,        19,                20);
+    // since ODBC and JDBC interpret precision for Date as display size, the precision is 19 (number of digits) + Z (the UTC timezone)
+    // see https://github.com/elastic/elasticsearch/issues/30386#issuecomment-386807288
+    DATE(        JDBCType.TIMESTAMP, Timestamp.class, Long.BYTES,        20,                20);
     // @formatter:on
 
     private static final Map<JDBCType, DataType> jdbcToEs;

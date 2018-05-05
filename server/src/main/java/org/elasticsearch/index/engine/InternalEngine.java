@@ -2350,7 +2350,7 @@ public class InternalEngine extends Engine {
                                                       long minSeqNo, long maxSeqNo, boolean requiredFullRange) throws IOException {
         // TODO: Should we defer the refresh until we really need it?
         ensureOpen();
-        if (lastRefreshedCheckpointListener.refreshedLocalCheckpoint.get() < maxSeqNo) {
+        if (lastRefreshedCheckpoint() < maxSeqNo) {
             refresh(source, SearcherScope.INTERNAL);
         }
         return new LuceneChangesSnapshot(() -> acquireSearcher(source, SearcherScope.INTERNAL), mapperService,
@@ -2404,6 +2404,12 @@ public class InternalEngine extends Engine {
         }
     }
 
+    /**
+     * Returned the maximum local checkpoint value has been refreshed internally.
+     */
+    final long lastRefreshedCheckpoint() {
+        return lastRefreshedCheckpointListener.refreshedLocalCheckpoint.get();
+    }
     private final class LastRefreshedCheckpointListener implements ReferenceManager.RefreshListener {
         final AtomicLong refreshedLocalCheckpoint;
         private volatile long pendingCheckpoint;
@@ -2412,7 +2418,7 @@ public class InternalEngine extends Engine {
         }
         @Override
         public void beforeRefresh() {
-            pendingCheckpoint = localCheckpointTracker.getCheckpoint(); // All change until this time should be visible after refresh
+            pendingCheckpoint = localCheckpointTracker.getCheckpoint(); // All change until this point should be visible after refresh
         }
         @Override
         public void afterRefresh(boolean didRefresh) {

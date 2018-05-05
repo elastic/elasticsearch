@@ -4704,52 +4704,6 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    public void testLuceneHistoryOnPrimary() throws Exception {
-        final List<Engine.Operation> operations = generateSingleDocHistory(false,
-            randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL), 2, 10, 300, "1");
-        assertOperationHistoryInLucene(operations);
-    }
-
-    public void testLuceneHistoryOnReplica() throws Exception {
-        final List<Engine.Operation> operations = generateSingleDocHistory(true,
-            randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL), 2, 10, 300, "2");
-        Randomness.shuffle(operations);
-        assertOperationHistoryInLucene(operations);
-    }
-
-    private void assertOperationHistoryInLucene(List<Engine.Operation> operations) throws IOException {
-        final MergePolicy keepSoftDeleteDocsMP = new SoftDeletesRetentionMergePolicy(
-            Lucene.SOFT_DELETE_FIELD, () -> new MatchAllDocsQuery(), engine.config().getMergePolicy());
-        Set<Long> expectedSeqNos = new HashSet<>();
-        try (Store store = createStore();
-             Engine engine = createEngine(config(defaultSettings, store, createTempDir(), keepSoftDeleteDocsMP, null))) {
-            for (Engine.Operation op : operations) {
-                if (op instanceof Engine.Index) {
-                    Engine.IndexResult indexResult = engine.index((Engine.Index) op);
-                    assertThat(indexResult.getFailure(), nullValue());
-                    expectedSeqNos.add(indexResult.getSeqNo());
-                } else {
-                    Engine.DeleteResult deleteResult = engine.delete((Engine.Delete) op);
-                    assertThat(deleteResult.getFailure(), nullValue());
-                    expectedSeqNos.add(deleteResult.getSeqNo());
-                }
-                if (rarely()) {
-                    engine.refresh("test");
-                }
-                if (rarely()) {
-                    engine.flush();
-                }
-                if (rarely()) {
-                    engine.forceMerge(true);
-                }
-            }
-            MapperService mapperService = createMapperService("test");
-            List<Translog.Operation> actualOps = readAllOperationsInLucene(engine, mapperService);
-            assertThat(actualOps.stream().map(o -> o.seqNo()).collect(Collectors.toList()), containsInAnyOrder(expectedSeqNos.toArray()));
-            assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
-        }
-    }
-
     private static void trimUnsafeCommits(EngineConfig config) throws IOException {
         final Store store = config.getStore();
         final TranslogConfig translogConfig = config.getTranslogConfig();

@@ -105,7 +105,6 @@ public class ClusterSearchShardsResponseTests extends AbstractStreamableXContent
         }
     }
 
-
     @Override
     protected ClusterSearchShardsResponse doParseInstance(XContentParser parser) {
         return ClusterSearchShardsResponse.fromXContent(parser);

@@ -20,48 +20,22 @@
 package org.elasticsearch.action.admin.cluster.shards;
 
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.internal.AliasFilter;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 public class ClusterSearchShardsGroup implements Streamable, ToXContentObject {
-
-    private static final ParseField ALIASES = new ParseField("aliases");
-    private static final ParseField FILTER = new ParseField("filter");
-
-    private static final ConstructingObjectParser<AliasFilter, String> PARSER =
-        new ConstructingObjectParser<>("alias_filter", false,
-            a -> {
-                final String[] aliases = (String[]) a[0];
-                final QueryBuilder filter = (QueryBuilder) a[1];
-                return new AliasFilter(filter, aliases);
-            });
-
-    static {
-        PARSER.declareField(constructorArg(),
-            (p, c) -> p.list().toArray(Strings.EMPTY_ARRAY), ALIASES, ObjectParser.ValueType.STRING_ARRAY);
-        PARSER.declareField(constructorArg(),
-            (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), FILTER, ObjectParser.ValueType.OBJECT);
-    }
 
     private ShardId shardId;
     private ShardRouting[] shards;
@@ -132,6 +106,7 @@ public class ClusterSearchShardsGroup implements Streamable, ToXContentObject {
         if (routings.isEmpty()) {
             return new ClusterSearchShardsGroup();
         }
+
         final ShardRouting[] shards = routings.toArray(new ShardRouting[0]);
         ShardId shardId = shards[0].shardId();
         return new ClusterSearchShardsGroup(shardId, shards);

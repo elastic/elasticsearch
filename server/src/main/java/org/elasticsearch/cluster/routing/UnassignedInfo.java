@@ -494,10 +494,9 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-//        builder.startObject("unassigned_info");
-        builder.startObject();
-        builder.field(REASON, reason);
-        builder.field(AT, DATE_TIME_FORMATTER.printer().print(unassignedTimeMillis));
+        builder.startObject()
+            .field(REASON, reason)
+            .field(AT, DATE_TIME_FORMATTER.printer().print(unassignedTimeMillis));
         if (failedAllocations >  0) {
             builder.field(FAILED_ATTEMPTS, failedAllocations);
         }
@@ -506,8 +505,8 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         if (details != null) {
             builder.field(DETAILS, details);
         }
-        builder.field(ALLOCATION_STATUS, lastAllocationStatus.value());
-        builder.endObject();
+        builder.field(ALLOCATION_STATUS, lastAllocationStatus.value())
+            .endObject();
         return builder;
     }
 

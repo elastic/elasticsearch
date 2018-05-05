@@ -73,8 +73,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
                 // TODO: impossible to recreate version
                 final Version version = Version.CURRENT;
 
-                return new DiscoveryNode(nodeName, nodeId, ephemeralId, hostName, hostAddress, address, attributes,
-                    roles, version);
+                return new DiscoveryNode(nodeName, nodeId, ephemeralId, hostName, hostAddress, address, attributes, roles, version);
             });
 
     static {
@@ -421,18 +420,17 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(getId());
-        builder.field( NAME, getName());
-        builder.field(EPHEMERAL_ID, getEphemeralId());
-        builder.field(TRANSPORT_ADDRESS, getAddress().toString());
-        builder.field(ATTRIBUTES, attributes);
-        builder.endObject();
-        return builder;
+        return builder.startObject(getId())
+            .field(NAME, getName())
+            .field(EPHEMERAL_ID, getEphemeralId())
+            .field(TRANSPORT_ADDRESS, getAddress().toString())
+            .field(ATTRIBUTES, attributes)
+            .endObject();
     }
 
     public static DiscoveryNode fromXContent(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
-        String nodeId = parser.currentName();
+        final String nodeId = parser.currentName();
         final DiscoveryNode node = PARSER.apply(parser, nodeId);
         ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser::getTokenLocation);
         parser.nextToken();

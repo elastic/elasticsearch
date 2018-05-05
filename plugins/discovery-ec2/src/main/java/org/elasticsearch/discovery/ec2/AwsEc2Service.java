@@ -52,6 +52,9 @@ interface AwsEc2Service {
     /** The secret key (ie password) for connecting to ec2. */
     Setting<SecureString> SECRET_KEY_SETTING = SecureSetting.secureString("discovery.ec2.secret_key", null);
 
+    /** The (optional) session token for connecting to ec2. */
+    Setting<SecureString> SESSION_TOKEN_SETTING = SecureSetting.secureString("discovery.ec2.session_token", null);
+
     /** An override for the ec2 endpoint to connect to. */
     Setting<String> ENDPOINT_SETTING = new Setting<>("discovery.ec2.endpoint", "",
         s -> s.toLowerCase(Locale.ROOT), Property.NodeScope);

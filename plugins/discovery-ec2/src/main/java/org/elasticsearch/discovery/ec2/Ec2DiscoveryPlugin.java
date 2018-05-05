@@ -106,6 +106,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
         // Register EC2 discovery settings: discovery.ec2
         AwsEc2Service.ACCESS_KEY_SETTING,
         AwsEc2Service.SECRET_KEY_SETTING,
+        AwsEc2Service.SESSION_TOKEN_SETTING,
         AwsEc2Service.ENDPOINT_SETTING,
         AwsEc2Service.PROTOCOL_SETTING,
         AwsEc2Service.PROXY_HOST_SETTING,

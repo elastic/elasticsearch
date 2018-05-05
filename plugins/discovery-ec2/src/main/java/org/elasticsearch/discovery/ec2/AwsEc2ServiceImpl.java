@@ -26,8 +26,11 @@ import java.util.Random;
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonWebServiceRequest;
 import com.amazonaws.ClientConfiguration;
+import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.auth.BasicSessionCredentials;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.internal.StaticCredentialsProvider;
@@ -35,13 +38,18 @@ import com.amazonaws.retry.RetryPolicy;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2Client;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 
 class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service, Closeable {
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(AwsEc2ServiceImpl.class));
 
     public static final String EC2_METADATA_URL = "http://169.254.169.254/latest/meta-data/";
 
@@ -67,20 +75,38 @@ class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service, Clos
     }
 
     protected static AWSCredentialsProvider buildCredentials(Logger logger, Settings settings) {
-        AWSCredentialsProvider credentials;
-
         try (SecureString key = ACCESS_KEY_SETTING.get(settings);
-             SecureString secret = SECRET_KEY_SETTING.get(settings)) {
+             SecureString secret = SECRET_KEY_SETTING.get(settings);
+             SecureString sessionToken = SESSION_TOKEN_SETTING.get(settings)) {
             if (key.length() == 0 && secret.length() == 0) {
+                if (sessionToken.length() > 0) {
+                    throw new SettingsException("Setting [{}] is set but [{}] and [{}] are not",
+                        SESSION_TOKEN_SETTING.getKey(), ACCESS_KEY_SETTING.getKey(), SECRET_KEY_SETTING.getKey());
+                }
+
                 logger.debug("Using either environment variables, system properties or instance profile credentials");
-                credentials = new DefaultAWSCredentialsProviderChain();
+                return new DefaultAWSCredentialsProviderChain();
             } else {
-                logger.debug("Using basic key/secret credentials");
-                credentials = new StaticCredentialsProvider(new BasicAWSCredentials(key.toString(), secret.toString()));
+                if (key.length() == 0) {
+                    DEPRECATION_LOGGER.deprecated("Setting [{}] is set but [{}] is not, which will be unsupported in future",
+                        SECRET_KEY_SETTING.getKey(), ACCESS_KEY_SETTING.getKey());
+                }
+                if (secret.length() == 0) {
+                    DEPRECATION_LOGGER.deprecated("Setting [{}] is set but [{}] is not, which will be unsupported in future",
+                        ACCESS_KEY_SETTING.getKey(), SECRET_KEY_SETTING.getKey());
+                }
+
+                final AWSCredentials credentials;
+                if (sessionToken.length() == 0) {
+                    logger.debug("Using basic key/secret credentials");
+                    credentials = new BasicAWSCredentials(key.toString(), secret.toString());
+                } else {
+                    logger.debug("Using basic session credentials");
+                    credentials = new BasicSessionCredentials(key.toString(), secret.toString(), sessionToken.toString());
+                }
+                return new AWSStaticCredentialsProvider(credentials);
             }
         }
-
-        return credentials;
     }
 
     protected static ClientConfiguration buildConfiguration(Logger logger, Settings settings) {

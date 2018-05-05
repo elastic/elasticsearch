@@ -82,6 +82,9 @@ public class Ec2DiscoveryClusterFormationTests extends ESIntegTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(AwsEc2Service.ACCESS_KEY_SETTING.getKey(), "some_access");
         secureSettings.setString(AwsEc2Service.SECRET_KEY_SETTING.getKey(), "some_secret");
+        if (randomBoolean()) {
+            secureSettings.setString(AwsEc2Service.SESSION_TOKEN_SETTING.getKey(), "some_token");
+        }
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
             .put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "ec2")
             .put("path.logs", resolve)

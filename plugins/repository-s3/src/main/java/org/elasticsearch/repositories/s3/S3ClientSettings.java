@@ -27,7 +27,9 @@ import java.util.Set;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
+import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.auth.BasicSessionCredentials;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -49,6 +51,10 @@ class S3ClientSettings {
 
     /** The secret key (ie password) for connecting to s3. */
     static final Setting.AffixSetting<SecureString> SECRET_KEY_SETTING = Setting.affixKeySetting(PREFIX, "secret_key",
+        key -> SecureSetting.secureString(key, null));
+
+    /** The (optional) session token for connecting to s3. */
+    static final Setting.AffixSetting<SecureString> SESSION_TOKEN_SETTING = Setting.affixKeySetting(PREFIX, "session_token",
         key -> SecureSetting.secureString(key, null));
 
     /** An override for the s3 endpoint to connect to. */
@@ -88,7 +94,7 @@ class S3ClientSettings {
         key -> Setting.boolSetting(key, ClientConfiguration.DEFAULT_THROTTLE_RETRIES, Property.NodeScope));
 
     /** Credentials to authenticate with s3. */
-    final BasicAWSCredentials credentials;
+    final AWSCredentials credentials;
 
     /** The s3 endpoint the client should talk to, or empty string to use the default. */
     final String endpoint;
@@ -119,7 +125,7 @@ class S3ClientSettings {
     /** Whether the s3 client should use an exponential backoff retry policy. */
     final boolean throttleRetries;
 
-    private S3ClientSettings(BasicAWSCredentials credentials, String endpoint, Protocol protocol,
+    private S3ClientSettings(AWSCredentials credentials, String endpoint, Protocol protocol,
                              String proxyHost, int proxyPort, String proxyUsername, String proxyPassword,
                              int readTimeoutMillis, int maxRetries, boolean throttleRetries) {
         this.credentials = credentials;
@@ -158,17 +164,28 @@ class S3ClientSettings {
     static S3ClientSettings getClientSettings(Settings settings, String clientName) {
         try (SecureString accessKey = getConfigValue(settings, clientName, ACCESS_KEY_SETTING);
              SecureString secretKey = getConfigValue(settings, clientName, SECRET_KEY_SETTING);
+             SecureString sessionToken = getConfigValue(settings, clientName, SESSION_TOKEN_SETTING);
              SecureString proxyUsername = getConfigValue(settings, clientName, PROXY_USERNAME_SETTING);
              SecureString proxyPassword = getConfigValue(settings, clientName, PROXY_PASSWORD_SETTING)) {
-            BasicAWSCredentials credentials = null;
+            final AWSCredentials credentials;
             if (accessKey.length() != 0) {
                 if (secretKey.length() != 0) {
-                    credentials = new BasicAWSCredentials(accessKey.toString(), secretKey.toString());
+                    if (sessionToken.length() != 0) {
+                        credentials = new BasicSessionCredentials(accessKey.toString(), secretKey.toString(), sessionToken.toString());
+                    } else {
+                        credentials = new BasicAWSCredentials(accessKey.toString(), secretKey.toString());
+                    }
                 } else {
                     throw new IllegalArgumentException("Missing secret key for s3 client [" + clientName + "]");
                 }
-            } else if (secretKey.length() != 0) {
-                throw new IllegalArgumentException("Missing access key for s3 client [" + clientName + "]");
+            } else {
+                if (secretKey.length() != 0) {
+                    throw new IllegalArgumentException("Missing access key for s3 client [" + clientName + "]");
+                }
+                if (sessionToken.length() != 0) {
+                    throw new IllegalArgumentException("Missing access key and secret key for s3 client [" + clientName + "]");
+                }
+                credentials = null;
             }
             return new S3ClientSettings(
                 credentials,

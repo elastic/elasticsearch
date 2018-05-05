@@ -111,9 +111,7 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
     // pkg private for tests
     static AWSCredentialsProvider buildCredentials(Logger logger, DeprecationLogger deprecationLogger,
                                                    S3ClientSettings clientSettings, Settings repositorySettings) {
-
-
-        BasicAWSCredentials credentials = clientSettings.credentials;
+        AWSCredentials credentials = clientSettings.credentials;
         if (S3Repository.ACCESS_KEY_SETTING.exists(repositorySettings)) {
             if (S3Repository.SECRET_KEY_SETTING.exists(repositorySettings) == false) {
                 throw new IllegalArgumentException("Repository setting [" + S3Repository.ACCESS_KEY_SETTING.getKey() +

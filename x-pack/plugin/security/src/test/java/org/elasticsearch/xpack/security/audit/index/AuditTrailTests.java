@@ -132,14 +132,14 @@ public class AuditTrailTests extends SecurityIntegTestCase {
         assertThat(event.get(IndexAuditTrail.Field.RUN_AS_REALM), nullValue());
     }
 
-    private Collection<Map<String, Object>> waitForAuditEvents() throws InterruptedException {
+    private Collection<Map<String, Object>> waitForAuditEvents() throws Exception {
         waitForAuditTrailToBeWritten();
         final AtomicReference<Collection<Map<String, Object>>> eventsRef = new AtomicReference<>();
-        awaitBusy(() -> {
+        assertBusy(() -> {
             try {
                 final Collection<Map<String, Object>> events = getAuditEvents();
                 eventsRef.set(events);
-                return events.size() > 0;
+                assertTrue(events.size() > 0);
             } catch (final Exception e) {
                 throw new RuntimeException(e);
             }
@@ -152,7 +152,7 @@ public class AuditTrailTests extends SecurityIntegTestCase {
         final DateTime now = new DateTime(DateTimeZone.UTC);
         final String indexName = IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, now, IndexNameResolver.Rollover.DAILY);
 
-        assertTrue(awaitBusy(() -> indexExists(client, indexName), 5, TimeUnit.SECONDS));
+        assertBusy(() -> assertTrue(indexExists(client, indexName)), 5, TimeUnit.SECONDS);
 
         client.admin().indices().refresh(Requests.refreshRequest(indexName)).get();
 
@@ -179,11 +179,11 @@ public class AuditTrailTests extends SecurityIntegTestCase {
         }
     }
 
-    private void waitForAuditTrailToBeWritten() throws InterruptedException {
+    private void waitForAuditTrailToBeWritten() throws Exception {
         final AuditTrailService auditTrailService = (AuditTrailService) internalCluster().getInstance(AuditTrail.class);
         assertThat(auditTrailService.getAuditTrails(), iterableWithSize(1));
 
         final IndexAuditTrail indexAuditTrail = (IndexAuditTrail) auditTrailService.getAuditTrails().get(0);
-        assertTrue(awaitBusy(() -> indexAuditTrail.peek() == null, 5, TimeUnit.SECONDS));
+        assertBusy(() -> assertNull(indexAuditTrail.peek()), 5, TimeUnit.SECONDS);
     }
 }

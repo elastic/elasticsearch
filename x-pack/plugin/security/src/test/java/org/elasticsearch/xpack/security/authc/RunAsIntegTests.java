@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -21,10 +20,10 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.TestXPackTransportClient;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
-import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.core.security.SecurityField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.junit.BeforeClass;
 
 import java.util.Collections;
@@ -164,9 +163,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
                 .put(SecurityField.USER_SETTING.getKey(), TRANSPORT_CLIENT_USER + ":"
                      + SecuritySettingsSourceField.TEST_PASSWORD).build())) {
             //ensure the client can connect
-            awaitBusy(() -> {
-                return client.connectedNodes().size() > 0;
-            });
+            assertBusy(() -> assertTrue(client.connectedNodes().size() > 0));
 
             try {
                 Map<String, String> headers = new HashMap<>();
@@ -200,9 +197,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
                 .put(SecurityField.USER_SETTING.getKey(), TRANSPORT_CLIENT_USER + ":" +
                      SecuritySettingsSourceField.TEST_PASSWORD).build())) {
             //ensure the client can connect
-            awaitBusy(() -> {
-                return client.connectedNodes().size() > 0;
-            });
+            assertBusy(() -> assertTrue(client.connectedNodes().size() > 0));
 
             try {
                 Map<String, String> headers = new HashMap<>();

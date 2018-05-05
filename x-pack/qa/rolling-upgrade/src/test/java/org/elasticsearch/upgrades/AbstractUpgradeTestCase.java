@@ -72,7 +72,7 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
 
     @Before
     public void setupForTests() throws Exception {
-        awaitBusy(() -> {
+        assertBusy(() -> {
             boolean success = true;
             for (String template : templatesToWaitFor()) {
                 try {
@@ -84,7 +84,7 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
                     logger.warn("error calling template api", e);
                 }
             }
-            return success;
+            assertTrue(success);
         });
     }
 }

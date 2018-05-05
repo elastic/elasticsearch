@@ -315,7 +315,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                 new StringEntity(body, ContentType.APPLICATION_JSON));
         client().performRequest("POST", MachineLearning.BASE_PATH + "datafeeds/hrd-split-datafeed/_start");
 
-        boolean passed = awaitBusy(() -> {
+        assertBusy(() -> {
             try {
                 client().performRequest("POST", "/_refresh");
 
@@ -345,22 +345,16 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
 
                     assertThat("Expected domain [" + test.domainExpected + "] but found [" + actualDomain + "].  Actual "
                             + actualTotal + " vs Expected " + expectedTotal, actualDomain, equalTo(test.domainExpected));
-
-                    return true;
                 } else {
                     logger.error(responseBody);
-                    return false;
+                    fail("Anomaly records were not found");
                 }
 
             } catch (Exception e) {
                 logger.error(e.getMessage());
-                return false;
+                fail(e.getMessage());
             }
 
         }, 5, TimeUnit.SECONDS);
-
-        if (!passed) {
-            fail("Anomaly records were not found within 5 seconds");
-        }
     }
 }

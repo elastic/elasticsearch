@@ -113,7 +113,7 @@ public class IndexAuditIT extends ESIntegTestCase {
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         final AtomicReference<ClusterState> lastClusterState = new AtomicReference<>();
         final AtomicBoolean indexExists = new AtomicBoolean(false);
-        final boolean found = awaitBusy(() -> {
+        assertBusy(() -> {
             if (indexExists.get() == false) {
                 ClusterState state = client().admin().cluster().prepareState().get().getState();
                 lastClusterState.set(state);
@@ -126,7 +126,7 @@ public class IndexAuditIT extends ESIntegTestCase {
                 }
 
                 if (indexExists.get() == false) {
-                    return false;
+                    fail("Did not find security audit index. Current cluster state:\n" + lastClusterState.get().toString());
                 }
             }
 
@@ -138,11 +138,9 @@ public class IndexAuditIT extends ESIntegTestCase {
             logger.info("refreshing audit indices");
             client().admin().indices().prepareRefresh(".security_audit_log*").get();
             logger.info("refreshed audit indices");
-            return client().prepareSearch(".security_audit_log*").setQuery(QueryBuilders.matchQuery("principal", USER))
-                    .get().getHits().getTotalHits() > 0;
+            assertTrue(client().prepareSearch(".security_audit_log*").setQuery(QueryBuilders.matchQuery("principal", USER))
+                    .get().getHits().getTotalHits() > 0);
         }, 60L, TimeUnit.SECONDS);
-
-        assertTrue("Did not find security audit index. Current cluster state:\n" + lastClusterState.get().toString(), found);
 
         SearchResponse searchResponse = client().prepareSearch(".security_audit_log*").setQuery(
                 QueryBuilders.matchQuery("principal", USER)).get();
@@ -162,21 +160,19 @@ public class IndexAuditIT extends ESIntegTestCase {
         awaitIndexTemplateCreation();
     }
 
-    private void awaitIndexTemplateCreation() throws InterruptedException {
-        boolean found = awaitBusy(() -> {
+    private void awaitIndexTemplateCreation() throws Exception {
+        assertBusy(() -> {
             GetIndexTemplatesResponse response = client().admin().indices()
                     .prepareGetTemplates(IndexAuditTrail.INDEX_TEMPLATE_NAME).execute().actionGet();
             if (response.getIndexTemplates().size() > 0) {
                 for (IndexTemplateMetaData indexTemplateMetaData : response.getIndexTemplates()) {
                     if (IndexAuditTrail.INDEX_TEMPLATE_NAME.equals(indexTemplateMetaData.name())) {
-                        return true;
+                        return;
                     }
                 }
             }
-            return false;
+            fail("index template [" + IndexAuditTrail.INDEX_TEMPLATE_NAME + "] was not created");
         });
-
-        assertThat("index template [" + IndexAuditTrail.INDEX_TEMPLATE_NAME + "] was not created", found, is(true));
     }
 
     @Override

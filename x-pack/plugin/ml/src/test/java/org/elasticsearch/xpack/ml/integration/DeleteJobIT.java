@@ -10,23 +10,22 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class DeleteJobIT extends BaseMlIntegTestCase {
 
-    public void testWaitForDelete() throws ExecutionException, InterruptedException {
+    public void testWaitForDelete() throws Exception {
         final String jobId = "wait-for-delete-job";
         Job.Builder job = createJob(jobId);
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
@@ -71,9 +70,8 @@ public class DeleteJobIT extends BaseMlIntegTestCase {
         };
 
         client().execute(DeleteJobAction.INSTANCE, new DeleteJobAction.Request(jobId), deleteListener);
-        awaitBusy(isDeleted::get, 1, TimeUnit.SECONDS);
-        // still waiting
-        assertFalse(isDeleted.get());
+        expectThrows(AssertionError.class,
+            () -> assertBusy(() -> assertTrue(isDeleted.get()), 1, TimeUnit.SECONDS));
 
         CountDownLatch removeJobLatch = new CountDownLatch(1);
         clusterService().submitStateUpdateTask("remove-job-from-state", new ClusterStateUpdateTask() {

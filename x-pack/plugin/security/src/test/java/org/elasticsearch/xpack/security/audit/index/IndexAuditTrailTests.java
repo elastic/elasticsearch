@@ -897,7 +897,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         return request;
     }
 
-    private SearchHit getIndexedAuditMessage(Message message) throws InterruptedException {
+    private SearchHit getIndexedAuditMessage(Message message) throws Exception {
         assertNotNull("no audit message was enqueued", message);
         final String indexName = IndexNameResolver.resolve(IndexAuditTrailField.INDEX_NAME_PREFIX, message.timestamp, rollover);
         ensureYellowAndNoInitializingShards(indexName);
@@ -906,7 +906,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertThat(settingsResponse.getSetting(indexName, "index.number_of_replicas"), is(Integer.toString(numReplicas)));
 
         final SetOnce<SearchResponse> searchResponseSetOnce = new SetOnce<>();
-        final boolean found = awaitBusy(() -> {
+        assertBusy(() -> {
             try {
                 SearchResponse searchResponse = getClient()
                         .prepareSearch(indexName)
@@ -914,14 +914,13 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
                         .get();
                 if (searchResponse.getHits().getTotalHits() > 0L) {
                     searchResponseSetOnce.set(searchResponse);
-                    return true;
+                    return;
                 }
             } catch (Exception e) {
                 logger.debug("caught exception while executing search", e);
             }
-            return false;
+            fail("no audit document exists!");
         });
-        assertThat("no audit document exists!", found, is(true));
         SearchResponse response = searchResponseSetOnce.get();
         assertNotNull(response);
 

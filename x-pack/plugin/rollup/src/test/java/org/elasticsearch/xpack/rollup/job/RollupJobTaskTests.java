@@ -10,7 +10,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -34,7 +33,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -42,7 +40,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -360,7 +357,7 @@ public class RollupJobTaskTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testTriggerWithoutHeaders() throws InterruptedException {
+    public void testTriggerWithoutHeaders() throws Exception {
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         RollupJob job = new RollupJob(ConfigTestHelpers.getRollupJob(randomAlphaOfLength(5)).build(), Collections.emptyMap());
         Client client = mock(Client.class);
@@ -424,7 +421,7 @@ public class RollupJobTaskTests extends ESTestCase {
                 fail("Should not have entered onFailure");
             }
         });
-        ESTestCase.awaitBusy(started::get);
+        assertBusy(() -> assertTrue(started.get()));
 
         task.triggered(new SchedulerEngine.Event(RollupJobTask.SCHEDULE_NAME + "_" + job.getConfig().getId(), 123, 123));
         assertThat(((RollupJobStatus)task.getStatus()).getState(), equalTo(IndexerState.INDEXING)); // Should still be started, not INDEXING
@@ -433,11 +430,11 @@ public class RollupJobTaskTests extends ESTestCase {
         latch.countDown();
 
         // Wait for the final persistent status to finish
-        ESTestCase.awaitBusy(finished::get);
+        assertBusy(() -> assertTrue(finished.get()));
     }
 
     @SuppressWarnings("unchecked")
-    public void testTriggerWithHeaders() throws InterruptedException {
+    public void testTriggerWithHeaders() throws Exception {
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         Map<String, String> headers = new HashMap<>(1);
         headers.put("es-security-runas-user", "foo");
@@ -507,7 +504,7 @@ public class RollupJobTaskTests extends ESTestCase {
                 fail("Should not have entered onFailure");
             }
         });
-        ESTestCase.awaitBusy(started::get);
+        assertBusy(() -> assertTrue(started.get()));
 
         task.triggered(new SchedulerEngine.Event(RollupJobTask.SCHEDULE_NAME + "_" + job.getConfig().getId(), 123, 123));
         assertThat(((RollupJobStatus)task.getStatus()).getState(), equalTo(IndexerState.INDEXING)); // Should still be started, not INDEXING
@@ -516,7 +513,7 @@ public class RollupJobTaskTests extends ESTestCase {
         latch.countDown();
 
         // Wait for the final persistent status to finish
-        ESTestCase.awaitBusy(finished::get);
+        assertBusy(() -> assertTrue(finished.get()));
     }
 
     public void testStopWhenStopped() throws InterruptedException {

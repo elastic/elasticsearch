@@ -66,15 +66,19 @@ final class PerThreadIDVersionAndSeqNoLookup {
      */
     PerThreadIDVersionAndSeqNoLookup(LeafReader reader, String uidField) throws IOException {
         this.uidField = uidField;
-        Terms terms = reader.terms(uidField);
+        final Terms terms = reader.terms(uidField);
         if (terms == null) {
-            throw new IllegalArgumentException("reader misses the [" + uidField + "] field");
+            // Uid is not found if a segment contains only NoOps; in this case, version should not exist either.
+            if (reader.getNumericDocValues(VersionFieldMapper.NAME) != null) {
+                throw new IllegalArgumentException("Reader misses [" + uidField + "] but has [" + VersionFieldMapper.NAME + "]");
+            }
+            termsEnum = null;
+        } else {
+            if (reader.getNumericDocValues(VersionFieldMapper.NAME) == null) {
+                throw new IllegalArgumentException("reader misses the [" + VersionFieldMapper.NAME + "] field");
+            }
+            termsEnum = terms.iterator();
         }
-        termsEnum = terms.iterator();
-        if (reader.getNumericDocValues(VersionFieldMapper.NAME) == null) {
-            throw new IllegalArgumentException("reader misses the [" + VersionFieldMapper.NAME + "] field");
-        }
-
         Object readerKey = null;
         assert (readerKey = reader.getCoreCacheHelper().getKey()) != null;
         this.readerKey = readerKey;
@@ -111,7 +115,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
      * {@link DocIdSetIterator#NO_MORE_DOCS} is returned if not found
      * */
     private int getDocID(BytesRef id, Bits liveDocs) throws IOException {
-        if (termsEnum.seekExact(id)) {
+        if (termsEnum != null && termsEnum.seekExact(id)) {
             int docID = DocIdSetIterator.NO_MORE_DOCS;
             // there may be more than one matching docID, in the case of nested docs, so we want the last one:
             docsEnum = termsEnum.postings(docsEnum, 0);

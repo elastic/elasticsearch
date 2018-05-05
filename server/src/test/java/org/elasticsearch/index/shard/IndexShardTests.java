@@ -2350,7 +2350,16 @@ public class IndexShardTests extends IndexShardTestCase {
                 deleteDoc(indexShard, "_doc", id);
                 indexDoc(indexShard, "_doc", id);
             }
-
+            // Need to update and sync the global checkpoint as the soft-deletes retention MergePolicy depends on it.
+            if (indexShard.indexSettings.isSoftDeleteEnabled()) {
+                if (indexShard.routingEntry().primary()) {
+                    indexShard.updateGlobalCheckpointForShard(indexShard.routingEntry().allocationId().getId(),
+                        indexShard.getLocalCheckpoint());
+                } else {
+                    indexShard.updateGlobalCheckpointOnReplica(indexShard.getLocalCheckpoint(), "test");
+                }
+                indexShard.sync();
+            }
             // flush the buffered deletes
             final FlushRequest flushRequest = new FlushRequest();
             flushRequest.force(false);
@@ -2910,6 +2919,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         // Deleting a doc causes its memory to be freed from the breaker
         deleteDoc(primary, "_doc", "0");
+        primary.sync(); // need to sync global checkpoint as the soft-deletes retention MergePolicy depends on it.
         primary.refresh("force refresh");
 
         ss = primary.segmentStats(randomBoolean());

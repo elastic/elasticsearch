@@ -105,8 +105,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.ToLongBiFunction;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.shuffle;
@@ -114,6 +116,8 @@ import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class EngineTestCase extends ESTestCase {
 
@@ -787,12 +791,22 @@ public abstract class EngineTestCase extends ESTestCase {
                 translogOps.put(op.seqNo(), op);
             }
         }
-        final List<Translog.Operation> luceneOps = readAllOperationsInLucene(engine, mapper);
-        for (Translog.Operation luceneOp : luceneOps) {
-            Translog.Operation translogOp = translogOps.get(luceneOp.seqNo());
-            if (translogOp == null) {
-                continue;
+        final Map<Long, Translog.Operation> luceneOps = readAllOperationsInLucene(engine, mapper).stream()
+            .collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
+        final long globalCheckpoint = engine.getTranslog().getLastSyncedGlobalCheckpoint();
+        final long retainedOps = engine.config().getIndexSettings().getSoftDeleteRetentionOperations();
+        final long maxSeqNo = engine.getLocalCheckpointTracker().getMaxSeqNo();
+        for (Translog.Operation translogOp : translogOps.values()) {
+            final Translog.Operation luceneOp = luceneOps.get(translogOp.seqNo());
+            if (luceneOp == null) {
+                if (globalCheckpoint + 1 - retainedOps <= translogOp.seqNo() && translogOp.seqNo() <= maxSeqNo) {
+                    fail("Operation not found seq# [" + translogOp.seqNo() + "], global checkpoint [" + globalCheckpoint + "], " +
+                        "retention policy [" + retainedOps + "], maxSeqNo [" + maxSeqNo + "], translog op [" + translogOp + "]");
+                } else {
+                    continue;
+                }
             }
+            assertThat(luceneOp, notNullValue());
             assertThat(luceneOp.primaryTerm(), equalTo(translogOp.primaryTerm()));
             assertThat(luceneOp.opType(), equalTo(translogOp.opType()));
             if (luceneOp.opType() == Translog.Operation.Type.INDEX) {

@@ -19,9 +19,11 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashType;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoPlusCodeHandler;
 
 public class GeoHashGridTests extends BaseAggregationTestCase<GeoGridAggregationBuilder> {
 
@@ -41,6 +43,9 @@ public class GeoHashGridTests extends BaseAggregationTestCase<GeoGridAggregation
             case GEOHASH:
                 precision = randomIntBetween(1, 12);
                 break;
+            case PLUSCODE:
+                precision = RandomPicks.randomFrom(random(), GeoPlusCodeHandler.ALLOWED_LENGTHS);
+                break;
             default:
                 throw new IllegalArgumentException("GeoHashType." + type.name() + " was not added to the test");
         }
@@ -51,6 +56,8 @@ public class GeoHashGridTests extends BaseAggregationTestCase<GeoGridAggregation
         switch (type) {
             case GEOHASH:
                 return 12;
+            case PLUSCODE:
+                return GeoPlusCodeHandler.MAX_LENGTH;
             default:
                 throw new IllegalArgumentException("GeoHashType." + type.name() + " was not added to the test");
         }

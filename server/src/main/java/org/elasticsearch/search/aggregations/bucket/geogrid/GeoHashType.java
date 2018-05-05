@@ -28,7 +28,8 @@ import java.io.IOException;
 import java.util.Locale;
 
 public enum GeoHashType implements Writeable {
-    GEOHASH(new GeoHashHandler());
+    GEOHASH(new GeoHashHandler()),
+    PLUSCODE(new GeoPlusCodeHandler());
 
     public static final GeoHashType DEFAULT = GEOHASH;
 

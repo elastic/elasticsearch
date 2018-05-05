@@ -35,6 +35,10 @@ public class GeoHashTypeTests extends ESTestCase {
     public void testValidOrdinals() {
         assertThat(GeoHashType.DEFAULT.ordinal(), equalTo(0));
         assertThat(GeoHashType.GEOHASH.ordinal(), equalTo(0));
+
+        // FIXME: actual ordinal may be different, may need to be updated before merging
+
+        assertThat(GeoHashType.PLUSCODE.ordinal(), equalTo(1));
     }
 
     public void testWriteTo() throws Exception {

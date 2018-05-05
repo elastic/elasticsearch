@@ -122,17 +122,15 @@ public class GeoHashGridParserTests extends ESTestCase {
             fail();
         } catch (XContentParseException ex) {
             assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
-            if (type == GeoHashType.GEOHASH) {
-                String expectedMsg;
-                switch (type) {
-                    case GEOHASH:
-                        expectedMsg = "Invalid geohash aggregation precision of 13. Must be between 1 and 12.";
-                        break;
-                    default:
-                        throw new IllegalArgumentException("GeoHashType." + type.name() + " was not added to the test");
-                }
-                assertEquals(expectedMsg, ex.getCause().getMessage());
+            String expectedMsg;
+            switch (type) {
+                case GEOHASH:
+                    expectedMsg = "Invalid geohash aggregation precision of 13. Must be between 1 and 12.";
+                    break;
+                default:
+                    throw new IllegalArgumentException("GeoHashType." + type.name() + " was not added to the test");
             }
+            assertEquals(expectedMsg, ex.getCause().getMessage());
         }
     }
 }

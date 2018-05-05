@@ -99,6 +99,8 @@ coming[6.3.1]
 
 Reduce the number of object allocations made by {security} when resolving the indices and aliases for a request ({pull}30180[#30180])
 
+Respect accept header on requests with no handler ({pull}30383[#30383])
+
 //[float]
 //=== Regressions
 
@@ -174,10 +176,6 @@ Engine::
 
 Ingest::
 * Don't allow referencing the pattern bank name in the pattern bank {pull}29295[#29295] (issue: {issue}29257[#29257])
-Respect accept header on requests with no handler ({pull}30383[#30383])
-Rollup::
-* Validate timezone in range queries to ensure they match the selected job when
-searching ({pull}30338[#30338])
 
 Java High Level REST Client::
 * Bulk processor#awaitClose to close scheduler {pull}29263[#29263]

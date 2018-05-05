@@ -42,7 +42,6 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -358,7 +357,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         return this;
     }
 
-    public float tieBreaker() {
+    public Float tieBreaker() {
         return this.tieBreaker;
     }
 
@@ -388,6 +387,22 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     public QueryStringQueryBuilder analyzer(String analyzer) {
         this.analyzer = analyzer;
         return this;
+    }
+    
+    /**
+     * The optional analyzer used to analyze the query string. Note, if a field has search analyzer
+     * defined for it, then it will be used automatically. Defaults to the smart search analyzer.
+     */
+    public String analyzer() {
+        return analyzer;
+    }
+
+    /**
+     * The optional analyzer used to analyze the query string for phrase searches. Note, if a field has search (quote) analyzer
+     * defined for it, then it will be used automatically. Defaults to the smart search analyzer.
+     */
+    public String quoteAnalyzer() {
+        return quoteAnalyzer;
     }
 
     /**
@@ -428,7 +443,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     }
 
     /**
-     * Should leading wildcards be allowed or not. Defaults to <tt>true</tt>.
+     * Should leading wildcards be allowed or not. Defaults to {@code true}.
      */
     public QueryStringQueryBuilder allowLeadingWildcard(Boolean allowLeadingWildcard) {
         this.allowLeadingWildcard = allowLeadingWildcard;
@@ -440,8 +455,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     }
 
     /**
-     * Set to <tt>true</tt> to enable position increments in result query. Defaults to
-     * <tt>true</tt>.
+     * Set to {@code true} to enable position increments in result query. Defaults to
+     * {@code true}.
      * <p>
      * When set, result phrase and multi-phrase queries will be aware of position increments.
      * Useful when e.g. a StopFilter increases the position increment of the token that follows an omitted token.
@@ -516,7 +531,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     }
 
     /**
-     * Set to <tt>true</tt> to enable analysis on wildcard and prefix queries.
+     * Set to {@code true} to enable analysis on wildcard and prefix queries.
      */
     public QueryStringQueryBuilder analyzeWildcard(Boolean analyzeWildcard) {
         this.analyzeWildcard = analyzeWildcard;
@@ -587,7 +602,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     }
 
     /**
-     * Set to <tt>true</tt> to enable escaping of the query string
+     * Set to {@code true} to enable escaping of the query string
      */
     public QueryStringQueryBuilder escape(boolean escape) {
         this.escape = escape;
@@ -621,7 +636,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     /**
      * Whether phrase queries should be automatically generated for multi terms synonyms.
-     * Defaults to <tt>true</tt>.
+     * Defaults to {@code true}.
      */
     public boolean autoGenerateSynonymsPhraseQuery() {
         return autoGenerateSynonymsPhraseQuery;
@@ -884,9 +899,10 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 Objects.equals(tieBreaker, other.tieBreaker) &&
                 Objects.equals(rewrite, other.rewrite) &&
                 Objects.equals(minimumShouldMatch, other.minimumShouldMatch) &&
-                Objects.equals(lenient, other.lenient) &&
-                timeZone == null ? other.timeZone == null : other.timeZone != null &&
-                Objects.equals(timeZone.getID(), other.timeZone.getID()) &&
+                Objects.equals(lenient, other.lenient) && 
+                Objects.equals(
+                        timeZone == null ? null : timeZone.getID(), 
+                        other.timeZone == null ? null : other.timeZone.getID()) &&
                 Objects.equals(escape, other.escape) &&
                 Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates) &&
                 Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery) &&

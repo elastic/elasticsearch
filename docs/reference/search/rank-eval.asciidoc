@@ -5,7 +5,7 @@ experimental[The ranking evaluation API is experimental and may be changed or re
 
 The ranking evaluation API allows to evaluate the quality of ranked search
 results over a set of typical search queries. Given this set of queries and a
-list or manually rated documents, the `_rank_eval` endpoint calculates and
+list of manually rated documents, the `_rank_eval` endpoint calculates and
 returns typical information retrieval metrics like _mean reciprocal rank_,
 _precision_ or _discounted cumulative gain_.
 

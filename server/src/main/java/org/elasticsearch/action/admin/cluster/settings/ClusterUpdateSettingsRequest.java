@@ -58,7 +58,6 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
         PARSER.declareObject((r, t) -> r.transientSettings = t, (p, c) -> Settings.fromXContent(p), TRANSIENT);
     }
 
-    private boolean flatSettings = false;
     private Settings transientSettings = EMPTY_SETTINGS;
     private Settings persistentSettings = EMPTY_SETTINGS;
 
@@ -72,29 +71,6 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
             validationException = addValidationError("no settings to update", validationException);
         }
         return validationException;
-    }
-
-    /**
-     * Sets the value of "flat_settings".
-     * Used only by the high-level REST client.
-     *
-     * @param flatSettings
-     *            value of "flat_settings" flag to be set
-     * @return this request
-     */
-    public ClusterUpdateSettingsRequest flatSettings(boolean flatSettings) {
-        this.flatSettings = flatSettings;
-        return this;
-    }
-
-    /**
-     * Return settings in flat format.
-     * Used only by the high-level REST client.
-     *
-     * @return <code>true</code> if settings need to be returned in flat format; <code>false</code> otherwise.
-     */
-    public boolean flatSettings() {
-        return flatSettings;
     }
 
     public Settings transientSettings() {

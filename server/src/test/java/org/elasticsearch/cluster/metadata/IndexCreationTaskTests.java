@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -47,7 +48,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.indices.IndicesService;
@@ -389,8 +389,7 @@ public class IndexCreationTaskTests extends ESTestCase {
         setupRequest();
         final MetaDataCreateIndexService.IndexCreationTask task = new MetaDataCreateIndexService.IndexCreationTask(
             logger, allocationService, request, listener, indicesService, aliasValidator, xContentRegistry, clusterStateSettings.build(),
-            validator
-        );
+            validator, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
         return task.execute(state);
     }
 
@@ -433,9 +432,8 @@ public class IndexCreationTaskTests extends ESTestCase {
         when(routingMapper.required()).thenReturn(false);
 
         when(docMapper.routingFieldMapper()).thenReturn(routingMapper);
-        when(docMapper.parentFieldMapper()).thenReturn(mock(ParentFieldMapper.class));
 
-        when(mapper.docMappers(anyBoolean())).thenReturn(Collections.singletonList(docMapper));
+        when(mapper.documentMapper()).thenReturn(docMapper);
 
         final Index index = new Index("target", "tgt1234");
         final Supplier<Sort> supplier = mock(Supplier.class);

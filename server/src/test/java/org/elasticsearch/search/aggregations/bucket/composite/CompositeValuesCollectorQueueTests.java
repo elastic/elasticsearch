@@ -212,20 +212,28 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                 if (types[i].clazz == Long.class) {
                     sources[i] = new LongValuesSource(bigArrays, fieldType,
                         context -> DocValues.getSortedNumeric(context.reader(), fieldType.name()), value -> value,
-                        DocValueFormat.RAW, size, 1);
+                        DocValueFormat.RAW, null, size, 1);
                 } else if (types[i].clazz == Double.class) {
-                    sources[i] = new DoubleValuesSource(bigArrays, fieldType,
+                    sources[i] = new DoubleValuesSource(
+                        bigArrays, fieldType,
                         context -> FieldData.sortableLongBitsToDoubles(DocValues.getSortedNumeric(context.reader(), fieldType.name())),
-                        size, 1);
+                        DocValueFormat.RAW, null, size, 1
+                    );
                 } else if (types[i].clazz == BytesRef.class) {
                     if (forceMerge) {
                         // we don't create global ordinals but we test this mode when the reader has a single segment
                         // since ordinals are global in this case.
-                        sources[i] = new GlobalOrdinalValuesSource(bigArrays, fieldType,
-                            context -> DocValues.getSortedSet(context.reader(), fieldType.name()), size, 1);
+                        sources[i] = new GlobalOrdinalValuesSource(
+                            bigArrays, fieldType,
+                            context -> DocValues.getSortedSet(context.reader(), fieldType.name()),
+                            DocValueFormat.RAW, null, size, 1
+                        );
                     } else {
-                        sources[i] = new BinaryValuesSource(fieldType,
-                            context -> FieldData.toString(DocValues.getSortedSet(context.reader(), fieldType.name())), size, 1);
+                        sources[i] = new BinaryValuesSource(
+                            fieldType,
+                            context -> FieldData.toString(DocValues.getSortedSet(context.reader(), fieldType.name())),
+                            DocValueFormat.RAW, null, size, 1
+                        );
                     }
                 } else {
                     assert(false);

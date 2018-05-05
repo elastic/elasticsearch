@@ -66,7 +66,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
             + "read SOMETHING\n";
 
     /**
-     * Simplest case: a plugin with no controller daemon.
+     * Simplest case: a module with no controller daemon.
      */
     public void testNoControllerSpawn() throws IOException, InterruptedException {
         Path esHome = createTempDir().resolve("esHome");
@@ -77,7 +77,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         Environment environment = TestEnvironment.newEnvironment(settings);
 
         // This plugin will NOT have a controller daemon
-        Path plugin = environment.pluginsFile().resolve("a_plugin");
+        Path plugin = environment.modulesFile().resolve("a_plugin");
         Files.createDirectories(environment.modulesFile());
         Files.createDirectories(plugin);
         PluginTestUtil.writePluginProperties(
@@ -91,7 +91,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
                 "has.native.controller", "false");
 
         try (Spawner spawner = new Spawner()) {
-            spawner.spawnNativePluginControllers(environment);
+            spawner.spawnNativeControllers(environment);
             assertThat(spawner.getProcesses(), hasSize(0));
         }
     }
@@ -100,11 +100,11 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
      * Two plugins - one with a controller daemon and one without.
      */
     public void testControllerSpawn() throws Exception {
-        assertControllerSpawns(Environment::pluginsFile);
-        assertControllerSpawns(Environment::modulesFile);
+        assertControllerSpawns(Environment::pluginsFile, false);
+        assertControllerSpawns(Environment::modulesFile, true);
     }
 
-    private void assertControllerSpawns(Function<Environment, Path> pluginsDirFinder) throws Exception {
+    private void assertControllerSpawns(final Function<Environment, Path> pluginsDirFinder, boolean expectSpawn) throws Exception {
         /*
          * On Windows you can not directly run a batch file - you have to run cmd.exe with the batch
          * file as an argument and that's out of the remit of the controller daemon process spawner.
@@ -149,33 +149,38 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
             "has.native.controller", "false");
 
         Spawner spawner = new Spawner();
-        spawner.spawnNativePluginControllers(environment);
+        spawner.spawnNativeControllers(environment);
 
         List<Process> processes = spawner.getProcesses();
-        /*
-         * As there should only be a reference in the list for the plugin that had the controller
-         * daemon, we expect one here.
-         */
-        assertThat(processes, hasSize(1));
-        Process process = processes.get(0);
-        final InputStreamReader in =
-            new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8);
-        try (BufferedReader stdoutReader = new BufferedReader(in)) {
-            String line = stdoutReader.readLine();
-            assertEquals("I am alive", line);
-            spawner.close();
-            /*
-             * Fail if the process does not die within one second; usually it will be even quicker
-             * but it depends on OS scheduling.
-             */
-            assertTrue(process.waitFor(1, TimeUnit.SECONDS));
+
+        if (expectSpawn) {
+             // as there should only be a reference in the list for the module that had the controller daemon, we expect one here
+            assertThat(processes, hasSize(1));
+            Process process = processes.get(0);
+            final InputStreamReader in = new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8);
+            try (BufferedReader stdoutReader = new BufferedReader(in)) {
+                String line = stdoutReader.readLine();
+                assertEquals("I am alive", line);
+                spawner.close();
+                // fail if the process does not die within one second; usually it will be even quicker but it depends on OS scheduling
+                assertTrue(process.waitFor(1, TimeUnit.SECONDS));
+            }
+        } else {
+            assertThat(processes, hasSize(0));
         }
     }
 
     /**
-     * Two plugins in a meta plugin - one with a controller daemon and one without.
+     * Two plugins in a meta module - one with a controller daemon and one without.
      */
-    public void testControllerSpawnMetaPlugin() throws IOException, InterruptedException {
+    public void testControllerSpawnMeta() throws Exception {
+        runTestControllerSpawnMeta(Environment::pluginsFile, false);
+        runTestControllerSpawnMeta(Environment::modulesFile, true);
+    }
+
+
+    private void runTestControllerSpawnMeta(
+            final Function<Environment, Path> pluginsDirFinder, final boolean expectSpawn) throws Exception {
         /*
          * On Windows you can not directly run a batch file - you have to run cmd.exe with the batch
          * file as an argument and that's out of the remit of the controller daemon process spawner.
@@ -189,65 +194,64 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
 
         Environment environment = TestEnvironment.newEnvironment(settings);
 
-        Path metaPlugin = environment.pluginsFile().resolve("meta_plugin");
+        Path metaModule = pluginsDirFinder.apply(environment).resolve("meta_module");
         Files.createDirectories(environment.modulesFile());
-        Files.createDirectories(metaPlugin);
+        Files.createDirectories(metaModule);
         PluginTestUtil.writeMetaPluginProperties(
-            metaPlugin,
-            "description", "test_plugin",
-            "name", "meta_plugin",
-            "plugins", "test_plugin,other_plugin");
+                metaModule,
+                "description", "test_plugin",
+                "name", "meta_plugin",
+                "plugins", "test_plugin,other_plugin");
 
         // this plugin will have a controller daemon
-        Path plugin = metaPlugin.resolve("test_plugin");
+        Path plugin = metaModule.resolve("test_plugin");
 
         Files.createDirectories(plugin);
         PluginTestUtil.writePluginProperties(
-            plugin,
-            "description", "test_plugin",
-            "version", Version.CURRENT.toString(),
-            "elasticsearch.version", Version.CURRENT.toString(),
-            "name", "test_plugin",
-            "java.version", "1.8",
-            "classname", "TestPlugin",
-            "has.native.controller", "true");
+                plugin,
+                "description", "test_plugin",
+                "version", Version.CURRENT.toString(),
+                "elasticsearch.version", Version.CURRENT.toString(),
+                "name", "test_plugin",
+                "java.version", "1.8",
+                "classname", "TestPlugin",
+                "has.native.controller", "true");
         Path controllerProgram = Platforms.nativeControllerPath(plugin);
         createControllerProgram(controllerProgram);
 
         // this plugin will not have a controller daemon
-        Path otherPlugin = metaPlugin.resolve("other_plugin");
+        Path otherPlugin = metaModule.resolve("other_plugin");
         Files.createDirectories(otherPlugin);
         PluginTestUtil.writePluginProperties(
-            otherPlugin,
-            "description", "other_plugin",
-            "version", Version.CURRENT.toString(),
-            "elasticsearch.version", Version.CURRENT.toString(),
-            "name", "other_plugin",
-            "java.version", "1.8",
-            "classname", "OtherPlugin",
-            "has.native.controller", "false");
+                otherPlugin,
+                "description", "other_plugin",
+                "version", Version.CURRENT.toString(),
+                "elasticsearch.version", Version.CURRENT.toString(),
+                "name", "other_plugin",
+                "java.version", "1.8",
+                "classname", "OtherPlugin",
+                "has.native.controller", "false");
 
         Spawner spawner = new Spawner();
-        spawner.spawnNativePluginControllers(environment);
+        spawner.spawnNativeControllers(environment);
 
         List<Process> processes = spawner.getProcesses();
-        /*
-         * As there should only be a reference in the list for the plugin that had the controller
-         * daemon, we expect one here.
-         */
-        assertThat(processes, hasSize(1));
-        Process process = processes.get(0);
-        final InputStreamReader in =
-            new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8);
-        try (BufferedReader stdoutReader = new BufferedReader(in)) {
-            String line = stdoutReader.readLine();
-            assertEquals("I am alive", line);
-            spawner.close();
-            /*
-             * Fail if the process does not die within one second; usually it will be even quicker
-             * but it depends on OS scheduling.
-             */
-            assertTrue(process.waitFor(1, TimeUnit.SECONDS));
+
+        if (expectSpawn) {
+             // as there should only be a reference in the list for the plugin that had the controller daemon, we expect one here
+            assertThat(processes, hasSize(1));
+            Process process = processes.get(0);
+            final InputStreamReader in =
+                    new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8);
+            try (BufferedReader stdoutReader = new BufferedReader(in)) {
+                String line = stdoutReader.readLine();
+                assertEquals("I am alive", line);
+                spawner.close();
+                // fail if the process does not die within one second; usually it will be even quicker but it depends on OS scheduling
+                assertTrue(process.waitFor(1, TimeUnit.SECONDS));
+            }
+        } else {
+            assertThat(processes, hasSize(0));
         }
     }
 
@@ -260,7 +264,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
 
         Environment environment = TestEnvironment.newEnvironment(settings);
 
-        Path plugin = environment.pluginsFile().resolve("test_plugin");
+        Path plugin = environment.modulesFile().resolve("test_plugin");
         Files.createDirectories(plugin);
         PluginTestUtil.writePluginProperties(
                 plugin,
@@ -277,10 +281,10 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         Spawner spawner = new Spawner();
         IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> spawner.spawnNativePluginControllers(environment));
+                () -> spawner.spawnNativeControllers(environment));
         assertThat(
                 e.getMessage(),
-                equalTo("plugin [test_plugin] does not have permission to fork native controller"));
+                equalTo("module [test_plugin] does not have permission to fork native controller"));
     }
 
     public void testSpawnerHandlingOfDesktopServicesStoreFiles() throws IOException {
@@ -292,17 +296,16 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         Files.createDirectories(environment.modulesFile());
         Files.createDirectories(environment.pluginsFile());
 
-        final Path desktopServicesStore = environment.pluginsFile().resolve(".DS_Store");
+        final Path desktopServicesStore = environment.modulesFile().resolve(".DS_Store");
         Files.createFile(desktopServicesStore);
 
         final Spawner spawner = new Spawner();
         if (Constants.MAC_OS_X) {
             // if the spawner were not skipping the Desktop Services Store files on macOS this would explode
-            spawner.spawnNativePluginControllers(environment);
+            spawner.spawnNativeControllers(environment);
         } else {
             // we do not ignore these files on non-macOS systems
-            final FileSystemException e =
-                    expectThrows(FileSystemException.class, () -> spawner.spawnNativePluginControllers(environment));
+            final FileSystemException e = expectThrows(FileSystemException.class, () -> spawner.spawnNativeControllers(environment));
             if (Constants.WINDOWS) {
                 assertThat(e, instanceOf(NoSuchFileException.class));
             } else {

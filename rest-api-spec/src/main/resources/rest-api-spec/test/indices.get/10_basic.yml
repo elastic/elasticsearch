@@ -137,10 +137,6 @@ setup:
 ---
 "Should return test_index_3 if expand_wildcards=closed":
 
-  - skip:
-      version:     " - 2.0.0"
-      reason:      Requires fix for issue 7258
-
   - do:
       indices.get:
         index: test_index_*
@@ -162,9 +158,6 @@ setup:
 
 ---
 "Should return an exception when querying invalid indices":
- - skip:
-     version: " - 5.99.99"
-     reason: "bad request logic added in 6.0.0"
 
  - do:
      catch: bad_request

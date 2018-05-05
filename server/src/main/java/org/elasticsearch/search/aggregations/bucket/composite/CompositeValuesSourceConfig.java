@@ -32,13 +32,25 @@ class CompositeValuesSourceConfig {
     private final ValuesSource vs;
     private final DocValueFormat format;
     private final int reverseMul;
+    private final Object missing;
 
-    CompositeValuesSourceConfig(String name, @Nullable MappedFieldType fieldType, ValuesSource vs, DocValueFormat format, SortOrder order) {
+    /**
+     * Creates a new {@link CompositeValuesSourceConfig}.
+     * @param name The name of the source.
+     * @param fieldType The field type or null if the source is a script.
+     * @param vs The underlying {@link ValuesSource}.
+     * @param format The {@link DocValueFormat} of this source.
+     * @param order The sort order associated with this source.
+     * @param missing The missing value or null if documents with missing value should be ignored.
+     */
+    CompositeValuesSourceConfig(String name, @Nullable MappedFieldType fieldType, ValuesSource vs, DocValueFormat format,
+                                SortOrder order, @Nullable Object missing) {
         this.name = name;
         this.fieldType = fieldType;
         this.vs = vs;
         this.format = format;
         this.reverseMul = order == SortOrder.ASC ? 1 : -1;
+        this.missing = missing;
     }
 
     /**
@@ -68,6 +80,13 @@ class CompositeValuesSourceConfig {
      */
     DocValueFormat format() {
         return format;
+    }
+
+    /**
+     * The missing value for this configuration or null if documents with missing value should be ignored.
+     */
+    Object missing() {
+        return missing;
     }
 
     /**

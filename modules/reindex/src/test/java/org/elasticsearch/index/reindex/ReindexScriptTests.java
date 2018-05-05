@@ -92,12 +92,6 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
         }
     }
 
-    public void testSetParent() throws Exception {
-        String parent = randomRealisticUnicodeOfLengthBetween(5, 20);
-        IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_parent", parent));
-        assertEquals(parent, index.parent());
-    }
-
     public void testSetRouting() throws Exception {
         String routing = randomRealisticUnicodeOfLengthBetween(5, 20);
         IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_routing", routing));

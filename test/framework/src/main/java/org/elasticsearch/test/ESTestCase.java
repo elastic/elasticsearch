@@ -135,6 +135,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -173,6 +174,9 @@ import static org.hamcrest.Matchers.hasItem;
 @LuceneTestCase.SuppressReproduceLine
 public abstract class ESTestCase extends LuceneTestCase {
 
+    private static final List<String> JODA_TIMEZONE_IDS;
+    private static final List<String> JAVA_TIMEZONE_IDS;
+
     private static final AtomicInteger portGenerator = new AtomicInteger();
 
     @AfterClass
@@ -191,6 +195,14 @@ public abstract class ESTestCase extends LuceneTestCase {
         }));
 
         BootstrapForTesting.ensureInitialized();
+
+        List<String> jodaTZIds = new ArrayList<>(DateTimeZone.getAvailableIDs());
+        Collections.sort(jodaTZIds);
+        JODA_TIMEZONE_IDS = Collections.unmodifiableList(jodaTZIds);
+
+        List<String> javaTZIds = Arrays.asList(TimeZone.getAvailableIDs());
+        Collections.sort(javaTZIds);
+        JAVA_TIMEZONE_IDS = Collections.unmodifiableList(javaTZIds);
     }
 
     protected final Logger logger = Loggers.getLogger(getClass());
@@ -323,11 +335,14 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @param warnings other expected general deprecation warnings
      */
     protected final void assertSettingDeprecationsAndWarnings(final Setting<?>[] settings, final String... warnings) {
+        assertSettingDeprecationsAndWarnings(Arrays.stream(settings).map(Setting::getKey).toArray(String[]::new), warnings);
+    }
+
+    protected final void assertSettingDeprecationsAndWarnings(final String[] settings, final String... warnings) {
         assertWarnings(
                 Stream.concat(
                         Arrays
                                 .stream(settings)
-                                .map(Setting::getKey)
                                 .map(k -> "[" + k + "] setting was deprecated in Elasticsearch and will be removed in a future release! " +
                                         "See the breaking changes documentation for the next major version."),
                         Arrays.stream(warnings))
@@ -669,9 +684,14 @@ public abstract class ESTestCase extends LuceneTestCase {
      * generate a random DateTimeZone from the ones available in joda library
      */
     public static DateTimeZone randomDateTimeZone() {
-        List<String> ids = new ArrayList<>(DateTimeZone.getAvailableIDs());
-        Collections.sort(ids);
-        return DateTimeZone.forID(randomFrom(ids));
+        return DateTimeZone.forID(randomFrom(JODA_TIMEZONE_IDS));
+    }
+
+    /**
+     * generate a random TimeZone from the ones available in java.time
+     */
+    public static TimeZone randomTimeZone() {
+        return TimeZone.getTimeZone(randomFrom(JAVA_TIMEZONE_IDS));
     }
 
     /**

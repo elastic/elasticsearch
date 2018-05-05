@@ -39,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.search.profile.query.RandomQueryGenerator.randomQueryBuilder;
-import static org.elasticsearch.test.hamcrest.DoubleMatcher.nearlyEqual;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
@@ -156,8 +155,8 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 assertTrue("Vanilla maxScore is NaN but Profile is not [" + profileMaxScore + "]",
                         Float.isNaN(profileMaxScore));
             } else {
-                assertTrue("Profile maxScore of [" + profileMaxScore + "] is not close to Vanilla maxScore [" + vanillaMaxScore + "]",
-                        nearlyEqual(vanillaMaxScore, profileMaxScore, 0.001));
+                assertEquals("Profile maxScore of [" + profileMaxScore + "] is not close to Vanilla maxScore [" + vanillaMaxScore + "]",
+                        vanillaMaxScore, profileMaxScore, 0.001);
             }
 
             assertThat(

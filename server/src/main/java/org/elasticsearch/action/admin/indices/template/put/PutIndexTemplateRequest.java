@@ -154,7 +154,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     }
 
     /**
-     * Set to <tt>true</tt> to force only creation, not an update of an index template. If it already
+     * Set to {@code true} to force only creation, not an update of an index template. If it already
      * exists, it will fail with an {@link IllegalArgumentException}.
      */
     public PutIndexTemplateRequest create(boolean create) {

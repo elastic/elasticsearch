@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParserHelper;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -242,7 +243,8 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         PARSER.declareString(constructorArg(), new ParseField("type"));
         PARSER.declareString(constructorArg(), new ParseField("action"));
         PARSER.declareString(optionalConstructorArg(), new ParseField("description"));
-        PARSER.declareRawObject(optionalConstructorArg(), new ParseField("status"));
+        ObjectParserHelper<TaskInfo, Void> parserHelper = new ObjectParserHelper<>();
+        parserHelper.declareRawObject(PARSER, optionalConstructorArg(), new ParseField("status"));
         PARSER.declareLong(constructorArg(), new ParseField("start_time_in_millis"));
         PARSER.declareLong(constructorArg(), new ParseField("running_time_in_nanos"));
         PARSER.declareBoolean(constructorArg(), new ParseField("cancellable"));

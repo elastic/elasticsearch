@@ -68,7 +68,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
             try {
                 concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, item).getName();
 
-                item.routing(clusterState.metaData().resolveIndexRouting(item.parent(), item.routing(), item.index()));
+                item.routing(clusterState.metaData().resolveIndexRouting(item.routing(), item.index()));
                 if ((item.routing() == null) && (clusterState.getMetaData().routingRequired(concreteSingleIndex, item.type()))) {
                     String message = "routing is required for [" + concreteSingleIndex + "]/[" + item.type() + "]/[" + item.id() + "]";
                     responses.set(i, newItemFailure(concreteSingleIndex, item.type(), item.id(), new IllegalArgumentException(message)));

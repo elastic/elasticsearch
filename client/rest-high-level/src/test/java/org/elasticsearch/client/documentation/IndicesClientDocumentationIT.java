@@ -48,6 +48,10 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
@@ -111,8 +115,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.local(false); // <1>
             request.humanReadable(true); // <2>
             request.includeDefaults(false); // <3>
-            request.flatSettings(false); // <4>
-            request.indicesOptions(indicesOptions); // <5>
+            request.indicesOptions(indicesOptions); // <4>
             // end::indices-exists-request-optionals
 
             // tag::indices-exists-response
@@ -394,6 +397,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::create-index-execute-listener
             ActionListener<CreateIndexResponse> listener =
                     new ActionListener<CreateIndexResponse>() {
+
                 @Override
                 public void onResponse(CreateIndexResponse createIndexResponse) {
                     // <1>
@@ -771,6 +775,119 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             }
             // end::flush-notfound
         }
+    }
+
+    public void testGetSettings() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            Settings settings = Settings.builder().put("number_of_shards", 3).build();
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index", settings));
+            assertTrue(createIndexResponse.isAcknowledged());
+        }
+
+        // tag::get-settings-request
+        GetSettingsRequest request = new GetSettingsRequest().indices("index"); // <1>
+        // end::get-settings-request
+
+        // tag::get-settings-request-names
+        request.names("index.number_of_shards"); // <1>
+        // end::get-settings-request-names
+
+        // tag::get-settings-request-indicesOptions
+        request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+        // end::get-settings-request-indicesOptions
+
+        // tag::get-settings-execute
+        GetSettingsResponse getSettingsResponse = client.indices().getSettings(request);
+        // end::get-settings-execute
+
+        // tag::get-settings-response
+        String numberOfShardsString = getSettingsResponse.getSetting("index", "index.number_of_shards"); // <1>
+        Settings indexSettings = getSettingsResponse.getIndexToSettings().get("index"); // <2>
+        Integer numberOfShards = indexSettings.getAsInt("index.number_of_shards", null); // <3>
+        // end::get-settings-response
+
+        assertEquals("3", numberOfShardsString);
+        assertEquals(Integer.valueOf(3), numberOfShards);
+
+        assertNull("refresh_interval returned but was never set!",
+            getSettingsResponse.getSetting("index", "index.refresh_interval"));
+
+        // tag::get-settings-execute-listener
+        ActionListener<GetSettingsResponse> listener =
+            new ActionListener<GetSettingsResponse>() {
+                @Override
+                public void onResponse(GetSettingsResponse GetSettingsResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::get-settings-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::get-settings-execute-async
+        client.indices().getSettingsAsync(request, listener); // <1>
+        // end::get-settings-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testGetSettingsWithDefaults() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            Settings settings = Settings.builder().put("number_of_shards", 3).build();
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index", settings));
+            assertTrue(createIndexResponse.isAcknowledged());
+        }
+
+        GetSettingsRequest request = new GetSettingsRequest().indices("index");
+        request.indicesOptions(IndicesOptions.lenientExpandOpen());
+
+        // tag::get-settings-request-include-defaults
+        request.includeDefaults(true); // <1>
+        // end::get-settings-request-include-defaults
+
+        GetSettingsResponse getSettingsResponse = client.indices().getSettings(request);
+        String numberOfShardsString = getSettingsResponse.getSetting("index", "index.number_of_shards");
+        Settings indexSettings = getSettingsResponse.getIndexToSettings().get("index");
+        Integer numberOfShards = indexSettings.getAsInt("index.number_of_shards", null);
+
+        // tag::get-settings-defaults-response
+        String refreshInterval = getSettingsResponse.getSetting("index", "index.refresh_interval"); // <1>
+        Settings indexDefaultSettings = getSettingsResponse.getIndexToDefaultSettings().get("index"); // <2>
+        // end::get-settings-defaults-response
+
+        assertEquals("3", numberOfShardsString);
+        assertEquals(Integer.valueOf(3), numberOfShards);
+        assertNotNull("with defaults enabled we should get a value for refresh_interval!", refreshInterval);
+
+        assertEquals(refreshInterval, indexDefaultSettings.get("index.refresh_interval"));
+        ActionListener<GetSettingsResponse> listener =
+            new ActionListener<GetSettingsResponse>() {
+                @Override
+                public void onResponse(GetSettingsResponse GetSettingsResponse) {
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                }
+            };
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        client.indices().getSettingsAsync(request, listener);
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
     public void testForceMergeIndex() throws Exception {
@@ -1378,4 +1495,107 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
+
+    public void testIndexPutSettings() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            CreateIndexResponse createIndexResponse = client.indices().create(new CreateIndexRequest("index"));
+            assertTrue(createIndexResponse.isAcknowledged());
+        }
+
+        // tag::put-settings-request
+        UpdateSettingsRequest request = new UpdateSettingsRequest("index1"); // <1>
+        UpdateSettingsRequest requestMultiple =
+                new UpdateSettingsRequest("index1", "index2"); // <2>
+        UpdateSettingsRequest requestAll = new UpdateSettingsRequest(); // <3>
+        // end::put-settings-request
+
+        // tag::put-settings-create-settings
+        String settingKey = "index.number_of_replicas";
+        int settingValue = 0;
+        Settings settings =
+                Settings.builder()
+                .put(settingKey, settingValue)
+                .build(); // <1>
+        // end::put-settings-create-settings
+        // tag::put-settings-request-index-settings
+        request.settings(settings);
+        // end::put-settings-request-index-settings
+
+        {
+            // tag::put-settings-settings-builder
+            Settings.Builder settingsBuilder =
+                    Settings.builder()
+                    .put(settingKey, settingValue);
+            request.settings(settingsBuilder); // <1>
+            // end::put-settings-settings-builder
+        }
+        {
+            // tag::put-settings-settings-map
+            Map<String, Object> map = new HashMap<>();
+            map.put(settingKey, settingValue);
+            request.settings(map); // <1>
+            // end::put-settings-settings-map
+        }
+        {
+            // tag::put-settings-settings-source
+            request.settings(
+                    "{\"index.number_of_replicas\": \"2\"}"
+                    , XContentType.JSON); // <1>
+            // end::put-settings-settings-source
+        }
+
+        // tag::put-settings-request-preserveExisting
+        request.setPreserveExisting(false); // <1>
+        // end::put-settings-request-preserveExisting
+        // tag::put-settings-request-timeout
+        request.timeout(TimeValue.timeValueMinutes(2)); // <1>
+        request.timeout("2m"); // <2>
+        // end::put-settings-request-timeout
+        // tag::put-settings-request-masterTimeout
+        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.masterNodeTimeout("1m"); // <2>
+        // end::put-settings-request-masterTimeout
+        // tag::put-settings-request-indicesOptions
+        request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
+        // end::put-settings-request-indicesOptions
+
+        // tag::put-settings-execute
+        UpdateSettingsResponse updateSettingsResponse =
+                client.indices().putSettings(request);
+        // end::put-settings-execute
+
+        // tag::put-settings-response
+        boolean acknowledged = updateSettingsResponse.isAcknowledged(); // <1>
+        // end::put-settings-response
+        assertTrue(acknowledged);
+
+        // tag::put-settings-execute-listener
+        ActionListener<UpdateSettingsResponse> listener =
+                new ActionListener<UpdateSettingsResponse>() {
+
+            @Override
+            public void onResponse(UpdateSettingsResponse updateSettingsResponse) {
+                // <1>
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::put-settings-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::put-settings-execute-async
+        client.indices().putSettingsAsync(request,listener); // <1>
+        // end::put-settings-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
 }

@@ -24,7 +24,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
@@ -84,6 +86,13 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
             vs = ValuesSource.Numeric.EMPTY;
         }
         final MappedFieldType fieldType = config.fieldContext() != null ? config.fieldContext().fieldType() : null;
-        return new CompositeValuesSourceConfig(name, fieldType, vs, config.format(), order());
+        final DocValueFormat format;
+        if (format() == null && fieldType instanceof DateFieldMapper.DateFieldType) {
+            // defaults to the raw format on date fields (preserve timestamp as longs).
+            format = DocValueFormat.RAW;
+        } else {
+            format = config.format();
+        }
+        return new CompositeValuesSourceConfig(name, fieldType, vs, format, order(), missing());
     }
 }

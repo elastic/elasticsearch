@@ -107,7 +107,6 @@ ones that the user is authorized to access in case field level security is enabl
 Fixed prerelease version of elasticsearch in the `deb` package to sort before GA versions
 ({pull}29000[#29000])
 
-Respect accept header on requests with no handler ({pull}30383[#30383])
 Rollup::
 * Validate timezone in range queries to ensure they match the selected job when
 searching ({pull}30338[#30338])
@@ -210,6 +209,8 @@ coming[6.3.1]
 === Bug Fixes
 
 Reduce the number of object allocations made by {security} when resolving the indices and aliases for a request ({pull}30180[#30180])
+
+Respect accept header on requests with no handler ({pull}30383[#30383])
 
 //[float]
 //=== Regressions

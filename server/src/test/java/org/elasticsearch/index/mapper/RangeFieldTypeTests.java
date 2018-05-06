@@ -75,7 +75,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
     @Override
     protected RangeFieldMapper.RangeFieldType createDefaultFieldType() {
-        return new RangeFieldMapper.RangeFieldType(type, Version.CURRENT);
+        return new RangeFieldMapper.RangeFieldType(type);
     }
 
     public void testRangeQuery() throws Exception {
@@ -84,7 +84,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
         QueryShardContext context = new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
             writableRegistry(), null, null, () -> nowInMillis, null);
-        RangeFieldMapper.RangeFieldType ft = new RangeFieldMapper.RangeFieldType(type, Version.CURRENT);
+        RangeFieldMapper.RangeFieldType ft = new RangeFieldMapper.RangeFieldType(type);
         ft.setName(FIELDNAME);
         ft.setIndexOptions(IndexOptions.DOCS);
 
@@ -284,7 +284,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
         QueryShardContext context = new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
             writableRegistry(), null, null, () -> nowInMillis, null);
-        RangeFieldMapper.RangeFieldType ft = new RangeFieldMapper.RangeFieldType(type, Version.CURRENT);
+        RangeFieldMapper.RangeFieldType ft = new RangeFieldMapper.RangeFieldType(type);
         ft.setName(FIELDNAME);
         ft.setIndexOptions(IndexOptions.DOCS);
 

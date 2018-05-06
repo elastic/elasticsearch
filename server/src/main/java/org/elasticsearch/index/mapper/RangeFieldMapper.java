@@ -40,7 +40,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
@@ -93,8 +92,8 @@ public class RangeFieldMapper extends FieldMapper {
         private Boolean coerce;
         private Locale locale;
 
-        public Builder(String name, RangeType type, Version indexVersionCreated) {
-            super(name, new RangeFieldType(type, indexVersionCreated), new RangeFieldType(type, indexVersionCreated));
+        public Builder(String name, RangeType type) {
+            super(name, new RangeFieldType(type), new RangeFieldType(type));
             builder = this;
             locale = Locale.ROOT;
         }
@@ -174,7 +173,7 @@ public class RangeFieldMapper extends FieldMapper {
         @Override
         public Mapper.Builder<?,?> parse(String name, Map<String, Object> node,
                                          ParserContext parserContext) throws MapperParsingException {
-            Builder builder = new Builder(name, type, parserContext.indexVersionCreated());
+            Builder builder = new Builder(name, type);
             TypeParsers.parseField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -205,7 +204,7 @@ public class RangeFieldMapper extends FieldMapper {
         protected FormatDateTimeFormatter dateTimeFormatter;
         protected DateMathParser dateMathParser;
 
-        RangeFieldType(RangeType type, Version indexVersionCreated) {
+        RangeFieldType(RangeType type) {
             super();
             this.rangeType = Objects.requireNonNull(type);
             setTokenized(false);

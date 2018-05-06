@@ -3781,8 +3781,12 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
+    /**
+     * Verifies that a segment containing only no-ops can be used to look up _version and _seqno.
+     */
     public void testSegmentContainsOnlyNoOps() throws Exception {
-        Engine.NoOpResult noOpResult = engine.noOp(new Engine.NoOp(1, primaryTerm.get(), REPLICA, randomNonNegativeLong(), "test"));
+        Engine.NoOpResult noOpResult = engine.noOp(new Engine.NoOp(1, primaryTerm.get(),
+            randomFrom(Engine.Operation.Origin.values()), randomNonNegativeLong(), "test"));
         assertThat(noOpResult.getFailure(), nullValue());
         engine.refresh("test");
         Engine.DeleteResult deleteResult = engine.delete(replicaDeleteForDoc("id", 1, 2, randomNonNegativeLong()));
@@ -3790,6 +3794,11 @@ public class InternalEngineTests extends EngineTestCase {
         engine.refresh("test");
     }
 
+    /**
+     * A simple test to check that random combination of operations can coexist in segments and be lookup.
+     * This is needed as some fields in Lucene may not exist if a segment misses operation types and this code is to check for that.
+     * For example, a segment containing only no-ops does not have neither _uid or _version.
+     */
     public void testRandomOperations() throws Exception {
         int numOps = between(10, 100);
         for (int i = 0; i < numOps; i++) {
@@ -3806,7 +3815,8 @@ public class InternalEngineTests extends EngineTestCase {
                     assertThat(delete.getFailure(), nullValue());
                     break;
                 case NO_OP:
-                    Engine.NoOpResult noOp = engine.noOp(new Engine.NoOp(i, primaryTerm.get(), REPLICA, randomNonNegativeLong(), ""));
+                    Engine.NoOpResult noOp = engine.noOp(new Engine.NoOp(i, primaryTerm.get(),
+                        randomFrom(Engine.Operation.Origin.values()), randomNonNegativeLong(), ""));
                     assertThat(noOp.getFailure(), nullValue());
                     break;
                 default:

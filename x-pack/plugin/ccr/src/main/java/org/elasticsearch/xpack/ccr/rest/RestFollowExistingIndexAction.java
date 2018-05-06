@@ -47,6 +47,6 @@ public class RestFollowExistingIndexAction extends BaseRestHandler {
             long value = Long.valueOf(restRequest.param(ShardFollowTask.PROCESSOR_MAX_TRANSLOG_BYTES_PER_REQUEST.getPreferredName()));
             request.setProcessorMaxTranslogBytes(value);
         }
-        return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel) );
+        return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

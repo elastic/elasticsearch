@@ -150,7 +150,7 @@ A new analysis plugin called `analysis_nori` that exposes the Lucene Korean
 analysis module.  ({pull}30397[#30397])
 
 The `discovery-ec2` and `repository-s3` plugins now have support for AWS
-session credentials. ({pull}TODO[#TODO])
+session credentials. ({pull}30414[#30414])
 
 [float]
 === Enhancements

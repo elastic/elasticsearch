@@ -65,3 +65,13 @@ deprecated in 6.3.0 and now removed in 7.0.0.
 In the past, `fields` could be provided either as a parameter, or as part of the request
 body. Specifying `fields` in the request body as opposed to a parameter was deprecated
 in 6.4.0, and is now unsupported in 7.0.0.
+
+[[resize-copy-settings-false]]
+==== Copy settings parameter on resize operations no longer accepts `false`
+
+In 6.4.0 the `copy_settings` parameter was introduced to enable copying the
+index settings of the source index on a shrink or split index operation to the
+target index. The default value in 6.4.0 was `false`. In accordance with that
+setting being immediately deprecated in 6.4.0, `copy_settings` now defaults to
+`true` in 7.0.0 and can no longer be set to `false`. The parameter will be
+removed in 8.0.0.

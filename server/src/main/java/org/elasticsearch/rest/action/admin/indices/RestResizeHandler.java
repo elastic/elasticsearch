@@ -57,6 +57,9 @@ public abstract class RestResizeHandler extends BaseRestHandler {
                 copySettings = true;
             } else {
                 copySettings = Booleans.parseBoolean(rawCopySettings);
+                if (copySettings == false) {
+                    throw new IllegalArgumentException("copy_settings can not be set to [false]");
+                }
             }
         }
         resizeRequest.setCopySettings(copySettings);

@@ -29,6 +29,8 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasToString;
 import static org.mockito.Mockito.mock;
 
 public class RestResizeHandlerTests extends ESTestCase {
@@ -36,27 +38,57 @@ public class RestResizeHandlerTests extends ESTestCase {
     public void testShrinkCopySettingsDeprecated() throws IOException {
         final RestResizeHandler.RestShrinkIndexAction handler =
                 new RestResizeHandler.RestShrinkIndexAction(Settings.EMPTY, mock(RestController.class));
-        final String copySettings = randomFrom("true", "false");
+        final String copySettings = "true";
         final FakeRestRequest request =
                 new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
                         .withParams(Collections.singletonMap("copy_settings", copySettings))
                         .withPath("source/_shrink/target")
                         .build();
         handler.prepareRequest(request, mock(NodeClient.class));
-        assertWarnings("parameter [copy_settings] is deprecated but was [" + copySettings + "]");
+        assertWarnings("parameter [copy_settings] is deprecated but was [true]");
+    }
+
+    public void testShrinkCopySettingsFalse() {
+        final RestResizeHandler.RestShrinkIndexAction handler =
+                new RestResizeHandler.RestShrinkIndexAction(Settings.EMPTY, mock(RestController.class));
+        final String copySettings = "false";
+        final FakeRestRequest request =
+                new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
+                        .withParams(Collections.singletonMap("copy_settings", copySettings))
+                        .withPath("source/_split/target")
+                        .build();
+        final IllegalArgumentException e =
+                expectThrows(IllegalArgumentException.class, () -> handler.prepareRequest(request, mock(NodeClient.class)));
+        assertThat(e, hasToString(containsString("copy_settings can not be set to [false]")));
+        assertWarnings("parameter [copy_settings] is deprecated but was [false]");
     }
 
     public void testSplitCopySettingsDeprecated() throws IOException {
         final RestResizeHandler.RestSplitIndexAction handler =
                 new RestResizeHandler.RestSplitIndexAction(Settings.EMPTY, mock(RestController.class));
-        final String copySettings = randomFrom("true", "false");
+        final String copySettings = "true";
         final FakeRestRequest request =
                 new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
                         .withParams(Collections.singletonMap("copy_settings", copySettings))
                         .withPath("source/_split/target")
                         .build();
         handler.prepareRequest(request, mock(NodeClient.class));
-        assertWarnings("parameter [copy_settings] is deprecated but was [" + copySettings + "]");
+        assertWarnings("parameter [copy_settings] is deprecated but was [true]");
+    }
+
+    public void testSplitCopySettingsFalse() {
+        final RestResizeHandler.RestSplitIndexAction handler =
+                new RestResizeHandler.RestSplitIndexAction(Settings.EMPTY, mock(RestController.class));
+        final String copySettings = "false";
+        final FakeRestRequest request =
+                new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
+                        .withParams(Collections.singletonMap("copy_settings", copySettings))
+                        .withPath("source/_split/target")
+                        .build();
+        final IllegalArgumentException e =
+                expectThrows(IllegalArgumentException.class, () -> handler.prepareRequest(request, mock(NodeClient.class)));
+        assertThat(e, hasToString(containsString("copy_settings can not be set to [false]")));
+        assertWarnings("parameter [copy_settings] is deprecated but was [false]");
     }
 
 }

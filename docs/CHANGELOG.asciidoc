@@ -307,6 +307,8 @@ Highlighting::
 Recovery::
 * Require translogUUID when reading global checkpoint {pull}28587[#28587] (issue: {issue}28435[#28435])
 
+Added put index template API to the high level rest client ({pull}30400[#30400])
+
 [float]
 === Bug Fixes
 

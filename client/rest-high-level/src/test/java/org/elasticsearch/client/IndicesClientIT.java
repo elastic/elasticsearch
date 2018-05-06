@@ -55,11 +55,14 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRespons
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -72,11 +75,19 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractRawValues;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.hamcrest.CoreMatchers.hasItem;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -710,4 +721,59 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                 + "or check the breaking changes documentation for removed settings]"));
     }
 
+    @SuppressWarnings("unchecked")
+    public void testPutTemplate() throws Exception {
+        PutIndexTemplateRequest putTemplateRequest = new PutIndexTemplateRequest()
+            .name("my-template")
+            .patterns(Arrays.asList("pattern-1", "name-*"))
+            .order(10)
+            .create(randomBoolean())
+            .settings(Settings.builder().put("number_of_shards", "3").put("number_of_replicas", "0"))
+            .mapping("doc", "host_name", "type=keyword", "description", "type=text")
+            .alias(new Alias("alias-1").indexRouting("abc")).alias(new Alias("{index}-write").searchRouting("xyz"));
+
+        PutIndexTemplateResponse putTemplateResponse = execute(putTemplateRequest,
+            highLevelClient().indices()::putTemplate, highLevelClient().indices()::putTemplateAsync);
+        assertThat(putTemplateResponse.isAcknowledged(), equalTo(true));
+
+        Map<String, Object> templates = getAsMap("/_template/my-template");
+        assertThat(templates.keySet(), hasSize(1));
+        assertThat(extractValue("my-template.order", templates), equalTo(10));
+        assertThat(extractRawValues("my-template.index_patterns", templates), contains("pattern-1", "name-*"));
+        assertThat(extractValue("my-template.settings.index.number_of_shards", templates), equalTo("3"));
+        assertThat(extractValue("my-template.settings.index.number_of_replicas", templates), equalTo("0"));
+        assertThat(extractValue("my-template.mappings.doc.properties.host_name.type", templates), equalTo("keyword"));
+        assertThat(extractValue("my-template.mappings.doc.properties.description.type", templates), equalTo("text"));
+        assertThat((Map<String, String>) extractValue("my-template.aliases.alias-1", templates), hasEntry("index_routing", "abc"));
+        assertThat((Map<String, String>) extractValue("my-template.aliases.{index}-write", templates), hasEntry("search_routing", "xyz"));
+    }
+
+    public void testPutTemplateBadRequests() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        // Failed to validate because index patterns are missing
+        PutIndexTemplateRequest withoutPattern = new PutIndexTemplateRequest("t1");
+        ValidationException withoutPatternError = expectThrows(ValidationException.class,
+            () -> execute(withoutPattern, client.indices()::putTemplate, client.indices()::putTemplateAsync));
+        assertThat(withoutPatternError.validationErrors(), contains("index patterns are missing"));
+
+        // Create-only specified but an template exists already
+        PutIndexTemplateRequest goodTemplate = new PutIndexTemplateRequest("t2").patterns(Arrays.asList("qa-*", "prod-*"));
+        assertTrue(execute(goodTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged());
+        goodTemplate.create(true);
+        ElasticsearchException alreadyExistsError = expectThrows(ElasticsearchException.class,
+            () -> execute(goodTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync));
+        assertThat(alreadyExistsError.getDetailedMessage(),
+            containsString("[type=illegal_argument_exception, reason=index_template [t2] already exists]"));
+        goodTemplate.create(false);
+        assertTrue(execute(goodTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged());
+
+        // Rejected due to unknown settings
+        PutIndexTemplateRequest unknownSettingTemplate = new PutIndexTemplateRequest("t3")
+            .patterns(Collections.singletonList("any"))
+            .settings(Settings.builder().put("this-setting-does-not-exist", 100));
+        ElasticsearchStatusException unknownSettingError = expectThrows(ElasticsearchStatusException.class,
+            () -> execute(unknownSettingTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync));
+        assertThat(unknownSettingError.getDetailedMessage(), containsString("unknown setting [index.this-setting-does-not-exist]"));
+    }
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.document.DoubleRange;
 import org.apache.lucene.document.FloatRange;
 import org.apache.lucene.document.InetAddressPoint;
@@ -31,10 +30,10 @@ import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.network.InetAddresses;
@@ -58,7 +57,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
     @Before
     public void setupProperties() {
-        type = RandomPicks.randomFrom(random(), RangeType.values());
+        type = randomFrom(RangeType.values());
         nowInMillis = randomNonNegativeLong();
         if (type == RangeType.DATE) {
             addModifier(new Modifier("format", true) {
@@ -82,11 +81,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRangeQuery() throws Exception {
-        Settings indexSettings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
-        QueryShardContext context = new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
-            writableRegistry(), null, null, () -> nowInMillis, null);
+        QueryShardContext context = createContext();
         RangeFieldType ft = new RangeFieldType(type, Version.CURRENT);
         ft.setName(FIELDNAME);
         ft.setIndexOptions(IndexOptions.DOCS);
@@ -101,34 +96,39 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             ft.rangeQuery(from, to, includeLower, includeUpper, relation, null, null, context));
     }
 
-    public void testRangeQueryUseDateFormatInMapping() throws Exception {
+    private QueryShardContext createContext() {
         Settings indexSettings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", indexSettings);
-        QueryShardContext context = new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
+        return new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
             writableRegistry(), null, null, () -> nowInMillis, null);
+    }
 
+    public void testDateRangeQueryUsingMappingFormat() {
+        QueryShardContext context = createContext();
         RangeFieldType fieldType = new RangeFieldType(RangeType.DATE, Version.CURRENT);
         fieldType.setName(FIELDNAME);
         fieldType.setIndexOptions(IndexOptions.DOCS);
+        fieldType.setHasDocValues(false);
         ShapeRelation relation = randomFrom(ShapeRelation.values());
-        DateTime from = DateTime.now();
-        DateTime to = DateTime.now().plusDays(DISTANCE);
 
-        // Test default date format
-        DateMathParser defaultParser = new DateMathParser(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
-        assertEquals(
-            RangeType.DATE.rangeQuery(FIELDNAME, true, from, to, true,
-                true, relation, null, defaultParser, context),
-            fieldType.rangeQuery(from, to, true, true, relation, null, null, context));
+        // dates will break the default format
+        final String from = "2016-15-06T15:29:50+08:00";
+        final String to = "2016-16-06T15:29:50+08:00";
 
-        // Test using date format in mapping
-        FormatDateTimeFormatter formatter = Joda.forPattern( "strict_date_optional_time||epoch_millis");
+        ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class,
+            () -> fieldType.rangeQuery(from, to, true, true, relation, null, null, context));
+        assertEquals("failed to parse date field [2016-15-06T15:29:50+08:00] with format [strict_date_optional_time||epoch_millis]",
+            ex.getMessage());
+
+        // setting mapping format which is compatible with those dates
+        final FormatDateTimeFormatter formatter = Joda.forPattern("yyyy-dd-MM'T'HH:mm:ssZZ");
+        assertEquals(1465975790000L, formatter.parser().parseMillis(from));
+        assertEquals(1466062190000L, formatter.parser().parseMillis(to));
+
         fieldType.setDateTimeFormatter(formatter);
-        assertEquals(
-            RangeType.DATE.rangeQuery(FIELDNAME, true, from, to, true,
-                true, relation, null, fieldType.dateMathParser(), context),
-            fieldType.rangeQuery(from, to, true, true, relation, null, null, context));
+        final Query query = fieldType.rangeQuery(from, to, true, true, relation, null, null, context);
+        assertEquals("field:<ranges:[1465975790000 : 1466062190000]>", query.toString());
     }
 
     private Query getExpectedRangeQuery(ShapeRelation relation, Object from, Object to, boolean includeLower, boolean includeUpper) {
@@ -312,11 +312,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() throws Exception {
         // See https://github.com/elastic/elasticsearch/issues/25950
-        Settings indexSettings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
-        QueryShardContext context = new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
-            writableRegistry(), null, null, () -> nowInMillis, null);
+        QueryShardContext context = createContext();
         RangeFieldType ft = new RangeFieldType(type, Version.CURRENT);
         ft.setName(FIELDNAME);
         ft.setIndexOptions(IndexOptions.DOCS);

@@ -79,6 +79,7 @@ public final class EngineConfig {
     @Nullable
     private final CircuitBreakerService circuitBreakerService;
     private final LongSupplier globalCheckpointSupplier;
+    private final LongSupplier primaryTermSupplier;
 
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
@@ -125,7 +126,7 @@ public final class EngineConfig {
                         List<ReferenceManager.RefreshListener> externalRefreshListener,
                         List<ReferenceManager.RefreshListener> internalRefreshListener, Sort indexSort,
                         TranslogRecoveryRunner translogRecoveryRunner, CircuitBreakerService circuitBreakerService,
-                        LongSupplier globalCheckpointSupplier) {
+                        LongSupplier globalCheckpointSupplier, LongSupplier primaryTermSupplier) {
         this.shardId = shardId;
         this.allocationId = allocationId;
         this.indexSettings = indexSettings;
@@ -152,6 +153,7 @@ public final class EngineConfig {
         this.translogRecoveryRunner = translogRecoveryRunner;
         this.circuitBreakerService = circuitBreakerService;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
+        this.primaryTermSupplier = primaryTermSupplier;
     }
 
     /**
@@ -353,5 +355,12 @@ public final class EngineConfig {
     @Nullable
     public CircuitBreakerService getCircuitBreakerService() {
         return this.circuitBreakerService;
+    }
+
+    /**
+     * Returns a supplier that supplies the latest primary term value of the associated shard.
+     */
+    public LongSupplier getPrimaryTermSupplier() {
+        return primaryTermSupplier;
     }
 }

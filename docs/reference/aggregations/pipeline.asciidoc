@@ -114,7 +114,7 @@ POST /_search
 === Special Paths
 
 Instead of pathing to a metric, `buckets_path` can use a special `"_count"` path.  This instructs
-the pipeline aggregation to use the document count as it's input.  For example, a moving average can be calculated on the document count of each bucket, instead of a specific metric:
+the pipeline aggregation to use the document count as its input.  For example, a moving average can be calculated on the document count of each bucket, instead of a specific metric:
 
 [source,js]
 --------------------------------------------------

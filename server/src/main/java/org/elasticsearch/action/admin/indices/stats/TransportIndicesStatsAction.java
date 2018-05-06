@@ -148,9 +148,6 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
         if (request.translog()) {
             flags.set(CommonStatsFlags.Flag.Translog);
         }
-        if (request.suggest()) {
-            flags.set(CommonStatsFlags.Flag.Suggest);
-        }
         if (request.requestCache()) {
             flags.set(CommonStatsFlags.Flag.RequestCache);
         }

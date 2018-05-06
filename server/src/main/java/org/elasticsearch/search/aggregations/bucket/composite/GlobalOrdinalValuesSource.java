@@ -30,6 +30,8 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
@@ -52,8 +54,8 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     GlobalOrdinalValuesSource(BigArrays bigArrays,
                               MappedFieldType type, CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc,
-                              int size, int reverseMul) {
-        super(type, size, reverseMul);
+                              DocValueFormat format, Object missing, int size, int reverseMul) {
+        super(format, type, missing, size, reverseMul);
         this.docValuesFunc = docValuesFunc;
         this.values = bigArrays.newLongArray(size, false);
     }
@@ -87,10 +89,8 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     void setAfter(Comparable<?> value) {
-        if (value instanceof BytesRef) {
-            afterValue = (BytesRef) value;
-        } else if (value instanceof String) {
-            afterValue = new BytesRef(value.toString());
+        if (value.getClass() == String.class) {
+            afterValue = format.parseBytesRef(value.toString());
         } else {
             throw new IllegalArgumentException("invalid value, expected string, got " + value.getClass().getSimpleName());
         }
@@ -164,7 +164,8 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     @Override
     SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
         if (checkIfSortedDocsIsApplicable(reader, fieldType) == false ||
-                (query != null && query.getClass() != MatchAllDocsQuery.class)) {
+                fieldType instanceof StringFieldType == false ||
+                    (query != null && query.getClass() != MatchAllDocsQuery.class)) {
             return null;
         }
         return new TermsSortedDocsProducer(fieldType.name());

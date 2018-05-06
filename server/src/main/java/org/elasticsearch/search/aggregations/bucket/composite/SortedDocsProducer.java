@@ -25,7 +25,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.DocIdSetBuilder;
-import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;

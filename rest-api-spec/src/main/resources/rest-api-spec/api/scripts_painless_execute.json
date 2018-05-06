@@ -1,0 +1,17 @@
+{
+  "scripts_painless_execute": {
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/painless/master/painless-execute-api.html",
+    "methods": ["GET", "POST"],
+    "url": {
+      "path": "/_scripts/painless/_execute",
+      "paths": ["/_scripts/painless/_execute"],
+      "parts": {
+      },
+      "params": {
+      }
+    },
+    "body": {
+      "description": "The script to execute"
+    }
+  }
+}

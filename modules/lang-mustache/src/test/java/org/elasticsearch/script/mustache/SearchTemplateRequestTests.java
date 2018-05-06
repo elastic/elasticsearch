@@ -19,7 +19,7 @@
 
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.ScriptType;
@@ -122,7 +122,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
 
     public void testParseWrongTemplate() {
         // Unclosed template id
-        expectThrows(ParsingException.class, () -> RestSearchTemplateAction.parse(newParser("{'id' : 'another_temp }")));
+        expectThrows(XContentParseException.class, () -> RestSearchTemplateAction.parse(newParser("{'id' : 'another_temp }")));
     }
 
     /**

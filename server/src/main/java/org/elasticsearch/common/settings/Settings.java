@@ -230,7 +230,7 @@ public final class Settings implements ToXContentFragment {
      * Returns the setting value associated with the setting key.
      *
      * @param setting The setting key
-     * @return The setting value, <tt>null</tt> if it does not exists.
+     * @return The setting value, {@code null} if it does not exists.
      */
     public String get(String setting) {
         return toString(settings.get(setting));
@@ -739,8 +739,8 @@ public final class Settings implements ToXContentFragment {
         Collections.unmodifiableSet(new HashSet<>(Arrays.asList("settings_filter", "flat_settings")));
 
     /**
-     * Returns <tt>true</tt> if this settings object contains no settings
-     * @return <tt>true</tt> if this settings object contains no settings
+     * Returns {@code true} if this settings object contains no settings
+     * @return {@code true} if this settings object contains no settings
      */
     public boolean isEmpty() {
         return this.settings.isEmpty() && (secureSettings == null || secureSettings.getSettingNames().isEmpty());
@@ -1176,7 +1176,7 @@ public final class Settings implements ToXContentFragment {
 
         /**
          * Runs across all the settings set on this builder and
-         * replaces <tt>${...}</tt> elements in each setting with
+         * replaces {@code ${...}} elements in each setting with
          * another setting already set on this builder.
          */
         public Builder replacePropertyPlaceholders() {

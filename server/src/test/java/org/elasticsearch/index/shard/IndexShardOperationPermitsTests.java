@@ -69,18 +69,18 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
 
     @BeforeClass
     public static void setupThreadPool() {
-        int bulkThreadPoolSize = randomIntBetween(1, 2);
-        int bulkThreadPoolQueueSize = randomIntBetween(1, 2);
+        int writeThreadPoolSize = randomIntBetween(1, 2);
+        int writeThreadPoolQueueSize = randomIntBetween(1, 2);
         threadPool = new TestThreadPool("IndexShardOperationsLockTests",
             Settings.builder()
-                .put("thread_pool." + ThreadPool.Names.BULK + ".size", bulkThreadPoolSize)
-                .put("thread_pool." + ThreadPool.Names.BULK + ".queue_size", bulkThreadPoolQueueSize)
+                .put("thread_pool." + ThreadPool.Names.WRITE + ".size", writeThreadPoolSize)
+                .put("thread_pool." + ThreadPool.Names.WRITE + ".queue_size", writeThreadPoolQueueSize)
                 .build());
-        assertThat(threadPool.executor(ThreadPool.Names.BULK), instanceOf(EsThreadPoolExecutor.class));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.BULK)).getCorePoolSize(), equalTo(bulkThreadPoolSize));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.BULK)).getMaximumPoolSize(), equalTo(bulkThreadPoolSize));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.BULK)).getQueue().remainingCapacity(),
-            equalTo(bulkThreadPoolQueueSize));
+        assertThat(threadPool.executor(ThreadPool.Names.WRITE), instanceOf(EsThreadPoolExecutor.class));
+        assertThat(((EsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.WRITE)).getCorePoolSize(), equalTo(writeThreadPoolSize));
+        assertThat(((EsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.WRITE)).getMaximumPoolSize(), equalTo(writeThreadPoolSize));
+        assertThat(((EsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.WRITE)).getQueue().remainingCapacity(),
+            equalTo(writeThreadPoolQueueSize));
     }
 
     @AfterClass
@@ -110,8 +110,8 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(numThreads / 4);
         boolean forceExecution = randomBoolean();
         for (int i = 0; i < numThreads; i++) {
-            // the bulk thread pool uses a bounded size and can get rejections, see setupThreadPool
-            String threadPoolName = randomFrom(ThreadPool.Names.BULK, ThreadPool.Names.GENERIC);
+            // the write thread pool uses a bounded size and can get rejections, see setupThreadPool
+            String threadPoolName = randomFrom(ThreadPool.Names.WRITE, ThreadPool.Names.GENERIC);
             boolean failingListener = randomBoolean();
             PlainActionFuture<Releasable> future = new PlainActionFuture<Releasable>() {
                 @Override

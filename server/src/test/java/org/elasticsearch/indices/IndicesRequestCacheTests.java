@@ -29,6 +29,8 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -44,6 +46,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
@@ -419,6 +422,79 @@ public class IndicesRequestCacheTests extends ESTestCase {
 
         IOUtils.close(reader, writer, dir, cache);
         assertEquals(0, cache.numRegisteredCloseListeners());
+    }
+
+    public void testEqualsKey() {
+        AtomicBoolean trueBoolean = new AtomicBoolean(true);
+        AtomicBoolean falseBoolean = new AtomicBoolean(false);
+        IndicesRequestCache.Key key1 = new IndicesRequestCache.Key(new TestEntity(null, trueBoolean), 1L, new TestBytesReference(1));
+        IndicesRequestCache.Key key2 = new IndicesRequestCache.Key(new TestEntity(null, trueBoolean), 1L, new TestBytesReference(1));
+        IndicesRequestCache.Key key3 = new IndicesRequestCache.Key(new TestEntity(null, falseBoolean), 1L, new TestBytesReference(1));
+        IndicesRequestCache.Key key4 = new IndicesRequestCache.Key(new TestEntity(null, trueBoolean), 2L, new TestBytesReference(1));
+        IndicesRequestCache.Key key5 = new IndicesRequestCache.Key(new TestEntity(null, trueBoolean), 1L, new TestBytesReference(2));
+        String s = "Some other random object";
+        assertEquals(key1, key1);
+        assertEquals(key1, key2);
+        assertNotEquals(key1, null);
+        assertNotEquals(key1, s);
+        assertNotEquals(key1, key3);
+        assertNotEquals(key1, key4);
+        assertNotEquals(key1, key5);
+    }
+
+    private class TestBytesReference extends BytesReference {
+
+        int dummyValue;
+        TestBytesReference(int dummyValue) {
+            this.dummyValue = dummyValue;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof TestBytesReference && this.dummyValue == ((TestBytesReference) other).dummyValue;
+        }
+
+        @Override
+        public int hashCode() {
+            int result = super.hashCode();
+            result = 31 * result + dummyValue;
+            return result;
+        }
+
+        @Override
+        public byte get(int index) {
+            return 0;
+        }
+
+        @Override
+        public int length() {
+            return 0;
+        }
+
+        @Override
+        public BytesReference slice(int from, int length) {
+            return null;
+        }
+
+        @Override
+        public BytesRef toBytesRef() {
+            return null;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return 0;
+        }
+
+        @Override
+        public Collection<Accountable> getChildResources() {
+            return null;
+        }
+
+        @Override
+        public boolean isFragment() {
+            return false;
+        }
     }
 
     private class TestEntity extends AbstractIndexShardCacheEntity {

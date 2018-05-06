@@ -131,6 +131,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("englishminimalstem",        MovedToAnalysisCommon.class)
         .put("englishpossessive",         MovedToAnalysisCommon.class)
         .put("finnishlightstem",          MovedToAnalysisCommon.class)
+        .put("fixedshingle",              MovedToAnalysisCommon.class)
         .put("frenchlightstem",           MovedToAnalysisCommon.class)
         .put("frenchminimalstem",         MovedToAnalysisCommon.class)
         .put("galicianminimalstem",       MovedToAnalysisCommon.class)
@@ -216,6 +217,8 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("tokenoffsetpayload",        Void.class)
         // puts the type into the payload
         .put("typeaspayload",             Void.class)
+        // puts the type as a synonym
+        .put("typeassynonym",             Void.class)
         // fingerprint
         .put("fingerprint",               Void.class)
         // for tee-sinks
@@ -463,11 +466,6 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
 
         Set<Object> classesThatShouldNotHaveMultiTermSupport = new HashSet<>(actual);
         classesThatShouldNotHaveMultiTermSupport.removeAll(expected);
-        classesThatShouldNotHaveMultiTermSupport.remove("token filter [trim]");
-        if (Version.CURRENT.luceneVersion.onOrAfter(org.apache.lucene.util.Version.fromBits(7, 3, 0))) {
-            // TODO: remove the above exclusion when we move to lucene 7.3
-            assert false;
-        }
         assertTrue("Pre-built components should not have multi-term support: " + classesThatShouldNotHaveMultiTermSupport,
                 classesThatShouldNotHaveMultiTermSupport.isEmpty());
     }

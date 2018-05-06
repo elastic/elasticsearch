@@ -19,12 +19,11 @@
 
 package org.elasticsearch.search.suggest.completion.context;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -110,14 +109,14 @@ public final class CategoryQueryContext implements ToXContentObject {
         if (token == XContentParser.Token.START_OBJECT) {
             try {
                 CATEGORY_PARSER.parse(parser, builder, null);
-            } catch(ParsingException e) {
-                throw new ElasticsearchParseException("category context must be a string, number or boolean");
+            } catch(XContentParseException e) {
+                throw new XContentParseException("category context must be a string, number or boolean");
             }
         } else if (token == XContentParser.Token.VALUE_STRING || token == XContentParser.Token.VALUE_BOOLEAN
                 || token == XContentParser.Token.VALUE_NUMBER) {
             builder.setCategory(parser.text());
         } else {
-            throw new ElasticsearchParseException("category context must be an object, string, number or boolean");
+            throw new XContentParseException("category context must be an object, string, number or boolean");
         }
         return builder.build();
     }

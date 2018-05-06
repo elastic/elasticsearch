@@ -307,7 +307,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
 
     /**
      * resolves a set of node "descriptions" to concrete and existing node ids. "descriptions" can be (resolved in this order):
-     * - "_local", "_master" or "_coordinating_only" for the relevant nodes
+     * - "_local" or "_master" for the relevant nodes
      * - a node id
      * - a wild card pattern that will be matched against node names
      * - a "attr:value" pattern, where attr can be a node role (master, data, ingest etc.) in which case the value can be true or false,
@@ -329,8 +329,6 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                     if (masterNodeId != null) {
                         resolvedNodesIds.add(masterNodeId);
                     }
-                } else if (nodeId.equals("_coordinating_only")) {
-                    resolvedNodesIds.addAll(getCoordinatingOnlyNodes().keys());
                 } else if (nodeExists(nodeId)) {
                     resolvedNodesIds.add(nodeId);
                 } else {
@@ -363,6 +361,12 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                                 resolvedNodesIds.addAll(ingestNodes.keys());
                             } else {
                                 resolvedNodesIds.removeAll(ingestNodes.keys());
+                            }
+                        } else if (DiscoveryNode.COORDINATING_ONLY.equals(matchAttrName)) {
+                            if (Booleans.parseBoolean(matchAttrValue, true)) {
+                                resolvedNodesIds.addAll(getCoordinatingOnlyNodes().keys());
+                            } else {
+                                resolvedNodesIds.removeAll(getCoordinatingOnlyNodes().keys());
                             }
                         } else {
                             for (DiscoveryNode node : this) {

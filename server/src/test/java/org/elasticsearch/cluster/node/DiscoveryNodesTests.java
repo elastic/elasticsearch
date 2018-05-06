@@ -102,7 +102,17 @@ public class DiscoveryNodesTests extends ESTestCase {
                     .map(DiscoveryNode::getId)
                     .toArray(String[]::new);
 
-        assertThat(discoveryNodes.resolveNodes("_coordinating_only"), arrayContainingInAnyOrder(coordinatorOnlyNodes));
+        final String[] nonCoordinatorOnlyNodes =
+                StreamSupport.stream(discoveryNodes.getNodes().values().spliterator(), false)
+                    .map(n -> n.value)
+                    .filter(n -> n.isMasterNode() || n.isDataNode() || n.isIngestNode())
+                    .map(DiscoveryNode::getId)
+                    .toArray(String[]::new);
+
+        assertThat(discoveryNodes.resolveNodes("coordinating_only:true"), arrayContainingInAnyOrder(coordinatorOnlyNodes));
+        assertThat(discoveryNodes.resolveNodes("_all", "data:false", "ingest:false", "master:false"),
+            arrayContainingInAnyOrder(coordinatorOnlyNodes));
+        assertThat(discoveryNodes.resolveNodes("_all", "coordinating_only:false"), arrayContainingInAnyOrder(nonCoordinatorOnlyNodes));
     }
 
     public void testResolveNodesIds() {

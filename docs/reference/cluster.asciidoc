@@ -9,15 +9,13 @@
 Most cluster level APIs allow to specify which nodes to execute on (for
 example, getting the node stats for a node). Nodes can be identified in
 the APIs either using their internal node id, the node name, address,
-custom attributes, or just the `_local`, `_master` or `_coordinating_only` nodes receiving the request. For
+custom attributes, or just the `_local` node receiving the request. For
 example, here are some sample executions of nodes info:
 
 [source,js]
 --------------------------------------------------
-# Local, current master or coordinating only nodes
+# Local
 GET /_nodes/_local
-GET /_nodes/_master
-GET /_nodes/_coordinating_only
 # Address
 GET /_nodes/10.0.0.3,10.0.0.4
 GET /_nodes/10.0.0.*

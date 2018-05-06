@@ -29,12 +29,16 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 public class StartBasicLicenseTests extends AbstractLicensesIntegrationTestCase {
 
     @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
+    }
+
+    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("node.data", true)
-                .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "basic")
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true).build();
+                .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "basic").build();
     }
 
     @Override

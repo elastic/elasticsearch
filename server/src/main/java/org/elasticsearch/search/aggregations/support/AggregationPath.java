@@ -41,7 +41,7 @@ import java.util.List;
  * the sort-by value.
  * <p>
  * The path has the following form:
- * <center>{@code <aggregation_name>['>'<aggregation_name>*]['.'<metric_name>]}</center>
+ * {@code <aggregation_name>['>'<aggregation_name>*]['.'<metric_name>]}
  * <p>
  * Examples:
  *

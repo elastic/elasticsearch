@@ -8,14 +8,15 @@ dependencies {
 }
 
 ext.pluginsCount = 0
-project.rootProject.subprojects.findAll { it.path.startsWith(':plugins:') }.each { subproj ->
+project(':plugins').getChildProjects().each { pluginName, pluginProject ->
   // need to get a non-decorated project object, so must re-lookup the project by path
-  integTestCluster.plugin(subproj.path)
+  integTestCluster.plugin(pluginProject.path)
   pluginsCount += 1
 }
 
 integTestCluster {
   setting 'xpack.security.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'trial'
   setupCommand 'setupDummyUser',
                'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
   waitCondition = { node, ant ->

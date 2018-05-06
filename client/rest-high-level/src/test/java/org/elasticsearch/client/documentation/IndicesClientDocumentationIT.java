@@ -1690,9 +1690,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.order(20);  // <1>
         // end::put-template-request-order
 
-        // tag::put-template-request-order
+        // tag::put-template-request-version
         request.version(4);  // <1>
-        // end::put-template-request-order
+        // end::put-template-request-version
 
         // tag::put-template-whole-source
         request.source("{\n" +

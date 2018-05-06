@@ -63,7 +63,7 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
         }
 
         public Status(StreamInput in) throws IOException {
-            this.processedGlobalCheckpoint = in.readVLong();
+            this.processedGlobalCheckpoint = in.readZLong();
         }
 
         public long getProcessedGlobalCheckpoint() {
@@ -77,7 +77,7 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(processedGlobalCheckpoint);
+            out.writeZLong(processedGlobalCheckpoint);
         }
 
         @Override

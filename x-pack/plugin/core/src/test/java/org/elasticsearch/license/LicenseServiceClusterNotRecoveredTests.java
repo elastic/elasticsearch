@@ -27,12 +27,16 @@ public class LicenseServiceClusterNotRecoveredTests extends AbstractLicensesInte
         return nodeSettingsBuilder(nodeOrdinal).build();
     }
 
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false;
+    }
+
     private Settings.Builder nodeSettingsBuilder(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("node.data", true)
-                .put("resource.reload.interval.high", "500ms") // for license mode file watcher
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true);
+                .put("resource.reload.interval.high", "500ms"); // for license mode file watcher
     }
 
     @Override

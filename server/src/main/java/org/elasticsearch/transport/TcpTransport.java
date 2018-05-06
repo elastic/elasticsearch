@@ -1812,7 +1812,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     /**
-     * Representation of a transport profile settings for a <tt>transport.profiles.$profilename.*</tt>
+     * Representation of a transport profile settings for a {@code transport.profiles.$profilename.*}
      */
     public static final class ProfileSettings {
         public final String profileName;

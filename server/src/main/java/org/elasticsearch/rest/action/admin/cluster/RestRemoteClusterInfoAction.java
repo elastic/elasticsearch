@@ -32,6 +32,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 
@@ -50,16 +51,8 @@ public final class RestRemoteClusterInfoAction extends BaseRestHandler {
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client)
-        throws IOException {
-        return channel -> client.execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest(),
-            new RestBuilderListener<RemoteInfoResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(RemoteInfoResponse response, XContentBuilder builder) throws Exception {
-                response.toXContent(builder, request);
-                return new BytesRestResponse(RestStatus.OK, builder);
-            }
-        });
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        return channel -> client.execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest(), new RestToXContentListener<>(channel));
     }
     @Override
     public boolean canTripCircuitBreaker() {

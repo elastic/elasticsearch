@@ -122,11 +122,11 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
         Translog.Location location = null;
         for (Translog.Operation operation : request.getOperations()) {
             try {
-                final Engine.Result operationResult = replica.applyTranslogOperation(operation, Engine.Operation.Origin.REPLICA,
-                    update -> {
-                        throw new TransportReplicationAction.RetryOnReplicaException(replica.shardId(),
-                            "Mappings are not available on the replica yet, triggered update: " + update);
-                    });
+                final Engine.Result operationResult = replica.applyTranslogOperation(operation, Engine.Operation.Origin.REPLICA);
+                if (operationResult.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
+                    throw new TransportReplicationAction.RetryOnReplicaException(replica.shardId(),
+                        "Mappings are not available on the replica yet, triggered update: " + operationResult.getRequiredMappingUpdate());
+                }
                 location = syncOperationResultOrThrow(operationResult, location);
             } catch (Exception e) {
                 // if its not a failure to be ignored, let it bubble up

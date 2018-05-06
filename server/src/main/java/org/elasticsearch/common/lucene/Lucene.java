@@ -30,6 +30,7 @@ import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
@@ -640,9 +641,9 @@ public class Lucene {
     }
 
     /**
-     * Returns <tt>true</tt> iff the given exception or
+     * Returns {@code true} iff the given exception or
      * one of it's causes is an instance of {@link CorruptIndexException},
-     * {@link IndexFormatTooOldException}, or {@link IndexFormatTooNewException} otherwise <tt>false</tt>.
+     * {@link IndexFormatTooOldException}, or {@link IndexFormatTooNewException} otherwise {@code false}.
      */
     public static boolean isCorruptionException(Throwable t) {
         return ExceptionsHelper.unwrapCorruption(t) != null;
@@ -831,6 +832,58 @@ public class Lucene {
                 return maxDoc;
             }
         };
+    }
+
+    /**
+     * Wraps a directory reader to include all live docs.
+     * The wrapped reader can be used to query all documents.
+     *
+     * @param in the input directory reader
+     * @return the wrapped reader
+     */
+    public static DirectoryReader wrapAllDocsLive(DirectoryReader in) throws IOException {
+        return new DirectoryReaderWithAllLiveDocs(in);
+    }
+
+    private static final class DirectoryReaderWithAllLiveDocs extends FilterDirectoryReader {
+        static final class SubReaderWithAllLiveDocs extends FilterLeafReader {
+            SubReaderWithAllLiveDocs(LeafReader in) {
+                super(in);
+            }
+            @Override
+            public Bits getLiveDocs() {
+                return null;
+            }
+            @Override
+            public int numDocs() {
+                return maxDoc();
+            }
+            @Override
+            public CacheHelper getCoreCacheHelper() {
+                return in.getCoreCacheHelper();
+            }
+            @Override
+            public CacheHelper getReaderCacheHelper() {
+                return null; // Modifying liveDocs
+            }
+        }
+        DirectoryReaderWithAllLiveDocs(DirectoryReader in) throws IOException {
+            super(in, new FilterDirectoryReader.SubReaderWrapper() {
+                @Override
+                public LeafReader wrap(LeafReader leaf) {
+                    return new SubReaderWithAllLiveDocs(leaf);
+                }
+            });
+        }
+        @Override
+        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+            return wrapAllDocsLive(in);
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return null; // Modifying liveDocs
+        }
     }
 
     /**

@@ -31,7 +31,7 @@ template's patterns.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-template-request-mappings]
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-template-request-mappings-json]
 --------------------------------------------------
 <1> The type to define
 <2> The mapping for this type, provided as a JSON string
@@ -41,21 +41,21 @@ The mapping source can be provided in different ways in addition to the
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-template-mappings-map]
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-template-request-mappings-map]
 --------------------------------------------------
 <1> Mapping source provided as a `Map` which gets automatically converted
 to JSON format
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-template-mappings-xcontent]
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-template-request-mappings-xcontent]
 --------------------------------------------------
 <1> Mapping source provided as an `XContentBuilder` object, the Elasticsearch
 built-in helpers to generate JSON content
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-template-mappings-shortcut]
+include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[put-template-request-mappings-shortcut]
 --------------------------------------------------
 <1> Mapping source provided as `Object` key-pairs, which gets converted to
 JSON format

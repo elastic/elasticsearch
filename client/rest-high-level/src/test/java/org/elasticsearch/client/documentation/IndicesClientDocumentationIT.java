@@ -1621,7 +1621,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::put-template-request-settings
 
         {
-            // tag::create-put-template-request-mappings
+            // tag::put-template-request-mappings-json
             request.mapping("tweet", // <1>
                 "{\n" +
                     "  \"tweet\": {\n" +
@@ -1633,11 +1633,11 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                     "  }\n" +
                     "}", // <2>
                 XContentType.JSON);
-            // end::create-put-template-mappings
+            // end::put-template-request-mappings-json
             assertTrue(client.indices().putTemplate(request).isAcknowledged());
         }
         {
-            //tag::put-template-mappings-map
+            //tag::put-template-request-mappings-map
             Map<String, Object> jsonMap = new HashMap<>();
             Map<String, Object> message = new HashMap<>();
             message.put("type", "text");
@@ -1647,11 +1647,11 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             tweet.put("properties", properties);
             jsonMap.put("tweet", tweet);
             request.mapping("tweet", jsonMap); // <1>
-            //end::put-template-mappings-map
+            //end::put-template-request-mappings-map
             assertTrue(client.indices().putTemplate(request).isAcknowledged());
         }
         {
-            //tag::put-template-mappings-xcontent
+            //tag::put-template-request-mappings-xcontent
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
             {
@@ -1671,13 +1671,13 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             }
             builder.endObject();
             request.mapping("tweet", builder); // <1>
-            //end::put-template-mappings-xcontent
+            //end::put-template-request-mappings-xcontent
             assertTrue(client.indices().putTemplate(request).isAcknowledged());
         }
         {
-            //tag::put-template-mappings-shortcut
+            //tag::put-template-request-mappings-shortcut
             request.mapping("tweet", "message", "type=text"); // <1>
-            //end::put-template-mappings-shortcut
+            //end::put-template-request-mappings-shortcut
             assertTrue(client.indices().putTemplate(request).isAcknowledged());
         }
 

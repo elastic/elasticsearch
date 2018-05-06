@@ -163,6 +163,8 @@ synchronous and predictable. Also the trigger engine thread is only started on
 data nodes. And the Execute Watch API can be triggered regardless is watcher is
 started or stopped. ({pull}30118[#30118])
 
+Added put index template API to the high level rest client ({pull}30400[#30400])
+
 [float]
 === Bug Fixes
 

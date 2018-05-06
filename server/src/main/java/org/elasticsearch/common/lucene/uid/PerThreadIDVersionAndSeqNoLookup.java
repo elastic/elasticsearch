@@ -28,6 +28,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -68,9 +69,13 @@ final class PerThreadIDVersionAndSeqNoLookup {
         this.uidField = uidField;
         final Terms terms = reader.terms(uidField);
         if (terms == null) {
-            // Uid is not found if a segment contains only NoOps; in this case, version should not exist either.
-            if (reader.getNumericDocValues(VersionFieldMapper.NAME) != null) {
-                throw new IllegalArgumentException("Reader misses [" + uidField + "] but has [" + VersionFieldMapper.NAME + "]");
+            // If a segment contains only no-ops, it won't have _uid and _version but has both _soft_deletes and _tombstone fields.
+            final NumericDocValues versionDV = reader.getNumericDocValues(VersionFieldMapper.NAME);
+            final NumericDocValues softDeletesDV = reader.getNumericDocValues(Lucene.SOFT_DELETE_FIELD);
+            final NumericDocValues tombstoneDV = reader.getNumericDocValues(SeqNoFieldMapper.TOMBSTONE_NAME);
+            if (versionDV != null || softDeletesDV == null || tombstoneDV == null) {
+                throw new IllegalArgumentException("reader does not have _uid terms but not a no-op segment; " +
+                    "_version [" + versionDV + "], _soft_deletes [" + softDeletesDV + "], _tombstone [" + tombstoneDV + "]");
             }
             termsEnum = null;
         } else {
@@ -115,6 +120,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
      * {@link DocIdSetIterator#NO_MORE_DOCS} is returned if not found
      * */
     private int getDocID(BytesRef id, Bits liveDocs) throws IOException {
+        // termsEnum can possibly be null here if this leaf contains only no-ops.
         if (termsEnum != null && termsEnum.seekExact(id)) {
             int docID = DocIdSetIterator.NO_MORE_DOCS;
             // there may be more than one matching docID, in the case of nested docs, so we want the last one:

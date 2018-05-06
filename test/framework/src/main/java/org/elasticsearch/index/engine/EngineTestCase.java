@@ -28,20 +28,27 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.TotalHitCountCollector;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.common.Nullable;
@@ -52,12 +59,17 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -88,11 +100,15 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.ToLongBiFunction;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.shuffle;
@@ -100,6 +116,8 @@ import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class EngineTestCase extends ESTestCase {
 
@@ -189,8 +207,7 @@ public abstract class EngineTestCase extends ESTestCase {
             new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
             config.getTranslogConfig(), config.getFlushMergesAfter(),
             config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(), config.getTranslogRecoveryRunner(),
-            config.getCircuitBreakerService(), globalCheckpointSupplier, config.getPrimaryTermSupplier(),
-            EngineTestCase::createTombstoneDoc);
+            config.getCircuitBreakerService(), globalCheckpointSupplier, config.getPrimaryTermSupplier(), tombstoneDocSupplier());
     }
 
     public EngineConfig copy(EngineConfig config, Analyzer analyzer) {
@@ -203,15 +220,27 @@ public abstract class EngineTestCase extends ESTestCase {
                 config.getTombstoneDocSupplier());
     }
 
+    public EngineConfig copy(EngineConfig config, MergePolicy mergePolicy) {
+        return new EngineConfig(config.getShardId(), config.getAllocationId(), config.getThreadPool(), config.getIndexSettings(),
+            config.getWarmer(), config.getStore(), mergePolicy, config.getAnalyzer(), config.getSimilarity(),
+            new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
+            config.getTranslogConfig(), config.getFlushMergesAfter(),
+            config.getExternalRefreshListener(), Collections.emptyList(), config.getIndexSort(), config.getTranslogRecoveryRunner(),
+            config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.getPrimaryTermSupplier(),
+            config.getTombstoneDocSupplier());
+    }
+
     @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();
         if (engine != null && engine.isClosed.get() == false) {
             engine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
+            assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, createMapperService("test"));
         }
         if (replicaEngine != null && replicaEngine.isClosed.get() == false) {
             replicaEngine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
+            assertConsistentHistoryBetweenTranslogAndLuceneIndex(replicaEngine, createMapperService("test"));
         }
         IOUtils.close(
                 replicaEngine, storeReplica,
@@ -258,18 +287,37 @@ public abstract class EngineTestCase extends ESTestCase {
     /**
      * Creates a tombstone document that only includes uid, seq#, term and version fields.
      */
-    public static ParsedDocument createTombstoneDoc(String type, String id) {
-        final ParseContext.Document document = new ParseContext.Document();
-        Field uidField = new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE);
-        document.add(uidField);
-        Field versionField = new NumericDocValuesField(VersionFieldMapper.NAME, 0);
-        document.add(versionField);
-        SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
-        document.add(seqID.seqNo);
-        document.add(seqID.seqNoDocValue);
-        document.add(seqID.primaryTerm);
-        return new ParsedDocument(versionField, seqID, id, type, null, Collections.singletonList(document),
-            new BytesArray("{}"), XContentType.JSON, null);
+    public static EngineConfig.TombstoneDocSupplier tombstoneDocSupplier(){
+        return new EngineConfig.TombstoneDocSupplier() {
+            @Override
+            public ParsedDocument newDeleteTombstoneDoc(String type, String id) {
+                final ParseContext.Document doc = new ParseContext.Document();
+                Field uidField = new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE);
+                doc.add(uidField);
+                Field versionField = new NumericDocValuesField(VersionFieldMapper.NAME, 0);
+                doc.add(versionField);
+                SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+                doc.add(seqID.seqNo);
+                doc.add(seqID.seqNoDocValue);
+                doc.add(seqID.primaryTerm);
+                seqID.tombstoneField.setLongValue(1);
+                doc.add(seqID.tombstoneField);
+                return new ParsedDocument(versionField, seqID, id, type, null,
+                    Collections.singletonList(doc), new BytesArray("{}"), XContentType.JSON, null);
+            }
+
+            @Override
+            public ParsedDocument newNoopTombstoneDoc() {
+                final ParseContext.Document doc = new ParseContext.Document();
+                SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+                doc.add(seqID.seqNo);
+                doc.add(seqID.seqNoDocValue);
+                doc.add(seqID.primaryTerm);
+                seqID.tombstoneField.setLongValue(1);
+                doc.add(seqID.tombstoneField);
+                return new ParsedDocument(null, seqID, null, null, null, Collections.singletonList(doc), null, XContentType.JSON, null);
+            }
+        };
     }
 
     protected Store createStore() throws IOException {
@@ -480,7 +528,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 new NoneCircuitBreakerService(),
                 globalCheckpointSupplier == null ?
                     new ReplicationTracker(shardId, allocationId.getId(), indexSettings, SequenceNumbers.NO_OPS_PERFORMED) :
-                    globalCheckpointSupplier, primaryTerm::get, EngineTestCase::createTombstoneDoc);
+                    globalCheckpointSupplier, primaryTerm::get, tombstoneDocSupplier());
         return config;
     }
 
@@ -535,23 +583,13 @@ public abstract class EngineTestCase extends ESTestCase {
         }
     }
 
-    public static List<Engine.Operation> generateSingleDocHistory(
-            final boolean forReplica,
-            final VersionType versionType,
-            final boolean partialOldPrimary,
-            final long primaryTerm,
-            final int minOpCount,
-            final int maxOpCount) {
+    public static List<Engine.Operation> generateSingleDocHistory(boolean forReplica, VersionType versionType,
+                                                                  long primaryTerm, int minOpCount, int maxOpCount, String docId) {
         final int numOfOps = randomIntBetween(minOpCount, maxOpCount);
         final List<Engine.Operation> ops = new ArrayList<>();
-        final Term id = newUid("1");
-        final int startWithSeqNo;
-        if (partialOldPrimary) {
-            startWithSeqNo = randomBoolean() ? numOfOps - 1 : randomIntBetween(0, numOfOps - 1);
-        } else {
-            startWithSeqNo = 0;
-        }
-        final String valuePrefix = forReplica ? "r_" : "p_";
+        final Term id = newUid(docId);
+        final int startWithSeqNo = 0;
+        final String valuePrefix = (forReplica ? "r_" : "p_" ) + docId + "_";
         final boolean incrementTermWhenIntroducingSeqNo = randomBoolean();
         for (int i = 0; i < numOfOps; i++) {
             final Engine.Operation op;
@@ -573,22 +611,22 @@ public abstract class EngineTestCase extends ESTestCase {
                     throw new UnsupportedOperationException("unknown version type: " + versionType);
             }
             if (randomBoolean()) {
-                op = new Engine.Index(id, testParsedDocument("1", null, testDocumentWithTextField(valuePrefix + i), B_1, null),
-                        forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbers.UNASSIGNED_SEQ_NO,
-                        forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? primaryTerm + 1 : primaryTerm,
-                        version,
-                        forReplica ? versionType.versionTypeForReplicationAndRecovery() : versionType,
-                        forReplica ? REPLICA : PRIMARY,
-                        System.currentTimeMillis(), -1, false
+                op = new Engine.Index(id, testParsedDocument(docId, null, testDocumentWithTextField(valuePrefix + i), B_1, null),
+                    forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbers.UNASSIGNED_SEQ_NO,
+                    forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? primaryTerm + 1 : primaryTerm,
+                    version,
+                    forReplica ? versionType.versionTypeForReplicationAndRecovery() : versionType,
+                    forReplica ? REPLICA : PRIMARY,
+                    System.currentTimeMillis(), -1, false
                 );
             } else {
-                op = new Engine.Delete("test", "1", id,
-                        forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbers.UNASSIGNED_SEQ_NO,
-                        forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? primaryTerm + 1 : primaryTerm,
-                        version,
-                        forReplica ? versionType.versionTypeForReplicationAndRecovery() : versionType,
-                        forReplica ? REPLICA : PRIMARY,
-                        System.currentTimeMillis());
+                op = new Engine.Delete("test", docId, id,
+                    forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbers.UNASSIGNED_SEQ_NO,
+                    forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? primaryTerm + 1 : primaryTerm,
+                    version,
+                    forReplica ? versionType.versionTypeForReplicationAndRecovery() : versionType,
+                    forReplica ? REPLICA : PRIMARY,
+                    System.currentTimeMillis());
             }
             ops.add(op);
         }
@@ -631,7 +669,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 // intentional
                 assertThat(result.isCreated(), equalTo(firstOp));
                 assertThat(result.getVersion(), equalTo(op.version()));
-                assertThat(result.hasFailure(), equalTo(false));
+                assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
 
             } else {
                 Engine.DeleteResult result = replicaEngine.delete((Engine.Delete) op);
@@ -642,7 +680,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 // intentional
                 assertThat(result.isFound(), equalTo(firstOp == false));
                 assertThat(result.getVersion(), equalTo(op.version()));
-                assertThat(result.hasFailure(), equalTo(false));
+                assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
             }
             if (randomBoolean()) {
                 replicaEngine.refresh("test");
@@ -662,6 +700,132 @@ public abstract class EngineTestCase extends ESTestCase {
                 assertThat(collector.getTotalHits(), equalTo(1));
             }
         }
+    }
+
+    /**
+     * Reads all engine operations that have been processed by the engine from Lucene index.
+     * The returned operations are sorted and de-duplicated, thus each sequence number will be have at most one operation.
+     */
+    public static List<Translog.Operation> readAllOperationsInLucene(Engine engine, MapperService mapper) throws IOException {
+        engine.refresh("test");
+        final List<Translog.Operation> operations = new ArrayList<>();
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+            final IndexSearcher indexSearcher = new IndexSearcher(Lucene.wrapAllDocsLive(searcher.getDirectoryReader()));
+            final Sort sortedBySeqNoThenByTerm = new Sort(
+                new SortedNumericSortField(SeqNoFieldMapper.NAME, SortField.Type.LONG),
+                new SortedNumericSortField(SeqNoFieldMapper.PRIMARY_TERM_NAME, SortField.Type.LONG, true)
+            );
+            final TopDocs allDocs = indexSearcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE, sortedBySeqNoThenByTerm);
+            long lastSeenSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
+            for (ScoreDoc scoreDoc : allDocs.scoreDocs) {
+                final Translog.Operation op = readOperationInLucene(indexSearcher, mapper, scoreDoc.doc);
+                if (op.seqNo() != lastSeenSeqNo) {
+                    operations.add(op);
+                    lastSeenSeqNo = op.seqNo();
+                }
+            }
+        }
+        return operations;
+    }
+
+    private static Translog.Operation readOperationInLucene(IndexSearcher searcher, MapperService mapper, int docID) throws IOException {
+        final List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
+        final int leafIndex = ReaderUtil.subIndex(docID, leaves);
+        final int segmentDocID = docID - leaves.get(leafIndex).docBase;
+        final long seqNo = readNumericDV(leaves.get(leafIndex), SeqNoFieldMapper.NAME, segmentDocID);
+        final long primaryTerm = readNumericDV(leaves.get(leafIndex), SeqNoFieldMapper.PRIMARY_TERM_NAME, segmentDocID);
+        final FieldsVisitor fields = new FieldsVisitor(true);
+        searcher.doc(docID, fields);
+        fields.postProcess(mapper);
+        final Translog.Operation op;
+        final boolean isTombstone = isTombstoneOperation(leaves.get(leafIndex), segmentDocID);
+        if (isTombstone && fields.uid() == null) {
+            op = new Translog.NoOp(seqNo, primaryTerm, "");
+            assert readNumericDV(leaves.get(leafIndex), Lucene.SOFT_DELETE_FIELD, segmentDocID) == 1
+                : "Noop operation but soft_deletes field is not set";
+        } else {
+            final String id = fields.uid().id();
+            final String type = fields.uid().type();
+            final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
+            final long version = readNumericDV(leaves.get(leafIndex), VersionFieldMapper.NAME, segmentDocID);
+            if (isTombstone) {
+                op = new Translog.Delete(type, id, uid, seqNo, primaryTerm, version, VersionType.INTERNAL);
+                assert readNumericDV(leaves.get(leafIndex), Lucene.SOFT_DELETE_FIELD, segmentDocID) == 1
+                    : "Delete operation but soft_deletes field is not set";
+            } else {
+                final BytesReference source = fields.source();
+                op = new Translog.Index(type, id, seqNo, primaryTerm, version, VersionType.INTERNAL, source.toBytesRef().bytes,
+                    fields.routing(), -1);
+            }
+        }
+        return op;
+    }
+
+    private static boolean isTombstoneOperation(LeafReaderContext leaf, int segmentDocID) throws IOException {
+        final NumericDocValues tombstoneDV = leaf.reader().getNumericDocValues(SeqNoFieldMapper.TOMBSTONE_NAME);
+        if (tombstoneDV != null && tombstoneDV.advanceExact(segmentDocID)) {
+            return tombstoneDV.longValue() == 1;
+        }
+        return false;
+    }
+
+    private static long readNumericDV(LeafReaderContext leaf, String field, int segmentDocID) throws IOException {
+        final NumericDocValues dv = leaf.reader().getNumericDocValues(field);
+        if (dv == null || dv.advanceExact(segmentDocID) == false) {
+            throw new IllegalStateException("DocValues for field [" + field + "] is not found");
+        }
+        return dv.longValue();
+    }
+
+    /**
+     * Asserts the provided engine has a consistent document history between translog and Lucene index.
+     */
+    public static void assertConsistentHistoryBetweenTranslogAndLuceneIndex(Engine engine, MapperService mapper) throws IOException {
+        if (mapper.documentMapper() == null || engine.config().getIndexSettings().isSoftDeleteEnabled() == false) {
+            return;
+        }
+        final Map<Long, Translog.Operation> translogOps = new HashMap<>();
+        try (Translog.Snapshot snapshot = engine.getTranslog().newSnapshot()) {
+            Translog.Operation op;
+            while ((op = snapshot.next()) != null) {
+                translogOps.put(op.seqNo(), op);
+            }
+        }
+        final Map<Long, Translog.Operation> luceneOps = readAllOperationsInLucene(engine, mapper).stream()
+            .collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
+        final long globalCheckpoint = engine.getTranslog().getLastSyncedGlobalCheckpoint();
+        final long retainedOps = engine.config().getIndexSettings().getSoftDeleteRetentionOperations();
+        final long maxSeqNo = engine.getLocalCheckpointTracker().getMaxSeqNo();
+        for (Translog.Operation translogOp : translogOps.values()) {
+            final Translog.Operation luceneOp = luceneOps.get(translogOp.seqNo());
+            if (luceneOp == null) {
+                if (globalCheckpoint + 1 - retainedOps <= translogOp.seqNo() && translogOp.seqNo() <= maxSeqNo) {
+                    fail("Operation not found seq# [" + translogOp.seqNo() + "], global checkpoint [" + globalCheckpoint + "], " +
+                        "retention policy [" + retainedOps + "], maxSeqNo [" + maxSeqNo + "], translog op [" + translogOp + "]");
+                } else {
+                    continue;
+                }
+            }
+            assertThat(luceneOp, notNullValue());
+            assertThat(luceneOp.primaryTerm(), equalTo(translogOp.primaryTerm()));
+            assertThat(luceneOp.opType(), equalTo(translogOp.opType()));
+            if (luceneOp.opType() == Translog.Operation.Type.INDEX) {
+                assertThat(luceneOp.getSource().source, equalTo(translogOp.getSource().source));
+            }
+        }
+    }
+
+    protected MapperService createMapperService(String type) throws IOException {
+        IndexMetaData indexMetaData = IndexMetaData.builder("test")
+            .settings(Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1))
+            .putMapping(type, "{\"properties\": {}}")
+            .build();
+        MapperService mapperService = MapperTestUtils.newMapperService(new NamedXContentRegistry(ClusterModule.getNamedXWriteables()),
+            createTempDir(), Settings.EMPTY, "test");
+        mapperService.merge(indexMetaData, MapperService.MergeReason.MAPPING_UPDATE);
+        return mapperService;
     }
 
     /**

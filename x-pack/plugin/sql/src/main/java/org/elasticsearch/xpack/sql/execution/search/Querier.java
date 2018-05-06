@@ -206,8 +206,15 @@ public class Querier {
         protected void handleResponse(SearchResponse response, ActionListener<SchemaRowSet> listener) {
             // there are some results
             if (response.getAggregations().asList().size() > 0) {
-                CompositeAggregationCursor.updateCompositeAfterKey(response, request.source());
 
+                // retry
+                if (CompositeAggregationCursor.shouldRetryDueToEmptyPage(response)) {
+                    CompositeAggregationCursor.updateCompositeAfterKey(response, request.source());
+                    client.search(request, this);
+                    return;
+                }
+
+                CompositeAggregationCursor.updateCompositeAfterKey(response, request.source());
                 byte[] nextSearch = null;
                 try {
                     nextSearch = CompositeAggregationCursor.serializeQuery(request.source());

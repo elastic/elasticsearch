@@ -104,10 +104,12 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         logger.info("[{}] initial leader mapping with follower mapping syncing", params);
         checker.updateMapping(e -> {
             if (e == null) {
-                logger.info("[{}] starting to follow shard", params);
-                LongConsumer handler = followGlobalCheckPoint ->
-                        prepare(leaderClient, shardFollowNodeTask, params, followGlobalCheckPoint, checker);
-                fetchGlobalCheckpoint(client, params.getFollowShardId(), handler, task::markAsFailed);
+                logger.info("Starting shard following [{}]", params);
+                fetchGlobalCheckpoint(client, params.getFollowShardId(),
+                        followGlobalCheckPoint -> {
+                            shardFollowNodeTask.updateProcessedGlobalCheckpoint(followGlobalCheckPoint);
+                            prepare(leaderClient, shardFollowNodeTask, params, followGlobalCheckPoint, checker);
+                        }, task::markAsFailed);
             } else {
                 shardFollowNodeTask.markAsFailed(e);
             }
@@ -126,10 +128,13 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         fetchGlobalCheckpoint(leaderClient, leaderShard, leaderGlobalCheckPoint -> {
             // TODO: check if both indices have the same history uuid
             if (leaderGlobalCheckPoint == followGlobalCheckPoint) {
+                logger.debug("{} no write operations to fetch", followerShard);
                 retry(leaderClient, task, params, followGlobalCheckPoint, checker);
             } else {
                 assert followGlobalCheckPoint < leaderGlobalCheckPoint : "followGlobalCheckPoint [" + followGlobalCheckPoint +
                         "] is not below leaderGlobalCheckPoint [" + leaderGlobalCheckPoint + "]";
+                logger.debug("{} fetching write operations, leaderGlobalCheckPoint={}, followGlobalCheckPoint={}", followerShard,
+                    leaderGlobalCheckPoint, followGlobalCheckPoint);
                 Executor ccrExecutor = threadPool.executor(Ccr.CCR_THREAD_POOL_NAME);
                 Consumer<Exception> handler = e -> {
                     if (e == null) {
@@ -171,8 +176,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     .findAny();
 
             if (filteredShardStats.isPresent()) {
-                // Treat -1 as 0. If no indexing has happened in leader shard then global checkpoint is -1.
-                final long globalCheckPoint = Math.max(0, filteredShardStats.get().getSeqNoStats().getGlobalCheckpoint());
+                final long globalCheckPoint = filteredShardStats.get().getSeqNoStats().getGlobalCheckpoint();
                 handler.accept(globalCheckPoint);
             } else {
                 errorHandler.accept(new IllegalArgumentException("Cannot find shard stats for shard " + shardId));
@@ -310,7 +314,9 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
         void start(final long from, final long to, final long maxTranslogsBytes) {
             ShardChangesAction.Request request = new ShardChangesAction.Request(leaderShard);
-            request.setMinSeqNo(from);
+            // Treat -1 as 0, because shard changes api min_seq_no is inclusive and therefore it doesn't allow a negative min_seq_no
+            // (If no indexing has happened in leader shard then global checkpoint is -1.)
+            request.setMinSeqNo(Math.max(0, from));
             request.setMaxSeqNo(to);
             request.setMaxTranslogsBytes(maxTranslogsBytes);
             leaderClient.execute(ShardChangesAction.INSTANCE, request, new ActionListener<ShardChangesAction.Response>() {

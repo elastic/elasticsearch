@@ -474,7 +474,7 @@ public final class MockTransportService extends TransportService {
     /**
      * Adds a new delegate transport that is used for communication with the given transport service.
      *
-     * @return <tt>true</tt> iff no other delegate was registered for any of the addresses bound by transport service.
+     * @return {@code true} iff no other delegate was registered for any of the addresses bound by transport service.
      */
     public boolean addDelegate(TransportService transportService, DelegateTransport transport) {
         boolean noRegistered = true;
@@ -487,7 +487,7 @@ public final class MockTransportService extends TransportService {
     /**
      * Adds a new delegate transport that is used for communication with the given transport address.
      *
-     * @return <tt>true</tt> iff no other delegate was registered for this address before.
+     * @return {@code true} iff no other delegate was registered for this address before.
      */
     public boolean addDelegate(TransportAddress transportAddress, DelegateTransport transport) {
         return transport().transports.put(transportAddress, transport) == null;

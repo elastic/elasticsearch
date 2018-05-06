@@ -20,10 +20,8 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -103,11 +101,22 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
 
         BucketSignificancePriorityQueue<SignificantStringTerms.Bucket> ordered = new BucketSignificancePriorityQueue<>(size);
         SignificantStringTerms.Bucket spare = null;
-        for (long globalTermOrd = 0; globalTermOrd < valueCount; ++globalTermOrd) {
-            if (includeExclude != null && !acceptedGlobalOrdinals.get(globalTermOrd)) {
+        final boolean needsFullScan = bucketOrds == null || bucketCountThresholds.getMinDocCount() == 0;
+        final long maxId = needsFullScan ? valueCount : bucketOrds.size();
+        for (long ord = 0; ord < maxId; ord++) {
+            final long globalOrd;
+            final long bucketOrd;
+            if (needsFullScan) {
+                bucketOrd = bucketOrds == null ? ord : bucketOrds.find(ord);
+                globalOrd = ord;
+            } else {
+                assert bucketOrds != null;
+                bucketOrd = ord;
+                globalOrd = bucketOrds.get(ord);
+            }
+            if (includeExclude != null && !acceptedGlobalOrdinals.get(globalOrd)) {
                 continue;
             }
-            final long bucketOrd = getBucketOrd(globalTermOrd);
             final int bucketDocCount = bucketOrd < 0 ? 0 : bucketDocCount(bucketOrd);
             if (bucketCountThresholds.getMinDocCount() > 0 && bucketDocCount == 0) {
                 continue;
@@ -120,7 +129,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
                 spare = new SignificantStringTerms.Bucket(new BytesRef(), 0, 0, 0, 0, null, format);
             }
             spare.bucketOrd = bucketOrd;
-            copy(lookupGlobalOrd.apply(globalTermOrd), spare.termBytes);
+            copy(lookupGlobalOrd.apply(globalOrd), spare.termBytes);
             spare.subsetDf = bucketDocCount;
             spare.subsetSize = subsetSize;
             spare.supersetDf = termsAggFactory.getBackgroundFrequency(spare.termBytes);

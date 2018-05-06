@@ -32,6 +32,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -1368,6 +1369,39 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(expectedParams, expectedRequest.getParameters());
     }
 
+    public void testClusterSearchShard() throws IOException {
+        String[] indices = randomIndicesNames(0, 5);
+        String[] routing = randomNames(0, 5);
+        String preference = randomAlphaOfLengthBetween(0, 10).toLowerCase(Locale.ROOT);
+
+        ClusterSearchShardsRequest request = new ClusterSearchShardsRequest(indices);
+        request.routing(routing);
+        request.preference(preference);
+        request.local(randomBoolean());
+        request.indicesOptions(IndicesOptions.strictExpandOpenAndForbidClosed());
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(request, expectedParams);
+        if (routing.length > 0) {
+            expectedParams.put("routing", String.join(",", routing));
+        }
+        if (preference.length() > 0) {
+            expectedParams.put("preference", preference);
+        }
+        expectedParams.put("ignore_unavailable", "false");
+        expectedParams.put("expand_wildcards", "open");
+        expectedParams.put("allow_no_indices", "true");
+        if (request.local()) {
+            expectedParams.put("local", "true");
+        }
+
+        Request expectedRequest = RequestConverters.clusterSearchShards(request);
+
+        String index = (indices.length > 0 ? "/" : "") + String.join(",", indices);
+        assertEquals(index + "/_search_shards", expectedRequest.getEndpoint());
+        assertEquals(HttpGet.METHOD_NAME, expectedRequest.getMethod());
+        assertEquals(expectedParams, expectedRequest.getParameters());
+    }
+
     public void testRollover() throws IOException {
         RolloverRequest rolloverRequest = new RolloverRequest(randomAlphaOfLengthBetween(3, 10),
                 randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10));
@@ -1729,6 +1763,15 @@ public class RequestConvertersTests extends ESTestCase {
             }
         }
         return excludesParam.toString();
+    }
+
+    private static String[] randomNames(int minIndicesNum, int maxIndicesNum) {
+        int num = randomIntBetween(minIndicesNum, maxIndicesNum);
+        String[] names = new String[num];
+        for (int i = 0; i < num; i++) {
+            names[i] = randomAlphaOfLengthBetween(2, 5).toLowerCase(Locale.ROOT);
+        }
+        return names;
     }
 
     private static String[] randomIndicesNames(int minIndicesNum, int maxIndicesNum) {

@@ -19,10 +19,17 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
@@ -31,15 +38,35 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+
 /**
  * Represents a {@link QueryBuilder} and a list of alias names that filters the builder is composed of.
  */
-public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
+public final class AliasFilter implements Writeable, Rewriteable<AliasFilter>, ToXContentObject {
+
+    public static final AliasFilter EMPTY = new AliasFilter(null, Strings.EMPTY_ARRAY);
+
+    private static final ParseField ALIASES = new ParseField("aliases");
+    private static final ParseField FILTER = new ParseField("filter");
+
+    private static final ConstructingObjectParser<AliasFilter, String> PARSER =
+        new ConstructingObjectParser<>("alias_filter", false,
+            a -> {
+                final String[] aliases = (String[]) a[0];
+                final QueryBuilder queryBuilder = (QueryBuilder) a[1];
+                return new AliasFilter(queryBuilder, aliases);
+            });
+
+    static {
+        PARSER.declareField(optionalConstructorArg(),
+            (p, c) -> p.list().toArray(Strings.EMPTY_ARRAY), ALIASES, ObjectParser.ValueType.STRING_ARRAY);
+        PARSER.declareField(optionalConstructorArg(),
+            (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), FILTER, ObjectParser.ValueType.OBJECT);
+    }
 
     private final String[] aliases;
     private final QueryBuilder filter;
-
-    public static final AliasFilter EMPTY = new AliasFilter(null, Strings.EMPTY_ARRAY);
 
     public AliasFilter(QueryBuilder filter, String... aliases) {
         this.aliases = aliases == null ? Strings.EMPTY_ARRAY : aliases;
@@ -82,6 +109,23 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
      */
     public QueryBuilder getQueryBuilder() {
         return filter;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (aliases.length > 0) {
+            final String[] copy = Arrays.copyOf(aliases, aliases.length);
+            Arrays.sort(copy); // we want consistent ordering here and these values might be generated from a set / map
+            builder.array(ALIASES, copy);
+            if (filter != null) { // might be null if we include non-filtering aliases
+                builder.field(FILTER, filter, params);
+            }
+        }
+        return builder;
+    }
+
+    public static AliasFilter fromXContent(XContentParser parser) throws IOException {
+        return PARSER.apply(parser, null);
     }
 
     @Override

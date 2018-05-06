@@ -19,22 +19,29 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.StoreRecoverySource;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * {@link ShardRouting} immutably encapsulates information about shard
@@ -46,6 +53,57 @@ public final class ShardRouting implements Writeable, ToXContentObject {
      * Used if shard size is not available
      */
     public static final long UNAVAILABLE_EXPECTED_SHARD_SIZE = -1;
+
+    private static final ParseField STATE = new ParseField("state");
+    private static final ParseField PRIMARY = new ParseField("primary");
+    private static final ParseField NODE = new ParseField("node");
+    private static final ParseField RELOCATING_NODE = new ParseField("relocating_node");
+    private static final ParseField SHARD = new ParseField("shard");
+    private static final ParseField INDEX = new ParseField("index");
+    private static final ParseField EXPECTED_SHARD_SIZE_IN_BYTES = new ParseField("expected_shard_size_in_bytes");
+    private static final ParseField RECOVERY_SOURCE = new ParseField("recovery_source");
+    private static final ParseField ALLOCATION_ID = new ParseField("allocation_id");
+    private static final ParseField UNASSIGNED_INFO = new ParseField("unassigned_info");
+
+    private static final ConstructingObjectParser<ShardRouting, String> PARSER =
+        new ConstructingObjectParser<>("innerShardRouting",
+            true,
+            (a, c) -> {
+                final Index index = new Index((String) a[1],
+                    IndexMetaData.INDEX_UUID_NA_VALUE); // TODO: impossible to recreate uuid
+                final ShardId shardId = new ShardId(index, (int)a[0]);
+                final String currentNodeId = (String)a[2];
+                final String relocatingNodeId = (String)a[3];
+                final boolean primary = (boolean) a[4];
+                final ShardRoutingState routingState = (ShardRoutingState) a[5];
+                final RecoverySource recoverySource = (RecoverySource)a[6];
+                final UnassignedInfo unassignedInfo = (UnassignedInfo) a[7];
+                final AllocationId allocationId = (AllocationId)a[8];
+                final long expectedShardSize = a[9] != null ? (long) a[9] : UNAVAILABLE_EXPECTED_SHARD_SIZE;
+
+                return new ShardRouting(shardId,
+                    currentNodeId,
+                    relocatingNodeId,
+                    primary,
+                    routingState,
+                    recoverySource,
+                    unassignedInfo,
+                    allocationId,
+                    expectedShardSize);
+            });
+
+    static {
+        PARSER.declareField(constructorArg(), (p, c) -> p.intValue(), SHARD, ObjectParser.ValueType.INT);
+        PARSER.declareField(constructorArg(), (p, c) -> p.text(), INDEX, ObjectParser.ValueType.STRING);
+        PARSER.declareField(optionalConstructorArg(), (p, c) -> p.textOrNull(), NODE, ObjectParser.ValueType.STRING_OR_NULL);
+        PARSER.declareField(optionalConstructorArg(), (p, c) -> p.textOrNull(), RELOCATING_NODE, ObjectParser.ValueType.STRING_OR_NULL);
+        PARSER.declareField(constructorArg(), (p, c) -> p.booleanValue(), PRIMARY, ObjectParser.ValueType.BOOLEAN);
+        PARSER.declareField(constructorArg(), (p, c) -> ShardRoutingState.valueOf(p.text()), STATE, ObjectParser.ValueType.STRING);
+        PARSER.declareField(constructorArg(), (p, c) -> RecoverySource.fromXContent(p), RECOVERY_SOURCE, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(optionalConstructorArg(), (p, c) -> UnassignedInfo.fromXContent(p), UNASSIGNED_INFO, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(optionalConstructorArg(), (p, c) -> AllocationId.fromXContent(p), ALLOCATION_ID, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(optionalConstructorArg(), (p, c) -> p.longValue(), EXPECTED_SHARD_SIZE_IN_BYTES, ObjectParser.ValueType.LONG);
+    }
 
     private final ShardId shardId;
     private final String currentNodeId;
@@ -615,26 +673,29 @@ public final class ShardRouting implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
-            .field("state", state())
-            .field("primary", primary())
-            .field("node", currentNodeId())
-            .field("relocating_node", relocatingNodeId())
-            .field("shard", id())
-            .field("index", getIndexName());
+            .field(STATE, state())
+            .field(PRIMARY, primary())
+            .field(NODE, currentNodeId())
+            .field(RELOCATING_NODE, relocatingNodeId())
+            .field(SHARD, id())
+            .field(INDEX, getIndexName());
         if (expectedShardSize != UNAVAILABLE_EXPECTED_SHARD_SIZE) {
-            builder.field("expected_shard_size_in_bytes", expectedShardSize);
+            builder.field(EXPECTED_SHARD_SIZE_IN_BYTES, expectedShardSize);
         }
         if (recoverySource != null) {
-            builder.field("recovery_source", recoverySource);
+            builder.field(RECOVERY_SOURCE, recoverySource);
         }
         if (allocationId != null) {
-            builder.field("allocation_id");
-            allocationId.toXContent(builder, params);
+            builder.field(ALLOCATION_ID, allocationId, params);
         }
         if (unassignedInfo != null) {
-            unassignedInfo.toXContent(builder, params);
+            builder.field(UNASSIGNED_INFO, unassignedInfo, params);
         }
         return builder.endObject();
+    }
+
+    public static ShardRouting fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
     }
 
     /**

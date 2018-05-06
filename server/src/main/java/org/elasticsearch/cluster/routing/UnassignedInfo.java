@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -34,13 +35,18 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Holds additional information as to why the shard is in unassigned state.
@@ -206,6 +212,64 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         public String value() {
             return toString().toLowerCase(Locale.ROOT);
         }
+    }
+
+    private static final ParseField REASON = new ParseField("reason");
+    private static final ParseField AT = new ParseField("at");
+    private static final ParseField FAILED_ATTEMPTS = new ParseField("failed_attempts");
+    private static final ParseField DELAYED = new ParseField("delayed");
+    private static final ParseField DETAILS = new ParseField("details");
+    private static final ParseField ALLOCATION_STATUS = new ParseField("allocation_status");
+
+    private static final ConstructingObjectParser<UnassignedInfo, String> PARSER =
+        new ConstructingObjectParser<>("innerUnassignedInfo",
+            true,
+            (a, c) -> {
+                final Reason reason = (Reason) a[0];
+                final long unassignedTimeMillis = (long) a[1];
+                final long unassignedTimeNanos = 0L; // TODO: impossible to recreate ns precision
+                final boolean delayed = (boolean) a[2];
+                final int failedAllocations = a[3] != null ? (int)a[3] : 0;
+                final String details = (String) a[4];
+                final Exception failure = null; // TODO: recreate exception out of details message ?
+                final AllocationStatus lastAllocationStatus = (AllocationStatus) a[5];
+
+                return new UnassignedInfo(
+                    reason,
+                    details, failure,
+                    failedAllocations,
+                    unassignedTimeNanos,
+                    unassignedTimeMillis,
+                    delayed,
+                    lastAllocationStatus
+                );
+            });
+
+    static {
+        PARSER.declareField(constructorArg(),
+            (p, c) -> Reason.valueOf(p.text()),
+            REASON,
+            ObjectParser.ValueType.STRING);
+        PARSER.declareField(constructorArg(),
+            (p, c) -> DATE_TIME_FORMATTER.parser().parseMillis(p.text()),
+            AT,
+            ObjectParser.ValueType.STRING);
+        PARSER.declareField(constructorArg(),
+            (p, c) -> p.booleanValue(),
+            DELAYED,
+            ObjectParser.ValueType.BOOLEAN);
+        PARSER.declareField(optionalConstructorArg(),
+            (p, c) -> p.intValue(),
+            FAILED_ATTEMPTS,
+            ObjectParser.ValueType.INT);
+        PARSER.declareField(constructorArg(),
+            (p, c) -> p.currentToken() == XContentParser.Token.VALUE_STRING ? p.text() : null,
+            DETAILS,
+            ObjectParser.ValueType.STRING);
+        PARSER.declareField(constructorArg(),
+            (p, c) -> AllocationStatus.valueOf(p.text().toUpperCase(Locale.ROOT)),
+            ALLOCATION_STATUS,
+            ObjectParser.ValueType.STRING);
     }
 
     private final Reason reason;
@@ -430,20 +494,24 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("unassigned_info");
-        builder.field("reason", reason);
-        builder.field("at", DATE_TIME_FORMATTER.printer().print(unassignedTimeMillis));
+        builder.startObject()
+            .field(REASON, reason)
+            .field(AT, DATE_TIME_FORMATTER.printer().print(unassignedTimeMillis));
         if (failedAllocations >  0) {
-            builder.field("failed_attempts", failedAllocations);
+            builder.field(FAILED_ATTEMPTS, failedAllocations);
         }
-        builder.field("delayed", delayed);
+        builder.field(DELAYED, delayed);
         String details = getDetails();
         if (details != null) {
-            builder.field("details", details);
+            builder.field(DETAILS, details);
         }
-        builder.field("allocation_status", lastAllocationStatus.value());
-        builder.endObject();
+        builder.field(ALLOCATION_STATUS, lastAllocationStatus.value())
+            .endObject();
         return builder;
+    }
+
+    public static UnassignedInfo fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
     }
 
     @Override

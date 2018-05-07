@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
-import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -266,13 +265,13 @@ public class AuthenticationService extends AbstractComponent {
                                 authenticatedBy = new RealmRef(realm.name(), realm.type(), nodeName);
                                 userListener.onResponse(result.getUser());
                             } else {
-                                // the user was not authenticated, call this so we can audit the correct event
-                                request.realmAuthenticationFailed(authenticationToken, realm.name());
                                 if (result.getStatus() == AuthenticationResult.Status.TERMINATE) {
                                     logger.info("Authentication of [{}] was terminated by realm [{}] - {}",
                                             authenticationToken.principal(), realm.name(), result.getMessage());
-                                    userListener.onFailure(Exceptions.authenticationError(result.getMessage(), result.getException()));
+                                    userListener.onFailure(request.exceptionProcessingRequest(result.getException(), token));
                                 } else {
+                                    // the user was not authenticated, call this so we can audit the correct event
+                                    request.realmAuthenticationFailed(authenticationToken, realm.name());
                                     if (result.getMessage() != null) {
                                         messages.put(realm, new Tuple<>(result.getMessage(), result.getException()));
                                     }

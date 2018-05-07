@@ -14,8 +14,6 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
-
 public class UsernamePasswordToken implements AuthenticationToken {
 
     public static final String BASIC_AUTH_PREFIX = "Basic ";
@@ -94,19 +92,19 @@ public class UsernamePasswordToken implements AuthenticationToken {
 
         // if there is nothing after the prefix, the header is bad
         if (headerValue.length() == BASIC_AUTH_PREFIX.length()) {
-            throw authenticationError("invalid basic authentication header value");
+            throw new IllegalArgumentException("invalid basic authentication header value");
         }
 
         char[] userpasswd;
         try {
             userpasswd = CharArrays.utf8BytesToChars(Base64.getDecoder().decode(headerValue.substring(BASIC_AUTH_PREFIX.length()).trim()));
         } catch (IllegalArgumentException e) {
-            throw authenticationError("invalid basic authentication header encoding", e);
+            throw new IllegalArgumentException("invalid basic authentication header encoding", e);
         }
 
         int i = CharArrays.indexOf(userpasswd, ':');
         if (i < 0) {
-            throw authenticationError("invalid basic authentication header value");
+            throw new IllegalArgumentException("invalid basic authentication header value");
         }
 
         return new UsernamePasswordToken(

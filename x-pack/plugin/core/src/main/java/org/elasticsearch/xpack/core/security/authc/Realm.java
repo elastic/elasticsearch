@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.authc;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.HashMap;
@@ -19,12 +20,16 @@ import java.util.Map;
  * authentication mechanism supporting its own specific authentication token type.
  */
 public abstract class Realm implements Comparable<Realm> {
-
+    public static final String WWW_AUTHN_HEADER_DEFAULT_VALUE = "Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"";
     protected final Logger logger;
     protected final String type;
 
     public String getType() {
         return type;
+    }
+
+    public String getWWWAuthenticateHeaderValue() {
+        return WWW_AUTHN_HEADER_DEFAULT_VALUE;
     }
 
     protected RealmConfig config;

@@ -109,7 +109,6 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
-import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
@@ -166,6 +165,7 @@ import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 import org.elasticsearch.xpack.security.audit.index.IndexNameResolver;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
@@ -442,7 +442,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         }
         if (failureHandler == null) {
             logger.debug("Using default authentication failure handler");
-            failureHandler = new DefaultAuthenticationFailureHandler();
+            failureHandler = new DefaultAuthenticationFailureHandler(realms);
         } else {
             logger.debug("Using authentication failure handler from extension [" + extensionName + "]");
         }

@@ -770,8 +770,9 @@ public final class Definition {
         }
 
         // precompute runtime classes
-        for (String painlessStructName : structsMap.keySet()) {
-            Struct painlessStruct = structsMap.get(painlessStructName);
+        for (Map.Entry<String, Struct> entry : structsMap.entrySet()) {
+            Struct painlessStruct = entry.getValue();
+            String painlessStructName = entry.getKey();
 
             if (painlessStruct.name.equals(painlessStructName) == false) {
                 continue;

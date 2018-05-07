@@ -73,7 +73,8 @@ public final class XContentTestUtils {
             return path + ": sizes of the maps don't match: " + first.size() + " != " + second.size();
         }
 
-        for (String key : first.keySet()) {
+        for (Map.Entry<String, Object> entry : first.entrySet()) {
+            String key = entry.getKey();
             String reason = differenceBetweenObjectsIgnoringArrayOrder(path + "/" + key, first.get(key), second.get(key));
             if (reason != null) {
                 return reason;

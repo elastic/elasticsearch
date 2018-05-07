@@ -77,7 +77,7 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
         UnfreezeIndexResponse unfreezeIndexResponse = client.admin().indices().prepareUnfreeze("test1").execute().actionGet();
         assertThat(unfreezeIndexResponse.isAcknowledged(), equalTo(true));
         assertThat(unfreezeIndexResponse.isShardsAcknowledged(), equalTo(true));
-        assertIndexIsUnfreezeed("test1");
+        assertIndexIsUnfrozen("test1");
     }
 
     public void testSimpleFreezeMissingIndex() {
@@ -134,7 +134,7 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().actionGet();
         assertThat(unfreezeIndexResponse.isAcknowledged(), equalTo(true));
         assertThat(unfreezeIndexResponse.isShardsAcknowledged(), equalTo(true));
-        assertIndexIsUnfreezeed("test1");
+        assertIndexIsUnfrozen("test1");
     }
 
     public void testFreezeUnfreezeMultipleIndices() {
@@ -148,7 +148,7 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
         FreezeIndexResponse freezeIndexResponse2 = client.admin().indices().prepareFreeze("test2").execute().actionGet();
         assertThat(freezeIndexResponse2.isAcknowledged(), equalTo(true));
         assertIndexIsFrozen("test1", "test2");
-        assertIndexIsUnfreezeed("test3");
+        assertIndexIsUnfrozen("test3");
 
         UnfreezeIndexResponse unfreezeIndexResponse1 = client.admin().indices().prepareUnfreeze("test1").execute().actionGet();
         assertThat(unfreezeIndexResponse1.isAcknowledged(), equalTo(true));
@@ -156,7 +156,7 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
         UnfreezeIndexResponse unfreezeIndexResponse2 = client.admin().indices().prepareUnfreeze("test2").execute().actionGet();
         assertThat(unfreezeIndexResponse2.isAcknowledged(), equalTo(true));
         assertThat(unfreezeIndexResponse2.isShardsAcknowledged(), equalTo(true));
-        assertIndexIsUnfreezeed("test1", "test2", "test3");
+        assertIndexIsUnfrozen("test1", "test2", "test3");
     }
 
     public void testFreezeUnfreezeWildcard() {
@@ -168,12 +168,12 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
         FreezeIndexResponse freezeIndexResponse = client.admin().indices().prepareFreeze("test*").execute().actionGet();
         assertThat(freezeIndexResponse.isAcknowledged(), equalTo(true));
         assertIndexIsFrozen("test1", "test2");
-        assertIndexIsUnfreezeed("a");
+        assertIndexIsUnfrozen("a");
 
         UnfreezeIndexResponse unfreezeIndexResponse = client.admin().indices().prepareUnfreeze("test*").execute().actionGet();
         assertThat(unfreezeIndexResponse.isAcknowledged(), equalTo(true));
         assertThat(unfreezeIndexResponse.isShardsAcknowledged(), equalTo(true));
-        assertIndexIsUnfreezeed("test1", "test2", "a");
+        assertIndexIsUnfrozen("test1", "test2", "a");
     }
 
     public void testFreezeUnfreezeAll() {
@@ -189,7 +189,7 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
         UnfreezeIndexResponse unfreezeIndexResponse = client.admin().indices().prepareUnfreeze("_all").execute().actionGet();
         assertThat(unfreezeIndexResponse.isAcknowledged(), equalTo(true));
         assertThat(unfreezeIndexResponse.isShardsAcknowledged(), equalTo(true));
-        assertIndexIsUnfreezeed("test1", "test2", "test3");
+        assertIndexIsUnfrozen("test1", "test2", "test3");
     }
 
     public void testFreezeUnfreezeAllWildcard() {
@@ -205,7 +205,7 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
         UnfreezeIndexResponse unfreezeIndexResponse = client.admin().indices().prepareUnfreeze("*").execute().actionGet();
         assertThat(unfreezeIndexResponse.isAcknowledged(), equalTo(true));
         assertThat(unfreezeIndexResponse.isShardsAcknowledged(), equalTo(true));
-        assertIndexIsUnfreezeed("test1", "test2", "test3");
+        assertIndexIsUnfrozen("test1", "test2", "test3");
     }
 
     public void testFreezeNoIndex() {
@@ -236,17 +236,17 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
         assertThat(e.getMessage(), containsString("index is missing"));
     }
 
-    public void testUnfreezeAlreadyUnfreezeedIndex() {
+    public void testUnfreezeAlreadyUnfrozenIndex() {
         Client client = client();
         createIndex("test1");
         ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
-        //no problem if we try to unfreeze an index that's already in unfreezeed state
+        //no problem if we try to unfreeze an index that's already in Unfrozen state
         UnfreezeIndexResponse unfreezeIndexResponse1 = client.admin().indices().prepareUnfreeze("test1").execute().actionGet();
         assertThat(unfreezeIndexResponse1.isAcknowledged(), equalTo(true));
         assertThat(unfreezeIndexResponse1.isShardsAcknowledged(), equalTo(true));
-        assertIndexIsUnfreezeed("test1");
+        assertIndexIsUnfrozen("test1");
     }
 
     public void testFreezeAlreadyFrozenIndex() {
@@ -283,7 +283,7 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
         UnfreezeIndexResponse unfreezeIndexResponse = client.admin().indices().prepareUnfreeze("test1-alias").execute().actionGet();
         assertThat(unfreezeIndexResponse.isAcknowledged(), equalTo(true));
         assertThat(unfreezeIndexResponse.isShardsAcknowledged(), equalTo(true));
-        assertIndexIsUnfreezeed("test1");
+        assertIndexIsUnfrozen("test1");
     }
 
     public void testFreezeUnfreezeAliasMultipleIndices() {
@@ -306,7 +306,7 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
         UnfreezeIndexResponse unfreezeIndexResponse = client.admin().indices().prepareUnfreeze("test-alias").execute().actionGet();
         assertThat(unfreezeIndexResponse.isAcknowledged(), equalTo(true));
         assertThat(unfreezeIndexResponse.isShardsAcknowledged(), equalTo(true));
-        assertIndexIsUnfreezeed("test1", "test2");
+        assertIndexIsUnfrozen("test1", "test2");
     }
 
     public void testUnfreezeWaitingForActiveShardsFailed() throws Exception {
@@ -325,7 +325,7 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
         ensureGreen("test");
     }
 
-    private void assertIndexIsUnfreezeed(String... indices) {
+    private void assertIndexIsUnfrozen(String... indices) {
         checkIndexState(IndexMetaData.State.OPEN, indices);
     }
 
@@ -399,7 +399,7 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
                 UnfreezeIndexResponse unfreezeIndexResponse = client().admin().indices().prepareUnfreeze("test").execute().actionGet();
                 assertAcked(unfreezeIndexResponse);
                 assertThat(unfreezeIndexResponse.isShardsAcknowledged(), equalTo(true));
-                assertIndexIsUnfreezeed("test");
+                assertIndexIsUnfrozen("test");
             } finally {
                 disableIndexBlock("test", blockSetting);
             }
@@ -410,7 +410,7 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
             try {
                 enableIndexBlock("test", blockSetting);
                 assertBlocked(client().admin().indices().prepareFreeze("test"));
-                assertIndexIsUnfreezeed("test");
+                assertIndexIsUnfrozen("test");
             } finally {
                 disableIndexBlock("test", blockSetting);
             }
@@ -459,7 +459,7 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
         FreezeIndexResponse freezeIndexResponse2 = client.admin().indices().prepareFreeze("test2").execute().actionGet();
         assertThat(freezeIndexResponse2.isAcknowledged(), equalTo(true));
         assertIndexIsFrozen("test1", "test2");
-        assertIndexIsUnfreezeed("test3");
+        assertIndexIsUnfrozen("test3");
 
         // Yay functional programming
         long preFrozenCompletedCounts = client.admin().cluster().prepareNodesStats().clear().setThreadPool(true).get()
@@ -495,7 +495,7 @@ public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
         UnfreezeIndexResponse unfreezeIndexResponse2 = client.admin().indices().prepareUnfreeze("test2").execute().actionGet();
         assertThat(unfreezeIndexResponse2.isAcknowledged(), equalTo(true));
         assertThat(unfreezeIndexResponse2.isShardsAcknowledged(), equalTo(true));
-        assertIndexIsUnfreezeed("test1", "test2", "test3");
+        assertIndexIsUnfrozen("test1", "test2", "test3");
 
         resp = client.prepareSearch("test*").setQuery(QueryBuilders.matchQuery("foo", 7)).get();
         assertSearchHits(resp, "7");

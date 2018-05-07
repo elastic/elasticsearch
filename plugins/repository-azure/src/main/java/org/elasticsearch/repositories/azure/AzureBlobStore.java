@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URISyntaxException;
+import java.nio.file.FileAlreadyExistsException;
 import java.util.Locale;
 import java.util.Map;
 
@@ -122,7 +123,8 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
         this.client.moveBlob(this.clientName, this.locMode, container, sourceBlob, targetBlob);
     }
 
-    public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws URISyntaxException, StorageException {
+    public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws URISyntaxException, StorageException,
+        FileAlreadyExistsException {
         this.client.writeBlob(this.clientName, this.locMode, container, blobName, inputStream, blobSize);
     }
 }

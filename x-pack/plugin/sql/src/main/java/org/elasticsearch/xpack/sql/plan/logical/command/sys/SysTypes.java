@@ -85,8 +85,9 @@ public class SysTypes extends Command {
                         // only numerics are signed
                         !t.isSigned(),
                         //no fixed precision scale SQL_FALSE
-                        false,
-                        null,
+                        Boolean.FALSE,
+                        // not auto-incremented
+                        Boolean.FALSE,
                         null,
                         DataTypes.metaSqlMinimumScale(t),
                         DataTypes.metaSqlMaximumScale(t),

@@ -68,6 +68,8 @@ public class SysParserTests extends ESTestCase {
             assertFalse(r.column(9, Boolean.class));
             // make sure precision is returned as boolean (not int)
             assertFalse(r.column(10, Boolean.class));
+            // no auto-increment
+            assertFalse(r.column(11, Boolean.class));
             
             for (int i = 0; i < r.size(); i++) {
                 assertEquals(names.get(i), r.column(0));

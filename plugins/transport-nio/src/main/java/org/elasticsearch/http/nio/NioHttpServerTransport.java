@@ -23,6 +23,10 @@ import io.netty.handler.timeout.ReadTimeoutException;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
@@ -43,6 +47,7 @@ import org.elasticsearch.nio.AcceptorEventHandler;
 import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.ChannelFactory;
 import org.elasticsearch.nio.InboundChannelBuffer;
+import org.elasticsearch.nio.NioChannel;
 import org.elasticsearch.nio.NioGroup;
 import org.elasticsearch.nio.NioServerSocketChannel;
 import org.elasticsearch.nio.NioSocketChannel;
@@ -57,7 +62,9 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -170,18 +177,20 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
     @Override
     protected void doStop() {
         synchronized (serverChannels) {
-            if (!serverChannels.isEmpty()) {
-                // TODO: Wait
-                for (NioServerSocketChannel serverChannel : serverChannels) {
-                    serverChannel.close();
+            if (serverChannels.isEmpty() == false) {
+                try {
+                    closeChannels(new ArrayList<>(serverChannels));
+                } catch (Exception e) {
+                    logger.error("unexpected exception while closing http server channels", e);
                 }
                 serverChannels.clear();
             }
         }
 
-        // TODO: Wait
-        for (NioSocketChannel channel : socketChannels) {
-            channel.close();
+        try {
+            closeChannels(new ArrayList<>(socketChannels));
+        } catch (Exception e) {
+            logger.warn("unexpected exception while closing http channels", e);
         }
         socketChannels.clear();
 
@@ -214,7 +223,7 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
             }
             return true;
         });
-        if (!success) {
+        if (success == false) {
             throw new BindHttpException("Failed to bind to [" + port.getPortRangeString() + "]", lastException.get());
         }
 
@@ -236,11 +245,11 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
             }
             channel.close();
         } else {
-            if (!lifecycle.started()) {
+            if (lifecycle.started() == false) {
                 // ignore
                 return;
             }
-            if (!NetworkExceptionHelper.isCloseConnectionException(cause)) {
+            if (NetworkExceptionHelper.isCloseConnectionException(cause) == false) {
                 logger.warn(
                     (Supplier<?>) () -> new ParameterizedMessage(
                         "caught exception while handling client http traffic, closing connection {}", channel),
@@ -254,6 +263,27 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
                 channel.close();
             }
         }
+    }
+
+    private void closeChannels(List<NioChannel> channels) {
+        List<ActionFuture<Void>> futures = new ArrayList<>(channels.size());
+
+        for (NioChannel channel : channels) {
+            PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+            channel.addCloseListener(ActionListener.toBiConsumer(future));
+            futures.add(future);
+        }
+
+        List<RuntimeException> closeExceptions  = new ArrayList<>();
+        for (ActionFuture<Void> f : futures) {
+            try {
+                f.actionGet();
+            } catch (RuntimeException e) {
+                closeExceptions.add(e);
+            }
+        }
+
+        ExceptionsHelper.rethrowAndSuppress(closeExceptions);
     }
 
     private void acceptChannel(NioSocketChannel socketChannel) {

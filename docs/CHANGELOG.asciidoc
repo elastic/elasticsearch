@@ -85,4 +85,4 @@ Do not ignore request analysis/similarity settings on index resize operations wh
 === Deprecation
 
 Deprecated multi-argument versions of the request methods in the RestClient.
-Prefer the "Request" object falvored methods. ({pull}30315[#30315])
+Prefer the "Request" object flavored methods. ({pull}30315[#30315])

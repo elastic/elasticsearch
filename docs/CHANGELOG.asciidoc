@@ -369,6 +369,12 @@ tries to write the status field twice.
 see
 {stack-ov}/input-chain.html#_transforming_chained_input_data[Transforming Chained Input Data].
 
+
+Allocation::
+
+Auto-expand replicas when adding or removing nodes to prevent shard copies from
+being dropped and resynced when a data node rejoins the cluster ({pull}30423[#30423])
+
 //[float]
 //=== Regressions
 

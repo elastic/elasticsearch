@@ -111,6 +111,9 @@ Rollup::
 * Validate timezone in range queries to ensure they match the selected job when
 searching ({pull}30338[#30338])
 
+SQL::
+* Fix parsing of Dates containing milliseconds
+
 [float]
 === Regressions
 Fail snapshot operations early when creating or deleting a snapshot on a repository that has been
@@ -180,6 +183,9 @@ Rollup::
 * Validate timezone in range queries to ensure they match the selected job when
 searching ({pull}30338[#30338])
 
+SQL::
+* Fix parsing of Dates containing milliseconds
+
 //[float]
 //=== Regressions
 
@@ -213,6 +219,9 @@ coming[6.3.1]
 Reduce the number of object allocations made by {security} when resolving the indices and aliases for a request ({pull}30180[#30180])
 
 Respect accept header on requests with no handler ({pull}30383[#30383])
+
+SQL::
+* Fix parsing of Dates containing milliseconds
 
 //[float]
 //=== Regressions

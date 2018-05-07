@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.execution;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -24,7 +22,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -46,13 +43,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
-import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalState;
 
 public class TriggeredWatchStore extends AbstractComponent {
 
@@ -61,7 +56,6 @@ public class TriggeredWatchStore extends AbstractComponent {
     private final TimeValue scrollTimeout;
     private final TriggeredWatch.Parser triggeredWatchParser;
 
-    private final AtomicBoolean started = new AtomicBoolean(false);
     private final TimeValue defaultBulkTimeout;
     private final TimeValue defaultSearchTimeout;
 
@@ -73,36 +67,12 @@ public class TriggeredWatchStore extends AbstractComponent {
         this.defaultBulkTimeout = settings.getAsTime("xpack.watcher.internal.ops.bulk.default_timeout", TimeValue.timeValueSeconds(120));
         this.defaultSearchTimeout = settings.getAsTime("xpack.watcher.internal.ops.search.default_timeout", TimeValue.timeValueSeconds(30));
         this.triggeredWatchParser = triggeredWatchParser;
-        this.started.set(true);
     }
 
-    public void start() {
-        started.set(true);
-    }
-
-    public boolean validate(ClusterState state) {
-        try {
-            IndexMetaData indexMetaData = WatchStoreUtils.getConcreteIndex(TriggeredWatchStoreField.INDEX_NAME, state.metaData());
-            if (indexMetaData == null) {
-                return true;
-            } else {
-                if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
-                    logger.debug("triggered watch index [{}] is marked as closed, watcher cannot be started",
-                            indexMetaData.getIndex().getName());
-                    return false;
-                } else {
-                    return state.routingTable().index(indexMetaData.getIndex()).allPrimaryShardsActive();
-                }
-            }
-        } catch (IllegalStateException e) {
-            logger.trace((Supplier<?>) () -> new ParameterizedMessage("error getting index meta data [{}]: ",
-                    TriggeredWatchStoreField.INDEX_NAME), e);
-            return false;
-        }
-    }
-
-    public void stop() {
-        started.set(false);
+    public static boolean validate(ClusterState state) {
+        IndexMetaData indexMetaData = WatchStoreUtils.getConcreteIndex(TriggeredWatchStoreField.INDEX_NAME, state.metaData());
+        return indexMetaData == null || (indexMetaData.getState() == IndexMetaData.State.OPEN &&
+            state.routingTable().index(indexMetaData.getIndex()).allPrimaryShardsActive());
     }
 
     public void putAll(final List<TriggeredWatch> triggeredWatches, final ActionListener<BulkResponse> listener) throws IOException {
@@ -111,9 +81,8 @@ public class TriggeredWatchStore extends AbstractComponent {
             return;
         }
 
-        ensureStarted();
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, createBulkRequest(triggeredWatches,
-                TriggeredWatchStoreField.DOC_TYPE), listener, client::bulk);
+            TriggeredWatchStoreField.DOC_TYPE), listener, client::bulk);
     }
 
     public BulkResponse putAll(final List<TriggeredWatch> triggeredWatches) throws IOException {
@@ -144,18 +113,11 @@ public class TriggeredWatchStore extends AbstractComponent {
     }
 
     public void delete(Wid wid) {
-        ensureStarted();
         DeleteRequest request = new DeleteRequest(TriggeredWatchStoreField.INDEX_NAME, TriggeredWatchStoreField.DOC_TYPE, wid.value());
         try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
             client.delete(request); // FIXME shouldn't we wait before saying the delete was successful
         }
         logger.trace("successfully deleted triggered watch with id [{}]", wid);
-    }
-
-    private void ensureStarted() {
-        if (!started.get()) {
-            throw illegalState("unable to persist triggered watches, the store is not ready");
-        }
     }
 
     /**
@@ -180,7 +142,7 @@ public class TriggeredWatchStore extends AbstractComponent {
 
         try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
             client.admin().indices().refresh(new RefreshRequest(TriggeredWatchStoreField.INDEX_NAME))
-                    .actionGet(TimeValue.timeValueSeconds(5));
+                .actionGet(TimeValue.timeValueSeconds(5));
         } catch (IndexNotFoundException e) {
             return Collections.emptyList();
         }
@@ -189,12 +151,12 @@ public class TriggeredWatchStore extends AbstractComponent {
         Collection<TriggeredWatch> triggeredWatches = new ArrayList<>(ids.size());
 
         SearchRequest searchRequest = new SearchRequest(TriggeredWatchStoreField.INDEX_NAME)
-                .scroll(scrollTimeout)
-                .preference(Preference.LOCAL.toString())
-                .source(new SearchSourceBuilder()
-                        .size(scrollSize)
-                        .sort(SortBuilders.fieldSort("_doc"))
-                        .version(true));
+            .scroll(scrollTimeout)
+            .preference(Preference.LOCAL.toString())
+            .source(new SearchSourceBuilder()
+                .size(scrollSize)
+                .sort(SortBuilders.fieldSort("_doc"))
+                .version(true));
 
         SearchResponse response = null;
         try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {

@@ -576,7 +576,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestOpenIndexAction(settings, restController));
 
         registerHandler.accept(new RestUpdateSettingsAction(settings, restController));
-        registerHandler.accept(new RestGetSettingsAction(settings, restController, indexScopedSettings, settingsFilter));
+        registerHandler.accept(new RestGetSettingsAction(settings, restController));
 
         registerHandler.accept(new RestAnalyzeAction(settings, restController));
         registerHandler.accept(new RestGetIndexTemplateAction(settings, restController));

@@ -61,6 +61,8 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.mock.orig.Mockito;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourceSubPhase;
@@ -79,6 +81,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -369,6 +372,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
             @SuppressWarnings("unchecked")
             A internalAgg = (A) aggs.get(0).doReduce(aggs, context);
+            if (internalAgg.pipelineAggregators().size() > 0) {
+                for (PipelineAggregator pipelineAggregator : internalAgg.pipelineAggregators()) {
+                    internalAgg = (A) pipelineAggregator.reduce(internalAgg, context);
+                }
+            }
             InternalAggregationTestCase.assertMultiBucketConsumer(internalAgg, reduceBucketConsumer);
             return internalAgg;
         }

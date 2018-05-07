@@ -2353,8 +2353,7 @@ public class InternalEngine extends Engine {
         if (lastRefreshedCheckpoint() < maxSeqNo) {
             refresh(source, SearcherScope.INTERNAL);
         }
-        refresh(source, SearcherScope.INTERNAL);
-        return new LuceneChangesSnapshot(() -> acquireSearcher(source, SearcherScope.INTERNAL), mapperService,
+        return new LuceneChangesSnapshot(acquireSearcher(source, SearcherScope.INTERNAL), mapperService,
             minSeqNo, maxSeqNo, requiredFullRange);
     }
 
@@ -2406,7 +2405,7 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * Returned the maximum local checkpoint value has been refreshed internally.
+     * Returned the last local checkpoint value has been refreshed internally.
      */
     final long lastRefreshedCheckpoint() {
         return lastRefreshedCheckpointListener.refreshedCheckpoint.get();

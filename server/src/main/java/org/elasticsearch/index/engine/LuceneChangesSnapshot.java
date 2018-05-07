@@ -47,7 +47,6 @@ import org.elasticsearch.index.translog.Translog;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Supplier;
 
 /**
  * A {@link Translog.Snapshot} from changes in a Lucene index
@@ -58,7 +57,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     private int skippedOperations;
     private final boolean requiredFullRange;
 
-    private final IndexSearcher searcher;
+    private final IndexSearcher indexSearcher;
     private final MapperService mapperService;
     private int docIndex;
     private final TopDocs topDocs;
@@ -68,13 +67,13 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     /**
      * Creates a new "translog" snapshot from Lucene for reading operations whose seq# in the specified range.
      *
-     * @param searcherFactory   the engine searcher factory (prefer the internal searcher)
+     * @param engineSearcher    the internal engine searcher - this snapshot will take over the provided searcher
      * @param mapperService     the mapper service which will be mainly used to resolve the document's type and uid
      * @param fromSeqNo         the min requesting seq# - inclusive
      * @param toSeqNo           the maximum requesting seq# - inclusive
      * @param requiredFullRange if true, the snapshot will strictly check for the existence of operations between fromSeqNo and toSeqNo
      */
-    LuceneChangesSnapshot(Supplier<Engine.Searcher> searcherFactory, MapperService mapperService,
+    LuceneChangesSnapshot(Engine.Searcher engineSearcher, MapperService mapperService,
                           long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
         if (fromSeqNo < 0 || toSeqNo < 0 || fromSeqNo > toSeqNo) {
             throw new IllegalArgumentException("Invalid range; from_seqno [" + fromSeqNo + "], to_seqno [" + toSeqNo + "]");
@@ -85,13 +84,12 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         this.lastSeenSeqNo = fromSeqNo - 1;
         this.requiredFullRange = requiredFullRange;
         boolean success = false;
-        final Engine.Searcher engineSearcher = searcherFactory.get();
         try {
-            this.searcher = new IndexSearcher(Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader()));
-            this.searcher.setQueryCache(null);
-            this.topDocs = searchOperations(searcher);
-            success = true;
+            this.indexSearcher = new IndexSearcher(Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader()));
+            this.indexSearcher.setQueryCache(null);
+            this.topDocs = searchOperations(indexSearcher);
             this.onClose = engineSearcher;
+            success = true;
         } finally {
             if (success == false) {
                 IOUtils.close(engineSearcher);
@@ -117,7 +115,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     @Override
     public Translog.Operation next() throws IOException {
         final Translog.Operation op = nextOp();
-        if (requiredFullRange && lastSeenSeqNo < toSeqNo) {
+        if (requiredFullRange && lastSeenSeqNo != toSeqNo) {
             final long expectedSeqNo = lastSeenSeqNo + 1;
             if (op == null || op.seqNo() != expectedSeqNo) {
                 throw new IllegalStateException("Not all operations between min_seqno [" + fromSeqNo + "] " +
@@ -125,6 +123,8 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             }
         }
         if (op != null) {
+            assert fromSeqNo <= op.seqNo() && op.seqNo() <= toSeqNo && lastSeenSeqNo < op.seqNo() : "Unexpected operation; " +
+                "last_seen_seqno [" + lastSeenSeqNo + "], from_seqno [" + fromSeqNo + "], to_seqno [" + toSeqNo + "], op [" + op + "]";
             lastSeenSeqNo = op.seqNo();
         }
         return op;
@@ -154,7 +154,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     }
 
     private Translog.Operation readDocAsOp(int docID) throws IOException {
-        final List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
+        final List<LeafReaderContext> leaves = indexSearcher.getIndexReader().leaves();
         final LeafReaderContext leaf = leaves.get(ReaderUtil.subIndex(docID, leaves));
         final int segmentDocID = docID - leaf.docBase;
         final long seqNo = readNumericDV(leaf, SeqNoFieldMapper.NAME, segmentDocID);
@@ -166,7 +166,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
 
         final long primaryTerm = readNumericDV(leaf, SeqNoFieldMapper.PRIMARY_TERM_NAME, segmentDocID);
         final FieldsVisitor fields = new FieldsVisitor(true);
-        searcher.doc(docID, fields);
+        indexSearcher.doc(docID, fields);
         fields.postProcess(mapperService);
 
         final Translog.Operation op;

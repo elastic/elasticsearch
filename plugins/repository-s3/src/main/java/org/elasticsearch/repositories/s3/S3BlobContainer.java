@@ -158,6 +158,13 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     @Override
     public void move(String sourceBlobName, String targetBlobName) throws IOException {
+        if (blobExists(sourceBlobName) == false) {
+            throw new NoSuchFileException(sourceBlobName);
+        }
+        if (blobExists(targetBlobName)) {
+            throw new FileAlreadyExistsException(sourceBlobName);
+        }
+
         try {
             CopyObjectRequest request = new CopyObjectRequest(blobStore.bucket(), buildKey(sourceBlobName),
                 blobStore.bucket(), buildKey(targetBlobName));

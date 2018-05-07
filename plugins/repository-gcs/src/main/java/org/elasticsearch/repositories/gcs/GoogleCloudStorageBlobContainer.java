@@ -27,6 +27,7 @@ import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.NoSuchFileException;
 import java.util.Map;
 
 class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
@@ -79,6 +80,12 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void move(String sourceBlobName, String targetBlobName) throws IOException {
+        if (blobExists(sourceBlobName) == false) {
+            throw new NoSuchFileException(sourceBlobName);
+        }
+        if (blobExists(targetBlobName)) {
+            throw new FileAlreadyExistsException(sourceBlobName);
+        }
         blobStore.moveBlob(buildKey(sourceBlobName), buildKey(targetBlobName));
     }
 

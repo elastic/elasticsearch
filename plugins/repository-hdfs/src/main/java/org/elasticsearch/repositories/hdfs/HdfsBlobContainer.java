@@ -78,6 +78,13 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void move(String sourceBlobName, String targetBlobName) throws IOException {
+        if (blobExists(sourceBlobName) == false) {
+            throw new NoSuchFileException(sourceBlobName);
+        }
+        if (blobExists(targetBlobName)) {
+            throw new FileAlreadyExistsException(sourceBlobName);
+        }
+
         store.execute((Operation<Void>) fileContext -> {
             fileContext.rename(new Path(path, sourceBlobName), new Path(path, targetBlobName));
             return null;

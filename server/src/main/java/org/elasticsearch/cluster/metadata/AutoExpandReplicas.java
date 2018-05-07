@@ -120,6 +120,12 @@ public final class AutoExpandReplicas {
         return enabled;
     }
 
+    /**
+     * Checks if the are replicas with the auto-expand feature that need to be adapted.
+     * Returns a map of updates, which maps the indices to be updated to the desired number of replicas.
+     * The map has the desired number of replicas as key and the indices to update as value, as this allows the result
+     * of this method to be directly applied to RoutingTable.Builder#updateNumberOfReplicas.
+     */
     public static Map<Integer, List<String>> getAutoExpandReplicaChanges(MetaData metaData, DiscoveryNodes discoveryNodes) {
         // used for translating "all" to a number
         final int dataNodeCount = discoveryNodes.getDataNodes().size();

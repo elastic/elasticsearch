@@ -247,19 +247,21 @@ public class GoogleCloudStorageTestServer {
                     return newError(RestStatus.CONFLICT, "object already exist");
                 }
             } else if ("multipart".equals(uploadType)) {
-/* A multipart/related request body looks like this (note the binary dump inside a text blob! nice!):
-*--__END_OF_PART__
-*Content-Length: 135
-*Content-Type: application/json; charset=UTF-8
-*content-transfer-encoding: binary
-*
-*{"bucket":"bucket_test","crc32c":"7XacHQ==","md5Hash":"fVztGkklMlUamsSmJK7W+w==","name":"tests-KEwE3bU4TuyetBgQIghmUw/master.dat-temp"}
-*--__END_OF_PART__
-*content-transfer-encoding: binary
-*
-*KEwE3bU4TuyetBgQIghmUw
-*--__END_OF_PART__--
-*/
+                /*
+                 *  A multipart/related request body looks like this (note the binary dump inside a text blob! nice!):
+                 * --__END_OF_PART__
+                 * Content-Length: 135
+                 * Content-Type: application/json; charset=UTF-8
+                 * content-transfer-encoding: binary
+                 *
+                 * {"bucket":"bucket_test","crc32c":"7XacHQ==","md5Hash":"fVztGkklMlUamsSmJK7W+w==",
+                 * "name":"tests-KEwE3bU4TuyetBgQIghmUw/master.dat-temp"}
+                 * --__END_OF_PART__
+                 * content-transfer-encoding: binary
+                 *
+                 * KEwE3bU4TuyetBgQIghmUw
+                 * --__END_OF_PART__--
+                 */
                 String boundary = "__END_OF_PART__";
                 // Determine the multipart boundary
                 final List<String> contentTypes = headers.getOrDefault("Content-Type", headers.get("Content-type"));
@@ -449,19 +451,8 @@ public class GoogleCloudStorageTestServer {
                         return newError(RestStatus.NOT_FOUND, "source object not found");
                     }
                     destBucket.objects.put(dest, sourceBytes);
-                    final XContentBuilder respBuilder = jsonBuilder().startObject()
-                            .field("kind", "storage#rewriteResponse")
-                            .field("totalBytesRewritten", String.valueOf(sourceBytes.length))
-                            .field("objectSize", String.valueOf(sourceBytes.length))
-                            .field("done", true)
-                            .startObject("resource")
-                                .field("kind", "storage#object")
-                                .field("id", String.join("/", destBucket.name, dest))
-                                .field("name", dest)
-                                .field("bucket", destBucket.name)
-                                .field("size", String.valueOf(sourceBytes.length))
-                            .endObject()
-                            .endObject();
+                    final XContentBuilder respBuilder = jsonBuilder();
+                    buildRewriteResponse(respBuilder, destBucket.name, dest, sourceBytes.length);
                     return newResponse(RestStatus.OK, emptyMap(), respBuilder);
                 });
 
@@ -758,5 +749,28 @@ public class GoogleCloudStorageTestServer {
                             .field("bucket", bucket)
                             .field("size", String.valueOf(bytes.length))
                         .endObject();
+    }
+
+    /**
+     * Builds the rewrite response as defined by
+     * https://cloud.google.com/storage/docs/json_api/v1/objects/rewrite
+     */
+    private static XContentBuilder buildRewriteResponse(final XContentBuilder builder, final String destBucket, final String dest,
+                                                        final int byteSize)
+            throws IOException {
+        final XContentBuilder respBuilder = builder.startObject()
+                .field("kind", "storage#rewriteResponse")
+                .field("totalBytesRewritten", String.valueOf(byteSize))
+                .field("objectSize", String.valueOf(byteSize))
+                .field("done", true)
+                .startObject("resource")
+                    .field("kind", "storage#object")
+                    .field("id", String.join("/", destBucket, dest))
+                    .field("name", dest)
+                    .field("bucket", destBucket)
+                    .field("size", String.valueOf(byteSize))
+                .endObject()
+                .endObject();
+        return builder;
     }
 }

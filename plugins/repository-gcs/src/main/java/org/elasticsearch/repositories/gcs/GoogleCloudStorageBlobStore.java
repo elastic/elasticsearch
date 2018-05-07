@@ -25,7 +25,6 @@ import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Bucket;
-import com.google.cloud.storage.CopyWriter;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.Storage.BlobListOption;
 import com.google.cloud.storage.Storage.CopyRequest;
@@ -46,6 +45,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.file.NoSuchFileException;
@@ -58,6 +58,11 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
 
     private final Storage storage;
     private final String bucket;
+    // The recommended maximum size of a blob that should be uploaded in a single
+    // request. Larger files should be uploaded over multiple requests (this is
+    // called "resumable upload")
+    // https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload
+    private static final int LARGE_BLOB_THRESHOLD_BYTE_SIZE = 5 * 1024 * 1024;
 
     GoogleCloudStorageBlobStore(Settings settings, String bucket, Storage storage) {
         super(settings);
@@ -103,7 +108,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
     /**
      * List all blobs in the bucket
      *
-     * @param path base path of the blobs to list
+     * @param prefix base path of the blobs to list
      * @return a map of blob names and their metadata
      */
     Map<String, BlobMetaData> listBlobs(String prefix) throws IOException {
@@ -158,10 +163,10 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
         final BlobId blobId = BlobId.of(bucket, blobName);
         final Blob blob = SocketAccess.doPrivilegedIOException(() -> storage.get(blobId));
         if (blob == null) {
-            throw new NoSuchFileException("Blob [" + blobName + "] does not exit.");
+            throw new NoSuchFileException("Blob [" + blobName + "] does not exit");
         }
         final ReadChannel readChannel = SocketAccess.doPrivilegedIOException(blob::reader);
-        return java.nio.channels.Channels.newInputStream(new ReadableByteChannel() {
+        return Channels.newInputStream(new ReadableByteChannel() {
             @SuppressForbidden(reason = "Channel is based of a socket not a file.")
             @Override
             public int read(ByteBuffer dst) throws IOException {
@@ -188,34 +193,57 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
      */
     void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
         final BlobInfo blobInfo = BlobInfo.newBuilder(bucket, blobName).build();
-        if (blobSize > (5 * 1024 * 1024)) {
-            // uses "resumable upload" for files larger than 5MB, see
-            // https://cloud.google.com/storage/docs/json_api/v1/how-tos/multipart-upload
-            final WriteChannel writeChannel = SocketAccess.doPrivilegedIOException(() -> storage.writer(blobInfo));
-            Streams.copy(inputStream, java.nio.channels.Channels.newOutputStream(new WritableByteChannel() {
-                @Override
-                public boolean isOpen() {
-                    return writeChannel.isOpen();
-                }
-
-                @Override
-                public void close() throws IOException {
-                    SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
-                }
-
-                @SuppressForbidden(reason = "Channel is based of a socket not a file.")
-                @Override
-                public int write(ByteBuffer src) throws IOException {
-                    return SocketAccess.doPrivilegedIOException(() -> writeChannel.write(src));
-                }
-            }));
+        if (blobSize > LARGE_BLOB_THRESHOLD_BYTE_SIZE) {
+            writeBlobResumable(blobInfo, inputStream);
         } else {
-            // uses multipart upload for small files (1 request for both data and metadata,
-            // gziped)
-            final ByteArrayOutputStream baos = new ByteArrayOutputStream(Math.toIntExact(blobSize));
-            Streams.copy(inputStream, baos);
-            SocketAccess.doPrivilegedVoidIOException(() -> storage.create(blobInfo, baos.toByteArray()));
+            writeBlobMultipart(blobInfo, inputStream, blobSize);
         }
+    }
+
+    /**
+     * Uploads a blob using the "resumable upload" method (multiple requests, which
+     * can be independently retried in case of failure, see
+     * https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload
+     *
+     * @param blobInfo the info for the blob to be uploaded
+     * @param inputStream the stream containing the blob data
+     */
+    private void writeBlobResumable(BlobInfo blobInfo, InputStream inputStream) throws IOException {
+        final WriteChannel writeChannel = SocketAccess.doPrivilegedIOException(() -> storage.writer(blobInfo));
+        Streams.copy(inputStream, Channels.newOutputStream(new WritableByteChannel() {
+            @Override
+            public boolean isOpen() {
+                return writeChannel.isOpen();
+            }
+
+            @Override
+            public void close() throws IOException {
+                SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
+            }
+
+            @SuppressForbidden(reason = "Channel is based of a socket not a file.")
+            @Override
+            public int write(ByteBuffer src) throws IOException {
+                return SocketAccess.doPrivilegedIOException(() -> writeChannel.write(src));
+            }
+        }));
+    }
+
+    /**
+     * Uploads a blob using the "multipart upload" method (a single
+     * 'multipart/related' request containing both data and metadata. the request is
+     * gziped), see
+     * https://cloud.google.com/storage/docs/json_api/v1/how-tos/multipart-upload
+     *
+     * @param blobInfo the info for the blob to be uploaded
+     * @param inputStream the stream containing the blob data
+     * @param blobSize the size
+     */
+    private void writeBlobMultipart(BlobInfo blobInfo, InputStream inputStream, long blobSize) throws IOException {
+        assert blobSize <= LARGE_BLOB_THRESHOLD_BYTE_SIZE : "large blob uploads should use the resumable upload method";
+        final ByteArrayOutputStream baos = new ByteArrayOutputStream(Math.toIntExact(blobSize));
+        Streams.copy(inputStream, baos);
+        SocketAccess.doPrivilegedVoidIOException(() -> storage.create(blobInfo, baos.toByteArray()));
     }
 
     /**
@@ -246,10 +274,10 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
      * @param blobNames names of the bucket to delete
      */
     void deleteBlobs(Collection<String> blobNames) throws IOException {
-        if ((blobNames == null) || blobNames.isEmpty()) {
+        if (blobNames == null || blobNames.isEmpty()) {
             return;
         }
-        if (blobNames.size() < 5) {
+        if (blobNames.size() < 3) {
             for (final String blobName : blobNames) {
                 deleteBlob(blobName);
             }
@@ -266,7 +294,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
             }
         }
         if (failed) {
-            throw new IOException("Failed to delete all [" + blobIdsToDelete.size() + "] blobs.");
+            throw new IOException("Failed to delete all [" + blobIdsToDelete.size() + "] blobs");
         }
     }
 
@@ -285,11 +313,10 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
                 .build();
         SocketAccess.doPrivilegedVoidIOException(() -> {
             // There's no atomic "move" in GCS so we need to copy and delete
-            final CopyWriter copyWriter = storage.copy(request);
-            copyWriter.getResult();
+            storage.copy(request).getResult();
             final boolean deleted = storage.delete(sourceBlobId);
             if (deleted == false) {
-                throw new IOException("Failed to move source [" + sourceBlobName + "] to target [" + targetBlobName + "].");
+                throw new IOException("Failed to move source [" + sourceBlobName + "] to target [" + targetBlobName + "]");
             }
         });
     }

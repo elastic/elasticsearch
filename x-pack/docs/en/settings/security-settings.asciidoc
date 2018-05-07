@@ -89,8 +89,8 @@ You can set the following token service settings in
 
 `xpack.security.authc.token.enabled`::
 Set to `false` to disable the built-in token service. Defaults to `true` unless
- `xpack.security.http.ssl.enabled` is `false` and `http.enabled` is `true`.
- This prevents sniffing the token from a connection over plain http.
+ `xpack.security.http.ssl.enabled` is `false`. This prevents sniffing the token
+  from a connection over plain http.
 
 `xpack.security.authc.token.timeout`::
 The length of time that a token is valid for. By default this value is `20m` or

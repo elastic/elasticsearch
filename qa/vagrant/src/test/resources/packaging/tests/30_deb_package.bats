@@ -131,9 +131,13 @@ setup() {
     # The removal must disable the service
     # see prerm file
     if is_systemd; then
-        # Debian systemd distros usually returns exit code 3
+        missing_exit_code=4
+        if [ $(systemctl --version | head -1 | awk '{print $2}') -lt 231 ]; then
+          # systemd before version 231 used exit code 3 when the service did not exist
+          missing_exit_code=3
+        fi
         run systemctl status elasticsearch.service
-        [ "$status" -eq 3 ]
+        [ "$status" -eq $missing_exit_code ]
 
         run systemctl is-enabled elasticsearch.service
         [ "$status" -eq 1 ]
@@ -166,7 +170,6 @@ setup() {
 
     # The service files are still here
     assert_file_exist "/etc/init.d/elasticsearch"
-    assert_file_exist "/usr/lib/systemd/system/elasticsearch.service"
 }
 
 @test "[DEB] purge package" {

@@ -132,7 +132,7 @@ public class Requests {
      * Creates a search request against one or more indices. Note, the search source must be set either using the
      * actual JSON search source, or the {@link org.elasticsearch.search.builder.SearchSourceBuilder}.
      *
-     * @param indices The indices to search against. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
+     * @param indices The indices to search against. Use {@code null} or {@code _all} to execute against all indices
      * @return The search request
      * @see org.elasticsearch.client.Client#search(org.elasticsearch.action.search.SearchRequest)
      */
@@ -244,7 +244,7 @@ public class Requests {
     /**
      * Create a create mapping request against one or more indices.
      *
-     * @param indices The indices to create mapping. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
+     * @param indices The indices to create mapping. Use {@code null} or {@code _all} to execute against all indices
      * @return The create mapping request
      * @see org.elasticsearch.client.IndicesAdminClient#putMapping(org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest)
      */
@@ -264,7 +264,7 @@ public class Requests {
     /**
      * Creates a refresh indices request.
      *
-     * @param indices The indices to refresh. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
+     * @param indices The indices to refresh. Use {@code null} or {@code _all} to execute against all indices
      * @return The refresh request
      * @see org.elasticsearch.client.IndicesAdminClient#refresh(org.elasticsearch.action.admin.indices.refresh.RefreshRequest)
      */
@@ -275,7 +275,7 @@ public class Requests {
     /**
      * Creates a flush indices request.
      *
-     * @param indices The indices to flush. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
+     * @param indices The indices to flush. Use {@code null} or {@code _all} to execute against all indices
      * @return The flush request
      * @see org.elasticsearch.client.IndicesAdminClient#flush(org.elasticsearch.action.admin.indices.flush.FlushRequest)
      */
@@ -286,7 +286,7 @@ public class Requests {
     /**
      * Creates a synced flush indices request.
      *
-     * @param indices The indices to sync flush. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
+     * @param indices The indices to sync flush. Use {@code null} or {@code _all} to execute against all indices
      * @return The synced flush request
      * @see org.elasticsearch.client.IndicesAdminClient#syncedFlush(SyncedFlushRequest)
      */
@@ -297,7 +297,7 @@ public class Requests {
     /**
      * Creates a force merge request.
      *
-     * @param indices The indices to force merge. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
+     * @param indices The indices to force merge. Use {@code null} or {@code _all} to execute against all indices
      * @return The force merge request
      * @see org.elasticsearch.client.IndicesAdminClient#forceMerge(org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest)
      */
@@ -308,7 +308,7 @@ public class Requests {
     /**
      * Creates an upgrade request.
      *
-     * @param indices The indices to upgrade. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
+     * @param indices The indices to upgrade. Use {@code null} or {@code _all} to execute against all indices
      * @return The upgrade request
      * @see org.elasticsearch.client.IndicesAdminClient#upgrade(UpgradeRequest)
      */
@@ -319,7 +319,7 @@ public class Requests {
     /**
      * Creates a clean indices cache request.
      *
-     * @param indices The indices to clean their caches. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
+     * @param indices The indices to clean their caches. Use {@code null} or {@code _all} to execute against all indices
      * @return The request
      */
     public static ClearIndicesCacheRequest clearIndicesCacheRequest(String... indices) {
@@ -329,7 +329,7 @@ public class Requests {
     /**
      * A request to update indices settings.
      *
-     * @param indices The indices to update the settings for. Use <tt>null</tt> or <tt>_all</tt> to executed against all indices.
+     * @param indices The indices to update the settings for. Use {@code null} or {@code _all} to executed against all indices.
      * @return The request
      */
     public static UpdateSettingsRequest updateSettingsRequest(String... indices) {
@@ -358,7 +358,7 @@ public class Requests {
      * Creates a cluster health request.
      *
      * @param indices The indices to provide additional cluster health information for.
-     *                Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
+     *                Use {@code null} or {@code _all} to execute against all indices
      * @return The cluster health request
      * @see org.elasticsearch.client.ClusterAdminClient#health(org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest)
      */
@@ -391,7 +391,7 @@ public class Requests {
     }
 
     /**
-     * Creates a nodes info request against one or more nodes. Pass <tt>null</tt> or an empty array for all nodes.
+     * Creates a nodes info request against one or more nodes. Pass {@code null} or an empty array for all nodes.
      *
      * @param nodesIds The nodes ids to get the status for
      * @return The nodes info request
@@ -402,7 +402,7 @@ public class Requests {
     }
 
     /**
-     * Creates a nodes stats request against one or more nodes. Pass <tt>null</tt> or an empty array for all nodes.
+     * Creates a nodes stats request against one or more nodes. Pass {@code null} or an empty array for all nodes.
      *
      * @param nodesIds The nodes ids to get the stats for
      * @return The nodes info request
@@ -414,7 +414,7 @@ public class Requests {
 
     /**
      * Creates a nodes usage request against one or more nodes. Pass
-     * <tt>null</tt> or an empty array for all nodes.
+     * {@code null} or an empty array for all nodes.
      *
      * @param nodesIds
      *            The nodes ids to get the usage for
@@ -456,7 +456,7 @@ public class Requests {
     }
 
     /**
-     * Creates a nodes tasks request against one or more nodes. Pass <tt>null</tt> or an empty array for all nodes.
+     * Creates a nodes tasks request against one or more nodes. Pass {@code null} or an empty array for all nodes.
      *
      * @return The nodes tasks request
      * @see org.elasticsearch.client.ClusterAdminClient#cancelTasks(CancelTasksRequest)

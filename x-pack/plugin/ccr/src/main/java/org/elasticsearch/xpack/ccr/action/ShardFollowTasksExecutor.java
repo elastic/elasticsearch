@@ -100,16 +100,16 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         ShardFollowNodeTask shardFollowNodeTask = (ShardFollowNodeTask) task;
         Client leaderClient = params.getLeaderClusterAlias() != null ?
                 this.client.getRemoteClusterClient(params.getLeaderClusterAlias()) : this.client;
-        IndexMetadataVersionChecker checker = new IndexMetadataVersionChecker(params.getLeaderShardId().getIndex(),
+        IndexMetadataVersionChecker imdVersionChecker = new IndexMetadataVersionChecker(params.getLeaderShardId().getIndex(),
                 params.getFollowShardId().getIndex(), client, leaderClient);
         logger.info("[{}] initial leader mapping with follower mapping syncing", params);
-        checker.updateMapping(1L /* Force update, version is initially 0L */, e -> {
+        imdVersionChecker.updateMapping(1L /* Force update, version is initially 0L */, e -> {
             if (e == null) {
                 logger.info("Starting shard following [{}]", params);
                 fetchGlobalCheckpoint(client, params.getFollowShardId(),
                         followGlobalCheckPoint -> {
                             shardFollowNodeTask.updateProcessedGlobalCheckpoint(followGlobalCheckPoint);
-                            prepare(leaderClient, shardFollowNodeTask, params, followGlobalCheckPoint, checker);
+                            prepare(leaderClient, shardFollowNodeTask, params, followGlobalCheckPoint, imdVersionChecker);
                         }, task::markAsFailed);
             } else {
                 shardFollowNodeTask.markAsFailed(e);
@@ -118,7 +118,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     }
 
     void prepare(Client leaderClient, ShardFollowNodeTask task, ShardFollowTask params, long followGlobalCheckPoint,
-                 IndexMetadataVersionChecker checker) {
+                 IndexMetadataVersionChecker imdVersionChecker) {
         if (task.getState() != AllocatedPersistentTask.State.STARTED) {
             // TODO: need better cancellation control
             return;
@@ -130,7 +130,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             // TODO: check if both indices have the same history uuid
             if (leaderGlobalCheckPoint == followGlobalCheckPoint) {
                 logger.debug("{} no write operations to fetch", followerShard);
-                retry(leaderClient, task, params, followGlobalCheckPoint, checker);
+                retry(leaderClient, task, params, followGlobalCheckPoint, imdVersionChecker);
             } else {
                 assert followGlobalCheckPoint < leaderGlobalCheckPoint : "followGlobalCheckPoint [" + followGlobalCheckPoint +
                         "] is not below leaderGlobalCheckPoint [" + leaderGlobalCheckPoint + "]";
@@ -140,13 +140,14 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 Consumer<Exception> handler = e -> {
                     if (e == null) {
                         task.updateProcessedGlobalCheckpoint(leaderGlobalCheckPoint);
-                        prepare(leaderClient, task, params, leaderGlobalCheckPoint, checker);
+                        prepare(leaderClient, task, params, leaderGlobalCheckPoint, imdVersionChecker);
                     } else {
                         task.markAsFailed(e);
                     }
                 };
-                ChunksCoordinator coordinator = new ChunksCoordinator(client, leaderClient, ccrExecutor, checker, params.getMaxChunkSize(),
-                        params.getNumConcurrentChunks(), params.getProcessorMaxTranslogBytes(), leaderShard, followerShard, handler);
+                ChunksCoordinator coordinator = new ChunksCoordinator(client, leaderClient, ccrExecutor, imdVersionChecker,
+                    params.getMaxChunkSize(), params.getNumConcurrentChunks(), params.getProcessorMaxTranslogBytes(), leaderShard,
+                    followerShard, handler);
                 coordinator.createChucks(followGlobalCheckPoint, leaderGlobalCheckPoint);
                 coordinator.start();
             }
@@ -154,7 +155,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     }
 
     private void retry(Client leaderClient, ShardFollowNodeTask task, ShardFollowTask params, long followGlobalCheckPoint,
-                       IndexMetadataVersionChecker checker) {
+                       IndexMetadataVersionChecker imdVersionChecker) {
         threadPool.schedule(RETRY_TIMEOUT, Ccr.CCR_THREAD_POOL_NAME, new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
@@ -163,7 +164,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
             @Override
             protected void doRun() throws Exception {
-                prepare(leaderClient, task, params, followGlobalCheckPoint, checker);
+                prepare(leaderClient, task, params, followGlobalCheckPoint, imdVersionChecker);
             }
         });
     }
@@ -192,7 +193,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         private final Client followerClient;
         private final Client leaderClient;
         private final Executor ccrExecutor;
-        private final IndexMetadataVersionChecker checker;
+        private final IndexMetadataVersionChecker imdVersionChecker;
 
         private final long batchSize;
         private final int concurrentProcessors;
@@ -205,13 +206,13 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         private final Queue<long[]> chunks = new ConcurrentLinkedQueue<>();
         private final AtomicReference<Exception> failureHolder = new AtomicReference<>();
 
-        ChunksCoordinator(Client followerClient, Client leaderClient, Executor ccrExecutor, IndexMetadataVersionChecker checker,
+        ChunksCoordinator(Client followerClient, Client leaderClient, Executor ccrExecutor, IndexMetadataVersionChecker imdVersionChecker,
                           long batchSize, int concurrentProcessors, long processorMaxTranslogBytes, ShardId leaderShard,
                           ShardId followerShard, Consumer<Exception> handler) {
             this.followerClient = followerClient;
             this.leaderClient = leaderClient;
             this.ccrExecutor = ccrExecutor;
-            this.checker = checker;
+            this.imdVersionChecker = imdVersionChecker;
             this.batchSize = batchSize;
             this.concurrentProcessors = concurrentProcessors;
             this.processorMaxTranslogBytes = processorMaxTranslogBytes;
@@ -266,7 +267,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     postProcessChuck(e);
                 }
             };
-            ChunkProcessor processor = new ChunkProcessor(leaderClient, followerClient, chunks, ccrExecutor, checker,
+            ChunkProcessor processor = new ChunkProcessor(leaderClient, followerClient, chunks, ccrExecutor, imdVersionChecker,
                     leaderShard, followerShard, processorHandler);
             processor.start(chunk[0], chunk[1], processorMaxTranslogBytes);
         }
@@ -372,7 +373,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                             return;
                         }
                         final BulkShardOperationsRequest request = new BulkShardOperationsRequest(followerShard, response.getOperations());
-                        followerClient.execute(BulkShardOperationsAction.INSTANCE, request, new ActionListener<BulkShardOperationsResponse>() {
+                        followerClient.execute(BulkShardOperationsAction.INSTANCE, request,
+                            new ActionListener<BulkShardOperationsResponse>() {
                             @Override
                             public void onResponse(final BulkShardOperationsResponse bulkShardOperationsResponse) {
                                 handler.accept(null);

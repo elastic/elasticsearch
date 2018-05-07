@@ -46,6 +46,7 @@ import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -102,7 +103,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         IndexMetadataVersionChecker checker = new IndexMetadataVersionChecker(params.getLeaderShardId().getIndex(),
                 params.getFollowShardId().getIndex(), client, leaderClient);
         logger.info("[{}] initial leader mapping with follower mapping syncing", params);
-        checker.updateMapping(e -> {
+        checker.updateMapping(1L /* Force update, version is initially 0L */, e -> {
             if (e == null) {
                 logger.info("Starting shard following [{}]", params);
                 fetchGlobalCheckpoint(client, params.getFollowShardId(),
@@ -408,6 +409,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         private final Index leaderIndex;
         private final Index followIndex;
         private final AtomicLong currentIndexMetadataVersion;
+        private final Semaphore updateMappingSemaphore = new Semaphore(1);
 
         IndexMetadataVersionChecker(Index leaderIndex, Index followIndex, Client followClient, Client leaderClient) {
             this.followClient = followClient;
@@ -423,11 +425,25 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     currentIndexMetadataVersion.get(), minimumRequiredIndexMetadataVersion);
                 handler.accept(null);
             } else {
-                updateMapping(handler);
+                updateMapping(minimumRequiredIndexMetadataVersion, handler);
             }
         }
 
-        void updateMapping(Consumer<Exception> handler) {
+        void updateMapping(long minimumRequiredIndexMetadataVersion, Consumer<Exception> handler) {
+            try {
+                updateMappingSemaphore.acquire();
+            } catch (InterruptedException e) {
+                handler.accept(e);
+                return;
+            }
+            if (currentIndexMetadataVersion.get() >= minimumRequiredIndexMetadataVersion) {
+                updateMappingSemaphore.release();
+                LOGGER.debug("Current index metadata version [{}] is higher or equal than minimum required index metadata version [{}]",
+                    currentIndexMetadataVersion.get(), minimumRequiredIndexMetadataVersion);
+                handler.accept(null);
+                return;
+            }
+
             ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
             clusterStateRequest.clear();
             clusterStateRequest.metaData(true);
@@ -443,9 +459,16 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 putMappingRequest.source(mappingMetaData.source().string(), XContentType.JSON);
                 followClient.admin().indices().putMapping(putMappingRequest, ActionListener.wrap(putMappingResponse -> {
                     currentIndexMetadataVersion.set(indexMetaData.getVersion());
+                    updateMappingSemaphore.release();
                     handler.accept(null);
-                }, handler));
-            }, handler));
+                }, e -> {
+                    updateMappingSemaphore.release();
+                    handler.accept(e);
+                }));
+            }, e -> {
+                updateMappingSemaphore.release();
+                handler.accept(e);
+            }));
         }
     }
 

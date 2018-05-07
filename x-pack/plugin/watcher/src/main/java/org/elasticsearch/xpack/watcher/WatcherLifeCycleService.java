@@ -156,6 +156,7 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
                 if (state.get() == WatcherState.STARTED) {
                     watcherService.reload(event.state(), "new local watcher shard allocation ids");
                 } else if (state.get() == WatcherState.STOPPED) {
+                    this.state.set(WatcherState.STARTING);
                     watcherService.start(event.state(), () -> this.state.set(WatcherState.STARTED));
                 }
             } else {

@@ -117,6 +117,7 @@ Fail snapshot operations early when creating or deleting a snapshot on a reposit
 written to by an older Elasticsearch after writing to it with a newer Elasticsearch version. ({pull}30140[#30140])
 
 Fix NPE when CumulativeSum agg encounters null value/empty bucket ({pull}29641[#29641])
+Do not fail snapshot when deleting a missing snapshotted file ({pull}30332[#30332])
 
 //[float]
 //=== Regressions

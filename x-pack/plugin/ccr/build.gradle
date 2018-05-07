@@ -16,6 +16,8 @@ archivesBaseName = 'x-pack-ccr'
 
 integTest.enabled = false
 
+compileJava.options.compilerArgs << "-Xlint:-try"
+
 // Instead we create a separate task to run the
 // tests based on ESIntegTestCase
 task internalClusterTest(type: RandomizedTestingTask,

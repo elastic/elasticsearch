@@ -374,7 +374,6 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
     }
 
-    @SuppressWarnings("try")
     static Client wrapClient(Client client, ShardFollowTask shardFollowTask) {
         if (shardFollowTask.getHeaders().isEmpty()) {
             return client;

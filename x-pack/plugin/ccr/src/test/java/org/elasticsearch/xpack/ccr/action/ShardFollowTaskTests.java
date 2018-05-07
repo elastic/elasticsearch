@@ -9,7 +9,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
 import java.util.Collections;

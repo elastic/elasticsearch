@@ -79,7 +79,7 @@ public class ShardFollowTask implements PersistentTaskParams {
         this.maxChunkSize = maxChunkSize;
         this.numConcurrentChunks = numConcurrentChunks;
         this.processorMaxTranslogBytes = processorMaxTranslogBytes;
-        this.headers = headers != null ? headers : Collections.emptyMap();
+        this.headers = headers != null ? Collections.unmodifiableMap(headers) : Collections.emptyMap();
     }
 
     public ShardFollowTask(StreamInput in) throws IOException {
@@ -89,7 +89,7 @@ public class ShardFollowTask implements PersistentTaskParams {
         this.maxChunkSize = in.readVLong();
         this.numConcurrentChunks = in.readVInt();
         this.processorMaxTranslogBytes = in.readVLong();
-        this.headers = in.readMap(StreamInput::readString, StreamInput::readString);
+        this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
     }
 
     public String getLeaderClusterAlias() {

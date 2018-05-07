@@ -79,7 +79,7 @@ public class GetRollupCapsAction extends Action<GetRollupCapsAction.Request, Get
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             this.indexPattern = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
                 this.key = KeyOrder.fromStream(in);
             }
         }
@@ -88,7 +88,7 @@ public class GetRollupCapsAction extends Action<GetRollupCapsAction.Request, Get
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(indexPattern);
-            if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
                 key.writeTo(out);
             }
         }

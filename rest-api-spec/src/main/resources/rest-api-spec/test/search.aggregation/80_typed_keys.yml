@@ -196,7 +196,7 @@ setup:
 ---
 "Test typed keys parameter for date_histogram aggregation and max_bucket pipeline aggregation":
   - do:
-      search:
+      search:getr
         typed_keys: true
         body:
           size: 0

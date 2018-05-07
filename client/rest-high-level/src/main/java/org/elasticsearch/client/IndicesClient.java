@@ -43,12 +43,16 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -266,6 +270,28 @@ public final class IndicesClient {
     }
 
     /**
+     * Retrieve the settings of one or more indices
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-settings.html">
+     * Indices Get Settings API on elastic.co</a>
+     */
+    public GetSettingsResponse getSettings(GetSettingsRequest getSettingsRequest, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(getSettingsRequest, RequestConverters::getSettings,
+            GetSettingsResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously retrieve the settings of one or more indices
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-get-settings.html">
+     * Indices Get Settings API on elastic.co</a>
+     */
+    public void getSettingsAsync(GetSettingsRequest getSettingsRequest, ActionListener<GetSettingsResponse> listener, Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(getSettingsRequest, RequestConverters::getSettings,
+            GetSettingsResponse::fromXContent, listener, emptySet(), headers);
+    }
+
+    /**
      * Force merge one or more indices using the Force Merge API
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-forcemerge.html">
@@ -432,4 +458,26 @@ public final class IndicesClient {
                 UpdateSettingsResponse::fromXContent, listener, emptySet(), headers);
     }
 
+    /**
+     * Puts an index template using the Index Templates API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
+     * on elastic.co</a>
+     */
+    public PutIndexTemplateResponse putTemplate(PutIndexTemplateRequest putIndexTemplateRequest, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(putIndexTemplateRequest, RequestConverters::putTemplate,
+            PutIndexTemplateResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously puts an index template using the Index Templates API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
+     * on elastic.co</a>
+     */
+    public void putTemplateAsync(PutIndexTemplateRequest putIndexTemplateRequest,
+                                 ActionListener<PutIndexTemplateResponse> listener, Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(putIndexTemplateRequest, RequestConverters::putTemplate,
+            PutIndexTemplateResponse::fromXContent, listener, emptySet(), headers);
+    }
 }

@@ -98,8 +98,12 @@ ones that the user is authorized to access in case field level security is enabl
 //[float]
 //=== New Features
 
-//[float]
-//=== Enhancements
+[float]
+=== Enhancements
+
+Rollup::
+* In addition to grouping by index pattern, the GetRollupCapabilities API now allows
+grouping by the concrete index that rollups are physically stored in ({pull}30401[#30401])
 
 [float]
 === Bug Fixes
@@ -165,6 +169,10 @@ data nodes. And the Execute Watch API can be triggered regardless is watcher is
 started or stopped. ({pull}30118[#30118])
 
 Added put index template API to the high level rest client ({pull}30400[#30400])
+
+Rollup::
+* In addition to grouping by index pattern, the GetRollupCapabilities API now allows
+grouping by the concrete index that rollups are physically stored in ({pull}30401[#30401])
 
 [float]
 === Bug Fixes

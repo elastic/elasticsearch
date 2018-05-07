@@ -1,6 +1,6 @@
 [role="xpack"]
 [[configuring-security]]
-== Configuring Security in {es}
+== Configuring security in {es}
 ++++
 <titleabbrev>Configuring Security</titleabbrev>
 ++++
@@ -47,7 +47,7 @@ information, see
 +
 --
 {security} provides
-{xpack-ref}/setting-up-authentication.html#built-in-users[built-in users] to
+{stack-ov}/built-in-users.html[built-in users] to
 help you get up and running. The +elasticsearch-setup-passwords+ command is the
 simplest method to set the built-in users' passwords for the first time.
 
@@ -69,6 +69,13 @@ update passwords from the **Management > Users** UI in {kib} or use the security
 user API.
 
 --
+
+. Choose which types of realms you want to use to authenticate users. 
+** <<configuring-ad-realm,Configure an Active Directory realm>>.
+** <<configuring-file-realm,Configure a file realm>>.
+** <<configuring-ldap-realm,Configure an LDAP realm>>.
+** <<configuring-native-realm,Configure a native realm>>.
+** <<configuring-pki-realm,Configure a PKI realm>>.
 
 . Set up roles and users to control access to {es}.
 For example, to grant _John Doe_ full access to all indices that match
@@ -128,5 +135,10 @@ include::securing-communications/securing-elasticsearch.asciidoc[]
 include::securing-communications/configuring-tls-docker.asciidoc[]
 include::securing-communications/enabling-cipher-suites.asciidoc[]
 include::securing-communications/separating-node-client-traffic.asciidoc[]
+include::authentication/configuring-active-directory-realm.asciidoc[]
+include::authentication/configuring-file-realm.asciidoc[]
+include::authentication/configuring-ldap-realm.asciidoc[]
+include::authentication/configuring-native-realm.asciidoc[]
+include::authentication/configuring-pki-realm.asciidoc[]
 include::{xes-repo-dir}/settings/security-settings.asciidoc[]
 include::{xes-repo-dir}/settings/audit-settings.asciidoc[]

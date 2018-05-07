@@ -51,15 +51,15 @@ public class FlushRequest extends BroadcastRequest<FlushRequest> {
     }
 
     /**
-     * Returns <tt>true</tt> iff a flush should block
-     * if a another flush operation is already running. Otherwise <tt>false</tt>
+     * Returns {@code true} iff a flush should block
+     * if a another flush operation is already running. Otherwise {@code false}
      */
     public boolean waitIfOngoing() {
         return this.waitIfOngoing;
     }
 
     /**
-     * if set to <tt>true</tt> the flush will block
+     * if set to {@code true} the flush will block
      * if a another flush operation is already running until the flush can be performed.
      * The default is <code>true</code>
      */

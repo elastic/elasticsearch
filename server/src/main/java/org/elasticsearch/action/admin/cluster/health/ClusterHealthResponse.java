@@ -123,7 +123,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     }
 
     /**
-     * <tt>true</tt> if the waitForXXX has timeout out and did not match.
+     * {@code true} if the waitForXXX has timeout out and did not match.
      */
     public boolean isTimedOut() {
         return this.timedOut;

@@ -137,7 +137,6 @@ public class ClusterDiscoveryConfiguration extends NodeConfigurationSource {
                 // we need to pin the node port & host so we'd know where to point things
                 builder.put(TcpTransport.PORT.getKey(), unicastHostPorts[nodeOrdinal]);
                 builder.put(TcpTransport.HOST.getKey(), IP_ADDR); // only bind on one IF we use v4 here by default
-                builder.put(NetworkModule.HTTP_ENABLED.getKey(), false);
                 for (int i = 0; i < unicastHostOrdinals.length; i++) {
                     unicastHosts[i] = IP_ADDR + ":" + (unicastHostPorts[unicastHostOrdinals[i]]);
                 }

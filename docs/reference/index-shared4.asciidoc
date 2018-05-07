@@ -5,4 +5,4 @@ include::testing.asciidoc[]
 
 include::glossary.asciidoc[]
 
-include::release-notes.asciidoc[]
+include::{docdir}/../CHANGELOG.asciidoc[]

@@ -76,8 +76,7 @@ class PostStartTrialResponse extends ActionResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         status = in.readEnum(Status.class);
-        // TODO: Change to 6.3 after backport
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
             acknowledgeMessage = in.readOptionalString();
             int size = in.readVInt();
             Map<String, String[]> acknowledgeMessages = new HashMap<>(size);
@@ -98,8 +97,7 @@ class PostStartTrialResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // TODO: Change to 6.3 after backport
-        Version version = Version.V_7_0_0_alpha1;
+        Version version = Version.V_6_3_0;
         if (out.getVersion().onOrAfter(version)) {
             out.writeEnum(status);
             out.writeOptionalString(acknowledgeMessage);

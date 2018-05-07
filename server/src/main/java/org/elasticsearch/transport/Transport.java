@@ -59,7 +59,7 @@ public interface Transport extends LifecycleComponent {
     TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException;
 
     /**
-     * Returns <tt>true</tt> if the node is connected.
+     * Returns {@code true} if the node is connected.
      */
     boolean nodeConnected(DiscoveryNode node);
 

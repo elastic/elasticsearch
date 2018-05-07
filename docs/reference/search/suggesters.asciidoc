@@ -23,7 +23,7 @@ POST twitter/_search
   },
   "suggest" : {
     "my-suggestion" : {
-      "text" : "trying out Elasticsearch",
+      "text" : "tring out Elasticsearch",
       "term" : {
         "field" : "message"
       }

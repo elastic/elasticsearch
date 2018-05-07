@@ -67,7 +67,7 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
     public abstract int length();
 
     /**
-     * Slice the bytes from the <tt>from</tt> index up to <tt>length</tt>.
+     * Slice the bytes from the {@code from} index up to {@code length}.
      */
     public abstract BytesReference slice(int from, int length);
 
@@ -158,7 +158,7 @@ public abstract class BytesReference implements Accountable, Comparable<BytesRef
 
     /**
      * Returns a compact array from the given BytesReference. The returned array won't be copied unless necessary. If you need
-     * to modify the returned array use <tt>BytesRef.deepCopyOf(reference.toBytesRef()</tt> instead
+     * to modify the returned array use {@code BytesRef.deepCopyOf(reference.toBytesRef()} instead
      */
     public static byte[] toBytes(BytesReference reference) {
         final BytesRef bytesRef = reference.toBytesRef();

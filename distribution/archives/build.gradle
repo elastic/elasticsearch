@@ -217,6 +217,24 @@ subprojects {
   }
   check.dependsOn checkNotice
 
+  if (project.name == 'zip' || project.name == 'tar') {
+    task checkMlCppNotice {
+      dependsOn buildDist, checkExtraction
+      onlyIf toolExists
+      doLast {
+        // this is just a small sample from the C++ notices, the idea being that if we've added these lines we've probably added all the required lines
+        final List<String> expectedLines = Arrays.asList("Apache log4cxx", "Boost Software License - Version 1.0 - August 17th, 2003")
+        final Path noticePath = archiveExtractionDir.toPath().resolve("elasticsearch-${VersionProperties.elasticsearch}/modules/x-pack/x-pack-ml/NOTICE.txt")
+        final List<String> actualLines = Files.readAllLines(noticePath)
+        for (final String expectedLine : expectedLines) {
+          if (actualLines.contains(expectedLine) == false) {
+            throw new GradleException("expected [${noticePath}] to contain [${expectedLine}] but it did not")
+          }
+        }
+      }
+    }
+    check.dependsOn checkMlCppNotice
+  }
 }
 
 /*****************************************************************************

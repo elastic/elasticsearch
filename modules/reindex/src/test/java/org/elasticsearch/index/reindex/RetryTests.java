@@ -91,10 +91,13 @@ public class RetryTests extends ESIntegTestCase {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(nodeSettings()).build();
     }
 
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable HTTP so we can test retries on reindex from remote; in this case the "remote" cluster is just this cluster
+    }
+
     final Settings nodeSettings() {
         return Settings.builder()
-                // enable HTTP so we can test retries on reindex from remote; in this case the "remote" cluster is just this cluster
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 // whitelist reindexing from the HTTP host we're going to use
                 .put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "127.0.0.1:*")
                 .build();

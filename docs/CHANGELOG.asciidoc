@@ -150,6 +150,9 @@ option. ({pull}30140[#29658])
 A new analysis plugin called `analysis_nori` that exposes the Lucene Korean
 analysis module.  ({pull}30397[#30397])
 
+The `repository-gcs` plugins now uses the latest `google-cloud-storage` client
+library replacing the old `google-api-client` one. ({pull}30168[#30168])
+
 [float]
 === Enhancements
 

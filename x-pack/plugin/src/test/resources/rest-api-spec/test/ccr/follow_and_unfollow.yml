@@ -1,0 +1,34 @@
+---
+"Test follow and unfollow an existing index":
+  - do:
+      indices.create:
+        index: foo
+        body:
+          mappings:
+            doc:
+              properties:
+                field:
+                  type: keyword
+  - is_true: acknowledged
+
+  - do:
+      indices.create:
+        index: bar
+        body:
+          mappings:
+            doc:
+              properties:
+                field:
+                  type: keyword
+  - is_true: acknowledged
+
+  - do:
+      xpack.ccr.follow_existing_index:
+        leader_index: foo
+        follow_index: bar
+  - is_true: acknowledged
+
+  - do:
+      xpack.ccr.unfollow_index:
+        follow_index: bar
+  - is_true: acknowledged

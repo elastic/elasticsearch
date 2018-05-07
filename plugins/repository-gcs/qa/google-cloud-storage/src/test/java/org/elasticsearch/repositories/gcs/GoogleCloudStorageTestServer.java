@@ -247,19 +247,19 @@ public class GoogleCloudStorageTestServer {
                     return newError(RestStatus.CONFLICT, "object already exist");
                 }
             } else if ("multipart".equals(uploadType)) {
-//                A multipart/related request body looks like this (note the binary dump inside a text blob! nice!):
-//                --__END_OF_PART__
-//                Content-Length: 135
-//                Content-Type: application/json; charset=UTF-8
-//                content-transfer-encoding: binary
-//
-//                {"bucket":"bucket_test","crc32c":"7XacHQ==","md5Hash":"fVztGkklMlUamsSmJK7W+w==",
-//                "name":"tests-KEwE3bU4TuyetBgQIghmUw/master.dat-temp"}
-//                --__END_OF_PART__
-//                content-transfer-encoding: binary
-//
-//                KEwE3bU4TuyetBgQIghmUw
-//                --__END_OF_PART__--
+/* A multipart/related request body looks like this (note the binary dump inside a text blob! nice!):
+*--__END_OF_PART__
+*Content-Length: 135
+*Content-Type: application/json; charset=UTF-8
+*content-transfer-encoding: binary
+*
+*{"bucket":"bucket_test","crc32c":"7XacHQ==","md5Hash":"fVztGkklMlUamsSmJK7W+w==","name":"tests-KEwE3bU4TuyetBgQIghmUw/master.dat-temp"}
+*--__END_OF_PART__
+*content-transfer-encoding: binary
+*
+*KEwE3bU4TuyetBgQIghmUw
+*--__END_OF_PART__--
+*/
                 String boundary = "__END_OF_PART__";
                 // Determine the multipart boundary
                 final List<String> contentTypes = headers.getOrDefault("Content-Type", headers.get("Content-type"));
@@ -269,79 +269,99 @@ public class GoogleCloudStorageTestServer {
                         boundary = contentType.replace("multipart/related; boundary=", "");
                     }
                 }
-                InputStream inputStreamBody =  new ByteArrayInputStream(body);
+                InputStream inputStreamBody = new ByteArrayInputStream(body);
                 final List<String> contentEncodings = headers.getOrDefault("Content-Encoding", headers.get("Content-encoding"));
                 if (contentEncodings != null) {
                     if (contentEncodings.stream().anyMatch(x -> "gzip".equalsIgnoreCase(x))) {
                         inputStreamBody = new GZIPInputStream(inputStreamBody);
                     }
                 }
-                String objectName = null;
-                String bucketName = null;
-                byte[] objectData = null;
-                byte[] metadata = null;
-                // Read line by line ?both? multiparts
+                // Read line by line ?both? parts of the multipart
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStreamBody, StandardCharsets.ISO_8859_1))) {
                     String line;
+                    // read first part delimiter
+                    line = reader.readLine();
+                    if ((line == null) || (line.equals("--" + boundary) == false)) {
+                        return newError(RestStatus.INTERNAL_SERVER_ERROR,
+                                "Error parsing multipart request. Does not start with the part delimiter.");
+                    }
+                    final Map<String, List<String>> firstPartHeaders = new HashMap<>();
+                    // Reads the first part's headers, if any
                     while ((line = reader.readLine()) != null) {
-                        // System.out.println(line);
-                        if (line.equals("--" + boundary)) {
-                            final Map<String, List<String>> partHeaders = new HashMap<>();
-                            // Reads the headers, if any
-                            while ((line = reader.readLine()) != null) {
-                                // System.out.println(line);
-                                if (line.equals("\r\n") || (line.length() == 0)) {
-                                    // end of headers
-                                    break;
-                                } else {
-                                    final String[] header = line.split(":", 2);
-                                    partHeaders.put(header[0], singletonList(header[1]));
-                                }
-                            }
-                            final List<String> partContentTypes = partHeaders.getOrDefault("Content-Type", partHeaders.get("Content-type"));
-                            if ((partContentTypes != null) && partContentTypes.stream().anyMatch(x -> x.contains("application/json"))) {
-                                line = reader.readLine();
-                                // metadata part
-                                final Matcher objectNameMatcher = Pattern.compile("\"name\":\"([^\"]*)\"").matcher(line);
-                                objectNameMatcher.find();
-                                objectName = objectNameMatcher.group(1);
-                                final Matcher bucketNameMatcher = Pattern.compile("\"bucket\":\"([^\"]*)\"").matcher(line);
-                                bucketNameMatcher.find();
-                                bucketName = bucketNameMatcher.group(1);
-                                metadata = line.getBytes(StandardCharsets.ISO_8859_1);
-                            } else {
-                                final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                                int c;
-                                while ((c = reader.read()) != -1) {
-                                    baos.write(c);
-                                }
-                                final byte[] temp = baos.toByteArray();
-                                final byte[] trailingEnding = ("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.ISO_8859_1);
-                                // check trailing
-                                // System.out.println(new String(temp));
-                                for (int i = trailingEnding.length - 1; i >= 0; i--) {
-                                    if (trailingEnding[i] != temp[(temp.length - trailingEnding.length) + i]) {
-                                        return newError(RestStatus.INTERNAL_SERVER_ERROR, "error parsing multipart request " + i);
-                                    }
-                                }
-                                objectData = Arrays.copyOf(temp, temp.length - trailingEnding.length);
-                            }
+                        if (line.equals("\r\n") || (line.length() == 0)) {
+                            // end of headers
+                            break;
+                        } else {
+                            final String[] header = line.split(":", 2);
+                            firstPartHeaders.put(header[0], singletonList(header[1]));
                         }
                     }
-                }
-                final Bucket bucket = buckets.get(bucketName);
-                if (bucket == null) {
-                    return newError(RestStatus.NOT_FOUND, "bucket not found");
-                }
-                if ((objectName != null) && (bucketName != null) && (objectData != null)) {
-                    //return newResponse(RestStatus.OK, emptyMap(), buildObjectResource(bucketName, objectName, objectData));
-                    // System.out.println(">>>>>>>>>>");
-                    // System.out.println(new String(objectData));
-                    // System.out.println(">>>>>>>>>>");
-                    bucket.objects.put(objectName, objectData);
-                    return new Response(RestStatus.OK, emptyMap(), XContentType.JSON.mediaType(), metadata);
-                } else {
-                    return newError(RestStatus.INTERNAL_SERVER_ERROR, "error parsing multipart request");
+                    final List<String> firstPartContentTypes = firstPartHeaders.getOrDefault("Content-Type",
+                            firstPartHeaders.get("Content-type"));
+                    if ((firstPartContentTypes == null)
+                            || (firstPartContentTypes.stream().noneMatch(x -> x.contains("application/json")))) {
+                        return newError(RestStatus.INTERNAL_SERVER_ERROR,
+                                "Error parsing multipart request. Metadata part expected to have the \"application/json\" content type.");
+                    }
+                    // read metadata part
+                    line = reader.readLine();
+                    final Matcher objectNameMatcher = Pattern.compile("\"name\":\"([^\"]*)\"").matcher(line);
+                    objectNameMatcher.find();
+                    final String objectName = objectNameMatcher.group(1);
+                    final Matcher bucketNameMatcher = Pattern.compile("\"bucket\":\"([^\"]*)\"").matcher(line);
+                    bucketNameMatcher.find();
+                    final String bucketName = bucketNameMatcher.group(1);
+                    final byte[] metadata = line.getBytes(StandardCharsets.ISO_8859_1);
+                    // read second part delimiter
+                    line = reader.readLine();
+                    if ((line == null) || (line.equals("--" + boundary) == false)) {
+                        return newError(RestStatus.INTERNAL_SERVER_ERROR,
+                                "Error parsing multipart request. Second part does not start with delimiter. "
+                                        + "Is the metadata multi-line?");
+                    }
+                    final Map<String, List<String>> secondPartHeaders = new HashMap<>();
+                    // Reads the second part's headers, if any
+                    while ((line = reader.readLine()) != null) {
+                        if (line.equals("\r\n") || (line.length() == 0)) {
+                            // end of headers
+                            break;
+                        } else {
+                            final String[] header = line.split(":", 2);
+                            secondPartHeaders.put(header[0], singletonList(header[1]));
+                        }
+                    }
+                    final List<String> secondPartTransferEncoding = secondPartHeaders.getOrDefault("Content-Transfer-Encoding",
+                            secondPartHeaders.get("content-transfer-encoding"));
+                    if ((secondPartTransferEncoding == null)
+                            || (secondPartTransferEncoding.stream().noneMatch(x -> x.contains("binary")))) {
+                        return newError(RestStatus.INTERNAL_SERVER_ERROR,
+                                "Error parsing multipart request. Data part expected to have the \"binary\" content transfer encoding.");
+                    }
+                    final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    int c;
+                    while ((c = reader.read()) != -1) {
+                        // one char to one byte, because of the ISO_8859_1 encoding
+                        baos.write(c);
+                    }
+                    final byte[] temp = baos.toByteArray();
+                    final byte[] trailingEnding = ("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.ISO_8859_1);
+                    // check trailing
+                    for (int i = trailingEnding.length - 1; i >= 0; i--) {
+                        if (trailingEnding[i] != temp[(temp.length - trailingEnding.length) + i]) {
+                            return newError(RestStatus.INTERNAL_SERVER_ERROR, "Error parsing multipart request.");
+                        }
+                    }
+                    final Bucket bucket = buckets.get(bucketName);
+                    if (bucket == null) {
+                        return newError(RestStatus.NOT_FOUND, "bucket not found");
+                    }
+                    final byte[] objectData = Arrays.copyOf(temp, temp.length - trailingEnding.length);
+                    if ((objectName != null) && (bucketName != null) && (objectData != null)) {
+                        bucket.objects.put(objectName, objectData);
+                        return new Response(RestStatus.OK, emptyMap(), XContentType.JSON.mediaType(), metadata);
+                    } else {
+                        return newError(RestStatus.INTERNAL_SERVER_ERROR, "error parsing multipart request");
+                    }
                 }
             } else {
                 return newError(RestStatus.INTERNAL_SERVER_ERROR, "upload type must be resumable or multipart");

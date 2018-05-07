@@ -375,12 +375,14 @@ the array type `int[][]`.
 <1> declare `int[] x`;
     assign default value of `null` to `x`
 <2> declare `float[] y`;
-    
-    assign a newly-allocated array type of `float` to `y`
+    allocate `1-d float array` instance with `length [10]`
+    -> `1-d float array`;
+    assign value of `1-d float array` to `y`
 <3> declare `def z`;
-    assign a newly-allocated array type of `float` to `z`
-<4> assign `1.0F` to the 9th index of `y`
-<5> assign the value of 9th index of `y` to the 0th index of `z`
+    allocate `1-d float array` instance with `length [5]` -> `1-d float array`;
+    assign value of `1-d float array` to `z`
+<4> assign value of `float 1.0` to `index [9]` of `y`
+<5> assign value of `index [9]` of `y` to `index [0]` of `z`
 +
 * Use of a multi-dimensional array.
 +
@@ -392,7 +394,9 @@ the array type `int[][]`.
 ----
 +
 <1> declare `int[][][] ia`;
-    assign a newly-allocated 3-dimensional array type of `int` to `ia3`
-<2> assign `99` to the 3rd index of the 2nd index of the 1st index of `ia3`
-<3> assign the value of the 3rd index of the 2nd index of the 1st index
-    of `ia3` to `i`
+    allocate `3-d int array` instance with length `[2, 3, 4]`
+    -> `3-d float array`;
+    assign value of `3-d float array` to `ia3`
+<2> assign value of `int 99` to `index [1, 2, 3]` of `ia3`
+<3> declare `int i`;
+    assign value of `index [1, 2, 3]` of `ia3` to `i`

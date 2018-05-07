@@ -96,7 +96,7 @@ public final class InternalRealms {
         map.put(FileRealmSettings.TYPE, config -> new FileRealm(config, resourceWatcherService));
         map.put(NativeRealmSettings.TYPE, config -> {
             final NativeRealm nativeRealm = new NativeRealm(config, nativeUsersStore);
-            securityLifecycleService.securityIndex().addIndexHealthChangeListener(nativeRealm::onSecurityIndexHealthChange);
+            securityLifecycleService.securityIndex().addIndexStateListener(nativeRealm::onSecurityIndexStateChange);
             return nativeRealm;
         });
         map.put(LdapRealmSettings.AD_TYPE, config -> new LdapRealm(LdapRealmSettings.AD_TYPE, config, sslService,

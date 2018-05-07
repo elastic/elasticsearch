@@ -105,6 +105,9 @@ analysis module.  ({pull}30397[#30397])
 
 {ref-64}/breaking_64_api_changes.html#copy-source-settings-on-resize[Allow copying source settings on index resize operations] ({pull}30255[#30255])
 
+Geo::
+* Add validation that geohashes are not empty and don't contain unsupported characters ({pull}30376[#30376])
+
 Rollup::
 * Validate timezone in range queries to ensure they match the selected job when
 searching ({pull}30338[#30338])

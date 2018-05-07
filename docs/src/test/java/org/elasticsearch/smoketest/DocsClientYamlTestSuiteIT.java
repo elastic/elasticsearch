@@ -115,7 +115,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         private static CompareAnalyzers parse(XContentParser parser) throws IOException {
             XContentLocation location = parser.getTokenLocation();
             CompareAnalyzers section = PARSER.parse(parser, location);
-            assert parser.currentToken() == Token.END_OBJECT;
+            assert parser.currentToken() == Token.END_OBJECT : "End of object required";
             parser.nextToken(); // throw out the END_OBJECT to conform with other ExecutableSections
             return section;
         }

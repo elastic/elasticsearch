@@ -163,6 +163,8 @@ synchronous and predictable. Also the trigger engine thread is only started on
 data nodes. And the Execute Watch API can be triggered regardless is watcher is
 started or stopped. ({pull}30118[#30118])
 
+Added put index template API to the high level rest client ({pull}30400[#30400])
+
 [float]
 === Bug Fixes
 
@@ -209,6 +211,8 @@ coming[6.3.1]
 === Bug Fixes
 
 Reduce the number of object allocations made by {security} when resolving the indices and aliases for a request ({pull}30180[#30180])
+
+Respect accept header on requests with no handler ({pull}30383[#30383])
 
 //[float]
 //=== Regressions

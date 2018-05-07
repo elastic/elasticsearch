@@ -2355,7 +2355,7 @@ public class InternalEngine extends Engine {
         }
         refresh(source, SearcherScope.INTERNAL);
         return new LuceneChangesSnapshot(() -> acquireSearcher(source, SearcherScope.INTERNAL), mapperService,
-            minSeqNo, maxSeqNo, requiredFullRange, () -> { });
+            minSeqNo, maxSeqNo, requiredFullRange);
     }
 
     @Override

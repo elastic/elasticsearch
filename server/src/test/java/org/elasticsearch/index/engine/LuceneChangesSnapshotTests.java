@@ -83,11 +83,11 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             fromSeqNo = between(0, numOps);
             toSeqNo = randomLongBetween(fromSeqNo, numOps * 2);
             try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(
-                () -> engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL), mapperService, fromSeqNo, toSeqNo, false, ()->{})) {
+                () -> engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL), mapperService, fromSeqNo, toSeqNo, false)) {
                 assertThat(snapshot, SnapshotMatchers.size(0));
             }
             try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(
-                () -> engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL), mapperService, fromSeqNo, toSeqNo, true,  ()->{})) {
+                () -> engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL), mapperService, fromSeqNo, toSeqNo, true)) {
                 IllegalStateException error = expectThrows(IllegalStateException.class, () -> drainAll(snapshot));
                 assertThat(error.getMessage(),
                     containsString("Not all operations between min_seqno [" + fromSeqNo + "] and max_seqno [" + toSeqNo + "] found"));
@@ -96,18 +96,18 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             fromSeqNo = randomLongBetween(0, refreshedSeqNo);
             toSeqNo = randomLongBetween(refreshedSeqNo + 1, numOps * 2);
             try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(
-                () -> engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL), mapperService, fromSeqNo, toSeqNo, false, ()->{})) {
+                () -> engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL), mapperService, fromSeqNo, toSeqNo, false)) {
                 assertThat(snapshot, SnapshotMatchers.containsSeqNoRange(fromSeqNo, refreshedSeqNo));
             }
             try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(
-                () -> engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL), mapperService, fromSeqNo, toSeqNo, true,  ()->{})) {
+                () -> engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL), mapperService, fromSeqNo, toSeqNo, true)) {
                 IllegalStateException error = expectThrows(IllegalStateException.class, () -> drainAll(snapshot));
                 assertThat(error.getMessage(),
                     containsString("Not all operations between min_seqno [" + fromSeqNo + "] and max_seqno [" + toSeqNo + "] found"));
             }
             toSeqNo = randomLongBetween(fromSeqNo, refreshedSeqNo);
             try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(
-                () -> engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL), mapperService, fromSeqNo, toSeqNo, true,  ()->{})) {
+                () -> engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL), mapperService, fromSeqNo, toSeqNo, true)) {
                 assertThat(snapshot, SnapshotMatchers.containsSeqNoRange(fromSeqNo, toSeqNo));
             }
         }

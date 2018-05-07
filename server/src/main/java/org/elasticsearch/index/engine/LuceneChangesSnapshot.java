@@ -73,10 +73,9 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
      * @param fromSeqNo         the min requesting seq# - inclusive
      * @param toSeqNo           the maximum requesting seq# - inclusive
      * @param requiredFullRange if true, the snapshot will strictly check for the existence of operations between fromSeqNo and toSeqNo
-     * @param onClose           a callback to be called when this snapshot is closed
      */
     LuceneChangesSnapshot(Supplier<Engine.Searcher> searcherFactory, MapperService mapperService,
-                          long fromSeqNo, long toSeqNo, boolean requiredFullRange, Closeable onClose) throws IOException {
+                          long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
         if (fromSeqNo < 0 || toSeqNo < 0 || fromSeqNo > toSeqNo) {
             throw new IllegalArgumentException("Invalid range; from_seqno [" + fromSeqNo + "], to_seqno [" + toSeqNo + "]");
         }
@@ -92,7 +91,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             this.searcher.setQueryCache(null);
             this.topDocs = searchOperations(searcher);
             success = true;
-            this.onClose = () -> IOUtils.close(onClose, engineSearcher);
+            this.onClose = engineSearcher;
         } finally {
             if (success == false) {
                 IOUtils.close(engineSearcher);

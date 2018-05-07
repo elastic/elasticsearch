@@ -611,7 +611,7 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Creates a new "translog" snapshot containing changes in the requesting range from the Lucene index
+     * Creates a new "translog" snapshot from Lucene for reading operations whose seqno in the requesting seqno range
      */
     public abstract Translog.Snapshot newLuceneChangesSnapshot(String source, MapperService mapperService,
                                                                long minSeqNo, long maxSeqNo, boolean requiredFullRange) throws IOException;

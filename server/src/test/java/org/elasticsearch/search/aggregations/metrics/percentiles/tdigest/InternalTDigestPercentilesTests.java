@@ -19,16 +19,25 @@
 
 package org.elasticsearch.search.aggregations.metrics.percentiles.tdigest;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.metrics.percentiles.InternalPercentilesTestCase;
 import org.elasticsearch.search.aggregations.metrics.percentiles.ParsedPercentiles;
+import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase<InternalTDigestPercentiles> {
 
@@ -113,5 +122,86 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
             throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalTDigestPercentiles(name, percents, state, keyed, formatter, pipelineAggregators, metaData);
+    }
+
+    public void testEmptyPercentilesXContent() throws IOException {
+        double[] percents = new double[]{1,2,3};
+        boolean keyed = randomBoolean();
+        DocValueFormat docValueFormat = randomNumericDocValueFormat();
+
+        final TDigestState state = new TDigestState(100);
+        InternalTDigestPercentiles agg = new InternalTDigestPercentiles("test", percents, state, keyed, docValueFormat,
+            Collections.emptyList(), Collections.emptyMap());
+
+        for (Percentile percentile : agg) {
+            Double value = percentile.getValue();
+            assertThat(agg.percentile(value), equalTo(Double.NaN));
+            assertThat(agg.percentileAsString(value), equalTo("NaN"));
+        }
+
+
+        XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
+        builder.startObject();
+        agg.doXContentBody(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        String expected;
+        if (keyed && docValueFormat.equals(DocValueFormat.RAW)) {
+            expected = "{\n" +
+                "  \"values\" : {\n" +
+                "    \"1.0\" : null,\n" +
+                "    \"2.0\" : null,\n" +
+                "    \"3.0\" : null\n" +
+                "  }\n" +
+                "}";
+        } else if (keyed) {
+            expected = "{\n" +
+                "  \"values\" : {\n" +
+                "    \"1.0\" : null,\n" +
+                "    \"1.0_as_string\" : null,\n" +
+                "    \"2.0\" : null,\n" +
+                "    \"2.0_as_string\" : null,\n" +
+                "    \"3.0\" : null,\n" +
+                "    \"3.0_as_string\" : null\n" +
+                "  }\n" +
+                "}";
+        } else if (keyed == false && docValueFormat.equals(DocValueFormat.RAW)) {
+            expected = "{\n" +
+                "  \"values\" : [\n" +
+                "    {\n" +
+                "      \"key\" : 1.0,\n" +
+                "      \"value\" : null\n" +
+                "    },\n" +
+                "    {\n" +
+                "      \"key\" : 2.0,\n" +
+                "      \"value\" : null\n" +
+                "    },\n" +
+                "    {\n" +
+                "      \"key\" : 3.0,\n" +
+                "      \"value\" : null\n" +
+                "    }\n" +
+                "  ]\n" +
+                "}";
+        } else {
+            expected = "{\n" +
+                "  \"values\" : [\n" +
+                "    {\n" +
+                "      \"key\" : 1.0,\n" +
+                "      \"value\" : null,\n" +
+                "      \"value_as_string\" : null\n" +
+                "    },\n" +
+                "    {\n" +
+                "      \"key\" : 2.0,\n" +
+                "      \"value\" : null,\n" +
+                "      \"value_as_string\" : null\n" +
+                "    },\n" +
+                "    {\n" +
+                "      \"key\" : 3.0,\n" +
+                "      \"value\" : null,\n" +
+                "      \"value_as_string\" : null\n" +
+                "    }\n" +
+                "  ]\n" +
+                "}";
+        }
+        assertThat(Strings.toString(builder), equalTo(expected));
     }
 }

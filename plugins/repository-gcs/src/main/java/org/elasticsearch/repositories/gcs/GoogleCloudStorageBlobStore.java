@@ -189,6 +189,8 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
     void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
         final BlobInfo blobInfo = BlobInfo.newBuilder(bucket, blobName).build();
         if (blobSize > (5 * 1024 * 1024)) {
+            // uses "resumable upload" for files larger than 5MB, see
+            // https://cloud.google.com/storage/docs/json_api/v1/how-tos/multipart-upload
             final WriteChannel writeChannel = SocketAccess.doPrivilegedIOException(() -> storage.writer(blobInfo));
             Streams.copy(inputStream, java.nio.channels.Channels.newOutputStream(new WritableByteChannel() {
                 @Override
@@ -208,6 +210,8 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
                 }
             }));
         } else {
+            // uses multipart upload for small files (1 request for both data and metadata,
+            // gziped)
             final ByteArrayOutputStream baos = new ByteArrayOutputStream(Math.toIntExact(blobSize));
             Streams.copy(inputStream, baos);
             SocketAccess.doPrivilegedVoidIOException(() -> storage.create(blobInfo, baos.toByteArray()));

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.repositories.gcs;
 
-import com.google.cloud.storage.Storage;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -38,6 +37,8 @@ import static org.elasticsearch.common.settings.Setting.Property;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
 import static org.elasticsearch.common.settings.Setting.simpleString;
+
+import com.google.cloud.storage.Storage;
 
 class GoogleCloudStorageRepository extends BlobStoreRepository {
 
@@ -67,12 +68,12 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
                                         GoogleCloudStorageService storageService) throws Exception {
         super(metadata, environment.settings(), namedXContentRegistry);
 
-        final String bucket = getSetting(BUCKET, metadata);
-        final String clientName = CLIENT_NAME.get(metadata.settings());
-        final String basePath = BASE_PATH.get(metadata.settings());
+        String bucket = getSetting(BUCKET, metadata);
+        String clientName = CLIENT_NAME.get(metadata.settings());
+        String basePath = BASE_PATH.get(metadata.settings());
         if (Strings.hasLength(basePath)) {
             BlobPath path = new BlobPath();
-            for (final String elem : basePath.split("/")) {
+            for (String elem : basePath.split("/")) {
                 path = path.add(elem);
             }
             this.basePath = path;
@@ -85,7 +86,7 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
 
         logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath, chunkSize, compress);
 
-        final Storage client = SocketAccess.doPrivilegedIOException(() -> storageService.createClient(clientName));
+        Storage client = SocketAccess.doPrivilegedIOException(() -> storageService.createClient(clientName));
         this.blobStore = new GoogleCloudStorageBlobStore(settings, bucket, client);
     }
 
@@ -114,11 +115,11 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
      * Get a given setting from the repository settings, throwing a {@link RepositoryException} if the setting does not exist or is empty.
      */
     static <T> T getSetting(Setting<T> setting, RepositoryMetaData metadata) {
-        final T value = setting.get(metadata.settings());
+        T value = setting.get(metadata.settings());
         if (value == null) {
             throw new RepositoryException(metadata.name(), "Setting [" + setting.getKey() + "] is not defined for repository");
         }
-        if ((value instanceof String) && ((Strings.hasText((String) value)) == false)) {
+        if ((value instanceof String) && (Strings.hasText((String) value)) == false) {
             throw new RepositoryException(metadata.name(), "Setting [" + setting.getKey() + "] is empty for repository");
         }
         return value;

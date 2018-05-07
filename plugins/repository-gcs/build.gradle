@@ -18,9 +18,6 @@
  */
 
 import org.elasticsearch.gradle.test.AntFixture
-import java.security.KeyPair
-import java.security.KeyPairGenerator
-
 
 esplugin {
   description 'The GCS repository plugin adds Google Cloud Storage support for repositories.'

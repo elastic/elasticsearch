@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ccr;
 
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -204,6 +205,17 @@ public class ShardChangesIT extends ESIntegTestCase {
             final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
             final PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
             assertThat(tasks.tasks().size(), equalTo(0));
+
+            ListTasksRequest listTasksRequest = new ListTasksRequest();
+            listTasksRequest.setDetailed(true);
+            ListTasksResponse listTasksResponse = client().admin().cluster().listTasks(listTasksRequest).get();
+            int numNodeTasks = 0;
+            for (TaskInfo taskInfo : listTasksResponse.getTasks()) {
+                if (taskInfo.getAction().startsWith(ListTasksAction.NAME) == false) {
+                    numNodeTasks++;
+                }
+            }
+            assertThat(numNodeTasks, equalTo(0));
         });
     }
 

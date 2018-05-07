@@ -29,6 +29,11 @@ public class ShardFollowNodeTask extends AllocatedPersistentTask {
         super(id, type, action, description, parentTask, headers);
     }
 
+    @Override
+    protected void onCancelled() {
+        markAsCompleted();
+    }
+
     void updateProcessedGlobalCheckpoint(long processedGlobalCheckpoint) {
         this.processedGlobalCheckpoint.set(processedGlobalCheckpoint);
     }

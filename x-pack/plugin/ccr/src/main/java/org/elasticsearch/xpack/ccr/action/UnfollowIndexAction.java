@@ -10,10 +10,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -81,13 +81,32 @@ public class UnfollowIndexAction extends Action<UnfollowIndexAction.Request, Unf
         }
     }
 
-    public static class Response extends ActionResponse {
+    public static class Response extends AcknowledgedResponse {
+
+        Response(boolean acknowledged) {
+            super(acknowledged);
+        }
+
+        Response() {
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            readAcknowledged(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            writeAcknowledged(out);
+        }
 
     }
 
     public static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
 
-        public RequestBuilder(ElasticsearchClient client) {
+        RequestBuilder(ElasticsearchClient client) {
             super(client, INSTANCE, new Request());
         }
     }
@@ -147,7 +166,7 @@ public class UnfollowIndexAction extends Action<UnfollowIndexAction.Request, Unf
 
                                 if (error == null) {
                                     // include task ids?
-                                    listener.onResponse(new Response());
+                                    listener.onResponse(new Response(true));
                                 } else {
                                     // TODO: cancel all started tasks
                                     listener.onFailure(error);

@@ -138,6 +138,16 @@ class MockStorage extends Storage {
                         throw newBucketNotFoundException(getBucket());
                     }
 
+                    if (getIfGenerationMatch() != null) {
+                        if (getIfGenerationMatch() == 0L) {
+                            if (blobs.containsKey(getName())) {
+                                throw newPreconditionFailedException(getName());
+                            }
+                        } else {
+                            throw new AssertionError("not implemented");
+                        }
+                    }
+
                     ByteArrayOutputStream out = new ByteArrayOutputStream();
                     Streams.copy(insertStream.getInputStream(), out);
                     blobs.put(getName(), out.toByteArray());
@@ -233,6 +243,11 @@ class MockStorage extends Storage {
 
     private static GoogleJsonResponseException newObjectNotFoundException(final String object) {
         HttpResponseException.Builder builder = new HttpResponseException.Builder(404, "Object not found: " + object, new HttpHeaders());
+        return new GoogleJsonResponseException(builder, new GoogleJsonError());
+    }
+
+    private static GoogleJsonResponseException newPreconditionFailedException(final String object) {
+        HttpResponseException.Builder builder = new HttpResponseException.Builder(412, "Precondition Failed: " + object, new HttpHeaders());
         return new GoogleJsonResponseException(builder, new GoogleJsonError());
     }
 

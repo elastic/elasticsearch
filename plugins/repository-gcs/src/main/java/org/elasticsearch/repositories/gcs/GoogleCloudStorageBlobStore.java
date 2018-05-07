@@ -42,6 +42,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -56,6 +57,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
+import static java.net.HttpURLConnection.HTTP_PRECON_FAILED;
 
 class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore {
 
@@ -191,7 +193,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
         } catch (GoogleJsonResponseException e) {
             GoogleJsonError error = e.getDetails();
             if ((e.getStatusCode() == HTTP_NOT_FOUND) || ((error != null) && (error.getCode() == HTTP_NOT_FOUND))) {
-                throw new NoSuchFileException(e.getMessage());
+                throw new NoSuchFileException(blobName, null, e.getMessage());
             }
             throw e;
         }
@@ -209,8 +211,16 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
             stream.setLength(blobSize);
 
             Storage.Objects.Insert insert = client.objects().insert(bucket, null, stream);
+            insert.setIfGenerationMatch(0L); // ensures that the file does not already exist
             insert.setName(blobName);
-            insert.execute();
+            try {
+                insert.execute();
+            } catch (GoogleJsonResponseException e) {
+                GoogleJsonError error = e.getDetails();
+                if ((e.getStatusCode() == HTTP_PRECON_FAILED) || ((error != null) && (error.getCode() == HTTP_PRECON_FAILED))) {
+                    throw new FileAlreadyExistsException(blobName, null, e.getMessage());
+                }
+            }
         });
     }
 

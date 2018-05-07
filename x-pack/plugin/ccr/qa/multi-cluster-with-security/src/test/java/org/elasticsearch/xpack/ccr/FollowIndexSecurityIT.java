@@ -84,12 +84,44 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
             ensureYellow(indexName1);
             followIndex("leader_cluster:" + indexName1, indexName1);
             assertBusy(() -> verifyDocuments(client(), indexName1, numDocs));
+            assertThat(countCcrNodeTasks(), equalTo(5));
+            assertOK(client().performRequest("POST", "/_xpack/ccr/" + indexName1 + "/_unfollow"));
+            // Make sure that there are no other ccr relates operations running:
+            assertBusy(() -> {
+                Map<String, Object> clusterState = toMap(adminClient().performRequest("GET", "/_cluster/state"));
+                List<?> tasks = (List<?>) XContentMapValues.extractValue("metadata.persistent_tasks.tasks", clusterState);
+                assertThat(tasks.size(), equalTo(0));
+                assertThat(countCcrNodeTasks(), equalTo(0));
+            });
 
             // TODO: remove mapping here when ccr syncs mappings too
             createIndex(indexName2, indexSettings, "\"doc\": { \"properties\": { \"field\": { \"type\": \"long\" }}}");
             ensureYellow(indexName2);
             followIndex("leader_cluster:" + indexName2, indexName2);
+            // Verify that nothing has been replicated and no node tasks are running
+            // These node tasks should have been failed due to the fact that the user
+            // has no sufficient priviledges.
+            assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
+            verifyDocuments(adminClient(), indexName2, 0);
         }
+    }
+
+    private int countCcrNodeTasks() throws IOException {
+        Map<String, Object> rsp1 = toMap(adminClient().performRequest("GET", "/_tasks",
+            Collections.singletonMap("detailed", "true")));
+        Map<?, ?> nodes = (Map<?, ?>) rsp1.get("nodes");
+        assertThat(nodes.size(), equalTo(1));
+        Map<?, ?> node = (Map<?, ?>) nodes.values().iterator().next();
+        Map<?, ?> nodeTasks = (Map<?, ?>) node.get("tasks");
+        int numNodeTasks = 0;
+        for (Map.Entry<?, ?> entry : nodeTasks.entrySet()) {
+            Map<?, ?> nodeTask = (Map<?, ?>) entry.getValue();
+            String action = (String) nodeTask.get("action");
+            if (action.startsWith("shard_follow")) {
+                numNodeTasks++;
+            }
+        }
+        return numNodeTasks;
     }
 
     private static void index(String index, String id, Object... fields) throws IOException {
@@ -116,9 +148,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
         params.put("size", Integer.toString(expectedNumDocs));
         params.put("sort", "field:asc");
         params.put("pretty", "true");
-        String strResponse = EntityUtils.toString(client.performRequest("GET", "/" + index + "/_search", params).getEntity());
-        logger.info("RESPONSE: {}", strResponse);
-        Map<String, ?> response = toMap(strResponse);
+        Map<String, ?> response = toMap(client.performRequest("GET", "/" + index + "/_search", params));
 
         int numDocs = (int) XContentMapValues.extractValue("hits.total", response);
         assertThat(numDocs, equalTo(expectedNumDocs));

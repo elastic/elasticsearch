@@ -37,9 +37,10 @@ public enum DataType {
     OBJECT(      JDBCType.STRUCT,    null,            -1,                0,                 0),
     NESTED(      JDBCType.STRUCT,    null,            -1,                0,                 0),
     BINARY(      JDBCType.VARBINARY, byte[].class,    -1,                Integer.MAX_VALUE, 0),
-    // since ODBC and JDBC interpret precision for Date as display size, the precision is 19 (number of digits) + Z (the UTC timezone)
+    // since ODBC and JDBC interpret precision for Date as display size,
+    // the precision is 23 (number of chars in ISO8601 with millis) + Z (the UTC timezone)
     // see https://github.com/elastic/elasticsearch/issues/30386#issuecomment-386807288
-    DATE(        JDBCType.TIMESTAMP, Timestamp.class, Long.BYTES,        20,                20);
+    DATE(        JDBCType.TIMESTAMP, Timestamp.class, Long.BYTES,        24,                24);
     // @formatter:on
 
     private static final Map<JDBCType, DataType> jdbcToEs;
@@ -77,7 +78,7 @@ public enum DataType {
      * <p>
      * Specified column size. For numeric data, this is the maximum precision. For character
      * data, this is the length in characters. For datetime datatypes, this is the length in characters of the
-     * String representation (assuming the maximum allowed defaultPrecision of the fractional seconds component).
+     * String representation (assuming the maximum allowed defaultPrecision of the fractional milliseconds component).
      */
     public final int defaultPrecision;
 

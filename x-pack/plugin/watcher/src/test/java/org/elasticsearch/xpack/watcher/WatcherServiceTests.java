@@ -68,6 +68,7 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -199,7 +200,7 @@ public class WatcherServiceTests extends ESTestCase {
         when(client.clearScroll(any(ClearScrollRequest.class))).thenReturn(clearScrollFuture);
         clearScrollFuture.onResponse(new ClearScrollResponse(true, 1));
 
-        service.start(clusterState);
+        service.start(clusterState, () -> {});
 
         ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
         verify(triggerService).start(captor.capture());
@@ -236,6 +237,27 @@ public class WatcherServiceTests extends ESTestCase {
         service.pauseExecution("pausing");
         assertThat(triggerService.count(), is(0L));
         verify(triggerEngine).pauseExecution();
+    }
+
+    // if we have to reload the watcher service, the execution service should not be paused, as this might
+    // result in missing executions
+    public void testReloadingWatcherDoesNotPauseExecutionService() {
+        ExecutionService executionService = mock(ExecutionService.class);
+        TriggerService triggerService = mock(TriggerService.class);
+        WatcherService service = new WatcherService(Settings.EMPTY, triggerService, mock(TriggeredWatchStore.class),
+            executionService, mock(WatchParser.class), mock(Client.class), executorService) {
+            @Override
+            void stopExecutor() {
+            }
+        };
+
+        ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
+        csBuilder.metaData(MetaData.builder());
+
+        service.reload(csBuilder.build(), "whatever");
+        verify(executionService).clearExecutionsAndQueue();
+        verify(executionService, never()).pause();
+        verify(triggerService).pauseExecution();
     }
 
     private static DiscoveryNode newNode() {

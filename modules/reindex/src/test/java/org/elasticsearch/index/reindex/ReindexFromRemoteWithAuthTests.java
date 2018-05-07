@@ -76,9 +76,13 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
     }
 
     @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
+    }
+
+    @Override
     protected Settings nodeSettings() {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings());
-        settings.put(NetworkModule.HTTP_ENABLED.getKey(), true);
         // Whitelist reindexing from the http host we're going to use
         settings.put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "127.0.0.1:*");
         settings.put(NetworkModule.HTTP_TYPE_KEY, Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME);

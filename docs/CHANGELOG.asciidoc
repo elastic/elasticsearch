@@ -29,6 +29,8 @@
 Fail snapshot operations early when creating or deleting a snapshot on a repository that has been
 written to by an older Elasticsearch after writing to it with a newer Elasticsearch version. ({pull}30140[#30140])
 
+Fix NPE in 'more_like_this' when field has zero tokens ({pull}30365[#30365])
+
 === Regressions
 
 === Known Issues
@@ -40,6 +42,8 @@ written to by an older Elasticsearch after writing to it with a newer Elasticsea
 === Enhancements
 
 === Bug Fixes
+
+Fix NPE in 'more_like_this' when field has zero tokens ({pull}30365[#30365])
 
 === Regressions
 

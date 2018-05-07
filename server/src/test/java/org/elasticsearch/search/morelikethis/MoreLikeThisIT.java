@@ -108,8 +108,6 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
         client().index(indexRequest("test").type("type").id("1").source(jsonBuilder().startObject()
             .field("myField", "and_foo").field("empty", "").endObject())).actionGet();
-
-
         client().index(indexRequest("test").type("type").id("2").source(jsonBuilder().startObject()
             .field("myField", "and_foo").field("empty", "").endObject())).actionGet();
 

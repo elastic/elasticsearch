@@ -1,5 +1,8 @@
-[[xpack-security]]
-= Securing the Elastic Stack
+[[elasticsearch-security]]
+= Elasticsearch Security: Securing the Elastic Stack
+++++
+<titleabbrev>Securing the Elastic Stack</titleabbrev>
+++++
 
 [partintro]
 --

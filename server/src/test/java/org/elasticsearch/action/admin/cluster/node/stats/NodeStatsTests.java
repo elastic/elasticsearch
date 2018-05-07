@@ -197,18 +197,18 @@ public class NodeStatsTests extends ESTestCase {
                     FsInfo.IoStats ioStats = fs.getIoStats();
                     FsInfo.IoStats deserializedIoStats = deserializedFs.getIoStats();
                     assertEquals(ioStats.getTotalOperations(), deserializedIoStats.getTotalOperations());
-                    assertEquals(ioStats.getTotalReadKilobytes(), deserializedIoStats.getTotalReadKilobytes());
+                    assertEquals(ioStats.getTotalReadBytes(), deserializedIoStats.getTotalReadBytes());
                     assertEquals(ioStats.getTotalReadOperations(), deserializedIoStats.getTotalReadOperations());
-                    assertEquals(ioStats.getTotalWriteKilobytes(), deserializedIoStats.getTotalWriteKilobytes());
+                    assertEquals(ioStats.getTotalWriteBytes(), deserializedIoStats.getTotalWriteBytes());
                     assertEquals(ioStats.getTotalWriteOperations(), deserializedIoStats.getTotalWriteOperations());
                     assertEquals(ioStats.getDevicesStats().length, deserializedIoStats.getDevicesStats().length);
                     for (int i = 0; i < ioStats.getDevicesStats().length; i++) {
                         FsInfo.DeviceStats deviceStats = ioStats.getDevicesStats()[i];
                         FsInfo.DeviceStats deserializedDeviceStats = deserializedIoStats.getDevicesStats()[i];
                         assertEquals(deviceStats.operations(), deserializedDeviceStats.operations());
-                        assertEquals(deviceStats.readKilobytes(), deserializedDeviceStats.readKilobytes());
+                        assertEquals(deviceStats.readBytes(), deserializedDeviceStats.readBytes());
                         assertEquals(deviceStats.readOperations(), deserializedDeviceStats.readOperations());
-                        assertEquals(deviceStats.writeKilobytes(), deserializedDeviceStats.writeKilobytes());
+                        assertEquals(deviceStats.writeBytes(), deserializedDeviceStats.writeBytes());
                         assertEquals(deviceStats.writeOperations(), deserializedDeviceStats.writeOperations());
                     }
                 }

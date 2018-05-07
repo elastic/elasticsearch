@@ -289,16 +289,16 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             return (currentWritesCompleted - previousWritesCompleted);
         }
 
-        public long readKilobytes() {
+        public long readBytes() {
             if (previousSectorsRead == -1) return -1;
 
-            return (currentSectorsRead - previousSectorsRead) / 2;
+            return (currentSectorsRead - previousSectorsRead) * 512;
         }
 
-        public long writeKilobytes() {
+        public long writeBytes() {
             if (previousSectorsWritten == -1) return -1;
 
-            return (currentSectorsWritten - previousSectorsWritten) / 2;
+            return (currentSectorsWritten - previousSectorsWritten) * 512;
         }
 
         @Override
@@ -307,8 +307,12 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             builder.field(IoStats.OPERATIONS, operations());
             builder.field(IoStats.READ_OPERATIONS, readOperations());
             builder.field(IoStats.WRITE_OPERATIONS, writeOperations());
-            builder.field(IoStats.READ_KILOBYTES, readKilobytes());
-            builder.field(IoStats.WRITE_KILOBYTES, writeKilobytes());
+            if (readBytes() != -1) {
+                builder.byteSizeField(IoStats.READ_BYTES, IoStats.READ, readBytes());
+            }
+            if (writeBytes() != -1) {
+                builder.byteSizeField(IoStats.WRITE_BYTES, IoStats.WRITE, writeBytes());
+            }
             return builder;
         }
 
@@ -319,35 +323,37 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         private static final String OPERATIONS = "operations";
         private static final String READ_OPERATIONS = "read_operations";
         private static final String WRITE_OPERATIONS = "write_operations";
-        private static final String READ_KILOBYTES = "read_kilobytes";
-        private static final String WRITE_KILOBYTES = "write_kilobytes";
+        private static final String READ = "read";
+        private static final String READ_BYTES = "read_bytes";
+        private static final String WRITE = "write";
+        private static final String WRITE_BYTES = "write_bytes";
 
         final DeviceStats[] devicesStats;
         final long totalOperations;
         final long totalReadOperations;
         final long totalWriteOperations;
-        final long totalReadKilobytes;
-        final long totalWriteKilobytes;
+        final long totalReadBytes;
+        final long totalWriteBytes;
 
         public IoStats(final DeviceStats[] devicesStats) {
             this.devicesStats = devicesStats;
             long totalOperations = 0;
             long totalReadOperations = 0;
             long totalWriteOperations = 0;
-            long totalReadKilobytes = 0;
-            long totalWriteKilobytes = 0;
+            long totalReadBytes = 0;
+            long totalWriteBytes = 0;
             for (DeviceStats deviceStats : devicesStats) {
                 totalOperations += deviceStats.operations() != -1 ? deviceStats.operations() : 0;
                 totalReadOperations += deviceStats.readOperations() != -1 ? deviceStats.readOperations() : 0;
                 totalWriteOperations += deviceStats.writeOperations() != -1 ? deviceStats.writeOperations() : 0;
-                totalReadKilobytes += deviceStats.readKilobytes() != -1 ? deviceStats.readKilobytes() : 0;
-                totalWriteKilobytes += deviceStats.writeKilobytes() != -1 ? deviceStats.writeKilobytes() : 0;
+                totalReadBytes += deviceStats.readBytes() != -1 ? deviceStats.readBytes() : 0;
+                totalWriteBytes += deviceStats.writeBytes() != -1 ? deviceStats.writeBytes() : 0;
             }
             this.totalOperations = totalOperations;
             this.totalReadOperations = totalReadOperations;
             this.totalWriteOperations = totalWriteOperations;
-            this.totalReadKilobytes = totalReadKilobytes;
-            this.totalWriteKilobytes = totalWriteKilobytes;
+            this.totalReadBytes = totalReadBytes;
+            this.totalWriteBytes = totalWriteBytes;
         }
 
         public IoStats(StreamInput in) throws IOException {
@@ -360,8 +366,8 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             this.totalOperations = in.readLong();
             this.totalReadOperations = in.readLong();
             this.totalWriteOperations = in.readLong();
-            this.totalReadKilobytes = in.readLong();
-            this.totalWriteKilobytes = in.readLong();
+            this.totalReadBytes = in.readLong();
+            this.totalWriteBytes = in.readLong();
         }
 
         @Override
@@ -373,8 +379,8 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             out.writeLong(totalOperations);
             out.writeLong(totalReadOperations);
             out.writeLong(totalWriteOperations);
-            out.writeLong(totalReadKilobytes);
-            out.writeLong(totalWriteKilobytes);
+            out.writeLong(totalReadBytes);
+            out.writeLong(totalWriteBytes);
         }
 
         public DeviceStats[] getDevicesStats() {
@@ -393,12 +399,12 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             return totalWriteOperations;
         }
 
-        public long getTotalReadKilobytes() {
-            return totalReadKilobytes;
+        public long getTotalReadBytes() {
+            return totalReadBytes;
         }
 
-        public long getTotalWriteKilobytes() {
-            return totalWriteKilobytes;
+        public long getTotalWriteBytes() {
+            return totalWriteBytes;
         }
 
         @Override
@@ -416,8 +422,12 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
                 builder.field(OPERATIONS, totalOperations);
                 builder.field(READ_OPERATIONS, totalReadOperations);
                 builder.field(WRITE_OPERATIONS, totalWriteOperations);
-                builder.field(READ_KILOBYTES, totalReadKilobytes);
-                builder.field(WRITE_KILOBYTES, totalWriteKilobytes);
+                if (totalReadBytes != -1) {
+                    builder.byteSizeField(READ_BYTES, READ, totalReadBytes);
+                }
+                if (totalWriteBytes != -1) {
+                    builder.byteSizeField(WRITE_BYTES, WRITE, totalWriteBytes);
+                }
                 builder.endObject();
             }
             return builder;

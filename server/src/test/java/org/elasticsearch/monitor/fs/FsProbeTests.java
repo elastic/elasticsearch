@@ -239,8 +239,8 @@ public class FsProbeTests extends ESTestCase {
         assertThat(second.totalOperations, equalTo(575L));
         assertThat(second.totalReadOperations, equalTo(261L));
         assertThat(second.totalWriteOperations, equalTo(314L));
-        assertThat(second.totalReadKilobytes, equalTo(2392L));
-        assertThat(second.totalWriteKilobytes, equalTo(1236L));
+        assertThat(second.totalReadBytes, equalTo(2449408L));
+        assertThat(second.totalWriteBytes, equalTo(1265664L));
     }
 
     public void testAdjustForHugeFilesystems() throws Exception {

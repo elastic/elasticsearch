@@ -55,8 +55,8 @@ public class DeviceStatsTests extends ESTestCase {
         assertThat(current.operations(), equalTo(1024L + 2048L));
         assertThat(current.readOperations(), equalTo(1024L));
         assertThat(current.writeOperations(), equalTo(2048L));
-        assertThat(current.readKilobytes(), equalTo(16384L / 2));
-        assertThat(current.writeKilobytes(), equalTo(32768L / 2));
+        assertThat(current.readBytes(), equalTo(16777216L / 2));
+        assertThat(current.writeBytes(), equalTo(33554432L / 2));
     }
 
 }

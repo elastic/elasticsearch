@@ -645,7 +645,7 @@ final class RequestConverters {
         return request;
     }
 
-    static Request modulesGetRepositories(GetRepositoriesRequest getRepositoriesRequest) {
+    static Request getRepositories(GetRepositoriesRequest getRepositoriesRequest) {
         Request request = new Request(HttpGet.METHOD_NAME, "/_snapshot");
 
         Params parameters = new Params(request);

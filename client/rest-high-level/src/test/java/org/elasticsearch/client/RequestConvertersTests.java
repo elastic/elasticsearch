@@ -29,6 +29,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -1425,6 +1426,24 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
         assertToXContentBody(updateSettingsRequest, request.getEntity());
         assertEquals(expectedParams, request.getParameters());
+    }
+
+    public void testGetRepositories() {
+        Map<String, String> expectedParams = new HashMap<>();
+        expectedParams.put("master_timeout", "30s");
+
+        GetRepositoriesRequest getRepositoriesRequest = new GetRepositoriesRequest();
+
+        if (randomBoolean()) {
+            String[] entries = new String[] {"a", "b", "c"};
+            getRepositoriesRequest.repositories(entries);
+            expectedParams.put("repository", String.join(",", entries));
+        }
+
+        Request request = RequestConverters.getRepositories(getRepositoriesRequest);
+        assertThat("/_snapshot", equalTo(request.getEndpoint()));
+        assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
+        assertThat(expectedParams, equalTo(request.getParameters()));
     }
 
     public void testPutTemplateRequest() throws Exception {

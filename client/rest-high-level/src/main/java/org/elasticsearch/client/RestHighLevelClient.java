@@ -26,6 +26,8 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
+import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -189,7 +191,6 @@ public class RestHighLevelClient implements Closeable {
 
     private final IndicesClient indicesClient = new IndicesClient(this);
     private final ClusterClient clusterClient = new ClusterClient(this);
-    private final ModulesClient modulesClient = new ModulesClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -251,15 +252,6 @@ public class RestHighLevelClient implements Closeable {
      */
     public final ClusterClient cluster() {
         return clusterClient;
-    }
-
-    /**
-     * Provides a {@link ModulesClient} which can be used to access the various Modules APIs.
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules.html">Modules APIs on elastic.co</a>
-     */
-    public final ModulesClient modules() {
-        return modulesClient;
     }
 
     /**
@@ -544,6 +536,33 @@ public class RestHighLevelClient implements Closeable {
                                      Header... headers) {
         performRequestAsyncAndParseEntity(fieldCapabilitiesRequest, RequestConverters::fieldCaps,
             FieldCapabilitiesResponse::fromXContent, listener, emptySet(), headers);
+    }
+
+    /**
+     * Gets a list of snapshot repositories. If the list of repositories is empty or it contains a single element "_all", all
+     * registered repositories are returned.
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
+     * API on elastic.co</a>
+     */
+    public GetRepositoriesResponse getRepositories(GetRepositoriesRequest getRepositoriesRequest, Header... headers)
+        throws IOException {
+        return performRequestAndParseEntity(getRepositoriesRequest, RequestConverters::getRepositories,
+            GetRepositoriesResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously gets a list of snapshot repositories. If the list of repositories is empty or it contains a single element "_all", all
+     * registered repositories are returned.
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
+     * API on elastic.co</a>
+     */
+
+    public void getRepositoriesAsync(GetRepositoriesRequest getRepositoriesRequest,
+                                     ActionListener<GetRepositoriesResponse> listener, Header... headers) {
+        performRequestAsyncAndParseEntity(getRepositoriesRequest, RequestConverters::getRepositories,
+            GetRepositoriesResponse::fromXContent, listener, emptySet(), headers);
     }
 
     protected final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,

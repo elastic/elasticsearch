@@ -34,6 +34,8 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+
 /**
  * Get repositories response
  */
@@ -78,9 +80,7 @@ public class GetRepositoriesResponse extends ActionResponse implements ToXConten
     }
 
     public static GetRepositoriesResponse fromXContent(XContentParser parser) throws IOException {
-        if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException("failed to parse repositories, expected start object token");
-        }
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
         return new GetRepositoriesResponse(RepositoriesMetaData.fromXContent(parser));
     }
 }

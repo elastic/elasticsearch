@@ -276,7 +276,7 @@ public class KeyStoreWrapper implements SecureSettings {
 
     @Override
     public boolean isLoaded() {
-        return entries.get() != null && closed == false;
+        return entries.get() != null;
     }
 
     /** Return true iff calling {@link #decrypt(char[])} requires a non-empty password. */

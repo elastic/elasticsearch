@@ -17,28 +17,27 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.thaw;
+package org.elasticsearch.action.admin.indices.unfreeze;
 
-import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.cluster.ack.IndicesClusterStateUpdateRequest;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- * Cluster state update request that allows to close one or more indices
- */
-public class ThawIndexClusterStateUpdateRequest extends IndicesClusterStateUpdateRequest<ThawIndexClusterStateUpdateRequest> {
+public class UnfreezeIndexAction extends Action<UnfreezeIndexRequest, UnfreezeIndexResponse, UnfreezeIndexRequestBuilder> {
 
-    private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
+    public static final UnfreezeIndexAction INSTANCE = new UnfreezeIndexAction();
+    public static final String NAME = "indices:admin/unfreeze";
 
-    ThawIndexClusterStateUpdateRequest() {
-
+    private UnfreezeIndexAction() {
+        super(NAME);
     }
 
-    public ActiveShardCount waitForActiveShards() {
-        return waitForActiveShards;
+    @Override
+    public UnfreezeIndexResponse newResponse() {
+        return new UnfreezeIndexResponse();
     }
 
-    public ThawIndexClusterStateUpdateRequest waitForActiveShards(ActiveShardCount waitForActiveShards) {
-        this.waitForActiveShards = waitForActiveShards;
-        return this;
+    @Override
+    public UnfreezeIndexRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new UnfreezeIndexRequestBuilder(client, this);
     }
 }

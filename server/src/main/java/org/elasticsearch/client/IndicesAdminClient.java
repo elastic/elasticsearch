@@ -113,9 +113,9 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResp
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
-import org.elasticsearch.action.admin.indices.thaw.ThawIndexRequest;
-import org.elasticsearch.action.admin.indices.thaw.ThawIndexRequestBuilder;
-import org.elasticsearch.action.admin.indices.thaw.ThawIndexResponse;
+import org.elasticsearch.action.admin.indices.unfreeze.UnfreezeIndexRequest;
+import org.elasticsearch.action.admin.indices.unfreeze.UnfreezeIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.unfreeze.UnfreezeIndexResponse;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequest;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequestBuilder;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusResponse;
@@ -381,29 +381,29 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     FreezeIndexRequestBuilder prepareFreeze(String... indices);
 
     /**
-     * Thaw an index based on the index name.
+     * Unfreeze an index based on the index name.
      *
-     * @param request The thaw index request
+     * @param request The unfreeze index request
      * @return The result future
-     * @see org.elasticsearch.client.Requests#thawIndexRequest(String)
+     * @see org.elasticsearch.client.Requests#unfreezeIndexRequest(String)
      */
-    ActionFuture<ThawIndexResponse> thaw(ThawIndexRequest request);
+    ActionFuture<UnfreezeIndexResponse> unfreeze(UnfreezeIndexRequest request);
 
     /**
-     * Thaw an index based on the index name.
+     * Unfreeze an index based on the index name.
      *
-     * @param request  The thaw index request
+     * @param request  The unfreeze index request
      * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#thawIndexRequest(String)
+     * @see org.elasticsearch.client.Requests#unfreezeIndexRequest(String)
      */
-    void thaw(ThawIndexRequest request, ActionListener<ThawIndexResponse> listener);
+    void unfreeze(UnfreezeIndexRequest request, ActionListener<UnfreezeIndexResponse> listener);
 
     /**
-     * Thaws one or more indices based on their index name.
+     * Unfreezes one or more indices based on their index name.
      *
-     * @param indices The name of the indices to thaw
+     * @param indices The name of the indices to unfreeze
      */
-    ThawIndexRequestBuilder prepareThaw(String... indices);
+    UnfreezeIndexRequestBuilder prepareUnfreeze(String... indices);
 
     /**
      * Explicitly refresh one or more indices (making the content indexed since the last refresh searchable).

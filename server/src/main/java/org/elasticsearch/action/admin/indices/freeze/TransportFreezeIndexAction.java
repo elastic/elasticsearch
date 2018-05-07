@@ -21,9 +21,6 @@ package org.elasticsearch.action.admin.indices.freeze;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.freeze.FreezeIndexAction;
-import org.elasticsearch.action.admin.indices.freeze.FreezeIndexRequest;
-import org.elasticsearch.action.admin.indices.freeze.FreezeIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -35,7 +32,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.tasks.Task;
@@ -52,9 +48,9 @@ public class TransportFreezeIndexAction extends TransportMasterNodeAction<Freeze
 
     @Inject
     public TransportFreezeIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                     ThreadPool threadPool, MetaDataIndexStateService indexStateService,
-                                     ClusterSettings clusterSettings, ActionFilters actionFilters,
-                                     IndexNameExpressionResolver indexNameExpressionResolver, DestructiveOperations destructiveOperations) {
+                                      ThreadPool threadPool, MetaDataIndexStateService indexStateService,
+                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                      DestructiveOperations destructiveOperations) {
         super(settings, FreezeIndexAction.NAME, transportService, clusterService,
                 threadPool, actionFilters, indexNameExpressionResolver, FreezeIndexRequest::new);
         this.indexStateService = indexStateService;

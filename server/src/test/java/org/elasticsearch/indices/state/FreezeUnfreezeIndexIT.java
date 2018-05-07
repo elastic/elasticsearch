@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.freeze.FreezeIndexResponse;
-import org.elasticsearch.action.admin.indices.thaw.ThawIndexResponse;
+import org.elasticsearch.action.admin.indices.unfreeze.UnfreezeIndexResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -63,8 +63,8 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class FreezeThawIndexIT extends ESIntegTestCase {
-    public void testSimpleFreezeThaw() {
+public class FreezeUnfreezeIndexIT extends ESIntegTestCase {
+    public void testSimpleFreezeUnfreeze() {
         Client client = client();
         createIndex("test1");
         ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
@@ -74,10 +74,10 @@ public class FreezeThawIndexIT extends ESIntegTestCase {
         assertThat(freezeIndexResponse.isAcknowledged(), equalTo(true));
         assertIndexIsFrozen("test1");
 
-        ThawIndexResponse thawIndexResponse = client.admin().indices().prepareThaw("test1").execute().actionGet();
-        assertThat(thawIndexResponse.isAcknowledged(), equalTo(true));
-        assertThat(thawIndexResponse.isShardsAcknowledged(), equalTo(true));
-        assertIndexIsThawed("test1");
+        UnfreezeIndexResponse unfreezeIndexResponse = client.admin().indices().prepareUnfreeze("test1").execute().actionGet();
+        assertThat(unfreezeIndexResponse.isAcknowledged(), equalTo(true));
+        assertThat(unfreezeIndexResponse.isShardsAcknowledged(), equalTo(true));
+        assertIndexIsUnfreezeed("test1");
     }
 
     public void testSimpleFreezeMissingIndex() {
@@ -87,10 +87,10 @@ public class FreezeThawIndexIT extends ESIntegTestCase {
         assertThat(e.getMessage(), is("no such index"));
     }
 
-    public void testSimpleThawMissingIndex() {
+    public void testSimpleUnfreezeMissingIndex() {
         Client client = client();
         Exception e = expectThrows(IndexNotFoundException.class, () ->
-                client.admin().indices().prepareThaw("test1").execute().actionGet());
+                client.admin().indices().prepareUnfreeze("test1").execute().actionGet());
         assertThat(e.getMessage(), is("no such index"));
     }
 
@@ -115,29 +115,29 @@ public class FreezeThawIndexIT extends ESIntegTestCase {
         assertIndexIsFrozen("test1");
     }
 
-    public void testThawOneMissingIndex() {
+    public void testUnfreezeOneMissingIndex() {
         Client client = client();
         createIndex("test1");
         ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
         Exception e = expectThrows(IndexNotFoundException.class, () ->
-                client.admin().indices().prepareThaw("test1", "test2").execute().actionGet());
+                client.admin().indices().prepareUnfreeze("test1", "test2").execute().actionGet());
         assertThat(e.getMessage(), is("no such index"));
     }
 
-    public void testThawOneMissingIndexIgnoreMissing() {
+    public void testUnfreezeOneMissingIndexIgnoreMissing() {
         Client client = client();
         createIndex("test1");
         ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
-        ThawIndexResponse thawIndexResponse = client.admin().indices().prepareThaw("test1", "test2")
+        UnfreezeIndexResponse unfreezeIndexResponse = client.admin().indices().prepareUnfreeze("test1", "test2")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().actionGet();
-        assertThat(thawIndexResponse.isAcknowledged(), equalTo(true));
-        assertThat(thawIndexResponse.isShardsAcknowledged(), equalTo(true));
-        assertIndexIsThawed("test1");
+        assertThat(unfreezeIndexResponse.isAcknowledged(), equalTo(true));
+        assertThat(unfreezeIndexResponse.isShardsAcknowledged(), equalTo(true));
+        assertIndexIsUnfreezeed("test1");
     }
 
-    public void testFreezeThawMultipleIndices() {
+    public void testFreezeUnfreezeMultipleIndices() {
         Client client = client();
         createIndex("test1", "test2", "test3");
         ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
@@ -148,18 +148,18 @@ public class FreezeThawIndexIT extends ESIntegTestCase {
         FreezeIndexResponse freezeIndexResponse2 = client.admin().indices().prepareFreeze("test2").execute().actionGet();
         assertThat(freezeIndexResponse2.isAcknowledged(), equalTo(true));
         assertIndexIsFrozen("test1", "test2");
-        assertIndexIsThawed("test3");
+        assertIndexIsUnfreezeed("test3");
 
-        ThawIndexResponse thawIndexResponse1 = client.admin().indices().prepareThaw("test1").execute().actionGet();
-        assertThat(thawIndexResponse1.isAcknowledged(), equalTo(true));
-        assertThat(thawIndexResponse1.isShardsAcknowledged(), equalTo(true));
-        ThawIndexResponse thawIndexResponse2 = client.admin().indices().prepareThaw("test2").execute().actionGet();
-        assertThat(thawIndexResponse2.isAcknowledged(), equalTo(true));
-        assertThat(thawIndexResponse2.isShardsAcknowledged(), equalTo(true));
-        assertIndexIsThawed("test1", "test2", "test3");
+        UnfreezeIndexResponse unfreezeIndexResponse1 = client.admin().indices().prepareUnfreeze("test1").execute().actionGet();
+        assertThat(unfreezeIndexResponse1.isAcknowledged(), equalTo(true));
+        assertThat(unfreezeIndexResponse1.isShardsAcknowledged(), equalTo(true));
+        UnfreezeIndexResponse unfreezeIndexResponse2 = client.admin().indices().prepareUnfreeze("test2").execute().actionGet();
+        assertThat(unfreezeIndexResponse2.isAcknowledged(), equalTo(true));
+        assertThat(unfreezeIndexResponse2.isShardsAcknowledged(), equalTo(true));
+        assertIndexIsUnfreezeed("test1", "test2", "test3");
     }
 
-    public void testFreezeThawWildcard() {
+    public void testFreezeUnfreezeWildcard() {
         Client client = client();
         createIndex("test1", "test2", "a");
         ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
@@ -168,15 +168,15 @@ public class FreezeThawIndexIT extends ESIntegTestCase {
         FreezeIndexResponse freezeIndexResponse = client.admin().indices().prepareFreeze("test*").execute().actionGet();
         assertThat(freezeIndexResponse.isAcknowledged(), equalTo(true));
         assertIndexIsFrozen("test1", "test2");
-        assertIndexIsThawed("a");
+        assertIndexIsUnfreezeed("a");
 
-        ThawIndexResponse thawIndexResponse = client.admin().indices().prepareThaw("test*").execute().actionGet();
-        assertThat(thawIndexResponse.isAcknowledged(), equalTo(true));
-        assertThat(thawIndexResponse.isShardsAcknowledged(), equalTo(true));
-        assertIndexIsThawed("test1", "test2", "a");
+        UnfreezeIndexResponse unfreezeIndexResponse = client.admin().indices().prepareUnfreeze("test*").execute().actionGet();
+        assertThat(unfreezeIndexResponse.isAcknowledged(), equalTo(true));
+        assertThat(unfreezeIndexResponse.isShardsAcknowledged(), equalTo(true));
+        assertIndexIsUnfreezeed("test1", "test2", "a");
     }
 
-    public void testFreezeThawAll() {
+    public void testFreezeUnfreezeAll() {
         Client client = client();
         createIndex("test1", "test2", "test3");
         ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
@@ -186,13 +186,13 @@ public class FreezeThawIndexIT extends ESIntegTestCase {
         assertThat(freezeIndexResponse.isAcknowledged(), equalTo(true));
         assertIndexIsFrozen("test1", "test2", "test3");
 
-        ThawIndexResponse thawIndexResponse = client.admin().indices().prepareThaw("_all").execute().actionGet();
-        assertThat(thawIndexResponse.isAcknowledged(), equalTo(true));
-        assertThat(thawIndexResponse.isShardsAcknowledged(), equalTo(true));
-        assertIndexIsThawed("test1", "test2", "test3");
+        UnfreezeIndexResponse unfreezeIndexResponse = client.admin().indices().prepareUnfreeze("_all").execute().actionGet();
+        assertThat(unfreezeIndexResponse.isAcknowledged(), equalTo(true));
+        assertThat(unfreezeIndexResponse.isShardsAcknowledged(), equalTo(true));
+        assertIndexIsUnfreezeed("test1", "test2", "test3");
     }
 
-    public void testFreezeThawAllWildcard() {
+    public void testFreezeUnfreezeAllWildcard() {
         Client client = client();
         createIndex("test1", "test2", "test3");
         ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
@@ -202,10 +202,10 @@ public class FreezeThawIndexIT extends ESIntegTestCase {
         assertThat(freezeIndexResponse.isAcknowledged(), equalTo(true));
         assertIndexIsFrozen("test1", "test2", "test3");
 
-        ThawIndexResponse thawIndexResponse = client.admin().indices().prepareThaw("*").execute().actionGet();
-        assertThat(thawIndexResponse.isAcknowledged(), equalTo(true));
-        assertThat(thawIndexResponse.isShardsAcknowledged(), equalTo(true));
-        assertIndexIsThawed("test1", "test2", "test3");
+        UnfreezeIndexResponse unfreezeIndexResponse = client.admin().indices().prepareUnfreeze("*").execute().actionGet();
+        assertThat(unfreezeIndexResponse.isAcknowledged(), equalTo(true));
+        assertThat(unfreezeIndexResponse.isShardsAcknowledged(), equalTo(true));
+        assertIndexIsUnfreezeed("test1", "test2", "test3");
     }
 
     public void testFreezeNoIndex() {
@@ -222,31 +222,31 @@ public class FreezeThawIndexIT extends ESIntegTestCase {
         assertThat(e.getMessage(), containsString("index is missing"));
     }
 
-    public void testThawNoIndex() {
+    public void testUnfreezeNoIndex() {
         Client client = client();
         Exception e = expectThrows(ActionRequestValidationException.class, () ->
-                client.admin().indices().prepareThaw().execute().actionGet());
+                client.admin().indices().prepareUnfreeze().execute().actionGet());
         assertThat(e.getMessage(), containsString("index is missing"));
     }
 
-    public void testThawNullIndex() {
+    public void testUnfreezeNullIndex() {
         Client client = client();
         Exception e = expectThrows(ActionRequestValidationException.class, () ->
-                client.admin().indices().prepareThaw((String[])null).execute().actionGet());
+                client.admin().indices().prepareUnfreeze((String[])null).execute().actionGet());
         assertThat(e.getMessage(), containsString("index is missing"));
     }
 
-    public void testThawAlreadyThawedIndex() {
+    public void testUnfreezeAlreadyUnfreezeedIndex() {
         Client client = client();
         createIndex("test1");
         ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
-        //no problem if we try to thaw an index that's already in thawed state
-        ThawIndexResponse thawIndexResponse1 = client.admin().indices().prepareThaw("test1").execute().actionGet();
-        assertThat(thawIndexResponse1.isAcknowledged(), equalTo(true));
-        assertThat(thawIndexResponse1.isShardsAcknowledged(), equalTo(true));
-        assertIndexIsThawed("test1");
+        //no problem if we try to unfreeze an index that's already in unfreezeed state
+        UnfreezeIndexResponse unfreezeIndexResponse1 = client.admin().indices().prepareUnfreeze("test1").execute().actionGet();
+        assertThat(unfreezeIndexResponse1.isAcknowledged(), equalTo(true));
+        assertThat(unfreezeIndexResponse1.isShardsAcknowledged(), equalTo(true));
+        assertIndexIsUnfreezeed("test1");
     }
 
     public void testFreezeAlreadyFrozenIndex() {
@@ -266,7 +266,7 @@ public class FreezeThawIndexIT extends ESIntegTestCase {
         assertIndexIsFrozen("test1");
     }
 
-    public void testSimpleFreezeThawAlias() {
+    public void testSimpleFreezeUnfreezeAlias() {
         Client client = client();
         createIndex("test1");
         ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
@@ -280,13 +280,13 @@ public class FreezeThawIndexIT extends ESIntegTestCase {
         assertThat(freezeIndexResponse.isAcknowledged(), equalTo(true));
         assertIndexIsFrozen("test1");
 
-        ThawIndexResponse thawIndexResponse = client.admin().indices().prepareThaw("test1-alias").execute().actionGet();
-        assertThat(thawIndexResponse.isAcknowledged(), equalTo(true));
-        assertThat(thawIndexResponse.isShardsAcknowledged(), equalTo(true));
-        assertIndexIsThawed("test1");
+        UnfreezeIndexResponse unfreezeIndexResponse = client.admin().indices().prepareUnfreeze("test1-alias").execute().actionGet();
+        assertThat(unfreezeIndexResponse.isAcknowledged(), equalTo(true));
+        assertThat(unfreezeIndexResponse.isShardsAcknowledged(), equalTo(true));
+        assertIndexIsUnfreezeed("test1");
     }
 
-    public void testFreezeThawAliasMultipleIndices() {
+    public void testFreezeUnfreezeAliasMultipleIndices() {
         Client client = client();
         createIndex("test1", "test2");
         ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
@@ -303,13 +303,13 @@ public class FreezeThawIndexIT extends ESIntegTestCase {
         assertThat(freezeIndexResponse.isAcknowledged(), equalTo(true));
         assertIndexIsFrozen("test1", "test2");
 
-        ThawIndexResponse thawIndexResponse = client.admin().indices().prepareThaw("test-alias").execute().actionGet();
-        assertThat(thawIndexResponse.isAcknowledged(), equalTo(true));
-        assertThat(thawIndexResponse.isShardsAcknowledged(), equalTo(true));
-        assertIndexIsThawed("test1", "test2");
+        UnfreezeIndexResponse unfreezeIndexResponse = client.admin().indices().prepareUnfreeze("test-alias").execute().actionGet();
+        assertThat(unfreezeIndexResponse.isAcknowledged(), equalTo(true));
+        assertThat(unfreezeIndexResponse.isShardsAcknowledged(), equalTo(true));
+        assertIndexIsUnfreezeed("test1", "test2");
     }
 
-    public void testThawWaitingForActiveShardsFailed() throws Exception {
+    public void testUnfreezeWaitingForActiveShardsFailed() throws Exception {
         Client client = client();
         Settings settings = Settings.builder()
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
@@ -318,14 +318,14 @@ public class FreezeThawIndexIT extends ESIntegTestCase {
         assertAcked(client.admin().indices().prepareCreate("test").setSettings(settings).get());
         assertAcked(client.admin().indices().prepareFreeze("test").get());
 
-        ThawIndexResponse response = client.admin().indices().prepareThaw("test").setTimeout("1ms").setWaitForActiveShards(2).get();
+        UnfreezeIndexResponse response = client.admin().indices().prepareUnfreeze("test").setTimeout("1ms").setWaitForActiveShards(2).get();
         assertThat(response.isShardsAcknowledged(), equalTo(false));
         assertBusy(() -> assertThat(client.admin().cluster().prepareState().get().getState().metaData().index("test").getState(),
                         equalTo(IndexMetaData.State.OPEN)));
         ensureGreen("test");
     }
 
-    private void assertIndexIsThawed(String... indices) {
+    private void assertIndexIsUnfreezeed(String... indices) {
         checkIndexState(IndexMetaData.State.OPEN, indices);
     }
 
@@ -342,7 +342,7 @@ public class FreezeThawIndexIT extends ESIntegTestCase {
         }
     }
 
-    public void testFreezeThawWithDocs() throws IOException, ExecutionException, InterruptedException {
+    public void testFreezeUnfreezeWithDocs() throws IOException, ExecutionException, InterruptedException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().
                 startObject().
                 startObject("type").
@@ -369,7 +369,7 @@ public class FreezeThawIndexIT extends ESIntegTestCase {
         client().admin().indices().prepareFreeze("test").execute().get();
 
         // check the index still contains the records that we indexed
-        client().admin().indices().prepareThaw("test").execute().get();
+        client().admin().indices().prepareUnfreeze("test").execute().get();
         ensureGreen();
         SearchResponse searchResponse = client().prepareSearch().setTypes("type")
             .setQuery(QueryBuilders.matchQuery("test", "init")).get();
@@ -377,7 +377,7 @@ public class FreezeThawIndexIT extends ESIntegTestCase {
         assertHitCount(searchResponse, docs);
     }
 
-    public void testFreezeThawIndexWithBlocks() {
+    public void testFreezeUnfreezeIndexWithBlocks() {
         createIndex("test");
         ensureGreen("test");
 
@@ -395,11 +395,11 @@ public class FreezeThawIndexIT extends ESIntegTestCase {
                 assertAcked(freezeIndexResponse);
                 assertIndexIsFrozen("test");
 
-                // Thawing an index is not blocked
-                ThawIndexResponse thawIndexResponse = client().admin().indices().prepareThaw("test").execute().actionGet();
-                assertAcked(thawIndexResponse);
-                assertThat(thawIndexResponse.isShardsAcknowledged(), equalTo(true));
-                assertIndexIsThawed("test");
+                // Unfreezing an index is not blocked
+                UnfreezeIndexResponse unfreezeIndexResponse = client().admin().indices().prepareUnfreeze("test").execute().actionGet();
+                assertAcked(unfreezeIndexResponse);
+                assertThat(unfreezeIndexResponse.isShardsAcknowledged(), equalTo(true));
+                assertIndexIsUnfreezeed("test");
             } finally {
                 disableIndexBlock("test", blockSetting);
             }
@@ -410,7 +410,7 @@ public class FreezeThawIndexIT extends ESIntegTestCase {
             try {
                 enableIndexBlock("test", blockSetting);
                 assertBlocked(client().admin().indices().prepareFreeze("test"));
-                assertIndexIsThawed("test");
+                assertIndexIsUnfreezeed("test");
             } finally {
                 disableIndexBlock("test", blockSetting);
             }
@@ -420,11 +420,11 @@ public class FreezeThawIndexIT extends ESIntegTestCase {
         assertAcked(freezeIndexResponse);
         assertIndexIsFrozen("test");
 
-        // Thawing an index is blocked
+        // Unfreezing an index is blocked
         for (String blockSetting : Arrays.asList(SETTING_READ_ONLY, SETTING_READ_ONLY_ALLOW_DELETE, SETTING_BLOCKS_METADATA)) {
             try {
                 enableIndexBlock("test", blockSetting);
-                assertBlocked(client().admin().indices().prepareThaw("test"));
+                assertBlocked(client().admin().indices().prepareUnfreeze("test"));
                 assertIndexIsFrozen("test");
             } finally {
                 disableIndexBlock("test", blockSetting);
@@ -459,7 +459,7 @@ public class FreezeThawIndexIT extends ESIntegTestCase {
         FreezeIndexResponse freezeIndexResponse2 = client.admin().indices().prepareFreeze("test2").execute().actionGet();
         assertThat(freezeIndexResponse2.isAcknowledged(), equalTo(true));
         assertIndexIsFrozen("test1", "test2");
-        assertIndexIsThawed("test3");
+        assertIndexIsUnfreezeed("test3");
 
         // Yay functional programming
         long preFrozenCompletedCounts = client.admin().cluster().prepareNodesStats().clear().setThreadPool(true).get()
@@ -489,13 +489,13 @@ public class FreezeThawIndexIT extends ESIntegTestCase {
         assertThat("expected post frozen threadpool completed count to be higher",
             postFrozenCompletedCounts, greaterThan(preFrozenCompletedCounts));
 
-        ThawIndexResponse thawIndexResponse1 = client.admin().indices().prepareThaw("test1").execute().actionGet();
-        assertThat(thawIndexResponse1.isAcknowledged(), equalTo(true));
-        assertThat(thawIndexResponse1.isShardsAcknowledged(), equalTo(true));
-        ThawIndexResponse thawIndexResponse2 = client.admin().indices().prepareThaw("test2").execute().actionGet();
-        assertThat(thawIndexResponse2.isAcknowledged(), equalTo(true));
-        assertThat(thawIndexResponse2.isShardsAcknowledged(), equalTo(true));
-        assertIndexIsThawed("test1", "test2", "test3");
+        UnfreezeIndexResponse unfreezeIndexResponse1 = client.admin().indices().prepareUnfreeze("test1").execute().actionGet();
+        assertThat(unfreezeIndexResponse1.isAcknowledged(), equalTo(true));
+        assertThat(unfreezeIndexResponse1.isShardsAcknowledged(), equalTo(true));
+        UnfreezeIndexResponse unfreezeIndexResponse2 = client.admin().indices().prepareUnfreeze("test2").execute().actionGet();
+        assertThat(unfreezeIndexResponse2.isAcknowledged(), equalTo(true));
+        assertThat(unfreezeIndexResponse2.isShardsAcknowledged(), equalTo(true));
+        assertIndexIsUnfreezeed("test1", "test2", "test3");
 
         resp = client.prepareSearch("test*").setQuery(QueryBuilders.matchQuery("foo", 7)).get();
         assertSearchHits(resp, "7");

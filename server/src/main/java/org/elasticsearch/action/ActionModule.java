@@ -142,8 +142,8 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesActi
 import org.elasticsearch.action.admin.indices.template.get.TransportGetIndexTemplatesAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutIndexTemplateAction;
-import org.elasticsearch.action.admin.indices.thaw.ThawIndexAction;
-import org.elasticsearch.action.admin.indices.thaw.TransportThawIndexAction;
+import org.elasticsearch.action.admin.indices.unfreeze.UnfreezeIndexAction;
+import org.elasticsearch.action.admin.indices.unfreeze.TransportUnfreezeIndexAction;
 import org.elasticsearch.action.admin.indices.upgrade.get.TransportUpgradeStatusAction;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusAction;
 import org.elasticsearch.action.admin.indices.upgrade.post.TransportUpgradeAction;
@@ -277,7 +277,7 @@ import org.elasticsearch.rest.action.admin.indices.RestRecoveryAction;
 import org.elasticsearch.rest.action.admin.indices.RestRefreshAction;
 import org.elasticsearch.rest.action.admin.indices.RestRolloverIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestSyncedFlushAction;
-import org.elasticsearch.rest.action.admin.indices.RestThawIndexAction;
+import org.elasticsearch.rest.action.admin.indices.RestUnfreezeIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestUpdateSettingsAction;
 import org.elasticsearch.rest.action.admin.indices.RestUpgradeAction;
 import org.elasticsearch.rest.action.admin.indices.RestUpgradeStatusAction;
@@ -459,7 +459,7 @@ public class ActionModule extends AbstractModule {
         actions.register(OpenIndexAction.INSTANCE, TransportOpenIndexAction.class);
         actions.register(CloseIndexAction.INSTANCE, TransportCloseIndexAction.class);
         actions.register(FreezeIndexAction.INSTANCE, TransportFreezeIndexAction.class);
-        actions.register(ThawIndexAction.INSTANCE, TransportThawIndexAction.class);
+        actions.register(UnfreezeIndexAction.INSTANCE, TransportUnfreezeIndexAction.class);
         actions.register(IndicesExistsAction.INSTANCE, TransportIndicesExistsAction.class);
         actions.register(TypesExistsAction.INSTANCE, TransportTypesExistsAction.class);
         actions.register(GetMappingsAction.INSTANCE, TransportGetMappingsAction.class);
@@ -583,7 +583,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestCloseIndexAction(settings, restController));
         registerHandler.accept(new RestOpenIndexAction(settings, restController));
         registerHandler.accept(new RestFreezeIndexAction(settings, restController));
-        registerHandler.accept(new RestThawIndexAction(settings, restController));
+        registerHandler.accept(new RestUnfreezeIndexAction(settings, restController));
 
         registerHandler.accept(new RestUpdateSettingsAction(settings, restController));
         registerHandler.accept(new RestGetSettingsAction(settings, restController));

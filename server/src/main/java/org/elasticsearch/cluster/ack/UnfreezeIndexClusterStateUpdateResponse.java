@@ -19,13 +19,13 @@
 package org.elasticsearch.cluster.ack;
 
 /**
- * A cluster state update response with specific fields for index thawing.
+ * A cluster state update response with specific fields for index unfreezing.
  */
-public class ThawIndexClusterStateUpdateResponse extends ClusterStateUpdateResponse {
+public class UnfreezeIndexClusterStateUpdateResponse extends ClusterStateUpdateResponse {
 
     private final boolean shardsAcknowledged;
 
-    public ThawIndexClusterStateUpdateResponse(boolean acknowledged, boolean shardsAcknowledged) {
+    public UnfreezeIndexClusterStateUpdateResponse(boolean acknowledged, boolean shardsAcknowledged) {
         super(acknowledged);
         this.shardsAcknowledged = shardsAcknowledged;
     }

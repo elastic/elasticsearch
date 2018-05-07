@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.thaw;
+package org.elasticsearch.action.admin.indices.unfreeze;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
@@ -25,7 +25,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ThawIndexClusterStateUpdateResponse;
+import org.elasticsearch.cluster.ack.UnfreezeIndexClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -39,20 +39,20 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 /**
- * Thaw index action
+ * Unfreeze index action
  */
-public class TransportThawIndexAction extends TransportMasterNodeAction<ThawIndexRequest, ThawIndexResponse> {
+public class TransportUnfreezeIndexAction extends TransportMasterNodeAction<UnfreezeIndexRequest, UnfreezeIndexResponse> {
 
     private final MetaDataIndexStateService indexStateService;
     private final DestructiveOperations destructiveOperations;
 
     @Inject
-    public TransportThawIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                    ThreadPool threadPool, MetaDataIndexStateService indexStateService,
-                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                    DestructiveOperations destructiveOperations) {
-        super(settings, ThawIndexAction.NAME, transportService, clusterService,
-                threadPool, actionFilters, indexNameExpressionResolver, ThawIndexRequest::new);
+    public TransportUnfreezeIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                        ThreadPool threadPool, MetaDataIndexStateService indexStateService,
+                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                        DestructiveOperations destructiveOperations) {
+        super(settings, UnfreezeIndexAction.NAME, transportService, clusterService,
+                threadPool, actionFilters, indexNameExpressionResolver, UnfreezeIndexRequest::new);
         this.indexStateService = indexStateService;
         this.destructiveOperations = destructiveOperations;
     }
@@ -64,44 +64,44 @@ public class TransportThawIndexAction extends TransportMasterNodeAction<ThawInde
     }
 
     @Override
-    protected ThawIndexResponse newResponse() {
-        return new ThawIndexResponse();
+    protected UnfreezeIndexResponse newResponse() {
+        return new UnfreezeIndexResponse();
     }
 
     @Override
-    protected void doExecute(Task task, ThawIndexRequest request, ActionListener<ThawIndexResponse> listener) {
+    protected void doExecute(Task task, UnfreezeIndexRequest request, ActionListener<UnfreezeIndexResponse> listener) {
         destructiveOperations.failDestructive(request.indices());
         super.doExecute(task, request, listener);
     }
 
     @Override
-    protected ClusterBlockException checkBlock(ThawIndexRequest request, ClusterState state) {
+    protected ClusterBlockException checkBlock(UnfreezeIndexRequest request, ClusterState state) {
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE,
                 indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override
-    protected void masterOperation(final ThawIndexRequest request, final ClusterState state,
-                                   final ActionListener<ThawIndexResponse> listener) {
+    protected void masterOperation(final UnfreezeIndexRequest request, final ClusterState state,
+                                   final ActionListener<UnfreezeIndexResponse> listener) {
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         if (concreteIndices == null || concreteIndices.length == 0) {
-            listener.onResponse(new ThawIndexResponse(true, true));
+            listener.onResponse(new UnfreezeIndexResponse(true, true));
             return;
         }
-        ThawIndexClusterStateUpdateRequest updateRequest = new ThawIndexClusterStateUpdateRequest()
+        UnfreezeIndexClusterStateUpdateRequest updateRequest = new UnfreezeIndexClusterStateUpdateRequest()
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                 .indices(concreteIndices);
 
-        indexStateService.thawIndex(updateRequest, new ActionListener<ThawIndexClusterStateUpdateResponse>() {
+        indexStateService.unfreezeIndex(updateRequest, new ActionListener<UnfreezeIndexClusterStateUpdateResponse>() {
 
             @Override
-            public void onResponse(ThawIndexClusterStateUpdateResponse response) {
-                listener.onResponse(new ThawIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged()));
+            public void onResponse(UnfreezeIndexClusterStateUpdateResponse response) {
+                listener.onResponse(new UnfreezeIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged()));
             }
 
             @Override
             public void onFailure(Exception t) {
-                logger.debug(() -> new ParameterizedMessage("failed to thaw indices [{}]", (Object) concreteIndices), t);
+                logger.debug(() -> new ParameterizedMessage("failed to unfreeze indices [{}]", (Object) concreteIndices), t);
                 listener.onFailure(t);
             }
         });

@@ -17,40 +17,40 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.thaw;
+package org.elasticsearch.action.admin.indices.unfreeze;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
-public class ThawIndexResponseTests extends AbstractStreamableXContentTestCase<ThawIndexResponse> {
+public class UnfreezeIndexResponseTests extends AbstractStreamableXContentTestCase<UnfreezeIndexResponse> {
 
     @Override
-    protected ThawIndexResponse doParseInstance(XContentParser parser) {
-        return ThawIndexResponse.fromXContent(parser);
+    protected UnfreezeIndexResponse doParseInstance(XContentParser parser) {
+        return UnfreezeIndexResponse.fromXContent(parser);
     }
 
     @Override
-    protected ThawIndexResponse createTestInstance() {
+    protected UnfreezeIndexResponse createTestInstance() {
         boolean acknowledged = randomBoolean();
         boolean shardsAcknowledged = acknowledged && randomBoolean();
-        return new ThawIndexResponse(acknowledged, shardsAcknowledged);
+        return new UnfreezeIndexResponse(acknowledged, shardsAcknowledged);
     }
 
     @Override
-    protected ThawIndexResponse createBlankInstance() {
-        return new ThawIndexResponse();
+    protected UnfreezeIndexResponse createBlankInstance() {
+        return new UnfreezeIndexResponse();
     }
 
     @Override
-    protected ThawIndexResponse mutateInstance(ThawIndexResponse response) {
+    protected UnfreezeIndexResponse mutateInstance(UnfreezeIndexResponse response) {
         if (randomBoolean()) {
             boolean acknowledged = response.isAcknowledged() == false;
             boolean shardsAcknowledged = acknowledged && response.isShardsAcknowledged();
-            return new ThawIndexResponse(acknowledged, shardsAcknowledged);
+            return new UnfreezeIndexResponse(acknowledged, shardsAcknowledged);
         } else {
             boolean shardsAcknowledged = response.isShardsAcknowledged() == false;
             boolean acknowledged = shardsAcknowledged || response.isAcknowledged();
-            return new ThawIndexResponse(acknowledged, shardsAcknowledged);
+            return new UnfreezeIndexResponse(acknowledged, shardsAcknowledged);
         }
     }
 }

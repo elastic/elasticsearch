@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.action.admin.indices.thaw.ThawIndexRequest;
+import org.elasticsearch.action.admin.indices.unfreeze.UnfreezeIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
@@ -32,29 +32,29 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 
-public class RestThawIndexAction extends BaseRestHandler {
-    public RestThawIndexAction(Settings settings, RestController controller) {
+public class RestUnfreezeIndexAction extends BaseRestHandler {
+    public RestUnfreezeIndexAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.POST, "/_thaw", this);
-        controller.registerHandler(RestRequest.Method.POST, "/{index}/_thaw", this);
+        controller.registerHandler(RestRequest.Method.POST, "/_unfreeze", this);
+        controller.registerHandler(RestRequest.Method.POST, "/{index}/_unfreeze", this);
     }
 
     @Override
     public String getName() {
-        return "thaw_index_action";
+        return "unfreeze_index_action";
     }
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        ThawIndexRequest thawIndexRequest = new ThawIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        thawIndexRequest.timeout(request.paramAsTime("timeout", thawIndexRequest.timeout()));
-        thawIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", thawIndexRequest.masterNodeTimeout()));
-        thawIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, thawIndexRequest.indicesOptions()));
+        UnfreezeIndexRequest unfreezeIndexRequest = new UnfreezeIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        unfreezeIndexRequest.timeout(request.paramAsTime("timeout", unfreezeIndexRequest.timeout()));
+        unfreezeIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", unfreezeIndexRequest.masterNodeTimeout()));
+        unfreezeIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, unfreezeIndexRequest.indicesOptions()));
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {
-            thawIndexRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
+            unfreezeIndexRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
         }
-        return channel -> client.admin().indices().thaw(thawIndexRequest, new RestToXContentListener<>(channel));
+        return channel -> client.admin().indices().unfreeze(unfreezeIndexRequest, new RestToXContentListener<>(channel));
     }
 
 }

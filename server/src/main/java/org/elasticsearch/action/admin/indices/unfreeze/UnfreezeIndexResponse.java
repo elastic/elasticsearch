@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.thaw;
+package org.elasticsearch.action.admin.indices.unfreeze;
 
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,21 +28,22 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
- * A response for a thaw index action.
+ * A response for an unfreeze index action.
  */
-public class ThawIndexResponse extends ShardsAcknowledgedResponse {
+public class UnfreezeIndexResponse extends ShardsAcknowledgedResponse {
 
-    private static final ConstructingObjectParser<ThawIndexResponse, Void> PARSER = new ConstructingObjectParser<>("thaw_index", true,
-            args -> new ThawIndexResponse((boolean) args[0], (boolean) args[1]));
+    private static final ConstructingObjectParser<UnfreezeIndexResponse, Void> PARSER =
+        new ConstructingObjectParser<>("unfreeze_index", true,
+            args -> new UnfreezeIndexResponse((boolean) args[0], (boolean) args[1]));
 
     static {
         declareAcknowledgedAndShardsAcknowledgedFields(PARSER);
     }
 
-    ThawIndexResponse() {
+    UnfreezeIndexResponse() {
     }
 
-    ThawIndexResponse(boolean acknowledged, boolean shardsAcknowledged) {
+    UnfreezeIndexResponse(boolean acknowledged, boolean shardsAcknowledged) {
         super(acknowledged, shardsAcknowledged);
     }
 
@@ -60,7 +61,7 @@ public class ThawIndexResponse extends ShardsAcknowledgedResponse {
         writeShardsAcknowledged(out);
     }
 
-    public static ThawIndexResponse fromXContent(XContentParser parser) {
+    public static UnfreezeIndexResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 }

@@ -256,10 +256,10 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateActio
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
-import org.elasticsearch.action.admin.indices.thaw.ThawIndexAction;
-import org.elasticsearch.action.admin.indices.thaw.ThawIndexRequest;
-import org.elasticsearch.action.admin.indices.thaw.ThawIndexRequestBuilder;
-import org.elasticsearch.action.admin.indices.thaw.ThawIndexResponse;
+import org.elasticsearch.action.admin.indices.unfreeze.UnfreezeIndexAction;
+import org.elasticsearch.action.admin.indices.unfreeze.UnfreezeIndexRequest;
+import org.elasticsearch.action.admin.indices.unfreeze.UnfreezeIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.unfreeze.UnfreezeIndexResponse;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusAction;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequest;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequestBuilder;
@@ -1453,18 +1453,18 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
-        public ThawIndexRequestBuilder prepareThaw(String... indices) {
-            return new ThawIndexRequestBuilder(this, ThawIndexAction.INSTANCE, indices);
+        public UnfreezeIndexRequestBuilder prepareUnfreeze(String... indices) {
+            return new UnfreezeIndexRequestBuilder(this, UnfreezeIndexAction.INSTANCE, indices);
         }
 
         @Override
-        public ActionFuture<ThawIndexResponse> thaw(final ThawIndexRequest request) {
-            return execute(ThawIndexAction.INSTANCE, request);
+        public ActionFuture<UnfreezeIndexResponse> unfreeze(final UnfreezeIndexRequest request) {
+            return execute(UnfreezeIndexAction.INSTANCE, request);
         }
 
         @Override
-        public void thaw(final ThawIndexRequest request, final ActionListener<ThawIndexResponse> listener) {
-            execute(ThawIndexAction.INSTANCE, request, listener);
+        public void unfreeze(final UnfreezeIndexRequest request, final ActionListener<UnfreezeIndexResponse> listener) {
+            execute(UnfreezeIndexAction.INSTANCE, request, listener);
         }
 
         @Override

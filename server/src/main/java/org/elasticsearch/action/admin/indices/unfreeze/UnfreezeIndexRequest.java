@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.thaw;
+package org.elasticsearch.action.admin.indices.unfreeze;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -33,21 +33,21 @@ import java.io.IOException;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * A request to thaw an index.
+ * A request to unfreeze an index.
  */
-public class ThawIndexRequest extends AcknowledgedRequest<ThawIndexRequest> implements IndicesRequest.Replaceable {
+public class UnfreezeIndexRequest extends AcknowledgedRequest<UnfreezeIndexRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, false);
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
-    public ThawIndexRequest() {
+    public UnfreezeIndexRequest() {
     }
 
     /**
-     * Constructs a new thaw index request for the specified index.
+     * Constructs a new unfreeze index request for the specified index.
      */
-    public ThawIndexRequest(String... indices) {
+    public UnfreezeIndexRequest(String... indices) {
         this.indices = indices;
     }
 
@@ -61,8 +61,8 @@ public class ThawIndexRequest extends AcknowledgedRequest<ThawIndexRequest> impl
     }
 
     /**
-     * The indices to be thawed
-     * @return the indices to be thawed
+     * The indices to be unfrozen
+     * @return the indices to be unfrozen
      */
     @Override
     public String[] indices() {
@@ -70,12 +70,12 @@ public class ThawIndexRequest extends AcknowledgedRequest<ThawIndexRequest> impl
     }
 
     /**
-     * Sets the indices to be thawed
-     * @param indices the indices to be thawed
+     * Sets the indices to be unfrozen
+     * @param indices the indices to be unfrozen
      * @return the request itself
      */
     @Override
-    public ThawIndexRequest indices(String... indices) {
+    public UnfreezeIndexRequest indices(String... indices) {
         this.indices = indices;
         return this;
     }
@@ -98,7 +98,7 @@ public class ThawIndexRequest extends AcknowledgedRequest<ThawIndexRequest> impl
      * @param indicesOptions the desired behaviour regarding indices to ignore and wildcard indices expressions
      * @return the request itself
      */
-    public ThawIndexRequest indicesOptions(IndicesOptions indicesOptions) {
+    public UnfreezeIndexRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return this;
     }
@@ -108,20 +108,20 @@ public class ThawIndexRequest extends AcknowledgedRequest<ThawIndexRequest> impl
     }
 
     /**
-     * Sets the number of shard copies that should be active for indices thawing to return.
+     * Sets the number of shard copies that should be active for indices unfreezing to return.
      * Defaults to {@link ActiveShardCount#DEFAULT}, which will wait for one shard copy
      * (the primary) to become active. Set this value to {@link ActiveShardCount#ALL} to
      * wait for all shards (primary and all replicas) to be active before returning.
      * Otherwise, use {@link ActiveShardCount#from(int)} to set this value to any
      * non-negative integer, up to the number of copies per shard (number of replicas + 1),
      * to wait for the desired amount of shard copies to become active before returning.
-     * Indices thawing will only wait up until the timeout value for the number of shard copies
-     * to be active before returning.  Check {@link ThawIndexResponse#isShardsAcknowledged()} to
+     * Indices unfreezing will only wait up until the timeout value for the number of shard copies
+     * to be active before returning.  Check {@link UnfreezeIndexResponse#isShardsAcknowledged()} to
      * determine if the requisite shard copies were all started before returning or timing out.
      *
      * @param waitForActiveShards number of active shard copies to wait on
      */
-    public ThawIndexRequest waitForActiveShards(ActiveShardCount waitForActiveShards) {
+    public UnfreezeIndexRequest waitForActiveShards(ActiveShardCount waitForActiveShards) {
         this.waitForActiveShards = waitForActiveShards;
         return this;
     }
@@ -131,7 +131,7 @@ public class ThawIndexRequest extends AcknowledgedRequest<ThawIndexRequest> impl
      * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
      * to get the ActiveShardCount.
      */
-    public ThawIndexRequest waitForActiveShards(final int waitForActiveShards) {
+    public UnfreezeIndexRequest waitForActiveShards(final int waitForActiveShards) {
         return waitForActiveShards(ActiveShardCount.from(waitForActiveShards));
     }
 

@@ -1,15 +1,15 @@
 {
-  "indices.thaw": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-freeze-thaw.html",
+  "indices.unfreeze": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-freeze-unfreeze.html",
     "methods": ["POST"],
     "url": {
-      "path": "/{index}/_thaw",
-      "paths": ["/{index}/_thaw"],
+      "path": "/{index}/_unfreeze",
+      "paths": ["/{index}/_unfreeze"],
       "parts": {
         "index": {
           "type" : "list",
           "required" : true,
-          "description" : "A comma separated list of indices to thaw"
+          "description" : "A comma separated list of indices to unfreeze"
         }
       },
       "params": {

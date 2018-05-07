@@ -1,5 +1,5 @@
 ---
-"Basic test for index freeze/thaw":
+"Basic test for index freeze/unfreeze":
   - skip:
       version: " - 6.99.99"
       reason: this feature didn't exist until 7.0
@@ -40,7 +40,7 @@
         body: { "foo": "bar" }
 
   - do:
-      indices.thaw:
+      indices.unfreeze:
         index: test_index
 
   - do:
@@ -50,10 +50,10 @@
   - match: { hits.hits.0._source.foo: bar }
 
 ---
-"Thaw index with wait_for_active_shards set to all":
+"Unfreeze index with wait_for_active_shards set to all":
   - skip:
       version: " - 6.9.99"
-      reason: freeze/thaw was added in 7.0
+      reason: freeze/unfreeze was added in 7.0
 
   - do:
       indices.create:
@@ -67,7 +67,7 @@
         index: test_index
 
   - do:
-      indices.thaw:
+      indices.unfreeze:
         index: test_index
         wait_for_active_shards: all
 

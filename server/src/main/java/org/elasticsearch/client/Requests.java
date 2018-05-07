@@ -56,7 +56,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
-import org.elasticsearch.action.admin.indices.thaw.ThawIndexRequest;
+import org.elasticsearch.action.admin.indices.unfreeze.UnfreezeIndexRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -231,14 +231,14 @@ public class Requests {
     }
 
     /**
-     * Creates a thaw index request.
+     * Creates an unfreeze index request.
      *
-     * @param index The index to thaw
-     * @return The thaw index request
-     * @see org.elasticsearch.client.IndicesAdminClient#thaw(org.elasticsearch.action.admin.indices.thaw.ThawIndexRequest)
+     * @param index The index to unfreeze
+     * @return The unfreeze index request
+     * @see org.elasticsearch.client.IndicesAdminClient#unfreeze(UnfreezeIndexRequest)
      */
-    public static ThawIndexRequest thawIndexRequest(String index) {
-        return new ThawIndexRequest(index);
+    public static UnfreezeIndexRequest unfreezeIndexRequest(String index) {
+        return new UnfreezeIndexRequest(index);
     }
 
     /**

@@ -25,13 +25,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.freeze.FreezeIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexClusterStateUpdateRequest;
-import org.elasticsearch.action.admin.indices.thaw.ThawIndexClusterStateUpdateRequest;
+import org.elasticsearch.action.admin.indices.unfreeze.UnfreezeIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.ack.OpenIndexClusterStateUpdateResponse;
-import org.elasticsearch.cluster.ack.ThawIndexClusterStateUpdateResponse;
+import org.elasticsearch.cluster.ack.UnfreezeIndexClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -275,8 +275,8 @@ public class MetaDataIndexStateService extends AbstractComponent {
         });
     }
 
-    public void thawIndex(final ThawIndexClusterStateUpdateRequest request,
-                          final ActionListener<ThawIndexClusterStateUpdateResponse> listener) {
+    public void unfreezeIndex(final UnfreezeIndexClusterStateUpdateRequest request,
+                          final ActionListener<UnfreezeIndexClusterStateUpdateResponse> listener) {
         if (request.indices() == null || request.indices().length == 0) {
             throw new IllegalArgumentException("Index name is required");
         }
@@ -289,17 +289,17 @@ public class MetaDataIndexStateService extends AbstractComponent {
                 activeShardsObserver.waitForActiveShards(indexNames, request.waitForActiveShards(), request.ackTimeout(),
                     shardsAcknowledged -> {
                         if (shardsAcknowledged == false) {
-                            logger.debug("[{}] indices thawed, but the operation timed out while waiting for " +
+                            logger.debug("[{}] indices unfrozen, but the operation timed out while waiting for " +
                                 "enough shards to be started.", Arrays.toString(indexNames));
                         }
-                        listener.onResponse(new ThawIndexClusterStateUpdateResponse(response.isAcknowledged(), shardsAcknowledged));
+                        listener.onResponse(new UnfreezeIndexClusterStateUpdateResponse(response.isAcknowledged(), shardsAcknowledged));
                     }, listener::onFailure);
             } else {
-                listener.onResponse(new ThawIndexClusterStateUpdateResponse(false, false));
+                listener.onResponse(new UnfreezeIndexClusterStateUpdateResponse(false, false));
             }
         }, listener::onFailure);
 
-        clusterService.submitStateUpdateTask("thaw-indices " + indicesAsString,
+        clusterService.submitStateUpdateTask("unfreeze-indices " + indicesAsString,
             new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, newListener) {
 
                 @Override
@@ -309,23 +309,23 @@ public class MetaDataIndexStateService extends AbstractComponent {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    Set<IndexMetaData> indicesToThaw = new HashSet<>();
+                    Set<IndexMetaData> indicesToUnfreeze = new HashSet<>();
                     for (Index index : request.indices()) {
                         final IndexMetaData indexMetaData = currentState.metaData().getIndexSafe(index);
                         if (indexMetaData.getState() == IndexMetaData.State.FROZEN) {
-                            indicesToThaw.add(indexMetaData);
+                            indicesToUnfreeze.add(indexMetaData);
                         }
                     }
 
-                    if (indicesToThaw.isEmpty()) {
+                    if (indicesToUnfreeze.isEmpty()) {
                         return currentState;
                     }
 
-                    logger.info("thawing indices {}", indicesAsString);
+                    logger.info("unfreezeing indices {}", indicesAsString);
 
                     MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
                     ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
-                    for (IndexMetaData openIndexMetadata : indicesToThaw) {
+                    for (IndexMetaData openIndexMetadata : indicesToUnfreeze) {
                         final String indexName = openIndexMetadata.getIndex().getName();
                         mdBuilder.put(IndexMetaData.builder(openIndexMetadata).state(IndexMetaData.State.OPEN));
                         blocksBuilder.removeIndexBlock(indexName, INDEX_FROZEN_BLOCK);

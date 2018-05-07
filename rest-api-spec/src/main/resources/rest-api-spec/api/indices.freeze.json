@@ -1,6 +1,6 @@
 {
   "indices.freeze": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-freeze-thaw.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-freeze-unfreeze.html",
     "methods": ["POST"],
     "url": {
       "path": "/{index}/_freeze",

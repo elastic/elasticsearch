@@ -1,7 +1,9 @@
 
 import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.Version
 
 subprojects { Project subproj ->
+  subproj.ext.xPackOpenedVersion = Version.fromString('6.3.0')
   subproj.tasks.withType(RestIntegTestTask) {
     subproj.extensions.configure("${it.name}Cluster") { cluster ->
       cluster.distribution = 'oss-zip'

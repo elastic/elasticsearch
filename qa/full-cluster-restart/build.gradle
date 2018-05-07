@@ -30,9 +30,13 @@ task bwcTest {
   description = 'Runs backwards compatibility tests.'
   group = 'verification'
 }
+task integTest {
+  description = 'Runs backwards comaptibility tests for recent versions.'
+  group = 'verification'
+}
 
-for (Version version : bwcVersions.indexCompatible) {
-  String baseName = "v${version}"
+void setupBwcTests(Version version, String fromDistribution, String toDistribution) {
+  String baseName = "v${version}-${fromDistribution}-to-${toDistribution}"
 
   Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
     mustRunAfter(precommit)
@@ -49,6 +53,7 @@ for (Version version : bwcVersions.indexCompatible) {
     numBwcNodes = 2
     numNodes = 2
     clusterName = 'full-cluster-restart'
+    distribution = fromDistribution
 
     // some tests rely on the translog not being flushed
     setting 'indices.memory.shard_inactive_time', '20m'
@@ -71,6 +76,7 @@ for (Version version : bwcVersions.indexCompatible) {
         "${baseName}#oldClusterTestCluster#node0.stop",
         "${baseName}#oldClusterTestCluster#node1.stop"
     clusterName = 'full-cluster-restart'
+    distribution = toDistribution
 
     // some tests rely on the translog not being flushed
     setting 'indices.memory.shard_inactive_time', '20m'
@@ -96,19 +102,26 @@ for (Version version : bwcVersions.indexCompatible) {
 
   if (project.bwc_tests_enabled) {
     bwcTest.dependsOn(versionBwcTest)
+    if (bwcVersions.snapshotsIndexCompatible.contains(version)) {
+      // basic integ tests includes testing bwc against the most recent version
+      integTest.dependsOn(versionBwcTest)
+    }
   }
 }
 
 test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
 
-// basic integ tests includes testing bwc against the most recent version
-task integTest {
-  if (project.bwc_tests_enabled) {
-    for (final def version : bwcVersions.snapshotsIndexCompatible) {
-      dependsOn "v${version}#bwcTest"
-    }
+for (Version version : bwcVersions.indexCompatible) {
+  setupBwcTests(version, 'oss-zip', 'oss-zip')
+  setupBwcTests(version, 'zip', 'zip')
+  if (version.before(xPackOpenedVersion)) {
+    /*
+     * If the source version is before xpack was opened then test upgrading
+     * from OSS to the default distribution because we expect that'll be
+     * fairly common.
+     */
+    setupBwcTests(version, 'oss-zip', 'zip')
   }
 }
 
 check.dependsOn(integTest)
-

@@ -75,7 +75,8 @@ public interface BlobContainer {
     void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException;
 
     /**
-     * Deletes a blob with giving name, if the blob exists.  If the blob does not exist, this method throws an IOException.
+     * Deletes a blob with giving name, if the blob exists. If the blob does not exist,
+     * this method throws a NoSuchFileException.
      *
      * @param   blobName
      *          The name of the blob to delete.
@@ -83,6 +84,21 @@ public interface BlobContainer {
      * @throws  IOException if the blob exists but could not be deleted.
      */
     void deleteBlob(String blobName) throws IOException;
+
+    /**
+     * Deletes a blob with giving name, ignoring if the blob does not exist.
+     *
+     * @param   blobName
+     *          The name of the blob to delete.
+     * @throws  IOException if the blob exists but could not be deleted.
+     */
+    default void deleteBlobIgnoringIfNotExists(String blobName) throws IOException {
+        try {
+            deleteBlob(blobName);
+        } catch (final NoSuchFileException ignored) {
+            // This exception is ignored
+        }
+    }
 
     /**
      * Lists all blobs in the container.

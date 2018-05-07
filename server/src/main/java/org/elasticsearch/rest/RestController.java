@@ -401,9 +401,15 @@ public class RestController extends AbstractComponent implements HttpServerTrans
      * Handle a requests with no candidate handlers (return a 400 Bad Request
      * error).
      */
-    private void handleBadRequest(RestRequest request, RestChannel channel) {
-        channel.sendResponse(new BytesRestResponse(BAD_REQUEST,
-            "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]"));
+    private void handleBadRequest(RestRequest request, RestChannel channel) throws IOException {
+        try (XContentBuilder builder = channel.newErrorBuilder()) {
+            builder.startObject();
+            {
+                builder.field("error", "no handler found for uri [" + request.uri() + "] and method [" + request.method() + "]");
+            }
+            builder.endObject();
+            channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder));
+        }
     }
 
     /**

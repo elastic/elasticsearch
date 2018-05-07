@@ -25,10 +25,13 @@ import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -110,6 +113,61 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
             assertThat(blobs.size(), equalTo(1));
             assertThat(blobs.get(newName).length(), equalTo(generatedBlobs.get(name)));
             assertThat(data, equalTo(readBlobFully(container, newName, length)));
+        }
+    }
+
+    public void testMoveSourceDoesNotExist() throws IOException {
+        final String sourceBlobName = "source";
+        try (BlobStore store = newBlobStore()) {
+            BlobPath blobPath = new BlobPath();
+            if (randomBoolean()) {
+                blobPath = blobPath.add(randomAlphaOfLengthBetween(1, 10));
+            }
+
+            final BlobContainer container = store.blobContainer(blobPath);
+            expectThrows(NoSuchFileException.class, () -> container.move(sourceBlobName, "target"));
+        }
+    }
+
+    public void testMoveTargetAlreadyExist() throws IOException {
+        final String sourceBlobName = "source";
+        final String targetBlobName = "target";
+
+        try (BlobStore store = newBlobStore()) {
+            BlobPath blobPath = new BlobPath();
+            if (randomBoolean()) {
+                blobPath = blobPath.add(randomAlphaOfLengthBetween(1, 10));
+            }
+
+            final BlobContainer container = store.blobContainer(blobPath);
+            writeRandomBlob(container, sourceBlobName, randomIntBetween(1, 100));
+            writeRandomBlob(container, targetBlobName, randomIntBetween(1, 100));
+
+            expectThrows(FileAlreadyExistsException.class, () -> container.move(sourceBlobName, targetBlobName));
+        }
+    }
+
+    public void testMove() throws IOException {
+        final String sourceBlobName = "source";
+        final String targetBlobName = "target";
+
+        try (BlobStore store = newBlobStore()) {
+            BlobPath blobPath = new BlobPath();
+            if (randomBoolean()) {
+                blobPath = blobPath.add(randomAlphaOfLengthBetween(1, 10));
+            }
+
+            final BlobContainer container = store.blobContainer(blobPath);
+            final byte[] sourceData = writeRandomBlob(container, sourceBlobName, randomIntBetween(1, 200));
+
+            container.move(sourceBlobName, targetBlobName);
+
+            assertTrue(container.blobExists(targetBlobName));
+            assertFalse(container.blobExists(sourceBlobName));
+
+            final ByteArrayOutputStream targetData = new ByteArrayOutputStream();
+            Streams.copy(container.readBlob(targetBlobName), targetData);
+            assertArrayEquals(sourceData, targetData.toByteArray());
         }
     }
 

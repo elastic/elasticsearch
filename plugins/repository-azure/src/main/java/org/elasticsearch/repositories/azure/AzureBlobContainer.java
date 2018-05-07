@@ -130,6 +130,12 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     @Override
     public void move(String sourceBlobName, String targetBlobName) throws IOException {
         logger.trace("move({}, {})", sourceBlobName, targetBlobName);
+        if (blobExists(sourceBlobName) == false) {
+            throw new NoSuchFileException(sourceBlobName);
+        }
+        if (blobExists(targetBlobName)) {
+            throw new FileAlreadyExistsException(sourceBlobName);
+        }
         try {
             String source = keyPath + sourceBlobName;
             String target = keyPath + targetBlobName;

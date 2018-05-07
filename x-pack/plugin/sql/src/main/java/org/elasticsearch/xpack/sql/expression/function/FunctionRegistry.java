@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.SumOfSquares;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.VarPop;
 import org.elasticsearch.xpack.sql.expression.function.scalar.arithmetic.Mod;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayName;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfWeek;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfYear;
@@ -105,6 +106,7 @@ public class FunctionRegistry {
             def(MonthOfYear.class, MonthOfYear::new, "MONTH"),
             def(Year.class, Year::new),
             def(WeekOfYear.class, WeekOfYear::new, "WEEK"),
+            def(DayName.class, DayName::new, "DAYNAME"),
             // Math
             def(Abs.class, Abs::new),
             def(ACos.class, ACos::new),

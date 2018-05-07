@@ -53,26 +53,25 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
             int min = randomIntBetween(0, numWrites - 1);
             int max = randomIntBetween(min, numWrites - 1);
 
-            final ShardChangesAction.Response r =
-                    ShardChangesAction.getOperationsBetween(indexShard, min, max, Long.MAX_VALUE, indexMetaData);
+            final Translog.Operation[] operations = ShardChangesAction.getOperationsBetween(indexShard, min, max, Long.MAX_VALUE);
             /*
              * We are not guaranteed that operations are returned to us in order they are in the translog (if our read crosses multiple
              * generations) so the best we can assert is that we see the expected operations.
              */
-            final Set<Long> seenSeqNos = Arrays.stream(r.getOperations()).map(Translog.Operation::seqNo).collect(Collectors.toSet());
+            final Set<Long> seenSeqNos = Arrays.stream(operations).map(Translog.Operation::seqNo).collect(Collectors.toSet());
             final Set<Long> expectedSeqNos = LongStream.range(min, max + 1).boxed().collect(Collectors.toSet());
             assertThat(seenSeqNos, equalTo(expectedSeqNos));
         }
 
         // get operations for a range no operations exists:
         Exception e = expectThrows(IllegalStateException.class,
-                () -> ShardChangesAction.getOperationsBetween(indexShard, numWrites, numWrites + 1, Long.MAX_VALUE, indexMetaData));
+                () -> ShardChangesAction.getOperationsBetween(indexShard, numWrites, numWrites + 1, Long.MAX_VALUE));
         assertThat(e.getMessage(), containsString("Not all operations between min_seq_no [" + numWrites + "] and max_seq_no [" +
                 (numWrites + 1) +"] found, tracker checkpoint ["));
 
         // get operations for a range some operations do not exist:
         e = expectThrows(IllegalStateException.class,
-                () -> ShardChangesAction.getOperationsBetween(indexShard, numWrites  - 10, numWrites + 10, Long.MAX_VALUE, indexMetaData));
+                () -> ShardChangesAction.getOperationsBetween(indexShard, numWrites  - 10, numWrites + 10, Long.MAX_VALUE));
         assertThat(e.getMessage(), containsString("Not all operations between min_seq_no [" + (numWrites - 10) + "] and max_seq_no [" +
                 (numWrites + 10) +"] found, tracker checkpoint ["));
     }
@@ -90,8 +89,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
 
         ShardRouting shardRouting = TestShardRouting.newShardRouting("index", 0, "_node_id", true, ShardRoutingState.INITIALIZING);
         Mockito.when(indexShard.routingEntry()).thenReturn(shardRouting);
-        expectThrows(IndexShardNotStartedException.class,
-                () -> ShardChangesAction.getOperationsBetween(indexShard, 0, 1, Long.MAX_VALUE, indexMetaData));
+        expectThrows(IndexShardNotStartedException.class, () -> ShardChangesAction.getOperationsBetween(indexShard, 0, 1, Long.MAX_VALUE));
     }
 
     public void testGetOperationsBetweenExceedByteLimit() throws Exception {
@@ -107,21 +105,20 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
         }
 
         final IndexShard indexShard = indexService.getShard(0);
-        final ShardChangesAction.Response r =
-                ShardChangesAction.getOperationsBetween(indexShard, 0, numWrites - 1, 256, indexService.getMetaData());
-        assertThat(r.getOperations().length, equalTo(12));
-        assertThat(r.getOperations()[0].seqNo(), equalTo(0L));
-        assertThat(r.getOperations()[1].seqNo(), equalTo(1L));
-        assertThat(r.getOperations()[2].seqNo(), equalTo(2L));
-        assertThat(r.getOperations()[3].seqNo(), equalTo(3L));
-        assertThat(r.getOperations()[4].seqNo(), equalTo(4L));
-        assertThat(r.getOperations()[5].seqNo(), equalTo(5L));
-        assertThat(r.getOperations()[6].seqNo(), equalTo(6L));
-        assertThat(r.getOperations()[7].seqNo(), equalTo(7L));
-        assertThat(r.getOperations()[8].seqNo(), equalTo(8L));
-        assertThat(r.getOperations()[9].seqNo(), equalTo(9L));
-        assertThat(r.getOperations()[10].seqNo(), equalTo(10L));
-        assertThat(r.getOperations()[11].seqNo(), equalTo(11L));
+        final Translog.Operation[] operations = ShardChangesAction.getOperationsBetween(indexShard, 0, numWrites - 1, 256);
+        assertThat(operations.length, equalTo(12));
+        assertThat(operations[0].seqNo(), equalTo(0L));
+        assertThat(operations[1].seqNo(), equalTo(1L));
+        assertThat(operations[2].seqNo(), equalTo(2L));
+        assertThat(operations[3].seqNo(), equalTo(3L));
+        assertThat(operations[4].seqNo(), equalTo(4L));
+        assertThat(operations[5].seqNo(), equalTo(5L));
+        assertThat(operations[6].seqNo(), equalTo(6L));
+        assertThat(operations[7].seqNo(), equalTo(7L));
+        assertThat(operations[8].seqNo(), equalTo(8L));
+        assertThat(operations[9].seqNo(), equalTo(9L));
+        assertThat(operations[10].seqNo(), equalTo(10L));
+        assertThat(operations[11].seqNo(), equalTo(11L));
     }
 
 }

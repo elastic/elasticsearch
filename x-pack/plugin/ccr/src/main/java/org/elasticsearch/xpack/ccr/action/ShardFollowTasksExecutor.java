@@ -369,21 +369,23 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                         "] times, aborting...", e));
                             }
                             return;
-                        }final BulkShardOperationsRequest request = new BulkShardOperationsRequest(followerShard, response.getOperations());
-                    followerClient.execute(BulkShardOperationsAction.INSTANCE, request, new ActionListener<BulkShardOperationsResponse>() {
-                        @Override
-                        public void onResponse(final BulkShardOperationsResponse bulkShardOperationsResponse) {
-                            handler.accept(null);
                         }
-
+                        final BulkShardOperationsRequest request = new BulkShardOperationsRequest(followerShard, response.getOperations());
+                        followerClient.execute(BulkShardOperationsAction.INSTANCE, request, new ActionListener<BulkShardOperationsResponse>() {
                             @Override
-                            public void onFailure(final Exception e) {
-                                // No retry mechanism here, because if a failure is being redirected to this place it is considered
-                                // non recoverable.
-                                assert e != null;
-                                handler.accept(e);
+                            public void onResponse(final BulkShardOperationsResponse bulkShardOperationsResponse) {
+                                handler.accept(null);
                             }
-                        });
+
+                                @Override
+                                public void onFailure(final Exception e) {
+                                    // No retry mechanism here, because if a failure is being redirected to this place it is considered
+                                    // non recoverable.
+                                    assert e != null;
+                                    handler.accept(e);
+                                }
+                            }
+                        );
                     });
                 }
             });
@@ -416,8 +418,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         }
 
         public void accept(Long minimumRequiredIndexMetadataVersion, Consumer<Exception> handler) {
-            if (minimumRequiredIndexMetadataVersion <= currentIndexMetadataVersion.get()) {
-                LOGGER.info("Current index metadata version [{}] is higher or equal than minimum required index metadata version [{}]",
+            if (currentIndexMetadataVersion.get() >= minimumRequiredIndexMetadataVersion) {
+                LOGGER.debug("Current index metadata version [{}] is higher or equal than minimum required index metadata version [{}]",
                     currentIndexMetadataVersion.get(), minimumRequiredIndexMetadataVersion);
                 handler.accept(null);
             } else {
@@ -433,6 +435,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
             leaderClient.admin().cluster().state(clusterStateRequest, ActionListener.wrap(clusterStateResponse -> {
                 IndexMetaData indexMetaData = clusterStateResponse.getState().metaData().getIndexSafe(leaderIndex);
+                assert indexMetaData.getMappings().size() == 1;
                 MappingMetaData mappingMetaData = indexMetaData.getMappings().iterator().next().value;
 
                 PutMappingRequest putMappingRequest = new PutMappingRequest(followIndex.getName());

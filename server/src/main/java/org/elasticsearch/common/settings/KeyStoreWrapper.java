@@ -357,7 +357,7 @@ public class KeyStoreWrapper implements SecureSettings {
 
     /** Encrypt the keystore entries and return the encrypted data. */
     private byte[] encrypt(char[] password, byte[] salt, byte[] iv) throws GeneralSecurityException, IOException {
-        ensureOpen();
+        assert isLoaded();
 
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         Cipher cipher = createCipher(Cipher.ENCRYPT_MODE, password, salt, iv);
@@ -449,7 +449,7 @@ public class KeyStoreWrapper implements SecureSettings {
     }
 
     /** Write the keystore to the given config directory. */
-    public void save(Path configDir, char[] password) throws Exception {
+    public synchronized void save(Path configDir, char[] password) throws Exception {
         ensureOpen();
 
         SimpleFSDirectory directory = new SimpleFSDirectory(configDir);

@@ -111,6 +111,9 @@ Rollup::
 * Validate timezone in range queries to ensure they match the selected job when
 searching ({pull}30338[#30338])
 
+SQL::
+* Improve correctness of SYS COLUMNS & SYS TYPES commands ({pull}30418[#30418])
+
 [float]
 === Regressions
 Fail snapshot operations early when creating or deleting a snapshot on a repository that has been
@@ -179,6 +182,9 @@ Machine Learning::
 Rollup::
 * Validate timezone in range queries to ensure they match the selected job when
 searching ({pull}30338[#30338])
+
+SQL::
+* Improve correctness of SYS COLUMNS & SYS TYPES commands ({pull}30418[#30418])
 
 //[float]
 //=== Regressions

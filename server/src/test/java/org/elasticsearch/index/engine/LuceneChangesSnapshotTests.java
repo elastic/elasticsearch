@@ -37,7 +37,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -123,37 +122,36 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
     public void testDedupByPrimaryTerm() throws Exception {
         Map<Long, Long> latestOperations = new HashMap<>();
         List<Integer> terms = Arrays.asList(between(1, 1000), between(1000, 2000));
-        try (Store store = createStore();
-             InternalEngine engine = createEngine(store, createTempDir())) {
-            for (long term : terms) {
-                final List<Engine.Operation> ops = generateSingleDocHistory(true,
-                    randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE), term, 2, 20, "1");
-                primaryTerm.set(Math.max(primaryTerm.get(), term));
-                engine.rollTranslogGeneration();
-                for (Engine.Operation op : ops) {
-                    // Only ops after local checkpoint get into the engine
-                    if (engine.getLocalCheckpointTracker().getCheckpoint() < op.seqNo()) {
-                        latestOperations.put(op.seqNo(), op.primaryTerm());
-                    }
-                    if (op instanceof Engine.Index) {
-                        engine.index((Engine.Index) op);
-                    } else if (op instanceof Engine.Delete) {
-                        engine.delete((Engine.Delete) op);
-                    }
-                    if (rarely()) {
-                        engine.refresh("test");
-                    }
-                    if (rarely()) {
-                        engine.flush();
-                    }
+        for (long term : terms) {
+            final List<Engine.Operation> ops = generateSingleDocHistory(true,
+                randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE), term, 2, 20, "1");
+            primaryTerm.set(Math.max(primaryTerm.get(), term));
+            engine.rollTranslogGeneration();
+            for (Engine.Operation op : ops) {
+                // We need to simulate a rollback here as only ops after local checkpoint get into the engine
+                if (op.seqNo() <= engine.getLocalCheckpointTracker().getCheckpoint()) {
+                    engine.getLocalCheckpointTracker().resetCheckpoint(randomLongBetween(-1, op.seqNo() - 1));
+                    engine.rollTranslogGeneration();
+                }
+                if (op instanceof Engine.Index) {
+                    engine.index((Engine.Index) op);
+                } else if (op instanceof Engine.Delete) {
+                    engine.delete((Engine.Delete) op);
+                }
+                latestOperations.put(op.seqNo(), op.primaryTerm());
+                if (rarely()) {
+                    engine.refresh("test");
+                }
+                if (rarely()) {
+                    engine.flush();
                 }
             }
-            long maxSeqNo = engine.getLocalCheckpointTracker().getMaxSeqNo();
-            try (Translog.Snapshot snapshot = engine.newLuceneChangesSnapshot("test", mapperService, 0, maxSeqNo, false)) {
-                Translog.Operation op;
-                while ((op = snapshot.next()) != null) {
-                    assertThat(op.toString(), op.primaryTerm(), equalTo(latestOperations.get(op.seqNo())));
-                }
+        }
+        long maxSeqNo = engine.getLocalCheckpointTracker().getMaxSeqNo();
+        try (Translog.Snapshot snapshot = engine.newLuceneChangesSnapshot("test", mapperService, 0, maxSeqNo, false)) {
+            Translog.Operation op;
+            while ((op = snapshot.next()) != null) {
+                assertThat(op.toString(), op.primaryTerm(), equalTo(latestOperations.get(op.seqNo())));
             }
         }
     }

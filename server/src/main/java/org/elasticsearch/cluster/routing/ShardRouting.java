@@ -99,7 +99,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         PARSER.declareField(optionalConstructorArg(), (p, c) -> p.textOrNull(), RELOCATING_NODE, ObjectParser.ValueType.STRING_OR_NULL);
         PARSER.declareField(constructorArg(), (p, c) -> p.booleanValue(), PRIMARY, ObjectParser.ValueType.BOOLEAN);
         PARSER.declareField(constructorArg(), (p, c) -> ShardRoutingState.valueOf(p.text()), STATE, ObjectParser.ValueType.STRING);
-        PARSER.declareField(constructorArg(), (p, c) -> RecoverySource.fromXContent(p), RECOVERY_SOURCE, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(optionalConstructorArg(), (p, c) -> RecoverySource.fromXContent(p), RECOVERY_SOURCE, ObjectParser.ValueType.OBJECT);
         PARSER.declareField(optionalConstructorArg(), (p, c) -> UnassignedInfo.fromXContent(p), UNASSIGNED_INFO, ObjectParser.ValueType.OBJECT);
         PARSER.declareField(optionalConstructorArg(), (p, c) -> AllocationId.fromXContent(p), ALLOCATION_ID, ObjectParser.ValueType.OBJECT);
         PARSER.declareField(optionalConstructorArg(), (p, c) -> p.longValue(), EXPECTED_SHARD_SIZE_IN_BYTES, ObjectParser.ValueType.LONG);

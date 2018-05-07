@@ -587,8 +587,7 @@ final class RequestConverters {
         String endpoint = endpoint(clusterSearchShardsRequest.indices(), "_search_shards");
         final Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         Params parameters = new Params(request);
-        parameters.withMasterTimeout(clusterSearchShardsRequest.masterNodeTimeout())
-            .withLocal(clusterSearchShardsRequest.local())
+        parameters.withLocal(clusterSearchShardsRequest.local())
             .putParam("routing", clusterSearchShardsRequest.routing())
             .putParam("preference", clusterSearchShardsRequest.preference())
             .withIndicesOptions(clusterSearchShardsRequest.indicesOptions());

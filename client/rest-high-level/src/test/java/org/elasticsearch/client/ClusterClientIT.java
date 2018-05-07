@@ -22,24 +22,48 @@ package org.elasticsearch.client;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.internal.AliasFilter;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ClusterClientIT extends ESRestHighLevelClientTestCase {
+
+    private RestHighLevelClient restHighLevelClient;
+
+    @Before
+    public void initWrappedClient() {
+        restHighLevelClient = new RestHighLevelClientExt(highLevelClient().getLowLevelClient());
+    }
 
     public void testClusterPutSettings() throws IOException {
         final String transientSettingKey = RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey();
@@ -105,4 +129,57 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(exception.getMessage(), equalTo(
                 "Elasticsearch exception [type=illegal_argument_exception, reason=transient setting [" + setting + "], not recognized]"));
     }
+
+    public void testSearchShards() throws IOException {
+        String index = "index";
+        String alias = "alias";
+
+
+        ClusterSearchShardsRequest request = new ClusterSearchShardsRequest(alias);
+
+        ClusterSearchShardsResponse response = execute(request, restHighLevelClient.cluster()::searchShards,
+            restHighLevelClient.cluster()::searchShardsAsync);
+
+        assertThat(response.getGroups().length, is(0));
+        assertThat(response.getNodes().length, is(0));
+        assertThat(response.getIndicesAndFilters().size(), is(0));
+
+        createIndex(index, Settings.EMPTY);
+        assertThat(aliasExists(index, alias), equalTo(false));
+        assertThat(aliasExists(alias), equalTo(false));
+
+        IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+        IndicesAliasesRequest.AliasActions addAction = new IndicesAliasesRequest.AliasActions(IndicesAliasesRequest.AliasActions.Type.ADD).index(index).aliases(alias);
+        addAction.routing("routing").searchRouting("search_routing").filter("{\"term\":{\"year\":2016}}");
+        aliasesAddRequest.addAliasAction(addAction);
+        execute(aliasesAddRequest, highLevelClient().indices()::updateAliases,
+            highLevelClient().indices()::updateAliasesAsync);
+
+        response = execute(request, restHighLevelClient.cluster()::searchShards,
+            restHighLevelClient.cluster()::searchShardsAsync);
+
+        assertThat(response.getGroups().length, greaterThan(0));
+        assertThat(response.getNodes().length, is(1));
+        final Map<String, AliasFilter> indicesAndFilters = response.getIndicesAndFilters();
+        assertThat(indicesAndFilters.size(), is(1));
+        final AliasFilter aliasFilter = indicesAndFilters.get(index);
+        assertThat(aliasFilter.getAliases().length, is(1));
+        assertThat(aliasFilter.getAliases(), is(new String[]{alias}));
+        final TermQueryBuilder termQueryBuilder = new TermQueryBuilder("year", 2016);
+        assertThat(aliasFilter.getQueryBuilder(), is(termQueryBuilder));
+
+    }
+
+    private static class RestHighLevelClientExt extends RestHighLevelClient {
+
+        private RestHighLevelClientExt(RestClient restClient) {
+            super(restClient, RestClient::close, getNamedXContents());
+        }
+
+        private static List<NamedXContentRegistry.Entry> getNamedXContents() {
+            SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+            return searchModule.getNamedXContents();
+        }
+    }
+
 }

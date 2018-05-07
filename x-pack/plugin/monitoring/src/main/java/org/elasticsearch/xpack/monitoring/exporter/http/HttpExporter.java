@@ -35,6 +35,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
+import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
@@ -445,8 +446,15 @@ public class HttpExporter extends Exporter {
      * @throws SettingsException if any setting causes issues
      */
     private static void configureSecurity(final RestClientBuilder builder, final Config config, final SSLService sslService) {
-        final Settings sslSettings = SSL_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
-        final SSLIOSessionStrategy sslStrategy = sslService.sslIOSessionStrategy(sslSettings);
+        final Setting<Settings> concreteSetting = SSL_SETTING.getConcreteSettingForNamespace(config.name());
+        final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(concreteSetting.getKey());
+        final SSLIOSessionStrategy sslStrategy;
+        if (sslConfiguration == null) {
+            final Settings sslSettings = concreteSetting.get(config.settings());
+            sslStrategy = sslService.sslIOSessionStrategy(sslSettings);
+        } else {
+            sslStrategy = sslService.sslIOSessionStrategy(sslConfiguration);
+        }
         final CredentialsProvider credentialsProvider = createCredentialsProvider(config);
         List<String> hostList = HOST_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());;
         // sending credentials in plaintext!

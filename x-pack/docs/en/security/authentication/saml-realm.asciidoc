@@ -1,5 +1,5 @@
 [[saml-realm]]
-=== SAML Authentication
+=== SAML authentication
 {security} supports user authentication using SAML Single Sign On.
 {security} provides this support using the Web Browser SSO profile of the SAML
 2.0 protocol.
@@ -21,23 +21,20 @@ Elastic Stack, there is a step-by-step guide to
 The remainder of this document will describe {es} specific configuration options
 for SAML realms.
 
-
 [[saml-settings]]
-==== SAML Realm Settings
+==== SAML realm settings
 
 See {ref}/security-settings.html#ref-saml-settings[SAML Realm Settings]. 
 
-
-===== SAML Realm Signing Settings
+==== SAML realm signing settings
 
 See {ref}/security-settings.html#ref-saml-signing-settings[SAML Realm Signing Settings]. 
 
-
-===== SAML Realm Encryption Settings
+==== SAML realm encryption settings
 
 See {ref}/security-settings.html#ref-saml-encryption-settings[SAML Realm Encryption Settings]. 
 
-===== SAML Realm SSL Settings
+==== SAML realm SSL settings
 
 See {ref}/security-settings.html#ref-saml-ssl-settings[SAML Realm SSL Settings]. 
 

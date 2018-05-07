@@ -178,6 +178,7 @@ integTestCluster {
   setting 'xpack.monitoring.exporters._http.auth.password', 'x-pack-test-password'
   setting 'xpack.monitoring.exporters._http.ssl.verification_mode', 'full'
 
+  setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.http.ssl.enabled', 'true'
   setting 'xpack.security.http.ssl.keystore.path', nodeKeystore.name

@@ -183,6 +183,12 @@ Rollup::
 * Validate timezone in range queries to ensure they match the selected job when
 searching ({pull}30338[#30338])
 
+
+Allocation::
+
+Auto-expand replicas when adding or removing nodes to prevent shard copies from
+being dropped and resynced when a data node rejoins the cluster ({pull}30423[#30423])
+
 //[float]
 //=== Regressions
 

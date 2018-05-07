@@ -60,7 +60,6 @@ public class ResizeRequestTests extends ESTestCase {
         request.setCopySettings(copySettings);
         final ActionRequestValidationException e = request.validate();
         consumer.accept(e);
-
     }
 
     public void testToXContent() throws IOException {

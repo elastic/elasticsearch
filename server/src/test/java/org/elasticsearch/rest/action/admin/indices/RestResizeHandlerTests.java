@@ -76,7 +76,6 @@ public class RestResizeHandlerTests extends ESTestCase {
                                 + "set parameter [copy_settings] to [true] for future default behavior");
             }
         }
-
     }
 
 }

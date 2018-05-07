@@ -317,7 +317,8 @@ public abstract class EngineTestCase extends ESTestCase {
                 doc.add(seqID.tombstoneField);
                 Field versionField = new NumericDocValuesField(VersionFieldMapper.NAME, 0);
                 doc.add(versionField);
-                return new ParsedDocument(versionField, seqID, null, null, null, Collections.singletonList(doc), null, XContentType.JSON, null);
+                return new ParsedDocument(versionField, seqID, null, null, null,
+                    Collections.singletonList(doc), null, XContentType.JSON, null);
             }
         };
     }

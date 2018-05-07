@@ -110,7 +110,7 @@ public class AutoCreateIndexTests extends ESTestCase {
 
     public void testDynamicMappingDisabled() {
         Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), randomFrom(true,
-                randomAlphaOfLengthBetween(1, 10)))
+                randomAlphaOfLengthBetween(5, 10)))
             .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), false).build();
         AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () ->

@@ -278,7 +278,8 @@ It accepts the following setting:
 
 and defaults to:
 
-```
+[source,js]
+--------------------------------------------------
 "stoptags": [
     "E",
     "IC",
@@ -288,7 +289,8 @@ and defaults to:
     "XPN", "XSA", "XSN", "XSV",
     "UNA", "NA", "VSV"
 ]
-```
+--------------------------------------------------
+// NOTCONSOLE
 
 For example:
 

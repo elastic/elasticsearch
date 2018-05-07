@@ -184,7 +184,7 @@ public class WatcherService extends AbstractComponent {
         // changes
         processedClusterStateVersion.set(state.getVersion());
         triggerService.pauseExecution();
-        int cancelledTaskCount = executionService.reload();
+        int cancelledTaskCount = executionService.clearExecutionsAndQueue();
         logger.info("reloading watcher, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
 
         executor.execute(wrapWatcherService(() -> reloadInner(state, reason, false),
@@ -194,22 +194,22 @@ public class WatcherService extends AbstractComponent {
     /**
      * start the watcher service, load watches in the background
      *
-     * @param state    the current cluster state
-     * @param callback the callback to be triggered, when watches where loaded successfully
+     * @param state                     the current cluster state
+     * @param postWatchesLoadedCallback the callback to be triggered, when watches where loaded successfully
      */
-    public void start(ClusterState state, Runnable callback) {
+    public void start(ClusterState state, Runnable postWatchesLoadedCallback) {
         executionService.unPause();
         processedClusterStateVersion.set(state.getVersion());
         executor.execute(wrapWatcherService(() -> {
                 if (reloadInner(state, "starting", true)) {
-                    callback.run();
+                    postWatchesLoadedCallback.run();
                 }
             },
             e -> logger.error("error starting watcher", e)));
     }
 
     /**
-     * reload the watches and start scheduling them
+     * reload watches and start scheduling them
      *
      * @param state                 the current cluster state
      * @param reason                the reason for reloading, will be logged

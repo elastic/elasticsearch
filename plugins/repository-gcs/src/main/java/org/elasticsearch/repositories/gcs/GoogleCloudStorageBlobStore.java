@@ -188,7 +188,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
      */
     void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
         final BlobInfo blobInfo = BlobInfo.newBuilder(bucket, blobName).build();
-        if (blobSize > 1_000_000) {
+        if (blobSize > (5 * 1024 * 1024)) {
             final WriteChannel writeChannel = SocketAccess.doPrivilegedIOException(() -> storage.writer(blobInfo));
             Streams.copy(inputStream, java.nio.channels.Channels.newOutputStream(new WritableByteChannel() {
                 @Override

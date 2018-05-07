@@ -3113,8 +3113,8 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(noopTombstone.docs(), hasSize(1));
         ParseContext.Document noopDoc = noopTombstone.docs().get(0);
         assertThat(noopDoc.getFields().stream().map(IndexableField::name).collect(Collectors.toList()),
-            containsInAnyOrder(SeqNoFieldMapper.NAME, SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME,
-                SeqNoFieldMapper.TOMBSTONE_NAME));
+            containsInAnyOrder(VersionFieldMapper.NAME, SeqNoFieldMapper.TOMBSTONE_NAME,
+                SeqNoFieldMapper.NAME, SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME));
         assertThat(noopDoc.getField(SeqNoFieldMapper.TOMBSTONE_NAME).numericValue().longValue(), equalTo(1L));
 
         closeShards(shard);

@@ -69,20 +69,19 @@ final class PerThreadIDVersionAndSeqNoLookup {
         this.uidField = uidField;
         final Terms terms = reader.terms(uidField);
         if (terms == null) {
-            // If a segment contains only no-ops, it won't have _uid and _version but has both _soft_deletes and _tombstone fields.
-            final NumericDocValues versionDV = reader.getNumericDocValues(VersionFieldMapper.NAME);
+            // If a segment contains only no-ops, it does not have _uid but has both _soft_deletes and _tombstone fields.
             final NumericDocValues softDeletesDV = reader.getNumericDocValues(Lucene.SOFT_DELETE_FIELD);
             final NumericDocValues tombstoneDV = reader.getNumericDocValues(SeqNoFieldMapper.TOMBSTONE_NAME);
-            if (versionDV != null || softDeletesDV == null || tombstoneDV == null) {
+            if (softDeletesDV == null || tombstoneDV == null) {
                 throw new IllegalArgumentException("reader does not have _uid terms but not a no-op segment; " +
-                    "_version [" + versionDV + "], _soft_deletes [" + softDeletesDV + "], _tombstone [" + tombstoneDV + "]");
+                    "_soft_deletes [" + softDeletesDV + "], _tombstone [" + tombstoneDV + "]");
             }
             termsEnum = null;
         } else {
-            if (reader.getNumericDocValues(VersionFieldMapper.NAME) == null) {
-                throw new IllegalArgumentException("reader misses the [" + VersionFieldMapper.NAME + "] field");
-            }
             termsEnum = terms.iterator();
+        }
+        if (reader.getNumericDocValues(VersionFieldMapper.NAME) == null) {
+            throw new IllegalArgumentException("reader misses the [" + VersionFieldMapper.NAME + "] field; _uid terms [" + terms + "]");
         }
         Object readerKey = null;
         assert (readerKey = reader.getCoreCacheHelper().getKey()) != null;

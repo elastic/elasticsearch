@@ -45,14 +45,14 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         {
             GetRepositoriesRequest request = new GetRepositoriesRequest();
             request.repositories(new String[]{repository});
-            GetRepositoriesResponse response = execute(request, highLevelClient()::getRepositories,
-                highLevelClient()::getRepositoriesAsync);
+            GetRepositoriesResponse response = execute(request, highLevelClient().snapshot()::getRepositories,
+                highLevelClient().snapshot()::getRepositoriesAsync);
             assertThat(1, equalTo(response.repositories().size()));
         }
         {
             GetRepositoriesRequest request = new GetRepositoriesRequest();
-            GetRepositoriesResponse response = execute(request, highLevelClient()::getRepositories,
-                highLevelClient()::getRepositoriesAsync);
+            GetRepositoriesResponse response = execute(request, highLevelClient().snapshot()::getRepositories,
+                highLevelClient().snapshot()::getRepositoriesAsync);
             assertThat(2, equalTo(response.repositories().size()));
         }
     }
@@ -64,7 +64,8 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         highLevelClient().getLowLevelClient().performRequest("put", "_snapshot/test", Collections.emptyMap(),
         new StringEntity(repositorySettings, ContentType.APPLICATION_JSON));
 
-        GetRepositoriesResponse response = execute(request, highLevelClient()::getRepositories, highLevelClient()::getRepositoriesAsync);
+        GetRepositoriesResponse response = execute(request, highLevelClient().snapshot()::getRepositories,
+            highLevelClient().snapshot()::getRepositoriesAsync);
         assertThat(1, equalTo(response.repositories().size()));
     }
 
@@ -72,7 +73,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         String repository = "doesnotexist";
         GetRepositoriesRequest request = new GetRepositoriesRequest(new String[]{repository});
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> execute(request,
-            highLevelClient()::getRepositories, highLevelClient()::getRepositoriesAsync));
+            highLevelClient().snapshot()::getRepositories, highLevelClient().snapshot()::getRepositoriesAsync));
 
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
         assertThat(exception.getMessage(), equalTo(

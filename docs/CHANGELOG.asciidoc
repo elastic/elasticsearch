@@ -104,6 +104,8 @@ ones that the user is authorized to access in case field level security is enabl
 [float]
 === Bug Fixes
 
+Fix NPE in 'more_like_this' when field has zero tokens ({pull}30365[#30365])
+
 Fixed prerelease version of elasticsearch in the `deb` package to sort before GA versions
 ({pull}29000[#29000])
 
@@ -168,6 +170,8 @@ Added put index template API to the high level rest client ({pull}30400[#30400])
 
 [float]
 === Bug Fixes
+
+Fix NPE in 'more_like_this' when field has zero tokens ({pull}30365[#30365])
 
 Do not ignore request analysis/similarity settings on index resize operations when the source index already contains such settings ({pull}30216[#30216])
 

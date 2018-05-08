@@ -465,7 +465,7 @@ public class Cache<K, V> {
         CacheSegment<K, V> segment = getCacheSegment(key);
         segment.remove(key, f -> {
             try {
-                final Entry<K, V> entry = f.get();
+                Entry<K, V> entry = f.get();
                 try (ReleasableLock ignored = lruLock.acquire()) {
                     delete(entry, RemovalNotification.RemovalReason.INVALIDATED);
                 }

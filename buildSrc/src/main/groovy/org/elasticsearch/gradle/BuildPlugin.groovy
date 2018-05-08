@@ -497,8 +497,7 @@ class BuildPlugin implements Plugin<Project> {
         project.afterEvaluate {
             project.tasks.withType(JavaCompile) {
                 final JavaVersion targetCompatibilityVersion = JavaVersion.toVersion(it.targetCompatibility)
-                // we fork because compiling lots of different classes in a shared jvm can eventually trigger GC overhead limitations
-                options.fork = true
+                options.fork = false
                 options.forkOptions.javaHome = new File(project.compilerJavaHome)
                 options.forkOptions.memoryMaximumSize = "512m"
                 if (targetCompatibilityVersion == JavaVersion.VERSION_1_8) {

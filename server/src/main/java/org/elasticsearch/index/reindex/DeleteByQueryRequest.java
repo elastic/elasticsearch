@@ -33,13 +33,13 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *
  * Delete-by-query now has the following semantics:
  * <ul>
- *     <li>it's <tt>non-atomic</tt>, a delete-by-query may fail at any time while some documents matching the query have already been
+ *     <li>it's {@code non-atomic}, a delete-by-query may fail at any time while some documents matching the query have already been
  *     deleted</li>
- *     <li>it's <tt>syntactic sugar</tt>, a delete-by-query is equivalent to a scroll search and corresponding bulk-deletes by ID</li>
- *     <li>it's executed on a <tt>point-in-time</tt> snapshot, a delete-by-query will only delete the documents that are visible at the
+ *     <li>it's {@code syntactic sugar}, a delete-by-query is equivalent to a scroll search and corresponding bulk-deletes by ID</li>
+ *     <li>it's executed on a {@code point-in-time} snapshot, a delete-by-query will only delete the documents that are visible at the
  *     point in time the delete-by-query was started, equivalent to the scroll API</li>
- *     <li>it's <tt>consistent</tt>, a delete-by-query will yield consistent results across all replicas of a shard</li>
- *     <li>it's <tt>forward-compatible</tt>, a delete-by-query will only send IDs to the shards as deletes such that no queries are
+ *     <li>it's {@code consistent}, a delete-by-query will yield consistent results across all replicas of a shard</li>
+ *     <li>it's {@code forward-compatible}, a delete-by-query will only send IDs to the shards as deletes such that no queries are
  *     stored in the transaction logs that might not be supported in the future.</li>
  *     <li>it's results won't be visible until the index is refreshed.</li>
  * </ul>

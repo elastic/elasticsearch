@@ -49,7 +49,7 @@ public interface RefCounted {
     void incRef();
 
     /**
-     * Tries to increment the refCount of this instance. This method will return <tt>true</tt> iff the refCount was
+     * Tries to increment the refCount of this instance. This method will return {@code true} iff the refCount was
      *
      * @see #decRef()
      * @see #incRef()

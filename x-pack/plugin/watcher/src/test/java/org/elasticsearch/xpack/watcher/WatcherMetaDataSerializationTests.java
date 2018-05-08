@@ -47,7 +47,7 @@ public class WatcherMetaDataSerializationTests extends ESTestCase {
         boolean manuallyStopped = randomBoolean();
         WatcherMetaData watcherMetaData = new WatcherMetaData(manuallyStopped);
         RepositoryMetaData repositoryMetaData = new RepositoryMetaData("repo", "fs", Settings.EMPTY);
-        RepositoriesMetaData repositoriesMetaData = new RepositoriesMetaData(repositoryMetaData);
+        RepositoriesMetaData repositoriesMetaData = new RepositoriesMetaData(Collections.singletonList(repositoryMetaData));
         final MetaData.Builder metaDataBuilder = MetaData.builder();
         if (randomBoolean()) { // random order of insertion
             metaDataBuilder.putCustom(watcherMetaData.getWriteableName(), watcherMetaData);

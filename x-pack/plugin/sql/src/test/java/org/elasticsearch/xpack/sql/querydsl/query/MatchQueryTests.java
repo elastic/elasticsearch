@@ -8,16 +8,21 @@ package org.elasticsearch.xpack.sql.querydsl.query;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.LocationTests;
+import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.EsField;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
-import static org.hamcrest.Matchers.equalTo;
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
+import static org.hamcrest.Matchers.equalTo;
 
 public class MatchQueryTests extends ESTestCase {
     static MatchQuery randomMatchQuery() {
@@ -62,14 +67,16 @@ public class MatchQueryTests extends ESTestCase {
 
     private static MatchQueryBuilder getBuilder(String options) {
         final Location location = new Location(1, 1);
-        final MatchQueryPredicate mmqp = new MatchQueryPredicate(location, null, "eggplant", options);
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.KEYWORD, emptyMap(), true));
+        final MatchQueryPredicate mmqp = new MatchQueryPredicate(location, fa, "eggplant", options);
         final MatchQuery mmq = new MatchQuery(location, "eggplant", "foo", mmqp);
         return (MatchQueryBuilder) mmq.asBuilder();
     }
 
     public void testToString() {
         final Location location = new Location(1, 1);
-        final MatchQueryPredicate mmqp = new MatchQueryPredicate(location, null, "eggplant", "");
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.KEYWORD, emptyMap(), true));
+        final MatchQueryPredicate mmqp = new MatchQueryPredicate(location, fa, "eggplant", "");
         final MatchQuery mmq = new MatchQuery(location, "eggplant", "foo", mmqp);
         assertEquals("MatchQuery@1:2[eggplant:foo]", mmq.toString());
     }

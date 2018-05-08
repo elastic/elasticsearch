@@ -1978,7 +1978,7 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         /**
-         * Executed for each node before the <tt>n+1</tt> node is restarted. The given client is
+         * Executed for each node before the {@code n + 1} node is restarted. The given client is
          * an active client to the node that will be restarted next.
          */
         public void doAfterNodes(int n, Client client) throws Exception {

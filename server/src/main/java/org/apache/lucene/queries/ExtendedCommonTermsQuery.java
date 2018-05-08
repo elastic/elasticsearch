@@ -28,7 +28,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 
 /**
  * Extended version of {@link CommonTermsQuery} that allows to pass in a
- * <tt>minimumNumberShouldMatch</tt> specification that uses the actual num of high frequent terms
+ * {@code minimumNumberShouldMatch} specification that uses the actual num of high frequent terms
  * to calculate the minimum matching terms.
  */
 public class ExtendedCommonTermsQuery extends CommonTermsQuery {

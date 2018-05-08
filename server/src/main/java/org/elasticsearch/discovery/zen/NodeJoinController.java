@@ -58,9 +58,7 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
 public class NodeJoinController extends AbstractComponent {
 
     private final MasterService masterService;
-    private final AllocationService allocationService;
-    private final ElectMasterService electMaster;
-    private final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor();
+    private final JoinTaskExecutor joinTaskExecutor;
 
     // this is set while trying to become a master
     // mutation should be done under lock
@@ -71,8 +69,7 @@ public class NodeJoinController extends AbstractComponent {
                               Settings settings) {
         super(settings);
         this.masterService = masterService;
-        this.allocationService = allocationService;
-        this.electMaster = electMaster;
+        joinTaskExecutor = new JoinTaskExecutor(allocationService, electMaster, logger);
     }
 
     /**
@@ -404,7 +401,20 @@ public class NodeJoinController extends AbstractComponent {
             }
     };
 
-    class JoinTaskExecutor implements ClusterStateTaskExecutor<DiscoveryNode> {
+    // visible for testing
+    public static class JoinTaskExecutor implements ClusterStateTaskExecutor<DiscoveryNode> {
+
+        private final AllocationService allocationService;
+
+        private final ElectMasterService electMasterService;
+
+        private final Logger logger;
+
+        public JoinTaskExecutor(AllocationService allocationService, ElectMasterService electMasterService, Logger logger) {
+            this.allocationService = allocationService;
+            this.electMasterService = electMasterService;
+            this.logger = logger;
+        }
 
         @Override
         public ClusterTasksResult<DiscoveryNode> execute(ClusterState currentState, List<DiscoveryNode> joiningNodes) throws Exception {
@@ -512,7 +522,7 @@ public class NodeJoinController extends AbstractComponent {
 
         @Override
         public void clusterStatePublished(ClusterChangedEvent event) {
-            NodeJoinController.this.electMaster.logMinimumMasterNodesWarningIfNecessary(event.previousState(), event.state());
+            electMasterService.logMinimumMasterNodesWarningIfNecessary(event.previousState(), event.state());
         }
     }
 }

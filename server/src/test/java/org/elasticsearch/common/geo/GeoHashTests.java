@@ -19,6 +19,7 @@
 package org.elasticsearch.common.geo;
 
 import org.apache.lucene.geo.Rectangle;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
 
 /**
@@ -95,7 +96,17 @@ public class GeoHashTests extends ESTestCase {
             Rectangle expectedBbox = GeoHashUtils.bbox(geohash);
             Rectangle actualBbox = GeoHashUtils.bbox(extendedGeohash);
             assertEquals("Additional data points above 12 should be ignored [" + extendedGeohash + "]" , expectedBbox, actualBbox);
-
         }
     }
+
+    public void testInvalidGeohashes() {
+        IllegalArgumentException ex;
+
+        ex = expectThrows(IllegalArgumentException.class, () -> GeoHashUtils.mortonEncode("55.5"));
+        assertEquals("unsupported symbol [.] in geohash [55.5]", ex.getMessage());
+
+        ex = expectThrows(IllegalArgumentException.class, () -> GeoHashUtils.mortonEncode(""));
+        assertEquals("empty geohash", ex.getMessage());
+    }
+
 }

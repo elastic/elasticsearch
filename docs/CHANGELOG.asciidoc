@@ -168,8 +168,6 @@ started or stopped. ({pull}30118[#30118])
 
 Added put index template API to the high level rest client ({pull}30400[#30400])
 
-Add get repository API to the high level rest client ({pull}30362[#30362])
-
 [float]
 === Bug Fixes
 

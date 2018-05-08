@@ -38,7 +38,8 @@ public class License implements ToXContentObject {
     public static final int VERSION_START = 1;
     public static final int VERSION_NO_FEATURE_TYPE = 2;
     public static final int VERSION_START_DATE = 3;
-    public static final int VERSION_CURRENT = VERSION_START_DATE;
+    public static final int VERSION_CRYPTO_ALGORITHMS = 4;
+    public static final int VERSION_CURRENT = VERSION_CRYPTO_ALGORITHMS;
 
     /**
      * XContent param name to deserialize license(s) with

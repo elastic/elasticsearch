@@ -24,7 +24,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * A request to force merge one or more indices. In order to force merge all
- * indices, pass an empty array or <tt>null</tt> for the indices.
+ * indices, pass an empty array or {@code null} for the indices.
  * {@link #setMaxNumSegments(int)} allows to control the number of segments to force
  * merge down to. By default, will cause the force merge process to merge down
  * to half the configured number of segments.
@@ -47,7 +47,7 @@ public class ForceMergeRequestBuilder extends BroadcastOperationRequestBuilder<F
 
     /**
      * Should the merge only expunge deletes from the index, without full merging.
-     * Defaults to full merging (<tt>false</tt>).
+     * Defaults to full merging ({@code false}).
      */
     public ForceMergeRequestBuilder setOnlyExpungeDeletes(boolean onlyExpungeDeletes) {
         request.onlyExpungeDeletes(onlyExpungeDeletes);
@@ -55,7 +55,7 @@ public class ForceMergeRequestBuilder extends BroadcastOperationRequestBuilder<F
     }
 
     /**
-     * Should flush be performed after the merge. Defaults to <tt>true</tt>.
+     * Should flush be performed after the merge. Defaults to {@code true}.
      */
     public ForceMergeRequestBuilder setFlush(boolean flush) {
         request.flush(flush);

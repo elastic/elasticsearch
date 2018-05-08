@@ -516,6 +516,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
             if (ignoreMalformed.value() == false) {
                 throw new MapperParsingException("failed to parse [" + fieldType().name() + "]", e);
             }
+            context.addIgnoredField(fieldType.name());
         }
         return null;
     }

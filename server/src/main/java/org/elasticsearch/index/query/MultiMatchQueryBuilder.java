@@ -337,7 +337,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     }
 
     /**
-     * Sets the operator to use when using a boolean query. Defaults to <tt>OR</tt>.
+     * Sets the operator to use when using a boolean query. Defaults to {@code OR}.
      */
     public MultiMatchQueryBuilder operator(Operator operator) {
         if (operator == null) {
@@ -460,7 +460,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
      * match only the best of the fields, without confusing this with the better case of
      * two distinct matches in the multiple fields.</p>
      *
-     * <p>A tie-breaker value of <tt>1.0</tt> is interpreted as a signal to score queries as
+     * <p>A tie-breaker value of {@code 1.0} is interpreted as a signal to score queries as
      * "most-match" queries where all matching query clauses are considered for scoring.</p>
      *
      * @see Type
@@ -477,7 +477,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
      * match only the best of the fields, without confusing this with the better case of
      * two distinct matches in the multiple fields.</p>
      *
-     * <p>A tie-breaker value of <tt>1.0</tt> is interpreted as a signal to score queries as
+     * <p>A tie-breaker value of {@code 1.0} is interpreted as a signal to score queries as
      * "most-match" queries where all matching query clauses are considered for scoring.</p>
      *
      * @see Type
@@ -546,7 +546,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
 
     /**
      * Whether phrase queries should be automatically generated for multi terms synonyms.
-     * Defaults to <tt>true</tt>.
+     * Defaults to {@code true}.
      */
     public boolean autoGenerateSynonymsPhraseQuery() {
         return autoGenerateSynonymsPhraseQuery;

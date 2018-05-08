@@ -149,6 +149,27 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
         assertLicenseActive(false);
     }
 
+    public void testClusterRestartWithOldSignature() throws Exception {
+        wipeAllLicenses();
+        internalCluster().startNode();
+        ensureGreen();
+        assertLicenseActive(true);
+        putLicense(TestUtils.generateSignedLicenseOldSignature());
+        LicensingClient licensingClient = new LicensingClient(client());
+        assertThat(licensingClient.prepareGetLicense().get().license().version(), equalTo(License.VERSION_START_DATE));
+        logger.info("--> restart node");
+        internalCluster().fullRestart(); // restart so that license is updated
+        ensureYellow();
+        logger.info("--> await node for enabled");
+        assertLicenseActive(true);
+        licensingClient = new LicensingClient(client());
+        assertThat(licensingClient.prepareGetLicense().get().license().version(), equalTo(License.VERSION_CURRENT)); //license updated
+        internalCluster().fullRestart(); // restart once more and verify updated license is active
+        ensureYellow();
+        logger.info("--> await node for enabled");
+        assertLicenseActive(true);
+    }
+
     private void assertOperationMode(License.OperationMode operationMode) throws InterruptedException {
         boolean success = awaitBusy(() -> {
             for (XPackLicenseState licenseState : internalCluster().getDataNodeInstances(XPackLicenseState.class)) {

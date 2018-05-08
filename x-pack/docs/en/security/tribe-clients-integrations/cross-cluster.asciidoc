@@ -108,9 +108,7 @@ On cluster `two`, this role allows the user to query local indices called
 -----------------------------------------------------------
 POST /_xpack/security/role/cluster_two_logs
 {
-  "cluster": [
-    "transport_client"
-  ],
+  "cluster": [],
   "indices": [
     {
       "names": [

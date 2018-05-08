@@ -33,7 +33,7 @@ import java.util.Objects;
 
 /**
  * This class encapsulates all remote cluster information to be rendered on
- * <tt>_remote/info</tt> requests.
+ * {@code _remote/info} requests.
  */
 public final class RemoteConnectionInfo implements ToXContentFragment, Writeable {
     final List<TransportAddress> seedNodes;

@@ -53,6 +53,10 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRespons
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -69,10 +73,13 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * This class is used to generate the Java Indices API documentation.
@@ -1483,4 +1490,164 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
+    public void testPutTemplate() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        // tag::put-template-request
+        PutIndexTemplateRequest request = new PutIndexTemplateRequest("my-template"); // <1>
+        request.patterns(Arrays.asList("pattern-1", "log-*")); // <2>
+        // end::put-template-request
+
+        // tag::put-template-request-settings
+        request.settings(Settings.builder() // <1>
+            .put("index.number_of_shards", 3)
+            .put("index.number_of_replicas", 1)
+        );
+        // end::put-template-request-settings
+
+        {
+            // tag::put-template-request-mappings-json
+            request.mapping("tweet", // <1>
+                "{\n" +
+                    "  \"tweet\": {\n" +
+                    "    \"properties\": {\n" +
+                    "      \"message\": {\n" +
+                    "        \"type\": \"text\"\n" +
+                    "      }\n" +
+                    "    }\n" +
+                    "  }\n" +
+                    "}", // <2>
+                XContentType.JSON);
+            // end::put-template-request-mappings-json
+            assertTrue(client.indices().putTemplate(request).isAcknowledged());
+        }
+        {
+            //tag::put-template-request-mappings-map
+            Map<String, Object> jsonMap = new HashMap<>();
+            Map<String, Object> message = new HashMap<>();
+            message.put("type", "text");
+            Map<String, Object> properties = new HashMap<>();
+            properties.put("message", message);
+            Map<String, Object> tweet = new HashMap<>();
+            tweet.put("properties", properties);
+            jsonMap.put("tweet", tweet);
+            request.mapping("tweet", jsonMap); // <1>
+            //end::put-template-request-mappings-map
+            assertTrue(client.indices().putTemplate(request).isAcknowledged());
+        }
+        {
+            //tag::put-template-request-mappings-xcontent
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            builder.startObject();
+            {
+                builder.startObject("tweet");
+                {
+                    builder.startObject("properties");
+                    {
+                        builder.startObject("message");
+                        {
+                            builder.field("type", "text");
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+            request.mapping("tweet", builder); // <1>
+            //end::put-template-request-mappings-xcontent
+            assertTrue(client.indices().putTemplate(request).isAcknowledged());
+        }
+        {
+            //tag::put-template-request-mappings-shortcut
+            request.mapping("tweet", "message", "type=text"); // <1>
+            //end::put-template-request-mappings-shortcut
+            assertTrue(client.indices().putTemplate(request).isAcknowledged());
+        }
+
+        // tag::put-template-request-aliases
+        request.alias(new Alias("twitter_alias").filter(QueryBuilders.termQuery("user", "kimchy")));  // <1>
+        request.alias(new Alias("{index}_alias").searchRouting("xyz"));  // <2>
+        // end::put-template-request-aliases
+
+        // tag::put-template-request-order
+        request.order(20);  // <1>
+        // end::put-template-request-order
+
+        // tag::put-template-request-version
+        request.version(4);  // <1>
+        // end::put-template-request-version
+
+        // tag::put-template-whole-source
+        request.source("{\n" +
+            "  \"index_patterns\": [\n" +
+            "    \"log-*\",\n" +
+            "    \"pattern-1\"\n" +
+            "  ],\n" +
+            "  \"order\": 1,\n" +
+            "  \"settings\": {\n" +
+            "    \"number_of_shards\": 1\n" +
+            "  },\n" +
+            "  \"mappings\": {\n" +
+            "    \"tweet\": {\n" +
+            "      \"properties\": {\n" +
+            "        \"message\": {\n" +
+            "          \"type\": \"text\"\n" +
+            "        }\n" +
+            "      }\n" +
+            "    }\n" +
+            "  },\n" +
+            "  \"aliases\": {\n" +
+            "    \"alias-1\": {},\n" +
+            "    \"{index}-alias\": {}\n" +
+            "  }\n" +
+            "}", XContentType.JSON); // <1>
+        // end::put-template-whole-source
+
+        // tag::put-template-request-create
+        request.create(true);  // <1>
+        // end::put-template-request-create
+
+        // tag::put-template-request-masterTimeout
+        request.masterNodeTimeout(TimeValue.timeValueMinutes(1)); // <1>
+        request.masterNodeTimeout("1m"); // <2>
+        // end::put-template-request-masterTimeout
+
+        request.create(false); // make test happy
+
+        // tag::put-template-execute
+        PutIndexTemplateResponse putTemplateResponse = client.indices().putTemplate(request);
+        // end::put-template-execute
+
+        // tag::put-template-response
+        boolean acknowledged = putTemplateResponse.isAcknowledged(); // <1>
+        // end::put-template-response
+        assertTrue(acknowledged);
+
+        // tag::put-template-execute-listener
+        ActionListener<PutIndexTemplateResponse> listener =
+            new ActionListener<PutIndexTemplateResponse>() {
+                @Override
+                public void onResponse(PutIndexTemplateResponse putTemplateResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::put-template-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::put-template-execute-async
+        client.indices().putTemplateAsync(request, listener); // <1>
+        // end::put-template-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
 }

@@ -41,7 +41,7 @@ import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
-import org.elasticsearch.xpack.security.support.IndexLifecycleManager;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -159,7 +159,7 @@ public class SecurityTribeTests extends NativeRealmIntegTestCase {
                     final Client cluster2Client = cluster2.client().filterWithHeader(Collections.singletonMap("Authorization",
                             UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
                                     SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
-                    cluster2Client.admin().indices().prepareDelete(IndexLifecycleManager.INTERNAL_SECURITY_INDEX).get();
+                    cluster2Client.admin().indices().prepareDelete(SecurityIndexManager.INTERNAL_SECURITY_INDEX).get();
                 } catch (IndexNotFoundException e) {
                     // ignore it since not all tests create this index...
                 }

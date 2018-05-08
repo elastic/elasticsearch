@@ -22,7 +22,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
-import org.elasticsearch.xpack.security.support.IndexLifecycleManager;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -46,7 +46,7 @@ import java.util.function.Predicate;
  */
 public class SecurityLifecycleService extends AbstractComponent implements ClusterStateListener {
 
-    public static final String INTERNAL_SECURITY_INDEX = IndexLifecycleManager.INTERNAL_SECURITY_INDEX;
+    public static final String INTERNAL_SECURITY_INDEX = SecurityIndexManager.INTERNAL_SECURITY_INDEX;
     public static final String SECURITY_INDEX_NAME = ".security";
 
     private static final Version MIN_READ_VERSION = Version.V_5_0_0;
@@ -55,7 +55,7 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
     private final ThreadPool threadPool;
     private final IndexAuditTrail indexAuditTrail;
 
-    private final IndexLifecycleManager securityIndex;
+    private final SecurityIndexManager securityIndex;
 
     public SecurityLifecycleService(Settings settings, ClusterService clusterService,
                                     ThreadPool threadPool, Client client,
@@ -64,7 +64,7 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
         this.settings = settings;
         this.threadPool = threadPool;
         this.indexAuditTrail = indexAuditTrail;
-        this.securityIndex = new IndexLifecycleManager(settings, client, SECURITY_INDEX_NAME);
+        this.securityIndex = new SecurityIndexManager(settings, client, SECURITY_INDEX_NAME);
         clusterService.addListener(this);
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override
@@ -110,67 +110,8 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
         }
     }
 
-    IndexLifecycleManager securityIndex() {
+    public SecurityIndexManager securityIndex() {
         return securityIndex;
-    }
-
-    /**
-     * Returns {@code true} if the security index exists
-     */
-    public boolean isSecurityIndexExisting() {
-        return securityIndex.indexExists();
-    }
-
-    /**
-     * Returns <code>true</code> if the security index does not exist or it exists and has the current
-     * value for the <code>index.format</code> index setting
-     */
-    public boolean isSecurityIndexUpToDate() {
-        return securityIndex.isIndexUpToDate();
-    }
-
-    /**
-     * Returns <code>true</code> if the security index exists and all primary shards are active
-     */
-    public boolean isSecurityIndexAvailable() {
-        return securityIndex.isAvailable();
-    }
-
-    /**
-     * Returns <code>true</code> if the security index does not exist or the mappings are up to date
-     * based on the version in the <code>_meta</code> field
-     */
-    public boolean isSecurityIndexMappingUpToDate() {
-        return securityIndex().isMappingUpToDate();
-    }
-
-    /**
-     * Test whether the effective (active) version of the security mapping meets the
-     * <code>requiredVersion</code>.
-     *
-     * @return <code>true</code> if the effective version passes the predicate, or the security
-     * mapping does not exist (<code>null</code> version). Otherwise, <code>false</code>.
-     */
-    public boolean checkSecurityMappingVersion(Predicate<Version> requiredVersion) {
-        return securityIndex.checkMappingVersion(requiredVersion);
-    }
-
-    /**
-     * Adds a listener which will be notified when the security index health changes. The previous and
-     * current health will be provided to the listener so that the listener can determine if any action
-     * needs to be taken.
-     */
-    public void addSecurityIndexHealthChangeListener(BiConsumer<ClusterIndexHealth, ClusterIndexHealth> listener) {
-        securityIndex.addIndexHealthChangeListener(listener);
-    }
-
-    /**
-     * Adds a listener which will be notified when the security index out of date value changes. The previous and
-     * current value will be provided to the listener so that the listener can determine if any action
-     * needs to be taken.
-     */
-    void addSecurityIndexOutOfDateListener(BiConsumer<Boolean, Boolean> listener) {
-        securityIndex.addIndexOutOfDateListener(listener);
     }
 
     // this is called in a lifecycle listener beforeStop on the cluster service
@@ -193,27 +134,11 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
     }
 
     private static boolean checkMappingVersions(ClusterState clusterState, Logger logger, Predicate<Version> versionPredicate) {
-        return IndexLifecycleManager.checkIndexMappingVersionMatches(SECURITY_INDEX_NAME, clusterState, logger, versionPredicate);
+        return SecurityIndexManager.checkIndexMappingVersionMatches(SECURITY_INDEX_NAME, clusterState, logger, versionPredicate);
     }
 
     public static List<String> indexNames() {
         return Collections.unmodifiableList(Arrays.asList(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX));
-    }
-
-    /**
-     * Prepares the security index by creating it if it doesn't exist or updating the mappings if the mappings are
-     * out of date. After any tasks have been executed, the runnable is then executed.
-     */
-    public void prepareIndexIfNeededThenExecute(final Consumer<Exception> consumer, final Runnable andThen) {
-            securityIndex.prepareIndexIfNeededThenExecute(consumer, andThen);
-    }
-
-    /**
-     * Checks if the security index is out of date with the current version. If the index does not exist
-     * we treat the index as up to date as we expect it to be created with the current format.
-     */
-    public boolean isSecurityIndexOutOfDate() {
-        return securityIndex.isIndexUpToDate() == false;
     }
 
     /**

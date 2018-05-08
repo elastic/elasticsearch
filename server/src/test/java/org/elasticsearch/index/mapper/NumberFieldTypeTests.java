@@ -42,6 +42,7 @@ import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.hamcrest.Matchers;
+import org.junit.Assert;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -56,6 +57,8 @@ import static org.hamcrest.Matchers.containsString;
 
 public class NumberFieldTypeTests extends FieldTypeTestCase {
 
+    protected static final String NUMBERFIELD = "numberField1";
+
     NumberType type;
 
     @Before
@@ -65,6 +68,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     @Override
     protected MappedFieldType createDefaultFieldType() {
+        Assert.assertNotNull("type must not be null", type);
         return new NumberFieldMapper.NumberFieldType(type);
     }
 
@@ -76,66 +80,58 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testIntegerTermsQueryWithDecimalPart() {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberType.INTEGER);
-        ft.setName("field");
+        MappedFieldType ft = this.createNamedDefaultFieldType(NumberType.INTEGER);
         ft.setIndexOptions(IndexOptions.DOCS);
-        assertEquals(IntPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1, 2.1), null));
-        assertEquals(IntPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1.0, 2.1), null));
+        assertEquals(IntPoint.newSetQuery(this.fieldInQuery(), 1), ft.termsQuery(Arrays.asList(1, 2.1), null));
+        assertEquals(IntPoint.newSetQuery(this.fieldInQuery(), 1), ft.termsQuery(Arrays.asList(1.0, 2.1), null));
         assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), null) instanceof MatchNoDocsQuery);
     }
 
     public void testLongTermsQueryWithDecimalPart() {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberType.LONG);
-        ft.setName("field");
+        MappedFieldType ft = this.createNamedDefaultFieldType(NumberType.LONG);
         ft.setIndexOptions(IndexOptions.DOCS);
-        assertEquals(LongPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1, 2.1), null));
-        assertEquals(LongPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1.0, 2.1), null));
+        assertEquals(LongPoint.newSetQuery(this.fieldInQuery(), 1), ft.termsQuery(Arrays.asList(1, 2.1), null));
+        assertEquals(LongPoint.newSetQuery(this.fieldInQuery(), 1), ft.termsQuery(Arrays.asList(1.0, 2.1), null));
         assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), null) instanceof MatchNoDocsQuery);
     }
 
     public void testByteTermQueryWithDecimalPart() {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberType.BYTE);
-        ft.setName("field");
+        MappedFieldType ft = this.createNamedDefaultFieldType(NumberType.BYTE);
         ft.setIndexOptions(IndexOptions.DOCS);
         assertTrue(ft.termQuery(42.1, null) instanceof MatchNoDocsQuery);
     }
 
     public void testShortTermQueryWithDecimalPart() {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberType.SHORT);
-        ft.setName("field");
+        MappedFieldType ft = this.createNamedDefaultFieldType(NumberType.SHORT);
         ft.setIndexOptions(IndexOptions.DOCS);
         assertTrue(ft.termQuery(42.1, null) instanceof MatchNoDocsQuery);
     }
 
     public void testIntegerTermQueryWithDecimalPart() {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberType.INTEGER);
-        ft.setName("field");
+        MappedFieldType ft = this.createNamedDefaultFieldType(NumberType.INTEGER);
         ft.setIndexOptions(IndexOptions.DOCS);
         assertTrue(ft.termQuery(42.1, null) instanceof MatchNoDocsQuery);
     }
 
     public void testLongTermQueryWithDecimalPart() {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        ft.setName("field");
+        MappedFieldType ft = this.createNamedDefaultFieldType(NumberFieldMapper.NumberType.LONG);
         ft.setIndexOptions(IndexOptions.DOCS);
         assertTrue(ft.termQuery(42.1, null) instanceof MatchNoDocsQuery);
     }
 
     public void testTermQuery() {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        ft.setName("field");
+        MappedFieldType ft = this.createNamedDefaultFieldType(NumberFieldMapper.NumberType.LONG);
         ft.setIndexOptions(IndexOptions.DOCS);
-        assertEquals(LongPoint.newExactQuery("field", 42), ft.termQuery("42", null));
+        assertEquals(LongPoint.newExactQuery(this.fieldInQuery(), 42), ft.termQuery("42", null));
 
         ft.setIndexOptions(IndexOptions.NONE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> ft.termQuery("42", null));
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        assertEquals("Cannot search on field " + this.fieldInMessage() + " since it is not indexed.", e.getMessage());
     }
 
     public void testRangeQueryWithNegativeBounds() {
-        MappedFieldType ftInt = new NumberFieldMapper.NumberFieldType(NumberType.INTEGER);
-        ftInt.setName("field");
+        MappedFieldType ftInt = this.createNamedDefaultFieldType(NumberType.INTEGER);
         ftInt.setIndexOptions(IndexOptions.DOCS);
         assertEquals(ftInt.rangeQuery(-3, -3, true, true, null, null, null, null),
                 ftInt.rangeQuery(-3.5, -2.5, true, true, null, null, null, null));
@@ -163,8 +159,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         assertEquals(ftInt.rangeQuery(-2, -1, true, true, null, null, null, null),
                 ftInt.rangeQuery(-2.5, -0.5, false, false, null, null, null, null));
 
-        MappedFieldType ftLong = new NumberFieldMapper.NumberFieldType(NumberType.LONG);
-        ftLong.setName("field");
+        MappedFieldType ftLong = this.createNamedDefaultFieldType(NumberType.LONG);
         ftLong.setIndexOptions(IndexOptions.DOCS);
         assertEquals(ftLong.rangeQuery(-3, -3, true, true, null, null, null, null),
                 ftLong.rangeQuery(-3.5, -2.5, true, true, null, null, null, null));
@@ -194,8 +189,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testByteRangeQueryWithDecimalParts() {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberType.BYTE);
-        ft.setName("field");
+        MappedFieldType ft = this.createNamedDefaultFieldType(NumberType.BYTE);
         ft.setIndexOptions(IndexOptions.DOCS);
         assertEquals(ft.rangeQuery(2, 10, true, true, null, null, null, null),
                 ft.rangeQuery(1.1, 10, true, true, null, null, null, null));
@@ -208,8 +202,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testShortRangeQueryWithDecimalParts() {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberType.SHORT);
-        ft.setName("field");
+        MappedFieldType ft = this.createNamedDefaultFieldType(NumberType.SHORT);
         ft.setIndexOptions(IndexOptions.DOCS);
         assertEquals(ft.rangeQuery(2, 10, true, true, null, null, null, null),
                 ft.rangeQuery(1.1, 10, true, true, null, null, null, null));
@@ -222,8 +215,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testIntegerRangeQueryWithDecimalParts() {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberType.INTEGER);
-        ft.setName("field");
+        MappedFieldType ft = this.createNamedDefaultFieldType(NumberType.INTEGER);
         ft.setIndexOptions(IndexOptions.DOCS);
         assertEquals(ft.rangeQuery(2, 10, true, true, null, null, null, null),
                 ft.rangeQuery(1.1, 10, true, true, null, null, null, null));
@@ -236,8 +228,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testLongRangeQueryWithDecimalParts() {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberType.LONG);
-        ft.setName("field");
+        MappedFieldType ft = this.createNamedDefaultFieldType(NumberType.LONG);
         ft.setIndexOptions(IndexOptions.DOCS);
         assertEquals(ft.rangeQuery(2, 10, true, true, null, null, null, null),
                 ft.rangeQuery(1.1, 10, true, true, null, null, null, null));
@@ -250,18 +241,17 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRangeQuery() {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        ft.setName("field");
+        MappedFieldType ft = this.createNamedDefaultFieldType(NumberFieldMapper.NumberType.LONG);
         ft.setIndexOptions(IndexOptions.DOCS);
         Query expected = new IndexOrDocValuesQuery(
-                LongPoint.newRangeQuery("field", 1, 3),
-                SortedNumericDocValuesField.newSlowRangeQuery("field", 1, 3));
+                LongPoint.newRangeQuery(this.fieldInQuery(), 1, 3),
+                SortedNumericDocValuesField.newSlowRangeQuery(this.fieldInQuery(), 1, 3));
         assertEquals(expected, ft.rangeQuery("1", "3", true, true, null, null, null, null));
 
         ft.setIndexOptions(IndexOptions.NONE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> ft.rangeQuery("1", "3", true, true, null, null, null, null));
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        assertEquals("Cannot search on field " + this.fieldInMessage() + " since it is not indexed.", e.getMessage());
     }
 
     public void testConversions() {
@@ -358,18 +348,19 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void testNegativeZero() {
         assertEquals(
-                NumberType.DOUBLE.rangeQuery("field", null, -0d, true, true, false),
-                NumberType.DOUBLE.rangeQuery("field", null, +0d, true, false, false));
+                NumberType.DOUBLE.rangeQuery(this.fieldInQuery(), null, -0d, true, true, false),
+                NumberType.DOUBLE.rangeQuery(this.fieldInQuery(), null, +0d, true, false, false));
         assertEquals(
-                NumberType.FLOAT.rangeQuery("field", null, -0f, true, true, false),
-                NumberType.FLOAT.rangeQuery("field", null, +0f, true, false, false));
+                NumberType.FLOAT.rangeQuery(this.fieldInQuery(), null, -0f, true, true, false),
+                NumberType.FLOAT.rangeQuery(this.fieldInQuery(), null, +0f, true, false, false));
         assertEquals(
-                NumberType.HALF_FLOAT.rangeQuery("field", null, -0f, true, true, false),
-                NumberType.HALF_FLOAT.rangeQuery("field", null, +0f, true, false, false));
+                NumberType.HALF_FLOAT.rangeQuery(this.fieldInQuery(), null, -0f, true, true, false),
+                NumberType.HALF_FLOAT.rangeQuery(this.fieldInQuery(), null, +0f, true, false, false));
 
-        assertFalse(NumberType.DOUBLE.termQuery("field", -0d).equals(NumberType.DOUBLE.termQuery("field", +0d)));
-        assertFalse(NumberType.FLOAT.termQuery("field", -0f).equals(NumberType.FLOAT.termQuery("field", +0f)));
-        assertFalse(NumberType.HALF_FLOAT.termQuery("field", -0f).equals(NumberType.HALF_FLOAT.termQuery("field", +0f)));
+        assertFalse(NumberType.DOUBLE.termQuery(this.fieldInQuery(), -0d).equals(NumberType.DOUBLE.termQuery(this.fieldInQuery(), +0d)));
+        assertFalse(NumberType.FLOAT.termQuery(this.fieldInQuery(), -0f).equals(NumberType.FLOAT.termQuery(this.fieldInQuery(), +0f)));
+        assertFalse(NumberType.HALF_FLOAT.termQuery(this.fieldInQuery(), -0f)
+            .equals(NumberType.HALF_FLOAT.termQuery(this.fieldInQuery(), +0f)));
     }
 
     // Make sure we construct the IndexOrDocValuesQuery objects with queries that match
@@ -501,22 +492,40 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void testDisplayValue() {
         for (NumberFieldMapper.NumberType type : NumberFieldMapper.NumberType.values()) {
-            NumberFieldMapper.NumberFieldType fieldType = new NumberFieldMapper.NumberFieldType(type);
+            MappedFieldType fieldType = this.createNamedDefaultFieldType(type);
             assertNull(fieldType.valueForDisplay(null));
         }
         assertEquals(Byte.valueOf((byte) 3),
-                new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.BYTE).valueForDisplay(3));
+            this.createNamedDefaultFieldType(NumberFieldMapper.NumberType.BYTE).valueForDisplay(3));
         assertEquals(Short.valueOf((short) 3),
-                new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.SHORT).valueForDisplay(3));
+            this.createNamedDefaultFieldType(NumberFieldMapper.NumberType.SHORT).valueForDisplay(3));
         assertEquals(Integer.valueOf(3),
-                new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER).valueForDisplay(3));
+            this.createNamedDefaultFieldType(NumberFieldMapper.NumberType.INTEGER).valueForDisplay(3));
         assertEquals(Long.valueOf(3),
-                new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG).valueForDisplay(3L));
+            this.createNamedDefaultFieldType(NumberFieldMapper.NumberType.LONG).valueForDisplay(3L));
         assertEquals(Double.valueOf(1.2),
-                new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.HALF_FLOAT).valueForDisplay(1.2));
+            this.createNamedDefaultFieldType(NumberFieldMapper.NumberType.HALF_FLOAT).valueForDisplay(1.2));
         assertEquals(Double.valueOf(1.2),
-                new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.FLOAT).valueForDisplay(1.2));
+            this.createNamedDefaultFieldType(NumberFieldMapper.NumberType.FLOAT).valueForDisplay(1.2));
         assertEquals(Double.valueOf(1.2),
-                new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE).valueForDisplay(1.2));
+            this.createNamedDefaultFieldType(NumberFieldMapper.NumberType.DOUBLE).valueForDisplay(1.2));
+    }
+
+    MappedFieldType createNamedDefaultFieldType(final NumberFieldMapper.NumberType type) {
+        this.type = type;
+        return this.createNamedDefaultFieldType();
+    }
+
+    @Override
+    protected String fieldTypeName() {
+        return NUMBERFIELD;
+    }
+
+    String fieldInQuery() {
+        return NUMBERFIELD;
+    }
+
+    String fieldInMessage() {
+        return MappedFieldType.nameInMessage(NUMBERFIELD);
     }
 }

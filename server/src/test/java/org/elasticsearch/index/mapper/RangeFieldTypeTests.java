@@ -42,6 +42,7 @@ import org.elasticsearch.index.mapper.RangeFieldMapper.RangeType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.joda.time.DateTime;
+import org.junit.Assert;
 import org.junit.Before;
 
 import java.net.InetAddress;
@@ -49,7 +50,8 @@ import java.util.Locale;
 
 public class RangeFieldTypeTests extends FieldTypeTestCase {
     RangeType type;
-    protected static String FIELDNAME = "field";
+    Version version = Version.CURRENT;
+    protected static final String RANGEFIELD = "rangeField1";
     protected static int DISTANCE = 10;
     private static long nowInMillis;
 
@@ -61,21 +63,16 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             addModifier(new Modifier("format", true) {
                 @Override
                 public void modify(MappedFieldType ft) {
-                    ((RangeFieldMapper.RangeFieldType) ft).setDateTimeFormatter(Joda.forPattern("basic_week_date", Locale.ROOT));
+                    toRangeFieldType(ft).setDateTimeFormatter(Joda.forPattern("basic_week_date", Locale.ROOT));
                 }
             });
             addModifier(new Modifier("locale", true) {
                 @Override
                 public void modify(MappedFieldType ft) {
-                    ((RangeFieldMapper.RangeFieldType) ft).setDateTimeFormatter(Joda.forPattern("date_optional_time", Locale.CANADA));
+                    toRangeFieldType(ft).setDateTimeFormatter(Joda.forPattern("date_optional_time", Locale.CANADA));
                 }
             });
         }
-    }
-
-    @Override
-    protected RangeFieldMapper.RangeFieldType createDefaultFieldType() {
-        return new RangeFieldMapper.RangeFieldType(type, Version.CURRENT);
     }
 
     public void testRangeQuery() throws Exception {
@@ -84,8 +81,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
         QueryShardContext context = new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
             writableRegistry(), null, null, () -> nowInMillis, null);
-        RangeFieldMapper.RangeFieldType ft = new RangeFieldMapper.RangeFieldType(type, Version.CURRENT);
-        ft.setName(FIELDNAME);
+        MappedFieldType ft = this.createNamedDefaultFieldType(type, Version.CURRENT);
         ft.setIndexOptions(IndexOptions.DOCS);
 
         ShapeRelation relation = RandomPicks.randomFrom(random(), ShapeRelation.values());
@@ -121,16 +117,16 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         Query indexQuery;
         BinaryDocValuesRangeQuery.QueryType queryType;
         if (relation == ShapeRelation.WITHIN) {
-            indexQuery = LongRange.newWithinQuery(FIELDNAME, lower, upper);
+            indexQuery = LongRange.newWithinQuery(RANGEFIELD, lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.WITHIN;
         } else if (relation == ShapeRelation.CONTAINS) {
-            indexQuery = LongRange.newContainsQuery(FIELDNAME, lower, upper);
+            indexQuery = LongRange.newContainsQuery(RANGEFIELD, lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.CONTAINS;
         } else {
-            indexQuery = LongRange.newIntersectsQuery(FIELDNAME, lower, upper);
+            indexQuery = LongRange.newIntersectsQuery(RANGEFIELD, lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
         }
-        Query dvQuery = RangeType.DATE.dvRangeQuery(FIELDNAME, queryType, from.getMillis(),
+        Query dvQuery = RangeType.DATE.dvRangeQuery(RANGEFIELD, queryType, from.getMillis(),
                 to.getMillis(), includeLower, includeUpper);
         return new IndexOrDocValuesQuery(indexQuery, dvQuery);
     }
@@ -141,16 +137,16 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         Query indexQuery;
         BinaryDocValuesRangeQuery.QueryType queryType;
         if (relation == ShapeRelation.WITHIN) {
-            indexQuery = IntRange.newWithinQuery(FIELDNAME, lower, upper);
+            indexQuery = IntRange.newWithinQuery(RANGEFIELD, lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.WITHIN;
         } else if (relation == ShapeRelation.CONTAINS) {
-            indexQuery = IntRange.newContainsQuery(FIELDNAME, lower, upper);
+            indexQuery = IntRange.newContainsQuery(RANGEFIELD, lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.CONTAINS;
         } else {
-            indexQuery = IntRange.newIntersectsQuery(FIELDNAME, lower, upper);
+            indexQuery = IntRange.newIntersectsQuery(RANGEFIELD, lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
         }
-        Query dvQuery = RangeType.INTEGER.dvRangeQuery(FIELDNAME, queryType, from, to,
+        Query dvQuery = RangeType.INTEGER.dvRangeQuery(RANGEFIELD, queryType, from, to,
                 includeLower, includeUpper);
         return new IndexOrDocValuesQuery(indexQuery, dvQuery);
     }
@@ -161,16 +157,16 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         Query indexQuery;
         BinaryDocValuesRangeQuery.QueryType queryType;
         if (relation == ShapeRelation.WITHIN) {
-            indexQuery = LongRange.newWithinQuery(FIELDNAME, lower, upper);
+            indexQuery = LongRange.newWithinQuery(RANGEFIELD, lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.WITHIN;
         } else if (relation == ShapeRelation.CONTAINS) {
-            indexQuery = LongRange.newContainsQuery(FIELDNAME, lower, upper);
+            indexQuery = LongRange.newContainsQuery(RANGEFIELD, lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.CONTAINS;
         } else {
-            indexQuery = LongRange.newIntersectsQuery(FIELDNAME, lower, upper);
+            indexQuery = LongRange.newIntersectsQuery(RANGEFIELD, lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
         }
-        Query dvQuery = RangeType.LONG.dvRangeQuery(FIELDNAME, queryType, from, to,
+        Query dvQuery = RangeType.LONG.dvRangeQuery(RANGEFIELD, queryType, from, to,
                 includeLower, includeUpper);
         return new IndexOrDocValuesQuery(indexQuery, dvQuery);
     }
@@ -181,16 +177,16 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         Query indexQuery;
         BinaryDocValuesRangeQuery.QueryType queryType;
         if (relation == ShapeRelation.WITHIN) {
-            indexQuery = FloatRange.newWithinQuery(FIELDNAME, lower, upper);
+            indexQuery = FloatRange.newWithinQuery(RANGEFIELD, lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.WITHIN;
         } else if (relation == ShapeRelation.CONTAINS) {
-            indexQuery = FloatRange.newContainsQuery(FIELDNAME, lower, upper);
+            indexQuery = FloatRange.newContainsQuery(RANGEFIELD, lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.CONTAINS;
         } else {
-            indexQuery = FloatRange.newIntersectsQuery(FIELDNAME, lower, upper);
+            indexQuery = FloatRange.newIntersectsQuery(RANGEFIELD, lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
         }
-        Query dvQuery = RangeType.FLOAT.dvRangeQuery(FIELDNAME, queryType, from, to,
+        Query dvQuery = RangeType.FLOAT.dvRangeQuery(RANGEFIELD, queryType, from, to,
                 includeLower, includeUpper);
         return new IndexOrDocValuesQuery(indexQuery, dvQuery);
     }
@@ -202,16 +198,16 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         Query indexQuery;
         BinaryDocValuesRangeQuery.QueryType queryType;
         if (relation == ShapeRelation.WITHIN) {
-            indexQuery = DoubleRange.newWithinQuery(FIELDNAME, lower, upper);
+            indexQuery = DoubleRange.newWithinQuery(RANGEFIELD, lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.WITHIN;
         } else if (relation == ShapeRelation.CONTAINS) {
-            indexQuery =  DoubleRange.newContainsQuery(FIELDNAME, lower, upper);
+            indexQuery =  DoubleRange.newContainsQuery(RANGEFIELD, lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.CONTAINS;
         } else {
-            indexQuery =  DoubleRange.newIntersectsQuery(FIELDNAME, lower, upper);
+            indexQuery =  DoubleRange.newIntersectsQuery(RANGEFIELD, lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
         }
-        Query dvQuery = RangeType.DOUBLE.dvRangeQuery(FIELDNAME, queryType, from, to,
+        Query dvQuery = RangeType.DOUBLE.dvRangeQuery(RANGEFIELD, queryType, from, to,
                 includeLower, includeUpper);
         return new IndexOrDocValuesQuery(indexQuery, dvQuery);
     }
@@ -223,16 +219,16 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         Query indexQuery;
         BinaryDocValuesRangeQuery.QueryType queryType;
         if (relation == ShapeRelation.WITHIN) {
-            indexQuery = InetAddressRange.newWithinQuery(FIELDNAME, lower, upper);
+            indexQuery = InetAddressRange.newWithinQuery(RANGEFIELD, lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.WITHIN;
         } else if (relation == ShapeRelation.CONTAINS) {
-            indexQuery = InetAddressRange.newContainsQuery(FIELDNAME, lower, upper);
+            indexQuery = InetAddressRange.newContainsQuery(RANGEFIELD, lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.CONTAINS;
         } else {
-            indexQuery = InetAddressRange.newIntersectsQuery(FIELDNAME, lower, upper);
+            indexQuery = InetAddressRange.newIntersectsQuery(RANGEFIELD, lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
         }
-        Query dvQuery = RangeType.IP.dvRangeQuery(FIELDNAME, queryType, from, to,
+        Query dvQuery = RangeType.IP.dvRangeQuery(RANGEFIELD, queryType, from, to,
                 includeLower, includeUpper);
         return new IndexOrDocValuesQuery(indexQuery, dvQuery);
     }
@@ -284,8 +280,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
         QueryShardContext context = new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
             writableRegistry(), null, null, () -> nowInMillis, null);
-        RangeFieldMapper.RangeFieldType ft = new RangeFieldMapper.RangeFieldType(type, Version.CURRENT);
-        ft.setName(FIELDNAME);
+        MappedFieldType ft = this.createNamedDefaultFieldType(type, Version.CURRENT);
         ft.setIndexOptions(IndexOptions.DOCS);
 
         Object value = nextFrom();
@@ -294,5 +289,36 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         boolean includeUpper = true;
         assertEquals(getExpectedRangeQuery(relation, value, value, includeLower, includeUpper),
             ft.termQuery(value, context));
+    }
+
+    MappedFieldType createNamedDefaultFieldType(final RangeType type, final Version indexVersionCreated) {
+        this.type = type;
+        this.version = indexVersionCreated;
+        return this.createNamedDefaultFieldType();
+    }
+
+    @Override
+    protected MappedFieldType createDefaultFieldType() {
+        Assert.assertNotNull("type", this.type);
+        Assert.assertNotNull("version", this.version);
+
+        return new RangeFieldMapper.RangeFieldType(this.type, this.version);
+    }
+
+    @Override
+    protected String fieldTypeName() {
+        return RANGEFIELD;
+    }
+
+    String fieldInQuery() {
+        return RANGEFIELD;
+    }
+
+    String fieldInMessage() {
+        return RANGEFIELD;
+    }
+
+    RangeFieldMapper.RangeFieldType toRangeFieldType(final MappedFieldType fieldType) {
+        return (RangeFieldMapper.RangeFieldType) fieldType;
     }
 }

@@ -59,6 +59,9 @@ public class UnifiedHighlighter implements Highlighter {
     @Override
     public HighlightField highlight(HighlighterContext highlighterContext) {
         FieldMapper fieldMapper = highlighterContext.mapper;
+        final MappedFieldType fieldType = fieldMapper.fieldType();
+        final String fieldNameIndex = fieldType.nameForIndex();
+
         SearchContextHighlight.Field field = highlighterContext.field;
         SearchContext context = highlighterContext.context;
         FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
@@ -72,18 +75,18 @@ public class UnifiedHighlighter implements Highlighter {
         try {
 
             final Analyzer analyzer =
-                getAnalyzer(context.mapperService().documentMapper(hitContext.hit().getType()), fieldMapper.fieldType());
+                getAnalyzer(context.mapperService().documentMapper(hitContext.hit().getType()), fieldType);
             List<Object> fieldValues = HighlightUtils.loadFieldValues(field, fieldMapper, context, hitContext);
             fieldValues = fieldValues.stream()
-                .map((s) -> convertFieldValue(fieldMapper.fieldType(), s))
+                .map((s) -> convertFieldValue(fieldType, s))
                 .collect(Collectors.toList());
             final IndexSearcher searcher = new IndexSearcher(hitContext.reader());
             final CustomUnifiedHighlighter highlighter;
             final String fieldValue = mergeFieldValues(fieldValues, MULTIVAL_SEP_CHAR);
-            final OffsetSource offsetSource = getOffsetSource(fieldMapper.fieldType());
+            final OffsetSource offsetSource = getOffsetSource(fieldType);
             if ((offsetSource == OffsetSource.ANALYSIS) && (fieldValue.length() > maxAnalyzedOffset)) {
                 throw new IllegalArgumentException(
-                    "The length of [" + highlighterContext.fieldName + "] field of [" + hitContext.hit().getId() +
+                    "The length of [" + fieldNameIndex + "] field of [" + hitContext.hit().getId() +
                         "] doc of [" + context.indexShard().shardId().getIndexName() + "] index " + "has exceeded [" +
                         maxAnalyzedOffset + "] - maximum allowed to be analyzed for highlighting. " +
                         "This maximum can be set by changing the [" + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() +
@@ -107,13 +110,12 @@ public class UnifiedHighlighter implements Highlighter {
             }
 
             if (field.fieldOptions().requireFieldMatch()) {
-                final String fieldName = highlighterContext.fieldName;
-                highlighter.setFieldMatcher((name) -> fieldName.equals(name));
+                highlighter.setFieldMatcher((name) -> fieldNameIndex.equals(name));
             } else {
                 highlighter.setFieldMatcher((name) -> true);
             }
 
-            Snippet[] fieldSnippets = highlighter.highlightField(highlighterContext.fieldName,
+            Snippet[] fieldSnippets = highlighter.highlightField(fieldNameIndex,
                 highlighterContext.query, hitContext.docId(), numberOfFragments);
             for (Snippet fieldSnippet : fieldSnippets) {
                 if (Strings.hasText(fieldSnippet.getText())) {

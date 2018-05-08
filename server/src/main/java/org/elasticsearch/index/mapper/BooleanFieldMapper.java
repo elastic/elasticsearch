@@ -174,7 +174,7 @@ public class BooleanFieldMapper extends FieldMapper {
                     return Values.FALSE;
                 default:
                     throw new IllegalArgumentException("Can't parse boolean value [" +
-                                    sValue + "], expected [true] or [false]");
+                                    sValue + "], expected [true] or [false] in " + this.nameForMessages());
             }
         }
 
@@ -189,7 +189,8 @@ public class BooleanFieldMapper extends FieldMapper {
             case "T":
                 return true;
             default:
-                throw new IllegalArgumentException("Expected [T] or [F] but got [" + value + "]");
+                throw new IllegalArgumentException("Expected [T] or [F] but got [" + value + "]" +
+                    " in " + this.nameForMessages());
             }
         }
 
@@ -201,12 +202,12 @@ public class BooleanFieldMapper extends FieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(@Nullable String format, DateTimeZone timeZone) {
+            this.name();
             if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom formats");
+                this.failUnsupportedFeature("custom formats");
             }
             if (timeZone != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName()
-                    + "] does not support custom time zones");
+                this.failUnsupportedFeature("custom time zones");
             }
             return DocValueFormat.BOOLEAN;
         }

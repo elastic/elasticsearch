@@ -183,4 +183,11 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      * so that the current mapper is not modified.
      */
     public abstract Mapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType);
+
+    /**
+     * Called just after a {@link RootObjectMapper} receives all contained mappers.
+     * @param root The enclosing {@link RootObjectMapper}
+     */
+    protected void rootObjectMapper(final RootObjectMapper root) {
+    }
 }

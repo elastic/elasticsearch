@@ -80,6 +80,8 @@ include::types/object.asciidoc[]
 
 include::types/text.asciidoc[]
 
+include::types/alias.asciidoc[]
+
 include::types/token-count.asciidoc[]
 
 include::types/percolator.asciidoc[]

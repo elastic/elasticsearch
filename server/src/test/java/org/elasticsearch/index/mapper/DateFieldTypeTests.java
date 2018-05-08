@@ -48,6 +48,10 @@ import java.io.IOException;
 import java.util.Locale;
 
 public class DateFieldTypeTests extends FieldTypeTestCase {
+
+    protected static final String DATEFIELD1 = "dateField1";
+    protected static final String DATEFIELD2 = "dateField2";
+
     @Override
     protected MappedFieldType createDefaultFieldType() {
         return new DateFieldMapper.DateFieldType();
@@ -61,13 +65,13 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         addModifier(new Modifier("format", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ((DateFieldType) ft).setDateTimeFormatter(Joda.forPattern("basic_week_date", Locale.ROOT));
+                toDateFieldType(ft).setDateTimeFormatter(Joda.forPattern("basic_week_date", Locale.ROOT));
             }
         });
         addModifier(new Modifier("locale", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ((DateFieldType) ft).setDateTimeFormatter(Joda.forPattern("date_optional_time", Locale.CANADA));
+                toDateFieldType(ft).setDateTimeFormatter(Joda.forPattern("date_optional_time", Locale.CANADA));
             }
         });
         nowInMillis = randomNonNegativeLong();
@@ -77,12 +81,12 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> nowInMillis);
         IndexReader reader = new MultiReader();
         DateFieldType ft = new DateFieldType();
-        ft.setName("my_date");
+        ft.setName(DATEFIELD1);
         assertEquals(Relation.DISJOINT, ft.isFieldWithinQuery(reader, "2015-10-12", "2016-04-03",
                 randomBoolean(), randomBoolean(), null, null, context));
     }
 
-    private void doTestIsFieldWithinQuery(DateFieldType ft, DirectoryReader reader,
+    private void doTestIsFieldWithinQuery(MappedFieldType ft, DirectoryReader reader,
             DateTimeZone zone, DateMathParser alternateFormat) throws IOException {
         QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> nowInMillis);
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, "2015-10-09", "2016-01-02",
@@ -113,14 +117,13 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         long instant1 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2015-10-12").getMillis();
         long instant2 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2016-04-03").getMillis();
         Document doc = new Document();
-        LongPoint field = new LongPoint("my_date", instant1);
+        LongPoint field = new LongPoint(fieldTypeName(), instant1);
         doc.add(field);
         w.addDocument(doc);
         field.setLongValue(instant2);
         w.addDocument(doc);
         DirectoryReader reader = DirectoryReader.open(w);
-        DateFieldType ft = new DateFieldType();
-        ft.setName("my_date");
+        MappedFieldType ft = this.createNamedDefaultFieldType();
         DateMathParser alternateFormat = new DateMathParser(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
         doTestIsFieldWithinQuery(ft, reader, null, null);
         doTestIsFieldWithinQuery(ft, reader, null, alternateFormat);
@@ -129,7 +132,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
         // Fields with no value indexed.
         DateFieldType ft2 = new DateFieldType();
-        ft2.setName("my_date2");
+        ft2.setName(DATEFIELD2);
 
         QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> nowInMillis);
         assertEquals(Relation.DISJOINT, ft2.isFieldWithinQuery(reader, "2015-10-09", "2016-01-02", false, false, null, null, context));
@@ -154,7 +157,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testValueForSearch() {
-        MappedFieldType ft = createDefaultFieldType();
+        MappedFieldType ft = createNamedDefaultFieldType();
         String date = "2015-10-12T12:09:55.000Z";
         long instant = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime(date).getMillis();
         assertEquals(date, ft.valueForDisplay(instant));
@@ -167,20 +170,19 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
                 new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(),
                         indexSettings),
                 null, null, null, null, null, xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null);
-        MappedFieldType ft = createDefaultFieldType();
-        ft.setName("field");
+        MappedFieldType ft = createNamedDefaultFieldType();
         String date = "2015-10-12T14:10:55";
         long instant = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime(date).getMillis();
         ft.setIndexOptions(IndexOptions.DOCS);
         Query expected = new IndexOrDocValuesQuery(
-                LongPoint.newRangeQuery("field", instant, instant + 999),
-                SortedNumericDocValuesField.newSlowRangeQuery("field", instant, instant + 999));
+                LongPoint.newRangeQuery(this.fieldInQuery(), instant, instant + 999),
+                SortedNumericDocValuesField.newSlowRangeQuery(this.fieldInQuery(), instant, instant + 999));
         assertEquals(expected, ft.termQuery(date, context));
 
         ft.setIndexOptions(IndexOptions.NONE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> ft.termQuery(date, context));
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        assertEquals("Cannot search on field " + this.fieldInMessage() + " since it is not indexed.", e.getMessage());
     }
 
     public void testRangeQuery() throws IOException {
@@ -189,22 +191,38 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         QueryShardContext context = new QueryShardContext(0,
                 new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(), indexSettings),
                 null, null, null, null, null, xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null);
-        MappedFieldType ft = createDefaultFieldType();
-        ft.setName("field");
+        MappedFieldType ft = createNamedDefaultFieldType();
         String date1 = "2015-10-12T14:10:55";
         String date2 = "2016-04-28T11:33:52";
         long instant1 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime(date1).getMillis();
         long instant2 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime(date2).getMillis() + 999;
         ft.setIndexOptions(IndexOptions.DOCS);
         Query expected = new IndexOrDocValuesQuery(
-                LongPoint.newRangeQuery("field", instant1, instant2),
-                SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2));
+                LongPoint.newRangeQuery(this.fieldInQuery(), instant1, instant2),
+                SortedNumericDocValuesField.newSlowRangeQuery(this.fieldInQuery(), instant1, instant2));
         assertEquals(expected,
                 ft.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(new MultiReader()));
 
         ft.setIndexOptions(IndexOptions.NONE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> ft.rangeQuery(date1, date2, true, true, null, null, null, context));
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        assertEquals("Cannot search on field "+this.fieldInMessage() +" since it is not indexed.", e.getMessage());
+    }
+
+    @Override
+    protected String fieldTypeName() {
+        return DATEFIELD1;
+    }
+
+    String fieldInQuery() {
+        return DATEFIELD1;
+    }
+
+    String fieldInMessage() {
+        return MappedFieldType.nameInMessage(DATEFIELD1);
+    }
+
+    DateFieldMapper.DateFieldType toDateFieldType(final MappedFieldType fieldType) {
+        return (DateFieldMapper.DateFieldType) fieldType;
     }
 }

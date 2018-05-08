@@ -44,17 +44,19 @@ public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
 
     @Override
     protected Field[] getFields(IndexReader reader, int docId, String fieldName) throws IOException {
+        // $fieldName is ignored as we ask mapper.fieldType which may or may not be an alias.
         // we know its low level reader, and matching docId, since that's how we call the highlighter with
         SourceLookup sourceLookup = searchContext.lookup().source();
         sourceLookup.setSegmentAndDocument((LeafReaderContext) reader.getContext(), docId);
 
-        List<Object> values = sourceLookup.extractRawValues(mapper.fieldType().name());
+        final String fieldInIndex = mapper.fieldType().nameForIndex();
+        List<Object> values = sourceLookup.extractRawValues(fieldInIndex);
         if (values.isEmpty()) {
             return EMPTY_FIELDS;
         }
         Field[] fields = new Field[values.size()];
         for (int i = 0; i < values.size(); i++) {
-            fields[i] = new Field(mapper.fieldType().name(), values.get(i).toString(), TextField.TYPE_NOT_STORED);
+            fields[i] = new Field(fieldInIndex, values.get(i).toString(), TextField.TYPE_NOT_STORED);
         }
         return fields;
     }

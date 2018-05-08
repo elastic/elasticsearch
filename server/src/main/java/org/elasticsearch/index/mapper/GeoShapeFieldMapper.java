@@ -455,7 +455,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            throw new QueryShardException(context, "Geo fields do not support exact searching, use dedicated geo queries instead");
+            throw new QueryShardException(context, "Geo fields " + this.nameForMessages() + " do not support exact searching, use dedicated geo queries instead");
         }
     }
 

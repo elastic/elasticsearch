@@ -111,7 +111,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
 
     @SuppressWarnings("unchecked")
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType, String fullyQualifiedIndexName) {
-        final String fieldName = fieldType.name();
+        final String fieldName = fieldType.nameForIndex();
         IndexFieldData.Builder builder = fieldType.fielddataBuilder(fullyQualifiedIndexName);
 
         IndexFieldDataCache cache;
@@ -124,13 +124,13 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
                 } else if ("none".equals(cacheType)){
                     cache = new IndexFieldDataCache.None();
                 } else {
-                    throw new IllegalArgumentException("cache type not supported [" + cacheType + "] for field [" + fieldName + "]");
+                    throw new IllegalArgumentException("cache type not supported [" + cacheType + "] for field " + fieldType.nameForMessages());
                 }
                 fieldDataCaches.put(fieldName, cache);
             }
         }
 
-        return (IFD) builder.build(indexSettings, fieldType, cache, circuitBreakerService, mapperService);
+        return (IFD) builder.build(indexSettings, fieldType.fieldTypeForIndex(), cache, circuitBreakerService, mapperService);
     }
 
     /**

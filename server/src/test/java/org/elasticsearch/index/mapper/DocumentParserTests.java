@@ -38,10 +38,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
@@ -1319,74 +1316,145 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         assertThat(dateMapper, instanceOf(DateFieldMapper.class));
     }
 
-    public void testDynamicFieldsStartingAndEndingWithDot() throws Exception {
-        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().startArray("top.")
-                .startObject().startArray("foo.")
-                .startObject()
-                .field("thing", "bah")
-                .endObject().endArray()
-                .endObject().endArray()
-                .endObject());
+    public void testFieldName() throws Exception {
+        checkFieldNameAndValidation("root", "branch", "leaf");
+    }
 
+    public void testFieldNameBlank1() throws Exception {
+        checkFieldNameAndValidationFails("", "branch", "leaf", DocumentParser.pathContainsEmptyString(""));
+    }
+
+    public void testFieldNameBlank2() throws Exception {
+        checkFieldNameAndValidationFails("root", "", "leaf", DocumentParser.pathContainsEmptyString("root."));
+    }
+
+    public void testFieldNameBlank3() throws Exception {
+        checkFieldNameAndValidationFails("root", "branch", "", DocumentParser.pathContainsEmptyString("root.branch."));
+    }
+
+    public void testFieldNameWhitespaceOnly1() throws Exception {
+        checkFieldNameAndValidationFails(" ", "branch", "leaf", DocumentParser.pathContainsOnlyWhitespace(" "));
+    }
+
+    public void testFieldNameWhitespaceOnly2() throws Exception {
+        checkFieldNameAndValidationFails("root", " ", "leaf", DocumentParser.pathContainsOnlyWhitespace("root. "));
+    }
+
+    public void testFieldNameWhitespaceOnly3() throws Exception {
+        checkFieldNameAndValidationFails("root", "branch", " ", DocumentParser.pathContainsOnlyWhitespace("root.branch. "));
+    }
+
+    public void testFieldNameWhitespaceWithin1() throws Exception {
+        checkFieldNameAndValidation("ro ot", "branch", "leaf");
+    }
+
+    public void testFieldNameWhitespaceWithin2() throws Exception {
+        checkFieldNameAndValidation("root", "bra nch", "leaf");
+    }
+
+    public void testFieldNameWhitespaceWithin3() throws Exception {
+        checkFieldNameAndValidation("root", "branch", "le af");
+    }
+
+    public void testFieldNameComponentOnlyDot1() throws Exception {
+        checkFieldNameAndValidationFails(".", "branch", "leaf", DocumentParser.pathStartOrEndingWithDotAmbiguous("."));
+    }
+
+    public void testFieldNameComponentOnlyDot2() throws Exception {
+        checkFieldNameAndValidationFails("root", ".", "leaf", DocumentParser.pathStartOrEndingWithDotAmbiguous("root.."));
+    }
+
+    public void testFieldNameComponentOnlyDot3() throws Exception {
+        checkFieldNameAndValidationFails("root", "branch", ".", DocumentParser.pathStartOrEndingWithDotAmbiguous("root.branch.."));
+    }
+
+    public void testFieldNameComponentStartDot1() throws Exception {
+        checkFieldNameAndValidationFails(".root", "branch", "leaf", DocumentParser.pathStartOrEndingWithDotAmbiguous(".root"));
+    }
+
+    public void testFieldNameComponentStartDot2() throws Exception {
+        checkFieldNameAndValidationFails("root", ".branch", "leaf", DocumentParser.pathStartOrEndingWithDotAmbiguous("root..branch"));
+    }
+
+    public void testFieldNameComponentStartDot3() throws Exception {
+        checkFieldNameAndValidationFails("root", "branch", ".leaf", DocumentParser.pathStartOrEndingWithDotAmbiguous("root.branch..leaf"));
+    }
+
+    public void testFieldNameComponentEndDot1() throws Exception {
+        checkFieldNameAndValidationFails("root.", "branch", "leaf", DocumentParser.pathStartOrEndingWithDotAmbiguous("root."));
+    }
+
+    public void testFieldNameComponentEndDot2() throws Exception {
+        checkFieldNameAndValidationFails("root", "branch.", "leaf", DocumentParser.pathStartOrEndingWithDotAmbiguous("root.branch."));
+    }
+
+    public void testFieldNameComponentEndDot3() throws Exception {
+        checkFieldNameAndValidationFails("root", "branch", "leaf.", DocumentParser.pathStartOrEndingWithDotAmbiguous("root.branch.leaf."));
+    }
+
+    private void checkFieldNameAndValidation(final String root,
+                                                  final String branch,
+                                                  final String leaf) throws Exception {
+        checkFieldNameAndValidation0(bytesReferenceArray(root, branch, leaf));
+        checkFieldNameAndValidation0(bytesReferenceNull(root, branch, leaf));
+        checkFieldNameAndValidation0(bytesReferenceObject(root, branch, leaf));
+    }
+
+    private void checkFieldNameAndValidationFails(final String root,
+                                                  final String branch,
+                                                  final String leaf,
+                                                  final String exceptionMessageContains) throws Exception {
+        checkFieldNameAndValidationFails0(bytesReferenceArray(root, branch, leaf), exceptionMessageContains);
+        checkFieldNameAndValidationFails0(bytesReferenceNull(root, branch, leaf), exceptionMessageContains);
+        checkFieldNameAndValidationFails0(bytesReferenceObject(root, branch, leaf), exceptionMessageContains);
+    }
+
+    private void checkFieldNameAndValidationFails0(final BytesReference bytes,
+                                                  final String exceptionMessageContains) {
+        MapperParsingException thrown = expectThrows(MapperParsingException.class, () -> checkFieldNameAndValidation0(bytes));
+        assertThat(bytes.utf8ToString(), ExceptionsHelper.detailedMessage(thrown), containsString(exceptionMessageContains));
+    }
+
+    private BytesReference bytesReferenceArray(final String root,
+                                                   final String branch,
+                                                   final String leaf) throws Exception {
+        return BytesReference.bytes(XContentFactory.jsonBuilder()
+            .startObject().startArray(root)
+            .startObject().startArray(branch)
+            .startObject()
+            .field(leaf, "*value*")
+            .endObject().endArray()
+            .endObject().endArray()
+            .endObject()) ;
+    }
+
+    private BytesReference bytesReferenceNull(final String root,
+                                                  final String branch,
+                                                  final String leaf) throws Exception {
+        return BytesReference.bytes(XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject(root)
+            .startObject(branch)
+            .field(leaf, (String)null)
+            .endObject()
+            .endObject()
+            .endObject());
+    }
+
+    private BytesReference bytesReferenceObject(final String root,
+                                                  final String branch,
+                                                  final String leaf) throws Exception {
+        return BytesReference.bytes(XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject(root)
+            .startObject(branch)
+            .field(leaf, "*value*")
+            .endObject()
+            .endObject()
+            .endObject());
+    }
+
+    private void checkFieldNameAndValidation0(final BytesReference bytes) throws Exception {
         client().prepareIndex("idx", "type").setSource(bytes, XContentType.JSON).get();
-
-        bytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().startArray("top.")
-                .startObject().startArray("foo.")
-                .startObject()
-                .startObject("bar.")
-                .startObject("aoeu")
-                .field("a", 1).field("b", 2)
-                .endObject()
-                .endObject()
-                .endObject()
-                .endArray().endObject().endArray()
-                .endObject());
-
-        try {
-            client().prepareIndex("idx", "type").setSource(bytes, XContentType.JSON).get();
-            fail("should have failed to dynamically introduce a double-dot field");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(),
-                    containsString("object field starting or ending with a [.] makes object resolution ambiguous: [top..foo..bar]"));
-        }
-    }
-
-    public void testDynamicFieldsEmptyName() throws Exception {
-        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().startArray("top.")
-                .startObject()
-                .startObject("aoeu")
-                .field("a", 1).field(" ", 2)
-                .endObject()
-                .endObject().endArray()
-                .endObject());
-
-        IllegalArgumentException emptyFieldNameException = expectThrows(IllegalArgumentException.class,
-                () -> client().prepareIndex("idx", "type").setSource(bytes, XContentType.JSON).get());
-
-        assertThat(emptyFieldNameException.getMessage(), containsString(
-                "object field cannot contain only whitespace: ['top.aoeu. ']"));
-    }
-
-    public void testBlankFieldNames() throws Exception {
-        final BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject()
-                .field("", "foo")
-                .endObject());
-
-        MapperParsingException err = expectThrows(MapperParsingException.class, () ->
-                client().prepareIndex("idx", "type").setSource(bytes, XContentType.JSON).get());
-        assertThat(ExceptionsHelper.detailedMessage(err), containsString("field name cannot be an empty string"));
-
-        final BytesReference bytes2 = BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("foo")
-                .field("", "bar")
-                .endObject()
-                .endObject());
-
-        err = expectThrows(MapperParsingException.class, () ->
-                client().prepareIndex("idx", "type").setSource(bytes2, XContentType.JSON).get());
-        assertThat(ExceptionsHelper.detailedMessage(err), containsString("field name cannot be an empty string"));
     }
 }

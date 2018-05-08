@@ -135,7 +135,7 @@ public class Murmur3FieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            throw new QueryShardException(context, "Murmur3 fields are not searchable: [" + name() + "]");
+            throw new QueryShardException(context, "Murmur3 fields are not searchable: " + this.nameForMessages());
         }
     }
 

@@ -27,6 +27,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.mapper.AliasFieldMapper;
+import org.elasticsearch.index.mapper.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -218,6 +221,9 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
 
             ValuesSourceConfig<ValuesSource.Numeric> config = ValuesSourceConfig.resolve(
                     context, null, "bool", null, null, null, null);
+
+            checkFieldContext(config, "bool", "bool", BooleanFieldMapper.BooleanFieldType.class);
+
             ValuesSource.Numeric valuesSource = config.toValuesSource(context);
             LeafReaderContext ctx = searcher.reader().leaves().get(0);
             SortedNumericDocValues values = valuesSource.longValues(ctx);
@@ -225,6 +231,9 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
 
             config = ValuesSourceConfig.resolve(
                     context, null, "bool", null, true, null, null);
+
+            checkFieldContext(config, "bool", "bool", BooleanFieldMapper.BooleanFieldType.class);
+
             valuesSource = config.toValuesSource(context);
             values = valuesSource.longValues(ctx);
             assertTrue(values.advanceExact(0));
@@ -257,5 +266,50 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
             assertEquals(1, values.docValueCount());
             assertEquals(1, values.nextValue());
         }
+    }
+
+    public void testAliasToBoolean() throws Exception {
+        IndexService indexService = createIndex("index", Settings.EMPTY, "type",
+            "bool", "type=boolean",
+            "alias", "type=alias,path=bool");
+        client().prepareIndex("index", "type", "1")
+            .setSource()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher.reader(), () -> 42L, null);
+
+            ValuesSourceConfig<ValuesSource.Numeric> config = ValuesSourceConfig.resolve(
+                context, null, "alias", null, null, null, null);
+
+            checkFieldContext(config, "alias", "bool", AliasFieldMapper.AliasFieldType.class);
+
+            ValuesSource.Numeric valuesSource = config.toValuesSource(context);
+            LeafReaderContext ctx = searcher.reader().leaves().get(0);
+            SortedNumericDocValues values = valuesSource.longValues(ctx);
+            assertFalse(values.advanceExact(0));
+
+            config = ValuesSourceConfig.resolve(
+                context, null, "alias", null, true, null, null);
+
+            checkFieldContext(config, "alias", "bool", AliasFieldMapper.AliasFieldType.class);
+
+            valuesSource = config.toValuesSource(context);
+            values = valuesSource.longValues(ctx);
+            assertTrue(values.advanceExact(0));
+            assertEquals(1, values.docValueCount());
+            assertEquals(1, values.nextValue());
+        }
+    }
+
+    private void checkFieldContext(final ValuesSourceConfig<?> config,
+                                   final String field,
+                                   final String nameForIndex,
+                                   final Class<? extends MappedFieldType> type){
+        final FieldContext fieldContext = config.fieldContext();
+        assertEquals("FieldContext.field", field, fieldContext.field());
+        assertEquals("FieldContext.fieldType.nameForIndex", nameForIndex, fieldContext.fieldType().nameForIndex());
+        assertEquals("FieldContext.fieldType", type, fieldContext.fieldType().getClass());
     }
 }

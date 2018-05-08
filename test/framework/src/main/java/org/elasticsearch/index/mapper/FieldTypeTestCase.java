@@ -169,10 +169,20 @@ public abstract class FieldTypeTestCase extends ESTestCase {
     /** Create a default constructed fieldtype */
     protected abstract MappedFieldType createDefaultFieldType();
 
+    protected MappedFieldType createDefaultFieldType(final String name) {
+        final MappedFieldType fieldType = this.createDefaultFieldType();
+        fieldType.setName(name);
+        return fieldType;
+    }
+
     MappedFieldType createNamedDefaultFieldType() {
         MappedFieldType fieldType = createDefaultFieldType();
-        fieldType.setName("foo");
+        fieldType.setName(fieldTypeName());
         return fieldType;
+    }
+
+    protected String fieldTypeName() {
+        return "foo";
     }
 
     // TODO: remove this once toString is no longer final on FieldType...

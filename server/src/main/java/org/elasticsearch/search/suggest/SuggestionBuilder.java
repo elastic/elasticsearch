@@ -321,7 +321,8 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
             suggestionContext.setAnalyzer(luceneAnalyzer);
         }
 
-        suggestionContext.setField(field);
+        // need to read actual MappedFieldType (rather than $field) to support aliases...
+        suggestionContext.setField(fieldType.nameForIndex());
 
         if (size != null) {
             suggestionContext.setSize(size);

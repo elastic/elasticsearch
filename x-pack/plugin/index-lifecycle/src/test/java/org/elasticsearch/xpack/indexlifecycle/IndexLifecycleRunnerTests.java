@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
@@ -234,12 +235,35 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         String policyName = "async_wait_policy";
         StepKey stepKey = new StepKey("phase", "action", "async_wait_step");
         MockAsyncWaitStep step = new MockAsyncWaitStep(stepKey, null);
+        RandomStepInfo stepInfo = new RandomStepInfo();
+        step.expectedInfo(stepInfo);
         step.setWillComplete(false);
         PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
         ClusterService clusterService = Mockito.mock(ClusterService.class);
         IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService, () -> 0L);
         IndexMetaData indexMetaData = IndexMetaData.builder("my_index").settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        runner.runPolicy(policyName, indexMetaData, null, false);
+
+        assertEquals(1, step.getExecuteCount());
+        Mockito.verify(clusterService, Mockito.times(1)).submitStateUpdateTask(Mockito.matches("ILM"),
+                Mockito.argThat(new SetStepInfoUpdateTaskMatcher(indexMetaData.getIndex(), policyName, stepKey, stepInfo)));
+        Mockito.verifyNoMoreInteractions(clusterService);
+    }
+
+    public void testRunPolicyAsyncWaitStepNotCompleteNoStepInfo() {
+        String policyName = "async_wait_policy";
+        StepKey stepKey = new StepKey("phase", "action", "async_wait_step");
+        MockAsyncWaitStep step = new MockAsyncWaitStep(stepKey, null);
+        RandomStepInfo stepInfo = null;
+        step.expectedInfo(stepInfo);
+        step.setWillComplete(false);
+        PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
+        ClusterService clusterService = Mockito.mock(ClusterService.class);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService, () -> 0L);
+        IndexMetaData indexMetaData = IndexMetaData.builder("my_index").settings(settings(Version.CURRENT))
+                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
         runner.runPolicy(policyName, indexMetaData, null, false);
 
@@ -613,6 +637,42 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         assertEquals(now, (long) LifecycleSettings.LIFECYCLE_STEP_TIME_SETTING.get(newIndexSettings));
     }
 
+    private class RandomStepInfo implements ToXContentObject {
+
+        private final String key;
+        private final String value;
+
+        public RandomStepInfo() {
+            this.key = randomAlphaOfLength(20);
+            this.value = randomAlphaOfLength(20);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(key, value);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(key, value);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            RandomStepInfo other = (RandomStepInfo) obj;
+            return Objects.equals(key, other.key) && Objects.equals(value, other.value);
+        }
+    }
+
     private static class MockAsyncActionStep extends AsyncActionStep {
 
         private Exception exception;
@@ -662,6 +722,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         private Exception exception;
         private boolean willComplete;
         private long executeCount = 0;
+        private ToXContentObject expectedInfo = null;
 
         MockAsyncWaitStep(StepKey key, StepKey nextStepKey) {
             super(key, nextStepKey, null);
@@ -675,6 +736,10 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             this.willComplete = willComplete;
         }
 
+        void expectedInfo(ToXContentObject expectedInfo) {
+            this.expectedInfo = expectedInfo;
+        }
+
         long getExecuteCount() {
             return executeCount;
         }
@@ -683,7 +748,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         public void evaluateCondition(Index index, Listener listener) {
             executeCount++;
             if (exception == null) {
-                listener.onResponse(willComplete);
+                listener.onResponse(willComplete, expectedInfo);
             } else {
                 listener.onFailure(exception);
             }
@@ -804,6 +869,34 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                     Objects.equals(currentStepKey, task.getCurrentStepKey()) &&
                     Objects.equals(cause.getClass(), task.getCause().getClass()) &&
                     Objects.equals(cause.getMessage(), task.getCause().getMessage());
+        }
+
+    }
+    
+    private static class SetStepInfoUpdateTaskMatcher extends ArgumentMatcher<SetStepInfoUpdateTask> {
+
+        private Index index;
+        private String policy;
+        private StepKey currentStepKey;
+        private ToXContentObject stepInfo;
+
+        SetStepInfoUpdateTaskMatcher(Index index, String policy, StepKey currentStepKey, ToXContentObject stepInfo) {
+            this.index = index;
+            this.policy = policy;
+            this.currentStepKey = currentStepKey;
+            this.stepInfo = stepInfo;
+        }
+
+        @Override
+        public boolean matches(Object argument) {
+            if (argument == null || argument instanceof SetStepInfoUpdateTask == false) {
+                return false;
+            }
+            SetStepInfoUpdateTask task = (SetStepInfoUpdateTask) argument;
+            return Objects.equals(index, task.getIndex()) && 
+                    Objects.equals(policy, task.getPolicy())&& 
+                    Objects.equals(currentStepKey, task.getCurrentStepKey()) &&
+                    Objects.equals(stepInfo, task.getStepInfo());
         }
 
     }

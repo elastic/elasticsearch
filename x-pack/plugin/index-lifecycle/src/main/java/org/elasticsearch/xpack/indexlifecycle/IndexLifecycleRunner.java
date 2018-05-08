@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
@@ -61,10 +62,12 @@ public class IndexLifecycleRunner {
                 ((AsyncWaitStep) currentStep).evaluateCondition(indexMetaData.getIndex(), new AsyncWaitStep.Listener() {
     
                     @Override
-                    public void onResponse(boolean conditionMet) {
+                    public void onResponse(boolean conditionMet, ToXContentObject stepInfo) {
                         logger.debug("cs-change-async-wait-callback. current-step:" + currentStep.getKey());
                         if (conditionMet) {
                             moveToStep(indexMetaData.getIndex(), policy, currentStep.getKey(), currentStep.getNextStepKey());
+                        } else if (stepInfo != null) {
+                            setStepInfo(indexMetaData.getIndex(), policy, currentStep.getKey(), stepInfo);
                         }
                     }
     
@@ -181,7 +184,7 @@ public class IndexLifecycleRunner {
         return newSettings;
     }
 
-    private static ClusterState.Builder newClusterStateWithIndexSettings(Index index, ClusterState clusterState,
+    static ClusterState.Builder newClusterStateWithIndexSettings(Index index, ClusterState clusterState,
             Settings.Builder newSettings) {
         ClusterState.Builder newClusterStateBuilder = ClusterState.builder(clusterState);
         newClusterStateBuilder.metaData(MetaData.builder(clusterState.getMetaData())
@@ -200,5 +203,9 @@ public class IndexLifecycleRunner {
         logger.debug("policy [" + policy + "] for index [" + index.getName() + "] failed on step [" + currentStepKey
                 + "]. Moving to ERROR step.", e);
         clusterService.submitStateUpdateTask("ILM", new MoveToErrorStepUpdateTask(index, policy, currentStepKey, e, nowSupplier));
+    }
+
+    private void setStepInfo(Index index, String policy, StepKey currentStepKey, ToXContentObject stepInfo) {
+        clusterService.submitStateUpdateTask("ILM", new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo));
     }
 }

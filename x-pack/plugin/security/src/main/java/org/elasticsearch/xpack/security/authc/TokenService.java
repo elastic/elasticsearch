@@ -261,7 +261,7 @@ public final class TokenService extends AbstractComponent {
                                 .setSource(builder)
                                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
                                 .request();
-                lifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+                lifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () ->
                         executeAsyncWithOrigin(client, SECURITY_ORIGIN, IndexAction.INSTANCE, request,
                                 ActionListener.wrap(indexResponse -> listener.onResponse(new Tuple<>(userToken, refreshToken)),
                                         listener::onFailure))
@@ -370,7 +370,7 @@ public final class TokenService extends AbstractComponent {
                         if (version.onOrAfter(Version.V_6_2_0)) {
                             // we only have the id and need to get the token from the doc!
                             decryptTokenId(in, cipher, version, ActionListener.wrap(tokenId ->
-                                lifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+                                lifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
                                     final GetRequest getRequest =
                                             client.prepareGet(SecurityLifecycleServiceField.SECURITY_INDEX_NAME, TYPE,
                                                     getTokenDocumentId(tokenId)).request();
@@ -540,7 +540,7 @@ public final class TokenService extends AbstractComponent {
                     .request();
             final String tokenDocId = getTokenDocumentId(userToken);
             final Version version = userToken.getVersion();
-            lifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+            lifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () ->
                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, indexRequest,
                             ActionListener.<IndexResponse>wrap(indexResponse -> {
                                 ActionListener<Boolean> wrappedListener =
@@ -582,7 +582,7 @@ public final class TokenService extends AbstractComponent {
                     .setVersion(documentVersion)
                     .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
                     .request();
-            lifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+            lifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () ->
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
                         ActionListener.<UpdateResponse>wrap(updateResponse -> {
                             if (updateResponse.getGetResult() != null
@@ -681,7 +681,7 @@ public final class TokenService extends AbstractComponent {
                     .setVersion(true)
                     .request();
 
-            lifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+            lifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () ->
                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
                             ActionListener.<SearchResponse>wrap(searchResponse -> {
                                 if (searchResponse.isTimedOut()) {
@@ -863,7 +863,7 @@ public final class TokenService extends AbstractComponent {
                 .request();
 
         final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
-        lifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+        lifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () ->
             ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier, listener), this::parseHit));
     }
 
@@ -930,11 +930,11 @@ public final class TokenService extends AbstractComponent {
      * have been explicitly cleared.
      */
     private void checkIfTokenIsRevoked(UserToken userToken, ActionListener<UserToken> listener) {
-        if (lifecycleService.isSecurityIndexExisting() == false) {
+        if (lifecycleService.securityIndex().indexExists() == false) {
             // index doesn't exist so the token is considered valid.
             listener.onResponse(userToken);
         } else {
-            lifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+            lifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
                 MultiGetRequest mGetRequest = client.prepareMultiGet()
                         .add(SecurityLifecycleServiceField.SECURITY_INDEX_NAME, TYPE, getInvalidatedTokenDocumentId(userToken))
                         .add(SecurityLifecycleServiceField.SECURITY_INDEX_NAME, TYPE, getTokenDocumentId(userToken))
@@ -1005,7 +1005,7 @@ public final class TokenService extends AbstractComponent {
     }
 
     private void maybeStartTokenRemover() {
-        if (lifecycleService.isSecurityIndexAvailable()) {
+        if (lifecycleService.securityIndex().isAvailable()) {
             if (client.threadPool().relativeTimeInMillis() - lastExpirationRunMs > deleteInterval.getMillis()) {
                 expiredTokenRemover.submit(client.threadPool());
                 lastExpirationRunMs = client.threadPool().relativeTimeInMillis();

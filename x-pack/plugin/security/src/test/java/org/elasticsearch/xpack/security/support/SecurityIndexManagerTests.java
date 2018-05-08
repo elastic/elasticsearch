@@ -52,17 +52,17 @@ import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import static org.elasticsearch.cluster.routing.RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE;
-import static org.elasticsearch.xpack.security.support.IndexLifecycleManager.TEMPLATE_VERSION_PATTERN;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.TEMPLATE_VERSION_PATTERN;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class IndexLifecycleManagerTests extends ESTestCase {
+public class SecurityIndexManagerTests extends ESTestCase {
 
     private static final ClusterName CLUSTER_NAME = new ClusterName("index-lifecycle-manager-tests");
     private static final ClusterState EMPTY_CLUSTER_STATE = new ClusterState.Builder(CLUSTER_NAME).build();
-    public static final String INDEX_NAME = "IndexLifecycleManagerTests";
-    private static final String TEMPLATE_NAME = "IndexLifecycleManagerTests-template";
-    private IndexLifecycleManager manager;
+    public static final String INDEX_NAME = "SecurityIndexManagerTests";
+    private static final String TEMPLATE_NAME = "SecurityIndexManagerTests-template";
+    private SecurityIndexManager manager;
     private Map<Action<?, ?, ?>, Map<ActionRequest, ActionListener<?>>> actions;
 
     @Before
@@ -86,7 +86,7 @@ public class IndexLifecycleManagerTests extends ESTestCase {
                 actions.put(action, map);
             }
         };
-        manager = new IndexLifecycleManager(Settings.EMPTY, client, INDEX_NAME);
+        manager = new SecurityIndexManager(Settings.EMPTY, client, INDEX_NAME);
     }
 
     public void testIndexWithUpToDateMappingAndTemplate() throws IOException {
@@ -221,7 +221,7 @@ public class IndexLifecycleManagerTests extends ESTestCase {
 
         // index doesn't exist and now exists with wrong format
         ClusterState.Builder clusterStateBuilder = createClusterState(INDEX_NAME, TEMPLATE_NAME,
-                IndexLifecycleManager.INTERNAL_INDEX_FORMAT - 1);
+                SecurityIndexManager.INTERNAL_INDEX_FORMAT - 1);
         markShardsAvailable(clusterStateBuilder);
         manager.clusterChanged(event(clusterStateBuilder));
         assertTrue(listenerCalled.get());
@@ -235,7 +235,7 @@ public class IndexLifecycleManagerTests extends ESTestCase {
 
         listenerCalled.set(false);
         // index doesn't exist and now exists with correct format
-        clusterStateBuilder = createClusterState(INDEX_NAME, TEMPLATE_NAME, IndexLifecycleManager.INTERNAL_INDEX_FORMAT);
+        clusterStateBuilder = createClusterState(INDEX_NAME, TEMPLATE_NAME, SecurityIndexManager.INTERNAL_INDEX_FORMAT);
         markShardsAvailable(clusterStateBuilder);
         manager.clusterChanged(event(clusterStateBuilder));
         assertFalse(listenerCalled.get());
@@ -255,7 +255,7 @@ public class IndexLifecycleManagerTests extends ESTestCase {
     }
 
     public static ClusterState.Builder createClusterState(String indexName, String templateName) throws IOException {
-        return createClusterState(indexName, templateName, templateName, IndexLifecycleManager.INTERNAL_INDEX_FORMAT);
+        return createClusterState(indexName, templateName, templateName, SecurityIndexManager.INTERNAL_INDEX_FORMAT);
     }
 
     public static ClusterState.Builder createClusterState(String indexName, String templateName, int format) throws IOException {

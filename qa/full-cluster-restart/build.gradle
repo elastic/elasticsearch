@@ -112,7 +112,7 @@ void setupBwcTests(Version version, String fromDistribution, String toDistributi
 test.enabled = false // no unit tests for full cluster upgrades, only the rest integration test
 
 String bwcFlavor = System.getProperty('bwcFlavor')
-for (Version version : bwcVersions.wireCompatible) {
+for (Version version : bwcVersions.indexCompatible) {
   if (runOssUpgrades) {
     setupBwcTests(version, 'oss-zip', 'oss-zip')
   }

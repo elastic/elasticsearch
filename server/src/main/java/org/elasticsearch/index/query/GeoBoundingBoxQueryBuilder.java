@@ -75,6 +75,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     private static final ParseField BOTTOM_LEFT_FIELD = new ParseField("bottom_left");
     private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
     private static final ParseField WKT_FIELD = new ParseField("wkt");
+    private static final ParseField GEOHASH_FIELD = new ParseField("geohash");
 
 
     /** Name of field holding geo coordinates to compute the bounding box on.*/
@@ -473,6 +474,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
 
         String currentFieldName;
         GeoPoint sparse = new GeoPoint();
+        Rectangle rectangle = null;
         EnvelopeBuilder envelope = null;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -481,6 +483,13 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
                 token = parser.nextToken();
                 if (WKT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     envelope = (EnvelopeBuilder)(GeoWKTParser.parseExpectedType(parser, GeoShapeType.ENVELOPE));
+                } else if (GEOHASH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+                        rectangle = GeoHashUtils.bbox(parser.textOrNull());
+                    } else {
+                        throw new ElasticsearchParseException("failed to parse bounding box. unsupported geohash value in field [{}]",
+                            currentFieldName);
+                    }
                 } else if (TOP_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     top = parser.doubleValue();
                 } else if (BOTTOM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -515,12 +524,23 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             }
         }
         if (envelope != null) {
-            if ((Double.isNaN(top) || Double.isNaN(bottom) || Double.isNaN(left) || Double.isNaN(right)) == false) {
+            if (rectangle != null) {
+                throw new ElasticsearchParseException("failed to parse bounding box. Conflicting definition found "
+                    + "using well-known text and geohash");
+            }
+            if ((Double.isNaN(top) && Double.isNaN(bottom) && Double.isNaN(left)  && Double.isNaN(right)) == false) {
                 throw new ElasticsearchParseException("failed to parse bounding box. Conflicting definition found "
                     + "using well-known text and explicit corners.");
             }
             org.locationtech.spatial4j.shape.Rectangle r = envelope.build();
             return new Rectangle(r.getMinY(), r.getMaxY(), r.getMinX(), r.getMaxX());
+        }
+        if (rectangle != null) {
+            if ((Double.isNaN(top) && Double.isNaN(bottom) && Double.isNaN(left) && Double.isNaN(right)) == false) {
+                throw new ElasticsearchParseException("failed to parse bounding box. Conflicting definition found "
+                    + "using geohash and explicit corners.");
+            }
+            return rectangle;
         }
         return new Rectangle(bottom, top, left, right);
     }

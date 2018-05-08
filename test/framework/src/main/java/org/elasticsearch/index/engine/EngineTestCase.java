@@ -314,7 +314,10 @@ public abstract class EngineTestCase extends ESTestCase {
                 doc.add(seqID.primaryTerm);
                 seqID.tombstoneField.setLongValue(1);
                 doc.add(seqID.tombstoneField);
-                return new ParsedDocument(null, seqID, null, null, null, Collections.singletonList(doc), null, XContentType.JSON, null);
+                Field versionField = new NumericDocValuesField(VersionFieldMapper.NAME, 0);
+                doc.add(versionField);
+                return new ParsedDocument(versionField, seqID, null, null, null,
+                    Collections.singletonList(doc), null, XContentType.JSON, null);
             }
         };
     }
@@ -609,7 +612,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 default:
                     throw new UnsupportedOperationException("unknown version type: " + versionType);
             }
-            if (true || randomBoolean()) {
+            if (randomBoolean()) {
                 op = new Engine.Index(id, testParsedDocument(docId, null, testDocumentWithTextField(valuePrefix + i), B_1, null),
                     forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbers.UNASSIGNED_SEQ_NO,
                     forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? primaryTerm + 1 : primaryTerm,

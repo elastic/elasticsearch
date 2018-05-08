@@ -180,6 +180,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             skippedOperations++;
             return null;
         }
+        final long version = readNumericDV(leaf, VersionFieldMapper.NAME, segmentDocID);
         final FieldsVisitor fields = new FieldsVisitor(true);
         indexSearcher.doc(docID, fields);
         fields.postProcess(mapperService);
@@ -190,11 +191,11 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             op = new Translog.NoOp(seqNo, primaryTerm, ""); // TODO: store reason in ignored fields?
             assert readNumericDV(leaf, Lucene.SOFT_DELETE_FIELD, segmentDocID) == 1
                 : "Noop operation but soft_deletes field is not set [" + op + "]";
+            assert version == 1L : "Noop tombstone should have version 1L; actual version [" + version + "]";
         } else {
             final String id = fields.uid().id();
             final String type = fields.uid().type();
             final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
-            final long version = readNumericDV(leaf, VersionFieldMapper.NAME, segmentDocID);
             if (isTombstone) {
                 op = new Translog.Delete(type, id, uid, seqNo, primaryTerm, version, VersionType.INTERNAL);
                 assert readNumericDV(leaf, Lucene.SOFT_DELETE_FIELD, segmentDocID) == 1

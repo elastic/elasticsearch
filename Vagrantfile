@@ -237,6 +237,7 @@ def linux_common(config,
 
   config.vm.provision 'markerfile', type: 'shell', inline: <<-SHELL
     touch /etc/is_vagrant_vm
+    touch /is_vagrant_vm # for consistency between linux and windows
   SHELL
 
   # This prevents leftovers from previous tests using the

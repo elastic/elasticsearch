@@ -31,9 +31,12 @@ import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.joda.DateMathParser;
+import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
@@ -42,6 +45,9 @@ import org.elasticsearch.index.mapper.RangeFieldMapper.RangeType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
+import org.joda.time.format.DateTimeFormatter;
+import org.junit.Assert;
 import org.junit.Before;
 
 import java.net.InetAddress;
@@ -52,6 +58,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     protected static String FIELDNAME = "field";
     protected static int DISTANCE = 10;
     private static long nowInMillis;
+    private static final DateMathParser WITHOUT_DATE_MATH_PARSER = null;
 
     @Before
     public void setupProperties() {
@@ -79,14 +86,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRangeQuery() throws Exception {
-        Settings indexSettings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
-        QueryShardContext context = new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
-            writableRegistry(), null, null, () -> nowInMillis, null);
-        RangeFieldMapper.RangeFieldType ft = new RangeFieldMapper.RangeFieldType(type, Version.CURRENT);
-        ft.setName(FIELDNAME);
-        ft.setIndexOptions(IndexOptions.DOCS);
+        RangeFieldMapper.RangeFieldType ft = this.rangeFieldType(type);
 
         ShapeRelation relation = RandomPicks.randomFrom(random(), ShapeRelation.values());
         boolean includeLower = random().nextBoolean();
@@ -95,7 +95,171 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         Object to = nextTo(from);
 
         assertEquals(getExpectedRangeQuery(relation, from, to, includeLower, includeUpper),
-            ft.rangeQuery(from, to, includeLower, includeUpper, relation, null, null, context));
+            ft.rangeQuery(from, to, includeLower, includeUpper, relation, null, null, this.context()));
+    }
+
+    public void testRangeQueryDate_WithoutFormat_usesRangeFieldTypeFormat_includeLowerIncludeUpperTimeZone() {
+        testRangeQueryDate_WithoutFormat_usesRangeFieldTypeFormat0(true, true, DateTimeZone.UTC);
+    }
+
+    public void testRangeQueryDate_WithoutFormat_usesRangeFieldTypeFormat() {
+        testRangeQueryDate_WithoutFormat_usesRangeFieldTypeFormat0(false, false, null);
+    }
+
+    private void testRangeQueryDate_WithoutFormat_usesRangeFieldTypeFormat0(final boolean includeLower,
+                                                                            final boolean includeUpper,
+                                                                            final DateTimeZone timeZone) {
+        final String pattern = "yyyy-MM-dd";
+        final String lower = "2015-10-31";
+        final String higher = "2016-11-01";
+
+        final Query query = this.rangeQuery(RangeType.DATE,
+            pattern,
+            lower,
+            higher,
+            includeLower,
+            includeUpper,
+            ShapeRelation.WITHIN,
+            timeZone,
+            WITHOUT_DATE_MATH_PARSER);
+
+        final DateTimeFormatter parser = this.parser(pattern, timeZone);
+
+        Assert.assertEquals(this.getDateRangeQuery(
+            ShapeRelation.WITHIN,
+            parser.parseDateTime(lower),
+            parser.parseDateTime(higher),
+            includeLower,
+            includeUpper),
+            query);
+    }
+
+    // fails because lowerTerm/upperTerm cannt be parsed with dd-MM-yyyy
+    public void testRangeQueryDate_WithoutFormat_usesRangeFieldTypeFormat_incompatFails() {
+        this.rangeQueryFails(RangeType.DATE,
+            "dd-yyyy-MM", //deliberate must cause failure
+            "2015-10-31",
+            "2016-11-01",
+            true,
+            true,
+            ShapeRelation.WITHIN,
+            DateTimeZone.UTC,
+            WITHOUT_DATE_MATH_PARSER,
+            ElasticsearchParseException.class);
+    }
+
+    public void testRangeQueryDate_WithFormat() {
+        testRangeQueryDate_WithFormat0(false, false, null);
+    }
+
+    public void testRangeQueryDate_WithFormat_includeLowerIncludeUpperTimezone() {
+        testRangeQueryDate_WithFormat0(true, true, DateTimeZone.UTC);
+    }
+
+    private void testRangeQueryDate_WithFormat0(final boolean includeLower,
+                                                final boolean includeUpper,
+                                                final DateTimeZone timeZone) {
+        final String pattern = "yyyy-MM-dd";
+        final String lower = "2015-10-31";
+        final String higher = "2016-11-01";
+
+        final Query query = this.rangeQuery(RangeType.DATE,
+            pattern,
+            lower,
+            higher,
+            includeLower,
+            includeUpper,
+            ShapeRelation.WITHIN,
+            timeZone,
+            dateMathParser(pattern));
+
+        final DateTimeFormatter parser = this.parser(pattern, timeZone);
+
+        Assert.assertEquals(this.getDateRangeQuery(
+            ShapeRelation.WITHIN,
+            parser.parseDateTime(lower),
+            parser.parseDateTime(higher),
+            includeLower,
+            includeUpper),
+            query);
+    }
+
+    private void rangeQueryFails(final RangeType rangeType,
+                            final String dateTimeFormatterFormat,
+                            final String lowerTerm,
+                            final String upperTerm,
+                            final boolean includeLower,
+                            final boolean includeUpper,
+                            final ShapeRelation relation,
+                            final DateTimeZone dateTimeZone,
+                            final DateMathParser dateMathParser,
+                                 final Class<? extends Throwable> thrown)
+    {
+        expectThrows(thrown,
+            () -> rangeQuery(rangeType,
+                dateTimeFormatterFormat,
+                lowerTerm,
+                upperTerm,
+                includeLower,
+                includeUpper,
+                relation,
+                dateTimeZone,
+                dateMathParser));
+    }
+
+    private Query rangeQuery(final RangeType rangeType,
+                            final String dateTimeFormatterFormat,
+                            final String lowerTerm,
+                            final String upperTerm,
+                            final boolean includeLower,
+                            final boolean includeUpper,
+                            final ShapeRelation relation,
+                            final DateTimeZone dateTimeZone,
+                            final DateMathParser dateMathParser)
+    {
+        final RangeFieldMapper.RangeFieldType type = rangeFieldType(rangeType, dateTimeFormatterFormat);
+
+        return type.rangeQuery(
+            lowerTerm,
+            upperTerm,
+            includeLower,
+            includeUpper,
+            relation,
+            dateTimeZone,
+            dateMathParser,
+            this.context());
+    }
+
+    private RangeFieldMapper.RangeFieldType rangeFieldType(final RangeType rangeType) {
+        return this.rangeFieldType(rangeType, null);
+    }
+
+    private RangeFieldMapper.RangeFieldType rangeFieldType(final RangeType rangeType,
+                                                           final String dateTimeFormatterFormat) {
+        final RangeFieldMapper.RangeFieldType rangeFieldType = new RangeFieldMapper.RangeFieldType(rangeType, Version.CURRENT);
+        rangeFieldType.setName(FIELDNAME);
+        rangeFieldType.setIndexOptions(IndexOptions.DOCS);
+
+        if(null!=dateTimeFormatterFormat){
+            rangeFieldType.setDateTimeFormatter(Joda.forPattern(dateTimeFormatterFormat));
+        }
+        return rangeFieldType;
+    }
+
+    private DateMathParser dateMathParser(final String pattern) {
+        return new DateMathParser(formatter(pattern));
+    }
+
+    private FormatDateTimeFormatter formatter(final String pattern) {
+        return Joda.forPattern(pattern, Locale.ROOT);
+    }
+
+    private DateTimeFormatter parser(final String pattern, final DateTimeZone timeZone) {
+        DateTimeFormatter parser = formatter(pattern).parser();
+        if(null !=timeZone){
+            parser = parser.withZone(timeZone);
+        }
+        return parser;
     }
 
     private Query getExpectedRangeQuery(ShapeRelation relation, Object from, Object to, boolean includeLower, boolean includeUpper) {
@@ -279,20 +443,33 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() throws Exception, IllegalArgumentException {
         // See https://github.com/elastic/elasticsearch/issues/25950
-        Settings indexSettings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
-        QueryShardContext context = new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
-            writableRegistry(), null, null, () -> nowInMillis, null);
-        RangeFieldMapper.RangeFieldType ft = new RangeFieldMapper.RangeFieldType(type, Version.CURRENT);
-        ft.setName(FIELDNAME);
-        ft.setIndexOptions(IndexOptions.DOCS);
+       RangeFieldMapper.RangeFieldType ft = this.rangeFieldType(type);
 
         Object value = nextFrom();
         ShapeRelation relation = ShapeRelation.INTERSECTS;
         boolean includeLower = true;
         boolean includeUpper = true;
         assertEquals(getExpectedRangeQuery(relation, value, value, includeLower, includeUpper),
-            ft.termQuery(value, context));
+            ft.termQuery(value, this.context()));
+    }
+
+    private QueryShardContext context() {
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
+        return new QueryShardContext(0,
+            idxSettings,
+            null,
+            null,
+            null,
+            null,
+            null,
+            xContentRegistry(),
+            writableRegistry(),
+            null,
+            null,
+            () -> nowInMillis,
+            null);
     }
 }

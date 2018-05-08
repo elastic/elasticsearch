@@ -23,8 +23,8 @@ import org.apache.http.Header;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 
 import java.io.IOException;
 
@@ -66,5 +66,29 @@ public final class SnapshotClient {
                                      ActionListener<GetRepositoriesResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(getRepositoriesRequest, RequestConverters::getRepositories,
             GetRepositoriesResponse::fromXContent, listener, emptySet(), headers);
+    }
+
+    /**
+     * Creates a snapshot repository.
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
+     * API on elastic.co</a>
+     */
+
+    public PutRepositoryResponse putRepository(PutRepositoryRequest putRepositoryRequest, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(putRepositoryRequest, RequestConverters::putRepository,
+            PutRepositoryResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously creates a snapshot repository.
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
+     * API on elastic.co</a>
+     */
+    public void putRepositoryAsync(PutRepositoryRequest putRepositoryRequest,
+                                   ActionListener<PutRepositoryResponse> listener, Header... headers){
+        restHighLevelClient.performRequestAsyncAndParseEntity(putRepositoryRequest, RequestConverters::putRepository,
+            PutRepositoryResponse::fromXContent, listener, emptySet(), headers);
     }
 }

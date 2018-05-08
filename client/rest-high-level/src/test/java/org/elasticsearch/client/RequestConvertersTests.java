@@ -30,6 +30,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -94,6 +95,7 @@ import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
+import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -131,6 +133,7 @@ import static org.elasticsearch.index.RandomCreateIndexGenerator.randomCreateInd
 import static org.elasticsearch.index.RandomCreateIndexGenerator.randomIndexSettings;
 import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomAliasAction;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -1446,6 +1449,18 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
         assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
         assertThat(expectedParams, equalTo(request.getParameters()));
+    }
+
+    public void testPutRepository() throws IOException {
+        String repository = "repo";
+        PutRepositoryRequest putRepositoryRequest = new PutRepositoryRequest(repository);
+        putRepositoryRequest.type(FsRepository.TYPE);
+        putRepositoryRequest.settings("{\"location\": \".\"}", XContentType.JSON);
+
+        Request request = RequestConverters.putRepository(putRepositoryRequest);
+        assertThat("/_snapshot/" + repository, equalTo(request.getEndpoint()));
+        assertThat(HttpPut.METHOD_NAME, equalTo(request.getMethod()));
+        assertToXContentBody(putRepositoryRequest, request.getEntity());
     }
 
     public void testPutTemplateRequest() throws Exception {

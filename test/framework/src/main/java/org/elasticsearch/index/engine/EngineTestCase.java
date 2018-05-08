@@ -315,7 +315,10 @@ public abstract class EngineTestCase extends ESTestCase {
                 doc.add(seqID.primaryTerm);
                 seqID.tombstoneField.setLongValue(1);
                 doc.add(seqID.tombstoneField);
-                return new ParsedDocument(null, seqID, null, null, null, Collections.singletonList(doc), null, XContentType.JSON, null);
+                Field versionField = new NumericDocValuesField(VersionFieldMapper.NAME, 0);
+                doc.add(versionField);
+                return new ParsedDocument(versionField, seqID, null, null, null,
+                    Collections.singletonList(doc), null, XContentType.JSON, null);
             }
         };
     }
@@ -734,6 +737,7 @@ public abstract class EngineTestCase extends ESTestCase {
         final int segmentDocID = docID - leaves.get(leafIndex).docBase;
         final long seqNo = readNumericDV(leaves.get(leafIndex), SeqNoFieldMapper.NAME, segmentDocID);
         final long primaryTerm = readNumericDV(leaves.get(leafIndex), SeqNoFieldMapper.PRIMARY_TERM_NAME, segmentDocID);
+        final long version = readNumericDV(leaves.get(leafIndex), VersionFieldMapper.NAME, segmentDocID);
         final FieldsVisitor fields = new FieldsVisitor(true);
         searcher.doc(docID, fields);
         fields.postProcess(mapper);
@@ -743,11 +747,11 @@ public abstract class EngineTestCase extends ESTestCase {
             op = new Translog.NoOp(seqNo, primaryTerm, "");
             assert readNumericDV(leaves.get(leafIndex), Lucene.SOFT_DELETE_FIELD, segmentDocID) == 1
                 : "Noop operation but soft_deletes field is not set";
+            assert version == 1 : "Noop tombstone should have version 1L; actual version [" + version + "]";
         } else {
             final String id = fields.uid().id();
             final String type = fields.uid().type();
             final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
-            final long version = readNumericDV(leaves.get(leafIndex), VersionFieldMapper.NAME, segmentDocID);
             if (isTombstone) {
                 op = new Translog.Delete(type, id, uid, seqNo, primaryTerm, version, VersionType.INTERNAL);
                 assert readNumericDV(leaves.get(leafIndex), Lucene.SOFT_DELETE_FIELD, segmentDocID) == 1

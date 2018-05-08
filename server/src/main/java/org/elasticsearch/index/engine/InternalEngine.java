@@ -1347,6 +1347,9 @@ public class InternalEngine extends Engine {
                 try {
                     final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newNoopTombstoneDoc();
                     tombstone.updateSeqID(noOp.seqNo(), noOp.primaryTerm());
+                    // A noop tombstone does not require a _version but it's added to have a fully dense docvalues for the version field.
+                    // 1L is selected to optimize the compression because it might probably be the most common value in version field.
+                    tombstone.version().setLongValue(1L);
                     assert tombstone.docs().size() == 1 : "Tombstone should have a single doc [" + tombstone + "]";
                     final ParseContext.Document doc = tombstone.docs().get(0);
                     assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null

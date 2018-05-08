@@ -114,15 +114,17 @@ void setupBwcTests(Version version, String fromDistribution, String toDistributi
 }
 
 for (Version version : bwcVersions.wireCompatible) {
-  setupBwcTests(version, 'oss-zip', 'oss-zip')
-  setupBwcTests(version, 'zip', 'zip')
-  if (version.before(xPackOpenedVersion)) {
+  if (runOssUpgrades) {
+    setupBwcTests(version, 'oss-zip', 'oss-zip')
+  }
+  if (runDefaultUpgrades) {
     /*
      * If the source version is before xpack was opened then test upgrading
      * from OSS to the default distribution because we expect that'll be
-     * fairly common.
+     * fairly common. If it is after opening xpack then test upgrading xpack
+     * default to xpack default. zip-to-zip covers both of those cases.
      */
-    setupBwcTests(version, 'oss-zip', 'zip')
+    setupBwcTests(version, 'zip', 'zip')
   }
 }
 

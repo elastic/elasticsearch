@@ -3,7 +3,25 @@ import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.Version
 
 subprojects { Project subproj ->
-  subproj.ext.xPackOpenedVersion = Version.fromString('6.3.0')
+  subproj.ext {
+    String bwcFlavor = System.getProperty('bwcFlavor')
+    switch (bwcFlavor) {
+    case 'oss':
+      runOssUpgrades = true;
+      runDefaultUpgrades = false;
+      break;
+    case 'default':
+      runOssUpgrades = false;
+      runDefaultUpgrades = true;
+      break;
+    case null:
+      runOssUpgrades = true;
+      runDefaultUpgrades = true;
+      break;
+    default:
+      throw new InvalidUserDataException("Unknown bwc flavor ${bwcFlavor}")
+    }
+  }
   subproj.tasks.withType(RestIntegTestTask) {
     subproj.extensions.configure("${it.name}Cluster") { cluster ->
       cluster.distribution = 'oss-zip'

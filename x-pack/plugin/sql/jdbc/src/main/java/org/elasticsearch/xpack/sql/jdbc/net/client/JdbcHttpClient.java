@@ -86,7 +86,8 @@ public class JdbcHttpClient {
      */
     private List<ColumnInfo> toJdbcColumnInfo(List<org.elasticsearch.xpack.sql.plugin.ColumnInfo> columns) {
         return columns.stream().map(columnInfo ->
-                new ColumnInfo(columnInfo.name(), columnInfo.jdbcType(), EMPTY, EMPTY, EMPTY, EMPTY, columnInfo.displaySize())
+                new ColumnInfo(columnInfo.name(), columnInfo.jdbcType(), EMPTY, EMPTY, EMPTY, EMPTY, columnInfo.displaySize(),
+                        columnInfo.esType())
         ).collect(Collectors.toList());
     }
 }

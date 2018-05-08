@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.net.protocol;
 
+import org.elasticsearch.xpack.sql.type.DataType;
+
 import java.sql.JDBCType;
 import java.util.Objects;
 
@@ -16,8 +18,14 @@ public class ColumnInfo {
     public final String name;
     public final int displaySize;
     public final JDBCType type;
+    public final String esType;
 
     public ColumnInfo(String name, JDBCType type, String table, String catalog, String schema, String label, int displaySize) {
+        this(name, type, table, catalog, schema, label, displaySize, DataType.fromJdbcType(type).esType);
+    }
+
+    public ColumnInfo(String name, JDBCType type, String table, String catalog, String schema, String label, int displaySize,
+                      String esType) {
         if (name == null) {
             throw new IllegalArgumentException("[name] must not be null");
         }
@@ -36,6 +44,9 @@ public class ColumnInfo {
         if (label == null) {
             throw new IllegalArgumentException("[label] must not be null");
         }
+        if (esType == null) {
+            throw new IllegalArgumentException("[esType] must not be null");
+        }
         this.name = name;
         this.type = type;
         this.table = table;
@@ -43,6 +54,7 @@ public class ColumnInfo {
         this.schema = schema;
         this.label = label;
         this.displaySize = displaySize;
+        this.esType = esType;
     }
 
     public int displaySize() {
@@ -81,11 +93,12 @@ public class ColumnInfo {
                 && catalog.equals(other.catalog)
                 && schema.equals(other.schema)
                 && label.equals(other.label)
-                && displaySize == other.displaySize;
+                && displaySize == other.displaySize
+                && esType.equals(other.esType);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, type, table, catalog, schema, label, displaySize);
+        return Objects.hash(name, type, table, catalog, schema, label, displaySize, esType);
     }
 }

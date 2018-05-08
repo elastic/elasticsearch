@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.plugin.AbstractSqlRequest;
 import org.elasticsearch.xpack.sql.plugin.SqlQueryResponse;
+import org.elasticsearch.xpack.sql.type.DataType;
 import org.joda.time.DateTime;
 
 import java.sql.JDBCType;
@@ -55,7 +56,7 @@ public class TypeConverterTests extends ESTestCase {
         builder.endObject();
         builder.close();
         Object copy = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2().get("value");
-        return TypeConverter.convert(copy, type);
+        return TypeConverter.convert(copy, type, DataType.fromJdbcType(type).esType);
     }
 
 }

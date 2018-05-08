@@ -99,12 +99,12 @@ final class TypeConverter {
      * Converts object val from columnType to type
      */
     @SuppressWarnings("unchecked")
-    static <T> T convert(Object val, JDBCType columnType, Class<T> type) throws SQLException {
+    static <T> T convert(Object val, JDBCType columnType, String esType, Class<T> type) throws SQLException {
         if (type == null) {
-            return (T) convert(val, columnType);
+            return (T) convert(val, columnType, esType);
         }
         if (type == String.class) {
-            return (T) asString(convert(val, columnType));
+            return (T) asString(convert(val, columnType, esType));
         }
         if (type == Boolean.class) {
             return (T) asBoolean(val, columnType);
@@ -185,7 +185,7 @@ final class TypeConverter {
      * <p>
      * The returned types needs to correspond to ES-portion of classes returned by {@link TypeConverter#classNameOf}
      */
-    static Object convert(Object v, JDBCType columnType) throws SQLException {
+    static Object convert(Object v, JDBCType columnType, String esType) throws SQLException {
         switch (columnType) {
             case NULL:
                 return null;
@@ -207,9 +207,20 @@ final class TypeConverter {
                 return floatValue(v);  // Float might be represented as string for infinity and NaN values
             case TIMESTAMP:
                 return ((Number) v).longValue();
+            case OTHER:
+                return convertOtherType(esType, v);
             default:
                 throw new SQLException("Unexpected column type [" + columnType.getName() + "]");
+        }
+    }
 
+    static Object convertOtherType(String esType, Object v) throws SQLException  {
+        switch (esType) {
+            case "geo_shape":
+                // TODO: convert this into a geo object
+                return v;
+            default:
+                throw new SQLException("Unsupported es type [" + esType + "]");
         }
     }
 

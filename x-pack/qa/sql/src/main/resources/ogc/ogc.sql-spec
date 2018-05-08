@@ -1,0 +1,24 @@
+//
+// Basic GEO SELECT
+//
+
+selectLakes
+SELECT fid, name, shore FROM lakes ORDER BY fid;
+selectRoadSegments
+SELECT fid, name, num_lanes, aliases, centerline FROM road_segments ORDER BY fid;
+selectDividedRoutes
+SELECT fid, name, num_lanes, centerlines FROM divided_routes ORDER BY fid;
+selectForests
+SELECT fid, name, boundary FROM forests ORDER BY fid;
+selectBridges
+SELECT fid, name, position FROM bridges ORDER BY fid;
+selectStreams
+SELECT fid, name, centerline FROM streams ORDER BY fid;
+selectBuildings
+SELECT fid, address, position, footprint FROM buildings ORDER BY fid;
+selectPonds
+SELECT fid, type, name, shores FROM ponds ORDER BY fid;
+selectNamedPlaces
+SELECT fid, name, boundary FROM named_places ORDER BY fid;
+selectMapNeatLines
+SELECT fid, neatline FROM map_neatlines ORDER BY fid;

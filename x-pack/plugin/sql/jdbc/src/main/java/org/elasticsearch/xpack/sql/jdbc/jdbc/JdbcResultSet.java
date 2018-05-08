@@ -367,9 +367,9 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             }
         }
 
-        JDBCType columnType = cursor.columns().get(columnIndex - 1).type;
-        
-        return TypeConverter.convert(val, columnType, type);
+        ColumnInfo columnInfo = cursor.columns().get(columnIndex - 1);
+
+        return TypeConverter.convert(val, columnInfo.type, columnInfo.esType, type);
     }
 
     @Override

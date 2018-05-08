@@ -17,6 +17,9 @@
         },
         "salary" : {
             "type" : "integer"
+        },
+        "site": {
+            "type": "geo_shape"
         }
     }
 }

@@ -132,7 +132,7 @@ public class JdbcAssert {
                     }
                     // then timestamp
                     else if (type == Types.TIMESTAMP || type == Types.TIMESTAMP_WITH_TIMEZONE) {
-                        assertEquals(msg, expected.getTimestamp(column), actual.getTimestamp(column));
+                        assertEquals(msg, getTime(expected, column), getTime(actual, column));
                     }
                     // and floats/doubles
                     else if (type == Types.DOUBLE) {
@@ -140,6 +140,9 @@ public class JdbcAssert {
                         assertEquals(msg, (double) expectedObject, (double) actualObject, 1d);
                     } else if (type == Types.FLOAT) {
                         assertEquals(msg, (float) expectedObject, (float) actualObject, 1f);
+                    } else if (type == Types.OTHER) {
+                        // TODO: For now we will just do toString()-based comparision
+                        assertEquals(msg, expectedObject.toString(), actualObject.toString());
                     }
                     // finally the actual comparison
                     else {
@@ -161,4 +164,7 @@ public class JdbcAssert {
         }
     }
 
+    private static Object getTime(ResultSet rs, int column) throws SQLException {
+        return rs.getTime(column, UTC_CALENDAR).getTime();
+    }
 }

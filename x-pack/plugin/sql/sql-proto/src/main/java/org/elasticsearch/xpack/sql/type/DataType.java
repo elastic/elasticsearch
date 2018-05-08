@@ -37,14 +37,16 @@ public enum DataType {
     OBJECT(      JDBCType.STRUCT,    null,            -1,                0,                 0),
     NESTED(      JDBCType.STRUCT,    null,            -1,                0,                 0),
     BINARY(      JDBCType.VARBINARY, byte[].class,    -1,                Integer.MAX_VALUE, 0),
-    DATE(        JDBCType.TIMESTAMP, Timestamp.class, Long.BYTES,        19,                20);
+    DATE(        JDBCType.TIMESTAMP, Timestamp.class, Long.BYTES,        19,                20),
+    // TODO: This should map to some Geography class instead of String
+    GEO_SHAPE(   JDBCType.OTHER,     String.class,    Integer.MAX_VALUE, Integer.MAX_VALUE, 0, false, false, false);
     // @formatter:on
 
     private static final Map<JDBCType, DataType> jdbcToEs;
 
     static {
         jdbcToEs = Arrays.stream(DataType.values())
-                .filter(dataType -> dataType != TEXT && dataType != NESTED && dataType != SCALED_FLOAT) // Remove duplicates
+                .filter(dataType -> dataType != TEXT && dataType != NESTED && dataType != SCALED_FLOAT && dataType != GEO_SHAPE)
                 .collect(Collectors.toMap(dataType -> dataType.jdbcType, dataType -> dataType));
     }
 

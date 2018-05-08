@@ -159,23 +159,21 @@ public final class CsvTestUtils {
 
     private static class CsvSpecParser implements SpecBaseIntegrationTestCase.Parser {
         private final StringBuilder data = new StringBuilder();
-        private CsvTestCase testCase;
+        private String query;
 
         @Override
         public Object parse(String line) {
             // beginning of the section
-            if (testCase == null) {
+            if (query == null) {
                 // pick up the query
-                testCase = new CsvTestCase();
-                testCase.query = line.endsWith(";") ? line.substring(0, line.length() - 1) : line;
+                query = line.endsWith(";") ? line.substring(0, line.length() - 1) : line;
             }
             else {
                 // read data
                 if (line.startsWith(";")) {
-                    testCase.expectedResults = data.toString();
                     // clean-up and emit
-                    CsvTestCase result = testCase;
-                    testCase = null;
+                    CsvTestCase result = new CsvTestCase(query, data.toString());
+                    query = null;
                     data.setLength(0);
                     return result;
                 }
@@ -190,7 +188,12 @@ public final class CsvTestUtils {
     }
 
     public static class CsvTestCase {
-        String query;
-        String expectedResults;
+        public final String query;
+        public final String expectedResults;
+
+        private CsvTestCase(String query, String expectedResults) {
+            this.query = query;
+            this.expectedResults = expectedResults;
+        }
     }
 }

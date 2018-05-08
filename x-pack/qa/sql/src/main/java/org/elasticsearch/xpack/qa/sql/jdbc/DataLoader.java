@@ -47,13 +47,14 @@ public class DataLoader {
         makeAlias(client, "test_alias_emp", "test_emp", "test_emp_copy");
     }
 
-    private static void createString(String name, XContentBuilder builder) throws Exception {
+    public static void createString(String name, XContentBuilder builder) throws Exception {
         builder.startObject(name).field("type", "text")
             .startObject("fields")
                 .startObject("keyword").field("type", "keyword").endObject()
             .endObject()
        .endObject();
     }
+
     protected static void loadDatasetIntoEs(RestClient client, String index) throws Exception {
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
         createIndex.startObject("settings");
@@ -154,7 +155,7 @@ public class DataLoader {
                 new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
     }
 
-    protected static void makeAlias(RestClient client, String aliasName, String... indices) throws Exception {
+    public static void makeAlias(RestClient client, String aliasName, String... indices) throws Exception {
         for (String index : indices) {
             client.performRequest("POST", "/" + index + "/_alias/" + aliasName);
         }

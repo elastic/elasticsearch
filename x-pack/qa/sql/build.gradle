@@ -15,6 +15,7 @@ dependencies {
   // CLI testing dependencies
   compile project(path: xpackModule('sql:sql-cli'), configuration: 'nodeps')
   compile "org.jline:jline:3.6.0"
+  compile "org.orbisgis:h2gis-ext:1.3.2"
 }
 
 /* disable unit tests because these are all integration tests used
@@ -69,6 +70,9 @@ thirdPartyAudit.excludes = [
     'org.fusesource.jansi.internal.Kernel32$SMALL_RECT',
     'org.fusesource.jansi.internal.Kernel32',
     'org.fusesource.jansi.internal.WindowsSupport',
+    // TODO: Temporary solution until core removes JTS as a dependency
+    'org.h2gis.functions.factory.H2GISFunctions',
+    'org.h2gis.network.functions.NetworkFunctions',
     'org.mozilla.universalchardet.UniversalDetector',
 ]
 
@@ -85,9 +89,16 @@ subprojects {
     testCompile "org.elasticsearch.test:framework:${version}"
 
     // JDBC testing dependencies
-    testRuntime "net.sourceforge.csvjdbc:csvjdbc:1.0.34"
-    testRuntime "com.h2database:h2:1.4.197"
     testRuntime xpackProject('plugin:sql:jdbc')
+    testRuntime("net.sourceforge.csvjdbc:csvjdbc:1.0.34") {
+      transitive = false
+    }
+
+    testRuntime("com.h2database:h2:1.4.196") {
+      transitive = false
+    }
+
+    testRuntime "org.orbisgis:h2gis-ext:1.3.2"
 
     // TODO check if needed
     testRuntime("org.antlr:antlr4-runtime:4.5.3") {
@@ -97,6 +108,16 @@ subprojects {
     // CLI testing dependencies
     testRuntime project(path: xpackModule('sql:sql-cli'), configuration: 'nodeps')
     testRuntime "org.jline:jline:3.6.0"
+  }
+
+  // TODO: Temporary solution until core removes JTS as a dependency
+  configurations {
+    testRuntime {
+      exclude group: 'org.locationtech.jts', module: 'jts-core'
+    }
+    testCompile {
+      exclude group: 'org.locationtech.jts', module: 'jts-core'
+    }
   }
 
   if (project.name != 'security') {

@@ -612,7 +612,8 @@ public class TextFieldMapper extends FieldMapper {
         this.positionIncrementGap = positionIncrementGap;
         this.prefixFieldMapper = prefixFieldMapper;
         this.phraseFieldMapper = indexPhrases
-            ? new PhraseFieldMapper(PhraseFieldType.newInstance(simpleName + FAST_PHRASE_SUFFIX, fieldType().indexAnalyzer()), indexSettings)
+            ? new PhraseFieldMapper(PhraseFieldType.newInstance(simpleName + FAST_PHRASE_SUFFIX,
+                                                                fieldType().indexAnalyzer()), indexSettings)
             : null;
     }
 

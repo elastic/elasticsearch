@@ -104,6 +104,8 @@ ones that the user is authorized to access in case field level security is enabl
 [float]
 === Bug Fixes
 
+Fix NPE in 'more_like_this' when field has zero tokens ({pull}30365[#30365])
+
 Fixed prerelease version of elasticsearch in the `deb` package to sort before GA versions
 ({pull}29000[#29000])
 
@@ -169,6 +171,8 @@ Added put index template API to the high level rest client ({pull}30400[#30400])
 [float]
 === Bug Fixes
 
+Fix NPE in 'more_like_this' when field has zero tokens ({pull}30365[#30365])
+
 Do not ignore request analysis/similarity settings on index resize operations when the source index already contains such settings ({pull}30216[#30216])
 
 Fix NPE when CumulativeSum agg encounters null value/empty bucket ({pull}29641[#29641])
@@ -182,6 +186,12 @@ Add validation that geohashes are not empty and don't contain unsupported charac
 Rollup::
 * Validate timezone in range queries to ensure they match the selected job when
 searching ({pull}30338[#30338])
+
+
+Allocation::
+
+Auto-expand replicas when adding or removing nodes to prevent shard copies from
+being dropped and resynced when a data node rejoins the cluster ({pull}30423[#30423])
 
 //[float]
 //=== Regressions

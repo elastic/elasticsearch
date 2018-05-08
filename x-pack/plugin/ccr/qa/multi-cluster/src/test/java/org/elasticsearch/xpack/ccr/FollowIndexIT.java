@@ -45,7 +45,7 @@ public class FollowIndexIT extends ESRestTestCase {
         if (runningAgainstLeaderCluster) {
             logger.info("Running against leader cluster");
             Settings indexSettings = Settings.builder()
-                    .put("index.soft_deletes", true)
+                    .put("index.soft_deletes.enabled", true)
                     .build();
             createIndex(leaderIndexName, indexSettings);
             for (int i = 0; i < numDocs; i++) {

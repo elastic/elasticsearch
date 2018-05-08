@@ -549,6 +549,11 @@ class BuildPlugin implements Plugin<Project> {
             javadoc.classpath = javadoc.getClasspath().filter { f ->
                 return classes.contains(f) == false
             }
+            /*
+             * Generate docs using html5 to suppress a warning from `javadoc`
+             * that the default will change to html5 in the future.
+             */
+            javadoc.options.addBooleanOption('html5', true)
         }
         configureJavadocJar(project)
     }

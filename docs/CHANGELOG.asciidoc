@@ -180,12 +180,19 @@ Machine Learning::
 
 * Account for gaps in data counts after job is reopened ({pull}30294[#30294])
 
+Add validation that geohashes are not empty and don't contain unsupported characters ({pull}30376[#30376])
+
 Rollup::
 * Validate timezone in range queries to ensure they match the selected job when
 searching ({pull}30338[#30338])
 
 SQL::
 * Improve correctness of SYS COLUMNS & SYS TYPES commands ({pull}30418[#30418])
+
+Allocation::
+
+Auto-expand replicas when adding or removing nodes to prevent shard copies from
+being dropped and resynced when a data node rejoins the cluster ({pull}30423[#30423])
 
 //[float]
 //=== Regressions

@@ -28,7 +28,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -126,7 +125,12 @@ public final class GeoPoint implements ToXContentFragment {
     }
 
     public GeoPoint resetFromGeoHash(String geohash) {
-        final long hash = mortonEncode(geohash);
+        final long hash;
+        try {
+            hash = mortonEncode(geohash);
+        } catch (IllegalArgumentException ex) {
+            throw new ElasticsearchParseException(ex.getMessage(), ex);
+        }
         return this.reset(GeoHashUtils.decodeLatitude(hash), GeoHashUtils.decodeLongitude(hash));
     }
 

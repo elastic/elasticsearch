@@ -26,12 +26,11 @@ import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.ByteArrayEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -46,9 +45,11 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -69,6 +70,7 @@ import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.RequestConverters.EndpointBuilder;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
@@ -76,14 +78,13 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.client.RequestConverters.EndpointBuilder;
-import org.elasticsearch.client.RequestConverters.Params;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -92,7 +93,6 @@ import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedRequest;
 import org.elasticsearch.index.rankeval.RestRankEvalAction;
-import org.elasticsearch.rest.action.RestFieldCapabilitiesAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -109,8 +109,6 @@ import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -119,7 +117,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.StringJoiner;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -403,6 +400,52 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(expectedParams, request.getParameters());
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertNull(request.getEntity());
+    }
+
+    public void testGetSettings() throws IOException {
+        String[] indicesUnderTest = randomBoolean() ? null : randomIndicesNames(0, 5);
+
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(indicesUnderTest);
+
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(getSettingsRequest, expectedParams);
+        setRandomIndicesOptions(getSettingsRequest::indicesOptions, getSettingsRequest::indicesOptions, expectedParams);
+
+        setRandomLocal(getSettingsRequest, expectedParams);
+
+        if (randomBoolean()) {
+            //the request object will not have include_defaults present unless it is set to true
+            getSettingsRequest.includeDefaults(randomBoolean());
+            if (getSettingsRequest.includeDefaults()) {
+                expectedParams.put("include_defaults", Boolean.toString(true));
+            }
+        }
+
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        if (indicesUnderTest != null && indicesUnderTest.length > 0) {
+            endpoint.add(String.join(",", indicesUnderTest));
+        }
+        endpoint.add("_settings");
+
+        if (randomBoolean()) {
+            String[] names = randomBoolean() ? null : new String[randomIntBetween(0, 3)];
+            if (names != null) {
+                for (int x = 0; x < names.length; x++) {
+                    names[x] = randomAlphaOfLengthBetween(3, 10);
+                }
+            }
+            getSettingsRequest.names(names);
+            if (names != null && names.length > 0) {
+                endpoint.add(String.join(",", names));
+            }
+        }
+
+        Request request = RequestConverters.getSettings(getSettingsRequest);
+
+        assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
+        assertThat(request.getEntity(), nullValue());
     }
 
     public void testDeleteIndexEmptyIndices() {
@@ -1382,6 +1425,48 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
         assertToXContentBody(updateSettingsRequest, request.getEntity());
         assertEquals(expectedParams, request.getParameters());
+    }
+
+    public void testPutTemplateRequest() throws Exception {
+        Map<String, String> names = new HashMap<>();
+        names.put("log", "log");
+        names.put("template#1", "template%231");
+        names.put("-#template", "-%23template");
+        names.put("foo^bar", "foo%5Ebar");
+
+        PutIndexTemplateRequest putTemplateRequest = new PutIndexTemplateRequest()
+            .name(randomFrom(names.keySet()))
+            .patterns(Arrays.asList(generateRandomStringArray(20, 100, false, false)));
+        if (randomBoolean()) {
+            putTemplateRequest.order(randomInt());
+        }
+        if (randomBoolean()) {
+            putTemplateRequest.version(randomInt());
+        }
+        if (randomBoolean()) {
+            putTemplateRequest.settings(Settings.builder().put("setting-" + randomInt(), randomTimeValue()));
+        }
+        if (randomBoolean()) {
+            putTemplateRequest.mapping("doc-" + randomInt(), "field-" + randomInt(), "type=" + randomFrom("text", "keyword"));
+        }
+        if (randomBoolean()) {
+            putTemplateRequest.alias(new Alias("alias-" + randomInt()));
+        }
+        Map<String, String> expectedParams = new HashMap<>();
+        if (randomBoolean()) {
+            expectedParams.put("create", Boolean.TRUE.toString());
+            putTemplateRequest.create(true);
+        }
+        if (randomBoolean()) {
+            String cause = randomUnicodeOfCodepointLengthBetween(1, 50);
+            putTemplateRequest.cause(cause);
+            expectedParams.put("cause", cause);
+        }
+        setRandomMasterTimeout(putTemplateRequest, expectedParams);
+        Request request = RequestConverters.putTemplate(putTemplateRequest);
+        assertThat(request.getEndpoint(), equalTo("/_template/" + names.get(putTemplateRequest.name())));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+        assertToXContentBody(putTemplateRequest, request.getEntity());
     }
 
     private static void assertToXContentBody(ToXContent expectedBody, HttpEntity actualEntity) throws IOException {

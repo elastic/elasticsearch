@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
@@ -170,6 +171,32 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
             SnapshotsStatusResponse response = client().admin().cluster().prepareSnapshotStatus(REPOSITORY_NAME)
                     .setSnapshots(SNAPSHOT_NAME)
                     .execute().actionGet();
+            assertThat(response.getSnapshots(), hasSize(1));
+            assertThat(response.getSnapshots().get(0).getState().completed(), equalTo(true));
+        } finally {
+            setClusterReadOnly(false);
+        }
+    }
+
+    public void testSnapshotWithDateMath() {
+        // This test checks that the Snapshot Status operation is never blocked, even if the cluster is read only.
+        try {
+            setClusterReadOnly(true);
+
+            final IndexNameExpressionResolver nameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);
+            final String snapshotName = "<snapshot-{now/d}>";
+            final String expression = nameExpressionResolver.resolveDateMathExpression(snapshotName);
+
+            CreateSnapshotResponse snapshotResponse =
+                client().admin().cluster().prepareCreateSnapshot(REPOSITORY_NAME, snapshotName)
+                .setIncludeGlobalState(true)
+                .setWaitForCompletion(true)
+                .execute().actionGet();
+            assertThat(snapshotResponse.status(), equalTo(RestStatus.OK));
+
+            SnapshotsStatusResponse response = client().admin().cluster().prepareSnapshotStatus(REPOSITORY_NAME)
+                .setSnapshots(expression)
+                .execute().actionGet();
             assertThat(response.getSnapshots(), hasSize(1));
             assertThat(response.getSnapshots().get(0).getState().completed(), equalTo(true));
         } finally {

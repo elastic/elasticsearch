@@ -497,7 +497,8 @@ class BuildPlugin implements Plugin<Project> {
         project.afterEvaluate {
             project.tasks.withType(JavaCompile) {
                 final JavaVersion targetCompatibilityVersion = JavaVersion.toVersion(it.targetCompatibility)
-                options.fork = false
+                // we only fork if the Gradle JDK is not the same as the compiler JDK
+                options.fork = new File(project.compilerJavaHome) != Jvm.current().javaHome
                 options.forkOptions.javaHome = new File(project.compilerJavaHome)
                 options.forkOptions.memoryMaximumSize = "512m"
                 if (targetCompatibilityVersion == JavaVersion.VERSION_1_8) {

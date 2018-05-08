@@ -112,7 +112,7 @@ public final class Request {
      * If you need a different content type then use
      * {@link #setEntity(HttpEntity)}.
      */
-    public void setEntity(String entity) {
+    public void setJsonEntity(String entity) {
         setEntity(entity == null ? null : new NStringEntity(entity, ContentType.APPLICATION_JSON));
     }
 

@@ -180,7 +180,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         reset(watcherService);
         when(watcherService.validate(clusterState)).thenReturn(true);
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterState, stoppedClusterState));
-        verify(watcherService, times(1)).start(eq(clusterState));
+        verify(watcherService, times(1)).start(eq(clusterState), anyObject());
 
         // no change, keep going
         reset(watcherService);
@@ -423,7 +423,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         when(watcherService.validate(eq(state))).thenReturn(true);
 
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", state, state));
-        verify(watcherService, times(0)).start(any(ClusterState.class));
+        verify(watcherService, times(0)).start(any(ClusterState.class), anyObject());
     }
 
     public void testWatcherStopsWhenMasterNodeIsMissing() {

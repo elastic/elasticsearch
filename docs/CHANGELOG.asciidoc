@@ -39,6 +39,9 @@ written to by an older Elasticsearch after writing to it with a newer Elasticsea
 
 === Enhancements
 
+Add ability to filter coordinating-only nodes when interacting with cluster
+APIs. ({pull}30313[#30313])
+
 === Bug Fixes
 
 Do not ignore request analysis/similarity settings on index resize operations when the source index already contains such settings ({pull}30216[#30216])

@@ -317,7 +317,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
     public void testSeqNoCollision() throws Exception {
         try (ReplicationGroup shards = createGroup(2)) {
             shards.startAll();
-            int initDocs = shards.indexDocs(randomInt(10));
+            int initDocs = shards.indexDocs(randomIntBetween(2, 10));
             List<IndexShard> replicas = shards.getReplicas();
             IndexShard replica1 = replicas.get(0);
             IndexShard replica2 = replicas.get(1);

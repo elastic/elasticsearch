@@ -164,6 +164,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -257,8 +258,30 @@ public class RestHighLevelClient implements Closeable {
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
      */
+    public final BulkResponse bulk(BulkRequest bulkRequest) throws IOException {
+        return performRequestAndParseEntity(bulkRequest, RequestConverters::bulk, BulkResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Executes a bulk request using the Bulk API
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
+     */
+    public final BulkResponse bulk(BulkRequest bulkRequest, Consumer<SafeRequest> customizer) throws IOException {
+        return performRequestAndParseEntity(bulkRequest, customize(RequestConverters::bulk, customizer),
+                BulkResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Executes a bulk request using the Bulk API
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
+     * @deprecated Prefer {@link #bulk(BulkRequest, Consumer)}
+     */
+    @Deprecated
     public final BulkResponse bulk(BulkRequest bulkRequest, Header... headers) throws IOException {
-        return performRequestAndParseEntity(bulkRequest, RequestConverters::bulk, BulkResponse::fromXContent, emptySet(), headers);
+        return performRequestAndParseEntity(bulkRequest, customize(RequestConverters::bulk, headers),
+                BulkResponse::fromXContent, emptySet(), headers);
     }
 
     /**
@@ -266,6 +289,27 @@ public class RestHighLevelClient implements Closeable {
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
      */
+    public final void bulkAsync(BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
+        performRequestAsyncAndParseEntity(bulkRequest, RequestConverters::bulk, BulkResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Asynchronously executes a bulk request using the Bulk API
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
+     */
+    public final void bulkAsync(BulkRequest bulkRequest, Consumer<SafeRequest> customizer, ActionListener<BulkResponse> listener) {
+        performRequestAsyncAndParseEntity(bulkRequest, customize(RequestConverters::bulk, customizer),
+                BulkResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Asynchronously executes a bulk request using the Bulk API
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
+     * @deprecated Prefer {@link #bulkAsync(BulkRequest, Consumer, ActionListener)}
+     */
+    @Deprecated
     public final void bulkAsync(BulkRequest bulkRequest, ActionListener<BulkResponse> listener, Header... headers) {
         performRequestAsyncAndParseEntity(bulkRequest, RequestConverters::bulk, BulkResponse::fromXContent, listener, emptySet(), headers);
     }
@@ -536,6 +580,22 @@ public class RestHighLevelClient implements Closeable {
             FieldCapabilitiesResponse::fromXContent, listener, emptySet(), headers);
     }
 
+    @Deprecated
+    protected final <Req extends ActionRequest> CheckedFunction<Req, Request, IOException> customize(
+            CheckedFunction<Req, Request, IOException> requestConverter, Header[] headers) {
+        return customize(requestConverter, r -> r.setHeaders(headers));
+    }
+
+    protected final <Req extends ActionRequest> CheckedFunction<Req, Request, IOException> customize(
+            CheckedFunction<Req, Request, IOException> requestConverter, Consumer<SafeRequest> customizer) {
+        return r -> {
+            Request request = requestConverter.apply(r);
+            customizer.accept(new SafeRequest(request));
+            return request;
+        };
+    }
+
+    // TODO drop headers
     protected final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
                                                                             CheckedFunction<Req, Request, IOException> requestConverter,
                                                                             CheckedFunction<XContentParser, Resp, IOException> entityParser,
@@ -543,6 +603,7 @@ public class RestHighLevelClient implements Closeable {
         return performRequest(request, requestConverter, (response) -> parseEntity(response.getEntity(), entityParser), ignores, headers);
     }
 
+    // TODO drop headers
     protected final <Req extends ActionRequest, Resp> Resp performRequest(Req request,
                                                           CheckedFunction<Req, Request, IOException> requestConverter,
                                                           CheckedFunction<Response, Resp, IOException> responseConverter,
@@ -578,6 +639,7 @@ public class RestHighLevelClient implements Closeable {
         }
     }
 
+    // TODO drop headers
     protected final <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request,
                                                                  CheckedFunction<Req, Request, IOException> requestConverter,
                                                                  CheckedFunction<XContentParser, Resp, IOException> entityParser,
@@ -586,6 +648,7 @@ public class RestHighLevelClient implements Closeable {
                 listener, ignores, headers);
     }
 
+    // TODO drop headers
     protected final <Req extends ActionRequest, Resp> void performRequestAsync(Req request,
                                                                CheckedFunction<Req, Request, IOException> requestConverter,
                                                                CheckedFunction<Response, Resp, IOException> responseConverter,

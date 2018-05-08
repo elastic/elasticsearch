@@ -1842,7 +1842,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 return Settings.builder()
-                    .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                     .put(networkSettings.build())
                     .put(ESIntegTestCase.this.nodeSettings(nodeOrdinal)).build();
             }
@@ -1892,6 +1891,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return true;
     }
 
+    /** Returns {@code true} iff this test cluster should use a dummy http transport */
+    protected boolean addMockHttpTransport() {
+        return true;
+    }
+
     /**
      * Returns a function that allows to wrap / filter all clients that are exposed by the test cluster. This is useful
      * for debugging or request / response pre and post processing. It also allows to intercept all calls done by the test
@@ -1928,9 +1932,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (addMockTransportService()) {
             mocks.add(getTestTransportPlugin());
         }
-
         if (addTestZenDiscovery()) {
             mocks.add(TestZenDiscovery.TestPlugin.class);
+        }
+        if (addMockHttpTransport()) {
+            mocks.add(MockHttpTransport.TestPlugin.class);
         }
         mocks.add(TestSeedPlugin.class);
         return Collections.unmodifiableList(mocks);

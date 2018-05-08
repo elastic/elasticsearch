@@ -43,7 +43,7 @@ public abstract class AcknowledgedRequestBuilder<Request extends AcknowledgedReq
 
     /**
      * Timeout to wait for the operation to be acknowledged by current cluster nodes. Defaults
-     * to <tt>10s</tt>.
+     * to {@code 10s}.
      */
     @SuppressWarnings("unchecked")
     public RequestBuilder setTimeout(String timeout) {

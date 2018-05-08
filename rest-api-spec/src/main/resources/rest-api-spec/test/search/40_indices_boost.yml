@@ -37,7 +37,6 @@ setup:
 ---
 "Indices boost using object":
   - skip:
-      version: " - 5.1.99"
       reason: deprecation was added in 5.2.0
       features: "warnings"
 
@@ -67,10 +66,6 @@ setup:
 
 ---
 "Indices boost using array":
-  - skip:
-      version: " - 5.1.99"
-      reason: array format was added in 5.2.0
-
   - do:
       search:
         index: _all
@@ -93,10 +88,6 @@ setup:
 
 ---
 "Indices boost using array with alias":
-  - skip:
-      version: " - 5.1.99"
-      reason: array format was added in 5.2.0
-
   - do:
       search:
         index: _all
@@ -119,10 +110,6 @@ setup:
 
 ---
 "Indices boost using array with wildcard":
-  - skip:
-      version: " - 5.1.99"
-      reason: array format was added in 5.2.0
-
   - do:
       search:
         index: _all
@@ -145,10 +132,6 @@ setup:
 
 ---
 "Indices boost using array multiple match":
-  - skip:
-      version: " - 5.1.99"
-      reason: array format was added in 5.2.0
-
   - do:
       search:
         index: _all
@@ -173,10 +156,6 @@ setup:
 
 ---
 "Indices boost for nonexistent index/alias":
-  - skip:
-      version: " - 5.1.99"
-      reason: array format was added in 5.2.0
-
   - do:
       catch: /no such index/
       search:

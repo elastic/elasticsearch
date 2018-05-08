@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
 
@@ -172,11 +173,8 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
             throw new QueryShardException(context, "[" + NAME + "] analyzer [" + analyzer + "] not found");
         }
 
-        MatchQuery matchQuery = new MatchQuery(context);
-        if (analyzer != null) {
-            matchQuery.setAnalyzer(analyzer);
-        }
-        matchQuery.setPhraseSlop(slop);
+        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        MatchQuery matchQuery = fieldType.matchQuery(context, analyzer, slop);
         matchQuery.setZeroTermsQuery(zeroTermsQuery);
 
         return matchQuery.parse(MatchQuery.Type.PHRASE, fieldName, value);

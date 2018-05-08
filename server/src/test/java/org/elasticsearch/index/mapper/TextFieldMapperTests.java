@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
@@ -29,6 +31,7 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -47,7 +50,9 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
+import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -65,6 +70,7 @@ import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.core.Is.is;
 
 public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
@@ -667,6 +673,56 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             FieldType ft = prefix.fieldType;
             assertEquals(IndexOptions.DOCS, ft.indexOptions());
             assertFalse(ft.storeTermVectorOffsets());
+        }
+    }
+
+    public void testFastPhraseMapping() throws IOException {
+
+        QueryShardContext queryShardContext = indexService.newQueryShardContext(
+            randomInt(20), null, () -> {
+                throw new UnsupportedOperationException();
+            }, null);
+
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("field")
+            .field("type", "text")
+            .field("analyzer", "english")
+            .field("index_phrases", true)
+            .endObject().endObject()
+            .endObject().endObject());
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        queryShardContext.getMapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+
+        Query q = mapper.mappers().getMapper("field").fieldType()
+            .matchQuery(queryShardContext, null, 0).parse(MatchQuery.Type.PHRASE, "field", "two words");
+        assertThat(q, is(new PhraseQuery("field._index_phrase", "two word")));
+
+        Query q2 = mapper.mappers().getMapper("field").fieldType()
+            .matchQuery(queryShardContext, null, 0).parse(MatchQuery.Type.PHRASE, "field", "three words here");
+        assertThat(q2, is(new PhraseQuery("field._index_phrase", "three word", "word here")));
+
+        Query q3 = mapper.mappers().getMapper("field").fieldType()
+            .matchQuery(queryShardContext, null, 1).parse(MatchQuery.Type.PHRASE, "field", "two words");
+        assertThat(q3, is(new PhraseQuery(1, "field", "two", "word")));
+
+        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+                .bytes(XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("field", "Some English text that is going to be very useful")
+                    .endObject()),
+            XContentType.JSON));
+
+        IndexableField[] fields = doc.rootDoc().getFields("field._index_phrase");
+        assertEquals(1, fields.length);
+
+        try (TokenStream ts = fields[0].tokenStream(queryShardContext.getMapperService().indexAnalyzer(), null)) {
+            CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
+            ts.reset();
+            assertTrue(ts.incrementToken());
+            assertEquals("some english", termAtt.toString());
         }
     }
 

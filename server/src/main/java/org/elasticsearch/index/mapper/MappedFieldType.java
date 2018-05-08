@@ -43,6 +43,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.search.DocValueFormat;
 import org.joda.time.DateTimeZone;
@@ -359,6 +360,10 @@ public abstract class MappedFieldType extends FieldType {
     }
 
     public abstract Query existsQuery(QueryShardContext context);
+
+    public MatchQuery matchQuery(QueryShardContext context, String analyzer, int slop) {
+        throw new QueryShardException(context, "Can only use match queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]");
+    }
 
     /**
      * An enum used to describe the relation between the range of terms in a

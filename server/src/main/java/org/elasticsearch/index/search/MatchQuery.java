@@ -269,7 +269,7 @@ public class MatchQuery {
 
         Analyzer analyzer = getAnalyzer(fieldType, type == Type.PHRASE);
         assert analyzer != null;
-        MatchQueryBuilder builder = new MatchQueryBuilder(analyzer, fieldType);
+        MatchQueryBuilder builder = newMatchQueryBuilder(analyzer, fieldType);
         builder.setEnablePositionIncrements(this.enablePositionIncrements);
         if (hasPositions(fieldType)) {
             builder.setAutoGenerateMultiTermSynonymsPhraseQuery(this.autoGenerateSynonymsPhraseQuery);
@@ -327,14 +327,18 @@ public class MatchQuery {
         }
     }
 
-    private class MatchQueryBuilder extends QueryBuilder {
+    protected MatchQueryBuilder newMatchQueryBuilder(Analyzer analyzer, MappedFieldType mapper) {
+        return new MatchQueryBuilder(analyzer, mapper);
+    }
+
+    protected class MatchQueryBuilder extends QueryBuilder {
 
         private final MappedFieldType mapper;
 
         /**
          * Creates a new QueryBuilder using the given analyzer.
          */
-        MatchQueryBuilder(Analyzer analyzer, MappedFieldType mapper) {
+        protected MatchQueryBuilder(Analyzer analyzer, MappedFieldType mapper) {
             super(analyzer);
             this.mapper = mapper;
         }

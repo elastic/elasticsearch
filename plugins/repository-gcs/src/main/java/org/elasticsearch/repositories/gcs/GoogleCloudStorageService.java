@@ -63,6 +63,7 @@ public class GoogleCloudStorageService extends AbstractComponent {
         final HttpTransportOptions httpTransportOptions = HttpTransportOptions.newBuilder()
                 .setConnectTimeout(toTimeout(clientSettings.getConnectTimeout()))
                 .setReadTimeout(toTimeout(clientSettings.getReadTimeout()))
+                // requires 'java.lang.RuntimePermission "setFactory"'
                 .setHttpTransportFactory(() -> netHttpTransport)
                 .build();
         final StorageOptions.Builder storageOptionsBuilder = StorageOptions.newBuilder()

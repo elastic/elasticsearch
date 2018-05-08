@@ -275,7 +275,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
      * @param blobNames names of the bucket to delete
      */
     void deleteBlobs(Collection<String> blobNames) throws IOException {
-        if ((blobNames == null) || blobNames.isEmpty()) {
+        if (blobNames == null || blobNames.isEmpty()) {
             return;
         }
         if (blobNames.size() < 3) {

@@ -130,6 +130,11 @@ public class UnfollowIndexAction extends Action<UnfollowIndexAction.Request, Unf
         protected void doExecute(Request request, ActionListener<Response> listener) {
             client.admin().cluster().state(new ClusterStateRequest(), ActionListener.wrap(r -> {
                 IndexMetaData followIndexMetadata = r.getState().getMetaData().index(request.followIndex);
+                if (followIndexMetadata == null) {
+                    listener.onFailure(new IllegalArgumentException("follow index [" + request.followIndex + "] does not exist"));
+                    return;
+                }
+
                 final int numShards = followIndexMetadata.getNumberOfShards();
                 final AtomicInteger counter = new AtomicInteger(numShards);
                 final AtomicReferenceArray<Object> responses = new AtomicReferenceArray<>(followIndexMetadata.getNumberOfShards());

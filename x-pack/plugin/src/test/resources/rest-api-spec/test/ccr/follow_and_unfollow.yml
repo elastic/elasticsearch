@@ -25,10 +25,10 @@
   - do:
       xpack.ccr.follow_existing_index:
         leader_index: foo
-        follow_index: bar
+        index: bar
   - is_true: acknowledged
 
   - do:
       xpack.ccr.unfollow_index:
-        follow_index: bar
+        index: bar
   - is_true: acknowledged

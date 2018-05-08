@@ -85,7 +85,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
             followIndex("leader_cluster:" + indexName1, indexName1);
             assertBusy(() -> verifyDocuments(client(), indexName1, numDocs));
             assertThat(countCcrNodeTasks(), equalTo(1));
-            assertOK(client().performRequest("POST", "/_xpack/ccr/" + indexName1 + "/_unfollow"));
+            assertOK(client().performRequest("POST", "/" + indexName1 + "/_xpack/ccr/_unfollow"));
             // Make sure that there are no other ccr relates operations running:
             assertBusy(() -> {
                 Map<String, Object> clusterState = toMap(adminClient().performRequest("GET", "/_cluster/state"));
@@ -140,7 +140,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
 
     private static void followIndex(String leaderIndex, String followIndex) throws IOException {
         Map<String, String> params = Collections.singletonMap("leader_index", leaderIndex);
-        assertOK(client().performRequest("POST", "/_xpack/ccr/" + followIndex + "/_follow", params));
+        assertOK(client().performRequest("POST", "/" + followIndex + "/_xpack/ccr/_follow", params));
     }
 
     void verifyDocuments(RestClient client, String index, int expectedNumDocs) throws IOException {

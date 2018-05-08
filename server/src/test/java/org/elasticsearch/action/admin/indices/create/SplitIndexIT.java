@@ -283,6 +283,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         assertEquals(numDocs, ids.size());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30432")
     public void testSplitIndexPrimaryTerm() throws Exception {
         final List<Integer> factors = Arrays.asList(1, 2, 4, 8);
         final List<Integer> numberOfShardsFactors = randomSubsetOf(scaledRandomIntBetween(1, factors.size()), factors);

@@ -8,6 +8,7 @@ package org.elasticsearch.license.licensor;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -20,7 +21,10 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.InvalidKeyException;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Signature;
 import java.security.SignatureException;
@@ -35,9 +39,7 @@ import java.util.Map;
 public class LicenseSigner {
 
     private static final int MAGIC_LENGTH = 13;
-
     private final Path publicKeyPath;
-
     private final Path privateKeyPath;
 
     public LicenseSigner(final Path privateKeyPath, final Path publicKeyPath) {
@@ -59,9 +61,11 @@ public class LicenseSigner {
                 Collections.singletonMap(License.LICENSE_SPEC_VIEW_MODE, "true");
         licenseSpec.toXContent(contentBuilder, new ToXContent.MapParams(licenseSpecViewMode));
         final byte[] signedContent;
+        final boolean preV4 = licenseSpec.version() < License.VERSION_CRYPTO_ALGORITHMS;
         try {
             final Signature rsa = Signature.getInstance("SHA512withRSA");
-            rsa.initSign(CryptUtils.readEncryptedPrivateKey(Files.readAllBytes(privateKeyPath)));
+            PrivateKey decryptedPrivateKey = CryptUtils.readEncryptedPrivateKey(Files.readAllBytes(privateKeyPath));
+            rsa.initSign(decryptedPrivateKey);
             final BytesRefIterator iterator = BytesReference.bytes(contentBuilder).iterator();
             BytesRef ref;
             while((ref = iterator.next()) != null) {
@@ -77,20 +81,28 @@ public class LicenseSigner {
         final byte[] magic = new byte[MAGIC_LENGTH];
         SecureRandom random = new SecureRandom();
         random.nextBytes(magic);
-        final byte[] hash = Base64.getEncoder().encode(Files.readAllBytes(publicKeyPath));
-        assert hash != null;
-        byte[] bytes = new byte[4 + 4 + MAGIC_LENGTH + 4 + hash.length + 4 + signedContent.length];
+        final byte[] publicKeyBytes = Files.readAllBytes(publicKeyPath);
+        PublicKey publicKey = CryptUtils.readPublicKey(publicKeyBytes);
+        final byte[] pubKeyFingerprint = preV4 ? Base64.getEncoder().encode(CryptUtils.writeEncryptedPublicKey(publicKey)) :
+                getPublicKeyFingerprint(publicKeyBytes);
+        byte[] bytes = new byte[4 + 4 + MAGIC_LENGTH + 4 + pubKeyFingerprint.length + 4 + signedContent.length];
         ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
         byteBuffer.putInt(licenseSpec.version())
                 .putInt(magic.length)
                 .put(magic)
-                .putInt(hash.length)
-                .put(hash)
+                .putInt(pubKeyFingerprint.length)
+                .put(pubKeyFingerprint)
                 .putInt(signedContent.length)
                 .put(signedContent);
 
         return License.builder()
                 .fromLicenseSpec(licenseSpec, Base64.getEncoder().encodeToString(bytes))
                 .build();
+    }
+
+    private byte[] getPublicKeyFingerprint(byte[] keyBytes) {
+        MessageDigest sha256 = MessageDigests.sha256();
+        sha256.update(keyBytes);
+        return sha256.digest();
     }
 }

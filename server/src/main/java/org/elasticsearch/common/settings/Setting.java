@@ -114,7 +114,13 @@ public class Setting<T> implements ToXContentObject {
         /**
          * Index scope
          */
-        IndexScope
+        IndexScope,
+
+        /**
+         * Mark this setting as not copyable during an index resize (shrink or split). This property can only be applied to settings that
+         * also have {@link Property#IndexScope}.
+         */
+        NotCopyableOnResize
     }
 
     private final Key key;
@@ -142,10 +148,15 @@ public class Setting<T> implements ToXContentObject {
         if (properties.length == 0) {
             this.properties = EMPTY_PROPERTIES;
         } else {
-            this.properties = EnumSet.copyOf(Arrays.asList(properties));
-            if (isDynamic() && isFinal()) {
+            final EnumSet<Property> propertiesAsSet = EnumSet.copyOf(Arrays.asList(properties));
+            if (propertiesAsSet.contains(Property.Dynamic) && propertiesAsSet.contains(Property.Final)) {
                 throw new IllegalArgumentException("final setting [" + key + "] cannot be dynamic");
             }
+            if (propertiesAsSet.contains(Property.NotCopyableOnResize) && propertiesAsSet.contains(Property.IndexScope) == false) {
+                throw new IllegalArgumentException(
+                        "non-index-scoped setting [" + key + "] can not have property [" + Property.NotCopyableOnResize + "]");
+            }
+            this.properties = propertiesAsSet;
         }
     }
 
@@ -301,7 +312,7 @@ public class Setting<T> implements ToXContentObject {
 
     /**
      * Returns <code>true</code> iff this setting is a group setting. Group settings represent a set of settings rather than a single value.
-     * The key, see {@link #getKey()}, in contrast to non-group settings is a prefix like <tt>cluster.store.</tt> that matches all settings
+     * The key, see {@link #getKey()}, in contrast to non-group settings is a prefix like {@code cluster.store.} that matches all settings
      * with this prefix.
      */
     boolean isGroupSetting() {
@@ -705,8 +716,8 @@ public class Setting<T> implements ToXContentObject {
         }
 
         /**
-         * Returns the namespace for a concrete setting. Ie. an affix setting with prefix: <tt>search.</tt> and suffix: <tt>username</tt>
-         * will return <tt>remote</tt> as a namespace for the setting <tt>search.remote.username</tt>
+         * Returns the namespace for a concrete setting. Ie. an affix setting with prefix: {@code search.} and suffix: {@code username}
+         * will return {@code remote} as a namespace for the setting {@code search.remote.username}
          */
         public String getNamespace(Setting<T> concreteSetting) {
             return key.getNamespace(concreteSetting.getKey());

@@ -276,6 +276,12 @@ public class ShardChangesIT extends ESIntegTestCase {
         });
     }
 
+    public void testUnfollowNonExistingIndex() {
+        UnfollowIndexAction.Request unfollowRequest = new UnfollowIndexAction.Request();
+        unfollowRequest.setFollowIndex("non-existing-index");
+        expectThrows(IllegalArgumentException.class, () -> client().execute(UnfollowIndexAction.INSTANCE, unfollowRequest).actionGet());
+    }
+
     public void testFollowNonExistentIndex() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test-leader").get());
         assertAcked(client().admin().indices().prepareCreate("test-follower").get());

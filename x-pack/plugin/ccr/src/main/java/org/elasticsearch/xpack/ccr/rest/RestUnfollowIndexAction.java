@@ -17,13 +17,11 @@ import java.io.IOException;
 import static org.elasticsearch.xpack.ccr.action.UnfollowIndexAction.INSTANCE;
 import static org.elasticsearch.xpack.ccr.action.UnfollowIndexAction.Request;
 
-// TODO: change to confirm with API design
 public class RestUnfollowIndexAction extends BaseRestHandler {
 
     public RestUnfollowIndexAction(Settings settings, RestController controller) {
         super(settings);
-        // TODO: figure out why: '/{follow_index}/_xpack/ccr/_unfollow' path clashes with create index api.
-        controller.registerHandler(RestRequest.Method.POST, "/_xpack/ccr/{follow_index}/_unfollow", this);
+        controller.registerHandler(RestRequest.Method.POST, "/{index}/_xpack/ccr/_unfollow", this);
     }
 
     @Override
@@ -34,7 +32,7 @@ public class RestUnfollowIndexAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         Request request = new Request();
-        request.setFollowIndex(restRequest.param("follow_index"));
+        request.setFollowIndex(restRequest.param("index"));
         return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

@@ -27,7 +27,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
@@ -59,7 +58,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
 
     private final IndexSearcher indexSearcher;
     private final MapperService mapperService;
-    private int docIndex;
+    private int docIndex = 0;
     private final TopDocs topDocs;
 
     private final Closeable onClose;
@@ -114,31 +113,47 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
 
     @Override
     public Translog.Operation next() throws IOException {
-        final Translog.Operation op = nextOp();
-        if (requiredFullRange && lastSeenSeqNo != toSeqNo) {
-            final long expectedSeqNo = lastSeenSeqNo + 1;
-            if (op == null || op.seqNo() != expectedSeqNo) {
-                throw new IllegalStateException("Not all operations between min_seqno [" + fromSeqNo + "] " +
-                    "and max_seqno [" + toSeqNo + "] found; expected seqno [" + expectedSeqNo + "]; found [" + op + "]");
+        Translog.Operation op;
+        while ((op = nextOp()) != null) {
+            // Only pick the first seen seq#
+            if (op.seqNo() == lastSeenSeqNo) {
+                skippedOperations++;
+            } else {
+                assert fromSeqNo <= op.seqNo() && op.seqNo() <= toSeqNo && lastSeenSeqNo < op.seqNo() : "Unexpected operation; " +
+                    "last_seen_seqno [" + lastSeenSeqNo + "], from_seqno [" + fromSeqNo + "], to_seqno [" + toSeqNo + "], op [" + op + "]";
+                break;
             }
         }
+        if (requiredFullRange) {
+            rangeCheck(op);
+        }
         if (op != null) {
-            assert fromSeqNo <= op.seqNo() && op.seqNo() <= toSeqNo && lastSeenSeqNo < op.seqNo() : "Unexpected operation; " +
-                "last_seen_seqno [" + lastSeenSeqNo + "], from_seqno [" + fromSeqNo + "], to_seqno [" + toSeqNo + "], op [" + op + "]";
             lastSeenSeqNo = op.seqNo();
         }
         return op;
     }
 
-    private Translog.Operation nextOp() throws IOException {
-        final ScoreDoc[] scoreDocs = topDocs.scoreDocs;
-        for (; docIndex < scoreDocs.length; docIndex++) {
-            if (scoreDocs[docIndex].doc == DocIdSetIterator.NO_MORE_DOCS) {
-                return null;
+    private void rangeCheck(Translog.Operation op) {
+        if (op == null) {
+            if (lastSeenSeqNo < toSeqNo) {
+                throw new IllegalStateException("Not all operations between min_seqno [" + fromSeqNo + "] " +
+                    "and max_seqno [" + toSeqNo + "] found; prematurely terminated last_seen_seqno [" + lastSeenSeqNo + "]");
             }
-            final Translog.Operation op = readDocAsOp(scoreDocs[docIndex].doc);
-            if (op != null) {
-                return op;
+        } else {
+            final long expectedSeqNo = lastSeenSeqNo + 1;
+            if (op.seqNo() != expectedSeqNo) {
+                throw new IllegalStateException("Not all operations between min_seqno [" + fromSeqNo + "] " +
+                    "and max_seqno [" + toSeqNo + "] found; expected seqno [" + expectedSeqNo + "]; found [" + op + "]");
+            }
+        }
+    }
+
+    private Translog.Operation nextOp() throws IOException {
+        if (docIndex < topDocs.scoreDocs.length) {
+            final int docId = topDocs.scoreDocs[docIndex].doc;
+            docIndex++;
+            if (docId != DocIdSetIterator.NO_MORE_DOCS) {
+                return readDocAsOp(docId);
             }
         }
         return null;
@@ -158,12 +173,6 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         final LeafReaderContext leaf = leaves.get(ReaderUtil.subIndex(docID, leaves));
         final int segmentDocID = docID - leaf.docBase;
         final long seqNo = readNumericDV(leaf, SeqNoFieldMapper.NAME, segmentDocID);
-        // This operation has seen and will be skipped anyway - do not visit other fields.
-        if (seqNo == lastSeenSeqNo) {
-            skippedOperations++;
-            return null;
-        }
-
         final long primaryTerm = readNumericDV(leaf, SeqNoFieldMapper.PRIMARY_TERM_NAME, segmentDocID);
         final FieldsVisitor fields = new FieldsVisitor(true);
         indexSearcher.doc(docID, fields);

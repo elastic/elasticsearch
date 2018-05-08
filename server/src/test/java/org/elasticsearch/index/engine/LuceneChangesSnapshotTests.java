@@ -122,6 +122,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
     public void testDedupByPrimaryTerm() throws Exception {
         Map<Long, Long> latestOperations = new HashMap<>();
         List<Integer> terms = Arrays.asList(between(1, 1000), between(1000, 2000));
+        int totalOps = 0;
         for (long term : terms) {
             final List<Engine.Operation> ops = generateSingleDocHistory(true,
                 randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE), term, 2, 20, "1");
@@ -145,6 +146,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                 if (rarely()) {
                     engine.flush();
                 }
+                totalOps++;
             }
         }
         long maxSeqNo = engine.getLocalCheckpointTracker().getMaxSeqNo();
@@ -153,6 +155,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             while ((op = snapshot.next()) != null) {
                 assertThat(op.toString(), op.primaryTerm(), equalTo(latestOperations.get(op.seqNo())));
             }
+            assertThat(snapshot.overriddenOperations(), equalTo(totalOps - latestOperations.size()));
         }
     }
 

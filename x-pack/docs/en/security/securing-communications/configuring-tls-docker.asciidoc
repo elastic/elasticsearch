@@ -142,7 +142,8 @@ services:
 volumes: {"esdata_01": {"driver": "local"}, "esdata_02": {"driver": "local"}}
 ----
 
-<1> Bootstrap `elastic` with the password defined in `.env`. See {xpack-ref}/setting-up-authentication.html#bootstrap-elastic-passwords[the Elastic Bootstrap Password].
+<1> Bootstrap `elastic` with the password defined in `.env`. See 
+{stack-ov}/built-in-users.html#bootstrap-elastic-passwords[the Elastic Bootstrap Password].
 <2> Disable verification of authenticity for inter-node communication. Allows
 creating self-signed certificates without having to pin specific internal IP addresses.
 endif::[]

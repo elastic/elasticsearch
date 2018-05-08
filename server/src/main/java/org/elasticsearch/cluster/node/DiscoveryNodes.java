@@ -84,7 +84,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     }
 
     /**
-     * Returns <tt>true</tt> if the local node is the elected master node.
+     * Returns {@code true} if the local node is the elected master node.
      */
     public boolean isLocalNodeElectedMaster() {
         if (localNodeId == null) {

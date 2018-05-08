@@ -48,10 +48,8 @@ import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -149,7 +147,9 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertThat(aliasExists(alias), equalTo(false));
 
         IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
-        IndicesAliasesRequest.AliasActions addAction = new IndicesAliasesRequest.AliasActions(IndicesAliasesRequest.AliasActions.Type.ADD).index(index).aliases(alias);
+        IndicesAliasesRequest.AliasActions addAction =
+            new IndicesAliasesRequest.AliasActions(IndicesAliasesRequest.AliasActions.Type.ADD)
+                .index(index).aliases(alias);
         addAction.routing("routing").searchRouting("search_routing").filter("{\"term\":{\"year\":2016}}");
         aliasesAddRequest.addAliasAction(addAction);
         execute(aliasesAddRequest, highLevelClient().indices()::updateAliases,

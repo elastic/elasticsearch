@@ -130,7 +130,7 @@ public class GoogleCloudStorageClientSettings {
                                      final TimeValue connectTimeout,
                                      final TimeValue readTimeout,
                                      final String applicationName,
-            final URI tokenUri) {
+                                     final URI tokenUri) {
         this.credential = credential;
         this.host = host;
         this.projectId = projectId;

@@ -106,17 +106,18 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
     }
 
     /**
-     * List all blobs in the bucket
+     * List blobs in the bucket under the specified path. The path root is removed.
      *
-     * @param prefix base path of the blobs to list
+     * @param path
+     *            base path of the blobs to list
      * @return a map of blob names and their metadata
      */
-    Map<String, BlobMetaData> listBlobs(String prefix) throws IOException {
-        return listBlobsByPrefix(prefix, "");
+    Map<String, BlobMetaData> listBlobs(String path) throws IOException {
+        return listBlobsByPrefix(path, "");
     }
 
     /**
-     * List all blobs in the bucket which have a prefix.
+     * List all blobs in the bucket which have a prefix
      *
      * @param path
      *            base path of the blobs to list. This path is removed from the
@@ -167,7 +168,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
         }
         final ReadChannel readChannel = SocketAccess.doPrivilegedIOException(blob::reader);
         return Channels.newInputStream(new ReadableByteChannel() {
-            @SuppressForbidden(reason = "Channel is based of a socket not a file.")
+            @SuppressForbidden(reason = "Channel is based of a socket not a file")
             @Override
             public int read(ByteBuffer dst) throws IOException {
                 return SocketAccess.doPrivilegedIOException(() -> readChannel.read(dst));
@@ -221,7 +222,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
                 SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
             }
 
-            @SuppressForbidden(reason = "Channel is based of a socket not a file.")
+            @SuppressForbidden(reason = "Channel is based of a socket not a file")
             @Override
             public int write(ByteBuffer src) throws IOException {
                 return SocketAccess.doPrivilegedIOException(() -> writeChannel.write(src));
@@ -231,8 +232,8 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
 
     /**
      * Uploads a blob using the "multipart upload" method (a single
-     * 'multipart/related' request containing both data and metadata. the request is
-     * gziped), see
+     * 'multipart/related' request containing both data and metadata. The request is
+     * gziped), see:
      * https://cloud.google.com/storage/docs/json_api/v1/how-tos/multipart-upload
      *
      * @param blobInfo the info for the blob to be uploaded
@@ -274,7 +275,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
      * @param blobNames names of the bucket to delete
      */
     void deleteBlobs(Collection<String> blobNames) throws IOException {
-        if (blobNames == null || blobNames.isEmpty()) {
+        if ((blobNames == null) || blobNames.isEmpty()) {
             return;
         }
         if (blobNames.size() < 3) {
@@ -289,7 +290,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
         boolean failed = false;
         for (int i = 0; i < blobIdsToDelete.size(); i++) {
             if (deletedStatuses.get(i) == false) {
-                logger.error("Failed to delete blob [{}] in bucket [{}].", blobIdsToDelete.get(i).getName(), bucket);
+                logger.error("Failed to delete blob [{}] in bucket [{}]", blobIdsToDelete.get(i).getName(), bucket);
                 failed = true;
             }
         }

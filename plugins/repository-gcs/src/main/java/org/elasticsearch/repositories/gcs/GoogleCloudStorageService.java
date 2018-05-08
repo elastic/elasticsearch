@@ -32,6 +32,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import java.io.IOException;
+import java.net.URI;
 import java.security.GeneralSecurityException;
 import java.util.Map;
 
@@ -83,13 +84,15 @@ public class GoogleCloudStorageService extends AbstractComponent {
             logger.warn("\"Application Default Credentials\" are not supported out of the box."
                     + " Additional file system permissions have to be granted to the plugin.");
         } else {
-            final ServiceAccountCredentials serviceAccountCredentials = clientSettings.getCredential();
-            if (Strings.hasLength(clientSettings.getTokenUri().toString())) {
-                storageOptionsBuilder
-                        .setCredentials(serviceAccountCredentials.toBuilder().setTokenServerUri(clientSettings.getTokenUri()).build());
-            } else {
-                storageOptionsBuilder.setCredentials(serviceAccountCredentials);
+            ServiceAccountCredentials serviceAccountCredentials = clientSettings.getCredential();
+            // override token server URI
+            final URI tokenServerUri = clientSettings.getTokenUri();
+            if (Strings.hasLength(tokenServerUri.toString())) {
+                // Rebuild the service account credentials in order to use a custom Token url.
+                // This is mostly used for testing purpose.
+                serviceAccountCredentials = serviceAccountCredentials.toBuilder().setTokenServerUri(tokenServerUri).build();
             }
+            storageOptionsBuilder.setCredentials(serviceAccountCredentials);
         }
         return storageOptionsBuilder.build().getService();
     }

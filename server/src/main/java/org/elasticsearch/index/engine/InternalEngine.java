@@ -2423,7 +2423,7 @@ public class InternalEngine extends Engine {
         @Override
         public void afterRefresh(boolean didRefresh) {
             if (didRefresh) {
-                refreshedCheckpoint.getAndUpdate(prev -> Math.max(prev, pendingCheckpoint));
+                refreshedCheckpoint.set(pendingCheckpoint);
             }
         }
     }

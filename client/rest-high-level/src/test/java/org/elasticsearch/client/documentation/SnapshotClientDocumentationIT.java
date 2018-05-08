@@ -125,7 +125,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
 
     }
 
-    private final void createTestRepositories() throws IOException {
+    private void createTestRepositories() throws IOException {
         RestHighLevelClient client = highLevelClient();
         String repositorySettings = "{\"type\":\"fs\", \"settings\":{\"location\": \".\"}}";
         highLevelClient().getLowLevelClient().performRequest("put", "_snapshot/" + testRepository, Collections.emptyMap(),

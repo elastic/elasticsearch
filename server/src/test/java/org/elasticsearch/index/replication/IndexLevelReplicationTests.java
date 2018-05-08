@@ -38,10 +38,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
@@ -239,18 +241,32 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
      * for primary and replica shards
      */
     public void testDocumentFailureReplication() throws Exception {
-        final String failureMessage = "simulated document failure";
-        final ThrowingDocumentFailureEngineFactory throwingDocumentFailureEngineFactory =
-                new ThrowingDocumentFailureEngineFactory(failureMessage);
+        String failureMessage = "simulated document failure";
+        final EngineFactory failIndexingOpsEngine = new EngineFactory() {
+            @Override
+            public Engine newReadWriteEngine(EngineConfig config) {
+                return EngineTestCase.createInternalEngine((directory, writerConfig) ->
+                    new IndexWriter(directory, writerConfig) {
+                        @Override
+                        public long addDocument(Iterable<? extends IndexableField> doc) throws IOException {
+                            boolean isTombstone = false;
+                            for (IndexableField field : doc) {
+                                if (SeqNoFieldMapper.TOMBSTONE_NAME.equals(field.name())) {
+                                    isTombstone = true;
+                                }
+                            }
+                            if (isTombstone) {
+                                return super.addDocument(doc);
+                            } else {
+                                throw new IOException(failureMessage);
+                            }
+                        }
+                    }, null, null, config);
+            }
+        };
         try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(0)) {
             @Override
-            protected EngineFactory getEngineFactory(ShardRouting routing) {
-                if (routing.primary()){
-                    return throwingDocumentFailureEngineFactory; // Simulate exception only on the primary.
-                }else {
-                    return InternalEngine::new;
-                }
-            }}) {
+            protected EngineFactory getEngineFactory(ShardRouting routing) { return failIndexingOpsEngine; }}) {
 
             // test only primary
             shards.startPrimary();
@@ -442,27 +458,6 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             deleteOnReplica(deleteRequest, shards, replica);
             indexOnReplica(indexRequest, shards, replica);
             shards.assertAllEqual(0);
-        }
-    }
-
-    /** Throws <code>documentFailure</code> on every indexing operation */
-    static class ThrowingDocumentFailureEngineFactory implements EngineFactory {
-        final String documentFailureMessage;
-
-        ThrowingDocumentFailureEngineFactory(String documentFailureMessage) {
-            this.documentFailureMessage = documentFailureMessage;
-        }
-
-        @Override
-        public Engine newReadWriteEngine(EngineConfig config) {
-            return InternalEngineTests.createInternalEngine((directory, writerConfig) ->
-                    new IndexWriter(directory, writerConfig) {
-                        @Override
-                        public long addDocument(Iterable<? extends IndexableField> doc) throws IOException {
-                            assert documentFailureMessage != null;
-                            throw new IOException(documentFailureMessage);
-                        }
-                    }, null, null, config);
         }
     }
 

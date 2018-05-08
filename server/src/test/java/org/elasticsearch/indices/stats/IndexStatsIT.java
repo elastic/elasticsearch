@@ -1049,6 +1049,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertEquals(DocWriteResponse.Result.DELETED, client().prepareDelete("index", "type", "2").get().getResult());
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings)) {
             persistGlobalCheckpoint("index"); // Need to persist the global checkpoint for the soft-deletes retention MP.
+            forceMerge();
         }
         refresh();
         response = client().admin().indices().prepareStats("index").setQueryCache(true).get();

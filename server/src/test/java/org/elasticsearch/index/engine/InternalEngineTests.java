@@ -253,9 +253,13 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testSegments() throws Exception {
-        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        Settings settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false).build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
         try (Store store = createStore();
-             InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get))) {
+             InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null))) {
             List<Segment> segments = engine.segments(false);
             assertThat(segments.isEmpty(), equalTo(true));
             assertThat(engine.segmentsStats(false).getCount(), equalTo(0L));
@@ -327,8 +331,6 @@ public class InternalEngineTests extends EngineTestCase {
 
 
             engine.delete(new Engine.Delete("test", "1", newUid(doc), primaryTerm.get()));
-            globalCheckpoint.set(engine.getLocalCheckpointTracker().getCheckpoint());
-            engine.getTranslog().sync();
             engine.refresh("test");
 
             segments = engine.segments(false);
@@ -1360,18 +1362,27 @@ public class InternalEngineTests extends EngineTestCase {
                     engine.index(indexForDoc(doc));
                     liveDocs.add(doc.id());
                 }
+                if (randomBoolean()) {
+                    engine.flush(randomBoolean(), true);
+                }
             }
+            engine.flush();
+
             long localCheckpoint = engine.getLocalCheckpointTracker().getCheckpoint();
             globalCheckpoint.set(randomLongBetween(0, localCheckpoint));
-            engine.getTranslog().sync();
+            engine.syncTranslog();
+            final long safeCommitCheckpoint;
+            try (Engine.IndexCommitRef safeCommit = engine.acquireSafeIndexCommit()) {
+                safeCommitCheckpoint = Long.parseLong(safeCommit.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+            }
             engine.forceMerge(true, 1, false, false, false);
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
             Map<Long, Translog.Operation> ops = readAllOperationsInLucene(engine, mapperService)
                 .stream().collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
             for (long seqno = 0; seqno <= localCheckpoint; seqno++) {
-                long keptIndex = globalCheckpoint.get() + 1 - retainedExtraOps;
+                long minSeqNoToRetain = Math.min(globalCheckpoint.get() + 1 - retainedExtraOps, safeCommitCheckpoint + 1);
                 String msg = "seq# [" + seqno + "], global checkpoint [" + globalCheckpoint + "], retained-ops [" + retainedExtraOps + "]";
-                if (seqno < keptIndex) {
+                if (seqno < minSeqNoToRetain) {
                     Translog.Operation op = ops.get(seqno);
                     if (op != null) {
                         assertThat(op, instanceOf(Translog.Index.class));
@@ -1383,8 +1394,10 @@ public class InternalEngineTests extends EngineTestCase {
             }
             settings.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0);
             indexSettings.updateIndexMetaData(IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
+            engine.onSettingsChanged();
             globalCheckpoint.set(localCheckpoint);
-            engine.getTranslog().sync();
+            engine.syncTranslog();
+
             engine.forceMerge(true, 1, false, false, false);
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
             assertThat(readAllOperationsInLucene(engine, mapperService), hasSize(liveDocs.size()));

@@ -77,7 +77,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
-import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.Segment;
@@ -88,7 +87,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -2919,7 +2917,11 @@ public class IndexShardTests extends IndexShardTestCase {
 
         // Deleting a doc causes its memory to be freed from the breaker
         deleteDoc(primary, "_doc", "0");
-        primary.sync(); // need to sync global checkpoint as the soft-deletes retention MergePolicy depends on it.
+        if (primary.indexSettings().isSoftDeleteEnabled()) {
+            // Need to sync global checkpoint and create a new safe commit as the soft-deletes MergePolicy depends on it.
+            primary.flush(new FlushRequest());
+            primary.forceMerge(new ForceMergeRequest().onlyExpungeDeletes(true));
+        }
         primary.refresh("force refresh");
 
         ss = primary.segmentStats(randomBoolean());

@@ -173,7 +173,7 @@ public class RestClientDocumentation {
                     ContentType.APPLICATION_JSON));
             //end::rest-client-body
             //tag::rest-client-body-shorter
-            request.setEntity("{\"json\":\"text\"}");
+            request.setJsonEntity("{\"json\":\"text\"}");
             //end::rest-client-body-shorter
             //tag::rest-client-headers
             request.setHeaders(

@@ -149,7 +149,7 @@ final class RemoteRequestBuilders {
             }
 
             entity.endObject();
-            request.setEntity(Strings.toString(entity));
+            request.setJsonEntity(Strings.toString(entity));
         } catch (IOException e) {
             throw new ElasticsearchException("unexpected error building entity", e);
         }
@@ -204,7 +204,7 @@ final class RemoteRequestBuilders {
             entity.startObject()
                     .field("scroll_id", scroll)
                 .endObject();
-            request.setEntity(Strings.toString(entity));
+            request.setJsonEntity(Strings.toString(entity));
         } catch (IOException e) {
             throw new ElasticsearchException("failed to build scroll entity", e);
         }
@@ -223,7 +223,7 @@ final class RemoteRequestBuilders {
             entity.startObject()
                     .array("scroll_id", scroll)
                 .endObject();
-            request.setEntity(Strings.toString(entity));
+            request.setJsonEntity(Strings.toString(entity));
         } catch (IOException e) {
             throw new ElasticsearchException("failed to build clear scroll entity", e);
         }

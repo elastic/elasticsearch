@@ -262,13 +262,6 @@ public class DiscoveryNodesTests extends ESTestCase {
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
                 return Collections.singleton(nodes.getMasterNodeId());
             }
-        }, COORDINATING_ONLY("_coordinating_only") {
-            @Override
-            Set<String> matchingNodeIds(DiscoveryNodes nodes) {
-                Set<String> ids = new HashSet<>();
-                nodes.getCoordinatingOnlyNodes().keysIt().forEachRemaining(ids::add);
-                return ids;
-            }
         }, MASTER_ELIGIBLE(DiscoveryNode.Role.MASTER.getRoleName() + ":true") {
             @Override
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
@@ -288,6 +281,13 @@ public class DiscoveryNodesTests extends ESTestCase {
             Set<String> matchingNodeIds(DiscoveryNodes nodes) {
                 Set<String> ids = new HashSet<>();
                 nodes.getIngestNodes().keysIt().forEachRemaining(ids::add);
+                return ids;
+            }
+        }, COORDINATING_ONLY(DiscoveryNode.COORDINATING_ONLY + ":true") {
+            @Override
+            Set<String> matchingNodeIds(DiscoveryNodes nodes) {
+                Set<String> ids = new HashSet<>();
+                nodes.getCoordinatingOnlyNodes().keysIt().forEachRemaining(ids::add);
                 return ids;
             }
         }, CUSTOM_ATTRIBUTE("attr:value") {

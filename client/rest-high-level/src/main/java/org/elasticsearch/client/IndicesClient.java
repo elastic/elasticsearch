@@ -51,6 +51,8 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -456,4 +458,26 @@ public final class IndicesClient {
                 UpdateSettingsResponse::fromXContent, listener, emptySet(), headers);
     }
 
+    /**
+     * Puts an index template using the Index Templates API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
+     * on elastic.co</a>
+     */
+    public PutIndexTemplateResponse putTemplate(PutIndexTemplateRequest putIndexTemplateRequest, Header... headers) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(putIndexTemplateRequest, RequestConverters::putTemplate,
+            PutIndexTemplateResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously puts an index template using the Index Templates API
+     * <p>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
+     * on elastic.co</a>
+     */
+    public void putTemplateAsync(PutIndexTemplateRequest putIndexTemplateRequest,
+                                 ActionListener<PutIndexTemplateResponse> listener, Header... headers) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(putIndexTemplateRequest, RequestConverters::putTemplate,
+            PutIndexTemplateResponse::fromXContent, listener, emptySet(), headers);
+    }
 }

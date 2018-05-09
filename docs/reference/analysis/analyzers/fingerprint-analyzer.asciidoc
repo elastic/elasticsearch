@@ -10,20 +10,6 @@ deduplicated and concatenated into a single token.  If a stopword list is
 configured, stop words will also be removed.
 
 [float]
-=== Definition
-
-It consists of:
-
-Tokenizer::
-* <<analysis-standard-tokenizer,Standard Tokenizer>>
-
-Token Filters (in order)::
-1. <<analysis-lowercase-tokenfilter,Lower Case Token Filter>>
-2. <<analysis-asciifolding-tokenfilter>>
-3. <<analysis-stop-tokenfilter,Stop Token Filter>> (disabled by default)
-4. <<analysis-fingerprint-tokenfilter>>
-
-[float]
 === Example output
 
 [source,js]
@@ -150,12 +136,25 @@ The above example produces the following term:
 [ consistent godel said sentence yes ]
 ---------------------------
 
-=== Further customization
+[float]
+=== Definition
 
-You can further customize the behavior of the `fingerprint` analyzer by
-declaring a `custom` analyzer with the `fingerprint` token filter. The
-example below recreates the "standard" fingerprint analyzer and you can
-add token filters to it to change the behavior.
+The `fingerprint` tokenizer consists of:
+
+Tokenizer::
+* <<analysis-standard-tokenizer,Standard Tokenizer>>
+
+Token Filters (in order)::
+* <<analysis-lowercase-tokenfilter,Lower Case Token Filter>>
+* <<analysis-asciifolding-tokenfilter>>
+* <<analysis-stop-tokenfilter,Stop Token Filter>> (disabled by default)
+* <<analysis-fingerprint-tokenfilter>>
+
+If you need to customize the `fingerprint` analyzer beyond the configuration
+parameters then you need to recreate it as a `custom` analyzer and modify
+it, usually by adding token filters. This would recreate the built in
+`fingerprint` analyzer and you can use it as a starting point for further
+customization:
 
 [source,js]
 ----------------------------------------------------
@@ -163,19 +162,12 @@ PUT /fingerprint_example
 {
   "settings": {
     "analysis": {
-      "filter": {
-        "fingerprint_stop": {
-          "type":       "stop",
-          "stopwords":  "_english_" <1>
-        }
-      },
       "analyzer": {
         "rebuilt_fingerprint": {
-          "tokenizer":  "standard",
+          "tokenizer": "standard",
           "filter": [
             "lowercase",
             "asciifolding",
-            "fingerprint_stop",
             "fingerprint"
           ]
         }
@@ -186,5 +178,3 @@ PUT /fingerprint_example
 ----------------------------------------------------
 // CONSOLE
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: fingerprint_example, first: fingerprint, second: rebuilt_fingerprint}\nendyaml\n/]
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.

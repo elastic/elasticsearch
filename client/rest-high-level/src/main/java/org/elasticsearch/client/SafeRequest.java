@@ -20,6 +20,7 @@
 package org.elasticsearch.client;
 
 import org.apache.http.Header;
+import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 
 /**
  * Wrapper around {@link Request} that exposes things that may be customized

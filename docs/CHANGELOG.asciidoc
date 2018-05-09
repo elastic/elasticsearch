@@ -3,7 +3,7 @@
 
 [partintro]
 --
-// To add a release, copy and paste the template text 
+// To add a release, copy and paste the template text
 // and add a link to the new section. Note that release subheads must
 // be floated and sections cannot be empty.
 
@@ -139,8 +139,11 @@ coming[6.4.0]
 //[float]
 //=== Breaking Java Changes
 
-//[float]
-//=== Deprecations
+[float]
+=== Deprecations
+
+Deprecated multi-argument versions of the request methods in the RestClient.
+Prefer the "Request" object flavored methods. ({pull}30315[#30315])
 
 [float]
 === New Features
@@ -157,8 +160,8 @@ analysis module.  ({pull}30397[#30397])
 
 {ref-64}/breaking_64_api_changes.html#copy-source-settings-on-resize[Allow copying source settings on index resize operations] ({pull}30255[#30255])
 
-Added new "Request" object flavored request methods. Prefer these instead of the
-multi-argument versions. ({pull}29623[#29623])
+Added new "Request" object flavored request methods in the RestClient. Prefer
+these instead of the multi-argument versions. ({pull}29623[#29623])
 
 The cluster state listener to decide if watcher should be
 stopped/started/paused now runs far less code in an executor but is more

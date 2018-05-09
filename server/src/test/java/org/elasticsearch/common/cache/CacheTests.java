@@ -897,6 +897,7 @@ public class CacheTests extends ESTestCase {
         final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
 
         final CyclicBarrier barrier = new CyclicBarrier(1 + 2 * halfNumberOfThreads);
+        final List<Thread> threads = new ArrayList<>();
         for (int i = 0; i < halfNumberOfThreads; i++) {
             final Thread computeIfAbsentThread = new Thread(() -> {
                 try {
@@ -909,7 +910,7 @@ public class CacheTests extends ESTestCase {
                     fail(e.toString());
                 }
             });
-            computeIfAbsentThread.start();
+            threads.add(computeIfAbsentThread);
 
             final Thread removeThread = new Thread(() -> {
                 try {
@@ -922,13 +923,21 @@ public class CacheTests extends ESTestCase {
                     fail(e.toString());
                 }
             });
-            removeThread.start();
+            threads.add(removeThread);
+        }
+
+        for (final Thread thread : threads) {
+            thread.start();
         }
 
         // wait for all threads to be ready
         barrier.await();
         // wait for all threads to finish
         barrier.await();
+
+        for (final Thread thread : threads) {
+            thread.join();
+        }
 
         int count = 0;
         Cache.Entry<Integer, String> entry = cache.head;

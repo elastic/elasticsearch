@@ -53,6 +53,7 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
 
     @Override
     public void start(Collection<Watch> jobs) {
+        jobs.forEach(this::add);
     }
 
     @Override

@@ -320,8 +320,7 @@ task run(type: RunTask) {
       setting 'xpack.watcher.enabled', 'true'
       setting 'xpack.license.self_generated.type', 'trial'
     } else if (licenseType != 'basic') {
-      throw new IllegalArgumentException("Unsupported self-generated license type: [" + licenseType
-      "[basic] or [trial].")
+      throw new IllegalArgumentException("Unsupported self-generated license type: [" + licenseType + "[basic] or [trial].")
     }
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.monitoring.enabled', 'true'

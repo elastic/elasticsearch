@@ -169,9 +169,6 @@ public class PemUtils {
         }
         byte[] keyBytes = Base64.getDecoder().decode(sb.toString());
         String keyAlgo = getKeyAlgorithmIdentifier(keyBytes);
-        if (null == keyAlgo) {
-            throw new GeneralSecurityException("Key algorithm not supported");
-        }
         KeyFactory keyFactory = KeyFactory.getInstance(keyAlgo);
         return keyFactory.generatePrivate(new PKCS8EncodedKeySpec(keyBytes));
     }
@@ -382,9 +379,6 @@ public class PemUtils {
         cipher.init(Cipher.DECRYPT_MODE, secretKey, encryptedPrivateKeyInfo.getAlgParameters());
         PKCS8EncodedKeySpec keySpec = encryptedPrivateKeyInfo.getKeySpec(cipher);
         String keyAlgo = getKeyAlgorithmIdentifier(keySpec.getEncoded());
-        if (null == keyAlgo) {
-            throw new GeneralSecurityException("Key algorithm not supported");
-        }
         KeyFactory keyFactory = KeyFactory.getInstance(keyAlgo);
         return keyFactory.generatePrivate(keySpec);
     }
@@ -466,10 +460,10 @@ public class PemUtils {
      * Parses a DER encoded private key and reads its algorithm identifier Object OID.
      *
      * @param keyBytes the private key raw bytes
-     * @return A string identifier for the key algorithm (RSA, DSA, or EC ) or null for any other algorithm
-     * @throws IOException
+     * @return A string identifier for the key algorithm (RSA, DSA, or EC)
+     * @throws GeneralSecurityException if the algorithm oid that is parsed from ASN.1 is unknown
      */
-    private static String getKeyAlgorithmIdentifier(byte[] keyBytes) throws IOException {
+    private static String getKeyAlgorithmIdentifier(byte[] keyBytes) throws IOException, GeneralSecurityException {
         DerParser parser = new DerParser(keyBytes);
         DerParser.Asn1Object sequence = parser.readAsn1Object();
         parser = sequence.getParser();
@@ -484,8 +478,8 @@ public class PemUtils {
                 return "RSA";
             case "1.2.840.10045.2.1":
                 return "EC";
-            default:
-                return null;
         }
+        throw new GeneralSecurityException("Error parsing key algorithm identifier. Algorithm with OID: "+oidString+ " is not " +
+            "supported");
     }
 }

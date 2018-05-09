@@ -60,10 +60,10 @@ public class NativeStorageProvider {
      *            The maximum size required
      * @return Path for temporary storage if available, null otherwise
      */
-    public Path tryGetLocalTmpStorage(String uniqueIdentifier, long requestedSizeAsBytes) {
+    public Path tryGetLocalTmpStorage(String uniqueIdentifier, ByteSizeValue requestedSize) {
         for (Path path : environment.dataFiles()) {
             try {
-                if (getUsableSpace(path) >= requestedSizeAsBytes + MINIMUM_LOCAL_STORAGE_AVAILABLE.getBytes()) {
+                if (getUsableSpace(path) >= requestedSize.getBytes() + MINIMUM_LOCAL_STORAGE_AVAILABLE.getBytes()) {
                     Path tmpDirectory = path.resolve(LOCAL_STORAGE_SUBFOLDER).resolve(LOCAL_STORAGE_TMP_FOLDER).resolve(uniqueIdentifier);
                     Files.createDirectories(tmpDirectory);
                     return tmpDirectory;
@@ -77,12 +77,12 @@ public class NativeStorageProvider {
         return null;
     }
 
-    public boolean localTmpStorageHasEnoughSpace(Path path, long requestedSizeAsBytes) {
+    public boolean localTmpStorageHasEnoughSpace(Path path, ByteSizeValue requestedSize) {
         Path realPath = path.toAbsolutePath();
         for (Path p : environment.dataFiles()) {
             try {
                 if (realPath.startsWith(p.resolve(LOCAL_STORAGE_SUBFOLDER).resolve(LOCAL_STORAGE_TMP_FOLDER))) {
-                    return getUsableSpace(p) >= requestedSizeAsBytes + MINIMUM_LOCAL_STORAGE_AVAILABLE.getBytes();
+                    return getUsableSpace(p) >= requestedSize.getBytes() + MINIMUM_LOCAL_STORAGE_AVAILABLE.getBytes();
                 }
             } catch (IOException e) {
                 LOGGER.debug("Failed to optain information about path [{}]: {}", path, e);

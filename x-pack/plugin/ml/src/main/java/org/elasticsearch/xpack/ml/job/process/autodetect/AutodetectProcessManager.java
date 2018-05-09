@@ -16,6 +16,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -145,7 +146,7 @@ public class AutodetectProcessManager extends AbstractComponent {
     public void onNodeStartup() {
         try {
             nativeStorageProvider.cleanupLocalTmpStorageInCaseOfUncleanShutdown();
-        } catch (IOException e) {
+        } catch (Exception e) {
             logger.warn("Failed to cleanup native storage from previous invocation", e);
         }
     }
@@ -275,15 +276,15 @@ public class AutodetectProcessManager extends AbstractComponent {
      *            requested size
      * @return a Path to local storage or null if storage is not available
      */
-    public Path tryGetTmpStorage(JobTask jobTask, long requestedSizeAsBytes) {
+    public Path tryGetTmpStorage(JobTask jobTask, ByteSizeValue requestedSize) {
         String jobId = jobTask.getJobId();
         Path path = nativeTmpStorage.get(jobId);
         if (path == null) {
-            path = nativeStorageProvider.tryGetLocalTmpStorage(jobId, requestedSizeAsBytes);
+            path = nativeStorageProvider.tryGetLocalTmpStorage(jobId, requestedSize);
             if (path != null) {
                 nativeTmpStorage.put(jobId, path);
             }
-        } else if (!nativeStorageProvider.localTmpStorageHasEnoughSpace(path, requestedSizeAsBytes)) {
+        } else if (!nativeStorageProvider.localTmpStorageHasEnoughSpace(path, requestedSize)) {
             // the previous tmp location ran out of disk space, do not allow further usage
             return null;
         }

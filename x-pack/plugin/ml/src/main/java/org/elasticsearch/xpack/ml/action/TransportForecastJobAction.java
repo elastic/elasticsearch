@@ -80,7 +80,7 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
 
         // tmp storage might be null, we do not log here, because it might not be
         // required
-        Path tmpStorage = processManager.tryGetTmpStorage(task, FORECAST_LOCAL_STORAGE_LIMIT.getBytes());
+        Path tmpStorage = processManager.tryGetTmpStorage(task, FORECAST_LOCAL_STORAGE_LIMIT);
         paramsBuilder.tmpStorage(tmpStorage.toString());
 
         ForecastParams params = paramsBuilder.build();

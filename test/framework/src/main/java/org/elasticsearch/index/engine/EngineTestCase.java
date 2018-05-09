@@ -22,29 +22,26 @@ package org.elasticsearch.index.engine;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ReferenceManager;
-import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
@@ -67,7 +64,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
@@ -101,8 +97,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -116,7 +116,6 @@ import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class EngineTestCase extends ESTestCase {
@@ -568,7 +567,7 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     protected Engine.Delete replicaDeleteForDoc(String id, long version, long seqNo, long startTime) {
-        return new Engine.Delete("test", id, newUid(id), seqNo, 1, version, VersionType.EXTERNAL,
+        return new Engine.Delete("test", id, newUid(id), seqNo, primaryTerm.get(), version, VersionType.EXTERNAL,
             Engine.Operation.Origin.REPLICA, startTime);
     }
     protected static void assertVisibleCount(InternalEngine engine, int numDocs) throws IOException {
@@ -705,80 +704,85 @@ public abstract class EngineTestCase extends ESTestCase {
         }
     }
 
+    protected void concurrentlyApplyOps(List<Engine.Operation> ops, InternalEngine engine) throws InterruptedException {
+        Thread[] thread = new Thread[randomIntBetween(3, 5)];
+        CountDownLatch startGun = new CountDownLatch(thread.length);
+        AtomicInteger offset = new AtomicInteger(-1);
+        for (int i = 0; i < thread.length; i++) {
+            thread[i] = new Thread(() -> {
+                startGun.countDown();
+                try {
+                    startGun.await();
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+                int docOffset;
+                while ((docOffset = offset.incrementAndGet()) < ops.size()) {
+                    try {
+                        final Engine.Operation op = ops.get(docOffset);
+                        if (op instanceof Engine.Index) {
+                            engine.index((Engine.Index) op);
+                        } else if (op instanceof Engine.Delete){
+                            engine.delete((Engine.Delete) op);
+                        } else {
+                            engine.noOp((Engine.NoOp) op);
+                        }
+                        if ((docOffset + 1) % 4 == 0) {
+                            engine.refresh("test");
+                        }
+                        if (rarely()) {
+                            engine.flush();
+                        }
+                    } catch (IOException e) {
+                        throw new AssertionError(e);
+                    }
+                }
+            });
+            thread[i].start();
+        }
+        for (int i = 0; i < thread.length; i++) {
+            thread[i].join();
+        }
+    }
+
+    /**
+     * Gets all docId from the given engine.
+     */
+    public static Set<String> getDocIds(Engine engine, boolean refresh) throws IOException {
+        if (refresh) {
+            engine.refresh("test_get_doc_ids");
+        }
+        try (Engine.Searcher searcher = engine.acquireSearcher("test_get_doc_ids")) {
+            Set<String> ids = new HashSet<>();
+            for (LeafReaderContext leafContext : searcher.reader().leaves()) {
+                LeafReader reader = leafContext.reader();
+                Bits liveDocs = reader.getLiveDocs();
+                for (int i = 0; i < reader.maxDoc(); i++) {
+                    if (liveDocs == null || liveDocs.get(i)) {
+                        Document uuid = reader.document(i, Collections.singleton(IdFieldMapper.NAME));
+                        BytesRef binaryID = uuid.getBinaryValue(IdFieldMapper.NAME);
+                        ids.add(Uid.decodeId(Arrays.copyOfRange(binaryID.bytes, binaryID.offset, binaryID.offset + binaryID.length)));
+                    }
+                }
+            }
+            return ids;
+        }
+    }
+
     /**
      * Reads all engine operations that have been processed by the engine from Lucene index.
      * The returned operations are sorted and de-duplicated, thus each sequence number will be have at most one operation.
      */
     public static List<Translog.Operation> readAllOperationsInLucene(Engine engine, MapperService mapper) throws IOException {
-        engine.refresh("test");
         final List<Translog.Operation> operations = new ArrayList<>();
-        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
-            final IndexSearcher indexSearcher = new IndexSearcher(Lucene.wrapAllDocsLive(searcher.getDirectoryReader()));
-            final Sort sortedBySeqNoThenByTerm = new Sort(
-                new SortedNumericSortField(SeqNoFieldMapper.NAME, SortField.Type.LONG),
-                new SortedNumericSortField(SeqNoFieldMapper.PRIMARY_TERM_NAME, SortField.Type.LONG, true)
-            );
-            final TopDocs allDocs = indexSearcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE, sortedBySeqNoThenByTerm);
-            long lastSeenSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
-            for (ScoreDoc scoreDoc : allDocs.scoreDocs) {
-                final Translog.Operation op = readOperationInLucene(indexSearcher, mapper, scoreDoc.doc);
-                if (op.seqNo() != lastSeenSeqNo) {
-                    operations.add(op);
-                    lastSeenSeqNo = op.seqNo();
-                }
+        long maxSeqNo = Math.max(0, engine.getLocalCheckpointTracker().getMaxSeqNo());
+        try (Translog.Snapshot snapshot = engine.newLuceneChangesSnapshot("test", mapper, 0, maxSeqNo, false)) {
+            Translog.Operation op;
+            while ((op = snapshot.next()) != null){
+                operations.add(op);
             }
         }
         return operations;
-    }
-
-    private static Translog.Operation readOperationInLucene(IndexSearcher searcher, MapperService mapper, int docID) throws IOException {
-        final List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
-        final int leafIndex = ReaderUtil.subIndex(docID, leaves);
-        final int segmentDocID = docID - leaves.get(leafIndex).docBase;
-        final long seqNo = readNumericDV(leaves.get(leafIndex), SeqNoFieldMapper.NAME, segmentDocID);
-        final long primaryTerm = readNumericDV(leaves.get(leafIndex), SeqNoFieldMapper.PRIMARY_TERM_NAME, segmentDocID);
-        final long version = readNumericDV(leaves.get(leafIndex), VersionFieldMapper.NAME, segmentDocID);
-        final FieldsVisitor fields = new FieldsVisitor(true);
-        searcher.doc(docID, fields);
-        fields.postProcess(mapper);
-        final Translog.Operation op;
-        final boolean isTombstone = isTombstoneOperation(leaves.get(leafIndex), segmentDocID);
-        if (isTombstone && fields.uid() == null) {
-            op = new Translog.NoOp(seqNo, primaryTerm, "");
-            assert readNumericDV(leaves.get(leafIndex), Lucene.SOFT_DELETE_FIELD, segmentDocID) == 1
-                : "Noop operation but soft_deletes field is not set";
-            assert version == 1 : "Noop tombstone should have version 1L; actual version [" + version + "]";
-        } else {
-            final String id = fields.uid().id();
-            final String type = fields.uid().type();
-            final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
-            if (isTombstone) {
-                op = new Translog.Delete(type, id, uid, seqNo, primaryTerm, version, VersionType.INTERNAL);
-                assert readNumericDV(leaves.get(leafIndex), Lucene.SOFT_DELETE_FIELD, segmentDocID) == 1
-                    : "Delete operation but soft_deletes field is not set";
-            } else {
-                final BytesReference source = fields.source();
-                op = new Translog.Index(type, id, seqNo, primaryTerm, version, VersionType.INTERNAL, source.toBytesRef().bytes,
-                    fields.routing(), -1);
-            }
-        }
-        return op;
-    }
-
-    private static boolean isTombstoneOperation(LeafReaderContext leaf, int segmentDocID) throws IOException {
-        final NumericDocValues tombstoneDV = leaf.reader().getNumericDocValues(SeqNoFieldMapper.TOMBSTONE_NAME);
-        if (tombstoneDV != null && tombstoneDV.advanceExact(segmentDocID)) {
-            return tombstoneDV.longValue() == 1;
-        }
-        return false;
-    }
-
-    private static long readNumericDV(LeafReaderContext leaf, String field, int segmentDocID) throws IOException {
-        final NumericDocValues dv = leaf.reader().getNumericDocValues(field);
-        if (dv == null || dv.advanceExact(segmentDocID) == false) {
-            throw new IllegalStateException("DocValues for field [" + field + "] is not found");
-        }
-        return dv.longValue();
     }
 
     /**
@@ -811,7 +815,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 }
             }
             assertThat(luceneOp, notNullValue());
-            assertThat(luceneOp.primaryTerm(), equalTo(translogOp.primaryTerm()));
+            assertThat(luceneOp.toString(), luceneOp.primaryTerm(), equalTo(translogOp.primaryTerm()));
             assertThat(luceneOp.opType(), equalTo(translogOp.opType()));
             if (luceneOp.opType() == Translog.Operation.Type.INDEX) {
                 assertThat(luceneOp.getSource().source, equalTo(translogOp.getSource().source));

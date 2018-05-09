@@ -68,6 +68,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -148,6 +149,7 @@ public class InternalEngine extends Engine {
     private final CounterMetric numDocUpdates = new CounterMetric();
     private final NumericDocValuesField softDeleteField = Lucene.newSoftDeleteField();
     private final boolean softDeleteEnabled;
+    private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
 
     /**
      * How many bytes we are currently moving to disk, via either IndexWriter.flush or refresh.  IndexingMemoryController polls this
@@ -224,6 +226,8 @@ public class InternalEngine extends Engine {
             for (ReferenceManager.RefreshListener listener: engineConfig.getInternalRefreshListener()) {
                 this.internalSearcherManager.addListener(listener);
             }
+            this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(localCheckpointTracker.getCheckpoint());
+            this.internalSearcherManager.addListener(lastRefreshedCheckpointListener);
             success = true;
         } finally {
             if (success == false) {
@@ -2345,6 +2349,23 @@ public class InternalEngine extends Engine {
         return numDocUpdates.count();
     }
 
+    public Translog.Snapshot newLuceneChangesSnapshot(String source, MapperService mapperService,
+                                                      long minSeqNo, long maxSeqNo, boolean requiredFullRange) throws IOException {
+        // TODO: Should we defer the refresh until we really need it?
+        ensureOpen();
+        if (lastRefreshedCheckpoint() < maxSeqNo) {
+            refresh(source, SearcherScope.INTERNAL);
+        }
+        Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
+        try {
+            LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(searcher, mapperService, minSeqNo, maxSeqNo, requiredFullRange);
+            searcher = null;
+            return snapshot;
+        } finally {
+            IOUtils.close(searcher);
+        }
+    }
+
     @Override
     public boolean isRecovering() {
         return pendingTranslogRecovery.get();
@@ -2389,6 +2410,30 @@ public class InternalEngine extends Engine {
         public long softUpdateDocuments(Term term, Iterable<? extends Iterable<? extends IndexableField>> docs, Field... softDeletes) throws IOException {
             assert softDeleteEnabled : "Call #softUpdateDocuments but soft-deletes is disabled";
             return super.softUpdateDocuments(term, docs, softDeletes);
+        }
+    }
+
+    /**
+     * Returned the last local checkpoint value has been refreshed internally.
+     */
+    final long lastRefreshedCheckpoint() {
+        return lastRefreshedCheckpointListener.refreshedCheckpoint.get();
+    }
+    private final class LastRefreshedCheckpointListener implements ReferenceManager.RefreshListener {
+        final AtomicLong refreshedCheckpoint;
+        private long pendingCheckpoint;
+        LastRefreshedCheckpointListener(long initialLocalCheckpoint) {
+            this.refreshedCheckpoint = new AtomicLong(initialLocalCheckpoint);
+        }
+        @Override
+        public void beforeRefresh() {
+            pendingCheckpoint = localCheckpointTracker.getCheckpoint(); // All change until this point should be visible after refresh
+        }
+        @Override
+        public void afterRefresh(boolean didRefresh) {
+            if (didRefresh) {
+                refreshedCheckpoint.set(pendingCheckpoint);
+            }
         }
     }
 }

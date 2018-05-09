@@ -58,6 +58,7 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -608,6 +609,12 @@ public abstract class Engine implements Closeable {
     public Translog.Location getTranslogLastWriteLocation() {
         return getTranslog().getLastWriteLocation();
     }
+
+    /**
+     * Creates a new "translog" snapshot from Lucene for reading operations whose seqno in the requesting seqno range
+     */
+    public abstract Translog.Snapshot newLuceneChangesSnapshot(String source, MapperService mapperService,
+                                                               long minSeqNo, long maxSeqNo, boolean requiredFullRange) throws IOException;
 
     protected final void ensureOpen(Exception suppressed) {
         if (isClosed.get()) {

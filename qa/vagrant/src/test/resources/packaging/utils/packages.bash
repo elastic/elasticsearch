@@ -88,6 +88,8 @@ verify_package_installation() {
     id elasticsearch
 
     getent group elasticsearch
+    # homedir is set in /etc/passwd but to a non existent directory
+    assert_file_not_exist $(getent passwd elasticsearch | cut -d: -f6)
 
     assert_file "$ESHOME" d root root 755
     assert_file "$ESHOME/bin" d root root 755

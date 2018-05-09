@@ -112,9 +112,6 @@ setup:
 
 ---
 "IP range":
-  - skip:
-      version: " - 5.1.1"
-      reason: IP range queries had an exclusive range bug prior to 5.1.2
   - do:
       index:
         index: test
@@ -228,9 +225,6 @@ setup:
 
 ---
 "Date range":
-  - skip:
-      version: " - 5.99.99"
-      reason: before 6.0, numeric date_range to/from parameters were always parsed as if they are epoch_millis (#17920)
   - do:
       index:
         index: test

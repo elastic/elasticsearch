@@ -90,12 +90,14 @@ import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
@@ -1383,7 +1385,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Returns <tt>true</tt> if this shard can ignore a recovery attempt made to it (since the already doing/done it)
+     * Returns {@code true} if this shard can ignore a recovery attempt made to it (since the already doing/done it)
      */
     public boolean ignoreRecoveryAttempt() {
         IndexShardState state = state(); // one time volatile read
@@ -2165,8 +2167,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
             Collections.singletonList(refreshListeners),
             Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
-            indexSort, this::runTranslogRecovery, circuitBreakerService, replicationTracker, this::getPrimaryTerm,
-            this::createTombstoneDoc);
+            indexSort, this::runTranslogRecovery, circuitBreakerService, replicationTracker, this::getPrimaryTerm, tombstoneDocSupplier());
     }
 
     /**
@@ -2595,7 +2596,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    private ParsedDocument createTombstoneDoc(String type, String id) {
-        return docMapper(type).getDocumentMapper().createTombstoneDoc(shardId.getIndexName(), type, id);
+    private EngineConfig.TombstoneDocSupplier tombstoneDocSupplier() {
+        final RootObjectMapper.Builder noopRootMapper = new RootObjectMapper.Builder("__noop");
+        final DocumentMapper noopDocumentMapper = new DocumentMapper.Builder(noopRootMapper, mapperService).build(mapperService);
+        return new EngineConfig.TombstoneDocSupplier() {
+            @Override
+            public ParsedDocument newDeleteTombstoneDoc(String type, String id) {
+                return docMapper(type).getDocumentMapper().createDeleteTombstoneDoc(shardId.getIndexName(), type, id);
+            }
+            @Override
+            public ParsedDocument newNoopTombstoneDoc() {
+                return noopDocumentMapper.createNoopTombstoneDoc(shardId.getIndexName());
+            }
+        };
     }
 }

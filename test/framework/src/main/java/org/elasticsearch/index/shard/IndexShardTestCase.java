@@ -371,6 +371,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         for (IndexShard shard : shards) {
             if (shard != null) {
                 try {
+                    assertConsistentHistoryBetweenTranslogAndLucene(shard);
                     shard.close("test", false);
                 } finally {
                     IOUtils.close(shard.store());
@@ -545,6 +546,12 @@ public abstract class IndexShardTestCase extends ESTestCase {
         assertThat(shardDocUIDs, hasSize(ids.length));
     }
 
+    public static void assertConsistentHistoryBetweenTranslogAndLucene(IndexShard shard) throws IOException {
+        final Engine engine = shard.getEngineOrNull();
+        if (engine != null) {
+            EngineTestCase.assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, shard.mapperService());
+        }
+    }
 
     protected Engine.IndexResult indexDoc(IndexShard shard, String type, String id) throws IOException {
         return indexDoc(shard, type, id, "{}");

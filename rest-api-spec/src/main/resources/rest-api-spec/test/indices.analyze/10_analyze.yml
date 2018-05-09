@@ -58,9 +58,6 @@
 
 ---
 "Custom filter in request":
-    - skip:
-        version: " - 5.99.99"
-        reason: token filter name changed in 6.0, so this needs to be skipped on mixed clusters
     - do:
         indices.analyze:
           body:
@@ -81,9 +78,6 @@
 
 ---
 "Synonym filter with tokenizer":
-    - skip:
-        version: " - 5.99.99"
-        reason: to support synonym same analysis chain were added in 6.0.0
     - do:
         indices.create:
           index: test_synonym
@@ -114,9 +108,6 @@
 
 ---
 "Custom normalizer in request":
-    - skip:
-        version: " - 5.99.99"
-        reason:  normalizer support in 6.0.0
     - do:
         indices.analyze:
           body:

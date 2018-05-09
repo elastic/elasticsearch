@@ -22,6 +22,7 @@ package org.elasticsearch.index.engine;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
@@ -35,8 +36,10 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
+import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
@@ -68,6 +71,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -787,7 +791,9 @@ public class InternalEngine extends Engine {
                         location = translog.add(new Translog.Index(index, indexResult));
                     } else if (indexResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                         // if we have document failure, record it as a no-op in the translog with the generated seq_no
-                        location = translog.add(new Translog.NoOp(indexResult.getSeqNo(), index.primaryTerm(), indexResult.getFailure().getMessage()));
+                        final NoOp noOp = new NoOp(indexResult.getSeqNo(), index.primaryTerm(), index.origin(),
+                            index.startTime(), indexResult.getFailure().getMessage());
+                        location = innerNoOp(noOp).getTranslogLocation();
                     } else {
                         location = null;
                     }
@@ -1229,11 +1235,13 @@ public class InternalEngine extends Engine {
         throws IOException {
         try {
             if (softDeleteEnabled) {
-                final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newTombstoneDoc(delete.type(), delete.id());
+                final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newDeleteTombstoneDoc(delete.type(), delete.id());
                 assert tombstone.docs().size() == 1 : "Tombstone doc should have single doc [" + tombstone + "]";
                 tombstone.updateSeqID(plan.seqNoOfDeletion, delete.primaryTerm());
                 tombstone.version().setLongValue(plan.versionOfDeletion);
                 final ParseContext.Document doc = tombstone.docs().get(0);
+                assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null :
+                    "Delete tombstone document but _tombstone field is not set [" + doc + " ]";
                 doc.add(softDeleteField);
                 if (plan.addStaleOpToLucene || plan.currentlyDeleted) {
                     indexWriter.addDocument(doc);
@@ -1337,7 +1345,28 @@ public class InternalEngine extends Engine {
         assert noOp.seqNo() > SequenceNumbers.NO_OPS_PERFORMED;
         final long seqNo = noOp.seqNo();
         try {
-            final NoOpResult noOpResult = new NoOpResult(noOp.seqNo());
+            Exception failure = null;
+            if (softDeleteEnabled) {
+                try {
+                    final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newNoopTombstoneDoc();
+                    tombstone.updateSeqID(noOp.seqNo(), noOp.primaryTerm());
+                    // A noop tombstone does not require a _version but it's added to have a fully dense docvalues for the version field.
+                    // 1L is selected to optimize the compression because it might probably be the most common value in version field.
+                    tombstone.version().setLongValue(1L);
+                    assert tombstone.docs().size() == 1 : "Tombstone should have a single doc [" + tombstone + "]";
+                    final ParseContext.Document doc = tombstone.docs().get(0);
+                    assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null
+                        : "Noop tombstone document but _tombstone field is not set [" + doc + " ]";
+                    doc.add(softDeleteField);
+                    indexWriter.addDocument(doc);
+                } catch (Exception ex) {
+                    if (maybeFailEngine("noop", ex)) {
+                        throw ex;
+                    }
+                    failure = ex;
+                }
+            }
+            final NoOpResult noOpResult = failure != null ? new NoOpResult(noOp.seqNo(), failure) : new NoOpResult(noOp.seqNo());
             if (noOp.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
                 final Translog.Location location = translog.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
                 noOpResult.setTranslogLocation(location);
@@ -2011,8 +2040,8 @@ public class InternalEngine extends Engine {
         // background merges
         MergePolicy mergePolicy = config().getMergePolicy();
         if (softDeleteEnabled) {
-            // TODO: soft-delete retention policy
             iwc.setSoftDeletesField(Lucene.SOFT_DELETE_FIELD);
+            mergePolicy = new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETE_FIELD, this::softDeletesRetentionQuery, mergePolicy);
         }
         iwc.setMergePolicy(new ElasticsearchMergePolicy(mergePolicy));
         iwc.setSimilarity(engineConfig.getSimilarity());
@@ -2023,6 +2052,20 @@ public class InternalEngine extends Engine {
             iwc.setIndexSort(config().getIndexSort());
         }
         return iwc;
+    }
+
+    /**
+     * Documents including tombstones are soft-deleted and matched this query will be retained and won't cleaned up by merges.
+     */
+    private Query softDeletesRetentionQuery() {
+        ensureOpen();
+        // TODO: We send the safe commit in peer-recovery, thus we need to retain all operations after the local checkpoint of that commit.
+        final long retainedExtraOps = engineConfig.getIndexSettings().getSoftDeleteRetentionOperations();
+        // Prefer using the global checkpoint which is persisted on disk than an in-memory value.
+        // If we failed to fsync checkpoint but already used a higher global checkpoint value to clean up soft-deleted ops,
+        // then we may not have all required operations whose seq# greater than the global checkpoint after restarted.
+        final long persistedGlobalCheckpoint = translog.getLastSyncedGlobalCheckpoint();
+        return LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, persistedGlobalCheckpoint + 1 - retainedExtraOps, Long.MAX_VALUE);
     }
 
     /** Extended SearcherFactory that warms the segments if needed when acquiring a new searcher */

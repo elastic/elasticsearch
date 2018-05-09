@@ -915,7 +915,11 @@ public class CacheTests extends ESTestCase {
                 try {
                     barrier.await();
                     for (int j = 0; j < numberOfEntries; j++) {
-                        cache.values().iterator().remove();
+                        final Iterator<String> values = cache.values().iterator();
+                        if (values.hasNext()) {
+                            values.next();
+                            values.remove();
+                        }
                     }
                     barrier.await();
                 } catch (final BrokenBarrierException | InterruptedException e) {
@@ -942,7 +946,7 @@ public class CacheTests extends ESTestCase {
         Cache.Entry<Integer, String> entry = cache.head;
         while (entry != null) {
             count++;
-            assertThat(cache.head.state, equalTo(Cache.State.EXISTING));
+            assertThat(entry.state, equalTo(Cache.State.EXISTING));
             entry = entry.after;
         }
 

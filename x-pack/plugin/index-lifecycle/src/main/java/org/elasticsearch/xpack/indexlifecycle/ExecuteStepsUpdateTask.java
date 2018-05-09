@@ -82,7 +82,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                         currentState = IndexLifecycleRunner.moveClusterStateToNextStep(index, currentState, currentStep.getKey(),
                                 currentStep.getNextStepKey(), nowSupplier);
                     } else {
-                        logger.warn("condition not met, returning existing state");
+                        logger.debug("condition not met, returning existing state");
                         return currentState;
                     }
                 }

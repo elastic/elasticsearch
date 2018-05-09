@@ -149,3 +149,42 @@ The above example produces the following term:
 ---------------------------
 [ consistent godel said sentence yes ]
 ---------------------------
+
+=== Further customization
+
+You can further customize the behavior of the `fingerprint` analyzer by
+declaring a `custom` analyzer with the `fingerprint` token filter. The
+example below recreates the "standard" fingerprint analyzer and you can
+add token filters to it to change the behavior.
+
+[source,js]
+----------------------------------------------------
+PUT /fingerprint_example
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "fingerprint_stop": {
+          "type":       "stop",
+          "stopwords":  "_english_" <1>
+        }
+      },
+      "analyzer": {
+        "rebuilt_fingerprint": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "asciifolding",
+            "fingerprint_stop",
+            "fingerprint"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+// CONSOLE
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: fingerprint_example, first: fingerprint, second: rebuilt_fingerprint}\nendyaml\n/]
+<1> The default stopwords can be overridden with the `stopwords`
+    or `stopwords_path` parameters.

@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;
@@ -75,7 +76,9 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
 
         final Client client = mock(Client.class);
         final SecurityLifecycleService lifecycleService = mock(SecurityLifecycleService.class);
-        when(lifecycleService.isSecurityIndexAvailable()).thenReturn(true);
+        SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
+        when(lifecycleService.securityIndex()).thenReturn(securityIndex);
+        when(securityIndex.isAvailable()).thenReturn(true);
 
         final NativeRoleMappingStore store = new NativeRoleMappingStore(Settings.EMPTY, client, lifecycleService) {
             @Override

@@ -80,9 +80,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         if (type == ResizeType.SPLIT && IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexRequest.settings()) == false) {
             validationException = addValidationError("index.number_of_shards is required for split operations", validationException);
         }
-        if (copySettings != null && copySettings == false) {
-            validationException = addValidationError("[copySettings] can not be explicitly set to [false]", validationException);
-        }
+        assert copySettings == null || copySettings;
         return validationException;
     }
 
@@ -197,6 +195,9 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
     }
 
     public void setCopySettings(final Boolean copySettings) {
+        if (copySettings != null && copySettings == false) {
+            throw new IllegalArgumentException("[copySettings] can not be explicitly set to [false]");
+        }
         this.copySettings = copySettings;
     }
 

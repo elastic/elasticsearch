@@ -59,10 +59,7 @@ For more information about any of these functions, see <<ml-functions>>.
 * Forecasts run concurrently with real-time {ml} analysis. That is to say, {ml}
 analysis does not stop while forecasts are generated. Forecasts can have an
 impact on {ml} jobs, however, especially in terms of memory usage. For this
-reason, forecasts run only if the model memory status is acceptable and the
-snapshot models for the forecast do not require more than 20 MB. If these memory
-limits are reached, consider splitting the job into multiple smaller jobs and
-creating forecasts for these.
+reason, forecasts run only if the model memory status is acceptable.
 * The job must be open when you create a forecast. Otherwise, an error occurs.
 * If there is insufficient data to generate any meaningful predictions, an
 error occurs. In general, forecasts that are created early in the learning phase

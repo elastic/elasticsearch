@@ -118,7 +118,7 @@ public class RequestTests extends RestClientTestCase {
 
         final String json = randomAsciiLettersOfLengthBetween(1, 100);
         request.setJsonEntity(json);
-        assertEquals(ContentType.APPLICATION_JSON.getMimeType(), request.getEntity().getContentType().getValue());
+        assertEquals(ContentType.APPLICATION_JSON.toString(), request.getEntity().getContentType().getValue());
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         request.getEntity().writeTo(os);
         assertEquals(json, new String(os.toByteArray(), ContentType.APPLICATION_JSON.getCharset()));

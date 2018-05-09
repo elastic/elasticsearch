@@ -21,7 +21,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class IndexLifecycleManagerIntegTests extends SecurityIntegTestCase {
+public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
 
     public void testConcurrentOperationsTryingToCreateSecurityIndexAndAlias() throws Exception {
         assertSecurityIndexActive();

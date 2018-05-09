@@ -91,6 +91,36 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertHitCount(response, 1L);
     }
 
+    //Issue #30148
+    public void testMoreLikeThisForZeroTokensInOneOfTheAnalyzedFields() throws Exception {
+        CreateIndexRequestBuilder createIndexRequestBuilder = prepareCreate("test")
+            .addMapping("type", jsonBuilder()
+            .startObject().startObject("type")
+                .startObject("properties")
+                .startObject("myField").field("type", "text").endObject()
+                .startObject("empty").field("type", "text").endObject()
+                .endObject()
+            .endObject().endObject());
+
+        assertAcked(createIndexRequestBuilder);
+
+        ensureGreen();
+
+        client().index(indexRequest("test").type("type").id("1").source(jsonBuilder().startObject()
+            .field("myField", "and_foo").field("empty", "").endObject())).actionGet();
+        client().index(indexRequest("test").type("type").id("2").source(jsonBuilder().startObject()
+            .field("myField", "and_foo").field("empty", "").endObject())).actionGet();
+
+        client().admin().indices().refresh(refreshRequest()).actionGet();
+
+        SearchResponse searchResponse = client().prepareSearch().setQuery(
+            moreLikeThisQuery(new String[]{"myField", "empty"}, null, new Item[]{new Item("test", "type", "1")})
+                .minTermFreq(1).minDocFreq(1)
+        ).get();
+
+        assertHitCount(searchResponse, 1L);
+    }
+
     public void testSimpleMoreLikeOnLongField() throws Exception {
         logger.info("Creating index test");
         assertAcked(prepareCreate("test")

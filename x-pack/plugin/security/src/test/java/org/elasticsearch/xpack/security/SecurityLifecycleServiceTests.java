@@ -37,7 +37,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
-import org.elasticsearch.xpack.security.support.IndexLifecycleManager;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.junit.After;
@@ -105,10 +105,10 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
         ClusterState.Builder clusterStateBuilder = createClusterStateWithTemplate(templateString);
         final ClusterState clusterState = clusterStateBuilder.build();
 
-        assertTrue(IndexLifecycleManager.checkTemplateExistsAndVersionMatches(
+        assertTrue(SecurityIndexManager.checkTemplateExistsAndVersionMatches(
                 SecurityLifecycleServiceField.SECURITY_TEMPLATE_NAME, clusterState, logger,
                 Version.V_5_0_0::before));
-        assertFalse(IndexLifecycleManager.checkTemplateExistsAndVersionMatches(
+        assertFalse(SecurityIndexManager.checkTemplateExistsAndVersionMatches(
                 SecurityLifecycleServiceField.SECURITY_TEMPLATE_NAME, clusterState, logger,
                 Version.V_5_0_0::after));
     }
@@ -126,7 +126,7 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
         ClusterState.Builder clusterStateBuilder = createClusterStateWithMappingAndTemplate(templateString);
         securityLifecycleService.clusterChanged(new ClusterChangedEvent("test-event",
                 clusterStateBuilder.build(), EMPTY_CLUSTER_STATE));
-        final IndexLifecycleManager securityIndex = securityLifecycleService.securityIndex();
+        final SecurityIndexManager securityIndex = securityLifecycleService.securityIndex();
         assertTrue(securityIndex.checkMappingVersion(Version.V_5_0_0::before));
         assertFalse(securityIndex.checkMappingVersion(Version.V_5_0_0::after));
     }
@@ -172,7 +172,7 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
 
     private static IndexMetaData.Builder createIndexMetadata(String indexName, String templateString) throws IOException {
         String template = TemplateUtils.loadTemplate(templateString, Version.CURRENT.toString(),
-                IndexLifecycleManager.TEMPLATE_VERSION_PATTERN);
+                SecurityIndexManager.TEMPLATE_VERSION_PATTERN);
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         request.source(template, XContentType.JSON);
         IndexMetaData.Builder indexMetaData = IndexMetaData.builder(indexName);
@@ -219,7 +219,7 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
             String templateName, String templateString) throws IOException {
 
         String template = TemplateUtils.loadTemplate(templateString, Version.CURRENT.toString(),
-                IndexLifecycleManager.TEMPLATE_VERSION_PATTERN);
+                SecurityIndexManager.TEMPLATE_VERSION_PATTERN);
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         request.source(template, XContentType.JSON);
         IndexTemplateMetaData.Builder templateBuilder = IndexTemplateMetaData.builder(templateName)

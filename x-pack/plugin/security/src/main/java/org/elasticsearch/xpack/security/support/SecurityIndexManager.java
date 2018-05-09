@@ -58,7 +58,7 @@ import static org.elasticsearch.xpack.core.security.SecurityLifecycleServiceFiel
 /**
  * Manages the lifecycle of a single index, its template, mapping and and data upgrades/migrations.
  */
-public class IndexLifecycleManager extends AbstractComponent {
+public class SecurityIndexManager extends AbstractComponent {
 
     public static final String INTERNAL_SECURITY_INDEX = ".security-" + IndexUpgradeCheckVersion.UPRADE_VERSION;
     public static final int INTERNAL_INDEX_FORMAT = 6;
@@ -74,7 +74,7 @@ public class IndexLifecycleManager extends AbstractComponent {
 
     private volatile State indexState = new State(false, false, false, false, null);
 
-    public IndexLifecycleManager(Settings settings, Client client, String indexName) {
+    public SecurityIndexManager(Settings settings, Client client, String indexName) {
         super(settings);
         this.client = client;
         this.indexName = indexName;
@@ -347,7 +347,7 @@ public class IndexLifecycleManager extends AbstractComponent {
 
     private Tuple<String, Settings> loadMappingAndSettingsSourceFromTemplate() {
         final byte[] template = TemplateUtils.loadTemplate("/" + SECURITY_TEMPLATE_NAME + ".json",
-                Version.CURRENT.toString(), IndexLifecycleManager.TEMPLATE_VERSION_PATTERN).getBytes(StandardCharsets.UTF_8);
+                Version.CURRENT.toString(), SecurityIndexManager.TEMPLATE_VERSION_PATTERN).getBytes(StandardCharsets.UTF_8);
         PutIndexTemplateRequest request = new PutIndexTemplateRequest(SECURITY_TEMPLATE_NAME).source(template, XContentType.JSON);
         return new Tuple<>(request.mappings().get("doc"), request.settings());
     }

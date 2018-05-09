@@ -103,8 +103,9 @@ logical quantity with two possible values of `true` and `false`
 +
 <1> declare `int i`;
     assign value of `int 1` to `i`
-<2> box value of `i` -> `Integer 1`;
-    call `toString` on `Integer 1` -> `String '1'`
+<2> access `i` -> `int 1`;
+    box value of `int 1` -> `Integer 1 reference`;
+    call `toString` on `Integer 1 reference` -> `String '1'`
 
 [[reference-types]]
 ==== Reference Types
@@ -187,14 +188,17 @@ relationships.
 ----
 +
 <1> declare `List l`;
-    allocate `ArrayList` instance -> `ArrayList`;
-    implicit cast value of `Arraylist` to `List` -> `List`;
-    assign value of `List` to `l`
-<2> box value of `int 1` -> `Integer 1`;
-    call `add` on `l` with arguments `(Integer 1)`
+    allocate `ArrayList` instance -> `ArrayList reference`;
+    implicit cast value of `Arraylist reference` to value of `List reference`
+            -> `List reference`;
+    assign value of `List reference` to `l`
+<2> access `l` -> `List reference`;
+    implicit cast value of `int 1` to value of `def` -> `def`
+    call `add` on `List reference` with arguments (`def`)
 <3> declare `int i`;
-    call `get` on `l` with arguments `(int 0)` -> `Integer 1`;
-    unbox value of Integer `1` -> `int 1`;
+    access `l` -> `List reference`;
+    call `get` on `List reference` with arguments (`int 0`) -> `def`;
+    implicit cast value of `def` to value of `int 1` -> `int 1`;
     add value of `int 1` and value of `int 2` -> `int 3`;
     assign value of `int 3` to `i`
 +
@@ -210,21 +214,28 @@ relationships.
 ----
 +
 <1> declare `List l0`;
-    allocate `ArrayList` instance -> `ArrayList`;
-    implicit cast value of `ArrayList` to `List` -> `List`;
-    assign value of `List` to `l0`
+    allocate `ArrayList` instance -> `ArrayList reference`;
+    implicit cast value of `ArrayList reference` to value of `List reference`
+            -> `List reference`;
+    assign value of `List reference` to `l0`
 <2> declare `List l1`;
-    assign shallow-copy of value of `l0` to `l1`
-    (note `l0` and `l1` refer to the same instance)
-<3> box value of `int 1` -> `Integer 1`;
-    call `add` on `l0` with arguments `(Integer 1)`
-<4> box value of `int 2` -> `Integer 2`;
-    call `add` on `l1` with arguments `(Integer 2)`
-<5> call `get` on `l1` with arguments `(int 0)` -> `Integer 1`;
-    unbox value of `Integer 1` -> `int 1`;
-    call get` on `l0` with arguments `(int 1)` -> `Integer 2`;
-    unbox value of `Integer 2` -> `int 2`;
-    add `int 1` and `int 2` -> `int 3`;
+    access `l0` -> `List reference`;
+    assign value of `List reference` to `l1`
+    (note `l0` and `l1` refer to the same instance known as a shallow-copy)
+<3> access `l0` -> `List reference`;
+    implicit cast value of `int 1` to value of `def` -> `def`
+    call `add` on `List reference` with arguments (`def`)
+<4> access `l1` -> `List reference`;
+    implicit cast value of `int 2` to value of `def` -> `def`
+    call `add` on `List reference` with arguments (`def`)
+<5> declare `int i`;
+    access `l0` -> `List reference`;
+    call `get` on `List reference` with arguments (`int 0`) -> `def @0`;
+    implicit cast value of `def @0` to value of `int 1` -> `int 1`;
+    access `l1` -> `List reference`;
+    call `get` on `List reference` with arguments (`int 1`) -> `def @1`;
+    implicit cast value of `def @1` to value of `int 2` -> `int 2`;
+    add value of `int 1` and value of `int 2` -> `int 3`;
     assign value of `int 3` to `i`;
 +
 * Using the static members of a reference type.
@@ -232,15 +243,15 @@ relationships.
 [source,Painless]
 ----
 <1> int i = Integer.MAX_VALUE;
-<2> Long l = Long.parseLong("123L");
+<2> long l = Long.parseLong("123L");
 ----
 +
 <1> declare `int i`;
     access `MAX_VALUE` on `Integer` -> `int 2147483647`;
     assign value of `int 2147483647` to `i`
-<2> declare `Long l`;
-    call `parseLong` on `Long` with arguments `(long 123)` -> `Long 123`;
-    assign shallow-copy of value of `Long 123` to `l`
+<2> declare `long l`;
+    call `parseLong` on `Long` with arguments (`long 123`) -> `long 123`;
+    assign value of `long 123` to `l`
 
 [[dynamic-types]]
 ==== Dynamic Types
@@ -278,9 +289,10 @@ reference types directly when performance is critical.
 <1> declare `def dp`;
     assign value of `int 1` to `dp`
 <2> declare `def dr`;
-    allocate `ArrayList` instance -> `ArrayList`;
-    assign value of `ArrayList` to `dr`
-<3> assign value of `dp` to `dr`;
+    allocate `ArrayList` instance -> `ArrayList reference`;
+    assign value of `ArrayList reference` to `dr`
+<3> access `dp` -> `int 1`;
+    assign value of `int 1` to `dr`;
     (note the switch in type of `dr` from `ArrayList` to `int`)
 
 [[string-type]]
@@ -305,12 +317,12 @@ While not required, the <<constructor-call, `new` operator>> can allocate
 ----
 +
 <1> declare `String r`;
-    assign value of `"some text"` to `r`
+    assign value of `String "some text"` to `r`
 <2> declare `String s`;
-    assign value of `'some text'` to `s`
+    assign value of `String 'some text'` to `s`
 <3> declare `String t`;
-    allocate `String` instance with arguments `("some text")`
-    -> `String "some text"`;
+    allocate `String` instance with arguments (`String "some text"`)
+            -> `String "some text"`;
     assign value of `String "some text"` to `t`
 <4> declare `String u`;
     assign default value of `null` to `u`
@@ -376,13 +388,15 @@ the array type `int[][]`.
     assign default value of `null` to `x`
 <2> declare `float[] y`;
     allocate `1-d float array` instance with `length [10]`
-    -> `1-d float array`;
-    assign value of `1-d float array` to `y`
+            -> `1-d float array reference`;
+    assign value of `1-d float array reference` to `y`
 <3> declare `def z`;
-    allocate `1-d float array` instance with `length [5]` -> `1-d float array`;
-    assign value of `1-d float array` to `z`
+    allocate `1-d float array` instance with `length [5]`
+            -> `1-d float array reference`;
+    assign value of `1-d float array reference` to `z`
 <4> assign value of `float 1.0` to `index [9]` of `y`
-<5> assign value of `index [9]` of `y` to `index [0]` of `z`
+<5> access `index [9]` of `y` -> `float 1.0`;
+    assign `float 1.0` to `index [0]` of `z`
 +
 * Use of a multi-dimensional array.
 +
@@ -395,8 +409,9 @@ the array type `int[][]`.
 +
 <1> declare `int[][][] ia`;
     allocate `3-d int array` instance with length `[2, 3, 4]`
-    -> `3-d float array`;
-    assign value of `3-d float array` to `ia3`
+            -> `3-d float array reference`;
+    assign value of `3-d float array reference` to `ia3`
 <2> assign value of `int 99` to `index [1, 2, 3]` of `ia3`
 <3> declare `int i`;
-    assign value of `index [1, 2, 3]` of `ia3` to `i`
+    access `index [1, 2, 3]` of `ia3` -> `int 99`;
+    assign value of `int 99` to `i`

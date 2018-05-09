@@ -119,9 +119,8 @@ STRING: ( '"'  ( '\\"'  | '\\\\' | ~[\\"] )*? '"'  )
 
 Character literals cannot be specified directly. Instead, use the
 <<painless-casting, `cast operator '()'`>> to convert <<string-type, String>>
-values into <<primitive-types, char>> values. <<string-type, String>> values
-converted into <<primitive-types, char>> values must be exactly one character
-in length or an error will occur.
+values into <<primitive-types, char>> values. Use only <<string-type, String>>
+values one character in length for this conversion or an error will occur.
 
 *Examples*
 

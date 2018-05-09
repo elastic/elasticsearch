@@ -30,14 +30,18 @@ cast: '(' TYPE ')' expression
 ----
 +
 <1> declare `int i`;
-    explicitly cast `long 5` to `int`;
-    assign `5` to `i`
+    explicit cast value of `long 5` to value of `int 5` -> `int 5`;
+    assign `int 5` to `i`
 <2> declare `Map m`;
-    implicit cast new `HashMap` to `Map`;
-    assign `Map` value to `m`
+    allocate `HashMap` instance -> `HashMap reference`;
+    implicit cast value of `HashMap reference` to value of `Map reference`
+            -> `Map reference`;
+    assign value of `Map reference` to `m`
 <3> declare `HashMap hm`;
-    explicit cast `Map m` to `HashMap`;
-    assign `Map` value to `hm`
+    access `m` -> `Map reference`;
+    explicit cast value of `Map reference` to value of `HashMap reference`
+            -> `HashMap reference`;
+    assign value of `HashMap reference` to `hm`
 
 [[numeric-casting]]
 ==== Numeric Casting
@@ -80,32 +84,37 @@ is read as a conversion of row to column.
 ----
 +
 <1> declare `int a`;
-    assign `1` to `a`
+    assign `int 1` to `a`
 <2> declare `long b`;
-    implicit cast `long b` to `int`;
-    assign `int` value to `b`
+    access `a` -> `int 1`;
+    implicit cast value of `int 1` to value of `long 1` -> `long 1`;
+    assign value of `long 1` to `b`
 <3> declare `short c`;
-    explicit cast `long b` to `short`;
-    assign `short` value to `c`
+    access `b` -> `long 1`;
+    explicit cast value of `long 1` to value of `short 1` -> `short 1`;
+    assign `short 1` value to `c`
 <4> declare `double e`;
-    explicit cast `int a` to `double`;
-    assign `double` value to `e`;
-    note this cast is extraneous and can be implicit
+    access `a` -> `int 1`;
+    explicit cast value of `int 1` to `double 1.0`;
+    assign value of `double 1.0` to `e`;
+    (note this cast is extraneous and can be implicit)
 +
 * Invalid numeric casts resulting in errors.
 +
 [source,Painless]
 ----
-<1> int a = 1.0;
+<1> int a = 1.0; // error
 <2> int b = 2;
-<3> byte c = b;
+<3> byte c = b;  // error
 ----
 +
 <1> declare `int i`;
-    *error*: cannot implicitly cast `double 1.0` to `int`
+    *error* -> cannot implicit cast value of `double 1.0` to `int 1`
 <2> declare `int b`;
-    assign `int 2` to `b`;
-<3> exist
+    assign `int 2` to `b`
+<3> declare byte `c`;
+    access `b` -> `int 2`;
+    *error* -> cannot implicit cast value of `int 2` to `byte 2`
 
 [[reference-casting]]
 ==== Reference Casting

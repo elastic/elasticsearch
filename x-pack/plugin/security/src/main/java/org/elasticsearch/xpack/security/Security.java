@@ -317,7 +317,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         }
         modules.add(b -> XPackPlugin.bindFeatureSet(b, SecurityFeatureSet.class));
 
-        
+
         if (enabled == false) {
             modules.add(b -> {
                 b.bind(Realms.class).toProvider(Providers.of(null)); // for SecurityFeatureSet
@@ -410,7 +410,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(settings, client, securityIndex.get());
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         final ReservedRealm reservedRealm = new ReservedRealm(env, settings, nativeUsersStore,
-                anonymousUser, securityIndex.get(), threadPool.getThreadContext());
+                anonymousUser, securityIndex.get(), threadPool);
         Map<String, Realm.Factory> realmFactories = new HashMap<>(InternalRealms.getFactories(threadPool, resourceWatcherService,
                 getSslService(), nativeUsersStore, nativeRoleMappingStore, securityIndex.get()));
         for (SecurityExtension extension : securityExtensions) {

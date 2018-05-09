@@ -303,6 +303,19 @@ comma separated list of nodes to connect to (e.g. localhost:9300). A transport c
 be created based on that and used for all the before|after test operations, and to extract
 the http addresses of the nodes so that REST requests can be sent to them.
 
+== Testing release
+
+By default, all checks run against snapshot versions of Elasticsearch. Release versions of
+the distribution can be tested by specifying `-Dbuild.snapshot=false`. This also means that
+a valid license key must be used for x-pack. For the purpose of testing, there is one included
+in the repository.
+
+. Running a full gradle check against a non-snapshoted release
+
+-------------------------------------
+./gradlew check -Dbuild.snapshot=false -Dlicense.key=x-pack/plugin/core/src/test/resources/public.key
+-------------------------------------
+
 == Testing scripts
 
 The simplest way to test scripts and the packaged distributions is to use

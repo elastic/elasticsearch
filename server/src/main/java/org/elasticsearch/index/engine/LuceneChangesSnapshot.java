@@ -46,6 +46,7 @@ import org.elasticsearch.index.translog.Translog;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * A {@link Translog.Snapshot} from changes in a Lucene index
@@ -62,7 +63,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     private final TopDocs topDocs;
 
     private final Closeable onClose;
-    private final CombinedDocValues[] docValues; // cache of docvalues
+    private final CombinedDocValues[] docValues; // Cache of DocValues
 
     /**
      * Creates a new "translog" snapshot from Lucene for reading operations whose seq# in the specified range.
@@ -209,11 +210,11 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     }
 
     private boolean assertDocSoftDeleted(LeafReader leafReader, int segmentDocId) throws IOException {
-        final NumericDocValues dv = leafReader.getNumericDocValues(Lucene.SOFT_DELETE_FIELD);
-        if (dv == null || dv.advanceExact(segmentDocId) == false) {
+        final NumericDocValues ndv = leafReader.getNumericDocValues(Lucene.SOFT_DELETE_FIELD);
+        if (ndv == null || ndv.advanceExact(segmentDocId) == false) {
             throw new IllegalStateException("DocValues for field [" + Lucene.SOFT_DELETE_FIELD + "] is not found");
         }
-        return dv.longValue() == 1;
+        return ndv.longValue() == 1;
     }
 
     private static final class CombinedDocValues {
@@ -223,76 +224,57 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         private NumericDocValues primaryTermDV;
         private NumericDocValues tombstoneDV;
 
-        CombinedDocValues(LeafReader leafReader) {
+        CombinedDocValues(LeafReader leafReader) throws IOException {
             this.leafReader = leafReader;
-        }
-
-        NumericDocValues reloadIfNeed(NumericDocValues dv, String field, int segmentDocId) throws IOException {
-            if (dv == null || dv.docID() > segmentDocId) {
-                dv = leafReader.getNumericDocValues(field);
-            }
-            if (dv == null || dv.advanceExact(segmentDocId) == false) {
-                throw new IllegalStateException("DocValues for field [" + field + "] is not found");
-            }
-            return dv;
+            this.versionDV = Objects.requireNonNull(leafReader.getNumericDocValues(VersionFieldMapper.NAME), "VersionDV is missing");
+            this.seqNoDV = Objects.requireNonNull(leafReader.getNumericDocValues(SeqNoFieldMapper.NAME), "SeqNoDV is missing");
+            this.primaryTermDV = Objects.requireNonNull(
+                leafReader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME), "PrimaryTermDV is missing");
+            this.tombstoneDV = leafReader.getNumericDocValues(SeqNoFieldMapper.TOMBSTONE_NAME);
         }
 
         long docVersion(int segmentDocId) throws IOException {
-            versionDV = reloadIfNeed(versionDV, VersionFieldMapper.NAME, segmentDocId);
+            if (versionDV.docID() > segmentDocId) {
+                versionDV = Objects.requireNonNull(leafReader.getNumericDocValues(VersionFieldMapper.NAME), "VersionDV is missing");
+            }
+            if (versionDV.advanceExact(segmentDocId) == false) {
+                throw new IllegalStateException("DocValues for field [" + VersionFieldMapper.NAME + "] is not found");
+            }
             return versionDV.longValue();
         }
 
-        long docSeqNo(int segmentDocID) throws IOException {
-            seqNoDV = reloadIfNeed(seqNoDV, SeqNoFieldMapper.NAME, segmentDocID);
+        long docSeqNo(int segmentDocId) throws IOException {
+            if (seqNoDV.docID() > segmentDocId) {
+                seqNoDV = Objects.requireNonNull(leafReader.getNumericDocValues(SeqNoFieldMapper.NAME), "SeqNoDV is missing");
+            }
+            if (seqNoDV.advanceExact(segmentDocId) == false) {
+                throw new IllegalStateException("DocValues for field [" + SeqNoFieldMapper.NAME + "] is not found");
+            }
             return seqNoDV.longValue();
         }
 
         long docPrimaryTerm(int segmentDocId) throws IOException {
-            if (primaryTermDV == null || primaryTermDV.docID() > segmentDocId) {
+            if (primaryTermDV == null) {
+                return -1L;
+            }
+            if (primaryTermDV.docID() > segmentDocId) {
                 primaryTermDV = leafReader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
             }
             // Use -1 for docs which don't have primary term. The caller considers those docs as nested docs.
-            if (primaryTermDV == null || primaryTermDV.advanceExact(segmentDocId) == false) {
+            if (primaryTermDV.advanceExact(segmentDocId) == false) {
                 return -1;
             }
             return primaryTermDV.longValue();
         }
 
         boolean isTombstone(int segmentDocId) throws IOException {
-            if (tombstoneDV == null || tombstoneDV.docID() > segmentDocId) {
+            if (tombstoneDV == null) {
+                return false;
+            }
+            if (tombstoneDV.docID() > segmentDocId) {
                 tombstoneDV = leafReader.getNumericDocValues(SeqNoFieldMapper.TOMBSTONE_NAME);
-                if (tombstoneDV == null) {
-                    tombstoneDV = EMPTY_DOC_VALUES; // tombstones are rare - use dummy so that we won't have to reload many times.
-                }
             }
             return tombstoneDV.advanceExact(segmentDocId) && tombstoneDV.longValue() > 0;
         }
     }
-
-    private static final NumericDocValues EMPTY_DOC_VALUES = new NumericDocValues() {
-        @Override
-        public long longValue() {
-            return 0;
-        }
-        @Override
-        public boolean advanceExact(int target) {
-            return false;
-        }
-        @Override
-        public int docID() {
-            return 0;
-        }
-        @Override
-        public int nextDoc() {
-            throw new UnsupportedOperationException();
-        }
-        @Override
-        public int advance(int target) {
-            throw new UnsupportedOperationException();
-        }
-        @Override
-        public long cost() {
-            throw new UnsupportedOperationException();
-        }
-    };
 }

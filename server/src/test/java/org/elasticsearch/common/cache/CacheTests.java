@@ -21,7 +21,6 @@ package org.elasticsearch.common.cache;
 
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.yaml.section.Assertion;
 import org.junit.Before;
 
 import java.lang.management.ManagementFactory;

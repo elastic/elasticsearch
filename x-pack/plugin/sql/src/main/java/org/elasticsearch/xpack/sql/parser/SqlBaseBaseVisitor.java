@@ -1,8 +1,3 @@
-/*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
- */
 // ANTLR GENERATED CODE: DO NOT EDIT
 package org.elasticsearch.xpack.sql.parser;
 import org.antlr.v4.runtime.tree.AbstractParseTreeVisitor;
@@ -100,6 +95,13 @@ class SqlBaseBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements SqlBa
    * {@link #visitChildren} on {@code ctx}.</p>
    */
   @Override public T visitSysColumns(SqlBaseParser.SysColumnsContext ctx) { return visitChildren(ctx); }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation returns the result of calling
+   * {@link #visitChildren} on {@code ctx}.</p>
+   */
+  @Override public T visitSysGeometryColumns(SqlBaseParser.SysGeometryColumnsContext ctx) { return visitChildren(ctx); }
   /**
    * {@inheritDoc}
    *

@@ -1,8 +1,3 @@
-/*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
- */
 // ANTLR GENERATED CODE: DO NOT EDIT
 package org.elasticsearch.xpack.sql.parser;
 import org.antlr.v4.runtime.tree.ParseTreeVisitor;
@@ -97,6 +92,13 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitSysColumns(SqlBaseParser.SysColumnsContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code sysGeometryColumns}
+   * labeled alternative in {@link SqlBaseParser#statement}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitSysGeometryColumns(SqlBaseParser.SysGeometryColumnsContext ctx);
   /**
    * Visit a parse tree produced by the {@code sysTypes}
    * labeled alternative in {@link SqlBaseParser#statement}.

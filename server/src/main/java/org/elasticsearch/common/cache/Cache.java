@@ -210,7 +210,7 @@ public class Cache<K, V> {
                 future = map.get(key);
             }
             if (future != null) {
-                final Entry<K, V> entry;
+                Entry<K, V> entry;
                 try {
                     entry = future.get();
                 } catch (ExecutionException e) {
@@ -625,7 +625,7 @@ public class Cache<K, V> {
             Entry<K, V> entry = current;
             if (entry != null) {
                 CacheSegment<K, V> segment = getCacheSegment(entry.key);
-                segment.remove(entry.key, e -> {});
+                segment.remove(entry.key, f -> {});
                 try (ReleasableLock ignored = lruLock.acquire()) {
                     current = null;
                     delete(entry, RemovalNotification.RemovalReason.INVALIDATED);
@@ -710,7 +710,7 @@ public class Cache<K, V> {
 
         CacheSegment<K, V> segment = getCacheSegment(entry.key);
         if (segment != null) {
-            segment.remove(entry.key, e -> {});
+            segment.remove(entry.key, f -> {});
         }
         delete(entry, RemovalNotification.RemovalReason.EVICTED);
     }

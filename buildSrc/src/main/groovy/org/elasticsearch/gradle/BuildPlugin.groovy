@@ -535,7 +535,6 @@ class BuildPlugin implements Plugin<Project> {
             }
             // also apply release flag to groovy, which is used in build-tools
             project.tasks.withType(GroovyCompile) {
-                final JavaVersion targetCompatibilityVersion = JavaVersion.toVersion(it.targetCompatibility)
                 final compilerJavaHomeFile = new File(project.compilerJavaHome)
                 // we only fork if the Gradle JDK is not the same as the compiler JDK
                 if (compilerJavaHomeFile.canonicalPath == Jvm.current().javaHome.canonicalPath) {
@@ -543,7 +542,7 @@ class BuildPlugin implements Plugin<Project> {
                 } else {
                     options.fork = true
                     options.forkOptions.javaHome = compilerJavaHomeFile
-                    options.compilerArgs << '--release' << targetCompatibilityVersion.majorVersion
+                    options.compilerArgs << '--release' << JavaVersion.toVersion(it.targetCompatibility).majorVersion
                 }
             }
         }

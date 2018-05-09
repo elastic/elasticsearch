@@ -20,6 +20,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.ReaderUtil;
@@ -62,6 +63,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     private final TopDocs topDocs;
 
     private final Closeable onClose;
+    private final CombinedDocValues[] docValues; // cache of docvalues
 
     /**
      * Creates a new "translog" snapshot from Lucene for reading operations whose seq# in the specified range.
@@ -88,6 +90,11 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             this.indexSearcher.setQueryCache(null);
             this.topDocs = searchOperations(indexSearcher);
             this.onClose = engineSearcher;
+            final List<LeafReaderContext> leaves = indexSearcher.getIndexReader().leaves();
+            this.docValues = new CombinedDocValues[leaves.size()];
+            for (LeafReaderContext leaf : leaves) {
+                this.docValues[leaf.ord] = new CombinedDocValues(leaf.reader());
+            }
             success = true;
         } finally {
             if (success == false) {
@@ -167,39 +174,36 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         final List<LeafReaderContext> leaves = indexSearcher.getIndexReader().leaves();
         final LeafReaderContext leaf = leaves.get(ReaderUtil.subIndex(docID, leaves));
         final int segmentDocID = docID - leaf.docBase;
-        final NumericDocValues primaryTermDV = leaf.reader().getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+        final long primaryTerm = docValues[leaf.ord].docPrimaryTerm(segmentDocID);
         // We don't have to read the nested child documents - those docs don't have primary terms.
-        if (primaryTermDV == null || primaryTermDV.advanceExact(segmentDocID) == false) {
+        if (primaryTerm == -1) {
             skippedOperations++;
             return null;
         }
-        final long primaryTerm = primaryTermDV.longValue();
-        final long seqNo = readNumericDV(leaf, SeqNoFieldMapper.NAME, segmentDocID);
+        final long seqNo = docValues[leaf.ord].docSeqNo(segmentDocID);
         // Only pick the first seen seq#
         if (seqNo == lastSeenSeqNo) {
             skippedOperations++;
             return null;
         }
-        final long version = readNumericDV(leaf, VersionFieldMapper.NAME, segmentDocID);
+        final long version = docValues[leaf.ord].docVersion(segmentDocID);
         final FieldsVisitor fields = new FieldsVisitor(true);
         indexSearcher.doc(docID, fields);
         fields.postProcess(mapperService);
 
         final Translog.Operation op;
-        final boolean isTombstone = isTombstoneOperation(leaf, segmentDocID);
+        final boolean isTombstone = docValues[leaf.ord].isTombstone(segmentDocID);
         if (isTombstone && fields.uid() == null) {
             op = new Translog.NoOp(seqNo, primaryTerm, ""); // TODO: store reason in ignored fields?
-            assert readNumericDV(leaf, Lucene.SOFT_DELETE_FIELD, segmentDocID) == 1
-                : "Noop operation but soft_deletes field is not set [" + op + "]";
             assert version == 1L : "Noop tombstone should have version 1L; actual version [" + version + "]";
+            assert assertDocSoftDeleted(leaf.reader(), segmentDocID) : "Noop but soft_deletes field is not set [" + op + "]";
         } else {
             final String id = fields.uid().id();
             final String type = fields.uid().type();
             final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
             if (isTombstone) {
                 op = new Translog.Delete(type, id, uid, seqNo, primaryTerm, version, VersionType.INTERNAL);
-                assert readNumericDV(leaf, Lucene.SOFT_DELETE_FIELD, segmentDocID) == 1
-                    : "Delete operation but soft_deletes field is not set [" + op + "]";
+                assert assertDocSoftDeleted(leaf.reader(), segmentDocID) : "Delete op but soft_deletes field is not set [" + op + "]";
             } else {
                 final BytesReference source = fields.source();
                 // TODO: pass the latest timestamp from engine.
@@ -213,19 +217,91 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         return op;
     }
 
-    private boolean isTombstoneOperation(LeafReaderContext leaf, int segmentDocID) throws IOException {
-        final NumericDocValues tombstoneDV = leaf.reader().getNumericDocValues(SeqNoFieldMapper.TOMBSTONE_NAME);
-        if (tombstoneDV != null && tombstoneDV.advanceExact(segmentDocID)) {
-            return tombstoneDV.longValue() == 1;
+    private boolean assertDocSoftDeleted(LeafReader leafReader, int segmentDocId) throws IOException {
+        final NumericDocValues dv = leafReader.getNumericDocValues(Lucene.SOFT_DELETE_FIELD);
+        if (dv == null || dv.advanceExact(segmentDocId) == false) {
+            throw new IllegalStateException("DocValues for field [" + Lucene.SOFT_DELETE_FIELD + "] is not found");
         }
-        return false;
+        return dv.longValue() == 1;
     }
 
-    private long readNumericDV(LeafReaderContext leaf, String field, int segmentDocID) throws IOException {
-        final NumericDocValues dv = leaf.reader().getNumericDocValues(field);
-        if (dv == null || dv.advanceExact(segmentDocID) == false) {
-            throw new IllegalStateException("DocValues for field [" + field + "] is not found");
+    private static final class CombinedDocValues {
+        private final LeafReader leafReader;
+        private NumericDocValues versionDV;
+        private NumericDocValues seqNoDV;
+        private NumericDocValues primaryTermDV;
+        private NumericDocValues tombstoneDV;
+
+        CombinedDocValues(LeafReader leafReader) {
+            this.leafReader = leafReader;
         }
-        return dv.longValue();
+
+        NumericDocValues reloadIfNeed(NumericDocValues dv, String field, int segmentDocId) throws IOException {
+            if (dv == null || dv.docID() > segmentDocId) {
+                dv = leafReader.getNumericDocValues(field);
+            }
+            if (dv == null || dv.advanceExact(segmentDocId) == false) {
+                throw new IllegalStateException("DocValues for field [" + field + "] is not found");
+            }
+            return dv;
+        }
+
+        long docVersion(int segmentDocId) throws IOException {
+            versionDV = reloadIfNeed(versionDV, VersionFieldMapper.NAME, segmentDocId);
+            return versionDV.longValue();
+        }
+
+        long docSeqNo(int segmentDocID) throws IOException {
+            seqNoDV = reloadIfNeed(seqNoDV, SeqNoFieldMapper.NAME, segmentDocID);
+            return seqNoDV.longValue();
+        }
+
+        long docPrimaryTerm(int segmentDocId) throws IOException {
+            if (primaryTermDV == null || primaryTermDV.docID() > segmentDocId) {
+                primaryTermDV = leafReader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+            }
+            // Use -1 for docs which don't have primary term. The caller considers those docs as nested docs.
+            if (primaryTermDV == null || primaryTermDV.advanceExact(segmentDocId) == false) {
+                return -1;
+            }
+            return primaryTermDV.longValue();
+        }
+
+        boolean isTombstone(int segmentDocId) throws IOException {
+            if (tombstoneDV == null || tombstoneDV.docID() > segmentDocId) {
+                tombstoneDV = leafReader.getNumericDocValues(SeqNoFieldMapper.TOMBSTONE_NAME);
+                if (tombstoneDV == null) {
+                    tombstoneDV = EMPTY_DOC_VALUES; // tombstones are rare - use dummy so that we won't have to reload many times.
+                }
+            }
+            return tombstoneDV.advanceExact(segmentDocId) && tombstoneDV.longValue() > 0;
+        }
     }
+
+    private static final NumericDocValues EMPTY_DOC_VALUES = new NumericDocValues() {
+        @Override
+        public long longValue() {
+            return 0;
+        }
+        @Override
+        public boolean advanceExact(int target) {
+            return false;
+        }
+        @Override
+        public int docID() {
+            return 0;
+        }
+        @Override
+        public int nextDoc() {
+            throw new UnsupportedOperationException();
+        }
+        @Override
+        public int advance(int target) {
+            throw new UnsupportedOperationException();
+        }
+        @Override
+        public long cost() {
+            throw new UnsupportedOperationException();
+        }
+    };
 }

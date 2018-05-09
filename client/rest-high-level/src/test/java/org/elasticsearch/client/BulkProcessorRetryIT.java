@@ -16,15 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.bulk;
+package org.elasticsearch.client;
 
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.action.bulk.BackoffPolicy;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkProcessor;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.get.MultiGetRequest;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collections;
 import java.util.Iterator;
@@ -34,31 +38,20 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
-public class BulkProcessorRetryIT extends ESIntegTestCase {
-    private static final String INDEX_NAME = "test";
+public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
+
+    private static final String INDEX_NAME = "index";
     private static final String TYPE_NAME = "type";
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        //Have very low pool and queue sizes to overwhelm internal pools easily
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                // don't mess with this one! It's quite sensitive to a low queue size
-                // (see also ThreadedActionListener which is happily spawning threads even when we already got rejected)
-                //.put("thread_pool.listener.queue_size", 1)
-                .put("thread_pool.get.queue_size", 1)
-                // default is 200
-                .put("thread_pool.write.queue_size", 30)
-                .build();
+    private static BulkProcessor.Builder initBulkProcessorBuilder(BulkProcessor.Listener listener) {
+        return BulkProcessor.builder(highLevelClient()::bulkAsync, listener);
     }
 
-    public void testBulkRejectionLoadWithoutBackoff() throws Throwable {
+    public void testBulkRejectionLoadWithoutBackoff() throws Exception {
         boolean rejectedExecutionExpected = true;
         executeBulkRejectionLoad(BackoffPolicy.noBackoff(), rejectedExecutionExpected);
     }
@@ -68,19 +61,15 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
         executeBulkRejectionLoad(BackoffPolicy.exponentialBackoff(), rejectedExecutionExpected);
     }
 
-    private void executeBulkRejectionLoad(BackoffPolicy backoffPolicy, boolean rejectedExecutionExpected) throws Throwable {
+    private void executeBulkRejectionLoad(BackoffPolicy backoffPolicy, boolean rejectedExecutionExpected) throws Exception {
         final CorrelatingBackoffPolicy internalPolicy = new CorrelatingBackoffPolicy(backoffPolicy);
-        int numberOfAsyncOps = randomIntBetween(600, 700);
+        final int numberOfAsyncOps = randomIntBetween(600, 700);
         final CountDownLatch latch = new CountDownLatch(numberOfAsyncOps);
         final Set<Object> responses = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
-        assertAcked(prepareCreate(INDEX_NAME));
-        ensureGreen();
-
-        BulkProcessor bulkProcessor = BulkProcessor.builder(client(), new BulkProcessor.Listener() {
+        BulkProcessor bulkProcessor = initBulkProcessorBuilder(new BulkProcessor.Listener() {
             @Override
             public void beforeBulk(long executionId, BulkRequest request) {
-                // no op
             }
 
             @Override
@@ -96,17 +85,16 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
                 latch.countDown();
             }
         }).setBulkActions(1)
-                 // zero means that we're in the sync case, more means that we're in the async case
-                .setConcurrentRequests(randomIntBetween(0, 100))
-                .setBackoffPolicy(internalPolicy)
-                .build();
-        indexDocs(bulkProcessor, numberOfAsyncOps);
+            .setConcurrentRequests(randomIntBetween(0, 100))
+            .setBackoffPolicy(internalPolicy)
+            .build();
+
+        MultiGetRequest multiGetRequest = indexDocs(bulkProcessor, numberOfAsyncOps);
         latch.await(10, TimeUnit.SECONDS);
         bulkProcessor.close();
 
-        assertThat(responses.size(), equalTo(numberOfAsyncOps));
+        assertEquals(responses.size(), numberOfAsyncOps);
 
-        // validate all responses
         boolean rejectedAfterAllRetries = false;
         for (Object response : responses) {
             if (response instanceof BulkResponse) {
@@ -128,7 +116,7 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
                                 }
                             }
                         } else {
-                            throw new AssertionError("Unexpected failure status: " + failure.getStatus());
+                            throw new AssertionError("Unexpected failure with status: " + failure.getStatus());
                         }
                     }
                 }
@@ -139,34 +127,27 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
             }
         }
 
-        client().admin().indices().refresh(new RefreshRequest()).get();
-
-        SearchResponse results = client()
-                .prepareSearch(INDEX_NAME)
-                .setTypes(TYPE_NAME)
-                .setQuery(QueryBuilders.matchAllQuery())
-                .setSize(0)
-                .get();
+        highLevelClient().indices().refresh(new RefreshRequest());
+        int multiGetResponsesCount = highLevelClient().multiGet(multiGetRequest).getResponses().length;
 
         if (rejectedExecutionExpected) {
-            assertThat((int) results.getHits().getTotalHits(), lessThanOrEqualTo(numberOfAsyncOps));
+            assertThat(multiGetResponsesCount, lessThanOrEqualTo(numberOfAsyncOps));
         } else if (rejectedAfterAllRetries) {
-            assertThat((int) results.getHits().getTotalHits(), lessThan(numberOfAsyncOps));
+            assertThat(multiGetResponsesCount, lessThan(numberOfAsyncOps));
         } else {
-            assertThat((int) results.getHits().getTotalHits(), equalTo(numberOfAsyncOps));
+            assertThat(multiGetResponsesCount, equalTo(numberOfAsyncOps));
         }
+
     }
 
-    private static void indexDocs(BulkProcessor processor, int numDocs) {
+    private static MultiGetRequest indexDocs(BulkProcessor processor, int numDocs) {
+        MultiGetRequest multiGetRequest = new MultiGetRequest();
         for (int i = 1; i <= numDocs; i++) {
-            processor.add(client()
-                    .prepareIndex()
-                    .setIndex(INDEX_NAME)
-                    .setType(TYPE_NAME)
-                    .setId(Integer.toString(i))
-                    .setSource("field", randomRealisticUnicodeOfLengthBetween(1, 30))
-                    .request());
+            processor.add(new IndexRequest(INDEX_NAME, TYPE_NAME, Integer.toString(i))
+                .source(XContentType.JSON, "field", randomRealisticUnicodeOfCodepointLengthBetween(1, 30)));
+            multiGetRequest.add(INDEX_NAME, TYPE_NAME, Integer.toString(i));
         }
+        return multiGetRequest;
     }
 
     /**

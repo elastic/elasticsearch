@@ -176,6 +176,9 @@ started or stopped. ({pull}30118[#30118])
 
 Added put index template API to the high level rest client ({pull}30400[#30400])
 
+Add ability to filter coordinating-only nodes when interacting with cluster
+APIs. ({pull}30313[#30313])
+
 [float]
 === Bug Fixes
 

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.test.rest;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -17,6 +18,7 @@ import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -83,7 +85,6 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
             templates.addAll(Arrays.asList(AuditorField.NOTIFICATIONS_INDEX, MlMetaIndex.INDEX_NAME,
                     AnomalyDetectorsIndex.jobStateIndexName(),
                     AnomalyDetectorsIndex.jobResultsIndexPrefix()));
-            templates.addAll(Arrays.asList(WatcherIndexTemplateRegistryField.TEMPLATE_NAMES));
 
             for (String template : templates) {
                 awaitCallApi("indices.exists_template", singletonMap("name", template), emptyList(),
@@ -97,19 +98,49 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
         // ensure watcher is started, so that a test can stop watcher and everything still works fine
         if (isWatcherTest()) {
             assertBusy(() -> {
-                try {
-                    ClientYamlTestResponse response =
-                            getAdminExecutionContext().callApi("xpack.watcher.stats", emptyMap(), emptyList(), emptyMap());
-                    String state = (String) response.evaluate("stats.0.watcher_state");
-                    if ("started".equals(state) == false) {
-                        getAdminExecutionContext().callApi("xpack.watcher.start", emptyMap(), emptyList(), emptyMap());
-                    }
-                    // assertion required to exit the assertBusy lambda
-                    assertThat(state, is("started"));
-                } catch (IOException e) {
-                    throw new AssertionError(e);
+                ClientYamlTestResponse response =
+                    getAdminExecutionContext().callApi("xpack.watcher.stats", emptyMap(), emptyList(), emptyMap());
+                String state = (String) response.evaluate("stats.0.watcher_state");
+
+                switch (state) {
+                    case "stopped":
+                        ClientYamlTestResponse startResponse =
+                            getAdminExecutionContext().callApi("xpack.watcher.start", emptyMap(), emptyList(), emptyMap());
+                        boolean isAcknowledged = (boolean) startResponse.evaluate("acknowledged");
+                        assertThat(isAcknowledged, is(true));
+                        break;
+                    case "stopping":
+                        throw new AssertionError("waiting until stopping state reached stopped state to start again");
+                    case "starting":
+                        throw new AssertionError("waiting until starting state reached started state");
+                    case "started":
+                        // all good here, we are done
+                        break;
+                    default:
+                        throw new AssertionError("unknown state[" + state + "]");
                 }
             });
+
+            for (String template : WatcherIndexTemplateRegistryField.TEMPLATE_NAMES) {
+                awaitCallApi("indices.exists_template", singletonMap("name", template), emptyList(),
+                    response -> true,
+                    () -> "Exception when waiting for [" + template + "] template to be created");
+            }
+
+            boolean existsWatcherIndex = adminClient().performRequest("HEAD", ".watches").getStatusLine().getStatusCode() == 200;
+            if (existsWatcherIndex == false) {
+                return;
+            }
+            Response response = adminClient().performRequest("GET", ".watches/_search", Collections.singletonMap("size", "1000"));
+            ObjectPath objectPathResponse = ObjectPath.createFromResponse(response);
+            int totalHits = objectPathResponse.evaluate("hits.total");
+            if (totalHits > 0) {
+                List<Map<String, Object>> hits = objectPathResponse.evaluate("hits.hits");
+                for (Map<String, Object> hit : hits) {
+                    String id = (String) hit.get("_id");
+                    assertOK(adminClient().performRequest("DELETE", "_xpack/watcher/watch/" + id));
+                }
+            }
         }
     }
 

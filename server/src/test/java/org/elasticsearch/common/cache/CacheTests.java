@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.cache;
 
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -341,6 +342,38 @@ public class CacheTests extends ESTestCase {
             assertEquals(i + "-second", cache.get(i));
         }
         assertEquals(numberOfEntries, cache.stats().getEvictions());
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30428")
+    public void testComputeIfAbsentDeadlock() throws BrokenBarrierException, InterruptedException {
+        final int numberOfThreads = randomIntBetween(2, 32);
+        final Cache<Integer, String> cache =
+                CacheBuilder.<Integer, String>builder().setExpireAfterAccess(TimeValue.timeValueNanos(1)).build();
+
+        final CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
+        for (int i = 0; i < numberOfThreads; i++) {
+            final Thread thread = new Thread(() -> {
+                try {
+                    barrier.await();
+                    for (int j = 0; j < numberOfEntries; j++) {
+                        try {
+                            cache.computeIfAbsent(0, k -> Integer.toString(k));
+                        } catch (final ExecutionException e) {
+                            throw new AssertionError(e);
+                        }
+                    }
+                    barrier.await();
+                } catch (final BrokenBarrierException | InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+            });
+            thread.start();
+        }
+
+        // wait for all threads to be ready
+        barrier.await();
+        // wait for all threads to finish
+        barrier.await();
     }
 
     // randomly promote some entries, step the clock forward, then check that the promoted entries remain and the

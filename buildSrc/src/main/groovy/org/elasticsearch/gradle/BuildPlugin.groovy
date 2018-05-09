@@ -497,10 +497,15 @@ class BuildPlugin implements Plugin<Project> {
         project.afterEvaluate {
             project.tasks.withType(JavaCompile) {
                 final JavaVersion targetCompatibilityVersion = JavaVersion.toVersion(it.targetCompatibility)
-                // we fork because compiling lots of different classes in a shared jvm can eventually trigger GC overhead limitations
-                options.fork = true
-                options.forkOptions.javaHome = new File(project.compilerJavaHome)
-                options.forkOptions.memoryMaximumSize = "512m"
+                final compilerJavaHomeFile = new File(project.compilerJavaHome)
+                // we only fork if the Gradle JDK is not the same as the compiler JDK
+                if (compilerJavaHomeFile.canonicalPath == Jvm.current().javaHome.canonicalPath) {
+                    options.fork = false
+                } else {
+                    options.fork = true
+                    options.forkOptions.javaHome = compilerJavaHomeFile
+                    options.forkOptions.memoryMaximumSize = "512m"
+                }
                 if (targetCompatibilityVersion == JavaVersion.VERSION_1_8) {
                     // compile with compact 3 profile by default
                     // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
@@ -549,6 +554,11 @@ class BuildPlugin implements Plugin<Project> {
             javadoc.classpath = javadoc.getClasspath().filter { f ->
                 return classes.contains(f) == false
             }
+            /*
+             * Generate docs using html5 to suppress a warning from `javadoc`
+             * that the default will change to html5 in the future.
+             */
+            javadoc.options.addBooleanOption('html5', true)
         }
         configureJavadocJar(project)
     }

@@ -186,7 +186,7 @@ public class RetryTests extends ESIntegTestCase {
             bulk.add(client().prepareIndex("source", "test").setSource("foo", "bar " + i));
         }
 
-        Retry retry = new Retry(EsRejectedExecutionException.class, BackoffPolicy.exponentialBackoff(), client().threadPool());
+        Retry retry = new Retry(BackoffPolicy.exponentialBackoff(), client().threadPool());
         BulkResponse initialBulkResponse = retry.withBackoff(client()::bulk, bulk.request(), client().settings()).actionGet();
         assertFalse(initialBulkResponse.buildFailureMessage(), initialBulkResponse.hasFailures());
         client().admin().indices().prepareRefresh("source").get();

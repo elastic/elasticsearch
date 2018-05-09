@@ -83,7 +83,7 @@ public class NativePrivilegeStore extends AbstractComponent {
                                     listener.onResponse(privilege == null ? Collections.emptyList() : Collections.singletonList(privilege)),
                             listener::onFailure));
         } else {
-            securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+            securityLifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
                 final QueryBuilder query;
                 final TermQueryBuilder typeQuery = QueryBuilders.termQuery(Fields.TYPE.getPreferredName(), DOC_TYPE_VALUE);
                 if (isEmpty(applications) && isEmpty(names)) {
@@ -123,7 +123,7 @@ public class NativePrivilegeStore extends AbstractComponent {
     }
 
     public void getPrivilege(String application, String name, ActionListener<ApplicationPrivilege> listener) {
-        securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure,
+        securityLifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure,
                 () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                         client.prepareGet(SecurityLifecycleService.SECURITY_INDEX_NAME, "doc", toDocId(application, name)).request(),
                         new ActionListener<GetResponse>() {
@@ -153,7 +153,7 @@ public class NativePrivilegeStore extends AbstractComponent {
 
     public void putPrivileges(Collection<ApplicationPrivilege> privileges, WriteRequest.RefreshPolicy refreshPolicy,
                               ActionListener<Map<String, List<String>>> listener) {
-        securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+        securityLifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             ActionListener<IndexResponse> groupListener = new GroupedActionListener<>(
                     ActionListener.wrap((Collection<IndexResponse> responses) -> {
                         final Map<String, List<String>> createdNames = responses.stream()
@@ -191,7 +191,7 @@ public class NativePrivilegeStore extends AbstractComponent {
 
     public void deletePrivileges(String application, Collection<String> names, WriteRequest.RefreshPolicy refreshPolicy,
                                  ActionListener<Map<String, List<String>>> listener) {
-        securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+        securityLifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             ActionListener<DeleteResponse> groupListener = new GroupedActionListener<>(
                     ActionListener.wrap(responses -> {
                         final Map<String, List<String>> deletedNames = responses.stream()

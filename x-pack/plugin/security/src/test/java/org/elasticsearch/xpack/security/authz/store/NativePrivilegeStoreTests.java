@@ -40,6 +40,7 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -91,13 +92,15 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             }
         };
         final SecurityLifecycleService lifecycleService = mock(SecurityLifecycleService.class);
-        when(lifecycleService.isSecurityIndexAvailable()).thenReturn(true);
+        final SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
+        when(lifecycleService.securityIndex()).thenReturn(securityIndex);
+        when(securityIndex.isAvailable()).thenReturn(true);
         Mockito.doAnswer(invocationOnMock -> {
             assertThat(invocationOnMock.getArguments().length, equalTo(2));
             assertThat(invocationOnMock.getArguments()[1], instanceOf(Runnable.class));
             ((Runnable) invocationOnMock.getArguments()[1]).run();
             return null;
-        }).when(lifecycleService).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
         store = new NativePrivilegeStore(Settings.EMPTY, client, lifecycleService);
     }
 

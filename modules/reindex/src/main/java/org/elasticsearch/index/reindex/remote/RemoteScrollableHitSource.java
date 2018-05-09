@@ -30,22 +30,22 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BackoffPolicy;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -53,20 +53,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
-import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.clearScrollEntity;
-import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.initialSearchEntity;
-import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.initialSearchParams;
-import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.initialSearchPath;
-import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.scrollEntity;
-import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.scrollParams;
-import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.scrollPath;
 import static org.elasticsearch.index.reindex.remote.RemoteResponseParsers.MAIN_ACTION_PARSER;
 import static org.elasticsearch.index.reindex.remote.RemoteResponseParsers.RESPONSE_PARSER;
 
@@ -88,13 +79,13 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     protected void doStart(Consumer<? super Response> onResponse) {
         lookupRemoteVersion(version -> {
             remoteVersion = version;
-            execute("POST", initialSearchPath(searchRequest), initialSearchParams(searchRequest, version),
-                    initialSearchEntity(searchRequest, query, remoteVersion), RESPONSE_PARSER, r -> onStartResponse(onResponse, r));
+            execute(RemoteRequestBuilders.initialSearch(searchRequest, query, remoteVersion),
+                    RESPONSE_PARSER, r -> onStartResponse(onResponse, r));
         });
     }
 
     void lookupRemoteVersion(Consumer<Version> onVersion) {
-        execute("GET", "", emptyMap(), null, MAIN_ACTION_PARSER, onVersion);
+        execute(new Request("GET", ""), MAIN_ACTION_PARSER, onVersion);
     }
 
     private void onStartResponse(Consumer<? super Response> onResponse, Response response) {
@@ -108,15 +99,13 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
 
     @Override
     protected void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, Consumer<? super Response> onResponse) {
-        Map<String, String> scrollParams = scrollParams(
-                timeValueNanos(searchRequest.scroll().keepAlive().nanos() + extraKeepAlive.nanos()),
-                remoteVersion);
-        execute("POST", scrollPath(), scrollParams, scrollEntity(scrollId, remoteVersion), RESPONSE_PARSER, onResponse);
+        TimeValue keepAlive = timeValueNanos(searchRequest.scroll().keepAlive().nanos() + extraKeepAlive.nanos());
+        execute(RemoteRequestBuilders.scroll(scrollId, keepAlive, remoteVersion), RESPONSE_PARSER, onResponse);
     }
 
     @Override
     protected void clearScroll(String scrollId, Runnable onCompletion) {
-        client.performRequestAsync("DELETE", scrollPath(), emptyMap(), clearScrollEntity(scrollId, remoteVersion), new ResponseListener() {
+        client.performRequestAsync(RemoteRequestBuilders.clearScroll(scrollId, remoteVersion), new ResponseListener() {
             @Override
             public void onSuccess(org.elasticsearch.client.Response response) {
                 logger.debug("Successfully cleared [{}]", scrollId);
@@ -162,7 +151,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
         });
     }
 
-    private <T> void execute(String method, String uri, Map<String, String> params, HttpEntity entity,
+    private <T> void execute(Request request,
                              BiFunction<XContentParser, XContentType, T> parser, Consumer<? super T> listener) {
         // Preserve the thread context so headers survive after the call
         java.util.function.Supplier<ThreadContext.StoredContext> contextSupplier = threadPool.getThreadContext().newRestorableContext(true);
@@ -171,7 +160,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
 
             @Override
             protected void doRun() throws Exception {
-                client.performRequestAsync(method, uri, params, entity, new ResponseListener() {
+                client.performRequestAsync(request, new ResponseListener() {
                     @Override
                     public void onSuccess(org.elasticsearch.client.Response response) {
                         // Restore the thread context to get the precious headers

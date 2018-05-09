@@ -3,7 +3,7 @@
 
 [partintro]
 --
-// To add a release, copy and paste the template text 
+// To add a release, copy and paste the template text
 // and add a link to the new section. Note that release subheads must
 // be floated and sections cannot be empty.
 
@@ -104,6 +104,8 @@ ones that the user is authorized to access in case field level security is enabl
 [float]
 === Bug Fixes
 
+Fix NPE in 'more_like_this' when field has zero tokens ({pull}30365[#30365])
+
 Fixed prerelease version of elasticsearch in the `deb` package to sort before GA versions
 ({pull}29000[#29000])
 
@@ -137,8 +139,11 @@ coming[6.4.0]
 //[float]
 //=== Breaking Java Changes
 
-//[float]
-//=== Deprecations
+[float]
+=== Deprecations
+
+Deprecated multi-argument versions of the request methods in the RestClient.
+Prefer the "Request" object flavored methods. ({pull}30315[#30315])
 
 [float]
 === New Features
@@ -155,8 +160,8 @@ analysis module.  ({pull}30397[#30397])
 
 {ref-64}/breaking_64_api_changes.html#copy-source-settings-on-resize[Allow copying source settings on index resize operations] ({pull}30255[#30255])
 
-Added new "Request" object flavored request methods. Prefer these instead of the
-multi-argument versions. ({pull}29623[#29623])
+Added new "Request" object flavored request methods in the RestClient. Prefer
+these instead of the multi-argument versions. ({pull}29623[#29623])
 
 The cluster state listener to decide if watcher should be
 stopped/started/paused now runs far less code in an executor but is more
@@ -169,6 +174,8 @@ Added put index template API to the high level rest client ({pull}30400[#30400])
 [float]
 === Bug Fixes
 
+Fix NPE in 'more_like_this' when field has zero tokens ({pull}30365[#30365])
+
 Do not ignore request analysis/similarity settings on index resize operations when the source index already contains such settings ({pull}30216[#30216])
 
 Fix NPE when CumulativeSum agg encounters null value/empty bucket ({pull}29641[#29641])
@@ -177,9 +184,17 @@ Machine Learning::
 
 * Account for gaps in data counts after job is reopened ({pull}30294[#30294])
 
+Add validation that geohashes are not empty and don't contain unsupported characters ({pull}30376[#30376])
+
 Rollup::
 * Validate timezone in range queries to ensure they match the selected job when
 searching ({pull}30338[#30338])
+
+
+Allocation::
+
+Auto-expand replicas when adding or removing nodes to prevent shard copies from
+being dropped and resynced when a data node rejoins the cluster ({pull}30423[#30423])
 
 //[float]
 //=== Regressions

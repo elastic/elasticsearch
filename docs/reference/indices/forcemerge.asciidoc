@@ -41,8 +41,9 @@ deletes. Defaults to `false`.  Note that this won't override the
 [source,js]
 --------------------------------------------------
 POST /kimchy/_forcemerge?only_expunge_deletes=false&max_num_segments=100&flush=true
-
 --------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT kimchy\n/]
 
 [float]
 [[forcemerge-multi-index]]

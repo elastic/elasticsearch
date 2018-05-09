@@ -120,7 +120,7 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
      * <em>package private</em> for unit testing
      */
     void loadMappings(ActionListener<List<ExpressionRoleMapping>> listener) {
-        if (securityLifecycleService.isSecurityIndexOutOfDate()) {
+        if (securityLifecycleService.securityIndex().isIndexUpToDate() == false) {
             listener.onFailure(new IllegalStateException(
                 "Security index is not on the current version - the native realm will not be operational until " +
                 "the upgrade API is run on the security index"));
@@ -176,7 +176,7 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
 
     private <Request, Result> void modifyMapping(String name, CheckedBiConsumer<Request, ActionListener<Result>, Exception> inner,
                                                  Request request, ActionListener<Result> listener) {
-        if (securityLifecycleService.isSecurityIndexOutOfDate()) {
+        if (securityLifecycleService.securityIndex().isIndexUpToDate() == false) {
             listener.onFailure(new IllegalStateException(
                 "Security index is not on the current version - the native realm will not be operational until " +
                 "the upgrade API is run on the security index"));
@@ -192,7 +192,7 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
 
     private void innerPutMapping(PutRoleMappingRequest request, ActionListener<Boolean> listener) {
         final ExpressionRoleMapping mapping = request.getMapping();
-        securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+        securityLifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             final XContentBuilder xContentBuilder;
             try {
                 xContentBuilder = mapping.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS, true);
@@ -222,7 +222,7 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
     }
 
     private void innerDeleteMapping(DeleteRoleMappingRequest request, ActionListener<Boolean> listener) throws IOException {
-        if (securityLifecycleService.isSecurityIndexOutOfDate()) {
+        if (securityLifecycleService.securityIndex().isIndexUpToDate() == false) {
             listener.onFailure(new IllegalStateException(
                 "Security index is not on the current version - the native realm will not be operational until " +
                 "the upgrade API is run on the security index"));
@@ -276,16 +276,16 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
     }
 
     private void getMappings(ActionListener<List<ExpressionRoleMapping>> listener) {
-        if (securityLifecycleService.isSecurityIndexAvailable()) {
+        if (securityLifecycleService.securityIndex().isAvailable()) {
             loadMappings(listener);
         } else {
             logger.info("The security index is not yet available - no role mappings can be loaded");
             if (logger.isDebugEnabled()) {
                 logger.debug("Security Index [{}] [exists: {}] [available: {}] [mapping up to date: {}]",
                         SECURITY_INDEX_NAME,
-                        securityLifecycleService.isSecurityIndexExisting(),
-                        securityLifecycleService.isSecurityIndexAvailable(),
-                        securityLifecycleService.isSecurityIndexMappingUpToDate()
+                        securityLifecycleService.securityIndex().indexExists(),
+                        securityLifecycleService.securityIndex().isAvailable(),
+                        securityLifecycleService.securityIndex().isMappingUpToDate()
                 );
             }
             listener.onResponse(Collections.emptyList());
@@ -302,7 +302,7 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
      * </ul>
      */
     public void usageStats(ActionListener<Map<String, Object>> listener) {
-        if (securityLifecycleService.isSecurityIndexExisting() == false) {
+        if (securityLifecycleService.securityIndex().indexExists() == false) {
             reportStats(listener, Collections.emptyList());
         } else {
             getMappings(ActionListener.wrap(mappings -> reportStats(listener, mappings), listener::onFailure));

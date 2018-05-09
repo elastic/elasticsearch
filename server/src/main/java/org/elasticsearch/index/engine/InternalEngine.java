@@ -2356,8 +2356,14 @@ public class InternalEngine extends Engine {
         if (lastRefreshedCheckpoint() < maxSeqNo) {
             refresh(source, SearcherScope.INTERNAL);
         }
-        return new LuceneChangesSnapshot(acquireSearcher(source, SearcherScope.INTERNAL), mapperService,
-            minSeqNo, maxSeqNo, requiredFullRange);
+        Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
+        try {
+            LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(searcher, mapperService, minSeqNo, maxSeqNo, requiredFullRange);
+            searcher = null;
+            return snapshot;
+        } finally {
+            IOUtils.close(searcher);
+        }
     }
 
     @Override

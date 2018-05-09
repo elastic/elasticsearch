@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -82,33 +83,50 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         if (refreshedSeqNo == -1) {
             fromSeqNo = between(0, numOps);
             toSeqNo = randomLongBetween(fromSeqNo, numOps * 2);
-            try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(
-                engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL), mapperService, fromSeqNo, toSeqNo, false)) {
+
+            Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+            try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(searcher, mapperService, fromSeqNo, toSeqNo, false)) {
+                searcher = null;
                 assertThat(snapshot, SnapshotMatchers.size(0));
+            } finally {
+                IOUtils.close(searcher);
             }
-            try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(
-                engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL), mapperService, fromSeqNo, toSeqNo, true)) {
+
+            searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+            try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(searcher, mapperService, fromSeqNo, toSeqNo, true)) {
+                searcher = null;
                 IllegalStateException error = expectThrows(IllegalStateException.class, () -> drainAll(snapshot));
                 assertThat(error.getMessage(),
                     containsString("Not all operations between min_seqno [" + fromSeqNo + "] and max_seqno [" + toSeqNo + "] found"));
+            }finally {
+                IOUtils.close(searcher);
             }
         }else {
             fromSeqNo = randomLongBetween(0, refreshedSeqNo);
             toSeqNo = randomLongBetween(refreshedSeqNo + 1, numOps * 2);
-            try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(
-                engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL), mapperService, fromSeqNo, toSeqNo, false)) {
+            Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+            try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(searcher, mapperService, fromSeqNo, toSeqNo, false)) {
+                searcher = null;
                 assertThat(snapshot, SnapshotMatchers.containsSeqNoRange(fromSeqNo, refreshedSeqNo));
+            }finally {
+                IOUtils.close(searcher);
             }
-            try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(
-                engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL), mapperService, fromSeqNo, toSeqNo, true)) {
+            searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+            try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(searcher, mapperService, fromSeqNo, toSeqNo, true)) {
+                searcher = null;
                 IllegalStateException error = expectThrows(IllegalStateException.class, () -> drainAll(snapshot));
                 assertThat(error.getMessage(),
                     containsString("Not all operations between min_seqno [" + fromSeqNo + "] and max_seqno [" + toSeqNo + "] found"));
+            }finally {
+                IOUtils.close(searcher);
             }
             toSeqNo = randomLongBetween(fromSeqNo, refreshedSeqNo);
-            try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(
-                engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL), mapperService, fromSeqNo, toSeqNo, true)) {
+            searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+            try (Translog.Snapshot snapshot = new LuceneChangesSnapshot(searcher, mapperService, fromSeqNo, toSeqNo, true)) {
+                searcher = null;
                 assertThat(snapshot, SnapshotMatchers.containsSeqNoRange(fromSeqNo, toSeqNo));
+            }finally {
+                IOUtils.close(searcher);
             }
         }
         // Get snapshot via engine will auto refresh

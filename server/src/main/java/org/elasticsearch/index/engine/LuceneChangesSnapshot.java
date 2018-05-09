@@ -34,7 +34,6 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -68,7 +67,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     /**
      * Creates a new "translog" snapshot from Lucene for reading operations whose seq# in the specified range.
      *
-     * @param engineSearcher    the internal engine searcher - this snapshot will take over the provided searcher
+     * @param engineSearcher    the internal engine searcher which will be taken over if the snapshot is opened successfully
      * @param mapperService     the mapper service which will be mainly used to resolve the document's type and uid
      * @param fromSeqNo         the min requesting seq# - inclusive
      * @param toSeqNo           the maximum requesting seq# - inclusive
@@ -84,23 +83,15 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         this.toSeqNo = toSeqNo;
         this.lastSeenSeqNo = fromSeqNo - 1;
         this.requiredFullRange = requiredFullRange;
-        boolean success = false;
-        try {
-            this.indexSearcher = new IndexSearcher(Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader()));
-            this.indexSearcher.setQueryCache(null);
-            this.topDocs = searchOperations(indexSearcher);
-            this.onClose = engineSearcher;
-            final List<LeafReaderContext> leaves = indexSearcher.getIndexReader().leaves();
-            this.docValues = new CombinedDocValues[leaves.size()];
-            for (LeafReaderContext leaf : leaves) {
-                this.docValues[leaf.ord] = new CombinedDocValues(leaf.reader());
-            }
-            success = true;
-        } finally {
-            if (success == false) {
-                IOUtils.close(engineSearcher);
-            }
+        this.indexSearcher = new IndexSearcher(Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader()));
+        this.indexSearcher.setQueryCache(null);
+        this.topDocs = searchOperations(indexSearcher);
+        final List<LeafReaderContext> leaves = indexSearcher.getIndexReader().leaves();
+        this.docValues = new CombinedDocValues[leaves.size()];
+        for (LeafReaderContext leaf : leaves) {
+            this.docValues[leaf.ord] = new CombinedDocValues(leaf.reader());
         }
+        this.onClose = engineSearcher;
     }
 
     @Override

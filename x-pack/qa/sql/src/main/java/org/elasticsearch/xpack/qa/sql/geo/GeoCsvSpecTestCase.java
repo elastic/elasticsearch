@@ -51,7 +51,7 @@ public abstract class GeoCsvSpecTestCase extends SpecBaseIntegrationTestCase {
     }
 
     @Override
-    protected final void doTest() throws Throwable {
+    protected final void doTest() throws Exception {
         try (Connection csv = csvConnection(testCase.expectedResults);
              Connection es = esJdbc()) {
 

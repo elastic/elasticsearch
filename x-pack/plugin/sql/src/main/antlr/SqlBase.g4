@@ -62,6 +62,9 @@ statement
     | SYS COLUMNS (CATALOG cluster=string)?
                   (TABLE LIKE? indexPattern=pattern)?
                   (LIKE? columnPattern=pattern)?                                                          #sysColumns
+    | SYS GEOMETRY_COLUMNS (CATALOG cluster=string)?
+                           (TABLE LIKE? indexPattern=pattern)?
+                           (LIKE? columnPattern=pattern)?                                                 #sysGeometryColumns
     | SYS TYPES                                                                                           #sysTypes
     | SYS TABLE TYPES                                                                                     #sysTableTypes  
     ;
@@ -310,6 +313,7 @@ FORMAT: 'FORMAT';
 FROM: 'FROM';
 FULL: 'FULL';
 FUNCTIONS: 'FUNCTIONS';
+GEOMETRY_COLUMNS: 'GEOMETRY_COLUMNS';
 GRAPHVIZ: 'GRAPHVIZ';
 GROUP: 'GROUP';
 HAVING: 'HAVING';

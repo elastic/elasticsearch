@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.sql.plan.logical.command.ShowSchemas;
 import org.elasticsearch.xpack.sql.plan.logical.command.ShowTables;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysCatalogs;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysColumns;
+import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysGeometryColumns;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTableTypes;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTables;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTypes;
@@ -172,6 +173,11 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
     public Object visitSysColumns(SysColumnsContext ctx) {
         Location loc = source(ctx);
         return new SysColumns(loc, string(ctx.cluster), visitPattern(ctx.indexPattern), visitPattern(ctx.columnPattern));
+    }
+
+    @Override
+    public Object visitSysGeometryColumns(SqlBaseParser.SysGeometryColumnsContext ctx) {
+        return new SysGeometryColumns(source(ctx), string(ctx.cluster), visitPattern(ctx.indexPattern), visitPattern(ctx.columnPattern));
     }
 
     @Override

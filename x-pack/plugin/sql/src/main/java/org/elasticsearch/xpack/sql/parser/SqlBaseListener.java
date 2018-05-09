@@ -1,8 +1,3 @@
-/*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
- */
 // ANTLR GENERATED CODE: DO NOT EDIT
 package org.elasticsearch.xpack.sql.parser;
 import org.antlr.v4.runtime.tree.ParseTreeListener;
@@ -152,6 +147,18 @@ interface SqlBaseListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitSysColumns(SqlBaseParser.SysColumnsContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code sysGeometryColumns}
+   * labeled alternative in {@link SqlBaseParser#statement}.
+   * @param ctx the parse tree
+   */
+  void enterSysGeometryColumns(SqlBaseParser.SysGeometryColumnsContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code sysGeometryColumns}
+   * labeled alternative in {@link SqlBaseParser#statement}.
+   * @param ctx the parse tree
+   */
+  void exitSysGeometryColumns(SqlBaseParser.SysGeometryColumnsContext ctx);
   /**
    * Enter a parse tree produced by the {@code sysTypes}
    * labeled alternative in {@link SqlBaseParser#statement}.

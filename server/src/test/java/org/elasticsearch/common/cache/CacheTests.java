@@ -21,6 +21,7 @@ package org.elasticsearch.common.cache;
 
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.yaml.section.Assertion;
 import org.junit.Before;
 
 import java.lang.management.ManagementFactory;
@@ -46,7 +47,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
@@ -887,4 +890,55 @@ public class CacheTests extends ESTestCase {
             assertEquals(RemovalNotification.RemovalReason.INVALIDATED, removalNotifications.get(i).getRemovalReason());
         }
     }
+
+    // test that concurrent adds and removals do not end with an LRU list containing deleted entries
+    public void testComputeIfAbsentRemoveRace() throws BrokenBarrierException, InterruptedException {
+        final int halfNumberOfThreads = randomIntBetween(1, 16);
+        final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
+
+        final CyclicBarrier barrier = new CyclicBarrier(1 + 2 * halfNumberOfThreads);
+        for (int i = 0; i < halfNumberOfThreads; i++) {
+            final Thread computeIfAbsentThread = new Thread(() -> {
+                try {
+                    barrier.await();
+                    for (int j = 0; j < numberOfEntries; j++) {
+                        cache.computeIfAbsent(0, k -> Integer.toString(k));
+                    }
+                    barrier.await();
+                } catch (final BrokenBarrierException | ExecutionException | InterruptedException e) {
+                    fail(e.toString());
+                }
+            });
+            computeIfAbsentThread.start();
+
+            final Thread removeThread = new Thread(() -> {
+                try {
+                    barrier.await();
+                    for (int j = 0; j < numberOfEntries; j++) {
+                        cache.values().iterator().remove();
+                    }
+                    barrier.await();
+                } catch (final BrokenBarrierException | InterruptedException e) {
+                    fail(e.toString());
+                }
+            });
+            removeThread.start();
+        }
+
+        // wait for all threads to be ready
+        barrier.await();
+        // wait for all threads to finish
+        barrier.await();
+
+        int count = 0;
+        Cache.Entry<Integer, String> entry = cache.head;
+        while (entry != null) {
+            count++;
+            assertThat(cache.head.state, equalTo(Cache.State.EXISTING));
+            entry = entry.after;
+        }
+
+        assertThat(count, anyOf(equalTo(0), equalTo(1)));
+    }
+
 }

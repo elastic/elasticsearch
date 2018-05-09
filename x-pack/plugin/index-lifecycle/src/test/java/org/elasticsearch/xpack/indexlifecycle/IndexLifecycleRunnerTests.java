@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -508,10 +509,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 () -> now);
         assertClusterStateOnNextStep(clusterState, index, currentStep, nextStep, newClusterState, now);
 
+        Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_PHASE, currentStep.getPhase())
+                .put(LifecycleSettings.LIFECYCLE_ACTION, currentStep.getAction())
+                .put(LifecycleSettings.LIFECYCLE_STEP, currentStep.getName());
+        if (randomBoolean()) {
+            indexSettingsBuilder.put(LifecycleSettings.LIFECYCLE_STEP_INFO, randomAlphaOfLength(20));
+        }
         clusterState = buildClusterState(indexName,
-                Settings.builder().put(LifecycleSettings.LIFECYCLE_PHASE, currentStep.getPhase())
-                        .put(LifecycleSettings.LIFECYCLE_ACTION, currentStep.getAction())
-                        .put(LifecycleSettings.LIFECYCLE_STEP, currentStep.getName()));
+                indexSettingsBuilder);
         index = clusterState.metaData().index(indexName).getIndex();
         newClusterState = IndexLifecycleRunner.moveClusterStateToNextStep(index, clusterState, currentStep, nextStep, () -> now);
         assertClusterStateOnNextStep(clusterState, index, currentStep, nextStep, newClusterState, now);
@@ -529,10 +534,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 () -> now);
         assertClusterStateOnNextStep(clusterState, index, currentStep, nextStep, newClusterState, now);
 
+        Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_PHASE, currentStep.getPhase())
+                .put(LifecycleSettings.LIFECYCLE_ACTION, currentStep.getAction())
+                .put(LifecycleSettings.LIFECYCLE_STEP, currentStep.getName());
+        if (randomBoolean()) {
+            indexSettingsBuilder.put(LifecycleSettings.LIFECYCLE_STEP_INFO, randomAlphaOfLength(20));
+        }
         clusterState = buildClusterState(indexName,
-                Settings.builder().put(LifecycleSettings.LIFECYCLE_PHASE, currentStep.getPhase())
-                        .put(LifecycleSettings.LIFECYCLE_ACTION, currentStep.getAction())
-                        .put(LifecycleSettings.LIFECYCLE_STEP, currentStep.getName()));
+                indexSettingsBuilder);
         index = clusterState.metaData().index(indexName).getIndex();
         newClusterState = IndexLifecycleRunner.moveClusterStateToNextStep(index, clusterState, currentStep, nextStep, () -> now);
         assertClusterStateOnNextStep(clusterState, index, currentStep, nextStep, newClusterState, now);
@@ -550,10 +559,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 () -> now);
         assertClusterStateOnNextStep(clusterState, index, currentStep, nextStep, newClusterState, now);
 
+        Builder indexSettingsBuilder = Settings.builder().put(LifecycleSettings.LIFECYCLE_PHASE, currentStep.getPhase())
+                .put(LifecycleSettings.LIFECYCLE_ACTION, currentStep.getAction())
+                .put(LifecycleSettings.LIFECYCLE_STEP, currentStep.getName());
+        if (randomBoolean()) {
+            indexSettingsBuilder.put(LifecycleSettings.LIFECYCLE_STEP_INFO, randomAlphaOfLength(20));
+        }
         clusterState = buildClusterState(indexName,
-                Settings.builder().put(LifecycleSettings.LIFECYCLE_PHASE, currentStep.getPhase())
-                        .put(LifecycleSettings.LIFECYCLE_ACTION, currentStep.getAction())
-                        .put(LifecycleSettings.LIFECYCLE_STEP, currentStep.getName()));
+                indexSettingsBuilder);
         index = clusterState.metaData().index(indexName).getIndex();
         newClusterState = IndexLifecycleRunner.moveClusterStateToNextStep(index, clusterState, currentStep, nextStep, () -> now);
         assertClusterStateOnNextStep(clusterState, index, currentStep, nextStep, newClusterState, now);
@@ -609,6 +622,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         }
         assertEquals(now, (long) LifecycleSettings.LIFECYCLE_STEP_TIME_SETTING.get(newIndexSettings));
         assertFalse(LifecycleSettings.LIFECYCLE_FAILED_STEP_SETTING.exists(newIndexSettings));
+        assertEquals("", LifecycleSettings.LIFECYCLE_STEP_INFO_SETTING.get(newIndexSettings));
     }
 
     private void assertClusterStateOnErrorStep(ClusterState oldClusterState, Index index, StepKey currentStep, ClusterState newClusterState,

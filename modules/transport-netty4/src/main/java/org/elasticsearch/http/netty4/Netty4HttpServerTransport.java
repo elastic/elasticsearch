@@ -127,9 +127,9 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
      * HTTP request. This number is used for estimating the maximum number of allowed buffers before the MessageAggregator's internal
      * collection of buffers is resized.
      *
-     * By default we assume the Ethernet MTU (1500 bytes) as message size but users can override it with a system property.
+     * By default we assume the Ethernet MTU (1500 bytes) but users can override it with a system property.
      */
-    private static final ByteSizeValue MESSAGE_SIZE = new ByteSizeValue(Long.valueOf(System.getProperty("es.net.message_size", "1500")));
+    private static final ByteSizeValue MTU = new ByteSizeValue(Long.valueOf(System.getProperty("es.net.mtu", "1500")));
 
     private static final String SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS = "http.netty.max_composite_buffer_components";
 
@@ -153,7 +153,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
              * The tradeoff is between less (but larger) buffers that are contained in the CompositeByteBuf and more (but smaller) buffers.
              * With the default max content length of 100MB and a MTU of 1500 bytes we would allow 69905 entries.
              */
-            long maxBufferComponentsEstimate = Math.round((double) (maxContentLength.getBytes() / MESSAGE_SIZE.getBytes()));
+            long maxBufferComponentsEstimate = Math.round((double) (maxContentLength.getBytes() / MTU.getBytes()));
             // clamp value to the allowed range
             long maxBufferComponents = Math.max(2, Math.min(maxBufferComponentsEstimate, Integer.MAX_VALUE));
             return String.valueOf(maxBufferComponents);

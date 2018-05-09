@@ -177,4 +177,24 @@ public class RestClientBuilderTests extends RestClientTestCase {
         }
     }
 
+    /**
+     * This test verifies that we don't change the default value for the connection request timeout as that causes problems.
+     * See https://github.com/elastic/elasticsearch/issues/24069
+     */
+    public void testDefaultConnectionRequestTimeout() throws IOException {
+        RestClientBuilder builder = RestClient.builder(new HttpHost("localhost", 9200));
+        builder.setRequestConfigCallback(new RestClientBuilder.RequestConfigCallback() {
+            @Override
+            public RequestConfig.Builder customizeRequestConfig(RequestConfig.Builder requestConfigBuilder) {
+                RequestConfig requestConfig = requestConfigBuilder.build();
+                assertEquals(RequestConfig.DEFAULT.getConnectionRequestTimeout(), requestConfig.getConnectionRequestTimeout());
+                //this way we get notified if the default ever changes
+                assertEquals(-1, requestConfig.getConnectionRequestTimeout());
+                return requestConfigBuilder;
+            }
+        });
+        try (RestClient restClient = builder.build()) {
+            assertNotNull(restClient);
+        }
+    }
 }

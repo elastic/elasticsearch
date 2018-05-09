@@ -39,10 +39,11 @@ public class NativeStorageProvider {
     /**
      * Removes any temporary storage leftovers.
      *
-     * Removes all temp files and folder which might be there as a result of
-     * an unclean node shutdown or broken clients.
+     * Removes all temp files and folder which might be there as a result of an
+     * unclean node shutdown or broken clients.
      *
      * Do not call while there are running jobs.
+     *
      * @throws IOException if cleanup fails
      */
     public void cleanupLocalTmpStorageInCaseOfUncleanShutdown() throws IOException {

@@ -37,7 +37,8 @@ public class NativeStorageProviderTests extends ESTestCase {
         storage.put(tmpDir, new ByteSizeValue(6, ByteSizeUnit.GB).getBytes());
         NativeStorageProvider storageProvider = createNativeStorageProvider(storage);
 
-        Assert.assertNotNull(storageProvider.tryGetLocalTmpStorage(randomAlphaOfLengthBetween(4, 10), new ByteSizeValue(100, ByteSizeUnit.BYTES)));
+        Assert.assertNotNull(
+                storageProvider.tryGetLocalTmpStorage(randomAlphaOfLengthBetween(4, 10), new ByteSizeValue(100, ByteSizeUnit.BYTES)));
         Assert.assertNull(storageProvider.tryGetLocalTmpStorage(randomAlphaOfLengthBetween(4, 10),
                 new ByteSizeValue(1024 * 1024 * 1024 + 1, ByteSizeUnit.BYTES)));
 

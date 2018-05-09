@@ -43,18 +43,18 @@ cast: '(' TYPE ')' expression
             -> `HashMap reference`;
     assign value of `HashMap reference` to `hm`
 
-[[numeric-casting]]
-==== Numeric Casting
+[[numeric-type-casting]]
+==== Numeric Type Casting
 
-A numeric cast is the conversion of the value of one
+A numeric type cast is the conversion of the value of one
 <<primitive-types, numeric type>> to the equivalent value of an inferred or
 specified <<primitive-types, numeric type>>. Casts between values of
-<<primitive-types, numeric types>> will result in data loss when the value of
-the type converted from is larger than the equivalent value of the type
-converted to can accommodate. Casts between values of integral types and values
-of floating point types will result in precision loss when the value of the
-integral type converted from is unable to accurately represent the equivalent
-value of the floating point type converted to and vice versa.
+numeric types will result in data loss when the value of the type converted from
+is larger than the equivalent value of the type converted to can accommodate.
+Casts between values of integral types and values of floating point types will
+result in precision loss when the value of the integral type converted from is
+unable to accurately represent the equivalent value of the floating point type
+converted to and vice versa.
 
 The table below illustrates legal casts between values of
 <<primitive-types, numeric types>> and if the cast must be explicit.  Each cast
@@ -73,7 +73,7 @@ is read as a conversion of row to column.
 
 *Examples*
 
-* Valid numeric casts.
+* Valid numeric type casts.
 +
 [source,Painless]
 ----
@@ -97,9 +97,9 @@ is read as a conversion of row to column.
     access `a` -> `int 1`;
     explicit cast value of `int 1` to `double 1.0`;
     assign value of `double 1.0` to `e`;
-    (note this cast is extraneous and can be implicit)
+    (note the explicit cast is extraneous, and an implicit cast is valid)
 +
-* Invalid numeric casts resulting in errors.
+* Invalid numeric type casts resulting in errors.
 +
 [source,Painless]
 ----
@@ -109,44 +109,86 @@ is read as a conversion of row to column.
 ----
 +
 <1> declare `int i`;
-    *error* -> cannot implicit cast value of `double 1.0` to `int 1`
+    *error* -> cannot implicit cast value of `double 1.0` to value of `int 1`;
+    (note an explicit cast is valid)
 <2> declare `int b`;
     assign `int 2` to `b`
 <3> declare byte `c`;
     access `b` -> `int 2`;
-    *error* -> cannot implicit cast value of `int 2` to `byte 2`
+    *error* -> cannot implicit cast value of `int 2` to value of `byte 2`;
+    (note an explicit cast is valid)
 
-[[reference-casting]]
-==== Reference Casting
+[[reference-type-casting]]
+==== Reference Type Casting
 
-A reference type can be implicitly cast to another reference type as long as
-the type being cast _from_ is a descendant of the type being cast _to_.  A
-reference type can be explicitly cast _to_ if the type being cast to is a
-descendant of the type being cast _from_.
+A reference type cast is the conversion of the value of one
+<<reference-types, reference type>> to the equivalent value of an inferred or
+specified <<reference-types, reference type>>. Implicit casts between
+reference type values are allowed when the reference type being cast *from*
+is a descendant of the reference type being cast *to*. Explicit casts between
+reference type values are allowed when the reference type being cast *from*
+is a descendant of the reference type being cast *to* or the reference type
+being cast *to* is a descendant of the reference type being cast *from*.
 
-*Examples:*
-[source,Java]
+*Examples*
+
+* Valid reference type casts.
++
+[source,Painless]
 ----
-List x;                        // Declare List variable x
-ArrayList y = new ArrayList(); // Declare ArrayList variable y and assign it a
-                               //   newly allocated ArrayList [1]
-x = y;                         // Assign Arraylist y to List x using an
-                               //   implicit cast
-y = (ArrayList)x;              // Explicitly cast List x to an ArrayList and
-                               //  assign it to ArrayList y
-x = (List)y;                   // Set List x to ArrayList y using an explicit
-                               //   cast (the explicit cast is not necessary)
-y = x;                         // ERROR: List x cannot be implicitly cast to
-                               //   an ArrayList, an explicit cast is required
-Map m = y;                     // ERROR: Cannot implicitly or explicitly cast [2]
-                               //   an ArrayList to a Map, no relationship
-                               //   exists between the two types.
+<1> List x;
+<2> ArrayList y = new ArrayList();
+<3> x = y;
+<4> y = (ArrayList)x;
+<5> x = (List)y;
 ----
-[1] `ArrayList` is a descendant of the `List` type.
-[2] `Map` is unrelated to the `List` and `ArrayList` types.
++
+<1> declare `List x`;
+    assign default value `null` to `x`
+<2> declare `ArrayList y`;
+    allocate `ArrayList` instance -> `ArrayList reference`;
+    assign value of `ArrayList reference` to `y`;
+<3> access `y` -> `ArrayList reference`;
+    implicit cast value of `ArrayList reference` to value of `List reference`
+            -> `List reference`;
+    assign `List reference` to `x`;
+    (note `ArrayList` is a descendant of `List`)
+<4> access `x` -> `List reference`;
+    explicit cast value of `List reference` to value of `ArrayList reference`
+            -> `ArrayList reference`;
+    assign `ArrayList reference` to `y`;
+<5> access `y` -> `ArrayList reference`;
+    explicit cast value of `ArrayList reference` to value of `List reference`
+            -> `List reference`;
+    assign `List reference` to `x`;
+    (note the explicit cast is extraneous, and an implicit cast is valid)
++
+* Invalid reference type casts resulting in errors.
++
+[source,Painless]
+----
+<1> List x = new ArrayList();
+<2> ArrayList y = x;          // error
+<3> Map m = (Map)x;           // error
+----
++
+<1> declare `List x`;
+    allocate `ArrayList` instance -> `ArrayList reference`;
+    implicit cast value of `ArrayList reference` to value of `List reference`
+            -> `List reference`;
+    assign `List reference` to `x`
+<2> declare `ArrayList y`;
+    access `x` -> `List reference`;
+    *error* -> cannot implicit cast `List reference` to `ArrayList reference`;
+    (note an explicit is valid since `ArrayList` is a descendant of `List`)
+<3> declare `ArrayList y`;
+    access `x` -> `List reference`;
+    *error* -> cannot explicit cast `List reference` to `Map reference`;
+    (note no cast would be valid since neither `List` nor `Map` is a descendant
+            of the other)
 
-[[def-type-casting]]
-==== def Type Casting
+[[dynamic-type-casting]]
+==== Dynamic Type Casting
 All primitive and reference types can always be implicitly cast to
 `def`. While it is possible to explicitly cast to `def`, it is not necessary.
 

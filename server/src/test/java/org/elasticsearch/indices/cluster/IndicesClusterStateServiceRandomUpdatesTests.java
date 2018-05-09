@@ -70,6 +70,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -258,8 +259,14 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             }
             String name = "index_" + randomAlphaOfLength(15).toLowerCase(Locale.ROOT);
             Settings.Builder settingsBuilder = Settings.builder()
-                .put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
-                .put(SETTING_NUMBER_OF_REPLICAS, randomInt(2));
+                .put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3));
+            if (randomBoolean()) {
+                int min = randomInt(2);
+                int max = min + randomInt(3);
+                settingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, randomBoolean() ? min + "-" + max : min + "-all");
+            } else {
+                settingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, randomInt(2));
+            }
             CreateIndexRequest request = new CreateIndexRequest(name, settingsBuilder.build()).waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.createIndex(state, request);
             assertTrue(state.metaData().hasIndex(name));
@@ -345,9 +352,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             if (randomBoolean()) {
                 // add node
                 if (state.nodes().getSize() < 10) {
-                    DiscoveryNodes newNodes = DiscoveryNodes.builder(state.nodes()).add(createNode()).build();
-                    state = ClusterState.builder(state).nodes(newNodes).build();
-                    state = cluster.reroute(state, new ClusterRerouteRequest()); // always reroute after node leave
+                    state = cluster.addNodes(state, Collections.singletonList(createNode()));
                     updateNodes(state, clusterStateServiceMap, indicesServiceSupplier);
                 }
             } else {
@@ -355,16 +360,12 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                 if (state.nodes().getDataNodes().size() > 3) {
                     DiscoveryNode discoveryNode = randomFrom(state.nodes().getNodes().values().toArray(DiscoveryNode.class));
                     if (discoveryNode.equals(state.nodes().getMasterNode()) == false) {
-                        DiscoveryNodes newNodes = DiscoveryNodes.builder(state.nodes()).remove(discoveryNode.getId()).build();
-                        state = ClusterState.builder(state).nodes(newNodes).build();
-                        state = cluster.deassociateDeadNodes(state, true, "removed and added a node");
+                        state = cluster.removeNodes(state, Collections.singletonList(discoveryNode));
                         updateNodes(state, clusterStateServiceMap, indicesServiceSupplier);
                     }
                     if (randomBoolean()) {
                         // and add it back
-                        DiscoveryNodes newNodes = DiscoveryNodes.builder(state.nodes()).add(discoveryNode).build();
-                        state = ClusterState.builder(state).nodes(newNodes).build();
-                        state = cluster.reroute(state, new ClusterRerouteRequest());
+                        state = cluster.addNodes(state, Collections.singletonList(discoveryNode));
                         updateNodes(state, clusterStateServiceMap, indicesServiceSupplier);
                     }
                 }

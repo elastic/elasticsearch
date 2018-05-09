@@ -183,23 +183,40 @@ public class WatcherService extends AbstractComponent {
         // by checking the cluster state version before and after loading the watches we can potentially just exit without applying the
         // changes
         processedClusterStateVersion.set(state.getVersion());
-        pauseExecution(reason);
         triggerService.pauseExecution();
+        int cancelledTaskCount = executionService.clearExecutionsAndQueue();
+        logger.info("reloading watcher, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
 
         executor.execute(wrapWatcherService(() -> reloadInner(state, reason, false),
             e -> logger.error("error reloading watcher", e)));
     }
 
-    public void start(ClusterState state) {
+    /**
+     * start the watcher service, load watches in the background
+     *
+     * @param state                     the current cluster state
+     * @param postWatchesLoadedCallback the callback to be triggered, when watches where loaded successfully
+     */
+    public void start(ClusterState state, Runnable postWatchesLoadedCallback) {
+        executionService.unPause();
         processedClusterStateVersion.set(state.getVersion());
-        executor.execute(wrapWatcherService(() -> reloadInner(state, "starting", true),
+        executor.execute(wrapWatcherService(() -> {
+                if (reloadInner(state, "starting", true)) {
+                    postWatchesLoadedCallback.run();
+                }
+            },
             e -> logger.error("error starting watcher", e)));
     }
 
     /**
-     * reload the watches and start scheduling them
+     * reload watches and start scheduling them
+     *
+     * @param state                 the current cluster state
+     * @param reason                the reason for reloading, will be logged
+     * @param loadTriggeredWatches  should triggered watches be loaded in this run, not needed for reloading, only for starting
+     * @return                      true if no other loading of a newer cluster state happened in parallel, false otherwise
      */
-    private synchronized void reloadInner(ClusterState state, String reason, boolean loadTriggeredWatches) {
+    private synchronized boolean reloadInner(ClusterState state, String reason, boolean loadTriggeredWatches) {
         // exit early if another thread has come in between
         if (processedClusterStateVersion.get() != state.getVersion()) {
             logger.debug("watch service has not been reloaded for state [{}], another reload for state [{}] in progress",
@@ -221,9 +238,11 @@ public class WatcherService extends AbstractComponent {
                 executionService.executeTriggeredWatches(triggeredWatches);
             }
             logger.debug("watch service has been reloaded, reason [{}]", reason);
+            return true;
         } else {
             logger.debug("watch service has not been reloaded for state [{}], another reload for state [{}] in progress",
                 state.getVersion(), processedClusterStateVersion.get());
+            return false;
         }
     }
 

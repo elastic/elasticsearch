@@ -264,7 +264,6 @@ public class RestHighLevelClient implements Closeable {
         return snapshotClient;
     }
 
-
     /**
      * Executes a bulk request using the Bulk API
      *

@@ -646,12 +646,13 @@ final class RequestConverters {
     }
 
     static Request getRepositories(GetRepositoriesRequest getRepositoriesRequest) {
-        Request request = new Request(HttpGet.METHOD_NAME, "/_snapshot");
+        String[] repositories = getRepositoriesRequest.repositories() == null ? Strings.EMPTY_ARRAY : getRepositoriesRequest.repositories();
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot").addCommaSeparatedPathParts(repositories).build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         Params parameters = new Params(request);
         parameters.withMasterTimeout(getRepositoriesRequest.masterNodeTimeout());
         parameters.withLocal(getRepositoriesRequest.local());
-        parameters.withRepository(getRepositoriesRequest.repositories());
         return request;
     }
 
@@ -799,13 +800,6 @@ final class RequestConverters {
         Params withRefreshPolicy(WriteRequest.RefreshPolicy refreshPolicy) {
             if (refreshPolicy != WriteRequest.RefreshPolicy.NONE) {
                 return putParam("refresh", refreshPolicy.getValue());
-            }
-            return this;
-        }
-
-        Params withRepository(String[] repositories) {
-            if (repositories != null && repositories.length > 0) {
-                return putParam("repository", Strings.arrayToCommaDelimitedString(repositories));
             }
             return this;
         }

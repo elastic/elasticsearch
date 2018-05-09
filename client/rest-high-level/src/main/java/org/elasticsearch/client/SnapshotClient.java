@@ -42,7 +42,6 @@ public final class SnapshotClient {
         this.restHighLevelClient = restHighLevelClient;
     }
 
-
     /**
      * Gets a list of snapshot repositories. If the list of repositories is empty or it contains a single element "_all", all
      * registered repositories are returned.
@@ -63,7 +62,6 @@ public final class SnapshotClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html"> Snapshot and Restore
      * API on elastic.co</a>
      */
-
     public void getRepositoriesAsync(GetRepositoriesRequest getRepositoriesRequest,
                                      ActionListener<GetRepositoriesResponse> listener, Header... headers) {
         restHighLevelClient.performRequestAsyncAndParseEntity(getRepositoriesRequest, RequestConverters::getRepositories,

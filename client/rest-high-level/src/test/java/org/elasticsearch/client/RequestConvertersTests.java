@@ -1430,18 +1430,20 @@ public class RequestConvertersTests extends ESTestCase {
 
     public void testGetRepositories() {
         Map<String, String> expectedParams = new HashMap<>();
-        expectedParams.put("master_timeout", "30s");
+        StringBuilder endpoint = new StringBuilder("/_snapshot");
 
         GetRepositoriesRequest getRepositoriesRequest = new GetRepositoriesRequest();
+        setRandomMasterTimeout(getRepositoriesRequest, expectedParams);
+        setRandomLocal(getRepositoriesRequest, expectedParams);
 
         if (randomBoolean()) {
             String[] entries = new String[] {"a", "b", "c"};
             getRepositoriesRequest.repositories(entries);
-            expectedParams.put("repository", String.join(",", entries));
+            endpoint.append("/" + String.join(",", entries));
         }
 
         Request request = RequestConverters.getRepositories(getRepositoriesRequest);
-        assertThat("/_snapshot", equalTo(request.getEndpoint()));
+        assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
         assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
         assertThat(expectedParams, equalTo(request.getParameters()));
     }

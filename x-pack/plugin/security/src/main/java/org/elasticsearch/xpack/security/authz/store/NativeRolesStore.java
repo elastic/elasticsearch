@@ -102,7 +102,7 @@ public class NativeRolesStore extends AbstractComponent {
      * Retrieve a list of roles, if rolesToGet is null or empty, fetch all roles
      */
     public void getRoleDescriptors(String[] names, final ActionListener<Collection<RoleDescriptor>> listener) {
-        if (securityLifecycleService.isSecurityIndexExisting() == false) {
+        if (securityLifecycleService.securityIndex().indexExists() == false) {
             // TODO remove this short circuiting and fix tests that fail without this!
             listener.onResponse(Collections.emptyList());
         } else if (names != null && names.length == 1) {
@@ -110,7 +110,7 @@ public class NativeRolesStore extends AbstractComponent {
                     listener.onResponse(roleDescriptor == null ? Collections.emptyList() : Collections.singletonList(roleDescriptor)),
                     listener::onFailure));
         } else {
-            securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+            securityLifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
                 QueryBuilder query;
                 if (names == null || names.length == 0) {
                     query = QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE);
@@ -135,8 +135,8 @@ public class NativeRolesStore extends AbstractComponent {
     }
 
     public void deleteRole(final DeleteRoleRequest deleteRoleRequest, final ActionListener<Boolean> listener) {
-        securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
-            DeleteRequest request = client.prepareDelete(SECURITY_INDEX_NAME,
+        securityLifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+            DeleteRequest request = client.prepareDelete(SecurityLifecycleService.SECURITY_INDEX_NAME,
                     ROLE_DOC_TYPE, getIdForUser(deleteRoleRequest.name())).request();
             request.setRefreshPolicy(deleteRoleRequest.getRefreshPolicy());
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
@@ -168,7 +168,7 @@ public class NativeRolesStore extends AbstractComponent {
 
     // pkg-private for testing
     void innerPutRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
-        securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+        securityLifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             final XContentBuilder xContentBuilder;
             try {
                 xContentBuilder = role.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS, true);
@@ -201,13 +201,13 @@ public class NativeRolesStore extends AbstractComponent {
 
     public void usageStats(ActionListener<Map<String, Object>> listener) {
         Map<String, Object> usageStats = new HashMap<>();
-        if (securityLifecycleService.isSecurityIndexExisting() == false) {
+        if (securityLifecycleService.securityIndex().indexExists() == false) {
             usageStats.put("size", 0L);
             usageStats.put("fls", false);
             usageStats.put("dls", false);
             listener.onResponse(usageStats);
         } else {
-            securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+            securityLifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () ->
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                         client.prepareMultiSearch()
                                 .add(client.prepareSearch(SECURITY_INDEX_NAME)
@@ -263,11 +263,11 @@ public class NativeRolesStore extends AbstractComponent {
     }
 
     private void getRoleDescriptor(final String roleId, ActionListener<RoleDescriptor> roleActionListener) {
-        if (securityLifecycleService.isSecurityIndexExisting() == false) {
+        if (securityLifecycleService.securityIndex().indexExists() == false) {
             // TODO remove this short circuiting and fix tests that fail without this!
             roleActionListener.onResponse(null);
         } else {
-            securityLifecycleService.prepareIndexIfNeededThenExecute(roleActionListener::onFailure, () ->
+            securityLifecycleService.securityIndex().prepareIndexIfNeededThenExecute(roleActionListener::onFailure, () ->
                     executeGetRoleRequest(roleId, new ActionListener<GetResponse>() {
                         @Override
                         public void onResponse(GetResponse response) {
@@ -292,7 +292,7 @@ public class NativeRolesStore extends AbstractComponent {
     }
 
     private void executeGetRoleRequest(String role, ActionListener<GetResponse> listener) {
-        securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+        securityLifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () ->
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                     client.prepareGet(SECURITY_INDEX_NAME,
                             ROLE_DOC_TYPE, getIdForUser(role)).request(),

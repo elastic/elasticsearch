@@ -55,10 +55,8 @@ public class NativeStorageProvider {
     /**
      * Tries to find local storage for storing temporary data.
      *
-     * @param uniqueIdentifier
-     *            An identifier to be used as sub folder
-     * @param requestedSizeAsBytes
-     *            The maximum size required
+     * @param uniqueIdentifier An identifier to be used as sub folder
+     * @param requestedSize The maximum size required
      * @return Path for temporary storage if available, null otherwise
      */
     public Path tryGetLocalTmpStorage(String uniqueIdentifier, ByteSizeValue requestedSize) {

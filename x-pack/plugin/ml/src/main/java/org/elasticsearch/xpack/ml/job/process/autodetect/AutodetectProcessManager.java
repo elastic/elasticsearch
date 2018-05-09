@@ -270,10 +270,8 @@ public class AutodetectProcessManager extends AbstractComponent {
     /**
      * Request temporary storage to be used for the job
      *
-     * @param jobTask
-     *            The job task
-     * @param requestedSizeAsBytes
-     *            requested size
+     * @param jobTask The job task
+     * @param requestedSize requested size
      * @return a Path to local storage or null if storage is not available
      */
     public Path tryGetTmpStorage(JobTask jobTask, ByteSizeValue requestedSize) {

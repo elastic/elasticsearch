@@ -7,11 +7,10 @@
 package org.elasticsearch.xpack.ml.job.process;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
@@ -21,7 +20,6 @@ import java.nio.file.Path;
 /**
  * Provide storage for native components.
  */
-@SuppressForbidden(reason = "provides storage to external components")
 public class NativeStorageProvider {
 
     private static final Logger LOGGER = Loggers.getLogger(NativeStorageProvider.class);
@@ -47,7 +45,7 @@ public class NativeStorageProvider {
      * Do not call while there are running jobs.
      * @throws IOException if cleanup fails
      */
-    public void cleanupLocalTmpStorageInCaseOfUncleanShutdown () throws IOException {
+    public void cleanupLocalTmpStorageInCaseOfUncleanShutdown() throws IOException {
         for (Path p : environment.dataFiles()) {
             IOUtils.rm(p.resolve(LOCAL_STORAGE_SUBFOLDER).resolve(LOCAL_STORAGE_TMP_FOLDER));
         }
@@ -71,7 +69,7 @@ public class NativeStorageProvider {
                     return tmpDirectory;
                 }
             } catch (IOException e) {
-                LOGGER.debug("Failed to optain information about path [{}]: {}", path, e);
+                LOGGER.debug("Failed to obtain information about path [{}]: {}", path, e);
             }
 
         }

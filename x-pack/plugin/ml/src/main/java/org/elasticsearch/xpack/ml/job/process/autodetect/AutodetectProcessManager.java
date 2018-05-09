@@ -520,7 +520,7 @@ public class AutodetectProcessManager extends AbstractComponent {
             try {
                 removeTmpStorage(jobTask.getJobId());
             } catch (IOException e) {
-                logger.error(new ParameterizedMessage("[{}]Failed to delete temporay files", jobTask.getJobId()), e);
+                logger.error(new ParameterizedMessage("[{}] Failed to delete temporary files", jobTask.getJobId()), e);
             }
         };
     }
@@ -584,7 +584,7 @@ public class AutodetectProcessManager extends AbstractComponent {
         try {
             removeTmpStorage(jobId);
         } catch (IOException e) {
-            logger.error(new ParameterizedMessage("[{}]Failed to delete temporay files", jobId), e);
+            logger.error(new ParameterizedMessage("[{}]Failed to delete temporary files", jobId), e);
         }
     }
 

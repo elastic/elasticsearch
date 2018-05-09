@@ -35,7 +35,6 @@ import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
@@ -85,7 +84,6 @@ import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -127,7 +125,6 @@ public class InternalEngine extends Engine {
     private final LiveVersionMap versionMap = new LiveVersionMap();
 
     private volatile SegmentInfos lastCommittedSegmentInfos;
-    private volatile CommitStats lastComputedCommitStats;
 
     private final IndexThrottle throttle;
 
@@ -1853,35 +1850,6 @@ public class InternalEngine extends Engine {
     @Override
     protected SegmentInfos getLastCommittedSegmentInfos() {
         return lastCommittedSegmentInfos;
-    }
-
-    @Override
-    public CommitStats commitStats(boolean requireExactNumDocs) {
-        if (softDeleteEnabled == false || requireExactNumDocs == false) {
-            final SegmentInfos sis = this.lastCommittedSegmentInfos;
-            return new CommitStats(sis, Lucene.getNumDocs(sis));
-        }
-        // Need to retain the commit as we might open it.
-        try (IndexCommitRef commitRef = acquireLastIndexCommit(false)) {
-            final IndexCommit indexCommit = commitRef.getIndexCommit();
-            CommitStats commitStats = this.lastComputedCommitStats;
-            if (commitStats != null && commitStats.getGeneration() == indexCommit.getGeneration()) {
-                return commitStats;
-            }
-            try (DirectoryReader reader = DirectoryReader.open(indexCommit)) {
-                final int numDocs = new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETE_FIELD).numDocs();
-                commitStats = new CommitStats(Lucene.readSegmentInfos(indexCommit), numDocs);
-                this.lastComputedCommitStats = commitStats;
-                return commitStats;
-            }
-        } catch (IOException e) {
-            try {
-                maybeFailEngine("commit_stats", e);
-            } catch (Exception inner) {
-                e.addSuppressed(inner);
-            }
-            throw new UncheckedIOException(e);
-        }
     }
 
     @Override

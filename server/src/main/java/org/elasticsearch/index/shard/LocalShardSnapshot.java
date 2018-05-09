@@ -66,7 +66,7 @@ final class LocalShardSnapshot implements Closeable {
     }
 
     long maxUnsafeAutoIdTimestamp() {
-        return Long.parseLong(shard.commitStats(false).getUserData().get(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID));
+        return Long.parseLong(shard.getEngine().commitStats().getUserData().get(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID));
     }
 
     Directory getSnapshotDirectory() {

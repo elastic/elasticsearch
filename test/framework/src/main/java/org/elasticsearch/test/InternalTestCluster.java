@@ -1116,14 +1116,7 @@ public final class InternalTestCluster extends TestCluster {
             IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
             for (IndexService indexService : indexServices) {
                 for (IndexShard indexShard : indexService) {
-                    final CommitStats commitStats;
-                    try {
-                        // In some corrupted tests, we leave a corrupted index with which we may not be able to read commit stats.
-                        commitStats = indexShard.commitStats(true);
-                    } catch (Exception ex) {
-                        logger.warn("Failed to get commit_stats", ex);
-                        continue;
-                    }
+                    CommitStats commitStats = indexShard.commitStats();
                     if (commitStats != null) { // null if the engine is closed or if the shard is recovering
                         String syncId = commitStats.getUserData().get(Engine.SYNC_COMMIT_ID);
                         if (syncId != null) {

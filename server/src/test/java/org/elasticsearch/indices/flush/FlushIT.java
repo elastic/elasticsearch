@@ -334,12 +334,12 @@ public class FlushIT extends ESIntegTestCase {
             .getShardOrNull(shardId);
         if (randomBoolean()) {
             // Change the existing sync-id of a single shard.
-            shard.syncFlush(UUIDs.randomBase64UUID(random()), shard.commitStats(randomBoolean()).getRawCommitId());
-            assertThat(shard.commitStats(randomBoolean()).syncId(), not(equalTo(thirdSeal.syncId())));
+            shard.syncFlush(UUIDs.randomBase64UUID(random()), shard.commitStats().getRawCommitId());
+            assertThat(shard.commitStats().syncId(), not(equalTo(thirdSeal.syncId())));
         } else {
             // Flush will create a new commit without sync-id
             shard.flush(new FlushRequest(shardId.getIndexName()).force(true).waitIfOngoing(true));
-            assertThat(shard.commitStats(randomBoolean()).syncId(), nullValue());
+            assertThat(shard.commitStats().syncId(), nullValue());
         }
         final ShardsSyncedFlushResult forthSeal = SyncedFlushUtil.attemptSyncedFlush(logger, internalCluster(), shardId);
         logger.info("Forth seal: {}", syncedFlushDescription(forthSeal));

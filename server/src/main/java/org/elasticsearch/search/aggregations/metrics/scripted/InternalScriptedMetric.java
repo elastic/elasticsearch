@@ -22,7 +22,7 @@ package org.elasticsearch.search.aggregations.metrics.scripted;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.script.MetricAggScripts;
+import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -93,11 +93,13 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
             if (firstAggregation.reduceScript.getParams() != null) {
                 params.putAll(firstAggregation.reduceScript.getParams());
             }
+
+            // Add _aggs to params map for backwards compatibility (redundant with a context variable on the ReduceScript created below).
             params.put("_aggs", aggregationObjects);
 
-            MetricAggScripts.ReduceScript.Factory factory = reduceContext.scriptService().compile(
-                firstAggregation.reduceScript, MetricAggScripts.ReduceScript.CONTEXT);
-            MetricAggScripts.ReduceScript script = factory.newInstance(params, aggregationObjects);
+            ScriptedMetricAggContexts.ReduceScript.Factory factory = reduceContext.scriptService().compile(
+                firstAggregation.reduceScript, ScriptedMetricAggContexts.ReduceScript.CONTEXT);
+            ScriptedMetricAggContexts.ReduceScript script = factory.newInstance(params, aggregationObjects);
             aggregation = Collections.singletonList(script.execute());
         } else if (reduceContext.isFinalReduce())  {
             aggregation = Collections.singletonList(aggregationObjects);

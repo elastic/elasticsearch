@@ -26,7 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.script.MetricAggScripts;
+import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -201,25 +201,25 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         // Extract params from scripts and pass them along to ScriptedMetricAggregatorFactory, since it won't have
         // access to them for the scripts it's given precompiled.
 
-        MetricAggScripts.InitScript.Factory compiledInitScript;
+        ScriptedMetricAggContexts.InitScript.Factory compiledInitScript;
         Map<String, Object> initScriptParams;
         if (initScript != null) {
-            compiledInitScript = queryShardContext.getScriptService().compile(initScript, MetricAggScripts.InitScript.CONTEXT);
+            compiledInitScript = queryShardContext.getScriptService().compile(initScript, ScriptedMetricAggContexts.InitScript.CONTEXT);
             initScriptParams = initScript.getParams();
         } else {
             compiledInitScript = (p, a) -> null;
             initScriptParams = Collections.emptyMap();
         }
 
-        MetricAggScripts.MapScript.Factory compiledMapScript = queryShardContext.getScriptService().compile(mapScript,
-            MetricAggScripts.MapScript.CONTEXT);
+        ScriptedMetricAggContexts.MapScript.Factory compiledMapScript = queryShardContext.getScriptService().compile(mapScript,
+            ScriptedMetricAggContexts.MapScript.CONTEXT);
         Map<String, Object> mapScriptParams = mapScript.getParams();
 
-        MetricAggScripts.CombineScript.Factory compiledCombineScript;
+        ScriptedMetricAggContexts.CombineScript.Factory compiledCombineScript;
         Map<String, Object> combineScriptParams;
         if (combineScript != null) {
             compiledCombineScript = queryShardContext.getScriptService().compile(combineScript,
-                MetricAggScripts.CombineScript.CONTEXT);
+                ScriptedMetricAggContexts.CombineScript.CONTEXT);
             combineScriptParams = combineScript.getParams();
         } else {
             compiledCombineScript = (p, a) -> null;

@@ -21,7 +21,6 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Doc;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Field;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Query;
@@ -109,17 +108,17 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(SimilarityWeightScript.class)) {
             SimilarityWeightScript.Factory factory = mockCompiled::createSimilarityWeightScript;
             return context.factoryClazz.cast(factory);
-        } else if (context.instanceClazz.equals(MetricAggScripts.InitScript.class)) {
-            MetricAggScripts.InitScript.Factory factory = mockCompiled::createMetricAggInitScript;
+        } else if (context.instanceClazz.equals(ScriptedMetricAggContexts.InitScript.class)) {
+            ScriptedMetricAggContexts.InitScript.Factory factory = mockCompiled::createMetricAggInitScript;
             return context.factoryClazz.cast(factory);
-        } else if (context.instanceClazz.equals(MetricAggScripts.MapScript.class)) {
-            MetricAggScripts.MapScript.Factory factory = mockCompiled::createMetricAggMapScript;
+        } else if (context.instanceClazz.equals(ScriptedMetricAggContexts.MapScript.class)) {
+            ScriptedMetricAggContexts.MapScript.Factory factory = mockCompiled::createMetricAggMapScript;
             return context.factoryClazz.cast(factory);
-        } else if (context.instanceClazz.equals(MetricAggScripts.CombineScript.class)) {
-            MetricAggScripts.CombineScript.Factory factory = mockCompiled::createMetricAggCombineScript;
+        } else if (context.instanceClazz.equals(ScriptedMetricAggContexts.CombineScript.class)) {
+            ScriptedMetricAggContexts.CombineScript.Factory factory = mockCompiled::createMetricAggCombineScript;
             return context.factoryClazz.cast(factory);
-        } else if (context.instanceClazz.equals(MetricAggScripts.ReduceScript.class)) {
-            MetricAggScripts.ReduceScript.Factory factory = mockCompiled::createMetricAggReduceScript;
+        } else if (context.instanceClazz.equals(ScriptedMetricAggContexts.ReduceScript.class)) {
+            ScriptedMetricAggContexts.ReduceScript.Factory factory = mockCompiled::createMetricAggReduceScript;
             return context.factoryClazz.cast(factory);
         }
         throw new IllegalArgumentException("mock script engine does not know how to handle context [" + context.name + "]");
@@ -182,20 +181,20 @@ public class MockScriptEngine implements ScriptEngine {
             return new MockSimilarityWeightScript(script != null ? script : ctx -> 42d);
         }
 
-        public MetricAggScripts.InitScript createMetricAggInitScript(Map<String, Object> params, Object agg) {
+        public ScriptedMetricAggContexts.InitScript createMetricAggInitScript(Map<String, Object> params, Object agg) {
             return new MockMetricAggInitScript(params, agg, script != null ? script : ctx -> 42d);
         }
 
-        public MetricAggScripts.MapScript.LeafFactory createMetricAggMapScript(Map<String, Object> params, Object agg,
-                                                                               SearchLookup lookup) {
+        public ScriptedMetricAggContexts.MapScript.LeafFactory createMetricAggMapScript(Map<String, Object> params, Object agg,
+                                                                                        SearchLookup lookup) {
             return new MockMetricAggMapScript(params, agg, lookup, script != null ? script : ctx -> 42d);
         }
 
-        public MetricAggScripts.CombineScript createMetricAggCombineScript(Map<String, Object> params, Object agg) {
+        public ScriptedMetricAggContexts.CombineScript createMetricAggCombineScript(Map<String, Object> params, Object agg) {
             return new MockMetricAggCombineScript(params, agg, script != null ? script : ctx -> 42d);
         }
 
-        public MetricAggScripts.ReduceScript createMetricAggReduceScript(Map<String, Object> params, List<Object> aggs) {
+        public ScriptedMetricAggContexts.ReduceScript createMetricAggReduceScript(Map<String, Object> params, List<Object> aggs) {
             return new MockMetricAggReduceScript(params, aggs, script != null ? script : ctx -> 42d);
         }
     }
@@ -352,7 +351,7 @@ public class MockScriptEngine implements ScriptEngine {
         }
     }
 
-    public class MockMetricAggInitScript extends MetricAggScripts.InitScript {
+    public class MockMetricAggInitScript extends ScriptedMetricAggContexts.InitScript {
         private final Function<Map<String, Object>, Object> script;
 
         MockMetricAggInitScript(Map<String, Object> params, Object agg,
@@ -374,7 +373,7 @@ public class MockScriptEngine implements ScriptEngine {
         }
     }
 
-    public class MockMetricAggMapScript implements MetricAggScripts.MapScript.LeafFactory {
+    public class MockMetricAggMapScript implements ScriptedMetricAggContexts.MapScript.LeafFactory {
         private final Map<String, Object> params;
         private final Object agg;
         private final SearchLookup lookup;
@@ -389,8 +388,8 @@ public class MockScriptEngine implements ScriptEngine {
         }
 
         @Override
-        public MetricAggScripts.MapScript newInstance(LeafReaderContext context) {
-            return new MetricAggScripts.MapScript(params, agg, lookup, context) {
+        public ScriptedMetricAggContexts.MapScript newInstance(LeafReaderContext context) {
+            return new ScriptedMetricAggContexts.MapScript(params, agg, lookup, context) {
                 @Override
                 public void execute(double _score) {
                     Map<String, Object> map = new HashMap<>();
@@ -410,7 +409,7 @@ public class MockScriptEngine implements ScriptEngine {
         }
     }
 
-    public class MockMetricAggCombineScript extends MetricAggScripts.CombineScript {
+    public class MockMetricAggCombineScript extends ScriptedMetricAggContexts.CombineScript {
         private final Function<Map<String, Object>, Object> script;
 
         MockMetricAggCombineScript(Map<String, Object> params, Object agg,
@@ -432,7 +431,7 @@ public class MockScriptEngine implements ScriptEngine {
         }
     }
 
-    public class MockMetricAggReduceScript extends MetricAggScripts.ReduceScript {
+    public class MockMetricAggReduceScript extends ScriptedMetricAggContexts.ReduceScript {
         private final Function<Map<String, Object>, Object> script;
 
         MockMetricAggReduceScript(Map<String, Object> params, List<Object> aggs,

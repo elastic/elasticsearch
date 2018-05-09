@@ -22,7 +22,7 @@ package org.elasticsearch.search.aggregations.metrics.scripted;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.script.MetricAggScripts;
+import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -38,17 +38,17 @@ import java.util.Map;
 
 public class ScriptedMetricAggregator extends MetricsAggregator {
 
-    private final MetricAggScripts.MapScript.LeafFactory mapScript;
-    private final MetricAggScripts.CombineScript combineScript;
+    private final ScriptedMetricAggContexts.MapScript.LeafFactory mapScript;
+    private final ScriptedMetricAggContexts.CombineScript combineScript;
     private final Script reduceScript;
-    private Map<String, Object> params;
+    private Object agg;
 
-    protected ScriptedMetricAggregator(String name, MetricAggScripts.MapScript.LeafFactory mapScript, MetricAggScripts.CombineScript combineScript,
-                                       Script reduceScript,
-            Map<String, Object> params, SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-            throws IOException {
+    protected ScriptedMetricAggregator(String name, ScriptedMetricAggContexts.MapScript.LeafFactory mapScript, ScriptedMetricAggContexts.CombineScript combineScript,
+                                       Script reduceScript, Object agg, SearchContext context, Aggregator parent,
+                                       List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+                                       throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
-        this.params = params;
+        this.agg = agg;
         this.mapScript = mapScript;
         this.combineScript = combineScript;
         this.reduceScript = reduceScript;
@@ -62,7 +62,7 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
             final LeafBucketCollector sub) throws IOException {
-        final MetricAggScripts.MapScript leafMapScript = mapScript.newInstance(ctx);
+        final ScriptedMetricAggContexts.MapScript leafMapScript = mapScript.newInstance(ctx);
         return new LeafBucketCollectorBase(sub, leafMapScript) {
             private Scorer scorer;
 
@@ -93,7 +93,7 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
             aggregation = combineScript.execute();
             CollectionUtils.ensureNoSelfReferences(aggregation);
         } else {
-            aggregation = params.get("_agg");
+            aggregation = agg;
         }
         return new InternalScriptedMetric(name, aggregation, reduceScript, pipelineAggregators(),
                 metaData());

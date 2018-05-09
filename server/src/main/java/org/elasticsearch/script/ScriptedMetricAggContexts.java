@@ -27,7 +27,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.util.List;
 import java.util.Map;
 
-public class MetricAggScripts {
+public class ScriptedMetricAggContexts {
     private abstract static class ParamsAndAggBase {
         private final Map<String, Object> params;
         private final Object agg;

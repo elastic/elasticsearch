@@ -20,7 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.spi.Whitelist;
-import org.elasticsearch.script.MetricAggScripts;
+import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.script.ScriptContext;
 
 import java.util.ArrayList;
@@ -29,27 +29,27 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class MetricAggScriptsTests extends ScriptTestCase {
+public class ScriptedMetricAggContextsTests extends ScriptTestCase {
     @Override
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
-        contexts.put(MetricAggScripts.InitScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(MetricAggScripts.MapScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(MetricAggScripts.CombineScript.CONTEXT, Whitelist.BASE_WHITELISTS);
-        contexts.put(MetricAggScripts.ReduceScript.CONTEXT, Whitelist.BASE_WHITELISTS);
+        contexts.put(ScriptedMetricAggContexts.InitScript.CONTEXT, Whitelist.BASE_WHITELISTS);
+        contexts.put(ScriptedMetricAggContexts.MapScript.CONTEXT, Whitelist.BASE_WHITELISTS);
+        contexts.put(ScriptedMetricAggContexts.CombineScript.CONTEXT, Whitelist.BASE_WHITELISTS);
+        contexts.put(ScriptedMetricAggContexts.ReduceScript.CONTEXT, Whitelist.BASE_WHITELISTS);
         return contexts;
     }
 
     public void testInitBasic() {
-        MetricAggScripts.InitScript.Factory factory = scriptEngine.compile("test",
-            "agg.testField = params.initialVal", MetricAggScripts.InitScript.CONTEXT, Collections.emptyMap());
+        ScriptedMetricAggContexts.InitScript.Factory factory = scriptEngine.compile("test",
+            "agg.testField = params.initialVal", ScriptedMetricAggContexts.InitScript.CONTEXT, Collections.emptyMap());
 
         Map<String, Object> params = new HashMap<>();
         Map<String, Object> agg = new HashMap<>();
 
         params.put("initialVal", 10);
 
-        MetricAggScripts.InitScript script = factory.newInstance(params, agg);
+        ScriptedMetricAggContexts.InitScript script = factory.newInstance(params, agg);
         script.execute();
 
         assert(agg.containsKey("testField"));
@@ -57,15 +57,15 @@ public class MetricAggScriptsTests extends ScriptTestCase {
     }
 
     public void testMapBasic() {
-        MetricAggScripts.MapScript.Factory factory = scriptEngine.compile("test",
-            "agg.testField = 2*_score", MetricAggScripts.MapScript.CONTEXT, Collections.emptyMap());
+        ScriptedMetricAggContexts.MapScript.Factory factory = scriptEngine.compile("test",
+            "agg.testField = 2*_score", ScriptedMetricAggContexts.MapScript.CONTEXT, Collections.emptyMap());
 
         Map<String, Object> params = new HashMap<>();
         Map<String, Object> agg = new HashMap<>();
         double _score = 0.5;
 
-        MetricAggScripts.MapScript.LeafFactory leafFactory = factory.newFactory(params, agg, null);
-        MetricAggScripts.MapScript script = leafFactory.newInstance(null);
+        ScriptedMetricAggContexts.MapScript.LeafFactory leafFactory = factory.newFactory(params, agg, null);
+        ScriptedMetricAggContexts.MapScript script = leafFactory.newInstance(null);
 
         script.execute(_score);
 
@@ -74,8 +74,8 @@ public class MetricAggScriptsTests extends ScriptTestCase {
     }
 
     public void testCombineBasic() {
-        MetricAggScripts.CombineScript.Factory factory = scriptEngine.compile("test",
-            "agg.testField = params.initialVal; return agg.testField + params.inc", MetricAggScripts.CombineScript.CONTEXT,
+        ScriptedMetricAggContexts.CombineScript.Factory factory = scriptEngine.compile("test",
+            "agg.testField = params.initialVal; return agg.testField + params.inc", ScriptedMetricAggContexts.CombineScript.CONTEXT,
             Collections.emptyMap());
 
         Map<String, Object> params = new HashMap<>();
@@ -84,7 +84,7 @@ public class MetricAggScriptsTests extends ScriptTestCase {
         params.put("initialVal", 10);
         params.put("inc", 2);
 
-        MetricAggScripts.CombineScript script = factory.newInstance(params, agg);
+        ScriptedMetricAggContexts.CombineScript script = factory.newInstance(params, agg);
         Object res = script.execute();
 
         assert(agg.containsKey("testField"));
@@ -93,8 +93,8 @@ public class MetricAggScriptsTests extends ScriptTestCase {
     }
 
     public void testReduceBasic() {
-        MetricAggScripts.ReduceScript.Factory factory = scriptEngine.compile("test",
-            "aggs[0].testField + aggs[1].testField", MetricAggScripts.ReduceScript.CONTEXT, Collections.emptyMap());
+        ScriptedMetricAggContexts.ReduceScript.Factory factory = scriptEngine.compile("test",
+            "aggs[0].testField + aggs[1].testField", ScriptedMetricAggContexts.ReduceScript.CONTEXT, Collections.emptyMap());
 
         Map<String, Object> params = new HashMap<>();
         List<Object> aggs = new ArrayList<>();
@@ -106,7 +106,7 @@ public class MetricAggScriptsTests extends ScriptTestCase {
         aggs.add(agg1);
         aggs.add(agg2);
 
-        MetricAggScripts.ReduceScript script = factory.newInstance(params, aggs);
+        ScriptedMetricAggContexts.ReduceScript script = factory.newInstance(params, aggs);
         Object res = script.execute();
         assertEquals(3, res);
     }

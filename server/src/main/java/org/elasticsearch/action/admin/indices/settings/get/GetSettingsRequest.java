@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.settings.get;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ValidateActions;
@@ -29,6 +30,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Objects;
 
 public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest> implements IndicesRequest.Replaceable {
 
@@ -36,6 +39,7 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true);
     private String[] names = Strings.EMPTY_ARRAY;
     private boolean humanReadable = false;
+    private boolean includeDefaults = false;
 
     @Override
     public GetSettingsRequest indices(String... indices) {
@@ -46,6 +50,43 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
     public GetSettingsRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return this;
+    }
+
+    /**
+     * When include_defaults is set, return default values which are normally suppressed.
+     * This flag is specific to the rest client.
+     */
+    public GetSettingsRequest includeDefaults(boolean includeDefaults) {
+        this.includeDefaults = includeDefaults;
+        return this;
+    }
+
+
+    public GetSettingsRequest() {
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        names = in.readStringArray();
+        humanReadable = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+            includeDefaults = in.readBoolean();
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeStringArray(indices);
+        indicesOptions.writeIndicesOptions(out);
+        out.writeStringArray(names);
+        out.writeBoolean(humanReadable);
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+            out.writeBoolean(includeDefaults);
+        }
     }
 
     @Override
@@ -76,6 +117,10 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
         return this;
     }
 
+    public boolean includeDefaults() {
+        return includeDefaults;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -86,20 +131,22 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-        names = in.readStringArray();
-        humanReadable = in.readBoolean();
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        GetSettingsRequest that = (GetSettingsRequest) o;
+        return humanReadable == that.humanReadable &&
+            includeDefaults == that.includeDefaults &&
+            Arrays.equals(indices, that.indices) &&
+            Objects.equals(indicesOptions, that.indicesOptions) &&
+            Arrays.equals(names, that.names);
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringArray(indices);
-        indicesOptions.writeIndicesOptions(out);
-        out.writeStringArray(names);
-        out.writeBoolean(humanReadable);
+    public int hashCode() {
+        int result = Objects.hash(indicesOptions, humanReadable, includeDefaults);
+        result = 31 * result + Arrays.hashCode(indices);
+        result = 31 * result + Arrays.hashCode(names);
+        return result;
     }
 }

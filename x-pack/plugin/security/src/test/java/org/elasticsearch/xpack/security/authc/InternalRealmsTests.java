@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -30,11 +31,14 @@ import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.when;
 
 public class InternalRealmsTests extends ESTestCase {
 
     public void testNativeRealmRegistersIndexHealthChangeListener() throws Exception {
         SecurityLifecycleService lifecycleService = mock(SecurityLifecycleService.class);
+        SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
+        when(lifecycleService.securityIndex()).thenReturn(securityIndex);
         Map<String, Realm.Factory> factories = InternalRealms.getFactories(mock(ThreadPool.class), mock(ResourceWatcherService.class),
                 mock(SSLService.class), mock(NativeUsersStore.class), mock(NativeRoleMappingStore.class), lifecycleService);
         assertThat(factories, hasEntry(is(NativeRealmSettings.TYPE), any(Realm.Factory.class)));
@@ -43,10 +47,10 @@ public class InternalRealmsTests extends ESTestCase {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         factories.get(NativeRealmSettings.TYPE).create(new RealmConfig("test", Settings.EMPTY, settings,
             TestEnvironment.newEnvironment(settings), new ThreadContext(settings)));
-        verify(lifecycleService).addSecurityIndexHealthChangeListener(isA(BiConsumer.class));
+        verify(securityIndex).addIndexHealthChangeListener(isA(BiConsumer.class));
 
         factories.get(NativeRealmSettings.TYPE).create(new RealmConfig("test", Settings.EMPTY, settings,
             TestEnvironment.newEnvironment(settings), new ThreadContext(settings)));
-        verify(lifecycleService, times(2)).addSecurityIndexHealthChangeListener(isA(BiConsumer.class));
+        verify(securityIndex, times(2)).addIndexHealthChangeListener(isA(BiConsumer.class));
     }
 }

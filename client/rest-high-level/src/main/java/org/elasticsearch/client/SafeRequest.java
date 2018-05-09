@@ -40,7 +40,7 @@ public class SafeRequest {
     /**
      * Set the headers to attach to the request.
      */
-    public void setHeaders(Header[] headers) {
+    public void setHeaders(Header... headers) {
         request.setHeaders(headers);
     }
 

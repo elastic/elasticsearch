@@ -182,6 +182,7 @@ import static java.util.stream.Collectors.toList;
  * This class can also be sub-classed to expose additional client methods that make use of endpoints added to Elasticsearch through
  * plugins, or to add support for custom response sections, again added to Elasticsearch through plugins.
  */
+@SuppressWarnings("overloads") // NOCOMMIT remove the bad overloads
 public class RestHighLevelClient implements Closeable {
 
     private final RestClient client;
@@ -268,7 +269,7 @@ public class RestHighLevelClient implements Closeable {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
      */
     public final BulkResponse bulk(BulkRequest bulkRequest, Consumer<SafeRequest> customizer) throws IOException {
-        return performRequestAndParseEntity(bulkRequest, customize(RequestConverters::bulk, customizer),
+        return performRequestAndParseEntity(bulkRequest, RequestConverters::bulk, customizer,
                 BulkResponse::fromXContent, emptySet());
     }
 
@@ -280,8 +281,7 @@ public class RestHighLevelClient implements Closeable {
      */
     @Deprecated
     public final BulkResponse bulk(BulkRequest bulkRequest, Header... headers) throws IOException {
-        return performRequestAndParseEntity(bulkRequest, customize(RequestConverters::bulk, headers),
-                BulkResponse::fromXContent, emptySet(), headers);
+        return performRequestAndParseEntity(bulkRequest, RequestConverters::bulk, BulkResponse::fromXContent, emptySet(), headers);
     }
 
     /**
@@ -299,7 +299,7 @@ public class RestHighLevelClient implements Closeable {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
      */
     public final void bulkAsync(BulkRequest bulkRequest, Consumer<SafeRequest> customizer, ActionListener<BulkResponse> listener) {
-        performRequestAsyncAndParseEntity(bulkRequest, customize(RequestConverters::bulk, customizer),
+        performRequestAsyncAndParseEntity(bulkRequest, RequestConverters::bulk, customizer,
                 BulkResponse::fromXContent, listener, emptySet());
     }
 
@@ -581,21 +581,6 @@ public class RestHighLevelClient implements Closeable {
     }
 
     @Deprecated
-    protected final <Req extends ActionRequest> CheckedFunction<Req, Request, IOException> customize(
-            CheckedFunction<Req, Request, IOException> requestConverter, Header[] headers) {
-        return customize(requestConverter, r -> r.setHeaders(headers));
-    }
-
-    protected final <Req extends ActionRequest> CheckedFunction<Req, Request, IOException> customize(
-            CheckedFunction<Req, Request, IOException> requestConverter, Consumer<SafeRequest> customizer) {
-        return r -> {
-            Request request = requestConverter.apply(r);
-            customizer.accept(new SafeRequest(request));
-            return request;
-        };
-    }
-
-    // TODO drop headers
     protected final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
                                                                             CheckedFunction<Req, Request, IOException> requestConverter,
                                                                             CheckedFunction<XContentParser, Resp, IOException> entityParser,
@@ -603,17 +588,35 @@ public class RestHighLevelClient implements Closeable {
         return performRequest(request, requestConverter, (response) -> parseEntity(response.getEntity(), entityParser), ignores, headers);
     }
 
-    // TODO drop headers
+    protected final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
+                                                                            CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                            Consumer<SafeRequest> requestCustomizer,
+                                                                            CheckedFunction<XContentParser, Resp, IOException> entityParser,
+                                                                            Set<Integer> ignores) throws IOException {
+        return performRequest(request, requestConverter, requestCustomizer,
+                response -> parseEntity(response.getEntity(), entityParser), ignores);
+    }
+
+
+    @Deprecated
     protected final <Req extends ActionRequest, Resp> Resp performRequest(Req request,
                                                           CheckedFunction<Req, Request, IOException> requestConverter,
                                                           CheckedFunction<Response, Resp, IOException> responseConverter,
                                                           Set<Integer> ignores, Header... headers) throws IOException {
+        return performRequest(request, requestConverter, r -> r.setHeaders(headers), responseConverter, ignores);
+    }
+
+    protected final <Req extends ActionRequest, Resp> Resp performRequest(Req request,
+                                                          CheckedFunction<Req, Request, IOException> requestConverter,
+                                                          Consumer<SafeRequest> requestCustomizer,
+                                                          CheckedFunction<Response, Resp, IOException> responseConverter,
+                                                          Set<Integer> ignores) throws IOException {
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null) {
             throw validationException;
         }
         Request req = requestConverter.apply(request);
-        req.setHeaders(headers);
+        requestCustomizer.accept(new SafeRequest(req));
         Response response;
         try {
             response = client.performRequest(req);
@@ -639,7 +642,7 @@ public class RestHighLevelClient implements Closeable {
         }
     }
 
-    // TODO drop headers
+    @Deprecated
     protected final <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request,
                                                                  CheckedFunction<Req, Request, IOException> requestConverter,
                                                                  CheckedFunction<XContentParser, Resp, IOException> entityParser,
@@ -648,11 +651,28 @@ public class RestHighLevelClient implements Closeable {
                 listener, ignores, headers);
     }
 
-    // TODO drop headers
+    protected final <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request,
+                                                                 CheckedFunction<Req, Request, IOException> requestConverter,
+                                                                 Consumer<SafeRequest> requestCustomizer,
+                                                                 CheckedFunction<XContentParser, Resp, IOException> entityParser,
+                                                                 ActionListener<Resp> listener, Set<Integer> ignores) {
+        performRequestAsync(request, requestConverter, requestCustomizer,
+                response -> parseEntity(response.getEntity(), entityParser), listener, ignores);
+    }
+
+    @Deprecated
     protected final <Req extends ActionRequest, Resp> void performRequestAsync(Req request,
                                                                CheckedFunction<Req, Request, IOException> requestConverter,
                                                                CheckedFunction<Response, Resp, IOException> responseConverter,
                                                                ActionListener<Resp> listener, Set<Integer> ignores, Header... headers) {
+        performRequestAsync(request, requestConverter, r -> r.setHeaders(headers), responseConverter, listener, ignores);
+    }
+
+    protected final <Req extends ActionRequest, Resp> void performRequestAsync(Req request,
+                                                               CheckedFunction<Req, Request, IOException> requestConverter,
+                                                               Consumer<SafeRequest> requestCustomizer,
+                                                               CheckedFunction<Response, Resp, IOException> responseConverter,
+                                                               ActionListener<Resp> listener, Set<Integer> ignores) {
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null) {
             listener.onFailure(validationException);
@@ -661,11 +681,11 @@ public class RestHighLevelClient implements Closeable {
         Request req;
         try {
             req = requestConverter.apply(request);
+            requestCustomizer.accept(new SafeRequest(req));
         } catch (Exception e) {
             listener.onFailure(e);
             return;
         }
-        req.setHeaders(headers);
 
         ResponseListener responseListener = wrapResponseListener(responseConverter, listener, ignores);
         client.performRequestAsync(req, responseListener);

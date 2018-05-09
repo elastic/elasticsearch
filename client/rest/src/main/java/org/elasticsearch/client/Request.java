@@ -115,6 +115,7 @@ public final class Request {
      * Set the headers to attach to the request.
      */
     public void setHeaders(Header... headers) {
+        new Exception(Arrays.toString(headers)).printStackTrace();
         Objects.requireNonNull(headers, "headers cannot be null");
         for (Header header : headers) {
             Objects.requireNonNull(header, "header cannot be null");

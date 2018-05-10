@@ -165,6 +165,7 @@ analysis module.  ({pull}30397[#30397])
 Added new "Request" object flavored request methods in the RestClient. Prefer
 these instead of the multi-argument versions. ({pull}29623[#29623])
 
+Added `setJsonEntity` to `Request` object so it is marginally easier to send JSON. ({pull}30447[#30447])
 Watcher HTTP client used in watches now allows more parallel connections to the
 same endpoint and evicts long running connections. ({pull}30130[#30130])
 

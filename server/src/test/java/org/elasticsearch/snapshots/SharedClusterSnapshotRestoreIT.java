@@ -3094,6 +3094,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertEquals("IndexShardSnapshotFailedException[Aborted]", snapshotInfo.shardFailures().get(0).reason());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30507")
     public void testSnapshotSucceedsAfterSnapshotFailure() throws Exception {
         logger.info("--> creating repository");
         final Path repoPath = randomRepoPath();

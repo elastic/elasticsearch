@@ -1,0 +1,54 @@
+{
+  "index_patterns": [
+    ".management-beats-agents"
+  ],
+  "settings": {
+    "index": {
+      "number_of_shards": 1,
+      "auto_expand_replicas": "0-1",
+      "codec": "best_compression"
+    }
+  },
+  "mappings": {
+    "_doc": {
+      "_meta": {
+        "beats-version": "${beats.template.version}"
+      },
+      "dynamic": "strict",
+      "properties": {
+        "beat": {
+          "properties": {
+            "id": {
+              "type": "keyword"
+            },
+            "enrollment_token": {
+              "type": "keyword"
+            },
+            "access_token": {
+              "type": "keyword"
+            },
+            "verified_on": {
+              "type": "date"
+            },
+            "type": {
+              "type": "keyword"
+            },
+            "ephemeral_id": {
+              "type": "keyword"
+            },
+            "local_configuration_yml": {
+              "type": "text"
+            },
+            "central_configuration_yml": {
+              "type": "text"
+            },
+            "metadata": {
+              "dynamic": "true",
+              "type": "object"
+            }
+          }
+        }
+      }
+    }
+  }
+}

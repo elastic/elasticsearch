@@ -1,0 +1,42 @@
+{
+  "index_patterns": [
+    ".management-beats-admin"
+  ],
+  "settings": {
+    "index": {
+      "number_of_shards": 1,
+      "auto_expand_replicas": "0-1",
+      "codec": "best_compression"
+    }
+  },
+  "mappings": {
+    "_doc": {
+      "_meta": {
+        "beats-version": "${beats.template.version}"
+      },
+      "dynamic": "strict",
+      "properties": {
+        "type": {
+          "type": "keyword"
+        },
+        "enrollment_token": {
+          "properties": {
+            "token": {
+              "type": "keyword"
+            }
+          }
+        },
+        "configuration_fragment": {
+          "properties": {
+            "tag": {
+              "type": "keyword"
+            },
+            "fragment_yml": {
+              "type": "text"
+            }
+          }
+        }
+      }
+    }
+  }
+}

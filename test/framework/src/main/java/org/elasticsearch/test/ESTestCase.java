@@ -519,6 +519,19 @@ public abstract class ESTestCase extends LuceneTestCase {
         return (byte) random().nextInt();
     }
 
+    /**
+     * Helper method to create a byte array of a given length populated with random byte values
+     *
+     * @see #randomByte()
+     */
+    public static byte[] randomByteArrayOfLength(int size) {
+        byte[] bytes = new byte[size];
+        for (int i = 0; i < size; i++) {
+            bytes[i] = randomByte();
+        }
+        return bytes;
+    }
+
     public static short randomShort() {
         return (short) random().nextInt();
     }

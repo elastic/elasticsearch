@@ -57,10 +57,6 @@ setup:
 ---
 "field collapsing":
 
-  - skip:
-      version: " - 5.2.99"
-      reason:  this uses a new API that has been added in 5.3
-
   - do:
       search:
         index: test
@@ -92,10 +88,6 @@ setup:
 ---
 "field collapsing and from":
 
-  - skip:
-      version: " - 5.2.99"
-      reason:  this uses a new API that has been added in 5.3
-
   - do:
       search:
         index: test
@@ -115,10 +107,6 @@ setup:
 
 ---
 "field collapsing and inner_hits":
-
-  - skip:
-      version: " - 5.2.99"
-      reason:  this uses a new API that has been added in 5.3
 
   - do:
       search:
@@ -158,10 +146,6 @@ setup:
 
 ---
 "field collapsing, inner_hits and maxConcurrentGroupRequests":
-
-  - skip:
-      version: " - 5.2.99"
-      reason:  this uses a new API that has been added in 5.3
 
   - do:
       search:
@@ -203,10 +187,6 @@ setup:
 ---
 "field collapsing and scroll":
 
-  - skip:
-      version: " - 5.2.99"
-      reason:  this uses a new API that has been added in 5.3
-
   - do:
       catch:      /cannot use \`collapse\` in a scroll context/
       search:
@@ -217,10 +197,6 @@ setup:
 
 ---
 "field collapsing and search_after":
-
-  - skip:
-      version: " - 5.2.99"
-      reason:  this uses a new API that has been added in 5.3
 
   - do:
       catch:      /cannot use \`collapse\` in conjunction with \`search_after\`/
@@ -233,10 +209,6 @@ setup:
 
 ---
 "field collapsing and rescore":
-
-  - skip:
-      version: " - 5.2.99"
-      reason:  this uses a new API that has been added in 5.3
 
   - do:
       catch:      /cannot use \`collapse\` in conjunction with \`rescore\`/
@@ -255,10 +227,6 @@ setup:
 ---
 "no hits and inner_hits":
 
-  - skip:
-      version: " - 5.4.0"
-      reason:  "bug fixed in 5.4.1"
-
   - do:
       search:
         index: test
@@ -272,10 +240,6 @@ setup:
 
 ---
 "field collapsing and multiple inner_hits":
-
-  - skip:
-      version: " - 5.4.99"
-      reason:  Multiple inner_hits is a new feature added in 5.5
 
   - do:
       search:

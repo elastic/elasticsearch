@@ -42,7 +42,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
     /**
      * Returns the stats, including type specific stats. If the types are null/0 length, then nothing
      * is returned for them. If they are set, then only types provided will be returned, or
-     * <tt>_all</tt> for all types.
+     * {@code _all} for all types.
      */
     IndexingStats stats(boolean isThrottled, long currentThrottleInMillis, String... types) {
         IndexingStats.Stats total = totalStats.stats(isThrottled, currentThrottleInMillis);

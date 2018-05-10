@@ -675,7 +675,7 @@ public class SSLService extends AbstractComponent {
      * <a href="http://docs.oracle.com/javase/8/docs/technotes/guides/security/StandardNames.html">JCA Standard Algorithm Name
      * Documentation for Java 8</a>.
      */
-    static String sslContextAlgorithm(List<String> supportedProtocols) {
+    private static String sslContextAlgorithm(List<String> supportedProtocols) {
         if (supportedProtocols.isEmpty()) {
             return "TLSv1.2";
         }

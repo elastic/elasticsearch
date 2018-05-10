@@ -119,15 +119,15 @@ public class JobUpdate implements Writeable, ToXContentObject {
         }
         customSettings = in.readMap();
         modelSnapshotId = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_6_3_0) && in.readBoolean()) {
-            modelSnapshotMinVersion = Version.readVersion(in);
-        } else {
-            modelSnapshotMinVersion = null;
-        }
         if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
             establishedModelMemory = in.readOptionalLong();
         } else {
             establishedModelMemory = null;
+        }
+        if (in.getVersion().onOrAfter(Version.V_6_3_0) && in.readBoolean()) {
+            modelSnapshotMinVersion = Version.readVersion(in);
+        } else {
+            modelSnapshotMinVersion = null;
         }
     }
 
@@ -155,6 +155,9 @@ public class JobUpdate implements Writeable, ToXContentObject {
         }
         out.writeMap(customSettings);
         out.writeOptionalString(modelSnapshotId);
+        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
+            out.writeOptionalLong(establishedModelMemory);
+        }
         if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
             if (modelSnapshotMinVersion != null) {
                 out.writeBoolean(true);
@@ -162,9 +165,6 @@ public class JobUpdate implements Writeable, ToXContentObject {
             } else {
                 out.writeBoolean(false);
             }
-        }
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeOptionalLong(establishedModelMemory);
         }
     }
 

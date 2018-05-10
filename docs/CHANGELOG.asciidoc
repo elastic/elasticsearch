@@ -116,7 +116,6 @@ Rollup::
 searching ({pull}30338[#30338])
 
 SQL::
-* Improve correctness of SYS COLUMNS & SYS TYPES commands ({pull}30418[#30418])
 * Fix parsing of Dates containing milliseconds ({pull}30419[#30419])
 
 [float]
@@ -206,7 +205,6 @@ Rollup::
 searching ({pull}30338[#30338])
 
 SQL::
-* Improve correctness of SYS COLUMNS & SYS TYPES commands ({pull}30418[#30418])
 * Fix parsing of Dates containing milliseconds ({pull}30419[#30419])
 
 Allocation::

@@ -72,6 +72,9 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.discovery.zen.ElectMasterService;
+import org.elasticsearch.discovery.zen.NodeJoinController;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexService;
@@ -116,6 +119,9 @@ public class ClusterStateChanges extends AbstractComponent {
     private final TransportUpdateSettingsAction transportUpdateSettingsAction;
     private final TransportClusterRerouteAction transportClusterRerouteAction;
     private final TransportCreateIndexAction transportCreateIndexAction;
+
+    private final ZenDiscovery.NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
+    private final NodeJoinController.JoinTaskExecutor joinTaskExecutor;
 
     public ClusterStateChanges(NamedXContentRegistry xContentRegistry, ThreadPool threadPool) {
         super(Settings.builder().put(PATH_HOME_SETTING.getKey(), "dummy").build());
@@ -191,6 +197,11 @@ public class ClusterStateChanges extends AbstractComponent {
             transportService, clusterService, threadPool, allocationService, actionFilters, indexNameExpressionResolver);
         transportCreateIndexAction = new TransportCreateIndexAction(settings,
             transportService, clusterService, threadPool, createIndexService, actionFilters, indexNameExpressionResolver);
+
+        ElectMasterService electMasterService = new ElectMasterService(settings);
+        nodeRemovalExecutor = new ZenDiscovery.NodeRemovalClusterStateTaskExecutor(allocationService, electMasterService,
+            s -> { throw new AssertionError("rejoin not implemented"); }, logger);
+        joinTaskExecutor = new NodeJoinController.JoinTaskExecutor(allocationService, electMasterService, logger);
     }
 
     public ClusterState createIndex(ClusterState state, CreateIndexRequest request) {
@@ -217,8 +228,13 @@ public class ClusterStateChanges extends AbstractComponent {
         return execute(transportClusterRerouteAction, request, state);
     }
 
-    public ClusterState deassociateDeadNodes(ClusterState clusterState, boolean reroute, String reason) {
-        return allocationService.deassociateDeadNodes(clusterState, reroute, reason);
+    public ClusterState addNodes(ClusterState clusterState, List<DiscoveryNode> nodes) {
+        return runTasks(joinTaskExecutor, clusterState, nodes);
+    }
+
+    public ClusterState removeNodes(ClusterState clusterState, List<DiscoveryNode> nodes) {
+        return runTasks(nodeRemovalExecutor, clusterState, nodes.stream()
+            .map(n -> new ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task(n, "dummy reason")).collect(Collectors.toList()));
     }
 
     public ClusterState applyFailedShards(ClusterState clusterState, List<FailedShard> failedShards) {

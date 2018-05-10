@@ -1554,28 +1554,45 @@ public class TranslogTests extends ESTestCase {
         final Translog failableTLog =
             getFailableTranslog(fail, config, randomBoolean(), false, null, createTranslogDeletionPolicy(), fileChannels);
 
-        List<Translog.Index> operations = new ArrayList<>();
-        int translogOperations = randomIntBetween(10, 100);
-        int maxTrimmedSeqNo = translogOperations - randomIntBetween(4, 8);
-
-        for (int op = 0; op < translogOperations; op++) {
-            String ascii = randomAlphaOfLengthBetween(1, 50);
-            Translog.Index operation = new Translog.Index("test", "" + op, op,
-                primaryTerm.get(), ascii.getBytes("UTF-8"));
-            operations.add(operation);
-        }
-        Randomness.shuffle(operations);
-
-        for (Translog.Index operation : operations) {
-            failableTLog.add(operation);
-        }
-
-        primaryTerm.incrementAndGet();
-        failableTLog.rollGeneration();
-
-        fail.failRate(30);
         expectThrows(IOException.class,
-            () -> failableTLog.trimOperations(primaryTerm.get(), maxTrimmedSeqNo));
+            () -> {
+                int translogOperations = 0;
+                int maxAttempts = randomIntBetween(5, 10);
+                for(int attempt = 0; attempt < maxAttempts; attempt++) {
+                    int maxTrimmedSeqNo;
+                    try {
+                        fail.failNever();
+                        int extraTranslogOperations = randomIntBetween(10, 100);
+
+                        List<Translog.Index> operations = new ArrayList<>();
+                        for (int op = translogOperations; op < translogOperations + extraTranslogOperations; op++) {
+                            String ascii = randomAlphaOfLengthBetween(1, 50);
+                            Translog.Index operation = new Translog.Index("test", "" + op, op,
+                                primaryTerm.get(), ascii.getBytes("UTF-8"));
+                            operations.add(operation);
+                        }
+                        Randomness.shuffle(operations);
+
+                        translogOperations += extraTranslogOperations;
+                        maxTrimmedSeqNo = translogOperations - randomIntBetween(4, 8);
+
+                        for (Translog.Index operation : operations) {
+                            failableTLog.add(operation);
+                        }
+
+                        // at least one roll + inc of primary term has to be there - otherwise trim would not take place at all
+                        if (attempt == 0 || randomBoolean()) {
+                            primaryTerm.incrementAndGet();
+                            failableTLog.rollGeneration();
+                        }
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+
+                    fail.failRate(30);
+                    failableTLog.trimOperations(primaryTerm.get(), maxTrimmedSeqNo);
+                }
+            });
 
         assertThat(fileChannels, is(not(empty())));
         assertThat("all file channels have to be closed",

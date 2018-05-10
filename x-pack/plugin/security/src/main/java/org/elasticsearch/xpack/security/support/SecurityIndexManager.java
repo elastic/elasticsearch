@@ -70,8 +70,6 @@ public class SecurityIndexManager extends AbstractComponent {
     private final String indexName;
     private final Client client;
 
-    private final List<BiConsumer<ClusterIndexHealth, ClusterIndexHealth>> indexHealthChangeListeners = new CopyOnWriteArrayList<>();
-    private final List<BiConsumer<Boolean, Boolean>> indexOutOfDateListeners = new CopyOnWriteArrayList<>();
     private final List<BiConsumer<State, State>> stateChangeListeners = new CopyOnWriteArrayList<>();
 
     private volatile State indexState = new State(false, false, false, false, null, null);
@@ -117,23 +115,18 @@ public class SecurityIndexManager extends AbstractComponent {
         stateChangeListeners.add(listener);
     }
 
-    /** Removes the given listener */
-    public void removeIndexStateListener(BiConsumer<State, State> listener) {
-        stateChangeListeners.remove(listener);
-    }
-
     public void clusterChanged(ClusterChangedEvent event) {
-        State previousState = indexState;
-        IndexMetaData indexMetaData = resolveConcreteIndex(indexName, event.state().metaData());
-        boolean indexExists = indexMetaData != null;
-        boolean isIndexUpToDate = indexExists == false ||
+        final State previousState = indexState;
+        final IndexMetaData indexMetaData = resolveConcreteIndex(indexName, event.state().metaData());
+        final boolean indexExists = indexMetaData != null;
+        final boolean isIndexUpToDate = indexExists == false ||
             INDEX_FORMAT_SETTING.get(indexMetaData.getSettings()).intValue() == INTERNAL_INDEX_FORMAT;
-        boolean indexAvailable = checkIndexAvailable(event.state());
-        boolean mappingIsUpToDate = indexExists == false || checkIndexMappingUpToDate(event.state());
-        Version mappingVersion = oldestIndexMappingVersion(event.state());
-        ClusterHealthStatus indexStatus = indexMetaData == null ? null :
+        final boolean indexAvailable = checkIndexAvailable(event.state());
+        final boolean mappingIsUpToDate = indexExists == false || checkIndexMappingUpToDate(event.state());
+        final Version mappingVersion = oldestIndexMappingVersion(event.state());
+        final ClusterHealthStatus indexStatus = indexMetaData == null ? null :
             new ClusterIndexHealth(indexMetaData, event.state().getRoutingTable().index(indexMetaData.getIndex())).getStatus();
-        State newState = new State(indexExists, isIndexUpToDate, indexAvailable, mappingIsUpToDate, mappingVersion, indexStatus);
+        final State newState = new State(indexExists, isIndexUpToDate, indexAvailable, mappingIsUpToDate, mappingVersion, indexStatus);
         this.indexState = newState;
 
         if (newState.equals(previousState) == false) {

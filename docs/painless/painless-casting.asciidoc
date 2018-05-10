@@ -46,19 +46,19 @@ cast: '(' TYPE ')' expression
 [[numeric-type-casting]]
 ==== Numeric Type Casting
 
-A numeric type cast is the conversion of the value of one
+A <<primitive-types, numeric type>> cast is the conversion of the value of one
 <<primitive-types, numeric type>> to the equivalent value of an inferred or
 specified <<primitive-types, numeric type>>. Casts between values of
-numeric types will result in data loss when the value of the type converted from
-is larger than the equivalent value of the type converted to can accommodate.
-Casts between values of integral types and values of floating point types will
-result in precision loss when the value of the integral type converted from is
-unable to accurately represent the equivalent value of the floating point type
-converted to and vice versa.
+<<primitive-types, numeric types>> will result in data loss when the value of
+the type converted from is larger than the equivalent value of the type
+converted to can accommodate. Casts between values of integral types and values
+of floating point types will result in precision loss when the value of the
+integral type converted from is unable to accurately represent the equivalent
+value of the floating point type converted to and vice versa.
 
-The table below illustrates legal casts between values of
-<<primitive-types, numeric types>> and if the cast must be explicit.  Each cast
-is read as a conversion of row to column.
+The table below illustrates allowed casts between values of
+<<primitive-types, numeric types>> and which specific casts must be explicit.
+Each cast is read as a conversion of row to column.
 
 |====
 |        | byte     | short    | char     | int      | long     | float    | double
@@ -73,7 +73,7 @@ is read as a conversion of row to column.
 
 *Examples*
 
-* Valid numeric type casts.
+* Valid <<primitive-types, numeric type>> casts.
 +
 [source,Painless]
 ----
@@ -99,7 +99,7 @@ is read as a conversion of row to column.
     assign value of `double 1.0` to `e`;
     (note the explicit cast is extraneous, and an implicit cast is valid)
 +
-* Invalid numeric type casts resulting in errors.
+* Invalid <<primitive-types, numeric type>> casts resulting in errors.
 +
 [source,Painless]
 ----
@@ -121,9 +121,9 @@ is read as a conversion of row to column.
 [[reference-type-casting]]
 ==== Reference Type Casting
 
-A reference type cast is the conversion of the value of one
-<<reference-types, reference type>> to the equivalent value of an inferred or
-specified <<reference-types, reference type>>. Implicit casts between
+A <<reference-types, reference type>> cast is the conversion of the value of
+one <<reference-types, reference type>> to the equivalent value of an inferred
+or specified <<reference-types, reference type>>. Implicit casts between
 reference type values are allowed when the reference type being cast *from*
 is a descendant of the reference type being cast *to*. Explicit casts between
 reference type values are allowed when the reference type being cast *from*
@@ -132,7 +132,7 @@ being cast *to* is a descendant of the reference type being cast *from*.
 
 *Examples*
 
-* Valid reference type casts.
+* Valid <<reference-types, reference type>> casts.
 +
 [source,Painless]
 ----
@@ -163,7 +163,7 @@ being cast *to* is a descendant of the reference type being cast *from*.
     assign `List reference` to `x`;
     (note the explicit cast is extraneous, and an implicit cast is valid)
 +
-* Invalid reference type casts resulting in errors.
+* Invalid <<reference-types, reference type>> casts resulting in errors.
 +
 [source,Painless]
 ----
@@ -189,6 +189,13 @@ being cast *to* is a descendant of the reference type being cast *from*.
 
 [[dynamic-type-casting]]
 ==== Dynamic Type Casting
+
+A <<dynamic-types, dynamic type>> cast is the conversion of the value of one
+<<dynamic-types, dynamic type>> to the equivalent value of any inferred or
+specified other <<painless-types, type>> and vice versa.  Implicit casts from
+<<painless-types, any type>> to the <<dyanmic types dynamic type, `def`, are
+allowed.
+
 All primitive and reference types can always be implicitly cast to
 `def`. While it is possible to explicitly cast to `def`, it is not necessary.
 

@@ -110,14 +110,15 @@ logical quantity with two possible values of `true` and `false`
 [[reference-types]]
 ==== Reference Types
 
-Reference types are constructs (objects), potentially representing multiple
-pieces of data (member fields) and logic to manipulate that data (member
-methods), defined as part of the application programming interface (API) for
-use in scripts.
+Reference types are named constructs (objects), potentially representing
+multiple pieces of data (member fields) and logic to manipulate that data
+(member methods), defined as part of the application programming interface
+(API) for use in scripts.
 
 A reference type instance is a single set of data for one reference type
 object allocated to the heap. A reference type instance is allocated using the
-<<constructor-call, `new operator`>>.
+<<constructor-call, `new operator`>>. Use reference type instances to store
+and manipulate complex data.
 
 Reference type values refer to reference type instances, and multiple reference
 type values may refer to a single reference type instance. A change to a
@@ -128,44 +129,59 @@ function as arguments.
 
 The default value for a <<declaration, newly-declared>> reference type
 <<painless-variables, variable>> is `null`. <<assignment, Assign>> a
-<<constructor-call, newly-allocated>> reference type instance or
-<<assignment, refer>> an existing reference type instance to a reference type
-<<painless-variables, variable>> for <<painless-operators, use>> later in a
-script. <<assignment, Assign>> `null` to a reference type value to indicate the
-reference type value refers to no reference type instance.  A reference type
-instance will be garbage collected by the JVM when no reference type values
-refer to that reference type instance.
+<<constructor-call, newly-allocated>> reference type instance or an existing
+reference type value to a reference type <<painless-variables, variable>> for
+<<painless-operators, use>> within a script. <<assignment, Assign>> `null` to a
+reference type <<painless-variables, variable>> to indicate the reference type
+value refers to no reference type instance. The JVM will garbage collect a
+reference type instance when no reference type values refer to that reference
+type instance.
 
-Reference type objects can contain member fields, member methods, and
-constructors. Member fields are named and typed pieces of data that are read
-and written to using the <<field-access, dot operator>>.  Member methods are
-functions decicated to a single reference type object that can manipulate
-member fields and return values.  Call member methods using the
-<<method-access, dot-operator>>.  Constructors are a special type of function
-used to allocate a reference type instance using the
-<<constructor-call, `new` operator>>.
+A reference type object specifies zero-to-many of each of the following:
 
-Reference type objects can have both static and non-static members (member
-fields and member methods). <<field-access, Access>> and
-<<method-access, call>> static members of a reference type object without
-allocating a reference type instance using the reference type object name
-as the <<painless-identifiers, identifer>> in place of a reference type value.
-Static members are singletons per reference type object. Non-static members are
-specific to a reference type instance. <<field-access, Access>> and
-<<method-access, call>> non-static members on a reference type value referring
-to an allocated reference type instance.
+static member fields::
 
-A reference type can contain the following:
+Static member fields are named and <<painless-types, typed>> pieces of data
+specific to a single reference type object. Each reference type *object*
+contains one set of data representative of its static member fields. Use the
+<<field-access, `dot operator '.'`>> in correspondence with the reference type
+object name to access static member fields for reading and writing to a
+specific reference type *object*. No reference type instance allocation is
+necessary to use static member fields.
 
-* zero to many <<primitive-types, primitive type>> static member fields
-* zero to many <<primitive-types, primitive type>> non-static member fields
-* zero to many reference type static member fields
-* zero to many reference type non-static member fields
-* zero to many <<dynamic-types, dynamic type>> static member fields
-* zero to many <<dynamic-types, dynamic type>> non-static member fields
-* zero to many static member methods
-* zero to many non-static member methods
-* zero to many constructors
+non-static member fields::
+
+Non-static member fields are named and <<painless-types, typed>> pieces of data
+specified by a reference type object.  Each reference type *instance* contains
+one set of data representative of its reference type object's non-static member
+fields. Use the <<field-access, `dot operator '.'`>> for reading and writing to
+non-static member fields of a specific reference type *instance*.  An allocated
+reference type instance is required to use non-static member fields.
+
+static member methods::
+
+Static member methods are functions specific to a single reference type
+*object*. Use the <<method-access, `method call operator '. ()'`>> in
+correspondence with the reference type object name to invoke static member
+methods. No reference type instance allocation is necessary to use static
+member methods.
+
+non-static member methods::
+
+Non-static member methods are functions specified by a reference type object
+and called on a specific reference type *instance*. Non-static member methods
+called on a specific reference type instance may read from and write to
+non-static member fields of that specific reference type instance. Use the
+<<method-access, `method call operator '. ()'`>> in correspondence with a
+specific reference type instance to invoke non-static member methods. An
+allocated reference type instance is required to use non-static member methods.
+
+constructors::
+
+Constructors are a special type of function specific to a reference type
+*object* used to allocate reference type instances of that reference type
+object. Use the <<constructor-call, `constructor call operator 'new ()'`>> to
+allocate a reference type instance.
 
 Reference type objects support a basic inheritance model. Consider types A and
 B. Type A is considered to be a parent of B, and B a child of A, if B inherits
@@ -189,7 +205,7 @@ relationships.
 +
 <1> declare `List l`;
     allocate `ArrayList` instance -> `ArrayList reference`;
-    implicit cast value of `Arraylist reference` to value of `List reference`
+    implicit cast value of `ArrayList reference` to value of `List reference`
             -> `List reference`;
     assign value of `List reference` to `l`
 <2> access `l` -> `List reference`;

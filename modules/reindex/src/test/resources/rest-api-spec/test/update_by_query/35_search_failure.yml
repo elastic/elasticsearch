@@ -1,5 +1,5 @@
 ---
-"Response format search failures":
+"Response format for search failures":
   - do:
       index:
         index:   source
@@ -11,18 +11,14 @@
 
   - do:
       catch: request
-      reindex:
+      update_by_query:
+        index:   source
         body:
-          source:
-            index:   source
-            query:
+          query:
+            script:
               script:
-                script:
-                  lang: painless
-                  source: throw new IllegalArgumentException("Cats!")
-          dest:
-            index:   dest
-  - match: {created: 0}
+                lang: painless
+                source: throw new IllegalArgumentException("Cats!")
   - match: {updated: 0}
   - match: {version_conflicts: 0}
   - match: {batches: 0}

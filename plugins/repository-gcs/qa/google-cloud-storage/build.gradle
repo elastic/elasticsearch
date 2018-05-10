@@ -69,7 +69,6 @@ task googleCloudStorageFixture(type: AntFixture) {
 
 /** A service account file that points to the Google Cloud Storage service emulated by the fixture **/
 task createServiceAccountFile() {
-    dependsOn googleCloudStorageFixture
     doLast {
         KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA")
         keyPairGenerator.initialize(1024)

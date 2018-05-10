@@ -57,7 +57,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  */
 public class GoogleCloudStorageTestServer {
 
-    private static byte[] EMPTY_BYTE = new byte[0];
+    private static final byte[] EMPTY_BYTE = new byte[0];
 
     /** List of the buckets stored on this test server **/
     private final Map<String, Bucket> buckets = ConcurrentCollections.newConcurrentMap();
@@ -67,13 +67,6 @@ public class GoogleCloudStorageTestServer {
 
     /** Server endpoint **/
     private final String endpoint;
-
-    /**
-     * Creates a {@link GoogleCloudStorageTestServer} with the default endpoint
-     */
-    GoogleCloudStorageTestServer() {
-        this("https://www.googleapis.com");
-    }
 
     /**
      * Creates a {@link GoogleCloudStorageTestServer} with a custom endpoint
@@ -90,29 +83,6 @@ public class GoogleCloudStorageTestServer {
 
     public String getEndpoint() {
         return endpoint;
-    }
-
-    /**
-     * Returns a Google Cloud Storage response for the given request
-     *
-     * @param method the HTTP method of the request
-     * @param url the HTTP URL of the request
-     * @param headers the HTTP headers of the request
-     * @param body the HTTP request body
-     * @return a {@link Response}
-     *
-     * @throws IOException if something goes wrong
-     */
-    public Response handle(final String method,
-                           final String url,
-                           final Map<String, List<String>> headers,
-                           byte[] body) throws IOException {
-
-        final int questionMark = url.indexOf('?');
-        if (questionMark == -1) {
-            return handle(method, url, null, headers, body);
-        }
-        return handle(method, url.substring(0, questionMark), url.substring(questionMark + 1), headers, body);
     }
 
     /**
@@ -756,9 +726,8 @@ public class GoogleCloudStorageTestServer {
      * https://cloud.google.com/storage/docs/json_api/v1/objects/rewrite
      */
     private static XContentBuilder buildRewriteResponse(final XContentBuilder builder, final String destBucket, final String dest,
-                                                        final int byteSize)
-            throws IOException {
-        final XContentBuilder respBuilder = builder.startObject()
+                                                        final int byteSize) throws IOException {
+        builder.startObject()
                 .field("kind", "storage#rewriteResponse")
                 .field("totalBytesRewritten", String.valueOf(byteSize))
                 .field("objectSize", String.valueOf(byteSize))

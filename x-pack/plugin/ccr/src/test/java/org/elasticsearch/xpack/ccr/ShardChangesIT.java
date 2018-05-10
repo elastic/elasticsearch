@@ -17,6 +17,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -219,6 +221,61 @@ public class ShardChangesIT extends ESIntegTestCase {
         });
     }
 
+    public void testFollowIndexWithNestedField() throws Exception {
+        final String leaderIndexSettings =
+            getIndexSettingsWithNestedMapping(1, Collections.singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(client().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
+
+        final String followerIndexSettings =
+            getIndexSettingsWithNestedMapping(1, Collections.singletonMap(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), "true"));
+        assertAcked(client().admin().indices().prepareCreate("index2").setSource(followerIndexSettings, XContentType.JSON));
+
+        ensureGreen("index1", "index2");
+
+        final FollowExistingIndexAction.Request followRequest = new FollowExistingIndexAction.Request();
+        followRequest.setLeaderIndex("index1");
+        followRequest.setFollowIndex("index2");
+        client().execute(FollowExistingIndexAction.INSTANCE, followRequest).get();
+
+        final int numDocs = randomIntBetween(2, 64);
+        for (int i = 0; i < numDocs; i++) {
+            try (XContentBuilder builder = jsonBuilder()) {
+                builder.startObject();
+                builder.field("field", "value");
+                builder.startArray("objects");
+                {
+                    builder.startObject();
+                    builder.field("field", i);
+                    builder.endObject();
+                }
+                builder.endArray();
+                builder.endObject();
+                client().prepareIndex("index1", "doc", Integer.toString(i)).setSource(builder).get();
+            }
+        }
+
+        for (int i = 0; i < numDocs; i++) {
+            int value = i;
+            assertBusy(() -> {
+                final GetResponse getResponse = client().prepareGet("index2", "doc", Integer.toString(value)).get();
+                assertTrue(getResponse.isExists());
+                assertTrue((getResponse.getSource().containsKey("field")));
+                assertThat(XContentMapValues.extractValue("objects.field", getResponse.getSource()),
+                    equalTo(Collections.singletonList(value)));
+            });
+        }
+
+        final UnfollowIndexAction.Request unfollowRequest = new UnfollowIndexAction.Request();
+        unfollowRequest.setFollowIndex("index2");
+        client().execute(UnfollowIndexAction.INSTANCE, unfollowRequest).get();
+
+        assertBusy(() -> {
+            final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+            final PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+            assertThat(tasks.tasks().size(), equalTo(0));
+        });
+    }
+
     public void testFollowNonExistentIndex() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test-leader").get());
         assertAcked(client().admin().indices().prepareCreate("test-follower").get());
@@ -319,4 +376,55 @@ public class ShardChangesIT extends ESIntegTestCase {
         return settings;
     }
 
+    private String getIndexSettingsWithNestedMapping(final int numberOfPrimaryShards,
+                                                     final Map<String, String> additionalIndexSettings) throws IOException {
+        final String settings;
+        try (XContentBuilder builder = jsonBuilder()) {
+            builder.startObject();
+            {
+                builder.startObject("settings");
+                {
+                    builder.field("index.number_of_shards", numberOfPrimaryShards);
+                    for (final Map.Entry<String, String> additionalSetting : additionalIndexSettings.entrySet()) {
+                        builder.field(additionalSetting.getKey(), additionalSetting.getValue());
+                    }
+                }
+                builder.endObject();
+                builder.startObject("mappings");
+                {
+                    builder.startObject("doc");
+                    {
+                        builder.startObject("properties");
+                        {
+                            builder.startObject("objects");
+                            {
+                                builder.field("type", "nested");
+                                builder.startObject("properties");
+                                {
+                                    builder.startObject("field");
+                                    {
+                                        builder.field("type", "long");
+                                    }
+                                    builder.endObject();
+                                }
+                                builder.endObject();
+                            }
+                            builder.endObject();
+                            builder.startObject("field");
+                            {
+                                builder.field("type", "keyword");
+                            }
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+            settings = BytesReference.bytes(builder).utf8ToString();
+        }
+        return settings;
+    }
 }

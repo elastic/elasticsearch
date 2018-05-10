@@ -19,7 +19,9 @@
 
 package org.elasticsearch.repositories.gcs;
 
-import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
+import com.google.api.client.googleapis.GoogleUtils;
+import com.google.api.client.http.HttpTransport;
+import com.google.api.client.http.javanet.DefaultConnectionFactory;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.http.HttpTransportOptions;
@@ -31,7 +33,12 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
+
+import java.io.IOException;
+import java.net.HttpURLConnection;
 import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.util.Map;
 
 public class GoogleCloudStorageService extends AbstractComponent {
@@ -57,12 +64,12 @@ public class GoogleCloudStorageService extends AbstractComponent {
             throw new IllegalArgumentException("Unknown client name [" + clientName + "]. Existing client configs: "
                     + Strings.collectionToDelimitedString(clientsSettings.keySet(), ","));
         }
-        final NetHttpTransport netHttpTransport = GoogleNetHttpTransport.newTrustedTransport();
+        final HttpTransport httpTransport = createHttpTransport(clientSettings.getHost());
         final HttpTransportOptions httpTransportOptions = HttpTransportOptions.newBuilder()
                 .setConnectTimeout(toTimeout(clientSettings.getConnectTimeout()))
                 .setReadTimeout(toTimeout(clientSettings.getReadTimeout()))
                 // requires 'java.lang.RuntimePermission "setFactory"'
-                .setHttpTransportFactory(() -> netHttpTransport)
+                .setHttpTransportFactory(() -> httpTransport)
                 .build();
         final StorageOptions.Builder storageOptionsBuilder = StorageOptions.newBuilder()
                 .setTransportOptions(httpTransportOptions)
@@ -94,6 +101,32 @@ public class GoogleCloudStorageService extends AbstractComponent {
             storageOptionsBuilder.setCredentials(serviceAccountCredentials);
         }
         return storageOptionsBuilder.build().getService();
+    }
+
+    HttpTransport createHttpTransport(final String endpoint) throws Exception {
+        final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
+        builder.trustCertificates(GoogleUtils.getCertificateTrustStore());
+        if (Strings.hasLength(endpoint)) {
+            final URL endpointUrl = URI.create(endpoint).toURL();
+            builder.setConnectionFactory(new DefaultConnectionFactory() {
+                @Override
+                public HttpURLConnection openConnection(final URL originalUrl) throws IOException {
+                    if (originalUrl.getHost().equals(endpointUrl.getHost()) && originalUrl.getPort() == endpointUrl.getPort()
+                            && originalUrl.getProtocol().equals(endpointUrl.getProtocol())) {
+                        super.openConnection(originalUrl);
+                    }
+                    URI originalUri;
+                    try {
+                        originalUri = originalUrl.toURI();
+                    } catch (final URISyntaxException e) {
+                        throw new RuntimeException(e);
+                    }
+                    return super.openConnection(new URL(endpointUrl.getProtocol(), endpointUrl.getHost(), endpointUrl.getPort(),
+                            originalUri.getRawPath() + "?" + originalUri.getRawQuery()));
+                }
+            });
+        }
+        return builder.build();
     }
 
     /**

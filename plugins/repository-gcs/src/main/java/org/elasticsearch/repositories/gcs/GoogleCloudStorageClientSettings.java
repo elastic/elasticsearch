@@ -80,17 +80,17 @@ public class GoogleCloudStorageClientSettings {
 
     /** Name used by the client when it uses the Google Cloud JSON API. **/
     static final Setting.AffixSetting<String> APPLICATION_NAME_SETTING = Setting.affixKeySetting(PREFIX, "application_name",
-            key -> new Setting<>(key, "elasticsearch-repository-gcs", Function.identity(), Setting.Property.NodeScope,
+            key -> new Setting<>(key, "repository-gcs", Function.identity(), Setting.Property.NodeScope,
                     Setting.Property.Deprecated));
 
     /** The credentials used by the client to connect to the Storage endpoint **/
     private final ServiceAccountCredentials credential;
 
     /**
-     * The Storage root URL (hostname) the client should talk to, or null string to
-     * use the default.
+     * The Storage endpoint URL the client should talk to, or null string to use the
+     * default
      **/
-    private final String host;
+    private final String endpoint;
 
     /**
      * The Google project ID overriding the default way to infer it. Null value sets
@@ -111,14 +111,14 @@ public class GoogleCloudStorageClientSettings {
     private final URI tokenUri;
 
     GoogleCloudStorageClientSettings(final ServiceAccountCredentials credential,
-                                     final String host,
+                                     final String endpoint,
                                      final String projectId,
                                      final TimeValue connectTimeout,
                                      final TimeValue readTimeout,
                                      final String applicationName,
                                      final URI tokenUri) {
         this.credential = credential;
-        this.host = host;
+        this.endpoint = endpoint;
         this.projectId = projectId;
         this.connectTimeout = connectTimeout;
         this.readTimeout = readTimeout;
@@ -131,7 +131,7 @@ public class GoogleCloudStorageClientSettings {
     }
 
     public String getHost() {
-        return host;
+        return endpoint;
     }
 
     public String getProjectId() {

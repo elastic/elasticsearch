@@ -43,7 +43,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         final TimeValue connectTimeValue = TimeValue.timeValueNanos(randomIntBetween(0, 2000000));
         final TimeValue readTimeValue = TimeValue.timeValueNanos(randomIntBetween(0, 2000000));
         final String applicationName = randomAlphaOfLength(4);
-        final String hostName = randomAlphaOfLength(4);
+        final String hostName = randomFrom("http://", "https://") + randomAlphaOfLength(4) + ":" + randomIntBetween(1, 65535);
         final String projectIdName = randomAlphaOfLength(4);
         final Settings settings = Settings.builder()
                 .put(GoogleCloudStorageClientSettings.CONNECT_TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(),

@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService.Authenticator;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
 
@@ -125,6 +126,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     private ThreadContext threadContext;
     private TokenService tokenService;
     private SecurityLifecycleService lifecycleService;
+    private SecurityIndexManager securityIndex;
     private Client client;
     private InetSocketAddress remoteAddress;
 
@@ -181,11 +183,13 @@ public class AuthenticationServiceTests extends ESTestCase {
             return builder;
         }).when(client).prepareGet(anyString(), anyString(), anyString());
         lifecycleService = mock(SecurityLifecycleService.class);
+        securityIndex = mock(SecurityIndexManager.class);
+        when(lifecycleService.securityIndex()).thenReturn(securityIndex);
         doAnswer(invocationOnMock -> {
             Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];
             runnable.run();
             return null;
-        }).when(lifecycleService).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         tokenService = new TokenService(settings, Clock.systemUTC(), client, lifecycleService, clusterService);
         service = new AuthenticationService(settings, realms, auditTrail,
@@ -924,8 +928,8 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     public void testExpiredToken() throws Exception {
-        when(lifecycleService.isSecurityIndexAvailable()).thenReturn(true);
-        when(lifecycleService.isSecurityIndexExisting()).thenReturn(true);
+        when(securityIndex.isAvailable()).thenReturn(true);
+        when(lifecycleService.securityIndex().indexExists()).thenReturn(true);
         User user = new User("_username", "r1");
         final Authentication expected = new Authentication(user, new RealmRef("realm", "custom", "node"), null);
         PlainActionFuture<Tuple<UserToken, String>> tokenFuture = new PlainActionFuture<>();
@@ -963,7 +967,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[1]).run();
             return null;
-        }).when(lifecycleService).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
 
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader("Authorization", "Bearer " + token);

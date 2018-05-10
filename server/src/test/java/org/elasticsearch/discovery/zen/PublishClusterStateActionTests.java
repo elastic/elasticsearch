@@ -814,7 +814,6 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
     public static class AssertingAckListener implements Discovery.AckListener {
         private final List<Tuple<DiscoveryNode, Throwable>> errors = new CopyOnWriteArrayList<>();
-        private final AtomicBoolean timeoutOccurred = new AtomicBoolean();
         private final CountDownLatch countDown;
 
         public AssertingAckListener(int nodeCount) {
@@ -835,7 +834,6 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         public List<Tuple<DiscoveryNode, Throwable>> awaitErrors(long timeout, TimeUnit unit) throws InterruptedException {
             countDown.await(timeout, unit);
-            assertFalse(timeoutOccurred.get());
             return errors;
         }
 

@@ -43,10 +43,14 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.watcher.trigger.Trigger;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
+import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
+import org.elasticsearch.xpack.watcher.input.none.ExecutableNoneInput;
+import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.joda.time.DateTime;
@@ -64,6 +68,7 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -195,13 +200,64 @@ public class WatcherServiceTests extends ESTestCase {
         when(client.clearScroll(any(ClearScrollRequest.class))).thenReturn(clearScrollFuture);
         clearScrollFuture.onResponse(new ClearScrollResponse(true, 1));
 
-        service.start(clusterState);
+        service.start(clusterState, () -> {});
 
         ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
         verify(triggerService).start(captor.capture());
         List<Watch> watches = captor.getValue();
         watches.forEach(watch -> assertThat(watch.status().state().isActive(), is(true)));
         assertThat(watches, hasSize(activeWatchCount));
+    }
+
+    public void testPausingWatcherServiceAlsoPausesTriggerService() {
+        String engineType = "foo";
+        TriggerEngine triggerEngine = mock(TriggerEngine.class);
+        when(triggerEngine.type()).thenReturn(engineType);
+        TriggerService triggerService = new TriggerService(Settings.EMPTY, Collections.singleton(triggerEngine));
+
+        Trigger trigger = mock(Trigger.class);
+        when(trigger.type()).thenReturn(engineType);
+
+        Watch watch = mock(Watch.class);
+        when(watch.trigger()).thenReturn(trigger);
+        when(watch.condition()).thenReturn(InternalAlwaysCondition.INSTANCE);
+        ExecutableNoneInput noneInput = new ExecutableNoneInput(logger);
+        when(watch.input()).thenReturn(noneInput);
+
+        triggerService.add(watch);
+        assertThat(triggerService.count(), is(1L));
+
+        WatcherService service = new WatcherService(Settings.EMPTY, triggerService, mock(TriggeredWatchStore.class),
+            mock(ExecutionService.class), mock(WatchParser.class), mock(Client.class), executorService) {
+            @Override
+            void stopExecutor() {
+            }
+        };
+
+        service.pauseExecution("pausing");
+        assertThat(triggerService.count(), is(0L));
+        verify(triggerEngine).pauseExecution();
+    }
+
+    // if we have to reload the watcher service, the execution service should not be paused, as this might
+    // result in missing executions
+    public void testReloadingWatcherDoesNotPauseExecutionService() {
+        ExecutionService executionService = mock(ExecutionService.class);
+        TriggerService triggerService = mock(TriggerService.class);
+        WatcherService service = new WatcherService(Settings.EMPTY, triggerService, mock(TriggeredWatchStore.class),
+            executionService, mock(WatchParser.class), mock(Client.class), executorService) {
+            @Override
+            void stopExecutor() {
+            }
+        };
+
+        ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
+        csBuilder.metaData(MetaData.builder());
+
+        service.reload(csBuilder.build(), "whatever");
+        verify(executionService).clearExecutionsAndQueue();
+        verify(executionService, never()).pause();
+        verify(triggerService).pauseExecution();
     }
 
     private static DiscoveryNode newNode() {

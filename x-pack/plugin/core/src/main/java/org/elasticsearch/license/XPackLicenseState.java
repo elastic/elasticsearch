@@ -52,6 +52,9 @@ public class XPackLicenseState {
         messages.put(XPackField.LOGSTASH, new String[] {
             "Logstash will continue to poll centrally-managed pipelines"
         });
+        messages.put(XPackField.BEATS, new String[] {
+            "Beats will continue to poll centrally-managed configuration"
+        });
         messages.put(XPackField.DEPRECATION, new String[] {
             "Deprecation APIs are disabled"
         });
@@ -81,6 +84,7 @@ public class XPackLicenseState {
         messages.put(XPackField.GRAPH, XPackLicenseState::graphAcknowledgementMessages);
         messages.put(XPackField.MACHINE_LEARNING, XPackLicenseState::machineLearningAcknowledgementMessages);
         messages.put(XPackField.LOGSTASH, XPackLicenseState::logstashAcknowledgementMessages);
+        messages.put(XPackField.BEATS, XPackLicenseState::beatsAcknowledgementMessages);
         messages.put(XPackField.SQL, XPackLicenseState::sqlAcknowledgementMessages);
         ACKNOWLEDGMENT_MESSAGES = Collections.unmodifiableMap(messages);
     }
@@ -211,6 +215,21 @@ public class XPackLicenseState {
                     case GOLD:
                     case PLATINUM:
                         return new String[] { "Logstash will no longer poll for centrally-managed pipelines" };
+                }
+                break;
+        }
+        return Strings.EMPTY_ARRAY;
+    }
+
+    private static String[] beatsAcknowledgementMessages(OperationMode currentMode, OperationMode newMode) {
+        switch (newMode) {
+            case BASIC:
+                switch (currentMode) {
+                    case TRIAL:
+                    case STANDARD:
+                    case GOLD:
+                    case PLATINUM:
+                        return new String[] { "Logstash will no longer poll for centrally-managed configuration" };
                 }
                 break;
         }
@@ -499,6 +518,28 @@ public class XPackLicenseState {
      * @return {@code true} as long as there is a valid license
      */
     public boolean isLogstashAllowed() {
+        Status localStatus = status;
+
+        if (localStatus.active == false) {
+            return false;
+        }
+
+        switch (localStatus.mode) {
+            case TRIAL:
+            case GOLD:
+            case PLATINUM:
+            case STANDARD:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Beats is allowed as long as there is an active license of type TRIAL, STANDARD, GOLD or PLATINUM
+     * @return {@code true} as long as there is a valid license
+     */
+    public boolean isBeatsAllowed() {
         Status localStatus = status;
 
         if (localStatus.active == false) {

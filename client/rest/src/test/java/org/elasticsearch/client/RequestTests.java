@@ -19,6 +19,8 @@
 
 package org.elasticsearch.client;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -27,9 +29,11 @@ import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHeader;
+import org.apache.http.nio.entity.NStringEntity;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
 
 public class RequestTests extends RestClientTestCase {
@@ -99,10 +103,25 @@ public class RequestTests extends RestClientTestCase {
         final String endpoint = randomAsciiLettersOfLengthBetween(1, 10);
         final HttpEntity entity =
                 randomBoolean() ? new StringEntity(randomAsciiLettersOfLengthBetween(1, 100), ContentType.TEXT_PLAIN) : null;
-        Request request = new Request(method, endpoint);
 
+        Request request = new Request(method, endpoint);
         request.setEntity(entity);
         assertEquals(entity, request.getEntity());
+    }
+
+    public void testSetJsonEntity() throws IOException {
+        final String method = randomFrom(new String[] {"GET", "PUT", "POST", "HEAD", "DELETE"});
+        final String endpoint = randomAsciiLettersOfLengthBetween(1, 10);
+
+        Request request = new Request(method, endpoint);
+        assertNull(request.getEntity());
+
+        final String json = randomAsciiLettersOfLengthBetween(1, 100);
+        request.setJsonEntity(json);
+        assertEquals(ContentType.APPLICATION_JSON.toString(), request.getEntity().getContentType().getValue());
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        request.getEntity().writeTo(os);
+        assertEquals(json, new String(os.toByteArray(), ContentType.APPLICATION_JSON.getCharset()));
     }
 
     public void testSetHeaders() {

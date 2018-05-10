@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -86,6 +87,7 @@ public class TokenServiceTests extends ESTestCase {
 
     private Client client;
     private SecurityLifecycleService lifecycleService;
+    private SecurityIndexManager securityIndex;
     private ClusterService clusterService;
     private Settings tokenServiceEnabledSettings = Settings.builder()
         .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true).build();
@@ -131,11 +133,13 @@ public class TokenServiceTests extends ESTestCase {
 
         // setup lifecycle service
         lifecycleService = mock(SecurityLifecycleService.class);
+        securityIndex = mock(SecurityIndexManager.class);
+        when(lifecycleService.securityIndex()).thenReturn(securityIndex);
         doAnswer(invocationOnMock -> {
             Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];
             runnable.run();
             return null;
-        }).when(lifecycleService).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
         this.clusterService = ClusterServiceUtils.createClusterService(threadPool);
     }
 
@@ -376,7 +380,7 @@ public class TokenServiceTests extends ESTestCase {
     }
 
     public void testInvalidatedToken() throws Exception {
-        when(lifecycleService.isSecurityIndexExisting()).thenReturn(true);
+        when(securityIndex.indexExists()).thenReturn(true);
         TokenService tokenService =
             new TokenService(tokenServiceEnabledSettings, systemUTC(), client, lifecycleService, clusterService);
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
@@ -563,8 +567,8 @@ public class TokenServiceTests extends ESTestCase {
             UserToken serialized = future.get();
             assertEquals(authentication, serialized.getAuthentication());
 
-            when(lifecycleService.isSecurityIndexAvailable()).thenReturn(false);
-            when(lifecycleService.isSecurityIndexExisting()).thenReturn(true);
+            when(securityIndex.isAvailable()).thenReturn(false);
+            when(securityIndex.indexExists()).thenReturn(true);
             future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);
             assertNull(future.get());

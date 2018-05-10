@@ -141,9 +141,11 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
         private static final String SYNTAX = {
             String method = /(?<method>GET|PUT|POST|HEAD|OPTIONS|DELETE)/
             String pathAndQuery = /(?<pathAndQuery>[^\n]+)/
-            String badBody = /GET|PUT|POST|HEAD|OPTIONS|DELETE|#/
+            String badBody = /GET|PUT|POST|HEAD|OPTIONS|DELETE|startyaml|#/
             String body = /(?<body>(?:\n(?!$badBody)[^\n]+)+)/
-            String nonComment = /$method\s+$pathAndQuery$body?/
+            String rawRequest = /(?:$method\s+$pathAndQuery$body?)/
+            String yamlRequest = /(?:startyaml(?s)(?<yaml>.+?)(?-s)endyaml)/
+            String nonComment = /(?:$rawRequest|$yamlRequest)/
             String comment = /(?<comment>#.+)/
             /(?:$comment|$nonComment)\n+/
         }()
@@ -331,6 +333,11 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             parse("$snippet", snippet.contents, SYNTAX) { matcher, last ->
                 if (matcher.group("comment") != null) {
                     // Comment
+                    return
+                }
+                String yamlRequest = matcher.group("yaml");
+                if (yamlRequest != null) {
+                    current.println(yamlRequest)
                     return
                 }
                 String method = matcher.group("method")

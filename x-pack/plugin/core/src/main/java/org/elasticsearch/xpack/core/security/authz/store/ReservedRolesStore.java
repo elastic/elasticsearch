@@ -85,6 +85,18 @@ public class ReservedRolesStore {
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("logstash_system", new RoleDescriptor("logstash_system", new String[] { "monitor", MonitoringBulkAction.NAME},
                         null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
+                .put("beats_agent", new RoleDescriptor("beats_agent",
+                    null,
+                    new RoleDescriptor.IndicesPrivileges[] {
+                        RoleDescriptor.IndicesPrivileges.builder().indices(".management-beats-agents").privileges("create_index", "index", "read").build()
+                    },
+                    null, MetadataUtils.DEFAULT_RESERVED_METADATA))
+                .put("beats_admin", new RoleDescriptor("beats_admin",
+                    null,
+                    new RoleDescriptor.IndicesPrivileges[] {
+                        RoleDescriptor.IndicesPrivileges.builder().indices(".management-beats-*").privileges("all").build()
+                    },
+                    null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put(UsernamesField.BEATS_ROLE, new RoleDescriptor(UsernamesField.BEATS_ROLE,
                         new String[] { "monitor", MonitoringBulkAction.NAME}, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("machine_learning_user", new RoleDescriptor("machine_learning_user", new String[] { "monitor_ml" },

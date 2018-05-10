@@ -43,7 +43,6 @@ import java.util.Map;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.APPLICATION_NAME_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CONNECT_TIMEOUT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
-import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.HOST_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.PROJECT_ID_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING;
@@ -132,14 +131,9 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
         String host;
         if (randomBoolean()) {
             host = randomAlphaOfLength(5);
-            if (randomBoolean()) {
-                settings.put(HOST_SETTING.getConcreteSettingForNamespace(clientName).getKey(), host);
-            } else {
-                settings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), host);
-                deprecationWarnings.add(ENDPOINT_SETTING.getConcreteSettingForNamespace(clientName));
-            }
+            settings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), host);
         } else {
-            host = HOST_SETTING.getDefault(Settings.EMPTY);
+            host = ENDPOINT_SETTING.getDefault(Settings.EMPTY);
         }
 
         String projectId;

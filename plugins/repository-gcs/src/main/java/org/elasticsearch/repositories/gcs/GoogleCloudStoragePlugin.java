@@ -60,7 +60,6 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
         return Arrays.asList(
             GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING,
             GoogleCloudStorageClientSettings.ENDPOINT_SETTING,
-            GoogleCloudStorageClientSettings.HOST_SETTING,
             GoogleCloudStorageClientSettings.PROJECT_ID_SETTING,
             GoogleCloudStorageClientSettings.CONNECT_TIMEOUT_SETTING,
             GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING,

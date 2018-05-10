@@ -104,7 +104,7 @@ integTestCluster {
     if (useFixture) {
         dependsOn createServiceAccountFile, googleCloudStorageFixture
         /* Use a closure on the string to delay evaluation until tests are executed */
-        setting 'gcs.client.integration_test.host', "http://${ -> googleCloudStorageFixture.addressAndPort }"
+        setting 'gcs.client.integration_test.endpoint', "http://${ -> googleCloudStorageFixture.addressAndPort }"
         setting 'gcs.client.integration_test.token_uri', "http://${ -> googleCloudStorageFixture.addressAndPort }/o/oauth2/token"
     } else {
         println "Using an external service to test the repository-gcs plugin"

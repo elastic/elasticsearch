@@ -54,7 +54,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
                         readTimeValue.getStringRep())
                 .put(GoogleCloudStorageClientSettings.APPLICATION_NAME_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
                         applicationName)
-                .put(GoogleCloudStorageClientSettings.HOST_SETTING.getConcreteSettingForNamespace(clientName).getKey(), hostName)
+                .put(GoogleCloudStorageClientSettings.ENDPOINT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), hostName)
                 .put(GoogleCloudStorageClientSettings.PROJECT_ID_SETTING.getConcreteSettingForNamespace(clientName).getKey(), projectIdName)
                 .build();
         when(environment.settings()).thenReturn(settings);

@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -19,6 +20,10 @@ import static org.elasticsearch.xpack.security.test.SecurityTestUtils.getCluster
 import static org.mockito.Mockito.mock;
 
 public class NativeRealmTests extends ESTestCase {
+
+    private SecurityIndexManager.State dummyState(ClusterHealthStatus indexStatus) {
+        return new SecurityIndexManager.State(true, true, true, true, null, indexStatus);
+    }
 
     public void testCacheClearOnIndexHealthChange() {
         final AtomicInteger numInvalidation = new AtomicInteger(0);
@@ -34,34 +39,34 @@ public class NativeRealmTests extends ESTestCase {
         };
 
         // existing to no longer present
-        ClusterIndexHealth previousHealth = getClusterIndexHealth(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        ClusterIndexHealth currentHealth = null;
-        nativeRealm.onSecurityIndexHealthChange(previousHealth, currentHealth);
+        SecurityIndexManager.State previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        SecurityIndexManager.State currentState = dummyState(null);
+        nativeRealm.onSecurityIndexStateChange(previousState, currentState);
         assertEquals(++expectedInvalidation, numInvalidation.get());
 
         // doesn't exist to exists
-        previousHealth = null;
-        currentHealth = getClusterIndexHealth(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        nativeRealm.onSecurityIndexHealthChange(previousHealth, currentHealth);
+        previousState = dummyState(null);
+        currentState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        nativeRealm.onSecurityIndexStateChange(previousState, currentState);
         assertEquals(++expectedInvalidation, numInvalidation.get());
 
         // green or yellow to red
-        previousHealth = getClusterIndexHealth(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        currentHealth = getClusterIndexHealth(ClusterHealthStatus.RED);
-        nativeRealm.onSecurityIndexHealthChange(previousHealth, currentHealth);
+        previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        currentState = dummyState(ClusterHealthStatus.RED);
+        nativeRealm.onSecurityIndexStateChange(previousState, currentState);
         assertEquals(expectedInvalidation, numInvalidation.get());
 
         // red to non red
-        previousHealth = getClusterIndexHealth(ClusterHealthStatus.RED);
-        currentHealth = getClusterIndexHealth(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        nativeRealm.onSecurityIndexHealthChange(previousHealth, currentHealth);
+        previousState = dummyState(ClusterHealthStatus.RED);
+        currentState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        nativeRealm.onSecurityIndexStateChange(previousState, currentState);
         assertEquals(++expectedInvalidation, numInvalidation.get());
 
         // green to yellow or yellow to green
-        previousHealth = getClusterIndexHealth(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        currentHealth = getClusterIndexHealth(
-                previousHealth.getStatus() == ClusterHealthStatus.GREEN ? ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN);
-        nativeRealm.onSecurityIndexHealthChange(previousHealth, currentHealth);
+        previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        currentState = dummyState(previousState.indexStatus == ClusterHealthStatus.GREEN ?
+            ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN);
+        nativeRealm.onSecurityIndexStateChange(previousState, currentState);
         assertEquals(expectedInvalidation, numInvalidation.get());
     }
 }

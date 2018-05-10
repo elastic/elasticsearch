@@ -117,6 +117,7 @@ searching ({pull}30338[#30338])
 
 SQL::
 * Improve correctness of SYS COLUMNS & SYS TYPES commands ({pull}30418[#30418])
+* Fix parsing of Dates containing milliseconds ({pull}30419[#30419])
 
 [float]
 === Regressions
@@ -206,6 +207,7 @@ searching ({pull}30338[#30338])
 
 SQL::
 * Improve correctness of SYS COLUMNS & SYS TYPES commands ({pull}30418[#30418])
+* Fix parsing of Dates containing milliseconds ({pull}30419[#30419])
 
 Allocation::
 
@@ -245,6 +247,9 @@ coming[6.3.1]
 Reduce the number of object allocations made by {security} when resolving the indices and aliases for a request ({pull}30180[#30180])
 
 Respect accept header on requests with no handler ({pull}30383[#30383])
+
+SQL::
+* Fix parsing of Dates containing milliseconds ({pull}30419[#30419])
 
 //[float]
 //=== Regressions

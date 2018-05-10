@@ -7,9 +7,9 @@
 == Node specification
 
 Most cluster level APIs allow to specify nodes with `node filters`, these filters
-limit the results to selected nodes for corresponding APIs.(For example, you can
+limit the results to selected nodes for corresponding APIs. (For example, you can
 find it in APIs like `Cluster State`, `Task Management` and all the Nodes API like
-`Nodes States`, `Nodes Info` etc.).
+`Nodes States`, `Nodes Info` etc.)
 
 Node filters can be one or a list filters which is comma-seperated, each filter can be:
 

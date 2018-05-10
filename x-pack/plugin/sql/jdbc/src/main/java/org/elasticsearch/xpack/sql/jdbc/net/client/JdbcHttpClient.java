@@ -33,7 +33,11 @@ public class JdbcHttpClient {
     private final JdbcConfiguration conCfg;
     private InfoResponse serverInfo;
 
-    public JdbcHttpClient(JdbcConfiguration conCfg) {
+    /**
+     * The SQLException is the only type of Exception the JDBC API can throw (and that the user expects).
+     * If we remove it, we need to make sure no other types of Exceptions (runtime or otherwise) are thrown
+     */
+    public JdbcHttpClient(JdbcConfiguration conCfg) throws SQLException {
         httpClient = new HttpClient(conCfg);
         this.conCfg = conCfg;
     }

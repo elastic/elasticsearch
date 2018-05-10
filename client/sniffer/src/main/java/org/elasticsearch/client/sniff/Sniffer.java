@@ -22,6 +22,7 @@ package org.elasticsearch.client.sniff;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpHost;
+import org.elasticsearch.client.Node;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 
@@ -41,7 +42,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Class responsible for sniffing nodes from some source (default is elasticsearch itself) and setting them to a provided instance of
  * {@link RestClient}. Must be created via {@link SnifferBuilder}, which allows to set all of the different options or rely on defaults.
- * A background task fetches the nodes through the {@link HostsSniffer} and sets them to the {@link RestClient} instance.
+ * A background task fetches the nodes through the {@link NodesSniffer} and sets them to the {@link RestClient} instance.
  * It is possible to perform sniffing on failure by creating a {@link SniffOnFailureListener} and providing it as an argument to
  * {@link RestClientBuilder#setFailureListener(RestClient.FailureListener)}. The Sniffer implementation needs to be lazily set to the
  * previously created SniffOnFailureListener through {@link SniffOnFailureListener#setSniffer(Sniffer)}.
@@ -53,15 +54,15 @@ public class Sniffer implements Closeable {
 
     private final Task task;
 
-    Sniffer(RestClient restClient, HostsSniffer hostsSniffer, long sniffInterval, long sniffAfterFailureDelay) {
-        this.task = new Task(hostsSniffer, restClient, sniffInterval, sniffAfterFailureDelay);
+    Sniffer(RestClient restClient, NodesSniffer nodesSniffer, long sniffInterval, long sniffAfterFailureDelay) {
+        this.task = new Task(nodesSniffer, restClient, sniffInterval, sniffAfterFailureDelay);
     }
 
     /**
      * Triggers a new sniffing round and explicitly takes out the failed host provided as argument
      */
-    public void sniffOnFailure(HttpHost failedHost) {
-        this.task.sniffOnFailure(failedHost);
+    public void sniffOnFailure(Node failedNode) {
+        this.task.sniffOnFailure(failedNode);
     }
 
     @Override
@@ -70,7 +71,7 @@ public class Sniffer implements Closeable {
     }
 
     private static class Task implements Runnable {
-        private final HostsSniffer hostsSniffer;
+        private final NodesSniffer nodesSniffer;
         private final RestClient restClient;
 
         private final long sniffIntervalMillis;
@@ -79,8 +80,8 @@ public class Sniffer implements Closeable {
         private final AtomicBoolean running = new AtomicBoolean(false);
         private ScheduledFuture<?> scheduledFuture;
 
-        private Task(HostsSniffer hostsSniffer, RestClient restClient, long sniffIntervalMillis, long sniffAfterFailureDelayMillis) {
-            this.hostsSniffer = hostsSniffer;
+        private Task(NodesSniffer nodesSniffer, RestClient restClient, long sniffIntervalMillis, long sniffAfterFailureDelayMillis) {
+            this.nodesSniffer = nodesSniffer;
             this.restClient = restClient;
             this.sniffIntervalMillis = sniffIntervalMillis;
             this.sniffAfterFailureDelayMillis = sniffAfterFailureDelayMillis;
@@ -109,22 +110,24 @@ public class Sniffer implements Closeable {
             sniff(null, sniffIntervalMillis);
         }
 
-        void sniffOnFailure(HttpHost failedHost) {
-            sniff(failedHost, sniffAfterFailureDelayMillis);
+        void sniffOnFailure(Node failedNode) {
+            sniff(failedNode, sniffAfterFailureDelayMillis);
         }
 
-        void sniff(HttpHost excludeHost, long nextSniffDelayMillis) {
+        void sniff(Node excludeNode, long nextSniffDelayMillis) {
             if (running.compareAndSet(false, true)) {
                 try {
-                    List<HttpHost> sniffedHosts = hostsSniffer.sniffHosts();
-                    logger.debug("sniffed hosts: " + sniffedHosts);
-                    if (excludeHost != null) {
-                        sniffedHosts.remove(excludeHost);
+                    final List<Node> sniffedNodes = nodesSniffer.sniff();
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("sniffed hosts: " + sniffedNodes);
                     }
-                    if (sniffedHosts.isEmpty()) {
+                    if (excludeNode != null) {
+                        sniffedNodes.remove(excludeNode);
+                    }
+                    if (sniffedNodes.isEmpty()) {
                         logger.warn("no hosts to set, hosts will be updated at the next sniffing round");
                     } else {
-                        this.restClient.setHosts(sniffedHosts.toArray(new HttpHost[sniffedHosts.size()]));
+                        this.restClient.setNodes(sniffedNodes.toArray(new Node[sniffedNodes.size()]));
                     }
                 } catch (Exception e) {
                     logger.error("error while sniffing nodes", e);

@@ -29,14 +29,22 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 
 /**
- * {@link org.elasticsearch.client.RestClient.FailureListener} impl that allows to track when it gets called for which host.
+ * {@link RestClient.FailureListener} impl that allows to track when it gets called for which host.
  */
 class HostsTrackingFailureListener extends RestClient.FailureListener {
     private volatile Set<HttpHost> hosts = new HashSet<>();
 
     @Override
-    public void onFailure(HttpHost host) {
-        hosts.add(host);
+    public void onFailure(Node node) {
+        hosts.add(node.getHost());
+    }
+
+    void assertCalled(Node... nodes) {
+        HttpHost[] hosts = new HttpHost[nodes.length];
+        for (int i = 0; i < nodes.length; i++) {
+            hosts[i] = nodes[i].getHost();
+        }
+        assertCalled(hosts);
     }
 
     void assertCalled(HttpHost... hosts) {

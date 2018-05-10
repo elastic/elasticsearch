@@ -43,6 +43,7 @@ public final class Request {
 
     private HttpEntity entity;
     private Header[] headers = NO_HEADERS;
+    private NodeSelector nodeSelector = NodeSelector.ANY;
     private HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory =
             HttpAsyncResponseConsumerFactory.DEFAULT;
 
@@ -140,6 +141,20 @@ public final class Request {
      */
     public Header[] getHeaders() {
         return headers;
+    }
+
+    /**
+     * Configure which nodes are valid destinations for this request.
+     */
+    public void setNodeSelector(NodeSelector nodeSelector) {
+        this.nodeSelector = nodeSelector;
+    }
+
+    /**
+     * The selector that chooses which nodes are valid destinations for this request.
+     */
+    public NodeSelector getNodeSelector() {
+        return nodeSelector;
     }
 
     /**

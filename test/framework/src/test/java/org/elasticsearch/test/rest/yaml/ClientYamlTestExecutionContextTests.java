@@ -20,12 +20,17 @@
 package org.elasticsearch.test.rest.yaml;
 
 import org.apache.http.HttpEntity;
+import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.test.ESTestCase;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class ClientYamlTestExecutionContextTests extends ESTestCase {
@@ -33,11 +38,10 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
     public void testHeadersSupportStashedValueReplacement() throws IOException {
         final AtomicReference<Map<String, String>> headersRef = new AtomicReference<>();
         final ClientYamlTestExecutionContext context =
-            new ClientYamlTestExecutionContext(null, randomBoolean()) {
+            new ClientYamlTestExecutionContext(null, () -> {}, randomBoolean()) {
                 @Override
                 ClientYamlTestResponse callApiInternal(String apiName, Map<String, String> params,
-                                                       HttpEntity entity,
-                                                       Map<String, String> headers) {
+                        HttpEntity entity, Map<String, String> headers, NodeSelector nodeSelector) {
                     headersRef.set(headers);
                     return null;
                 }
@@ -56,5 +60,21 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
 
         assertEquals("foo2", headersRef.get().get("foo"));
         assertEquals("baz bar1", headersRef.get().get("foo1"));
+    }
+
+    public void testNonDefaultNodeSelectorSetsNodeMetadata() throws IOException {
+        AtomicBoolean setHostMetadata = new AtomicBoolean(false);
+        final ClientYamlTestExecutionContext context =
+            new ClientYamlTestExecutionContext(null, () -> setHostMetadata.set(true), randomBoolean()) {
+                @Override
+                ClientYamlTestResponse callApiInternal(String apiName, Map<String, String> params,
+                            HttpEntity entity, Map<String, String> headers, NodeSelector nodeSelector) {
+                    return null;
+                }
+            };
+        context.callApi(randomAlphaOfLength(2), emptyMap(), emptyList(), emptyMap(), NodeSelector.ANY);
+        assertFalse(setHostMetadata.get());
+        context.callApi(randomAlphaOfLength(2), emptyMap(), emptyList(), emptyMap(), NodeSelector.NOT_MASTER_ONLY);
+        assertTrue(setHostMetadata.get());
     }
 }

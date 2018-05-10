@@ -39,6 +39,8 @@ import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.HttpAsyncResponseConsumerFactory;
+import org.elasticsearch.client.Node;
+import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
@@ -107,7 +109,7 @@ public class RestClientDocumentation {
             RestClientBuilder builder = RestClient.builder(new HttpHost("localhost", 9200, "http"));
             builder.setFailureListener(new RestClient.FailureListener() {
                 @Override
-                public void onFailure(HttpHost host) {
+                public void onFailure(Node node) {
                     // <1>
                 }
             });
@@ -184,6 +186,10 @@ public class RestClientDocumentation {
             request.setHttpAsyncResponseConsumerFactory(
                     new HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory(30 * 1024 * 1024));
             //end::rest-client-response-consumer
+            //tag::rest-client-node-selector
+            // TODO link me to docs
+            request.setNodeSelector(NodeSelector.NOT_MASTER_ONLY);
+            //end::rest-client-node-selector
         }
         {
             HttpEntity[] documents = new HttpEntity[10];

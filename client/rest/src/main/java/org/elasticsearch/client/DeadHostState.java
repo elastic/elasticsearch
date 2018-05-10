@@ -29,47 +29,35 @@ import java.util.concurrent.TimeUnit;
 final class DeadHostState implements Comparable<DeadHostState> {
 
     private static final long MIN_CONNECTION_TIMEOUT_NANOS = TimeUnit.MINUTES.toNanos(1);
-    private static final long MAX_CONNECTION_TIMEOUT_NANOS = TimeUnit.MINUTES.toNanos(30);
+    static final long MAX_CONNECTION_TIMEOUT_NANOS = TimeUnit.MINUTES.toNanos(30);
 
     private final int failedAttempts;
     private final long deadUntilNanos;
-    private final TimeSupplier timeSupplier;
 
     /**
      * Build the initial dead state of a host. Useful when a working host stops functioning
      * and needs to be marked dead after its first failure. In such case the host will be retried after a minute or so.
      *
-     * @param timeSupplier a way to supply the current time and allow for unit testing
+     * @param now the current time in nanoseconds. Prefer a source designed to measure elapsed time like {@link System#nanoTime()}.
      */
-    DeadHostState(TimeSupplier timeSupplier) {
+    DeadHostState(long now) {
         this.failedAttempts = 1;
-        this.deadUntilNanos = timeSupplier.nanoTime() + MIN_CONNECTION_TIMEOUT_NANOS;
-        this.timeSupplier = timeSupplier;
+        this.deadUntilNanos = now + MIN_CONNECTION_TIMEOUT_NANOS;
     }
 
     /**
      * Build the dead state of a host given its previous dead state. Useful when a host has been failing before, hence
      * it already failed for one or more consecutive times. The more failed attempts we register the longer we wait
      * to retry that same host again. Minimum is 1 minute (for a node the only failed once created
-     * through {@link #DeadHostState(TimeSupplier)}), maximum is 30 minutes (for a node that failed more than 10 consecutive times)
+     * through {@link #DeadHostState(long)}), maximum is 30 minutes (for a node that failed more than 10 consecutive times)
      *
-     * @param previousDeadHostState the previous state of the host which allows us to increase the wait till the next retry attempt
+     * @param now the current time in nanoseconds. Prefer a source designed to measure elapsed time like {@link System#nanoTime()}.
      */
-    DeadHostState(DeadHostState previousDeadHostState, TimeSupplier timeSupplier) {
+    DeadHostState(DeadHostState previousDeadHostState, long now) {
         long timeoutNanos = (long)Math.min(MIN_CONNECTION_TIMEOUT_NANOS * 2 * Math.pow(2, previousDeadHostState.failedAttempts * 0.5 - 1),
                 MAX_CONNECTION_TIMEOUT_NANOS);
-        this.deadUntilNanos = timeSupplier.nanoTime() + timeoutNanos;
+        this.deadUntilNanos = now + timeoutNanos;
         this.failedAttempts = previousDeadHostState.failedAttempts + 1;
-        this.timeSupplier = timeSupplier;
-    }
-
-    /**
-     * Indicates whether it's time to retry to failed host or not.
-     *
-     * @return true if the host should be retried, false otherwise
-     */
-    boolean shallBeRetried() {
-        return timeSupplier.nanoTime() - deadUntilNanos > 0;
     }
 
     /**
@@ -95,20 +83,5 @@ final class DeadHostState implements Comparable<DeadHostState> {
                 "failedAttempts=" + failedAttempts +
                 ", deadUntilNanos=" + deadUntilNanos +
                 '}';
-    }
-
-    /**
-     * Time supplier that makes timing aspects pluggable to ease testing
-     */
-    interface TimeSupplier {
-
-        TimeSupplier DEFAULT = new TimeSupplier() {
-            @Override
-            public long nanoTime() {
-                return System.nanoTime();
-            }
-        };
-
-        long nanoTime();
     }
 }

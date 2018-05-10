@@ -22,9 +22,11 @@ package org.elasticsearch.test.rest.yaml;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
@@ -47,8 +49,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Runs a suite of yaml tests shared with all the official Elasticsearch clients against against an elasticsearch cluster.
@@ -121,8 +125,10 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                 }
             }
             ClientYamlTestClient clientYamlTestClient = initClientYamlTestClient(restSpec, restClient, hosts, esVersion);
-            restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, randomizeContentType());
-            adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient, false);
+            restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient,
+                    () -> sniffHostMetadata(client()), randomizeContentType());
+            adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient,
+                    () -> sniffHostMetadata(adminClient()), false);
             String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
             blacklistPathMatchers = new ArrayList<>();
             for (String entry : blacklist) {
@@ -366,5 +372,77 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     protected boolean randomizeContentType() {
         return true;
+    }
+
+        /**
+     * Sniff the cluster for host metadata if it hasn't already been sniffed. This isn't the
+     * same thing as using the {@link Sniffer} because:
+     * <ul>
+     * <li>It doesn't replace the hosts that that {@link #client} communicates with
+     * <li>If there is already host metadata it skips running. This behavior isn't
+     *     thread safe but it doesn't have to be for our tests.
+     * </ul>
+     */
+    private void sniffHostMetadata(RestClient client) throws IOException {
+        List<Node> nodes = client.getNodes();
+        boolean allHaveRoles = true;
+        for (Node node : nodes) {
+            if (node.getRoles() == null) {
+                allHaveRoles = false;
+                break;
+            }
+        }
+        if (allHaveRoles) {
+            // We already have resolved metadata.
+            return;
+        }
+        // No resolver, sniff one time and resolve metadata against the results
+        ElasticsearchNodesSniffer.Scheme scheme =
+            ElasticsearchNodesSniffer.Scheme.valueOf(getProtocol().toUpperCase(Locale.ROOT));
+        /*
+         * We don't want to change the list of nodes that the client communicates with
+         * because that'd just be rude. So instead we replace the nodes find the nodes
+         * returned by the sniffer that correspond with the nodes already the client
+         * and set the nodes to them. That *shouldn't* change the nodes that the client
+         * communicates with.
+         */
+        ElasticsearchNodesSniffer sniffer = new ElasticsearchNodesSniffer(
+                adminClient(), ElasticsearchNodesSniffer.DEFAULT_SNIFF_REQUEST_TIMEOUT, scheme);
+        attachSniffedMetadataOnClient(client, nodes, sniffer.sniff());
+    }
+
+    static void attachSniffedMetadataOnClient(RestClient client, List<Node> originalNodes, List<Node> nodesWithMetadata) {
+        Set<HttpHost> originalHosts = originalNodes.stream()
+                .map(Node::getHost)
+                .collect(Collectors.toSet());
+        List<Node> sniffed = new ArrayList<>();
+        for (Node node : nodesWithMetadata) {
+            /*
+             * getHost is the publish_address of the node which, sometimes, is
+             * ipv6 and, sometimes, our original address for the node is ipv4.
+             * In that case the ipv4 address should be in getBoundHosts. If it
+             * isn't then we'll end up without the right number of hosts which
+             * will fail down below with a pretty error message.
+             */
+            if (originalHosts.contains(node.getHost())) {
+                sniffed.add(node);
+            } else {
+                for (HttpHost bound : node.getBoundHosts()) {
+                    if (originalHosts.contains(bound)) {
+                        sniffed.add(node.withHost(bound));
+                        break;
+                    }
+                }
+            }
+        }
+        int missing = originalNodes.size() - sniffed.size();
+        if (missing > 0) {
+            List<HttpHost> hosts = originalNodes.stream()
+                .map(Node::getHost)
+                .collect(Collectors.toList());
+            throw new IllegalStateException("Didn't sniff metadata for all nodes. Wanted metadata for "
+                + hosts + " but got " + sniffed);
+        }
+        client.setNodes(sniffed.toArray(new Node[0]));
     }
 }

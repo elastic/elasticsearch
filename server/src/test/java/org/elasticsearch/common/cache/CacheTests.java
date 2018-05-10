@@ -344,7 +344,6 @@ public class CacheTests extends ESTestCase {
         assertEquals(numberOfEntries, cache.stats().getEvictions());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30428")
     public void testComputeIfAbsentDeadlock() throws BrokenBarrierException, InterruptedException {
         final int numberOfThreads = randomIntBetween(2, 32);
         final Cache<Integer, String> cache =

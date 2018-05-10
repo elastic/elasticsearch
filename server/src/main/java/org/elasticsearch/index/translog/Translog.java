@@ -700,10 +700,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * Trims translog for terms of files below <code>belowTerm</code> and seq# above <code>aboveSeqNo</code>.
      * Effectively it moves max visible seq# {@link Checkpoint#trimmedAboveSeqNo} therefore {@link TranslogSnapshot} skips those operations.
      */
-    public void trim(long belowTerm, long aboveSeqNo) throws IOException {
-        assert aboveSeqNo > 0 : "aboveSeqNo has to be positive number";
-        try (ReleasableLock lock = writeLock.acquire()) {
+    public void trimOperations(long belowTerm, long aboveSeqNo) throws IOException {
+        assert aboveSeqNo >= 0 : "aboveSeqNo has to be non-negative number";
+        if (current.getPrimaryTerm() < belowTerm) {
+            throw new IllegalArgumentException("Latest translog primary term [" + current.getPrimaryTerm()
+                + "] has to be not less that trimming term [" + belowTerm + "]");
+        }
 
+        try (ReleasableLock lock = writeLock.acquire()) {
+            ensureOpen();
             // update all existed ones (if it is necessary) as checkpoint and reader are immutable
             final List<TranslogReader> newReaders = new ArrayList<>(readers.size());
             try {
@@ -713,8 +718,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 }
             } catch (IOException e){
                 IOUtils.closeWhileHandlingException(newReaders);
-                IOUtils.closeWhileHandlingException(current);
-                IOUtils.closeWhileHandlingException(readers);
+                close();
                 throw e;
             }
 

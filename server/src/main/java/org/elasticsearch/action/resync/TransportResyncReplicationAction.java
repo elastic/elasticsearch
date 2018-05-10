@@ -136,7 +136,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
             }
         }
         if (request.getTrimAboveSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-            replica.trimOperationOfPreviousPrimaryTerms(replica.getPrimaryTerm(), request.getTrimAboveSeqNo());
+            replica.trimOperationOfPreviousPrimaryTerms(request.getTrimAboveSeqNo());
         }
         return location;
     }

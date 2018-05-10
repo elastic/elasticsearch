@@ -40,7 +40,6 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
@@ -356,7 +355,6 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
 
     @TestLogging("org.elasticsearch.index.shard:TRACE,org.elasticsearch.action.resync:TRACE")
     public void testResyncAfterPrimaryPromotion() throws Exception {
-        // TODO: check translog trimming functionality once it's implemented
         try (ReplicationGroup shards = createGroup(2)) {
             shards.startAll();
             int initialDocs = shards.indexDocs(randomInt(10));
@@ -370,17 +368,17 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             final IndexShard justReplica = shards.getReplicas().get(1);
 
             // simulate docs that were inflight when primary failed
-            final int extraDocs = randomIntBetween(1, 5);
+            final int extraDocs = randomInt(5);
             logger.info("--> indexing {} extra docs", extraDocs);
             for (int i = 0; i < extraDocs; i++) {
-                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "extra_" + i)
+                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "extra_doc_" + i)
                     .source("{}", XContentType.JSON);
                 final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
                 indexOnReplica(bulkShardRequest, shards, newPrimary);
             }
 
 
-            final int extraDocsToBeTrimmed = randomIntBetween(3, 10);
+            final int extraDocsToBeTrimmed = randomIntBetween(0, 10);
             logger.info("--> indexing {} extra docs to be trimmed", extraDocsToBeTrimmed);
             for (int i = 0; i < extraDocsToBeTrimmed; i++) {
                 final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "extra_trimmed_" + i)
@@ -399,8 +397,6 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             } else {
                 assertThat(task.getResyncedOperations(), greaterThanOrEqualTo(extraDocs));
             }
-            SeqNoStats primarySeqNoStat = shards.getPrimary().seqNoStats();
-            logger.info("--> seqNo primary {} {}", shards.getPrimary().nodeName(), primarySeqNoStat);
             List<IndexShard> replicas = shards.getReplicas();
             for (IndexShard replica : replicas) {
                 logger.info("--> seqNo replica {} {}", replica.nodeName(), replica.seqNoStats());
@@ -417,7 +413,8 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 temp = new HashSet<>(replicaIds);
                 temp.removeAll(primaryIds);
                 // yeah, replica has more docs as there is no Lucene roll back on it
-                assertThat(replica.routingEntry() + " has to have extra docs", temp, not(empty()));
+                assertThat(replica.routingEntry() + " has to have extra docs", temp,
+                    extraDocsToBeTrimmed > 0 ? not(empty()) : empty());
             }
 
             // check translog on replica is trimmed

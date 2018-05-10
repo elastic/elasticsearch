@@ -95,7 +95,7 @@ final class Checkpoint {
      * @param globalCheckpoint      the last-known global checkpoint
      * @param minTranslogGeneration the minimum generation referenced by the translog at this moment.
      * @param trimmedAboveSeqNo     all operations with seq# above trimmedAboveSeqNo should be ignored and not read from the
-     *                              corresponding translog file
+     *                              corresponding translog file. {@link SequenceNumbers#UNASSIGNED_SEQ_NO} is used to disable trimming.
      */
     Checkpoint(long offset, int numOps, long generation, long minSeqNo, long maxSeqNo, long globalCheckpoint,
                long minTranslogGeneration, long trimmedAboveSeqNo) {
@@ -152,7 +152,8 @@ final class Checkpoint {
         final long maxSeqNo = in.readLong();
         final long globalCheckpoint = in.readLong();
         final long minTranslogGeneration = in.readLong();
-        return new Checkpoint(offset, numOps, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration, maxSeqNo);
+        final long trimmedAboveSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+        return new Checkpoint(offset, numOps, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration, trimmedAboveSeqNo);
     }
 
     // reads a checksummed checkpoint introduced in ES 5.0.0
@@ -164,7 +165,8 @@ final class Checkpoint {
         final long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         final long globalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
         final long minTranslogGeneration = SequenceNumbers.UNASSIGNED_SEQ_NO;
-        return new Checkpoint(offset, numOps, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration, maxSeqNo);
+        final long trimmedAboveSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+        return new Checkpoint(offset, numOps, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration, trimmedAboveSeqNo);
     }
 
     @Override

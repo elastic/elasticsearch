@@ -24,15 +24,19 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.translog.Translog;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -107,5 +111,36 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         } finally {
             closeShards(replica);
         }
+    }
+
+    public void testExactNumDocs() throws Exception {
+        final IndexShard replica = newShard(false);
+        recoveryEmptyReplica(replica);
+        long flushedDocs = 0;
+        final int numDocs = scaledRandomIntBetween(1, 20);
+        final Set<String> docIds = new HashSet<>();
+        for (int i = 0; i < numDocs; i++) {
+            String id = Integer.toString(i);
+            docIds.add(id);
+            indexDoc(replica, "_doc", id);
+            if (randomBoolean()) {
+                Engine.CommitId commitId = replica.flush(new FlushRequest());
+                replica.syncFlush(UUIDs.randomBase64UUID(), commitId);
+                flushedDocs = docIds.size();
+            }
+        }
+        for (String id : randomSubsetOf(docIds)) {
+            deleteDoc(replica, "_doc", id);
+            docIds.remove(id);
+            if (randomBoolean()) {
+                Engine.CommitId commitId = replica.flush(new FlushRequest());
+                replica.syncFlush(UUIDs.randomBase64UUID(), commitId);
+                flushedDocs = docIds.size();
+            }
+        }
+        final RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null, null);
+        assertThat(PeerRecoveryTargetService.getStoreMetadataSnapshot(logger, recoveryTarget).getNumDocs(), equalTo(flushedDocs));
+        recoveryTarget.decRef();
+        closeShards(replica);
     }
 }

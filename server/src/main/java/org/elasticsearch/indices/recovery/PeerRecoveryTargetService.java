@@ -34,7 +34,9 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -42,6 +44,7 @@ import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.CombinedDeletionPolicy;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -65,6 +68,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 import java.util.StringJoiner;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -289,9 +293,21 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
      * @param recoveryTarget the target of the recovery
      * @return a snapshot of the store metadata
      */
-    private Store.MetadataSnapshot getStoreMetadataSnapshot(final RecoveryTarget recoveryTarget) {
+    static Store.MetadataSnapshot getStoreMetadataSnapshot(final Logger logger, final RecoveryTarget recoveryTarget) {
         try {
-            return recoveryTarget.indexShard().snapshotStoreMetadata();
+            final Store.MetadataSnapshot snapshot = recoveryTarget.indexShard().snapshotStoreMetadata();
+            // The primary shard may need the "exact" numDocs to verify if the commit has syncId.
+            final boolean softDeleteEnabled = recoveryTarget.indexShard().indexSettings().isSoftDeleteEnabled();
+            if (softDeleteEnabled && Strings.hasText(snapshot.getSyncId())) {
+                final List<IndexCommit> commits = DirectoryReader.listCommits(recoveryTarget.store().directory());
+                final IndexCommit recoveringCommit = commits.get(commits.size() - 1);
+                if (Objects.equals(recoveringCommit.getUserData().get(Engine.SYNC_COMMIT_ID), snapshot.getSyncId()) == false) {
+                    throw new IllegalStateException("Target index was changed during recovery [" + recoveryTarget + "]");
+                }
+                final int exactNumDocs = Lucene.getExactNumDocs(recoveringCommit);
+                return new Store.MetadataSnapshot(snapshot.asMap(), snapshot.getCommitUserData(), exactNumDocs);
+            }
+            return snapshot;
         } catch (final org.apache.lucene.index.IndexNotFoundException e) {
             // happens on an empty folder. no need to log
             logger.trace("{} shard folder empty, recovering all files", recoveryTarget);
@@ -312,7 +328,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         final StartRecoveryRequest request;
         logger.trace("{} collecting local files for [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
 
-        final Store.MetadataSnapshot metadataSnapshot = getStoreMetadataSnapshot(recoveryTarget);
+        final Store.MetadataSnapshot metadataSnapshot = getStoreMetadataSnapshot(logger, recoveryTarget);
         logger.trace("{} local file count [{}]", recoveryTarget.shardId(), metadataSnapshot.size());
 
         final long startingSeqNo;

@@ -19,6 +19,7 @@
 package org.elasticsearch.indices.flush;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -40,6 +41,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -466,15 +468,24 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
         }
     }
 
-    private PreSyncedFlushResponse performPreSyncedFlush(PreShardSyncedFlushRequest request) {
+    private PreSyncedFlushResponse performPreSyncedFlush(PreShardSyncedFlushRequest request) throws IOException {
         IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
         FlushRequest flushRequest = new FlushRequest().force(false).waitIfOngoing(true);
         logger.trace("{} performing pre sync flush", request.shardId());
         indexShard.flush(flushRequest);
-        final CommitStats commitStats = indexShard.commitStats();
-        final Engine.CommitId commitId = commitStats.getRawCommitId();
-        logger.trace("{} pre sync flush done. commit id {}, num docs {}", request.shardId(), commitId, commitStats.getNumDocs());
-        return new PreSyncedFlushResponse(commitId, commitStats.getNumDocs(), commitStats.syncId());
+        try (Engine.IndexCommitRef commitRef = indexShard.acquireLastIndexCommit(false)) {
+            final SegmentInfos segmentInfos = Lucene.readSegmentInfos(commitRef.getIndexCommit());
+            final int numDocs;
+            if (indexShard.indexSettings().isSoftDeleteEnabled()) {
+                numDocs = Lucene.getExactNumDocs(commitRef.getIndexCommit());
+            } else {
+                numDocs = Lucene.getNumDocs(segmentInfos);
+            }
+            final Engine.CommitId commitId = new Engine.CommitId(segmentInfos.getId());
+            final String syncId = segmentInfos.userData.get(Engine.SYNC_COMMIT_ID);
+            logger.trace("{} pre sync flush done. commit id {}, num docs {}", request.shardId(), commitId, numDocs);
+            return new PreSyncedFlushResponse(commitId, numDocs, syncId);
+        }
     }
 
     private ShardSyncedFlushResponse performSyncedFlush(ShardSyncedFlushRequest request) {

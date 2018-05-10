@@ -30,6 +30,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
@@ -1555,15 +1556,31 @@ public class RequestConvertersTests extends ESTestCase {
 
         putRepositoryRequest.settings(
             Settings.builder()
-            .put(FsRepository.LOCATION_SETTING.getKey(), repositoryLocation)
-            .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
-            .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-            .build());
+                .put(FsRepository.LOCATION_SETTING.getKey(), repositoryLocation)
+                .put(FsRepository.COMPRESS_SETTING.getKey(), randomBoolean())
+                .put(FsRepository.CHUNK_SIZE_SETTING.getKey(), randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                .build());
 
         Request request = RequestConverters.createRepository(putRepositoryRequest);
         assertThat(endpoint, equalTo(request.getEndpoint()));
         assertThat(HttpPut.METHOD_NAME, equalTo(request.getMethod()));
         assertToXContentBody(putRepositoryRequest, request.getEntity());
+    }
+
+    public void testDeleteRepository() {
+        Map<String, String> expectedParams = new HashMap<>();
+        String repoName = "test";
+        StringBuilder endpoint = new StringBuilder("/_snapshot/" + repoName);
+
+        DeleteRepositoryRequest deleteRepositoryRequest = new DeleteRepositoryRequest();
+        deleteRepositoryRequest.name(repoName);
+        setRandomMasterTimeout(deleteRepositoryRequest, expectedParams);
+        setRandomTimeout(deleteRepositoryRequest::timeout, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+
+        Request request = RequestConverters.deleteRepository(deleteRepositoryRequest);
+        assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
+        assertThat(HttpDelete.METHOD_NAME, equalTo(request.getMethod()));
+        assertThat(expectedParams, equalTo(request.getParameters()));
     }
 
     public void testPutTemplateRequest() throws Exception {

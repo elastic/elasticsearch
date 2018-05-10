@@ -145,7 +145,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         bulk.append("{\"a\": 4, \"b\": 5, \"c\": 6}\n");
         bulk.append("{\"index\":{\"_index\": \"bort\", \"_type\": \"doc\", \"_id\":\"1\"}\n");
         bulk.append("{\"a\": \"test\"}\n");
-        request.setEntity(new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+        request.setJsonEntity(bulk.toString());
         client().performRequest(request);
         oneTimeSetup = true;
     }
@@ -482,7 +482,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
             user.field("roles", role);
         }
         user.endObject();
-        request.setEntity(new StringEntity(Strings.toString(user), ContentType.APPLICATION_JSON));
+        request.setJsonEntity(Strings.toString(user));
         client().performRequest(request);
     }
 

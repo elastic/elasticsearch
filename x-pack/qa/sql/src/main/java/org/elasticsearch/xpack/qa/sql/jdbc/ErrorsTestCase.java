@@ -37,7 +37,7 @@ public class ErrorsTestCase extends JdbcIntegrationTestCase implements org.elast
     public void testSelectFromIndexWithoutTypes() throws Exception {
         // Create an index without any types
         Request request = new Request("PUT", "/test");
-        request.setEntity(new StringEntity("{}", ContentType.APPLICATION_JSON));
+        request.setJsonEntity("{}");
         client().performRequest(request);
 
         try (Connection c = esJdbc()) {

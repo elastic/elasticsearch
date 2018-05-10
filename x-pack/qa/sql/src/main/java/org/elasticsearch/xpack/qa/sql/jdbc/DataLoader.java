@@ -93,7 +93,7 @@ public class DataLoader {
             createIndex.endObject();
         }
         createIndex.endObject().endObject();
-        request.setEntity(new StringEntity(Strings.toString(createIndex), ContentType.APPLICATION_JSON));
+        request.setJsonEntity(Strings.toString(createIndex));
         client.performRequest(request);
 
         Map<String, String> deps = new LinkedHashMap<>();
@@ -151,7 +151,7 @@ public class DataLoader {
 
             bulk.append("}\n");
         });
-        request.setEntity(new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+        request.setJsonEntity(bulk.toString());
         client.performRequest(request);
     }
 

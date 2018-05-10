@@ -25,7 +25,7 @@ public abstract class FetchSizeTestCase extends CliIntegrationTestCase {
             bulk.append("{\"index\":{}}\n");
             bulk.append("{\"test_field\":" + i + "}\n");
         }
-        request.setEntity(new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+        request.setJsonEntity(bulk.toString());
         client().performRequest(request);
 
         assertEquals("[?1l>[?1000l[?2004lfetch size set to [90m4[0m", command("fetch size = 4"));

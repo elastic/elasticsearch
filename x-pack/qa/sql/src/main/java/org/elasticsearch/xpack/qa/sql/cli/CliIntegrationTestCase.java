@@ -64,7 +64,7 @@ public abstract class CliIntegrationTestCase extends ESRestTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         body.accept(builder);
         builder.endObject();
-        request.setEntity(new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON));
+        request.setJsonEntity(Strings.toString(builder));
         client().performRequest(request);
     }
 

@@ -76,7 +76,7 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
         index.endObject();
         index.endObject();
         Request request = new Request("PUT", "/test");
-        request.setEntity(new StringEntity(Strings.toString(index), ContentType.APPLICATION_JSON));
+        request.setJsonEntity(Strings.toString(index));
         client().performRequest(request);
         int documents = between(10, 100);
         createTestData(documents);
@@ -98,7 +98,7 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
             bulk.append("{\"index\":{\"_id\":\"" + i + "\"}\n");
             bulk.append("{\"a\": " + a + ", \"b\": " + b + ", \"c\": " + c + "}\n");
         }
-        request.setEntity(new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+        request.setJsonEntity(bulk.toString());
 
         client().performRequest(request);
     }
@@ -119,7 +119,7 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
         if (false == mode.isEmpty()) {
             request.addParameter("mode", mode);
         }
-        request.setEntity(new StringEntity("{\"query\": \"SELECT COUNT(*) FROM test\"}", ContentType.APPLICATION_JSON));
+        request.setJsonEntity("{\"query\": \"SELECT COUNT(*) FROM test\"}");
         Map<String, Object> actual = responseToMap(client.performRequest(request));
 
         if (false == expected.equals(actual)) {

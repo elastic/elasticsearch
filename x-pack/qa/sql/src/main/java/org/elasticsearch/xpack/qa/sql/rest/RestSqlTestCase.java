@@ -83,7 +83,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
             bulk.append("{\"index\":{\"_id\":\"" + i + "\"}}\n");
             bulk.append("{\"text\":\"text" + i + "\", \"number\":" + i + "}\n");
         }
-        request.setEntity(new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+        request.setJsonEntity(bulk.toString());
         client().performRequest(request);
 
         String sqlRequest =
@@ -148,7 +148,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         StringBuilder bulk = new StringBuilder();
         bulk.append("{\"index\":{\"_id\":\"1\"}}\n");
         bulk.append("{\"name\":\"test\", \"score\":10}\n");
-        request.setEntity(new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+        request.setJsonEntity(bulk.toString());
         client().performRequest(request);
 
         Map<String, Object> expected = new HashMap<>();
@@ -216,7 +216,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     public void testSelectFromIndexWithoutTypes() throws Exception {
         // Create an index without any types
         Request request = new Request("PUT", "/test");
-        request.setEntity(new StringEntity("{}", ContentType.APPLICATION_JSON));
+        request.setJsonEntity("{}");
         client().performRequest(request);
         String mode = randomFrom("jdbc", "plain");
         expectBadRequest(() -> runSql(mode, "SELECT * FROM test"),
@@ -554,7 +554,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         Request request = new Request("POST", "/_xpack/sql");
         request.addParameter("error_trace", "true");
         request.addParameter("format", format);
-        request.setEntity(new StringEntity("{\"query\":\"" + sql + "\"}", ContentType.APPLICATION_JSON));
+        request.setJsonEntity("{\"query\":\"" + sql + "\"}");
 
         Response response = client().performRequest(request);
         return new Tuple<>(
@@ -614,7 +614,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
             bulk.append("{\"index\":{}\n");
             bulk.append(doc + "\n");
         }
-        request.setEntity(new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+        request.setJsonEntity(bulk.toString());
         client().performRequest(request);
     }
 }

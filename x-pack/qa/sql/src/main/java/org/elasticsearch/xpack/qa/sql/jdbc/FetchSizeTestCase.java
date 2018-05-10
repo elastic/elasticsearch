@@ -32,7 +32,7 @@ public class FetchSizeTestCase extends JdbcIntegrationTestCase {
             bulk.append("{\"index\":{}}\n");
             bulk.append("{\"test_field\":" + i + "}\n");
         }
-        request.setEntity(new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+        request.setJsonEntity(bulk.toString());
         client().performRequest(request);
     }
 

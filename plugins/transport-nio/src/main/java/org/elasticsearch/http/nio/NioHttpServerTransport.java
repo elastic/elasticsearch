@@ -272,6 +272,7 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
             PlainActionFuture<Void> future = PlainActionFuture.newFuture();
             channel.addCloseListener(ActionListener.toBiConsumer(future));
             futures.add(future);
+            channel.close();
         }
 
         List<RuntimeException> closeExceptions  = new ArrayList<>();

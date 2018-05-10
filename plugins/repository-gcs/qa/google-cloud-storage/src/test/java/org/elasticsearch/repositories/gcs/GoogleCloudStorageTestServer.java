@@ -707,7 +707,9 @@ public class GoogleCloudStorageTestServer {
      * Builds the rewrite response as defined by
      * https://cloud.google.com/storage/docs/json_api/v1/objects/rewrite
      */
-    private static XContentBuilder buildRewriteResponse(final XContentBuilder builder, final String destBucket, final String dest,
+    private static XContentBuilder buildRewriteResponse(final XContentBuilder builder,
+                                                        final String destBucket,
+                                                        final String dest,
                                                         final int byteSize) throws IOException {
         builder.startObject()
                 .field("kind", "storage#rewriteResponse")

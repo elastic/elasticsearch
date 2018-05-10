@@ -56,13 +56,14 @@ import java.util.stream.Collectors;
 
 class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore {
 
-    private final Storage storage;
-    private final String bucket;
     // The recommended maximum size of a blob that should be uploaded in a single
     // request. Larger files should be uploaded over multiple requests (this is
     // called "resumable upload")
     // https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload
     private static final int LARGE_BLOB_THRESHOLD_BYTE_SIZE = 5 * 1024 * 1024;
+
+    private final Storage storage;
+    private final String bucket;
 
     GoogleCloudStorageBlobStore(Settings settings, String bucket, Storage storage) {
         super(settings);
@@ -275,10 +276,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
      * @param blobNames names of the bucket to delete
      */
     void deleteBlobs(Collection<String> blobNames) throws IOException {
-        if (blobNames == null || blobNames.isEmpty()) {
-            return;
-        }
-        if (blobNames.size() < 3) {
+        if (blobNames.size() < 2) {
             for (final String blobName : blobNames) {
                 deleteBlob(blobName);
             }

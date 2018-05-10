@@ -229,7 +229,7 @@ public class XPackLicenseState {
                     case STANDARD:
                     case GOLD:
                     case PLATINUM:
-                        return new String[] { "Logstash will no longer poll for centrally-managed configuration" };
+                        return new String[] { "Beats will no longer poll for centrally-managed configuration" };
                 }
                 break;
         }

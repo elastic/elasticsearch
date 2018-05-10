@@ -29,8 +29,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
-import java.io.IOException;
-import java.security.GeneralSecurityException;
 import java.util.Collections;
 import java.util.Locale;
 
@@ -39,7 +37,7 @@ import static org.mockito.Mockito.when;
 
 public class GoogleCloudStorageServiceTests extends ESTestCase {
 
-    public void testClientInitializer() throws GeneralSecurityException, IOException {
+    public void testClientInitializer() throws Exception {
         final String clientName = randomAlphaOfLength(4).toLowerCase(Locale.ROOT);
         final Environment environment = mock(Environment.class);
         final TimeValue connectTimeValue = TimeValue.timeValueNanos(randomIntBetween(0, 2000000));

@@ -31,9 +31,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
-import java.io.IOException;
 import java.net.URI;
-import java.security.GeneralSecurityException;
 import java.util.Map;
 
 public class GoogleCloudStorageService extends AbstractComponent {
@@ -53,7 +51,7 @@ public class GoogleCloudStorageService extends AbstractComponent {
      *            name of client settings to use from secure settings
      * @return a Client instance that can be used to manage Storage objects
      */
-    public Storage createClient(final String clientName) throws GeneralSecurityException, IOException {
+    public Storage createClient(final String clientName) throws Exception {
         final GoogleCloudStorageClientSettings clientSettings = clientsSettings.get(clientName);
         if (clientSettings == null) {
             throw new IllegalArgumentException("Unknown client name [" + clientName + "]. Existing client configs: "

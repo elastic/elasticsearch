@@ -248,7 +248,8 @@ public class GoogleCloudStorageTestServer {
                         inputStreamBody = new GZIPInputStream(inputStreamBody);
                     }
                 }
-                // Read line by line ?both? parts of the multipart
+                // Read line by line ?both? parts of the multipart. Decoding headers as
+                // IS_8859_1 is safe.
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStreamBody, StandardCharsets.ISO_8859_1))) {
                     String line;
                     // read first part delimiter
@@ -275,15 +276,19 @@ public class GoogleCloudStorageTestServer {
                         return newError(RestStatus.INTERNAL_SERVER_ERROR,
                                 "Error parsing multipart request. Metadata part expected to have the \"application/json\" content type.");
                     }
-                    // read metadata part
+                    // read metadata part, a single line
                     line = reader.readLine();
+                    final byte[] metadata = line.getBytes(StandardCharsets.ISO_8859_1);
+                    if ((firstPartContentTypes != null) && (firstPartContentTypes.stream().anyMatch((x -> x.contains("charset=utf-8"))))) {
+                        // decode as utf-8
+                        line = new String(metadata, StandardCharsets.UTF_8);
+                    }
                     final Matcher objectNameMatcher = Pattern.compile("\"name\":\"([^\"]*)\"").matcher(line);
                     objectNameMatcher.find();
                     final String objectName = objectNameMatcher.group(1);
                     final Matcher bucketNameMatcher = Pattern.compile("\"bucket\":\"([^\"]*)\"").matcher(line);
                     bucketNameMatcher.find();
                     final String bucketName = bucketNameMatcher.group(1);
-                    final byte[] metadata = line.getBytes(StandardCharsets.ISO_8859_1);
                     // read second part delimiter
                     line = reader.readLine();
                     if ((line == null) || (line.equals("--" + boundary) == false)) {
@@ -362,44 +367,16 @@ public class GoogleCloudStorageTestServer {
             return newResponse(RestStatus.OK, emptyMap(), buildObjectResource(bucket.name, objectId, body));
         });
 
-        // Copy Object
-        //
-        // https://cloud.google.com/storage/docs/json_api/v1/objects/copy
-        handlers.insert("POST " + endpoint + "/storage/v1/b/{srcBucket}/o/{src}/copyTo/b/{destBucket}/o/{dest}", (params, headers, body)-> {
-            final String source = params.get("src");
-            if (Strings.hasText(source) == false) {
-                return newError(RestStatus.INTERNAL_SERVER_ERROR, "source object name is missing");
-            }
-
-            final Bucket srcBucket = buckets.get(params.get("srcBucket"));
-            if (srcBucket == null) {
-                return newError(RestStatus.NOT_FOUND, "source bucket not found");
-            }
-
-            final String dest = params.get("dest");
-            if (Strings.hasText(dest) == false) {
-                return newError(RestStatus.INTERNAL_SERVER_ERROR, "destination object name is missing");
-            }
-
-            final Bucket destBucket = buckets.get(params.get("destBucket"));
-            if (destBucket == null) {
-                return newError(RestStatus.NOT_FOUND, "destination bucket not found");
-            }
-
-            final byte[] sourceBytes = srcBucket.objects.get(source);
-            if (sourceBytes == null) {
-                return newError(RestStatus.NOT_FOUND, "source object not found");
-            }
-
-            destBucket.objects.put(dest, sourceBytes);
-            return newResponse(RestStatus.OK, emptyMap(), buildObjectResource(destBucket.name, dest, sourceBytes));
-        });
-
-        // Rewrite Object
+        // Rewrite or Copy Object
         //
         // https://cloud.google.com/storage/docs/json_api/v1/objects/rewrite
-        handlers.insert("POST " + endpoint + "/storage/v1/b/{srcBucket}/o/{src}/rewriteTo/b/{destBucket}/o/{dest}",
+        // https://cloud.google.com/storage/docs/json_api/v1/objects/copy
+        handlers.insert("POST " + endpoint + "/storage/v1/b/{srcBucket}/o/{src}/{action}/b/{destBucket}/o/{dest}",
                 (params, headers, body) -> {
+                    final String action = params.get("action");
+                    if ((action.equals("rewriteTo") == false) && (action.equals("copyTo") == false)) {
+                        return newError(RestStatus.INTERNAL_SERVER_ERROR, "Action not implemented. None of \"rewriteTo\" or \"copyTo\".");
+                    }
                     final String source = params.get("src");
                     if (Strings.hasText(source) == false) {
                         return newError(RestStatus.INTERNAL_SERVER_ERROR, "source object name is missing");
@@ -421,9 +398,14 @@ public class GoogleCloudStorageTestServer {
                         return newError(RestStatus.NOT_FOUND, "source object not found");
                     }
                     destBucket.objects.put(dest, sourceBytes);
-                    final XContentBuilder respBuilder = jsonBuilder();
-                    buildRewriteResponse(respBuilder, destBucket.name, dest, sourceBytes.length);
-                    return newResponse(RestStatus.OK, emptyMap(), respBuilder);
+                    if (action.equals("rewriteTo")) {
+                        final XContentBuilder respBuilder = jsonBuilder();
+                        buildRewriteResponse(respBuilder, destBucket.name, dest, sourceBytes.length);
+                        return newResponse(RestStatus.OK, emptyMap(), respBuilder);
+                    } else {
+                        assert action.equals("copyTo");
+                        return newResponse(RestStatus.OK, emptyMap(), buildObjectResource(destBucket.name, dest, sourceBytes));
+                    }
                 });
 
         // List Objects

@@ -32,7 +32,7 @@ class VagrantTestPlugin implements Plugin<Project> {
     ]
 
     /** Windows boxes that are available - map of box names to image IDs **/
-    static Map<String, String> WINDOWS_BOXES = [:]
+    static List<String> WINDOWS_BOXES = []
 
     /** All available boxes **/
     static List<String> BOXES
@@ -44,7 +44,7 @@ class VagrantTestPlugin implements Plugin<Project> {
     ]
 
     /** extra env vars to pass to vagrant for box configuration **/
-    static Map<String, String> VAGRANT_ENV_VARS = [:]
+    static Map<String, String> VAGRANT_BOX_ENV_VARS = [:]
 
     /** All distributions to bring into test VM, whether or not they are used **/
     static List<String> DISTRIBUTIONS = [
@@ -65,10 +65,12 @@ class VagrantTestPlugin implements Plugin<Project> {
     private static final String BATS_TEST_COMMAND ="cd \$PACKAGING_ARCHIVES && sudo bats --tap \$BATS_TESTS/*.$BATS"
     private static final String PLATFORM_TEST_COMMAND ="rm -rf ~/elasticsearch && rsync -r /elasticsearch/ ~/elasticsearch && cd ~/elasticsearch && ./gradlew test integTest"
 
+    static {
+        collectAvailableBoxes()
+    }
+
     @Override
     void apply(Project project) {
-
-        collectAvailableBoxes(project)
 
         // Creates the Vagrant extension for the project
         project.extensions.create('esvagrant', VagrantPropertiesExtension, listSelectedBoxes(project))
@@ -100,20 +102,20 @@ class VagrantTestPlugin implements Plugin<Project> {
     /**
      * Enumerate all the boxes that we know about and could possibly choose to test
      */
-    private static void collectAvailableBoxes(Project project) {
+    private static void collectAvailableBoxes() {
         String windows_2012r2_box = System.getenv('VAGRANT_WINDOWS_2012R2_BOX')
         if (windows_2012r2_box != null && windows_2012r2_box.isEmpty() == false) {
-            WINDOWS_BOXES['windows-2012r2'] = windows_2012r2_box
-            VAGRANT_ENV_VARS['VAGRANT_WINDOWS_2012R2_BOX'] = windows_2012r2_box
+            WINDOWS_BOXES.add('windows-2012r2')
+            VAGRANT_BOX_ENV_VARS['VAGRANT_WINDOWS_2012R2_BOX'] = windows_2012r2_box
         }
 
         String windows_2016_box = System.getenv('VAGRANT_WINDOWS_2016_BOX')
         if (windows_2016_box != null && windows_2016_box.isEmpty() == false) {
-            WINDOWS_BOXES['windows-2016'] = windows_2016_box
-            VAGRANT_ENV_VARS['VAGRANT_WINDOWS_2016_BOX'] = windows_2016_box
+            WINDOWS_BOXES.add('windows-2016')
+            VAGRANT_BOX_ENV_VARS['VAGRANT_WINDOWS_2016_BOX'] = windows_2016_box
         }
 
-        BOXES = LINUX_BOXES + WINDOWS_BOXES.keySet()
+        BOXES = LINUX_BOXES + WINDOWS_BOXES
     }
 
     /**
@@ -127,7 +129,7 @@ class VagrantTestPlugin implements Plugin<Project> {
             case 'linux-all':
                 return LINUX_BOXES
             case 'windows-all':
-                return WINDOWS_BOXES.keySet().toList()
+                return WINDOWS_BOXES
             case 'all':
                 return BOXES
             default:
@@ -341,20 +343,6 @@ class VagrantTestPlugin implements Plugin<Project> {
         createPlatformTestTask(project)
     }
 
-    private static Map<String, String> vagrantEnvVars(Project project) {
-        /*
-         * We always use the main project.rootDir as Vagrant's current working directory (VAGRANT_CWD)
-         * so that boxes are not duplicated for every Gradle project that use this VagrantTestPlugin.
-         */
-        def vagrantEnvVars = [
-                'VAGRANT_CWD'        : "${project.rootDir.absolutePath}",
-                'VAGRANT_VAGRANTFILE': 'Vagrantfile',
-                'VAGRANT_PROJECT_DIR': "${project.projectDir.absolutePath}"
-        ]
-        vagrantEnvVars.putAll(VAGRANT_ENV_VARS)
-        return vagrantEnvVars
-    }
-
     private static void createVagrantBoxesTasks(Project project) {
         assert project.extensions.esvagrant.boxes != null
 
@@ -379,7 +367,15 @@ class VagrantTestPlugin implements Plugin<Project> {
         assert project.tasks.platformTest != null
         Task platformTest = project.tasks.platformTest
 
-        def vagrantEnvVars = vagrantEnvVars(project)
+        /*
+         * We always use the main project.rootDir as Vagrant's current working directory (VAGRANT_CWD)
+         * so that boxes are not duplicated for every Gradle project that use this VagrantTestPlugin.
+         */
+        def vagrantEnvVars = [
+                'VAGRANT_CWD'           : "${project.rootDir.absolutePath}",
+                'VAGRANT_VAGRANTFILE'   : 'Vagrantfile',
+                'VAGRANT_PROJECT_DIR'   : "${project.projectDir.absolutePath}"
+        ] + VAGRANT_BOX_ENV_VARS
 
         // Each box gets it own set of tasks
         for (String box : BOXES) {

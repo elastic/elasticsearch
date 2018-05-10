@@ -1,8 +1,12 @@
 ---
 "Split index ignores target template mapping":
+#  - skip:
+#      version: " - 6.0.99"
+#      reason: Added in 6.1.0
+# uncomment once AwaitsFix is resolved
   - skip:
-      version: " - 6.0.99"
-      reason: Added in 6.1.0
+      version: "all"
+      reason: "AwaitsFix'ing, see https://github.com/elastic/elasticsearch/issues/30503"
 
   # create index
   - do:

@@ -104,6 +104,8 @@ ones that the user is authorized to access in case field level security is enabl
 [float]
 === Bug Fixes
 
+Use date format in `date_range` mapping before fallback to default ({pull}29310[#29310])
+
 Fix NPE in 'more_like_this' when field has zero tokens ({pull}30365[#30365])
 
 Fixed prerelease version of elasticsearch in the `deb` package to sort before GA versions
@@ -163,6 +165,10 @@ analysis module.  ({pull}30397[#30397])
 Added new "Request" object flavored request methods in the RestClient. Prefer
 these instead of the multi-argument versions. ({pull}29623[#29623])
 
+Added `setJsonEntity` to `Request` object so it is marginally easier to send JSON. ({pull}30447[#30447])
+Watcher HTTP client used in watches now allows more parallel connections to the
+same endpoint and evicts long running connections. ({pull}30130[#30130])
+
 The cluster state listener to decide if watcher should be
 stopped/started/paused now runs far less code in an executor but is more
 synchronous and predictable. Also the trigger engine thread is only started on
@@ -171,8 +177,13 @@ started or stopped. ({pull}30118[#30118])
 
 Added put index template API to the high level rest client ({pull}30400[#30400])
 
+Add ability to filter coordinating-only nodes when interacting with cluster
+APIs. ({pull}30313[#30313])
+
 [float]
 === Bug Fixes
+
+Use date format in `date_range` mapping before fallback to default ({pull}29310[#29310])
 
 Fix NPE in 'more_like_this' when field has zero tokens ({pull}30365[#30365])
 

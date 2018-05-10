@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCa
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -451,6 +452,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertEquals(0, role.indices().groups().length);
     }
 
+    private SecurityIndexManager.State dummyState(ClusterHealthStatus indexStatus) {
+        return new SecurityIndexManager.State(true, true, true, true, null, indexStatus);
+    }
+
     public void testCacheClearOnIndexHealthChange() {
         final AtomicInteger numInvalidation = new AtomicInteger(0);
 
@@ -465,34 +470,34 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         int expectedInvalidation = 0;
         // existing to no longer present
-        ClusterIndexHealth previousHealth = getClusterIndexHealth(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        ClusterIndexHealth currentHealth = null;
-        compositeRolesStore.onSecurityIndexHealthChange(previousHealth, currentHealth);
+        SecurityIndexManager.State previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        SecurityIndexManager.State currentState = dummyState(null);
+        compositeRolesStore.onSecurityIndexStateChange(previousState, currentState);
         assertEquals(++expectedInvalidation, numInvalidation.get());
 
         // doesn't exist to exists
-        previousHealth = null;
-        currentHealth = getClusterIndexHealth(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        compositeRolesStore.onSecurityIndexHealthChange(previousHealth, currentHealth);
+        previousState = dummyState(null);
+        currentState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        compositeRolesStore.onSecurityIndexStateChange(previousState, currentState);
         assertEquals(++expectedInvalidation, numInvalidation.get());
 
         // green or yellow to red
-        previousHealth = getClusterIndexHealth(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        currentHealth = getClusterIndexHealth(ClusterHealthStatus.RED);
-        compositeRolesStore.onSecurityIndexHealthChange(previousHealth, currentHealth);
+        previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        currentState = dummyState(ClusterHealthStatus.RED);
+        compositeRolesStore.onSecurityIndexStateChange(previousState, currentState);
         assertEquals(expectedInvalidation, numInvalidation.get());
 
         // red to non red
-        previousHealth = getClusterIndexHealth(ClusterHealthStatus.RED);
-        currentHealth = getClusterIndexHealth(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        compositeRolesStore.onSecurityIndexHealthChange(previousHealth, currentHealth);
+        previousState = dummyState(ClusterHealthStatus.RED);
+        currentState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        compositeRolesStore.onSecurityIndexStateChange(previousState, currentState);
         assertEquals(++expectedInvalidation, numInvalidation.get());
 
         // green to yellow or yellow to green
-        previousHealth = getClusterIndexHealth(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        currentHealth = getClusterIndexHealth(
-                previousHealth.getStatus() == ClusterHealthStatus.GREEN ? ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN);
-        compositeRolesStore.onSecurityIndexHealthChange(previousHealth, currentHealth);
+        previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        currentState = dummyState(previousState.indexStatus == ClusterHealthStatus.GREEN ?
+                                  ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN);
+        compositeRolesStore.onSecurityIndexStateChange(previousState, currentState);
         assertEquals(expectedInvalidation, numInvalidation.get());
     }
 
@@ -508,10 +513,14 @@ public class CompositeRolesStoreTests extends ESTestCase {
             }
         };
 
-        compositeRolesStore.onSecurityIndexOutOfDateChange(false, true);
+        compositeRolesStore.onSecurityIndexStateChange(
+            new SecurityIndexManager.State(true, false, true, true, null, null),
+            new SecurityIndexManager.State(true, true, true, true, null, null));
         assertEquals(1, numInvalidation.get());
 
-        compositeRolesStore.onSecurityIndexOutOfDateChange(true, false);
+        compositeRolesStore.onSecurityIndexStateChange(
+            new SecurityIndexManager.State(true, true, true, true, null, null),
+            new SecurityIndexManager.State(true, false, true, true, null, null));
         assertEquals(2, numInvalidation.get());
     }
 

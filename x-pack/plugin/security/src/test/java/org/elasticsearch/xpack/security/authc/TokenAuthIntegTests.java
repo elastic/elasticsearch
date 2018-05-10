@@ -23,7 +23,6 @@ import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenResponse;
@@ -44,6 +43,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
+import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TokenAuthIntegTests extends SecurityIntegTestCase {
@@ -146,7 +146,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertTrue(invalidateResponse.isCreated());
         AtomicReference<String> docId = new AtomicReference<>();
         assertBusy(() -> {
-            SearchResponse searchResponse = client.prepareSearch(SecurityLifecycleServiceField.SECURITY_INDEX_NAME)
+            SearchResponse searchResponse = client.prepareSearch(SECURITY_INDEX_NAME)
                     .setSource(SearchSourceBuilder.searchSource()
                             .query(QueryBuilders.termQuery("doc_type", TokenService.INVALIDATED_TOKEN_DOC_TYPE)))
                     .setSize(1)
@@ -159,7 +159,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         // hack doc to modify the time to the day before
         Instant dayBefore = created.minus(1L, ChronoUnit.DAYS);
         assertTrue(Instant.now().isAfter(dayBefore));
-        client.prepareUpdate(SecurityLifecycleServiceField.SECURITY_INDEX_NAME, "doc", docId.get())
+        client.prepareUpdate(SECURITY_INDEX_NAME, "doc", docId.get())
                 .setDoc("expiration_time", dayBefore.toEpochMilli())
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
@@ -177,8 +177,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                     assertEquals("token malformed", e.getMessage());
                 }
             }
-            client.admin().indices().prepareRefresh(SecurityLifecycleServiceField.SECURITY_INDEX_NAME).get();
-            SearchResponse searchResponse = client.prepareSearch(SecurityLifecycleServiceField.SECURITY_INDEX_NAME)
+            client.admin().indices().prepareRefresh(SECURITY_INDEX_NAME).get();
+            SearchResponse searchResponse = client.prepareSearch(SECURITY_INDEX_NAME)
                     .setSource(SearchSourceBuilder.searchSource()
                             .query(QueryBuilders.termQuery("doc_type", TokenService.INVALIDATED_TOKEN_DOC_TYPE)))
                     .setSize(0)

@@ -25,7 +25,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeUserStoreField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
@@ -47,6 +46,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -115,7 +115,7 @@ public class NativeUsersStoreTests extends ESTestCase {
         values.put(PASSWORD_FIELD, BLANK_PASSWORD);
 
         final GetResult result = new GetResult(
-                SecurityLifecycleServiceField.SECURITY_INDEX_NAME,
+                SECURITY_INDEX_NAME,
                 NativeUserStoreField.INDEX_TYPE,
                 NativeUsersStore.getIdForUser(NativeUserStoreField.RESERVED_USER_TYPE, randomAlphaOfLength(12)),
                 1L,
@@ -184,7 +184,7 @@ public class NativeUsersStoreTests extends ESTestCase {
         nativeUsersStore.verifyPassword(username, password, future);
 
         final GetResult getResult = new GetResult(
-                SecurityLifecycleServiceField.SECURITY_INDEX_NAME,
+                SECURITY_INDEX_NAME,
                 NativeUserStoreField.INDEX_TYPE,
                 NativeUsersStore.getIdForUser(NativeUsersStore.USER_DOC_TYPE, username),
                 1L,
@@ -225,7 +225,7 @@ public class NativeUsersStoreTests extends ESTestCase {
         values.put(User.Fields.TYPE.getPreferredName(), NativeUsersStore.USER_DOC_TYPE);
         final BytesReference source = BytesReference.bytes(jsonBuilder().map(values));
         final GetResult getResult = new GetResult(
-                SecurityLifecycleServiceField.SECURITY_INDEX_NAME,
+                SECURITY_INDEX_NAME,
                 NativeUserStoreField.INDEX_TYPE,
                 NativeUsersStore.getIdForUser(NativeUsersStore.USER_DOC_TYPE, username),
                 1L,

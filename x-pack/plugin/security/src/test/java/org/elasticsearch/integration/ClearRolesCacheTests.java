@@ -10,7 +10,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
-import org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleResponse;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
@@ -26,6 +25,7 @@ import java.util.List;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
+import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -57,7 +57,7 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
             logger.debug("--> created role [{}]", role);
         }
 
-        ensureGreen(SecurityLifecycleServiceField.SECURITY_INDEX_NAME);
+        ensureGreen(SECURITY_INDEX_NAME);
 
         // warm up the caches on every node
         for (NativeRolesStore rolesStore : internalCluster().getInstances(NativeRolesStore.class)) {

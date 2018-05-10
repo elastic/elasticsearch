@@ -235,6 +235,9 @@ Engine::
 Ingest::
 * Don't allow referencing the pattern bank name in the pattern bank {pull}29295[#29295] (issue: {issue}29257[#29257])
 
+SQL::
+* Fix parsing of Dates containing milliseconds ({pull}30419[#30419])
+
 [float]
 === Regressions
 Fail snapshot operations early when creating or deleting a snapshot on a repository that has been
@@ -395,6 +398,8 @@ tries to write the status field twice.
 see
 {stack-ov}/input-chain.html#_transforming_chained_input_data[Transforming Chained Input Data].
 
+SQL::
+* Fix parsing of Dates containing milliseconds ({pull}30419[#30419])
 
 Allocation::
 
@@ -483,6 +488,9 @@ fixes issues with HTTPS requests that tried to access proxies via HTTP.
 * Fixed the HTML sanitizer settings
 (`xpack.notification.email.html.sanitization.*`), which were broken in 6.2. For
 more information, see <<notification-settings>>.
+
+SQL::
+* Fix parsing of Dates containing milliseconds ({pull}30419[#30419])
 
 //[float]
 //=== Regressions

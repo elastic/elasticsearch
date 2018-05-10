@@ -116,7 +116,7 @@ Rollup::
 searching ({pull}30338[#30338])
 
 SQL::
-* Fix parsing of Dates containing milliseconds
+* Fix parsing of Dates containing milliseconds ({pull}30419[#30419])
 
 [float]
 === Regressions
@@ -205,7 +205,7 @@ Rollup::
 searching ({pull}30338[#30338])
 
 SQL::
-* Fix parsing of Dates containing milliseconds
+* Fix parsing of Dates containing milliseconds ({pull}30419[#30419])
 
 Allocation::
 
@@ -247,7 +247,7 @@ Reduce the number of object allocations made by {security} when resolving the in
 Respect accept header on requests with no handler ({pull}30383[#30383])
 
 SQL::
-* Fix parsing of Dates containing milliseconds
+* Fix parsing of Dates containing milliseconds ({pull}30419[#30419])
 
 //[float]
 //=== Regressions

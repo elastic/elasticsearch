@@ -17,28 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.analysis.standard.UAX29URLEmailTokenizer;
+import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
 
-public class UAX29URLEmailTokenizerFactory extends AbstractTokenizerFactory {
+public class KeywordTokenizerFactory extends AbstractTokenizerFactory {
 
-    private final int maxTokenLength;
+    private final int bufferSize;
 
-    public UAX29URLEmailTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+    KeywordTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
-        maxTokenLength = settings.getAsInt("max_token_length", StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);
+        bufferSize = settings.getAsInt("buffer_size", 256);
     }
 
     @Override
     public Tokenizer create() {
-        UAX29URLEmailTokenizer tokenizer = new UAX29URLEmailTokenizer();
-        tokenizer.setMaxTokenLength(maxTokenLength);
-        return tokenizer;
+        return new KeywordTokenizer(bufferSize);
     }
 }

@@ -17,25 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.core.KeywordTokenizer;
+import org.apache.lucene.analysis.core.LetterTokenizer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
 
-public class KeywordTokenizerFactory extends AbstractTokenizerFactory {
+public class LetterTokenizerFactory extends AbstractTokenizerFactory {
 
-    private final int bufferSize;
-
-    public KeywordTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+    LetterTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
-        bufferSize = settings.getAsInt("buffer_size", 256);
     }
 
     @Override
     public Tokenizer create() {
-        return new KeywordTokenizer(bufferSize);
+        return new LetterTokenizer();
     }
 }

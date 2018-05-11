@@ -46,7 +46,7 @@ public class GoogleCloudStorageService extends AbstractComponent {
     /** Clients settings identified by client name. */
     private final Map<String, GoogleCloudStorageClientSettings> clientsSettings;
 
-    public GoogleCloudStorageService(Environment environment, Map<String, GoogleCloudStorageClientSettings> clientsSettings) {
+    public GoogleCloudStorageService(final Environment environment, final Map<String, GoogleCloudStorageClientSettings> clientsSettings) {
         super(environment.settings());
         this.clientsSettings = clientsSettings;
     }
@@ -54,8 +54,7 @@ public class GoogleCloudStorageService extends AbstractComponent {
     /**
      * Creates a client that can be used to manage Google Cloud Storage objects.
      *
-     * @param clientName
-     *            name of client settings to use from secure settings
+     * @param clientName name of client settings to use, including secure settings
      * @return a Client instance that can be used to manage Storage objects
      */
     public Storage createClient(final String clientName) throws Exception {
@@ -68,7 +67,6 @@ public class GoogleCloudStorageService extends AbstractComponent {
         final HttpTransportOptions httpTransportOptions = HttpTransportOptions.newBuilder()
                 .setConnectTimeout(toTimeout(clientSettings.getConnectTimeout()))
                 .setReadTimeout(toTimeout(clientSettings.getReadTimeout()))
-                // requires 'java.lang.RuntimePermission "setFactory"'
                 .setHttpTransportFactory(() -> httpTransport)
                 .build();
         final StorageOptions.Builder storageOptionsBuilder = StorageOptions.newBuilder()
@@ -103,26 +101,43 @@ public class GoogleCloudStorageService extends AbstractComponent {
         return storageOptionsBuilder.build().getService();
     }
 
-    HttpTransport createHttpTransport(final String endpoint) throws Exception {
+    /**
+     * Pins the TLS trust certificates and, more importantly, overrides connection
+     * URLs in the case of a custom endpoint setting because some connections don't
+     * fully honor this setting (bugs in the SDK).
+     **/
+    private static HttpTransport createHttpTransport(final String endpoint) throws Exception {
         final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
+        // requires java.lang.RuntimePermission "setFactory"
         builder.trustCertificates(GoogleUtils.getCertificateTrustStore());
         if (Strings.hasLength(endpoint)) {
             final URL endpointUrl = URI.create(endpoint).toURL();
             builder.setConnectionFactory(new DefaultConnectionFactory() {
                 @Override
                 public HttpURLConnection openConnection(final URL originalUrl) throws IOException {
+                    // test if the URL is built correctly, ie following the `host` setting
                     if (originalUrl.getHost().equals(endpointUrl.getHost()) && originalUrl.getPort() == endpointUrl.getPort()
                             && originalUrl.getProtocol().equals(endpointUrl.getProtocol())) {
-                        super.openConnection(originalUrl);
+                        return super.openConnection(originalUrl);
                     }
+                    // override connection URLs because some don't follow the config. See
+                    // https://github.com/GoogleCloudPlatform/google-cloud-java/issues/3254 and
+                    // https://github.com/GoogleCloudPlatform/google-cloud-java/issues/3255
                     URI originalUri;
                     try {
                         originalUri = originalUrl.toURI();
                     } catch (final URISyntaxException e) {
                         throw new RuntimeException(e);
                     }
-                    return super.openConnection(new URL(endpointUrl.getProtocol(), endpointUrl.getHost(), endpointUrl.getPort(),
-                            originalUri.getRawPath() + "?" + originalUri.getRawQuery()));
+                    String overridePath = "/";
+                    if (originalUri.getRawPath() != null) {
+                        overridePath = originalUri.getRawPath();
+                    }
+                    if (originalUri.getRawQuery() != null) {
+                        overridePath += "?" + originalUri.getRawQuery();
+                    }
+                    return super.openConnection(
+                            new URL(endpointUrl.getProtocol(), endpointUrl.getHost(), endpointUrl.getPort(), overridePath));
                 }
             });
         }
@@ -133,9 +148,9 @@ public class GoogleCloudStorageService extends AbstractComponent {
      * Converts timeout values from the settings to a timeout value for the Google
      * Cloud SDK
      **/
-    static Integer toTimeout(TimeValue timeout) {
+    static Integer toTimeout(final TimeValue timeout) {
         // Null or zero in settings means the default timeout
-        if ((timeout == null) || TimeValue.ZERO.equals(timeout)) {
+        if (timeout == null || TimeValue.ZERO.equals(timeout)) {
             // negative value means using the default value
             return -1;
         }

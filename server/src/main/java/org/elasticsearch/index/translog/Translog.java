@@ -713,7 +713,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             final List<TranslogReader> newReaders = new ArrayList<>(readers.size());
             try {
                 for (TranslogReader reader : readers) {
-                    final TranslogReader newReader = reader.closeIntoTrimmedReader(belowTerm, aboveSeqNo, getChannelFactory());
+                    reader.ensureOpen();
+                    final TranslogReader newReader =
+                        reader.getPrimaryTerm() < belowTerm
+                            ? reader.closeIntoTrimmedReader(belowTerm, aboveSeqNo, getChannelFactory())
+                            : reader;
                     newReaders.add(newReader);
                 }
             } catch (IOException e){

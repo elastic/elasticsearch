@@ -53,6 +53,7 @@ import static java.util.Collections.singletonList;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -82,7 +83,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * <p>
  * Must be created using {@link RestClientBuilder}, which allows to set all the different options or just rely on defaults.
  * The hosts that are part of the cluster need to be provided at creation time, but can also be replaced later
- * by calling {@link #setHosts(HttpHost...)}.
+ * by calling {@link #setNodes(Node...)}.
  * <p>
  * The method {@link #performRequest(String, String, Map, HttpEntity, Header...)} allows to send a request to the cluster. When
  * sending a request, a host gets selected out of the provided ones in a round-robin fashion. Failing hosts are marked dead and
@@ -143,9 +144,7 @@ public class RestClient implements Closeable {
     }
 
     /**
-     * Replaces the nodes that the client communicates with. Prefer this to
-     * {@link #setHosts(HttpHost...)} if you have metadata about the hosts
-     * like their Elasticsearch version of which roles they implement.
+     * Replaces the nodes with which the client communicates.
      */
     public synchronized void setNodes(Node... nodes) {
         if (nodes == null || nodes.length == 0) {
@@ -929,6 +928,11 @@ public class RestClient implements Closeable {
                 }
                 if (exception instanceof SSLHandshakeException) {
                     SSLHandshakeException e = new SSLHandshakeException(exception.getMessage());
+                    e.initCause(exception);
+                    throw e;
+                }
+                if (exception instanceof ConnectException) {
+                    ConnectException e = new ConnectException(exception.getMessage());
                     e.initCause(exception);
                     throw e;
                 }

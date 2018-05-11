@@ -21,7 +21,6 @@ package org.elasticsearch.client;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Selects nodes that can receive requests. Used to keep requests away
@@ -95,30 +94,4 @@ public interface NodeSelector {
             return "NOT_MASTER_ONLY";
         }
     };
-
-    /**
-     * Selector that composes two selectors, running the "right" most selector
-     * first and then running the "left" selector on the results of the "right"
-     * selector.
-     */
-    class Compose implements NodeSelector {
-        private final NodeSelector lhs;
-        private final NodeSelector rhs;
-
-        public Compose(NodeSelector lhs, NodeSelector rhs) {
-            this.lhs = Objects.requireNonNull(lhs, "lhs is required");
-            this.rhs = Objects.requireNonNull(rhs, "rhs is required");
-        }
-
-        @Override
-        public List<Node> select(List<Node> nodes) {
-            return lhs.select(rhs.select(nodes));
-        }
-
-        @Override
-        public String toString() {
-            // . as in haskell's "compose" operator
-            return lhs + "." + rhs;
-        }
-    }
 }

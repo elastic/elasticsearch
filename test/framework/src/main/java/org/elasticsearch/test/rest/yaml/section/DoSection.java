@@ -43,6 +43,7 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.regex.Matcher;
@@ -133,7 +134,7 @@ public class DoSection implements ExecutableSection {
                             NodeSelector newSelector = buildNodeSelector(
                                 parser.getTokenLocation(), selectorName, parser.text());
                                 nodeSelector = nodeSelector == NodeSelector.ANY ?
-                                    newSelector : new NodeSelector.Compose(nodeSelector, newSelector);
+                                    newSelector : new ComposeNodeSelector(nodeSelector, newSelector);
                         }
                     }
                 } else if (currentFieldName != null) { // must be part of API call then
@@ -383,6 +384,32 @@ public class DoSection implements ExecutableSection {
             };
         default:
             throw new IllegalArgumentException("unknown node_selector [" + name + "]");
+        }
+    }
+
+    /**
+     * Selector that composes two selectors, running the "right" most selector
+     * first and then running the "left" selector on the results of the "right"
+     * selector.
+     */
+    private static class ComposeNodeSelector implements NodeSelector {
+        private final NodeSelector lhs;
+        private final NodeSelector rhs;
+
+        private ComposeNodeSelector(NodeSelector lhs, NodeSelector rhs) {
+            this.lhs = Objects.requireNonNull(lhs, "lhs is required");
+            this.rhs = Objects.requireNonNull(rhs, "rhs is required");
+        }
+
+        @Override
+        public List<Node> select(List<Node> nodes) {
+            return lhs.select(rhs.select(nodes));
+        }
+
+        @Override
+        public String toString() {
+            // . as in haskell's "compose" operator
+            return lhs + "." + rhs;
         }
     }
 }

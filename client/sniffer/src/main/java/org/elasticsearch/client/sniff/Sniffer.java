@@ -154,7 +154,8 @@ public class Sniffer implements Closeable {
     /**
      * Returns a new {@link SnifferBuilder} to help with {@link Sniffer} creation.
      *
-     * @param restClient the client that gets its hosts set (via {@link RestClient#setHosts(HttpHost...)}) once they are fetched
+     * @param restClient the client that gets its hosts set (via
+     *      {@link RestClient#setNodes(Node...)}) once they are fetched
      * @return a new instance of {@link SnifferBuilder}
      */
     public static SnifferBuilder builder(RestClient restClient) {

@@ -218,7 +218,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder().fPut(index.getName(),
                 indexMetaData);
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
-                .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node_id_1", true, ShardRoutingState.STARTED));
+                .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node_id_0", true, ShardRoutingState.STARTED));
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metaData(MetaData.builder().indices(indices.build()))
                 .nodes(nodes).routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
 
@@ -329,7 +329,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder().fPut(index.getName(),
                 indexMetaData);
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
-                .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node_id_1", true, ShardRoutingState.STARTED));
+                .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node_id_0", true, ShardRoutingState.STARTED));
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metaData(MetaData.builder().indices(indices.build()))
                 .nodes(nodes).routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
 
@@ -382,7 +382,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder().fPut(index.getName(),
                 indexMetaData);
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
-                .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node_id_1", true, ShardRoutingState.STARTED));
+                .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node_id_0", true, ShardRoutingState.STARTED));
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metaData(MetaData.builder().indices(indices.build()))
                 .nodes(nodes).routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
 

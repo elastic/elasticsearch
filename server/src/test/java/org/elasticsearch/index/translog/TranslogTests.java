@@ -1598,9 +1598,26 @@ public class TranslogTests extends ESTestCase {
         assertThat("all file channels have to be closed",
             fileChannels.stream().filter(f -> f.isOpen()).findFirst().isPresent(), is(false));
 
+        assertThat(failableTLog.isOpen(), is(false));
         final AlreadyClosedException alreadyClosedException = expectThrows(AlreadyClosedException.class, () -> failableTLog.newSnapshot());
         assertThat(alreadyClosedException.getMessage(),
             is("translog is already closed"));
+
+        fail.failNever();
+
+        // check that despite of IO exception translog is not corrupted
+        try(final Translog reopenedTranslog =
+            getFailableTranslog(fail, config, randomBoolean(), false,
+                failableTLog.getTranslogUUID(), createTranslogDeletionPolicy(), fileChannels)) {
+
+            try (Translog.Snapshot snapshot = reopenedTranslog.newSnapshot()) {
+                assertThat(snapshot.totalOperations(), greaterThan(0));
+                Translog.Operation operation;
+                for (int i = 0; (operation = snapshot.next()) != null; i++) {
+                    assertNotNull("operation " + i + " must be non-null", operation);
+                }
+            }
+        }
     }
 
     public void testLocationHashCodeEquals() throws IOException {

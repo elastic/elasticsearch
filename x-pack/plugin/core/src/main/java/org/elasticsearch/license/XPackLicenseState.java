@@ -251,6 +251,12 @@ public class XPackLicenseState {
         return Strings.EMPTY_ARRAY;
     }
 
+    private boolean isBasic() {
+        // status is volatile, so a local variable is used for a consistent view
+        Status localStatus = status;
+        return localStatus.mode == OperationMode.BASIC;
+    }
+
     /** A wrapper for the license mode and state, to allow atomically swapping. */
     private static class Status {
 
@@ -519,20 +525,7 @@ public class XPackLicenseState {
      */
     public boolean isLogstashAllowed() {
         Status localStatus = status;
-
-        if (localStatus.active == false) {
-            return false;
-        }
-
-        switch (localStatus.mode) {
-            case TRIAL:
-            case GOLD:
-            case PLATINUM:
-            case STANDARD:
-                return true;
-            default:
-                return false;
-        }
+        return localStatus.active && !isBasic();
     }
 
     /**
@@ -541,20 +534,8 @@ public class XPackLicenseState {
      */
     public boolean isBeatsAllowed() {
         Status localStatus = status;
+        return localStatus.active && !isBasic();
 
-        if (localStatus.active == false) {
-            return false;
-        }
-
-        switch (localStatus.mode) {
-            case TRIAL:
-            case GOLD:
-            case PLATINUM:
-            case STANDARD:
-                return true;
-            default:
-                return false;
-        }
     }
 
     /**

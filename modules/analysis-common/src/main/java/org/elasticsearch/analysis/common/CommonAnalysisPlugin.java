@@ -185,7 +185,6 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         tokenizers.put("edgeNGram", EdgeNGramTokenizerFactory::new);
         tokenizers.put("edge_ngram", EdgeNGramTokenizerFactory::new);
         tokenizers.put("classic", ClassicTokenizerFactory::new);
-        tokenizers.put("keyword", KeywordTokenizerFactory::new);
         tokenizers.put("letter", LetterTokenizerFactory::new);
         tokenizers.put("lowercase", LowerCaseTokenizerFactory::new);
         tokenizers.put("path_hierarchy", PathHierarchyTokenizerFactory::new);

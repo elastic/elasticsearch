@@ -56,6 +56,7 @@ import org.elasticsearch.index.analysis.IndonesianAnalyzerProvider;
 import org.elasticsearch.index.analysis.IrishAnalyzerProvider;
 import org.elasticsearch.index.analysis.ItalianAnalyzerProvider;
 import org.elasticsearch.index.analysis.KeywordAnalyzerProvider;
+import org.elasticsearch.index.analysis.KeywordTokenizerFactory;
 import org.elasticsearch.index.analysis.LatvianAnalyzerProvider;
 import org.elasticsearch.index.analysis.LithuanianAnalyzerProvider;
 import org.elasticsearch.index.analysis.NorwegianAnalyzerProvider;
@@ -224,6 +225,7 @@ public final class AnalysisModule {
     private NamedRegistry<AnalysisProvider<TokenizerFactory>> setupTokenizers(List<AnalysisPlugin> plugins) {
         NamedRegistry<AnalysisProvider<TokenizerFactory>> tokenizers = new NamedRegistry<>("tokenizer");
         tokenizers.register("standard", StandardTokenizerFactory::new);
+        tokenizers.register("keyword", KeywordTokenizerFactory::new);
         tokenizers.extractAndRegister(plugins, AnalysisPlugin::getTokenizers);
         return tokenizers;
     }

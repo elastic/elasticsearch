@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.analysis.common;
+package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
@@ -30,7 +30,7 @@ public class KeywordTokenizerFactory extends AbstractTokenizerFactory {
 
     private final int bufferSize;
 
-    KeywordTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+    public KeywordTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
         bufferSize = settings.getAsInt("buffer_size", 256);
     }

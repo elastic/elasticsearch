@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.util.TokenFilterFactory;
 import org.apache.lucene.analysis.util.TokenizerFactory;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.index.analysis.HunspellTokenFilterFactory;
+import org.elasticsearch.index.analysis.KeywordTokenizerFactory;
 import org.elasticsearch.index.analysis.MultiTermAwareComponent;
 import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
@@ -78,7 +79,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         // exposed in ES
         .put("classic", MovedToAnalysisCommon.class)
         .put("edgengram", MovedToAnalysisCommon.class)
-        .put("keyword", MovedToAnalysisCommon.class)
+        .put("keyword", KeywordTokenizerFactory.class)
         .put("letter", MovedToAnalysisCommon.class)
         .put("lowercase", MovedToAnalysisCommon.class)
         .put("ngram", MovedToAnalysisCommon.class)

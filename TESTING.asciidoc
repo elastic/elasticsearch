@@ -335,18 +335,20 @@ the tar, zip, and deb packages and all the plugins. It will then run the tests
 on ubuntu-1404 and centos-7. We chose those two distributions as the default
 because they cover deb and rpm packaging and SyvVinit and systemd.
 
-You can choose which boxes to test by setting the `-Pvagrant.boxes` project property. For
-example, to test all boxes, run `./gradlew -Pvagrant.boxes=all`. For a complete list of
-available boxes, run `./gradlew :qa:vagrant:tasks --all`. All of the following values are
-supported by the `vagrant.boxes` property
+You can choose which boxes to test by setting the `-Pvagrant.boxes` project property. All of
+the valid options for this property are:
 
 * `sample` - The default, only chooses ubuntu-1404 and centos-7
-* `all` - All configured boxes, i.e. all linux boxes and any configured Windows
-boxes.
-* `linux-all` - All linux boxes.
-* `windows-all` - All configured Windows boxes. If there are none configured when this
-value is set, the build will fail.
 * List of box names, comma separated (e.g. `oel-7,fedora-26`) - Chooses exactly the boxes listed.
+* `linux-all` - All linux boxes.
+* `windows-all` - All Windows boxes. If there are any Windows boxes which do not
+have images available when this value is provided, the build will fail.
+* `all` - All boxes we test. If there are any boxes (e.g. Windows) which do not have images
+available when this value is provided, the build will fail.
+
+For a complete list of boxes on which tests can be run, run `./gradlew :qa:vagrant:listAllBoxes`.
+For a list of boxes that have images available from your configuration, run
+`./gradlew :qa:vagrant:listAvailableBoxes`
 
 Note that if you interrupt gradle in the middle of running these tasks, any boxes started
 will remain running and you'll have to stop them manually with `./gradlew stop` or
@@ -389,19 +391,27 @@ Testing on Windows requires the https://github.com/criteo/vagrant-winrm[vagrant-
 vagrant plugin install vagrant-winrm
 ------------------------------------
 
-Specify the image IDs of the Windows boxes to gradle with the following environment
-variables. These are used by both the gradle build and Vagrant, so if they're exported
-the Windows boxes will be recognized when you run gradle commands, or Vagrant commands
-directly.
+Specify the image IDs of the Windows boxes to gradle with the following project
+properties. They can be set in `~/.gradle/gradle.properties` like
+
+------------------------------------
+vagrant.windows-2012r2.id=my-image-id
+vagrant.windows-2016.id=another-image-id
+------------------------------------
+
+or passed on the command line like `-Pvagrant.windows-2012r2.id=my-image-id`
+`-Pvagrant.windows-2016=another-image-id`
+
+These properties are required for Windows support in all gradle tasks that
+handle packaging tests. Either or both may be specified. Remember that to run tests
+on these boxes, the project property `vagrant.boxes` still needs to be set to a
+value that will include them.
+
+If you're running vagrant commands outside of gradle, specify the Windows boxes
+with the environment variables
 
 * `VAGRANT_WINDOWS_2012R2_BOX`
 * `VAGRANT_WINDOWS_2016_BOX`
-
-These variables are required for Windows support in all gradle tasks that
-handle packaging tests. Either or both may be specified. Remember that to run tests
-on these boxes, they still need to be included in the value of `-Pvagrant.boxes`.
-When these properties are present, passing `-Pvagrant.boxes=all` will include the
-Windows boxes.
 
 === Testing VMs are disposable
 

@@ -22,11 +22,14 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.TestXPackTransportClient;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
+import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 
@@ -39,7 +42,12 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.security.SecureRandom;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForStore;
 import static org.hamcrest.CoreMatchers.is;
@@ -65,12 +73,18 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
     }
 
     // no SSL exception as this is the exception is returned when connecting
-    public void testThatUnconfiguredCiphersAreRejected() {
+    public void testThatUnconfiguredCiphersAreRejected() throws Exception {
+        Set<String> supportedCiphers = Sets.newHashSet(SSLContext.getDefault().getSupportedSSLParameters().getCipherSuites());
+        Set<String> defaultXPackCiphers = Sets.newHashSet(XPackSettings.DEFAULT_CIPHERS);
+        final List<String> unconfiguredCiphers = new ArrayList<>(Sets.difference(supportedCiphers, defaultXPackCiphers));
+        Collections.shuffle(unconfiguredCiphers, random());
+        assumeFalse("the unconfigured ciphers list is empty", unconfiguredCiphers.isEmpty());
+
         try (TransportClient transportClient = new TestXPackTransportClient(Settings.builder()
                 .put(transportClientSettings())
                 .put("node.name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())
-                .putList("xpack.ssl.cipher_suites", "TLS_ECDH_anon_WITH_RC4_128_SHA", "SSL_RSA_WITH_3DES_EDE_CBC_SHA")
+                .putList("xpack.ssl.cipher_suites", unconfiguredCiphers)
                 .build(), LocalStateSecurity.class)) {
 
             TransportAddress transportAddress = randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses());

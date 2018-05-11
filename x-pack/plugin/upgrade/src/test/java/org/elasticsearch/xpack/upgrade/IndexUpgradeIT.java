@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.upgrade;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -30,6 +31,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThro
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.core.IsEqual.equalTo;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30430")
 public class IndexUpgradeIT extends IndexUpgradeIntegTestCase {
 
     @Before

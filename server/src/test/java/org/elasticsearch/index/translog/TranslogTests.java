@@ -1630,7 +1630,7 @@ public class TranslogTests extends ESTestCase {
         fail.failNever();
 
         // check that despite of IO exception translog is not corrupted
-        try(final Translog reopenedTranslog =
+        try(Translog reopenedTranslog =
             getFailableTranslog(fail, config, randomBoolean(), false,
                 failableTLog.getTranslogUUID(), createTranslogDeletionPolicy(), fileChannels)) {
 

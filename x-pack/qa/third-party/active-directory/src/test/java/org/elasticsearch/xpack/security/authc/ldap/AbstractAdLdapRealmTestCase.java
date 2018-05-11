@@ -22,13 +22,13 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
-import org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingResponse;
 import org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -198,7 +198,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
     @Override
     public Set<String> excludeTemplates() {
         Set<String> templates = Sets.newHashSet(super.excludeTemplates());
-        templates.add(SecurityLifecycleServiceField.SECURITY_TEMPLATE_NAME); // don't remove the security index template
+        templates.add(SecurityIndexManager.SECURITY_TEMPLATE_NAME); // don't remove the security index template
         return templates;
     }
 

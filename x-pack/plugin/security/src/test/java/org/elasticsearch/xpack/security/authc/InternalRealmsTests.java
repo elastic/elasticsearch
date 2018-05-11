@@ -47,10 +47,10 @@ public class InternalRealmsTests extends ESTestCase {
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         factories.get(NativeRealmSettings.TYPE).create(new RealmConfig("test", Settings.EMPTY, settings,
             TestEnvironment.newEnvironment(settings), new ThreadContext(settings)));
-        verify(securityIndex).addIndexHealthChangeListener(isA(BiConsumer.class));
+        verify(securityIndex).addIndexStateListener(isA(BiConsumer.class));
 
         factories.get(NativeRealmSettings.TYPE).create(new RealmConfig("test", Settings.EMPTY, settings,
             TestEnvironment.newEnvironment(settings), new ThreadContext(settings)));
-        verify(securityIndex, times(2)).addIndexHealthChangeListener(isA(BiConsumer.class));
+        verify(securityIndex, times(2)).addIndexStateListener(isA(BiConsumer.class));
     }
 }

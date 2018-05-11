@@ -49,8 +49,6 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
     public static final String INTERNAL_SECURITY_INDEX = SecurityIndexManager.INTERNAL_SECURITY_INDEX;
     public static final String SECURITY_INDEX_NAME = ".security";
 
-    private static final Version MIN_READ_VERSION = Version.V_5_0_0;
-
     private final Settings settings;
     private final ThreadPool threadPool;
     private final IndexAuditTrail indexAuditTrail;
@@ -125,36 +123,7 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
         }
     }
 
-    public static boolean securityIndexMappingSufficientToRead(ClusterState clusterState, Logger logger) {
-        return checkMappingVersions(clusterState, logger, MIN_READ_VERSION::onOrBefore);
-    }
-
-    static boolean securityIndexMappingUpToDate(ClusterState clusterState, Logger logger) {
-        return checkMappingVersions(clusterState, logger, Version.CURRENT::equals);
-    }
-
-    private static boolean checkMappingVersions(ClusterState clusterState, Logger logger, Predicate<Version> versionPredicate) {
-        return SecurityIndexManager.checkIndexMappingVersionMatches(SECURITY_INDEX_NAME, clusterState, logger, versionPredicate);
-    }
-
     public static List<String> indexNames() {
         return Collections.unmodifiableList(Arrays.asList(SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX));
     }
-
-    /**
-     * Is the move from {@code previousHealth} to {@code currentHealth} a move from an unhealthy ("RED") index state to a healthy
-     * ("non-RED") state.
-     */
-    public static boolean isMoveFromRedToNonRed(ClusterIndexHealth previousHealth, ClusterIndexHealth currentHealth) {
-        return (previousHealth == null || previousHealth.getStatus() == ClusterHealthStatus.RED)
-                && currentHealth != null && currentHealth.getStatus() != ClusterHealthStatus.RED;
-    }
-
-    /**
-     * Is the move from {@code previousHealth} to {@code currentHealth} a move from index-exists to index-deleted
-     */
-    public static boolean isIndexDeleted(ClusterIndexHealth previousHealth, ClusterIndexHealth currentHealth) {
-        return previousHealth != null && currentHealth == null;
-    }
-
 }

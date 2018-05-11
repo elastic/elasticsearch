@@ -32,6 +32,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRe
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -41,6 +42,7 @@ import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -68,6 +70,7 @@ import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterStateAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetRepositoriesAction;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -96,6 +99,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -979,6 +983,34 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertEquals(restoreResponse.getRestoreInfo().totalShards(),
             restoreResponse.getRestoreInfo().successfulShards());
         ensureYellow();
+    }
+
+    public void testSnapshotWithDateMath() {
+        final String repo = "repo";
+        final AdminClient admin = client().admin();
+
+        final IndexNameExpressionResolver nameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);
+        final String snapshotName = "<snapshot-{now/d}>";
+        final String expression = nameExpressionResolver.resolveDateMathExpression(snapshotName);
+
+        logger.info("-->  creating repository");
+        assertAcked(admin.cluster().preparePutRepository(repo).setType("fs")
+            .setSettings(Settings.builder().put("location", randomRepoPath())
+                .put("compress", randomBoolean())));
+
+        logger.info("-->  creating date math snapshot");
+        CreateSnapshotResponse snapshotResponse =
+            admin.cluster().prepareCreateSnapshot(repo, snapshotName)
+                .setIncludeGlobalState(true)
+                .setWaitForCompletion(true)
+                .execute().actionGet();
+        assertThat(snapshotResponse.status(), equalTo(RestStatus.OK));
+
+        SnapshotsStatusResponse response = admin.cluster().prepareSnapshotStatus(repo)
+            .setSnapshots(expression)
+            .execute().actionGet();
+        assertThat(response.getSnapshots(), hasSize(1));
+        assertThat(response.getSnapshots().get(0).getState().completed(), equalTo(true));
     }
 
     public static class SnapshottableMetadata extends TestCustomMetaData {

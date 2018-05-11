@@ -105,7 +105,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
         config.put("field", sourceField);
         config.put("formats", Collections.singletonList("dd/MM/yyyyy"));
 
-        ZoneId timezone = randomZoneId();
+        ZoneId timezone = randomZone();
         config.put("timezone", timezone.getId());
         DateProcessor processor = factory.create(null, null, config);
         assertThat(processor.getTimezone().newInstance(Collections.emptyMap()).execute(), equalTo(timezone.getId()));

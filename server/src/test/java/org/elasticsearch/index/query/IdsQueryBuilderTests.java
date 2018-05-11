@@ -84,7 +84,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
                 || context.getQueryShardContext().fieldMapper(IdFieldMapper.NAME) == null
                 // there are types, but disjoint from the query
                 || (allTypes == false &&
-                    Arrays.asList(queryBuilder.types()).indexOf(context.mapperService().types().iterator().next()) == -1)) {
+                    Arrays.asList(queryBuilder.types()).indexOf(context.mapperService().documentMapper().type()) == -1)) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else {
             assertThat(query, instanceOf(TermInSetQuery.class));

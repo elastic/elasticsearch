@@ -31,6 +31,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -635,7 +636,24 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public static ElasticsearchException[] guessRootCauses(Throwable t) {
         Throwable ex = ExceptionsHelper.unwrapCause(t);
         if (ex instanceof ElasticsearchException) {
+            // ElasticsearchException knows how to guess its own root cause
             return ((ElasticsearchException) ex).guessRootCauses();
+        }
+        if (ex instanceof XContentParseException) {
+            /*
+             * We'd like to unwrap parsing exceptions to the inner-most
+             * parsing exception because that is generally the most interesting
+             * exception to return to the user. If that exception is caused by
+             * an ElasticsearchException we'd like to keep unwrapping because
+             * ElasticserachExceptions tend to contain useful information for
+             * the user.
+             */
+            Throwable cause = ex.getCause();
+            if (cause != null) {
+                if (cause instanceof XContentParseException || cause instanceof ElasticsearchException) {
+                    return guessRootCauses(ex.getCause());
+                }
+            }
         }
         return new ElasticsearchException[]{new ElasticsearchException(t.getMessage(), t) {
             @Override
@@ -650,7 +668,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     /**
-     * Returns a underscore case name for the given exception. This method strips <tt>Elasticsearch</tt> prefixes from exception names.
+     * Returns a underscore case name for the given exception. This method strips {@code Elasticsearch} prefixes from exception names.
      */
     public static String getExceptionName(Throwable ex) {
         String simpleName = ex.getClass().getSimpleName();

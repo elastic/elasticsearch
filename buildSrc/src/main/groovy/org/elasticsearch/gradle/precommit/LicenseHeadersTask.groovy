@@ -50,6 +50,14 @@ public class LicenseHeadersTask extends AntTask {
     List<String> approvedLicenses = ['Apache', 'Generated']
 
     /**
+     * Files that should be excluded from the license header check. Use with extreme care, only in situations where the license on the
+     * source file is compatible with the codebase but we do not want to add the license to the list of approved headers (to avoid the
+     * possibility of inadvertently using the license on our own source files).
+     */
+    @Input
+    List<String> excludes = []
+
+    /**
      * Additional license families that may be found. The key is the license category name (5 characters),
      * followed by the family name and the value list of patterns to search for.
      */
@@ -95,7 +103,7 @@ public class LicenseHeadersTask extends AntTask {
                for (File dir: dirSet.srcDirs) {
                    // sometimes these dirs don't exist, e.g. site-plugin has no actual java src/main...
                    if (dir.exists()) {
-                       ant.fileset(dir: dir)
+                       ant.fileset(dir: dir, excludes: excludes.join(' '))
                    }
                }
             }

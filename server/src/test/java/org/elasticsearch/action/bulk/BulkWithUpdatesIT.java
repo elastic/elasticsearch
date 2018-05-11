@@ -260,13 +260,13 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         assertThat(bulkResponse.getItems().length, equalTo(3));
 
         bulkResponse = client().prepareBulk()
-                .add(client().prepareUpdate().setIndex("test").setType("type1").setId("1").setFields("field")
+                .add(client().prepareUpdate().setIndex("test").setType("type1").setId("1").setFetchSource("field", null)
                         .setScript(new Script(
                             ScriptType.INLINE, CustomScriptPlugin.NAME, "throw script exception on unknown var", Collections.emptyMap())))
-                .add(client().prepareUpdate().setIndex("test").setType("type1").setId("2").setFields("field")
+                .add(client().prepareUpdate().setIndex("test").setType("type1").setId("2").setFetchSource("field", null)
                         .setScript(new Script(
                             ScriptType.INLINE, CustomScriptPlugin.NAME, "ctx._source.field += 1", Collections.emptyMap())))
-                .add(client().prepareUpdate().setIndex("test").setType("type1").setId("3").setFields("field")
+                .add(client().prepareUpdate().setIndex("test").setType("type1").setId("3").setFetchSource("field", null)
                         .setScript(new Script(
                             ScriptType.INLINE, CustomScriptPlugin.NAME, "throw script exception on unknown var", Collections.emptyMap())))
                 .execute().actionGet();
@@ -279,7 +279,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
 
         assertThat(bulkResponse.getItems()[1].getResponse().getId(), equalTo("2"));
         assertThat(bulkResponse.getItems()[1].getResponse().getVersion(), equalTo(2L));
-        assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getGetResult().field("field").getValue(), equalTo(2));
+        assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getGetResult().sourceAsMap().get("field"), equalTo(2));
         assertThat(bulkResponse.getItems()[1].getFailure(), nullValue());
 
         assertThat(bulkResponse.getItems()[2].getFailure().getId(), equalTo("3"));
@@ -303,7 +303,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
             builder.add(
                     client().prepareUpdate()
                             .setIndex("test").setType("type1").setId(Integer.toString(i))
-                            .setFields("counter")
+                            .setFetchSource("counter", null)
                             .setScript(script)
                             .setUpsert(jsonBuilder().startObject().field("counter", 1).endObject()));
         }
@@ -319,7 +319,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
             assertThat(response.getItems()[i].getOpType(), equalTo(OpType.UPDATE));
             assertThat(response.getItems()[i].getResponse().getId(), equalTo(Integer.toString(i)));
             assertThat(response.getItems()[i].getResponse().getVersion(), equalTo(1L));
-            assertThat(((UpdateResponse) response.getItems()[i].getResponse()).getGetResult().field("counter").getValue(), equalTo(1));
+            assertThat(((UpdateResponse) response.getItems()[i].getResponse()).getGetResult().sourceAsMap().get("counter"), equalTo(1));
 
             for (int j = 0; j < 5; j++) {
                 GetResponse getResponse = client().prepareGet("test", "type1", Integer.toString(i)).execute()
@@ -333,7 +333,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         builder = client().prepareBulk();
         for (int i = 0; i < numDocs; i++) {
             UpdateRequestBuilder updateBuilder = client().prepareUpdate().setIndex("test").setType("type1").setId(Integer.toString(i))
-                    .setFields("counter");
+                    .setFetchSource("counter", null);
             if (i % 2 == 0) {
                 updateBuilder.setScript(script);
             } else {
@@ -357,7 +357,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
             assertThat(response.getItems()[i].getOpType(), equalTo(OpType.UPDATE));
             assertThat(response.getItems()[i].getResponse().getId(), equalTo(Integer.toString(i)));
             assertThat(response.getItems()[i].getResponse().getVersion(), equalTo(2L));
-            assertThat(((UpdateResponse) response.getItems()[i].getResponse()).getGetResult().field("counter").getValue(), equalTo(2));
+            assertThat(((UpdateResponse) response.getItems()[i].getResponse()).getGetResult().sourceAsMap().get("counter"), equalTo(2));
         }
 
         builder = client().prepareBulk();

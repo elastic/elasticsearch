@@ -32,10 +32,14 @@ The Java High Level REST Client supports the following Search APIs:
 * <<java-rest-high-search-scroll>>
 * <<java-rest-high-clear-scroll>>
 * <<java-rest-high-multi-search>>
+* <<java-rest-high-field-caps>>
+* <<java-rest-high-rank-eval>>
 
 include::search/search.asciidoc[]
 include::search/scroll.asciidoc[]
 include::search/multi-search.asciidoc[]
+include::search/field-caps.asciidoc[]
+include::search/rank-eval.asciidoc[]
 
 == Miscellaneous APIs
 
@@ -64,6 +68,8 @@ Index Management::
 * <<java-rest-high-clear-cache>>
 * <<java-rest-high-force-merge>>
 * <<java-rest-high-rollover-index>>
+* <<java-rest-high-indices-put-settings>>
+* <<java-rest-high-get-settings>>
 
 Mapping Management::
 * <<java-rest-high-put-mapping>>
@@ -89,6 +95,9 @@ include::indices/put_mapping.asciidoc[]
 include::indices/update_aliases.asciidoc[]
 include::indices/exists_alias.asciidoc[]
 include::indices/get_alias.asciidoc[]
+include::indices/put_settings.asciidoc[]
+include::indices/get_settings.asciidoc[]
+include::indices/put_template.asciidoc[]
 
 == Cluster APIs
 
@@ -97,3 +106,11 @@ The Java High Level REST Client supports the following Cluster APIs:
 * <<java-rest-high-cluster-put-settings>>
 
 include::cluster/put_settings.asciidoc[]
+
+== Snapshot APIs
+
+The Java High Level REST Client supports the following Snapshot APIs:
+
+* <<java-rest-high-snapshot-get-repository>>
+
+include::snapshot/get_repository.asciidoc[]

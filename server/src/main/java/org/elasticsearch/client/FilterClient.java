@@ -73,4 +73,9 @@ public abstract class FilterClient extends AbstractClient {
     protected Client in() {
         return in;
     }
+
+    @Override
+    public Client getRemoteClusterClient(String clusterAlias) {
+        return in.getRemoteClusterClient(clusterAlias);
+    }
 }

@@ -91,10 +91,13 @@ public class RetryTests extends ESIntegTestCase {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(nodeSettings()).build();
     }
 
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false; // enable HTTP so we can test retries on reindex from remote; in this case the "remote" cluster is just this cluster
+    }
+
     final Settings nodeSettings() {
         return Settings.builder()
-                // enable HTTP so we can test retries on reindex from remote; in this case the "remote" cluster is just this cluster
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 // whitelist reindexing from the HTTP host we're going to use
                 .put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "127.0.0.1:*")
                 .build();
@@ -158,10 +161,10 @@ public class RetryTests extends ESIntegTestCase {
 
         final Settings nodeSettings = Settings.builder()
                 // use pools of size 1 so we can block them
-                .put("thread_pool.bulk.size", 1)
+                .put("thread_pool.write.size", 1)
                 .put("thread_pool.search.size", 1)
                 // use queues of size 1 because size 0 is broken and because search requests need the queue to function
-                .put("thread_pool.bulk.queue_size", 1)
+                .put("thread_pool.write.queue_size", 1)
                 .put("thread_pool.search.queue_size", 1)
                 .put("node.attr.color", "blue")
                 .build();
@@ -183,7 +186,7 @@ public class RetryTests extends ESIntegTestCase {
             bulk.add(client().prepareIndex("source", "test").setSource("foo", "bar " + i));
         }
 
-        Retry retry = new Retry(EsRejectedExecutionException.class, BackoffPolicy.exponentialBackoff(), client().threadPool());
+        Retry retry = new Retry(BackoffPolicy.exponentialBackoff(), client().threadPool());
         BulkResponse initialBulkResponse = retry.withBackoff(client()::bulk, bulk.request(), client().settings()).actionGet();
         assertFalse(initialBulkResponse.buildFailureMessage(), initialBulkResponse.hasFailures());
         client().admin().indices().prepareRefresh("source").get();
@@ -203,7 +206,7 @@ public class RetryTests extends ESIntegTestCase {
             assertBusy(() -> assertThat(taskStatus(action).getSearchRetries(), greaterThan(0L)));
 
             logger.info("Blocking bulk and unblocking search so we start to get bulk rejections");
-            CyclicBarrier bulkBlock = blockExecutor(ThreadPool.Names.BULK, node);
+            CyclicBarrier bulkBlock = blockExecutor(ThreadPool.Names.WRITE, node);
             initialSearchBlock.await();
 
             logger.info("Waiting for bulk rejections");

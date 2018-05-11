@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.test
 
+import org.elasticsearch.gradle.Version
 import org.gradle.api.GradleException
 import org.gradle.api.Project
 import org.gradle.api.tasks.Input
@@ -37,7 +38,7 @@ class ClusterConfiguration {
     int numBwcNodes = 0
 
     @Input
-    String bwcVersion = null
+    Version bwcVersion = null
 
     @Input
     int httpPort = 0
@@ -63,7 +64,7 @@ class ClusterConfiguration {
     boolean debug = false
 
     /**
-     * Configuration of the setting <tt>discovery.zen.minimum_master_nodes</tt> on the nodes.
+     * Configuration of the setting {@code discovery.zen.minimum_master_nodes} on the nodes.
      * In case of more than one node, this defaults to the number of nodes
      */
     @Input

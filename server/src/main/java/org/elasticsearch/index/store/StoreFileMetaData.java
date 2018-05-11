@@ -126,7 +126,7 @@ public class StoreFileMetaData implements Writeable {
 
     /**
      * Returns a variable length hash of the file represented by this metadata object. This can be the file
-     * itself if the file is small enough. If the length of the hash is <tt>0</tt> no hash value is available
+     * itself if the file is small enough. If the length of the hash is {@code 0} no hash value is available
      */
     public BytesRef hash() {
         return hash;

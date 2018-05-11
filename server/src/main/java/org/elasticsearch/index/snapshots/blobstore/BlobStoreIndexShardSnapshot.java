@@ -476,16 +476,16 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
     private static final String START_TIME = "start_time";
     private static final String TIME = "time";
     private static final String FILES = "files";
+    private static final String INCREMENTAL_FILE_COUNT = "incremental_file_count";
+    private static final String INCREMENTAL_SIZE = "incremental_size";
     // for the sake of BWC keep the actual property names as in 6.x
-    // + there is a constraint in #fromXContent() that leads to ElasticsearchParseException("unknown parameter [incremental_file_count]");
-    private static final String INCREMENTAL_FILE_COUNT = "number_of_files";
-    private static final String INCREMENTAL_SIZE = "total_size";
+    private static final String NUMBER_OF_FILES = "number_of_files";
+    private static final String TOTAL_SIZE = "total_size";
 
-
-    private static final ParseField PARSE_NAME = new ParseField("name");
-    private static final ParseField PARSE_INDEX_VERSION = new ParseField("index_version", "index-version");
-    private static final ParseField PARSE_START_TIME = new ParseField("start_time");
-    private static final ParseField PARSE_TIME = new ParseField("time");
+    private static final ParseField PARSE_NAME = new ParseField(NAME);
+    private static final ParseField PARSE_INDEX_VERSION = new ParseField(INDEX_VERSION, "index-version");
+    private static final ParseField PARSE_START_TIME = new ParseField(START_TIME);
+    private static final ParseField PARSE_TIME = new ParseField(TIME);
     private static final ParseField PARSE_INCREMENTAL_FILE_COUNT = new ParseField(INCREMENTAL_FILE_COUNT);
     private static final ParseField PARSE_INCREMENTAL_SIZE = new ParseField(INCREMENTAL_SIZE);
     private static final ParseField PARSE_FILES = new ParseField(FILES);
@@ -498,17 +498,20 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
      */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(NAME, snapshot);
-        builder.field(INDEX_VERSION, indexVersion);
-        builder.field(START_TIME, startTime);
-        builder.field(TIME, time);
-        builder.field(INCREMENTAL_FILE_COUNT, incrementalFileCount);
-        builder.field(INCREMENTAL_SIZE, incrementalSize);
-        builder.startArray(FILES);
+        builder.field(NAME, snapshot)
+            .field(INDEX_VERSION, indexVersion)
+            .field(START_TIME, startTime)
+            .field(TIME, time)
+            .field(INCREMENTAL_FILE_COUNT, incrementalFileCount)
+            .field(INCREMENTAL_SIZE, incrementalSize)
+            .startArray(FILES);
         for (FileInfo fileInfo : indexFiles) {
             FileInfo.toXContent(fileInfo, builder, params);
         }
-        builder.endArray();
+        builder.endArray()
+            // BWC part
+            .field(NUMBER_OF_FILES, incrementalFileCount)
+            .field(TOTAL_SIZE, incrementalSize);
         return builder;
     }
 
@@ -550,8 +553,6 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
                             incrementalFileCount = parser.intValue();
                         } else if (PARSE_INCREMENTAL_SIZE.match(currentFieldName, parser.getDeprecationHandler())) {
                             incrementalSize = parser.longValue();
-                        } else {
-                            throw new ElasticsearchParseException("unknown parameter [{}]", currentFieldName);
                         }
                     } else if (token == XContentParser.Token.START_ARRAY) {
                         if (PARSE_FILES.match(currentFieldName, parser.getDeprecationHandler())) {

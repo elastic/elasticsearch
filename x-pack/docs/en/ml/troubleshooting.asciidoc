@@ -9,6 +9,9 @@ answers for frequently asked questions.
 
 * <<ml-rollingupgrade>>
 * <<ml-mappingclash>>
+* <<ml-jobnames>>
+* <<ml-upgradedf>>
+* <<ml-stopjobs>>
 
 To get help, see <<xpack-help>>.
 
@@ -114,3 +117,38 @@ start the failing nodes you must downgrade the nodes then fix the problem per
 above.
 
 See also {stack-ref}/upgrading-elastic-stack.html[Upgrading the Elastic Stack].
+
+[[ml-stopjobs]]
+
+=== Problems deleting {ml} jobs
+
+Before you can delete a job, you must delete its {dfeeds} and close the job. If 
+you still encounter problems deleting the job, you might need to take extra 
+steps.
+
+*Symptoms:*
+
+* The {dfeed} was stopped and deleted successfully. When you try to delete the 
+job, however, it fails. For example, you receive an error message that says the 
+job is in a failed state. 
+
+*Resolution:*
+
+Try to delete the job again and specify the `force` parameter.  For example:
+
+[source,js]
+--------------------------------------------------
+DELETE _xpack/ml/anomaly_detectors/total-requests?force=true
+-------------------------------------------------- 
+// CONSOLE
+// TEST[setup:server_metrics_job]
+
+If the job persists, check whether there are any hung {ml} processes. For 
+example use the `ps` command and grep for the autodetect process, which is the 
+C++ process that runs the {ml} code. Kill these autodetect processes then delete 
+the job. 
+
+If the job still persists, you can delete the results index. If other jobs 
+are using this index, however, they will also be affected. 
+
+See also <<stopping-ml>>.

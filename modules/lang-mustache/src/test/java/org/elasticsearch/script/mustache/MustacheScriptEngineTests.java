@@ -20,6 +20,7 @@ package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.MustacheFactory;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.TemplateScript;
@@ -34,6 +35,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Mustache based templating test
@@ -75,7 +77,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
 
     public void testSimple() throws IOException {
         String templateString =
-                  "{" 
+                  "{"
                 + "\"source\":{\"match_{{template}}\": {}},"
                 + "\"params\":{\"template\":\"all\"}"
                 + "}";
@@ -99,6 +101,15 @@ public class MustacheScriptEngineTests extends ESTestCase {
         TemplateScript.Factory compiled = qe.compile(null, script.getIdOrCode(), TemplateScript.CONTEXT, Collections.emptyMap());
         TemplateScript TemplateScript = compiled.newInstance(script.getParams());
         assertThat(TemplateScript.execute(), equalTo("{ \"match_all\":{} }"));
+    }
+
+    public void testNoCompilation() throws Exception {
+        String templateString = "{ \"source\": \"no mustache templates here\" }";
+        XContentParser parser = createParser(JsonXContent.jsonXContent, templateString);
+        Script script = Script.parse(parser);
+        TemplateScript.Factory compiled = qe.compile(null, script.getIdOrCode(), TemplateScript.CONTEXT, Collections.emptyMap());
+        TemplateScript templateScript = compiled.newInstance(script.getParams());
+        assertThat(templateScript, instanceOf(MustacheScriptEngine.NoRenderMustacheExecutableScript.class));
     }
 
     public void testEscapeJson() throws IOException {

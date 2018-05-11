@@ -19,7 +19,6 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
@@ -46,6 +45,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -322,6 +322,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             compiledScript = cache.get(cacheKey);
 
             if (compiledScript == null) {
+                boolean requiresCompilation = scriptEngine.requiresCompilation(cacheKey.idOrCode);
                 try {
                     // Either an un-cached inline script or indexed script
                     // If the script type is inline the name will be the same as the code for identification in exceptions
@@ -331,7 +332,9 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                         logger.trace("compiling script, type: [{}], lang: [{}], options: [{}]", type, lang, options);
                     }
                     // Check whether too many compilations have happened
-                    checkCompilationLimit();
+                    if (requiresCompilation) {
+                        checkCompilationLimit();
+                    }
                     compiledScript = scriptEngine.compile(id, idOrCode, context, options);
                 } catch (ScriptException good) {
                     // TODO: remove this try-catch completely, when all script engines have good exceptions!
@@ -340,10 +343,12 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                     throw new GeneralScriptException("Failed to compile " + type + " script [" + id + "] using lang [" + lang + "]", exception);
                 }
 
-                // Since the cache key is the script content itself we don't need to
-                // invalidate/check the cache if an indexed script changes.
-                scriptMetrics.onCompilation();
-                cache.put(cacheKey, compiledScript);
+                if (requiresCompilation) {
+                    scriptMetrics.onCompilation();
+                    // Since the cache key is the script content itself we don't need to
+                    // invalidate/check the cache if an indexed script changes.
+                    cache.put(cacheKey, compiledScript);
+                }
             }
 
             return context.factoryClazz.cast(compiledScript);

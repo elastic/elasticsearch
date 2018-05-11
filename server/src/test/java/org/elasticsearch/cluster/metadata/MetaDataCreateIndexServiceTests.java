@@ -95,14 +95,14 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
     public void testNumberOfShards() {
         {
-            final Version versionCreated =
-                    VersionUtils.randomVersionBetween(random(), Version.V_6_0_0_alpha1, VersionUtils.getPreviousVersion(Version.V_7_0_0_alpha1));
+            final Version versionCreated = VersionUtils.randomVersionBetween(
+                    random(),
+                    Version.V_6_0_0_alpha1, VersionUtils.getPreviousVersion(Version.V_7_0_0_alpha1));
             final Settings.Builder indexSettingsBuilder = Settings.builder().put(SETTING_VERSION_CREATED, versionCreated);
             assertThat(MetaDataCreateIndexService.IndexCreationTask.getNumberOfShards(indexSettingsBuilder), equalTo(5));
         }
         {
-            final Version versionCreated =
-                    VersionUtils.randomVersionBetween(random(), Version.V_7_0_0_alpha1, Version.CURRENT);
+            final Version versionCreated = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0_alpha1, Version.CURRENT);
             final Settings.Builder indexSettingsBuilder = Settings.builder().put(SETTING_VERSION_CREATED, versionCreated);
             assertThat(MetaDataCreateIndexService.IndexCreationTask.getNumberOfShards(indexSettingsBuilder), equalTo(1));
         }

@@ -33,17 +33,21 @@ public class SysTables extends Command {
     private final LikePattern pattern;
     private final LikePattern clusterPattern;
     private final EnumSet<IndexType> types;
+    // flag indicating whether tables are reported as `TABLE` or `BASE TABLE`
+    private final boolean legacyTableTypes;
 
-    public SysTables(Location location, LikePattern clusterPattern, LikePattern pattern, EnumSet<IndexType> types) {
+    public SysTables(Location location, LikePattern clusterPattern, LikePattern pattern, EnumSet<IndexType> types,
+            boolean legacyTableTypes) {
         super(location);
         this.clusterPattern = clusterPattern;
         this.pattern = pattern;
         this.types = types;
+        this.legacyTableTypes = legacyTableTypes;
     }
 
     @Override
     protected NodeInfo<SysTables> info() {
-        return NodeInfo.create(this, SysTables::new, clusterPattern, pattern, types);
+        return NodeInfo.create(this, SysTables::new, clusterPattern, pattern, types, legacyTableTypes);
     }
 
     @Override
@@ -111,7 +115,7 @@ public class SysTables extends Command {
                  .map(t -> asList(cluster,
                          EMPTY,
                          t.name(),
-                         t.type().toSql(),
+                         legacyName(t.type()),
                          EMPTY,
                          null,
                          null,
@@ -120,6 +124,10 @@ public class SysTables extends Command {
                          null))
                 .collect(toList())))
         , listener::onFailure));
+    }
+
+    private String legacyName(IndexType indexType) {
+        return legacyTableTypes && indexType == IndexType.INDEX ? "TABLE" : indexType.toSql();
     }
 
     @Override

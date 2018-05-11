@@ -64,7 +64,6 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService.Authenticator;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
@@ -125,7 +124,6 @@ public class AuthenticationServiceTests extends ESTestCase {
     private ThreadPool threadPool;
     private ThreadContext threadContext;
     private TokenService tokenService;
-    private SecurityLifecycleService lifecycleService;
     private SecurityIndexManager securityIndex;
     private Client client;
     private InetSocketAddress remoteAddress;
@@ -182,16 +180,14 @@ public class AuthenticationServiceTests extends ESTestCase {
                     .setId((String) invocationOnMock.getArguments()[2]);
             return builder;
         }).when(client).prepareGet(anyString(), anyString(), anyString());
-        lifecycleService = mock(SecurityLifecycleService.class);
         securityIndex = mock(SecurityIndexManager.class);
-        when(lifecycleService.securityIndex()).thenReturn(securityIndex);
         doAnswer(invocationOnMock -> {
             Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];
             runnable.run();
             return null;
         }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        tokenService = new TokenService(settings, Clock.systemUTC(), client, lifecycleService, clusterService);
+        tokenService = new TokenService(settings, Clock.systemUTC(), client, securityIndex, clusterService);
         service = new AuthenticationService(settings, realms, auditTrail,
                 new DefaultAuthenticationFailureHandler(), threadPool, new AnonymousUser(settings), tokenService);
     }
@@ -929,7 +925,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     public void testExpiredToken() throws Exception {
         when(securityIndex.isAvailable()).thenReturn(true);
-        when(lifecycleService.securityIndex().indexExists()).thenReturn(true);
+        when(securityIndex.indexExists()).thenReturn(true);
         User user = new User("_username", "r1");
         final Authentication expected = new Authentication(user, new RealmRef("realm", "custom", "node"), null);
         PlainActionFuture<Tuple<UserToken, String>> tokenFuture = new PlainActionFuture<>();

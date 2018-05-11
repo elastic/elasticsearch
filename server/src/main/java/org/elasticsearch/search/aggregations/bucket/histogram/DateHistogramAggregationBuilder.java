@@ -378,30 +378,28 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
             final IndexReader reader = context.getIndexReader();
             if (ft != null && reader != null) {
                 Long anyInstant = null;
-                final IndexFieldData<?> fieldData = context.getForField(ft);
-                if (fieldData instanceof IndexNumericFieldData) {
-                    for (LeafReaderContext ctx : reader.leaves()) {
-                        AtomicNumericFieldData leafFD = ((IndexNumericFieldData) fieldData).load(ctx);
-                        SortedNumericDocValues values = leafFD.getLongValues();
-                        if (values.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                            anyInstant = values.nextValue();
-                            break;
-                        }
+                final IndexNumericFieldData fieldData = context.getForField(ft);
+                for (LeafReaderContext ctx : reader.leaves()) {
+                    AtomicNumericFieldData leafFD = ((IndexNumericFieldData) fieldData).load(ctx);
+                    SortedNumericDocValues values = leafFD.getLongValues();
+                    if (values.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        anyInstant = values.nextValue();
+                        break;
                     }
+                }
 
-                    if (anyInstant != null) {
-                        final long prevTransition = tz.previousTransition(anyInstant);
-                        final long nextTransition = tz.nextTransition(anyInstant);
-                        final DocValueFormat format = ft.docValueFormat(null, null);
-                        final String formattedPrevTransition = format.format(prevTransition);
-                        final String formattedNextTransition = format.format(nextTransition);
-                        if (ft.isFieldWithinQuery(reader, formattedPrevTransition, formattedNextTransition,
-                                false, false, tz, null, context) == Relation.WITHIN) {
-                            // All values in this reader have the same offset despite daylight saving times.
-                            // This is very common for location-based timezones such as Europe/Paris in
-                            // combination with time-based indices.
-                            return DateTimeZone.forOffsetMillis(tz.getOffset(anyInstant));
-                        }
+                if (anyInstant != null) {
+                    final long prevTransition = tz.previousTransition(anyInstant);
+                    final long nextTransition = tz.nextTransition(anyInstant);
+                    final DocValueFormat format = ft.docValueFormat(null, null);
+                    final String formattedPrevTransition = format.format(prevTransition);
+                    final String formattedNextTransition = format.format(nextTransition);
+                    if (ft.isFieldWithinQuery(reader, formattedPrevTransition, formattedNextTransition,
+                            false, false, tz, null, context) == Relation.WITHIN) {
+                        // All values in this reader have the same offset despite daylight saving times.
+                        // This is very common for location-based timezones such as Europe/Paris in
+                        // combination with time-based indices.
+                        return DateTimeZone.forOffsetMillis(tz.getOffset(anyInstant));
                     }
                 }
             }

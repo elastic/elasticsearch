@@ -21,7 +21,7 @@ package org.elasticsearch.client.transport;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -56,6 +56,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -89,6 +90,7 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
     private final Object mutex = new Object();
 
     private volatile List<DiscoveryNode> nodes = Collections.emptyList();
+    // Filtered nodes are nodes whose cluster name does not match the configured cluster name
     private volatile List<DiscoveryNode> filteredNodes = Collections.emptyList();
 
     private final AtomicInteger tempNodeIdGenerator = new AtomicInteger();
@@ -364,7 +366,7 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
          * validates a set of potentially newly discovered nodes and returns an immutable
          * list of the nodes that has passed.
          */
-        protected List<DiscoveryNode> validateNewNodes(Set<DiscoveryNode> nodes) {
+        protected List<DiscoveryNode> establishNodeConnections(Set<DiscoveryNode> nodes) {
             for (Iterator<DiscoveryNode> it = nodes.iterator(); it.hasNext(); ) {
                 DiscoveryNode node = it.next();
                 if (!transportService.nodeConnected(node)) {
@@ -402,14 +404,16 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
         @Override
         protected void doSample() {
             HashSet<DiscoveryNode> newNodes = new HashSet<>();
-            HashSet<DiscoveryNode> newFilteredNodes = new HashSet<>();
+            ArrayList<DiscoveryNode> newFilteredNodes = new ArrayList<>();
             for (DiscoveryNode listedNode : listedNodes) {
                 try (Transport.Connection connection = transportService.openConnection(listedNode, LISTED_NODES_PROFILE)){
                     final PlainTransportFuture<LivenessResponse> handler = new PlainTransportFuture<>(
                         new FutureTransportResponseHandler<LivenessResponse>() {
                             @Override
-                            public LivenessResponse newInstance() {
-                                return new LivenessResponse();
+                            public LivenessResponse read(StreamInput in) throws IOException {
+                                LivenessResponse response = new LivenessResponse();
+                                response.readFrom(in);
+                                return response;
                             }
                         });
                     transportService.sendRequest(connection, TransportLivenessAction.NAME, new LivenessRequest(),
@@ -435,8 +439,8 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                 }
             }
 
-            nodes = validateNewNodes(newNodes);
-            filteredNodes = Collections.unmodifiableList(new ArrayList<>(newFilteredNodes));
+            nodes = establishNodeConnections(newNodes);
+            filteredNodes = Collections.unmodifiableList(newFilteredNodes);
         }
     }
 
@@ -557,7 +561,7 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                 }
             }
 
-            nodes = validateNewNodes(newNodes);
+            nodes = establishNodeConnections(newNodes);
             filteredNodes = Collections.unmodifiableList(new ArrayList<>(newFilteredNodes));
         }
     }

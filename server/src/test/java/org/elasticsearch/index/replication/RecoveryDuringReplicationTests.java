@@ -399,9 +399,6 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 assertThat(task.getResyncedOperations(), greaterThanOrEqualTo(extraDocs));
             }
             List<IndexShard> replicas = shards.getReplicas();
-            for (IndexShard replica : replicas) {
-                logger.info("--> seqNo replica {} {}", replica.nodeName(), replica.seqNoStats());
-            }
 
             // check all docs on primary are available on replica
             Set<String> primaryIds = getShardDocUIDs(newPrimary);

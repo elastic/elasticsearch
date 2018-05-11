@@ -6,12 +6,12 @@
 ["float",id="cluster-nodes"]
 == Node specification
 
-Most cluster level APIs allow to specify nodes with `node filters`, these filters
+Some cluster level APIs allow to specify nodes with _node filters_, these filters
 limit the results to selected nodes for corresponding APIs. (For example, you can
-find it in APIs like `Cluster State`, `Task Management` and all the Nodes API like
-`Nodes States`, `Nodes Info` etc.)
+find it in <<tasks,Task Management>> API and all the Nodes APIs like
+<<cluster-nodes-stats,Nodes Stats>>, <<cluster-nodes-info,Nodes Info>> etc.)
 
-Node filters can be one or a list filters which is comma-seperated, each filter can be:
+_Node filters_ can be one or a list filters which is comma-seperated, each filter can be:
 
 * `_local`
 * `_master`
@@ -21,16 +21,16 @@ Node filters can be one or a list filters which is comma-seperated, each filter 
 * `[master|data|ingest|coordinating_only]:[true|false]` <1> <2>
 * custom `attr:value` (need to be set in configuration file and could be a pattern matched using `*` wildcard) <3>
 
-IMPORTANT: node filters run in order in case of multiple, this is important when you use the exclusion case,
-for example `/_all,master:false` means all the nodes exclude master-eligible, but `/master:false,_all` means
-all the nodes as you exclude the master-eligible nodes firstly and then add all nodes in.
-
 [NOTE]
 ===============================================
 <1> pay attention that `master` means master-eligible nodes, not the current master which is represented by `_master`.
 <2> `false` means exclude the specified type of nodes.
 <3> the custom `attr:value` should be defined in configuration file.
 ===============================================
+
+IMPORTANT: node filters run in order in case of multiple, this is important when you use the exclusion case,
+for example `/_all,master:false` means all the nodes exclude master-eligible, but `/master:false,_all` means
+all the nodes as you exclude the master-eligible nodes firstly and then add all nodes in.
 
 Here are some node filters examples:
 

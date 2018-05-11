@@ -164,7 +164,7 @@ final class Checkpoint {
         final long minSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         final long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         final long globalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
-        final long minTranslogGeneration = SequenceNumbers.UNASSIGNED_SEQ_NO;
+        final long minTranslogGeneration = -1;
         final long trimmedAboveSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
         return new Checkpoint(offset, numOps, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration, trimmedAboveSeqNo);
     }

@@ -1511,38 +1511,63 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void testSnapshotTrimmedOperations() throws Exception {
-        List<Translog.Index> operations = new ArrayList<>();
-        int translogOperations = randomIntBetween(10, 100);
-        int maxTrimmedSeqNo = translogOperations - randomIntBetween(4, 8);
+        int translogOperations = 0;
+        int skipped = 0;
+        Set<Long> expectedSeqNo = new HashSet<>();
 
-        final long initialPrimaryTerm = this.primaryTerm.get();
-        for (int op = 0; op < translogOperations; op++) {
-            String ascii = randomAlphaOfLengthBetween(1, 50);
-            Translog.Index operation = new Translog.Index("test", "" + op, op,
-                initialPrimaryTerm, ascii.getBytes("UTF-8"));
-            operations.add(operation);
-        }
-        Randomness.shuffle(operations);
+        for(int attempt = 0, maxAttempts = randomIntBetween(3, 10); attempt < maxAttempts; attempt++) {
+            int extraDocs = randomIntBetween(10, 15);
 
-        for (Translog.Index operation : operations) {
-            translog.add(operation);
-        }
-
-        primaryTerm.incrementAndGet();
-        translog.rollGeneration();
-
-        translog.trimOperations(primaryTerm.get(), maxTrimmedSeqNo);
-        translog.sync();
-
-        Set<Long> expectedSeqNo = LongStream.range(0, maxTrimmedSeqNo + 1).boxed().collect(Collectors.toSet());
-        try (Translog.Snapshot snapshot = translog.newSnapshot()) {
-            Translog.Operation next;
-            while ((next = snapshot.next()) != null) {
-                assertThat(expectedSeqNo.remove(next.seqNo()), is(true));
+            List<Translog.Index> operations = new ArrayList<>();
+            for (int op = 0; op < extraDocs; op++) {
+                String ascii = randomAlphaOfLengthBetween(1, 50);
+                int seqNo = translogOperations + op;
+                Translog.Index operation = new Translog.Index("test", "" + seqNo, seqNo,
+                    this.primaryTerm.get(), ascii.getBytes("UTF-8"));
+                operations.add(operation);
             }
-            assertThat(snapshot.skippedOperations(), is(translogOperations - (maxTrimmedSeqNo + 1)));
+            Randomness.shuffle(operations);
+
+            for (Translog.Index operation : operations) {
+                translog.add(operation);
+            }
+
+            final boolean rollover = randomBoolean();
+            if (rollover) {
+                primaryTerm.incrementAndGet();
+                translog.rollGeneration();
+            }
+
+            int trimmedDocs = randomIntBetween(4, 8);
+            int maxTrimmedSeqNo = translogOperations + extraDocs - trimmedDocs;
+            translog.trimOperations(primaryTerm.get(), maxTrimmedSeqNo);
+            translog.sync();
+
+            final Set<Long> expectedForAttempt;
+            if (rollover) {
+                skipped += trimmedDocs - 1;
+                expectedForAttempt = LongStream.range(translogOperations, maxTrimmedSeqNo + 1).boxed().collect(Collectors.toSet());
+            } else {
+                expectedForAttempt = LongStream.range(translogOperations, translogOperations + extraDocs).boxed().collect(Collectors.toSet());
+            }
+            expectedSeqNo.addAll(expectedForAttempt);
+
+            translogOperations += extraDocs;
+
+            final Set<Long> expectedSeqNoSet = new HashSet<>(expectedSeqNo);
+            try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+                Translog.Operation next;
+                while ((next = snapshot.next()) != null) {
+                    if (expectedForAttempt.contains(next.seqNo())) {
+                        assertThat(next.primaryTerm(), is(rollover ? primaryTerm.get() - 1 : primaryTerm.get()));
+                    }
+                    final boolean remove = expectedSeqNoSet.remove(next.seqNo());
+                    assertThat(next.primaryTerm() + ":" + next.seqNo() + " is expected", remove, is(true));
+                }
+                assertThat(snapshot.skippedOperations(), is(skipped));
+            }
+            assertThat("expectedSeqNoSet:" + expectedSeqNoSet, expectedSeqNoSet, hasSize(0));
         }
-        assertThat(expectedSeqNo, hasSize(0));
     }
 
     public void testRandomExceptionsOnTrimOperations( ) throws Exception {

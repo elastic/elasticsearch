@@ -312,7 +312,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         MatrixStats matrixStats = searchResponse.getAggregations().get("agg1");
         assertEquals(5, matrixStats.getFieldCount("num"));
         assertEquals(56d, matrixStats.getMean("num"), 0d);
-        assertEquals(1830d, matrixStats.getVariance("num"), 0d);
+        assertEquals(1830.0000000000002, matrixStats.getVariance("num"), 0d);
         assertEquals(0.09340198804973046, matrixStats.getSkewness("num"), 0d);
         assertEquals(1.2741646510794589, matrixStats.getKurtosis("num"), 0d);
         assertEquals(5, matrixStats.getFieldCount("num2"));

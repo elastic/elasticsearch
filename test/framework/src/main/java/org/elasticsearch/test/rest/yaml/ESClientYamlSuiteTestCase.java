@@ -29,15 +29,18 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
+import org.elasticsearch.test.rest.yaml.section.ApiCallSection;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSuite;
 import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -92,6 +95,13 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     protected ESClientYamlSuiteTestCase(ClientYamlTestCandidate testCandidate) {
         this.testCandidate = testCandidate;
+    }
+
+    private static boolean useDefaultNumberOfShards;
+
+    @BeforeClass
+    public static void initializeUseDefaultNumberOfShards() {
+        useDefaultNumberOfShards = usually();
     }
 
     @Before
@@ -316,6 +326,20 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         //let's check that there is something to run, otherwise there might be a problem with the test section
         if (testCandidate.getTestSection().getExecutableSections().size() == 0) {
             throw new IllegalArgumentException("No executable sections loaded for [" + testCandidate.getTestPath() + "]");
+        }
+
+        if (useDefaultNumberOfShards == false
+                && testCandidate.getTestSection().getSkipSection().getFeatures().contains("default_shards") == false) {
+            final DoSection templateDoSection = new DoSection(new XContentLocation(0, 0));
+            final ApiCallSection templateApiCallSection = new ApiCallSection("indices.put_template");
+            templateApiCallSection.addParam("name", "global");
+            templateApiCallSection.addBody(Collections.singletonMap("index_patterns", "[*]"));
+            final Map<String, Integer> indexSettings = new HashMap<>();
+            indexSettings.put("index.number_of_shards", 2);
+            indexSettings.put("index.number_of_replicas", 0);
+            templateApiCallSection.addBody(Collections.singletonMap("settings", indexSettings));
+            templateDoSection.setApiCallSection(templateApiCallSection);
+            templateDoSection.execute(restTestExecutionContext);
         }
 
         if (!testCandidate.getSetupSection().isEmpty()) {

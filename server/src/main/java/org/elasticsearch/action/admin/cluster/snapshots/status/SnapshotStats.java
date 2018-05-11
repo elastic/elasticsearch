@@ -161,53 +161,60 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
     static final class Fields {
         static final String STATS = "stats";
 
-        static final String INCREMENTAL_FILES = "incremental_files";
+        static final String INCREMENTAL = "incremental";
+        static final String PROCESSED = "processed";
+        static final String TOTAL = "total";
+
         static final String COUNT = "count";
         static final String SIZE = "size";
         static final String SIZE_IN_BYTES = "size_in_bytes";
-        static final String PROCESSED = "processed";
-        static final String PROCESSED_SIZE = "processed_size";
-        static final String PROCESSED_SIZE_IN_BYTES = "processed_size_in_bytes";
+
         static final String START_TIME_IN_MILLIS = "start_time_in_millis";
         static final String TIME_IN_MILLIS = "time_in_millis";
         static final String TIME = "time";
-
-        static final String ALL_FILES = "all_files";
 
         // BWC
         static final String NUMBER_OF_FILES = "number_of_files";
         static final String PROCESSED_FILES = "processed_files";
         static final String TOTAL_SIZE = "total_size";
         static final String TOTAL_SIZE_IN_BYTES = "total_size_in_bytes";
+        static final String PROCESSED_SIZE_IN_BYTES = "processed_size_in_bytes";
+        static final String PROCESSED_SIZE = "processed_size";
 
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-       return builder.startObject(Fields.STATS)
-            //  incremental_files starts
-            .startObject(Fields.INCREMENTAL_FILES)
+        builder.startObject(Fields.STATS)
+            //  incremental starts
+            .startObject(Fields.INCREMENTAL)
             .field(Fields.COUNT, getIncrementalFileCount())
-            .humanReadableField(Fields.SIZE_IN_BYTES,Fields.SIZE, new ByteSizeValue(getIncrementalSize()))
-            .field(Fields.PROCESSED, getProcessedFileCount())
-            .humanReadableField(Fields.PROCESSED_SIZE_IN_BYTES,Fields.PROCESSED_SIZE, new ByteSizeValue(getProcessedSize()))
-            .field(Fields.START_TIME_IN_MILLIS, getStartTime())
-            .humanReadableField(Fields.TIME_IN_MILLIS, Fields.TIME, new TimeValue(getTime()))
-            //  incremental_files ends
-            .endObject()
-            //  all_files starts
-            .startObject(Fields.ALL_FILES)
+            .humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(getIncrementalSize()))
+            //  incremental ends
+            .endObject();
+
+        if (getProcessedFileCount() != getIncrementalFileCount()) {
+            //  processed starts
+            builder.startObject(Fields.PROCESSED)
+                .field(Fields.COUNT, getProcessedFileCount())
+                .humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(getProcessedSize()))
+                //  processed ends
+                .endObject();
+        }
+        //  total starts
+        return builder.startObject(Fields.TOTAL)
             .field(Fields.COUNT, getTotalFileCount())
-            .humanReadableField(Fields.SIZE_IN_BYTES,Fields.SIZE, new ByteSizeValue(getTotalSize()))
+            .humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(getTotalSize()))
             //  all_files ends
             .endObject()
+            // timings stats
+            .field(Fields.START_TIME_IN_MILLIS, getStartTime())
+            .humanReadableField(Fields.TIME_IN_MILLIS, Fields.TIME, new TimeValue(getTime()))
             // BWC part
-           .field(Fields.NUMBER_OF_FILES, getIncrementalFileCount())
-           .field(Fields.PROCESSED_FILES, getProcessedFileCount())
-           .humanReadableField(Fields.TOTAL_SIZE_IN_BYTES,Fields.TOTAL_SIZE, new ByteSizeValue(getIncrementalSize()))
-           .humanReadableField(Fields.PROCESSED_SIZE_IN_BYTES,Fields.PROCESSED_SIZE, new ByteSizeValue(getProcessedSize()))
-           .field(Fields.START_TIME_IN_MILLIS, getStartTime())
-           .humanReadableField(Fields.TIME_IN_MILLIS, Fields.TIME, new TimeValue(getTime()))
+            .field(Fields.NUMBER_OF_FILES, getIncrementalFileCount())
+            .field(Fields.PROCESSED_FILES, getProcessedFileCount())
+            .humanReadableField(Fields.TOTAL_SIZE_IN_BYTES, Fields.TOTAL_SIZE, new ByteSizeValue(getIncrementalSize()))
+            .humanReadableField(Fields.PROCESSED_SIZE_IN_BYTES, Fields.PROCESSED_SIZE, new ByteSizeValue(getProcessedSize()))
             // stats ends
             .endObject();
     }

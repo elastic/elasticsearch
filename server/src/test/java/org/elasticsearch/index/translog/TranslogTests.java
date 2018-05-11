@@ -1557,8 +1557,7 @@ public class TranslogTests extends ESTestCase {
         expectThrows(IOException.class,
             () -> {
                 int translogOperations = 0;
-                int maxAttempts = randomIntBetween(5, 10);
-                for(int attempt = 0; attempt < maxAttempts; attempt++) {
+                for(int attempt = 0; attempt < 5; attempt++) {
                     int maxTrimmedSeqNo;
                     try {
                         fail.failNever();

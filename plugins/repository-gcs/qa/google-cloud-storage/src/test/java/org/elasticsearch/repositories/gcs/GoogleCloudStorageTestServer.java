@@ -681,8 +681,7 @@ public class GoogleCloudStorageTestServer {
      * Storage Object JSON representation as defined in
      * https://cloud.google.com/storage/docs/json_api/v1/objects#resource
      */
-    private static XContentBuilder buildObjectResource(final String bucket, final String name, final byte[] bytes)
-            throws IOException {
+    private static XContentBuilder buildObjectResource(final String bucket, final String name, final byte[] bytes) throws IOException {
         return buildObjectResource(jsonBuilder(), bucket, name, bytes);
     }
 
@@ -712,17 +711,17 @@ public class GoogleCloudStorageTestServer {
                                                         final String dest,
                                                         final int byteSize) throws IOException {
         builder.startObject()
-                .field("kind", "storage#rewriteResponse")
-                .field("totalBytesRewritten", String.valueOf(byteSize))
-                .field("objectSize", String.valueOf(byteSize))
-                .field("done", true)
-                .startObject("resource")
-                    .field("kind", "storage#object")
-                    .field("id", String.join("/", destBucket, dest))
-                    .field("name", dest)
-                    .field("bucket", destBucket)
-                    .field("size", String.valueOf(byteSize))
-                .endObject()
+                    .field("kind", "storage#rewriteResponse")
+                    .field("totalBytesRewritten", String.valueOf(byteSize))
+                    .field("objectSize", String.valueOf(byteSize))
+                    .field("done", true)
+                    .startObject("resource")
+                        .field("kind", "storage#object")
+                        .field("id", String.join("/", destBucket, dest))
+                        .field("name", dest)
+                        .field("bucket", destBucket)
+                        .field("size", String.valueOf(byteSize))
+                    .endObject()
                 .endObject();
         return builder;
     }

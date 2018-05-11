@@ -160,33 +160,56 @@ public class SnapshotStats implements Streamable, ToXContentFragment {
 
     static final class Fields {
         static final String STATS = "stats";
-        static final String INCREMENTAL_FILE_COUNT = "incremental_file_count";
-        static final String TOTAL_FILE_COUNT = "total_file_count";
-        static final String PROCESSED_FILE_COUNT = "processed_file_count";
-        static final String INCREMENTAL_SIZE_IN_BYTES = "incremental_size_in_bytes";
-        static final String INCREMENTAL_SIZE = "incremental_size";
-        static final String TOTAL_SIZE_IN_BYTES = "total_size_in_bytes";
-        static final String TOTAL_SIZE = "total_size";
-        static final String PROCESSED_SIZE_IN_BYTES = "processed_size_in_bytes";
+
+        static final String INCREMENTAL_FILES = "incremental_files";
+        static final String COUNT = "count";
+        static final String SIZE = "size";
+        static final String SIZE_IN_BYTES = "size_in_bytes";
+        static final String PROCESSED = "processed";
         static final String PROCESSED_SIZE = "processed_size";
+        static final String PROCESSED_SIZE_IN_BYTES = "processed_size_in_bytes";
         static final String START_TIME_IN_MILLIS = "start_time_in_millis";
         static final String TIME_IN_MILLIS = "time_in_millis";
         static final String TIME = "time";
+
+        static final String ALL_FILES = "all_files";
+
+        // BWC
+        static final String NUMBER_OF_FILES = "number_of_files";
+        static final String PROCESSED_FILES = "processed_files";
+        static final String TOTAL_SIZE = "total_size";
+        static final String TOTAL_SIZE_IN_BYTES = "total_size_in_bytes";
+
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startObject(Fields.STATS);
-        builder.field(Fields.INCREMENTAL_FILE_COUNT, getIncrementalFileCount());
-        builder.field(Fields.TOTAL_FILE_COUNT, getTotalFileCount());
-        builder.field(Fields.PROCESSED_FILE_COUNT, getProcessedFileCount());
-        builder.humanReadableField(Fields.INCREMENTAL_SIZE_IN_BYTES, Fields.INCREMENTAL_SIZE, new ByteSizeValue(getIncrementalSize()));
-        builder.humanReadableField(Fields.TOTAL_SIZE_IN_BYTES, Fields.TOTAL_SIZE, new ByteSizeValue(getTotalSize()));
-        builder.humanReadableField(Fields.PROCESSED_SIZE_IN_BYTES, Fields.PROCESSED_SIZE, new ByteSizeValue(getProcessedSize()));
-        builder.field(Fields.START_TIME_IN_MILLIS, getStartTime());
-        builder.humanReadableField(Fields.TIME_IN_MILLIS, Fields.TIME, new TimeValue(getTime()));
-        builder.endObject();
-        return builder;
+       return builder.startObject(Fields.STATS)
+            //  incremental_files starts
+            .startObject(Fields.INCREMENTAL_FILES)
+            .field(Fields.COUNT, getIncrementalFileCount())
+            .humanReadableField(Fields.SIZE_IN_BYTES,Fields.SIZE, new ByteSizeValue(getIncrementalSize()))
+            .field(Fields.PROCESSED, getProcessedFileCount())
+            .humanReadableField(Fields.PROCESSED_SIZE_IN_BYTES,Fields.PROCESSED_SIZE, new ByteSizeValue(getProcessedSize()))
+            .field(Fields.START_TIME_IN_MILLIS, getStartTime())
+            .humanReadableField(Fields.TIME_IN_MILLIS, Fields.TIME, new TimeValue(getTime()))
+            //  incremental_files ends
+            .endObject()
+            //  all_files starts
+            .startObject(Fields.ALL_FILES)
+            .field(Fields.COUNT, getTotalFileCount())
+            .humanReadableField(Fields.SIZE_IN_BYTES,Fields.SIZE, new ByteSizeValue(getTotalSize()))
+            //  all_files ends
+            .endObject()
+            // BWC part
+           .field(Fields.NUMBER_OF_FILES, getIncrementalFileCount())
+           .field(Fields.PROCESSED_FILES, getProcessedFileCount())
+           .humanReadableField(Fields.TOTAL_SIZE_IN_BYTES,Fields.TOTAL_SIZE, new ByteSizeValue(getIncrementalSize()))
+           .humanReadableField(Fields.PROCESSED_SIZE_IN_BYTES,Fields.PROCESSED_SIZE, new ByteSizeValue(getProcessedSize()))
+           .field(Fields.START_TIME_IN_MILLIS, getStartTime())
+           .humanReadableField(Fields.TIME_IN_MILLIS, Fields.TIME, new TimeValue(getTime()))
+            // stats ends
+            .endObject();
     }
 
     void add(SnapshotStats stats) {

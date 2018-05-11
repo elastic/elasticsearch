@@ -801,7 +801,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             assertEquals(1.0 / 3.0, qualityLevel, 0.0);
             List<RatedSearchHit> hitsAndRatings = evalQuality.getHitsAndRatings();
             RatedSearchHit ratedSearchHit = hitsAndRatings.get(0);
-            assertEquals("3", ratedSearchHit.getSearchHit().getId());   // <4>
+            assertEquals("1", ratedSearchHit.getSearchHit().getId());   // <4>
             assertFalse(ratedSearchHit.getRating().isPresent());        // <5>
             MetricDetail metricDetails = evalQuality.getMetricDetails();
             String metricName = metricDetails.getMetricName();

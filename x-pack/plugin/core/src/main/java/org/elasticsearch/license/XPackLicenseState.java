@@ -209,12 +209,8 @@ public class XPackLicenseState {
     private static String[] logstashAcknowledgementMessages(OperationMode currentMode, OperationMode newMode) {
         switch (newMode) {
             case BASIC:
-                switch (currentMode) {
-                    case TRIAL:
-                    case STANDARD:
-                    case GOLD:
-                    case PLATINUM:
-                        return new String[] { "Logstash will no longer poll for centrally-managed pipelines" };
+                if (!isBasic(currentMode)) {
+                    return new String[] { "Logstash will no longer poll for centrally-managed pipelines" };
                 }
                 break;
         }
@@ -224,12 +220,8 @@ public class XPackLicenseState {
     private static String[] beatsAcknowledgementMessages(OperationMode currentMode, OperationMode newMode) {
         switch (newMode) {
             case BASIC:
-                switch (currentMode) {
-                    case TRIAL:
-                    case STANDARD:
-                    case GOLD:
-                    case PLATINUM:
-                        return new String[] { "Beats will no longer poll for centrally-managed configuration" };
+                if (!isBasic(currentMode)) {
+                    return new String[] { "Beats will no longer poll for centrally-managed configuration" };
                 }
                 break;
         }
@@ -251,10 +243,8 @@ public class XPackLicenseState {
         return Strings.EMPTY_ARRAY;
     }
 
-    private boolean isBasic() {
-        // status is volatile, so a local variable is used for a consistent view
-        Status localStatus = status;
-        return localStatus.mode == OperationMode.BASIC;
+    private static boolean isBasic(OperationMode mode) {
+        return mode == OperationMode.BASIC;
     }
 
     /** A wrapper for the license mode and state, to allow atomically swapping. */
@@ -525,7 +515,7 @@ public class XPackLicenseState {
      */
     public boolean isLogstashAllowed() {
         Status localStatus = status;
-        return localStatus.active && !isBasic();
+        return localStatus.active && !isBasic(localStatus.mode);
     }
 
     /**
@@ -534,7 +524,7 @@ public class XPackLicenseState {
      */
     public boolean isBeatsAllowed() {
         Status localStatus = status;
-        return localStatus.active && !isBasic();
+        return localStatus.active && !isBasic(localStatus.mode);
 
     }
 

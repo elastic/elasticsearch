@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.execution.search;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -67,7 +68,7 @@ public class SqlSourceBuilder {
         if (!sourceFields.isEmpty()) {
             sourceBuilder.fetchSource(sourceFields.toArray(Strings.EMPTY_ARRAY), null);
         }
-        docFields.forEach(sourceBuilder::docValueField);
+        docFields.forEach(field -> sourceBuilder.docValueField(field, DocValueFieldsContext.USE_DEFAULT_FORMAT));
         scriptFields.forEach(sourceBuilder::scriptField);
     }
 }

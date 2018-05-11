@@ -212,33 +212,6 @@ public class RestClientTests extends RestClientTestCase {
         }
     }
 
-    public void testSetHostsWrongArguments() throws IOException {
-        try (RestClient restClient = createRestClient()) {
-            restClient.setHosts((HttpHost[]) null);
-            fail("setHosts should have failed");
-        } catch (IllegalArgumentException e) {
-            assertEquals("hosts must not be null or empty", e.getMessage());
-        }
-        try (RestClient restClient = createRestClient()) {
-            restClient.setHosts();
-            fail("setHosts should have failed");
-        } catch (IllegalArgumentException e) {
-            assertEquals("hosts must not be null or empty", e.getMessage());
-        }
-        try (RestClient restClient = createRestClient()) {
-            restClient.setHosts((HttpHost) null);
-            fail("setHosts should have failed");
-        } catch (IllegalArgumentException e) {
-            assertEquals("host cannot be null", e.getMessage());
-        }
-        try (RestClient restClient = createRestClient()) {
-            restClient.setHosts(new HttpHost("localhost", 9200), null, new HttpHost("localhost", 9201));
-            fail("setHosts should have failed");
-        } catch (IllegalArgumentException e) {
-            assertEquals("host cannot be null", e.getMessage());
-        }
-    }
-
     /**
      * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testConstructor()}.
      */
@@ -392,34 +365,6 @@ public class RestClientTests extends RestClientTestCase {
                     + "[host=http://1, version=1], [host=http://2, version=2], "
                     + "[host=http://3, version=3]]";
             assertEquals(message, e.getMessage());
-        }
-    }
-
-    public void testSetHostsFailures() throws IOException {
-        RestClient restClient = createRestClient();
-        try {
-            restClient.setHosts((HttpHost[]) null);
-            fail("setHosts should have failed");
-        } catch (IllegalArgumentException e) {
-            assertEquals("hosts must not be null or empty", e.getMessage());
-        }
-        try {
-            restClient.setHosts();
-            fail("setHosts should have failed");
-        } catch (IllegalArgumentException e) {
-            assertEquals("hosts must not be null or empty", e.getMessage());
-        }
-        try {
-            restClient.setHosts((HttpHost) null);
-            fail("setHosts should have failed");
-        } catch (IllegalArgumentException e) {
-            assertEquals("host cannot be null", e.getMessage());
-        }
-        try {
-            restClient.setHosts(new HttpHost("localhost", 9200), null, new HttpHost("localhost", 9201));
-            fail("setHosts should have failed");
-        } catch (IllegalArgumentException e) {
-            assertEquals("host cannot be null", e.getMessage());
         }
     }
 

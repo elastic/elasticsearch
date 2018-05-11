@@ -143,14 +143,6 @@ public class RestClient implements Closeable {
     }
 
     /**
-     * Replaces the nodes that the client communicates without providing any
-     * metadata about any of the nodes.
-     */
-    public void setHosts(HttpHost... hosts) {
-        setNodes(hostsToNodes(hosts));
-    }
-
-    /**
      * Replaces the nodes that the client communicates with. Prefer this to
      * {@link #setHosts(HttpHost...)} if you have metadata about the hosts
      * like their Elasticsearch version of which roles they implement.
@@ -621,6 +613,9 @@ public class RestClient implements Closeable {
         return new NodeTuple<>(hosts.iterator(), nodeTuple.authCache);
     }
 
+    /**
+     * Select hosts to try. Package private for testing.
+     */
     static List<Node> selectHosts(NodeTuple<List<Node>> nodeTuple,
             Map<HttpHost, DeadHostState> blacklist, AtomicInteger lastNodeIndex,
             long now, NodeSelector nodeSelector) throws IOException {
@@ -646,12 +641,13 @@ public class RestClient implements Closeable {
         if (false == livingNodes.isEmpty()) {
             /*
              * Normal state: there is at least one living node. Rotate the
-             * list so subsequent requests to will prefer the nodes in a
+             * list so subsequent requests will prefer the nodes in a
              * different order then run them through the NodeSelector so it
              * can have its say in which nodes are ok and their ordering. If
              * the selector is ok with any over the living nodes then use
              * them for the request.
              */
+            // TODO this is going to send more requests to nodes right *after* a node that the selector removes
             Collections.rotate(livingNodes, lastNodeIndex.getAndIncrement());
             List<Node> selectedLivingNodes = nodeSelector.select(livingNodes);
             if (false == selectedLivingNodes.isEmpty()) {

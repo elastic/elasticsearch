@@ -30,19 +30,27 @@ import java.util.Objects;
  */
 public interface NodeSelector {
     /**
-     * Select the {@link Node}s to which to send requests. This may be called
-     * twice per request, once for "living" nodes that have not had been
-     * blacklisted by previous errors if there are any. If it returns an
-     * empty list when sent the living nodes or if there aren't any living
-     * nodes left then this will be called with a list of "dead" nodes that
-     * have been blacklisted by previous failures. In both cases it should
-     * return a list of nodes sorted by its preference for which node is used.
-     * If it is operating on "living" nodes that it returns function as
-     * fallbacks in case of request failures. If it is operating on dead nodes
-     * then the dead node that it returns is attempted but no others.
+     * Select the {@link Node}s to which to send requests. This is called with
+     * a list of {@linkplain Node}s in the order that the rest client would
+     * prefer to use them and it should remove nodes from the list that should
+     * not receive the request.
+     * <p>
+     * This may be called twice per request: first for "living" nodes that
+     * have not been blacklisted by previous errors. In this case the order
+     * of the nodes is the order in which the client thinks that they should
+     * be tried next. If the selector removes all nodes from the list or if
+     * there aren't any living nodes then the the client will call this method
+     * with a list of "dead" nodes. In this case the list is sorted "soonest
+     * to be revived" first. In this case the rest client will only attempt
+     * the first node.
+     * <p>
+     * Implementations <strong>may</strong> reorder the list but they should
+     * be careful in doing so as the original order is important (see above).
+     * An implementation that sorts list consistently will consistently send
+     * requests to s single node, overloading it. So implementations that
+     * reorder the list should take the original order into account
+     * <strong>somehow</strong>.
      *
-     * @param nodes an unmodifiable list of {@linkplain Node}s in the order
-     *      that the {@link RestClient} would prefer to use them
      * @return a subset of the provided list of {@linkplain Node}s that the
      *      selector approves of, in the order that the selector would prefer
      *      to use them.

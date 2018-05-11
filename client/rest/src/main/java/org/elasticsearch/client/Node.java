@@ -115,7 +115,7 @@ public class Node {
     }
 
     /**
-     * @return the name
+     * The {@code node.name} of the node.
      */
     public String getName() {
         return name;
@@ -189,19 +189,19 @@ public class Node {
         }
 
         /**
-         * The node <strong>could</strong> be elected master.
+         * Teturns whether or not the node <strong>could</strong> be elected master.
          */
         public boolean isMasterEligible() {
             return masterEligible;
         }
         /**
-         * The node stores data.
+         * Teturns whether or not the node stores data.
          */
         public boolean isData() {
             return data;
         }
         /**
-         * The node runs ingest pipelines.
+         * Teturns whether or not the node runs ingest pipelines.
          */
         public boolean isIngest() {
             return ingest;

@@ -45,12 +45,14 @@ public final class DateHistogramAggregatorFactory
     private final boolean keyed;
     private final long minDocCount;
     private final ExtendedBounds extendedBounds;
-    private Rounding rounding;
+    private final Rounding rounding;
+    private final Rounding shardRounding;
 
     public DateHistogramAggregatorFactory(String name, ValuesSourceConfig<Numeric> config, long interval,
             DateHistogramInterval dateHistogramInterval, long offset, BucketOrder order, boolean keyed, long minDocCount,
-            Rounding rounding, ExtendedBounds extendedBounds, SearchContext context, AggregatorFactory<?> parent,
-            AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+            Rounding rounding, Rounding shardRounding, ExtendedBounds extendedBounds, SearchContext context,
+            AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
+            Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.interval = interval;
         this.dateHistogramInterval = dateHistogramInterval;
@@ -60,6 +62,7 @@ public final class DateHistogramAggregatorFactory
         this.minDocCount = minDocCount;
         this.extendedBounds = extendedBounds;
         this.rounding = rounding;
+        this.shardRounding = shardRounding;
     }
 
     public long minDocCount() {
@@ -77,8 +80,8 @@ public final class DateHistogramAggregatorFactory
 
     private Aggregator createAggregator(ValuesSource.Numeric valuesSource, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) throws IOException {
-        return new DateHistogramAggregator(name, factories, rounding, offset, order, keyed, minDocCount, extendedBounds, valuesSource,
-                config.format(), context, parent, pipelineAggregators, metaData);
+        return new DateHistogramAggregator(name, factories, rounding, shardRounding, offset, order, keyed, minDocCount, extendedBounds,
+                valuesSource, config.format(), context, parent, pipelineAggregators, metaData);
     }
 
     @Override

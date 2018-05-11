@@ -19,6 +19,10 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.rounding.DateTimeUnit;
@@ -27,8 +31,14 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType.Relation;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -44,6 +54,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.internal.SearchContext;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -351,20 +362,76 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         return NAME;
     }
 
+    /*
+     * NOTE: this can't be done in rewrite() because the timezone is then also used on the
+     * coordinating node in order to generate missing buckets, which may cross a transition
+     * even though data on the shards doesn't.
+     */
+    DateTimeZone rewriteTimeZone(QueryShardContext context) throws IOException {
+        final DateTimeZone tz = timeZone();
+        if (field() != null &&
+                tz != null &&
+                tz.isFixed() == false &&
+                field() != null &&
+                script() == null) {
+            final MappedFieldType ft = context.fieldMapper(field());
+            final IndexReader reader = context.getIndexReader();
+            if (ft != null && reader != null) {
+                Long anyInstant = null;
+                final IndexFieldData<?> fieldData = context.getForField(ft);
+                if (fieldData instanceof IndexNumericFieldData) {
+                    for (LeafReaderContext ctx : reader.leaves()) {
+                        AtomicNumericFieldData leafFD = ((IndexNumericFieldData) fieldData).load(ctx);
+                        SortedNumericDocValues values = leafFD.getLongValues();
+                        if (values.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                            anyInstant = values.nextValue();
+                            break;
+                        }
+                    }
+
+                    if (anyInstant != null) {
+                        final long prevTransition = tz.previousTransition(anyInstant);
+                        final long nextTransition = tz.nextTransition(anyInstant);
+                        final DocValueFormat format = ft.docValueFormat(null, null);
+                        final String formattedPrevTransition = format.format(prevTransition);
+                        final String formattedNextTransition = format.format(nextTransition);
+                        if (ft.isFieldWithinQuery(reader, formattedPrevTransition, formattedNextTransition,
+                                false, false, tz, null, context) == Relation.WITHIN) {
+                            // All values in this reader have the same offset despite daylight saving times.
+                            // This is very common for location-based timezones such as Europe/Paris in
+                            // combination with time-based indices.
+                            return DateTimeZone.forOffsetMillis(tz.getOffset(anyInstant));
+                        }
+                    }
+                }
+            }
+        }
+        return tz;
+    }
+
     @Override
     protected ValuesSourceAggregatorFactory<Numeric, ?> innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
-        Rounding rounding = createRounding();
+        final DateTimeZone tz = timeZone();
+        final Rounding rounding = createRounding(tz);
+        final DateTimeZone rewrittenTimeZone = rewriteTimeZone(context.getQueryShardContext());
+        final Rounding shardRounding;
+        if (tz == rewrittenTimeZone) {
+            shardRounding = rounding;
+        } else {
+            shardRounding = createRounding(rewrittenTimeZone);
+        }
+
         ExtendedBounds roundedBounds = null;
         if (this.extendedBounds != null) {
             // parse any string bounds to longs and round
             roundedBounds = this.extendedBounds.parseAndValidate(name, context, config.format()).round(rounding);
         }
         return new DateHistogramAggregatorFactory(name, config, interval, dateHistogramInterval, offset, order, keyed, minDocCount,
-                rounding, roundedBounds, context, parent, subFactoriesBuilder, metaData);
+                rounding, shardRounding, roundedBounds, context, parent, subFactoriesBuilder, metaData);
     }
 
-    private Rounding createRounding() {
+    private Rounding createRounding(DateTimeZone timeZone) {
         Rounding.Builder tzRoundingBuilder;
         if (dateHistogramInterval != null) {
             DateTimeUnit dateTimeUnit = DATE_FIELD_UNITS.get(dateHistogramInterval.toString());
@@ -379,8 +446,8 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
             // the interval is an integer time value in millis?
             tzRoundingBuilder = Rounding.builder(TimeValue.timeValueMillis(interval));
         }
-        if (timeZone() != null) {
-            tzRoundingBuilder.timeZone(timeZone());
+        if (timeZone != null) {
+            tzRoundingBuilder.timeZone(timeZone);
         }
         Rounding rounding = tzRoundingBuilder.build();
         return rounding;

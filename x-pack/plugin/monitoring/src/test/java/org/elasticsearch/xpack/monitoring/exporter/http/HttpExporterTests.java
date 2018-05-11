@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.monitoring.exporter.http;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.sniff.Sniffer;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter.Config;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 
 import java.io.IOException;
@@ -300,7 +302,7 @@ public class HttpExporterTests extends ESTestCase {
         final StringEntity entity = new StringEntity("{}", ContentType.APPLICATION_JSON);
 
         when(response.getEntity()).thenReturn(entity);
-        when(client.performRequest(eq("get"), eq("/_nodes/http"), anyMapOf(String.class, String.class))).thenReturn(response);
+        when(client.performRequest(any(Request.class))).thenReturn(response);
 
         try (Sniffer sniffer = HttpExporter.createSniffer(config, client, listener)) {
             assertThat(sniffer, not(nullValue()));
@@ -309,7 +311,7 @@ public class HttpExporterTests extends ESTestCase {
         }
 
         // it's a race whether it triggers this at all
-        verify(client, atMost(1)).performRequest(eq("get"), eq("/_nodes/http"), anyMapOf(String.class, String.class));
+        verify(client, atMost(1)).performRequest(any(Request.class));
 
         verifyNoMoreInteractions(client, listener);
     }

@@ -97,10 +97,7 @@ class GoogleCloudStorageBlobStore extends AbstractComponent implements BlobStore
     boolean doesBucketExist(String bucketName) {
         try {
             final Bucket bucket = SocketAccess.doPrivilegedIOException(() -> storage.get(bucketName));
-            if (bucket != null) {
-                return Strings.hasText(bucket.getName());
-            }
-            return false;
+            return bucket != null;
         } catch (final Exception e) {
             throw new BlobStoreException("Unable to check if bucket [" + bucketName + "] exists", e);
         }

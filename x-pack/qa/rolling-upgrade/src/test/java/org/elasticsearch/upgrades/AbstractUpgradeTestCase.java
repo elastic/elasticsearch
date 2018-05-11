@@ -66,7 +66,7 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
     }
 
     protected Collection<String> templatesToWaitFor() {
-        return Collections.singletonList(".security");
+        return Collections.singletonList("security-index-template");
     }
 
     @Before

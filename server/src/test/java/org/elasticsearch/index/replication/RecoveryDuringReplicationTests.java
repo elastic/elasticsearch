@@ -355,6 +355,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
 
     @TestLogging("org.elasticsearch.index.shard:TRACE,org.elasticsearch.action.resync:TRACE")
     public void testResyncAfterPrimaryPromotion() throws Exception {
+        // TODO: check translog trimming functionality once rollback is implemented in Lucene (ES trimming is done)
         try (ReplicationGroup shards = createGroup(2)) {
             shards.startAll();
             int initialDocs = shards.indexDocs(randomInt(10));

@@ -112,7 +112,7 @@ setup:
       reason: "AwaitsFix'ing, see https://github.com/elastic/elasticsearch/issues/30503"
       # version: " - 6.99.99"
       # reason: expects warnings that pre-7.0.0 will not send
-      # features: "warnings"
+      features: "warnings"
   - do:
       indices.create:
         index: source_one_shard

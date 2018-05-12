@@ -255,6 +255,7 @@ public class FlushIT extends ESIntegTestCase {
     }
 
     @TestLogging("_root:DEBUG")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29392")
     public void testSyncedFlushSkipOutOfSyncReplicas() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(between(2, 3));
         final int numberOfReplicas = internalCluster().numDataNodes() - 1;
@@ -297,6 +298,7 @@ public class FlushIT extends ESIntegTestCase {
     }
 
     @TestLogging("_root:DEBUG")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29392")
     public void testDoNotRenewSyncedFlushWhenAllSealed() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(between(2, 3));
         final int numberOfReplicas = internalCluster().numDataNodes() - 1;

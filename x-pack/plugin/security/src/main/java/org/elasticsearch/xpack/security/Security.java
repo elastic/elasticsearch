@@ -231,7 +231,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
-import static org.elasticsearch.xpack.core.security.SecurityLifecycleServiceField.SECURITY_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_INDEX_FORMAT;
 
@@ -424,8 +424,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         components.add(realms);
         components.add(reservedRealm);
 
-        securityLifecycleService.securityIndex().addIndexHealthChangeListener(nativeRoleMappingStore::onSecurityIndexHealthChange);
-        securityLifecycleService.securityIndex().addIndexOutOfDateListener(nativeRoleMappingStore::onSecurityIndexOutOfDateChange);
+        securityLifecycleService.securityIndex().addIndexStateListener(nativeRoleMappingStore::onSecurityIndexStateChange);
 
         AuthenticationFailureHandler failureHandler = null;
         String extensionName = null;
@@ -458,8 +457,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         }
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore,
             reservedRolesStore, rolesProviders, threadPool.getThreadContext(), getLicenseState());
-        securityLifecycleService.securityIndex().addIndexHealthChangeListener(allRolesStore::onSecurityIndexHealthChange);
-        securityLifecycleService.securityIndex().addIndexOutOfDateListener(allRolesStore::onSecurityIndexOutOfDateChange);
+        securityLifecycleService.securityIndex().addIndexStateListener(allRolesStore::onSecurityIndexStateChange);
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be
         // minimal
         getLicenseState().addListener(allRolesStore::invalidateAll);

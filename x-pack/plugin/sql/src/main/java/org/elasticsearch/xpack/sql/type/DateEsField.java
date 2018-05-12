@@ -25,13 +25,6 @@ public class DateEsField extends EsField {
         this.formats = CollectionUtils.isEmpty(formats) ? DEFAULT_FORMAT : Arrays.asList(formats);
     }
 
-    @Override
-    public int getPrecision() {
-        // same as Long
-        // TODO: based this on format string
-        return 19;
-    }
-
     public List<String> getFormats() {
         return formats;
     }

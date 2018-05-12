@@ -21,7 +21,10 @@ package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.http.HttpHost;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.message.BasicHeader;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -29,11 +32,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
-import org.elasticsearch.test.rest.yaml.section.ApiCallSection;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSuite;
 import org.elasticsearch.test.rest.yaml.section.DoSection;
@@ -330,16 +332,10 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
         if (useDefaultNumberOfShards == false
                 && testCandidate.getTestSection().getSkipSection().getFeatures().contains("default_shards") == false) {
-            final DoSection templateDoSection = new DoSection(new XContentLocation(0, 0));
-            final ApiCallSection templateApiCallSection = new ApiCallSection("indices.put_template");
-            templateApiCallSection.addParam("name", "global");
-            templateApiCallSection.addBody(Collections.singletonMap("index_patterns", "[*]"));
-            final Map<String, Integer> indexSettings = new HashMap<>();
-            indexSettings.put("index.number_of_shards", 2);
-            indexSettings.put("index.number_of_replicas", 0);
-            templateApiCallSection.addBody(Collections.singletonMap("settings", indexSettings));
-            templateDoSection.setApiCallSection(templateApiCallSection);
-            templateDoSection.execute(restTestExecutionContext);
+            final Request request = new Request("PUT", "/_template/global");
+            request.setHeaders(new BasicHeader("Content-Type", XContentType.JSON.mediaTypeWithoutParameters()));
+            request.setEntity(new StringEntity("{\"index_patterns\":[\"*\"],\"settings\":{\"index.number_of_shards\":2}}"));
+            adminClient().performRequest(request);
         }
 
         if (!testCandidate.getSetupSection().isEmpty()) {

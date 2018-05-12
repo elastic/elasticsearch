@@ -373,7 +373,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 }
                 if (indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS) == null) {
                     final int numberOfShards = getNumberOfShards(indexSettingsBuilder);
-
                     indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, numberOfShards));
                 }
                 if (indexSettingsBuilder.get(SETTING_NUMBER_OF_REPLICAS) == null) {
@@ -574,7 +573,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             }
         }
 
-        static int getNumberOfShards(Settings.Builder indexSettingsBuilder) {
+        static int getNumberOfShards(final Settings.Builder indexSettingsBuilder) {
             // TODO: this logic can be removed when the current major version is 8
             assert Version.CURRENT.major == 7;
             final int numberOfShards;

@@ -105,9 +105,7 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
         translogDeletionPolicy.setTranslogGenerationOfLastCommit(lastGen);
         translogDeletionPolicy.setMinTranslogGenerationForRecovery(minRequiredGen);
 
-        if (safeCommit.getUserData().containsKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) {
-            softDeletesPolicy.setCheckpointOfSafeCommit(Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)));
-        }
+        softDeletesPolicy.setCheckpointOfSafeCommit(Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)));
     }
 
     /**

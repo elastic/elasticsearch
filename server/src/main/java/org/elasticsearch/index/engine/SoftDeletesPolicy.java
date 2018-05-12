@@ -34,7 +34,7 @@ import java.util.function.LongSupplier;
  */
 final class SoftDeletesPolicy {
     private final LongSupplier globalCheckpointSupplier;
-    private int retentionNumLocks = 0;
+    private int retentionLockCount;
     private long checkpointOfSafeCommit;
     private volatile long minRequiredSeqNoForRecovery;
     private volatile long retentionOperations;
@@ -44,6 +44,7 @@ final class SoftDeletesPolicy {
         this.retentionOperations = retentionOperations;
         this.checkpointOfSafeCommit = SequenceNumbers.NO_OPS_PERFORMED;
         this.minRequiredSeqNoForRecovery = checkpointOfSafeCommit + 1;
+        this.retentionLockCount = 0;
     }
 
     /**
@@ -69,7 +70,7 @@ final class SoftDeletesPolicy {
 
     private void updateMinRequiredSeqNoForRecovery() {
         assert Thread.holdsLock(this) : Thread.currentThread().getName();
-        if (retentionNumLocks == 0) {
+        if (retentionLockCount == 0) {
             // Need to keep all operations after the local checkpoint of the safe commit for recovery purpose.
             this.minRequiredSeqNoForRecovery = checkpointOfSafeCommit + 1;
         }
@@ -81,8 +82,8 @@ final class SoftDeletesPolicy {
      * This is a analogy to the translog's retention lock; see {@link Translog#acquireRetentionLock()}
      */
     synchronized Releasable acquireRetentionLock() {
-        retentionNumLocks++;
-        assert retentionNumLocks > 0 : "Invalid number of retention locks [" + retentionNumLocks + "]";
+        retentionLockCount++;
+        assert retentionLockCount > 0 : "Invalid number of retention locks [" + retentionLockCount + "]";
         final AtomicBoolean released = new AtomicBoolean();
         return () -> {
             if (released.compareAndSet(false, true)) {
@@ -92,8 +93,8 @@ final class SoftDeletesPolicy {
     }
 
     private synchronized void releaseRetentionLock() {
-        retentionNumLocks--;
-        assert retentionNumLocks >= 0 : "Invalid number of retention locks [" + retentionNumLocks + "]";
+        retentionLockCount--;
+        assert retentionLockCount >= 0 : "Invalid number of retention locks [" + retentionLockCount + "]";
         updateMinRequiredSeqNoForRecovery();
     }
 

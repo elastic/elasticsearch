@@ -185,10 +185,8 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
 
         long legacyTranslogGen = randomNonNegativeLong();
         IndexCommit legacyCommit = mockLegacyIndexCommit(translogUUID, legacyTranslogGen);
-        indexPolicy.onCommit(singletonList(legacyCommit));
-        verify(legacyCommit, never()).delete();
-        assertThat(translogPolicy.getMinTranslogGenerationForRecovery(), equalTo(legacyTranslogGen));
-        assertThat(translogPolicy.getTranslogGenerationOfLastCommit(), equalTo(legacyTranslogGen));
+        assertThat(CombinedDeletionPolicy.findSafeCommitPoint(singletonList(legacyCommit), globalCheckpoint.get()),
+            equalTo(legacyCommit));
 
         long safeTranslogGen = randomLongBetween(legacyTranslogGen, Long.MAX_VALUE);
         long maxSeqNo = randomLongBetween(1, Long.MAX_VALUE);

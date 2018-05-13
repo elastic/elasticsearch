@@ -33,6 +33,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.Transport;
@@ -57,6 +58,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class NodeConnectionsServiceTests extends ESTestCase {
 
@@ -103,6 +105,8 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
         service.disconnectFromNodesExcept(event.state().nodes());
         assertConnectedExactlyToNodes(event.state());
+
+        assertUsingNodeConnectionThreadPool(threadPool);
     }
 
 
@@ -129,6 +133,8 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         transport.randomConnectionExceptions = false;
         service.new ConnectionChecker().run();
         assertConnectedExactlyToNodes(event.state());
+
+        assertUsingNodeConnectionThreadPool(threadPool);
     }
 
     private void assertConnectedExactlyToNodes(ClusterState state) {
@@ -145,6 +151,19 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     private void assertNotConnected(Iterable<DiscoveryNode> nodes) {
         for (DiscoveryNode node : nodes) {
             assertFalse("still connected to " + node, transport.connectedNodes.contains(node));
+        }
+    }
+
+    /**
+     * Assert only {@link ThreadPool.Names#NODE_CONNECTIONS} threadpool has been used for node connection.
+     */
+    private void assertUsingNodeConnectionThreadPool(ThreadPool threadPool) {
+        for (ThreadPoolStats.Stats stats : threadPool.stats()) {
+            if (stats.getName().equals(ThreadPool.Names.NODE_CONNECTIONS)) {
+                assertThat((int) stats.getCompleted(), greaterThan(0));
+            } else {
+                assertThat((int) stats.getCompleted(), equalTo(0));
+            }
         }
     }
 

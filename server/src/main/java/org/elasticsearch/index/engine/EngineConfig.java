@@ -27,6 +27,7 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -380,8 +381,9 @@ public final class EngineConfig {
 
         /**
          * Creates a tombstone document for a noop operation.
+         * @param source a source in JSON representing the reason of a Noop
          */
-        ParsedDocument newNoopTombstoneDoc();
+        ParsedDocument newNoopTombstoneDoc(BytesReference source);
     }
 
     public TombstoneDocSupplier getTombstoneDocSupplier() {

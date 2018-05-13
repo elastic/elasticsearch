@@ -306,7 +306,7 @@ public abstract class EngineTestCase extends ESTestCase {
             }
 
             @Override
-            public ParsedDocument newNoopTombstoneDoc() {
+            public ParsedDocument newNoopTombstoneDoc(BytesReference source) {
                 final ParseContext.Document doc = new ParseContext.Document();
                 SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
                 doc.add(seqID.seqNo);
@@ -316,8 +316,10 @@ public abstract class EngineTestCase extends ESTestCase {
                 doc.add(seqID.tombstoneField);
                 Field versionField = new NumericDocValuesField(VersionFieldMapper.NAME, 0);
                 doc.add(versionField);
+                BytesRef bytesRef = source.toBytesRef();
+                doc.add(new StoredField(SourceFieldMapper.NAME, bytesRef.bytes, bytesRef.offset, bytesRef.length));
                 return new ParsedDocument(versionField, seqID, null, null, null,
-                    Collections.singletonList(doc), null, XContentType.JSON, null);
+                    Collections.singletonList(doc), source, XContentType.JSON, null);
             }
         };
     }

@@ -34,6 +34,8 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -186,7 +188,9 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         final Translog.Operation op;
         final boolean isTombstone = docValues[leaf.ord].isTombstone(segmentDocID);
         if (isTombstone && fields.uid() == null) {
-            op = new Translog.NoOp(seqNo, primaryTerm, ""); // TODO: store reason in ignored fields?
+            final String reason = (String) XContentHelper.convertToMap(fields.source(), false, XContentType.JSON).v2()
+                .get(Engine.NoOp.REASON_FIELD_NAME);
+            op = new Translog.NoOp(seqNo, primaryTerm, reason);
             assert version == 1L : "Noop tombstone should have version 1L; actual version [" + version + "]";
             assert assertDocSoftDeleted(leaf.reader(), segmentDocID) : "Noop but soft_deletes field is not set [" + op + "]";
         } else {

@@ -53,6 +53,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
@@ -64,6 +65,7 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqN
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -1349,7 +1351,9 @@ public class InternalEngine extends Engine {
             Exception failure = null;
             if (softDeleteEnabled) {
                 try {
-                    final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newNoopTombstoneDoc();
+                    final BytesReference reason = BytesReference.bytes(
+                        JsonXContent.contentBuilder().startObject().field(NoOp.REASON_FIELD_NAME, noOp.reason()).endObject());
+                    final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newNoopTombstoneDoc(reason);
                     tombstone.updateSeqID(noOp.seqNo(), noOp.primaryTerm());
                     // A noop tombstone does not require a _version but it's added to have a fully dense docvalues for the version field.
                     // 1L is selected to optimize the compression because it might probably be the most common value in version field.

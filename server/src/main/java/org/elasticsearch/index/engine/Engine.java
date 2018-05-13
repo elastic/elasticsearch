@@ -1289,6 +1289,7 @@ public abstract class Engine implements Closeable {
     }
 
     public static class NoOp extends Operation {
+        public static final String REASON_FIELD_NAME = "_reason";
 
         private final String reason;
 

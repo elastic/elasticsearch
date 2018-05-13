@@ -110,15 +110,17 @@ public class AllocationService extends AbstractComponent {
         gatewayAllocator.applyStartedShards(allocation, startedShards);
         reroute(allocation);
         String startedShardsAsString = firstListElementsToCommaDelimitedString(startedShards, s -> s.shardId().toString());
-        return buildResultAndLogHealthChange(clusterState, allocation, "shards started [" + startedShardsAsString + "] ...");
+        return buildResultAndLogHealthChange(clusterState, allocation, "shards started [" + startedShardsAsString + "] ...", false);
     }
 
-    protected ClusterState buildResultAndLogHealthChange(ClusterState oldState, RoutingAllocation allocation, String reason) {
-        RoutingTable oldRoutingTable = oldState.routingTable();
-        RoutingNodes newRoutingNodes = allocation.routingNodes();
+    protected ClusterState buildResultAndLogHealthChange(ClusterState oldState, RoutingAllocation allocation, String reason,
+                                                         boolean autoExpandReplicas) {
+        final RoutingTable oldRoutingTable = oldState.routingTable();
+        final RoutingNodes newRoutingNodes = allocation.routingNodes();
         final RoutingTable newRoutingTable = new RoutingTable.Builder().updateNodes(oldRoutingTable.version(), newRoutingNodes).build();
-        MetaData newMetaData = allocation.updateMetaDataWithRoutingChanges(newRoutingTable);
+        final MetaData newMetaData = allocation.updateMetaDataWithRoutingChanges(newRoutingTable);
         assert newRoutingTable.validate(newMetaData); // validates the routing table is coherent with the cluster state metadata
+
         final ClusterState.Builder newStateBuilder = ClusterState.builder(oldState)
             .routingTable(newRoutingTable)
             .metaData(newMetaData);
@@ -131,12 +133,19 @@ public class AllocationService extends AbstractComponent {
                 newStateBuilder.customs(customsBuilder.build());
             }
         }
-        final ClusterState newState = newStateBuilder.build();
+        ClusterState newState = newStateBuilder.build();
+        if (autoExpandReplicas) {
+            newState = adaptAutoExpandReplicas(newState, true);
+        }
+        assert AutoExpandReplicas.getAutoExpandReplicaChanges(newState.metaData(), newState.nodes(), false).isEmpty() :
+            "auto-expand replicas out of sync with number of nodes in the cluster";
+
         logClusterHealthStateChange(
             new ClusterStateHealth(oldState),
             new ClusterStateHealth(newState),
             reason
         );
+
         return newState;
     }
 
@@ -201,7 +210,7 @@ public class AllocationService extends AbstractComponent {
 
         reroute(allocation);
         String failedShardsAsString = firstListElementsToCommaDelimitedString(failedShards, s -> s.getRoutingEntry().shardId().toString());
-        return buildResultAndLogHealthChange(clusterState, allocation, "shards failed [" + failedShardsAsString + "] ...");
+        return buildResultAndLogHealthChange(clusterState, allocation, "shards failed [" + failedShardsAsString + "] ...", false);
     }
 
     /**
@@ -209,11 +218,10 @@ public class AllocationService extends AbstractComponent {
      * if needed.
      */
     public ClusterState deassociateDeadNodes(ClusterState clusterState, boolean reroute, String reason) {
-        ClusterState fixedClusterState = adaptAutoExpandReplicas(clusterState);
-        RoutingNodes routingNodes = getMutableRoutingNodes(fixedClusterState);
+        RoutingNodes routingNodes = getMutableRoutingNodes(clusterState);
         // shuffle the unassigned nodes, just so we won't have things like poison failed shards
         routingNodes.unassigned().shuffle();
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, fixedClusterState,
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState,
             clusterInfoService.getClusterInfo(), currentNanoTime());
 
         // first, clear from the shards any node id they used to belong to that is now dead
@@ -223,19 +231,22 @@ public class AllocationService extends AbstractComponent {
             reroute(allocation);
         }
 
-        if (fixedClusterState == clusterState && allocation.routingNodesChanged() == false) {
+        if (allocation.routingNodesChanged() == false) {
+            assert AutoExpandReplicas.getAutoExpandReplicaChanges(clusterState.metaData(), clusterState.nodes(), false).isEmpty() :
+                "auto-expand replicas out of sync with number of nodes in the cluster";
+
             return clusterState;
         }
-        return buildResultAndLogHealthChange(clusterState, allocation, reason);
+        return buildResultAndLogHealthChange(clusterState, allocation, reason, true);
     }
 
     /**
      * Checks if the are replicas with the auto-expand feature that need to be adapted.
      * Returns an updated cluster state if changes were necessary, or the identical cluster if no changes were required.
      */
-    private ClusterState adaptAutoExpandReplicas(ClusterState clusterState) {
+    private ClusterState adaptAutoExpandReplicas(ClusterState clusterState, boolean checkOnlyRemovals) {
         final Map<Integer, List<String>> autoExpandReplicaChanges =
-            AutoExpandReplicas.getAutoExpandReplicaChanges(clusterState.metaData(), clusterState.nodes());
+            AutoExpandReplicas.getAutoExpandReplicaChanges(clusterState.metaData(), clusterState.nodes(), checkOnlyRemovals);
         if (autoExpandReplicaChanges.isEmpty()) {
             return clusterState;
         } else {
@@ -252,7 +263,7 @@ public class AllocationService extends AbstractComponent {
             }
             final ClusterState fixedState = ClusterState.builder(clusterState).routingTable(routingTableBuilder.build())
                 .metaData(metaDataBuilder).build();
-            assert AutoExpandReplicas.getAutoExpandReplicaChanges(fixedState.metaData(), fixedState.nodes()).isEmpty();
+            assert AutoExpandReplicas.getAutoExpandReplicaChanges(fixedState.metaData(), fixedState.nodes(), checkOnlyRemovals).isEmpty();
             return fixedState;
         }
     }
@@ -334,7 +345,7 @@ public class AllocationService extends AbstractComponent {
         }
 
         reroute(allocation);
-        return new CommandsResult(explanations, buildResultAndLogHealthChange(clusterState, allocation, "reroute commands"));
+        return new CommandsResult(explanations, buildResultAndLogHealthChange(clusterState, allocation, "reroute commands", false));
     }
 
 
@@ -353,7 +364,7 @@ public class AllocationService extends AbstractComponent {
      * If the same instance of ClusterState is returned, then no change has been made.
      */
     protected ClusterState reroute(ClusterState clusterState, String reason, boolean debug) {
-        ClusterState fixedClusterState = adaptAutoExpandReplicas(clusterState);
+        ClusterState fixedClusterState = adaptAutoExpandReplicas(clusterState, false);
 
         RoutingNodes routingNodes = getMutableRoutingNodes(fixedClusterState);
         // shuffle the unassigned nodes, just so we won't have things like poison failed shards
@@ -365,7 +376,7 @@ public class AllocationService extends AbstractComponent {
         if (fixedClusterState == clusterState && allocation.routingNodesChanged() == false) {
             return clusterState;
         }
-        return buildResultAndLogHealthChange(clusterState, allocation, reason);
+        return buildResultAndLogHealthChange(clusterState, allocation, reason, false);
     }
 
     private void logClusterHealthStateChange(ClusterStateHealth previousStateHealth, ClusterStateHealth newStateHealth, String reason) {
@@ -387,8 +398,6 @@ public class AllocationService extends AbstractComponent {
 
     private void reroute(RoutingAllocation allocation) {
         assert hasDeadNodes(allocation) == false : "dead nodes should be explicitly cleaned up. See deassociateDeadNodes";
-        assert AutoExpandReplicas.getAutoExpandReplicaChanges(allocation.metaData(), allocation.nodes()).isEmpty() :
-            "auto-expand replicas out of sync with number of nodes in the cluster";
 
         // now allocate all the unassigned to available nodes
         if (allocation.routingNodes().unassigned().size() > 0) {

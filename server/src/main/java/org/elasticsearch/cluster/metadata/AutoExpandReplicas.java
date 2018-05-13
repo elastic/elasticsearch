@@ -126,7 +126,8 @@ public final class AutoExpandReplicas {
      * The map has the desired number of replicas as key and the indices to update as value, as this allows the result
      * of this method to be directly applied to RoutingTable.Builder#updateNumberOfReplicas.
      */
-    public static Map<Integer, List<String>> getAutoExpandReplicaChanges(MetaData metaData, DiscoveryNodes discoveryNodes) {
+    public static Map<Integer, List<String>> getAutoExpandReplicaChanges(MetaData metaData, DiscoveryNodes discoveryNodes,
+                                                                         boolean checkOnlyRemovals) {
         // used for translating "all" to a number
         final int dataNodeCount = discoveryNodes.getDataNodes().size();
 
@@ -137,6 +138,9 @@ public final class AutoExpandReplicas {
                 AutoExpandReplicas autoExpandReplicas = SETTING.get(indexMetaData.getSettings());
                 autoExpandReplicas.getDesiredNumberOfReplicas(dataNodeCount).ifPresent(numberOfReplicas -> {
                     if (numberOfReplicas != indexMetaData.getNumberOfReplicas()) {
+                        if (checkOnlyRemovals) {
+                            assert numberOfReplicas < indexMetaData.getNumberOfReplicas();
+                        }
                         nrReplicasChanged.computeIfAbsent(numberOfReplicas, ArrayList::new).add(indexMetaData.getIndex().getName());
                     }
                 });

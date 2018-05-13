@@ -236,7 +236,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     }
 
     /**
-     * Should the lower bound be included or not. Defaults to <tt>true</tt>.
+     * Should the lower bound be included or not. Defaults to {@code true}.
      */
     public RangeQueryBuilder includeLower(boolean includeLower) {
         this.includeLower = includeLower;
@@ -251,7 +251,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     }
 
     /**
-     * Should the upper bound be included or not. Defaults to <tt>true</tt>.
+     * Should the upper bound be included or not. Defaults to {@code true}.
      */
     public RangeQueryBuilder includeUpper(boolean includeUpper) {
         this.includeUpper = includeUpper;

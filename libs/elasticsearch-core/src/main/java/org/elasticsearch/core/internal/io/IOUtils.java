@@ -37,11 +37,11 @@ import java.util.Map;
 public final class IOUtils {
 
     private IOUtils() {
-
+        // Static utils methods
     }
 
     /**
-     * Closes all given <tt>Closeable</tt>s. Some of the <tt>Closeable</tt>s may be null; they are
+     * Closes all given {@link Closeable}s. Some of the {@linkplain Closeable}s may be null; they are
      * ignored. After everything is closed, the method either throws the first exception it hit
      * while closing with other exceptions added as suppressed, or completes normally if there were
      * no exceptions.
@@ -53,7 +53,7 @@ public final class IOUtils {
     }
 
     /**
-     * Closes all given <tt>Closeable</tt>s. Some of the <tt>Closeable</tt>s may be null; they are
+     * Closes all given {@link Closeable}s. Some of the {@linkplain Closeable}s may be null; they are
      * ignored. After everything is closed, the method adds any exceptions as suppressed to the
      * original exception, or throws the first exception it hit if {@code Exception} is null. If
      * no exceptions are encountered and the passed in exception is null, it completes normally.
@@ -65,7 +65,7 @@ public final class IOUtils {
     }
 
     /**
-     * Closes all given <tt>Closeable</tt>s. Some of the <tt>Closeable</tt>s may be null; they are
+     * Closes all given {@link Closeable}s. Some of the {@linkplain Closeable}s may be null; they are
      * ignored. After everything is closed, the method either throws the first exception it hit
      * while closing with other exceptions added as suppressed, or completes normally if there were
      * no exceptions.

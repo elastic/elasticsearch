@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenizer;
@@ -25,19 +25,17 @@ import org.apache.lucene.analysis.ngram.NGramTokenizer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
 
-import static org.elasticsearch.index.analysis.NGramTokenizerFactory.parseTokenChars;
+import static org.elasticsearch.analysis.common.NGramTokenizerFactory.parseTokenChars;
 
 public class EdgeNGramTokenizerFactory extends AbstractTokenizerFactory {
 
     private final int minGram;
-
     private final int maxGram;
-
     private final CharMatcher matcher;
 
-
-    public EdgeNGramTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+    EdgeNGramTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
         this.minGram = settings.getAsInt("min_gram", NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE);
         this.maxGram = settings.getAsInt("max_gram", NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);

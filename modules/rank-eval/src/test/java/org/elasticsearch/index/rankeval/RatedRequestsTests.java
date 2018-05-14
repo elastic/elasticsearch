@@ -286,6 +286,20 @@ public class RatedRequestsTests extends ESTestCase {
         assertEquals("Query in rated requests should not contain a highlighter section.", e.getMessage());
     }
 
+    public void testExplainNotAllowed() {
+        List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> new RatedRequest("id", ratedDocs, new SearchSourceBuilder().explain(true)));
+        assertEquals("Query in rated requests should not use explain.", e.getMessage());
+    }
+
+    public void testProfileNotAllowed() {
+        List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> new RatedRequest("id", ratedDocs, new SearchSourceBuilder().profile(true)));
+        assertEquals("Query in rated requests should not use profile.", e.getMessage());
+    }
+
     /**
      * test that modifying the order of index/docId to make sure it doesn't
      * matter for parsing xContent

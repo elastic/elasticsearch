@@ -122,6 +122,16 @@ public class SmokeMultipleTemplatesIT  extends ESIntegTestCase {
         assertTemplatedRequestFailures(template, "Query in rated requests should not contain a highlighter section.");
     }
 
+    public void testTemplateWithProfileFails() {
+        String template = "{\"profile\" : \"true\" }";
+        assertTemplatedRequestFailures(template, "Query in rated requests should not use profile.");
+    }
+
+    public void testTemplateWithExplainFails() {
+        String template = "{\"explain\" : \"true\" }";
+        assertTemplatedRequestFailures(template, "Query in rated requests should not use explain.");
+    }
+
     private static void assertTemplatedRequestFailures(String template, String expectedMessage) {
         List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1));
         RatedRequest ratedRequest = new RatedRequest("id", ratedDocs, Collections.singletonMap("param1", "value1"), "templateId");

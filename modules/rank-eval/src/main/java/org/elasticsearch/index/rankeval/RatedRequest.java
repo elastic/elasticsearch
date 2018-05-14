@@ -166,6 +166,12 @@ public class RatedRequest implements Writeable, ToXContentObject {
             if (evaluationRequest.highlighter() != null) {
                 throw new IllegalArgumentException("Query in rated requests should not contain a highlighter section.");
             }
+            if (evaluationRequest.explain() != null && evaluationRequest.explain()) {
+                throw new IllegalArgumentException("Query in rated requests should not use explain.");
+            }
+            if (evaluationRequest.profile()) {
+                throw new IllegalArgumentException("Query in rated requests should not use profile.");
+            }
         }
     }
 

@@ -519,8 +519,6 @@ final class RequestConverters {
             request = new Request(HttpGet.METHOD_NAME, "_render/template");
         } else {
             SearchRequest searchRequest = searchTemplateRequest.getRequest();
-            assert searchRequest != null : "When not simulating a template request, a search request must be present.";
-
             String endpoint = endpoint(searchRequest.indices(), searchRequest.types(), "_search/template");
             request = new Request(HttpGet.METHOD_NAME, endpoint);
 

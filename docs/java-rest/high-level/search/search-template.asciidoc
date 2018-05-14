@@ -24,7 +24,7 @@ as a string because mustache templates are not always valid JSON.
 
 Search templates can be registered in advance through stored scripts API. Note that
 the stored scripts API is not yet available in the high-level REST client, so in this
-example we use the simple REST client.
+example we use the low-level REST client.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -61,9 +61,7 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[search-template-request-o
 
 ===== Additional References
 
-The https://www.elastic.co/guide/en/elasticsearch/reference/current/search-template.html#search-template[Search Template HTTP documentation]
-contains further examples of how search requests can be templated. For more detailed information on how mustache
-works and what can be done with it, please consult the http://mustache.github.io/mustache.5.html[online documentation of the mustache project].
+The {ref}/search-template.html[Search Template documentation] contains further examples of how search requests can be templated.
 
 [[java-rest-high-search-template-sync]]
 ==== Synchronous Execution
@@ -116,3 +114,4 @@ will contain the rendered search source instead of a `SearchResponse`:
 --------------------------------------------------
 include-tagged::{doc-tests}/SearchDocumentationIT.java[render-search-template-response]
 --------------------------------------------------
+<1> The rendered source in bytes, in our example `{"query": { "match" : { "title" : "elasticsearch" }}, "size" : 5}`.

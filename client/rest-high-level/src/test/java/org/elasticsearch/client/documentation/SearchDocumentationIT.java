@@ -19,8 +19,6 @@
 
 package org.elasticsearch.client.documentation;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -741,9 +739,10 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         // tag::search-template-response
         SearchTemplateResponse response = client.searchTemplate(request);
         SearchResponse searchResponse = response.getResponse();
+        // end::search-template-response
+
         assertNotNull(searchResponse);
         assertTrue(searchResponse.getHits().totalHits > 0);
-        // end::search-template-response
 
         // tag::render-search-template-request
         request.setSimulate(true); // <1>
@@ -751,14 +750,15 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // tag::render-search-template-response
         SearchTemplateResponse renderResponse = client.searchTemplate(request);
-        BytesReference source = renderResponse.getSource();
+        BytesReference source = renderResponse.getSource(); // <1>
+        // end::render-search-template-response
+
         assertNotNull(source);
         assertEquals((
             "{" +
             "  \"size\" : \"5\"," +
             "  \"query\": { \"match\" : { \"title\" : \"elasticsearch\" } }" +
             "}").replaceAll("\\s+", ""), source.utf8ToString());
-        // end::render-search-template-response
     }
 
     public void testSearchTemplateWithStoredScript() throws Exception {
@@ -768,7 +768,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // tag::register-script
         Request scriptRequest = new Request("POST", "_scripts/title_search");
-        scriptRequest.setEntity(new NStringEntity(
+        scriptRequest.setJsonEntity(
             "{" +
             "  \"script\": {" +
             "    \"lang\": \"mustache\"," +
@@ -777,10 +777,10 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             "      \"size\" : \"{{size}}\"" +
             "    }" +
             "  }" +
-            "}", ContentType.APPLICATION_JSON));
+            "}");
         Response scriptResponse = restClient.performRequest(scriptRequest);
-        assertEquals(RestStatus.OK.getStatus(), scriptResponse.getStatusLine().getStatusCode());
         // end::register-script
+        assertEquals(RestStatus.OK.getStatus(), scriptResponse.getStatusLine().getStatusCode());
 
         // tag::search-template-request-stored
         SearchTemplateRequest request = new SearchTemplateRequest();

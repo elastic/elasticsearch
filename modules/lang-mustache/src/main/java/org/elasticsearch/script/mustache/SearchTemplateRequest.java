@@ -208,7 +208,7 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
         } else if (scriptType == ScriptType.INLINE) {
             builder.field(SOURCE_FIELD.getPreferredName(), script);
         } else {
-            throw new IllegalArgumentException("Unrecognized script type [" + scriptType + "].");
+            throw new UnsupportedOperationException("Unrecognized script type [" + scriptType + "].");
         }
 
         return builder.field(PARAMS_FIELD.getPreferredName(), scriptParams)

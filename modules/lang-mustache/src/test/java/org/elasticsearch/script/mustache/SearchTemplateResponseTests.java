@@ -61,7 +61,7 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
      * For simplicity we create a minimal response, as there is already a dedicated
      * test class for search response parsing and serialization.
      */
-    private SearchResponse createSearchResponse() {
+    private static SearchResponse createSearchResponse() {
         long tookInMillis = randomNonNegativeLong();
         int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
         int successfulShards = randomIntBetween(0, totalShards);
@@ -72,7 +72,7 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
             skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
     }
 
-    private BytesReference createSource() {
+    private static BytesReference createSource() {
         try {
             XContentBuilder source = XContentFactory.jsonBuilder()
                 .startObject()

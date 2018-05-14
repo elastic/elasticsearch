@@ -25,6 +25,7 @@ import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.OperationContext;
 import com.microsoft.azure.storage.RetryExponentialRetry;
 import com.microsoft.azure.storage.RetryPolicy;
+import com.microsoft.azure.storage.StorageErrorCodeStrings;
 import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.blob.BlobInputStream;
 import com.microsoft.azure.storage.blob.BlobListingDetails;
@@ -44,7 +45,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoryException;
 
 import java.io.InputStream;
-import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.FileAlreadyExistsException;
@@ -324,9 +324,10 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
             SocketAccess.doPrivilegedVoidException(() -> blob.upload(inputStream, blobSize, AccessCondition.generateIfNotExistsCondition(),
                 null, generateOperationContext(account)));
         } catch (StorageException se) {
-            if (se.getHttpStatusCode() == HttpURLConnection.HTTP_CONFLICT) {
+            if (StorageErrorCodeStrings.BLOB_ALREADY_EXISTS.equals(se.getErrorCode())) {
                 throw new FileAlreadyExistsException(blobName, null, se.getMessage());
             }
+            throw se;
         }
         logger.trace("writeBlob({}, stream, {}) - done", blobName, blobSize);
     }

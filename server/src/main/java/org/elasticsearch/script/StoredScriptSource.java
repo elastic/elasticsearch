@@ -139,10 +139,11 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
         /**
          * Validates the parameters and creates an {@link StoredScriptSource}.
          *
-         * @param ignore Specify as {@code true} to ignore the empty source check.  This allows
-         *         empty templates to be loaded for backwards compatibility.
+         * @param ignoreEmpty Specify as {@code true} to ignoreEmpty the empty source check.
+         *                    This allow empty templates to be loaded for backwards compatibility.
+         *                    This allow empty templates to be loaded for backwards compatibility.
          */
-        private StoredScriptSource build(boolean ignore) {
+        private StoredScriptSource build(boolean ignoreEmpty) {
             if (lang == null) {
                 throw new IllegalArgumentException("must specify lang for stored script");
             } else if (lang.isEmpty()) {
@@ -150,7 +151,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
             }
 
             if (source == null) {
-                if (ignore || Script.DEFAULT_TEMPLATE_LANG.equals(lang)) {
+                if (ignoreEmpty || Script.DEFAULT_TEMPLATE_LANG.equals(lang)) {
                     if (Script.DEFAULT_TEMPLATE_LANG.equals(lang)) {
                         DEPRECATION_LOGGER.deprecated("empty templates should no longer be used");
                     } else {
@@ -160,7 +161,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                     throw new IllegalArgumentException("must specify source for stored script");
                 }
             } else if (source.isEmpty()) {
-                if (ignore || Script.DEFAULT_TEMPLATE_LANG.equals(lang)) {
+                if (ignoreEmpty || Script.DEFAULT_TEMPLATE_LANG.equals(lang)) {
                     if (Script.DEFAULT_TEMPLATE_LANG.equals(lang)) {
                         DEPRECATION_LOGGER.deprecated("empty templates should no longer be used");
                     } else {
@@ -361,11 +362,11 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * Note that the "source" parameter can also handle template parsing including from
      * a complex JSON object.
      *
-     * @param ignore Specify as {@code true} to ignore the empty source check.  This allows
-     *         empty templates to be loaded for backwards compatibility.
+     * @param ignoreEmpty Specify as {@code true} to ignoreEmpty the empty source check.
+     *                    This allows empty templates to be loaded for backwards compatibility.
      */
-    public static StoredScriptSource fromXContent(XContentParser parser, boolean ignore) {
-        return PARSER.apply(parser, null).build(ignore);
+    public static StoredScriptSource fromXContent(XContentParser parser, boolean ignoreEmpty) {
+        return PARSER.apply(parser, null).build(ignoreEmpty);
     }
 
     /**

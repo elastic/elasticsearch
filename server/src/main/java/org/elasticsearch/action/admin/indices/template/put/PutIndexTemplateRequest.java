@@ -39,6 +39,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -58,14 +59,14 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * A request to create an index template.
  */
-public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateRequest> implements IndicesRequest {
+public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateRequest> implements IndicesRequest, ToXContent {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(PutIndexTemplateRequest.class));
 
@@ -154,7 +155,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     }
 
     /**
-     * Set to <tt>true</tt> to force only creation, not an update of an index template. If it already
+     * Set to {@code true} to force only creation, not an update of an index template. If it already
      * exists, it will fail with an {@link IllegalArgumentException}.
      */
     public PutIndexTemplateRequest create(boolean create) {
@@ -538,5 +539,35 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             alias.writeTo(out);
         }
         out.writeOptionalVInt(version);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (customs.isEmpty() == false) {
+            throw new IllegalArgumentException("Custom data type is no longer supported in index template [" + customs + "]");
+        }
+        builder.field("index_patterns", indexPatterns);
+        builder.field("order", order);
+        if (version != null) {
+            builder.field("version", version);
+        }
+
+        builder.startObject("settings");
+        settings.toXContent(builder, params);
+        builder.endObject();
+
+        builder.startObject("mappings");
+        for (Map.Entry<String, String> entry : mappings.entrySet()) {
+            Map<String, Object> mapping = XContentHelper.convertToMap(new BytesArray(entry.getValue()), false).v2();
+            builder.field(entry.getKey(), mapping);
+        }
+        builder.endObject();
+
+        builder.startObject("aliases");
+        for (Alias alias : aliases) {
+            alias.toXContent(builder, params);
+        }
+        builder.endObject();
+        return builder;
     }
 }

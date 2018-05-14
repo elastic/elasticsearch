@@ -1,122 +1,130 @@
 [[painless-variables]]
 === Variables
 
-Variables in Painless must be declared and can be
-statically or <<dynamic-types, dynamically typed>>.
-
-[[identifiers]]
-==== Identifiers
-
-Specify variable identifiers using the following grammar. Variable identifiers
-must start with a letter or underscore. You cannot use
-<<painless-keywords, keywords>> or <<painless-types, types>> as identifiers.
-
-*Grammar:*
-[source,ANTLR4]
-----
-ID: [_a-zA-Z] [_a-zA-Z-0-9]*;
-----
-
-*Examples:*
-[source,Java]
-----
-a
-Z
-id
-list
-list0
-MAP25
-_map25
-----
+<<declaration, Declare>> variables to <<assignment, assign>> values for
+<<painless-operators, use>> in expressions.  Specify variables as a
+<<primitive-types, primitive type>>, <<reference-types, reference type>>, or
+<<dynamic-types, dynamic type>>.  Variable operations follow the structure of a
+standard JVM in relation to instruction execution and memory usage.
 
 [[declaration]]
 ==== Declaration
 
-Variables must be declared before you use them. The format is `type-name
-identifier-name`. To declare multiple variables of the same type, specify a
-comma-separated list of identifier names. You can immediately assign a value to
-a variable when you declare it.
+Declare variables before use with the format of <<painless-types, type>>
+<<painless-identifiers, identifier>>. Specify a comma-separated list of
+<<painless-identifiers, identifiers>> following the <<painless-types, type>>
+to declare multiple variables in a single statement.  Use an
+<<assignment, assignment>> statement combined with a declaration statement to
+immediately assign a value to a variable. Variables not immediately assigned a
+value will have a default value assigned implicitly based on the
+<<painless-types, type>>.
 
-*Grammar:*
+*Grammar*
 [source,ANTLR4]
 ----
+declaration : type ID assignment? (',' ID assignment?)*;
 type: ID ('[' ']')*;
-declaration : type ID (',' ID)*;
+assignment: '=' expression;
 ----
 
-*Examples:*
-[source,Java]
-----
-int x;        // Declare a variable with type int and id x
-List y;       // Declare a variable with type List and id y
-int x, y, z;  // Declare variables with type int and ids x, y, and z
-def[] d;      // Declare the variable d with type def[]
-int i = 10;   // Declare the int variable i and set it to the int literal 10
-----
+*Examples*
 
-[[variable-assignment]]
+* Different variations of variable declaration.
++
+[source,Painless]
+----
+<1> int x;
+<2> List y;
+<3> int x, y, z;
+<4> def[] d;
+<5> int i = 10;
+----
++
+<1> declare a variable of type `int` and identifier `x`
+<2> declare a variable of type `List` and identifier `y`
+<3> declare three variables of type `int` and identifiers `x`, `y`, `z`
+<4> declare a variable of type `def[]` and identifier `d`
+<5> declare a variable of type `int` and identifier `i`;
+    assign the integer literal `10` to `i`
+
+[[assignment]]
 ==== Assignment
 
-Use the equals operator (`=`) to assign a value to a variable. The format is
-`identifier-name = value`. Any value expression can be assigned to any variable
-as long as the types match or the expression's type can be implicitly cast to
-the variable's type. An error occurs if the types do not match.
+Use the `equals` operator (`=`) to assign a value to a variable. Any expression
+that produces a value can be assigned to any variable as long as the
+<<painless-types, types>> are the same or the resultant
+<<painless-types, type>> can be implicitly <<painless-casting, cast>> to
+the variable <<painless-types, type>>.  Otherwise, an error will occur.
+<<reference-types, Reference type>> values are shallow-copied when assigned.
 
-*Grammar:*
+*Grammar*
 [source,ANTLR4]
 ----
 assignment: ID '=' expression
 ----
 
+*Examples*
 
-*Examples:*
-
-Assigning a literal of the appropriate type directly to a declared variable.
-
-[source,Java]
+* Variable assignment with an <<integers, integer literal>>.
++
+[source,Painless]
 ----
-int i;   // Declare an int i
-i = 10;  // Set the int i to the int literal 10
+<1> int i;
+<2> i = 10;
 ----
-
-Immediately assigning a value when declaring a variable.
-
-[source,Java]
++
+<1> declare `int i`
+<2> assign `10` to `i`
++
+* <<declaration, Declaration>> combined with immediate variable assignment.
++
+[source,Painless]
 ----
-int i = 10;     // Declare the int variable i and set it the int literal 1
-double j = 2.0; // Declare the double variable j and set it to the double
-                //   literal 2.0
+<1> int i = 10;
+<2> double j = 2.0;
 ----
-
-Assigning a variable of one primitive type to another variable of the same
-type.
-
-[source,Java]
++
+<1> declare `int i`; assign `10` to `i`
+<2> declare `double j`; assign `2.0` to `j`
++
+* Assignment of one variable to another using
+<<primitive-types, primitive types>>.
++
+[source,Painless]
 ----
-int i = 10; // Declare the int variable i and set it to the int literal 10
-int j = i;  // Declare the int variable j and set it to the int variable i
+<1> int i = 10;
+<2> int j = i;
 ----
-
-Assigning a reference type to a new heap allocation with the `new` operator.
-
-[source,Java]
++
+<1> declare `int i`; assign `10` to `i`
+<2> declare `int j`; assign `j` to `i`
++
+* Assignment with <<reference-types, reference types>> using the
+<<constructor-call, new operator>>.
++
+[source,Painless]
 ----
-ArrayList l = new ArrayList();  // Declare an ArrayList variable l and set it
-                                //   to a newly allocated ArrayList
-Map m = new HashMap();          // Declare a Map variable m and set it
-                                //   to a newly allocated HashMap
+<1> ArrayList l = new ArrayList();
+<2> Map m = new HashMap();
 ----
-
-Assigning a variable of one reference type to another variable of the same type.
-
-[source,Java]
++
+<1> declare `ArrayList l`; assign a newly-allocated `Arraylist` to `l`
+<2> declare `Map m`; assign a newly-allocated `HashMap` to `m`
+    with an implicit cast to `Map`
++
+* Assignment of one variable to another using
+<<reference-types, reference types>>.
++
+[source,Painless]
 ----
-List l = new ArrayList(); // Declare List variable l and set it a newly
-                          //    allocated ArrayList
-List k = l;               // Declare List variable k and set it to the
-                          //    value of the List variable l
-List m;                   // Declare List variable m and set it the
-                          //    default value null
-m = k;                    // Set the value of List variable m to the value
-                          //    of List variable k
+<1> List l = new ArrayList();
+<2> List k = l;
+<3> List m;
+<4> m = k;
 ----
++
+<1> declare `List l`; assign a newly-allocated `Arraylist` to `l`
+    with an implicit cast to `List`
+<2> declare `List k`; assign a shallow-copy of `l` to `k`
+<3> declare `List m`;
+<4> assign a shallow-copy of `k` to `m`

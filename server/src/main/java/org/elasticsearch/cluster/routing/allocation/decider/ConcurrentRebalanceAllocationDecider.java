@@ -31,11 +31,11 @@ import org.elasticsearch.common.settings.Settings;
  * {@link AllocationDecider} controls the number of currently in-progress
  * re-balance (relocation) operations and restricts node allocations if the
  * configured threshold is reached. The default number of concurrent rebalance
- * operations is set to <tt>2</tt>
+ * operations is set to {@code 2}
  * <p>
  * Re-balance operations can be controlled in real-time via the cluster update API using
- * <tt>cluster.routing.allocation.cluster_concurrent_rebalance</tt>. Iff this
- * setting is set to <tt>-1</tt> the number of concurrent re-balance operations
+ * {@code cluster.routing.allocation.cluster_concurrent_rebalance}. Iff this
+ * setting is set to {@code -1} the number of concurrent re-balance operations
  * are unlimited.
  */
 public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {

@@ -161,12 +161,12 @@ POST _reindex
 
 `index` and `type` in `source` can both be lists, allowing you to copy from
 lots of sources in one request. This will copy documents from the `_doc` and
-`post` types in the `twitter` and `blog` index. The copied documents would include the 
-`post` type in the `twitter` index and the `_doc` type in the `blog` index. For more 
+`post` types in the `twitter` and `blog` index. The copied documents would include the
+`post` type in the `twitter` index and the `_doc` type in the `blog` index. For more
 specific parameters, you can use `query`.
 
-The Reindex API makes no effort to handle ID collisions. For such issues, the target index 
-will remain valid, but it's not easy to predict which document will survive because 
+The Reindex API makes no effort to handle ID collisions. For such issues, the target index
+will remain valid, but it's not easy to predict which document will survive because
 the iteration order isn't well defined.
 
 [source,js]
@@ -666,9 +666,11 @@ executed again in order to conform to `requests_per_second`.
 
 `failures`::
 
-Array of all indexing failures. If this is non-empty then the request aborted
-because of those failures. See `conflicts` for how to prevent version conflicts
-from aborting the operation.
+Array of failures if there were any unrecoverable errors during the process. If
+this is non-empty then the request aborted because of those failures. Reindex
+is implemented using batches and any failure causes the entire process to abort
+but all failures in the current batch are collected into the array. You can use
+the `conflicts` option to prevent reindex from aborting on version conflicts.
 
 [float]
 [[docs-reindex-task-api]]
@@ -738,9 +740,10 @@ With the task id you can look up the task directly:
 
 [source,js]
 --------------------------------------------------
-GET /_tasks/taskId:1
+GET /_tasks/task_id
 --------------------------------------------------
 // CONSOLE
+// TEST[s/task_id/node_id:1/]
 // TEST[catch:missing]
 
 The advantage of this API is that it integrates with `wait_for_completion=false`
@@ -759,9 +762,10 @@ Any Reindex can be canceled using the <<tasks,Task Cancel API>>:
 
 [source,js]
 --------------------------------------------------
-POST _tasks/task_id:1/_cancel
+POST _tasks/task_id/_cancel
 --------------------------------------------------
 // CONSOLE
+// TEST[s/task_id/node_id:1/]
 
 The `task_id` can be found using the Tasks API.
 
@@ -778,9 +782,10 @@ the `_rethrottle` API:
 
 [source,js]
 --------------------------------------------------
-POST _reindex/task_id:1/_rethrottle?requests_per_second=-1
+POST _reindex/task_id/_rethrottle?requests_per_second=-1
 --------------------------------------------------
 // CONSOLE
+// TEST[s/task_id/node_id:1/]
 
 The `task_id` can be found using the Tasks API above.
 
@@ -1004,7 +1009,7 @@ number for most indices. If slicing manually or otherwise tuning
 automatic slicing, use these guidelines.
 
 Query performance is most efficient when the number of `slices` is equal to the
-number of shards in the index. If that number is large (e.g. 500), 
+number of shards in the index. If that number is large (e.g. 500),
 choose a lower number as too many `slices` will hurt performance. Setting
 `slices` higher than the number of shards generally does not improve efficiency
 and adds overhead.
@@ -1018,7 +1023,7 @@ documents being reindexed and cluster resources.
 [float]
 === Reindex daily indices
 
-You can use `_reindex` in combination with <<modules-scripting-painless, Painless>> 
+You can use `_reindex` in combination with <<modules-scripting-painless, Painless>>
 to reindex daily indices to apply a new template to the existing documents.
 
 Assuming you have indices consisting of documents as follows:

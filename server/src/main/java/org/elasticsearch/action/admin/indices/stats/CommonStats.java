@@ -152,9 +152,6 @@ public class CommonStats implements Writeable, ToXContentFragment {
                 case Translog:
                     translog = new TranslogStats();
                     break;
-                case Suggest:
-                    // skip
-                    break;
                 case RequestCache:
                     requestCache = new RequestCacheStats();
                     break;
@@ -212,9 +209,6 @@ public class CommonStats implements Writeable, ToXContentFragment {
                     break;
                 case Translog:
                     translog = indexShard.translogStats();
-                    break;
-                case Suggest:
-                    // skip
                     break;
                 case RequestCache:
                     requestCache = indexShard.requestCache().stats();

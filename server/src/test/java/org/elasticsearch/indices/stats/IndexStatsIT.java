@@ -589,10 +589,6 @@ public class IndexStatsIT extends ESIntegTestCase {
 
         IndicesStatsResponse stats = builder.execute().actionGet();
         for (Flag flag : values) {
-            if (flag == Flag.Suggest) {
-                // suggest flag is unused
-                continue;
-            }
             assertThat(isSet(flag, stats.getPrimaries()), equalTo(false));
             assertThat(isSet(flag, stats.getTotal()), equalTo(false));
         }
@@ -628,10 +624,6 @@ public class IndexStatsIT extends ESIntegTestCase {
         }
 
         for (Flag flag : EnumSet.complementOf(flags)) { // check the complement
-            if (flag == Flag.Suggest) {
-                // suggest flag is unused
-                continue;
-            }
             assertThat(isSet(flag, stats.getPrimaries()), equalTo(false));
             assertThat(isSet(flag, stats.getTotal()), equalTo(false));
         }
@@ -684,7 +676,7 @@ public class IndexStatsIT extends ESIntegTestCase {
     public void testFlagOrdinalOrder() {
         Flag[] flags = new Flag[]{Flag.Store, Flag.Indexing, Flag.Get, Flag.Search, Flag.Merge, Flag.Flush, Flag.Refresh,
                 Flag.QueryCache, Flag.FieldData, Flag.Docs, Flag.Warmer, Flag.Completion, Flag.Segments,
-                Flag.Translog, Flag.Suggest, Flag.RequestCache, Flag.Recovery};
+                Flag.Translog, Flag.RequestCache, Flag.Recovery};
 
         assertThat(flags.length, equalTo(Flag.values().length));
         for (int i = 0; i < flags.length; i++) {
@@ -935,8 +927,6 @@ public class IndexStatsIT extends ESIntegTestCase {
             case Translog:
                 builder.setTranslog(set);
                 break;
-            case Suggest: // unused
-                break;
             case RequestCache:
                 builder.setRequestCache(set);
                 break;
@@ -979,8 +969,6 @@ public class IndexStatsIT extends ESIntegTestCase {
                 return response.getSegments() != null;
             case Translog:
                 return response.getTranslog() != null;
-            case Suggest: // unused
-                return true;
             case RequestCache:
                 return response.getRequestCache() != null;
             case Recovery:

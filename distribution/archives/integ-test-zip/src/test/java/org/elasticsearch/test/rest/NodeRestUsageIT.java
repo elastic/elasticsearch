@@ -23,6 +23,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.Request;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -39,8 +40,8 @@ public class NodeRestUsageIT extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     public void testWithRestUsage() throws IOException {
         // First get the current usage figures
-        Response beforeResponse = client().performRequest("GET",
-                randomFrom("_nodes/usage", "_nodes/usage/rest_actions", "_nodes/usage/_all"));
+        String path = randomFrom("_nodes/usage", "_nodes/usage/rest_actions", "_nodes/usage/_all");
+        Response beforeResponse = client().performRequest(new Request("GET", path));
         Map<String, Object> beforeResponseBodyMap = entityAsMap(beforeResponse);
         assertThat(beforeResponseBodyMap, notNullValue());
         Map<String, Object> before_nodesMap = (Map<String, Object>) beforeResponseBodyMap.get("_nodes");
@@ -80,24 +81,28 @@ public class NodeRestUsageIT extends ESRestTestCase {
         }
 
         // Do some requests to get some rest usage stats
-        client().performRequest("PUT", "/test");
-        client().performRequest("POST", "/test/doc/1", Collections.emptyMap(),
-                new StringEntity("{ \"foo\": \"bar\"}", ContentType.APPLICATION_JSON));
-        client().performRequest("POST", "/test/doc/2", Collections.emptyMap(),
-                new StringEntity("{ \"foo\": \"bar\"}", ContentType.APPLICATION_JSON));
-        client().performRequest("POST", "/test/doc/3", Collections.emptyMap(),
-                new StringEntity("{ \"foo\": \"bar\"}", ContentType.APPLICATION_JSON));
-        client().performRequest("GET", "/test/_search");
-        client().performRequest("POST", "/test/doc/4", Collections.emptyMap(),
-                new StringEntity("{ \"foo\": \"bar\"}", ContentType.APPLICATION_JSON));
-        client().performRequest("POST", "/test/_refresh");
-        client().performRequest("GET", "/_cat/indices");
-        client().performRequest("GET", "/_nodes");
-        client().performRequest("GET", "/test/_search");
-        client().performRequest("GET", "/_nodes/stats");
-        client().performRequest("DELETE", "/test");
+        client().performRequest(new Request("PUT", "/test"));
+        Request request = new Request("POST", "/test/doc/1");
+        request.setJsonEntity("{\"foo\": \"bar\"}");
+        client().performRequest(request);
+        request = new Request("POST", "/test/doc/2");
+        request.setJsonEntity("{\"foo\": \"bar\"}");
+        client().performRequest(request);
+        request = new Request("POST", "/test/doc/3");
+        request.setJsonEntity("{\"foo\": \"bar\"}");
+        client().performRequest(request);
+        client().performRequest(new Request("GET", "/test/_search"));
+        request = new Request("POST", "/test/doc/4");
+        request.setJsonEntity("{\"foo\": \"bar\"}");
+        client().performRequest(request);
+        client().performRequest(new Request("POST", "/test/_refresh"));
+        client().performRequest(new Request("GET", "/_cat/indices"));
+        client().performRequest(new Request("GET", "/_nodes"));
+        client().performRequest(new Request("GET", "/test/_search"));
+        client().performRequest(new Request("GET", "/_nodes/stats"));
+        client().performRequest(new Request("DELETE", "/test"));
 
-        Response response = client().performRequest("GET", "_nodes/usage");
+        Response response = client().performRequest(new Request("GET", "_nodes/usage"));
         Map<String, Object> responseBodyMap = entityAsMap(response);
         assertThat(responseBodyMap, notNullValue());
         Map<String, Object> _nodesMap = (Map<String, Object>) responseBodyMap.get("_nodes");
@@ -139,7 +144,7 @@ public class NodeRestUsageIT extends ESRestTestCase {
 
     public void testMetricsWithAll() throws IOException {
         ResponseException exception = expectThrows(ResponseException.class,
-                () -> client().performRequest("GET", "_nodes/usage/_all,rest_actions"));
+                () -> client().performRequest(new Request("GET", "_nodes/usage/_all,rest_actions")));
         assertNotNull(exception);
         assertThat(exception.getMessage(), containsString("\"type\":\"illegal_argument_exception\","
                 + "\"reason\":\"request [_nodes/usage/_all,rest_actions] contains _all and individual metrics [_all,rest_actions]\""));

@@ -59,6 +59,12 @@
             "type": {
               "type": "keyword"
             },
+            "host_ip": {
+              "type": "keyword"
+            },
+            "host_name": {
+              "type": "keyword"
+            },
             "ephemeral_id": {
               "type": "keyword"
             },

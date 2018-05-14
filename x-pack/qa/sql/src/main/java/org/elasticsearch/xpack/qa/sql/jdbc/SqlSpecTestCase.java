@@ -28,12 +28,13 @@ public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
     public static List<Object[]> readScriptSpec() throws Exception {
         Parser parser = specParser();
         List<Object[]> tests = new ArrayList<>();
-        tests.addAll(readScriptSpec("/select.sql-spec", parser));
-        tests.addAll(readScriptSpec("/filter.sql-spec", parser));
-        tests.addAll(readScriptSpec("/datetime.sql-spec", parser));
-        tests.addAll(readScriptSpec("/math.sql-spec", parser));
-        tests.addAll(readScriptSpec("/agg.sql-spec", parser));
-        tests.addAll(readScriptSpec("/arithmetic.sql-spec", parser));
+//        tests.addAll(readScriptSpec("/select.sql-spec", parser));
+//        tests.addAll(readScriptSpec("/filter.sql-spec", parser));
+//        tests.addAll(readScriptSpec("/datetime.sql-spec", parser));
+//        tests.addAll(readScriptSpec("/math.sql-spec", parser));
+//        tests.addAll(readScriptSpec("/agg.sql-spec", parser));
+//        tests.addAll(readScriptSpec("/arithmetic.sql-spec", parser));
+        tests.addAll(readScriptSpec("/string.sql-spec", parser));
         return tests;
     }
 

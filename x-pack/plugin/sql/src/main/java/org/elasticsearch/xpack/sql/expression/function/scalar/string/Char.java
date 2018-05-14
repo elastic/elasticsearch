@@ -23,10 +23,6 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
-import java.util.Locale;
-
-import static java.lang.String.format;
-
 /**
  * Converts an int ASCII code to a character value.
  */
@@ -34,6 +30,16 @@ public class Char extends UnaryStringFunction {
 
     public Char(Location location, Expression field) {
         super(location, field);
+    }
+
+    @Override
+    protected TypeResolution resolveType() {
+        if (!childrenResolved()) {
+            return new TypeResolution("Unresolved children");
+        }
+
+        return field().dataType().isInteger ? TypeResolution.TYPE_RESOLVED : new TypeResolution(
+                "'%s' requires a integer type, received %s", operation(), field().dataType().esType);
     }
 
     @Override
@@ -48,9 +54,7 @@ public class Char extends UnaryStringFunction {
 
     @Override
     protected String formatScript(String template) {
-        return super.formatScript(
-                format(Locale.ROOT, "%s instanceof Number && %s.intValue() >= 0 && %s.intValue() <= 255) ? (char) %s : null", template,
-                        template, template));
+        throw new UnsupportedOperationException("Not supported yet");
     }
 
     @Override

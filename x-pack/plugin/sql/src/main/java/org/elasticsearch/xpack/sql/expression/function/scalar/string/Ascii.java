@@ -23,10 +23,6 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
-import java.util.Locale;
-
-import static java.lang.String.format;
-
 /**
  * Returns the ASCII code of the leftmost character of the given (char) expression.
  */
@@ -48,7 +44,7 @@ public class Ascii extends UnaryStringFunction {
 
     @Override
     protected String formatScript(String template) {
-        return super.formatScript(format(Locale.ROOT, "%s == null || %s.length() == 0 ? null : %s.charAt(0)", template, template, template));
+        throw new UnsupportedOperationException("Not supported yet");
     }
 
     @Override

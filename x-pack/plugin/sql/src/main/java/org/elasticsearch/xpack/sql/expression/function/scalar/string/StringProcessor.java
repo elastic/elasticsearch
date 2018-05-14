@@ -43,7 +43,7 @@ public class StringProcessor implements Processor {
         ASCII((String s) -> s.length() == 0 ? null : Integer.valueOf(s.charAt(0))),
         CHAR((Number n) -> {
             int i = n.intValue();
-            return i < 0 || i > 255 ? null : Character.valueOf((char) i);
+            return i < 0 || i > 255 ? null : String.valueOf((char) i);
         });
 
         private final Function<Object, Object> apply;

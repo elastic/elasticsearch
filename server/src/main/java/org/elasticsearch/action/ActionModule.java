@@ -241,6 +241,7 @@ import org.elasticsearch.rest.action.admin.cluster.RestRemoteClusterInfoAction;
 import org.elasticsearch.rest.action.admin.cluster.RestRestoreSnapshotAction;
 import org.elasticsearch.rest.action.admin.cluster.RestSnapshotsStatusAction;
 import org.elasticsearch.rest.action.admin.cluster.RestVerifyRepositoryAction;
+import org.elasticsearch.rest.action.admin.indices.RestResizeHandler;
 import org.elasticsearch.rest.action.admin.indices.RestAnalyzeAction;
 import org.elasticsearch.rest.action.admin.indices.RestClearIndicesCacheAction;
 import org.elasticsearch.rest.action.admin.indices.RestCloseIndexAction;
@@ -270,8 +271,6 @@ import org.elasticsearch.rest.action.admin.indices.RestPutMappingAction;
 import org.elasticsearch.rest.action.admin.indices.RestRecoveryAction;
 import org.elasticsearch.rest.action.admin.indices.RestRefreshAction;
 import org.elasticsearch.rest.action.admin.indices.RestRolloverIndexAction;
-import org.elasticsearch.rest.action.admin.indices.RestShrinkIndexAction;
-import org.elasticsearch.rest.action.admin.indices.RestSplitIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestSyncedFlushAction;
 import org.elasticsearch.rest.action.admin.indices.RestUpdateSettingsAction;
 import org.elasticsearch.rest.action.admin.indices.RestUpgradeAction;
@@ -569,15 +568,15 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestIndexPutAliasAction(settings, restController));
         registerHandler.accept(new RestIndicesAliasesAction(settings, restController));
         registerHandler.accept(new RestCreateIndexAction(settings, restController));
-        registerHandler.accept(new RestShrinkIndexAction(settings, restController));
-        registerHandler.accept(new RestSplitIndexAction(settings, restController));
+        registerHandler.accept(new RestResizeHandler.RestShrinkIndexAction(settings, restController));
+        registerHandler.accept(new RestResizeHandler.RestSplitIndexAction(settings, restController));
         registerHandler.accept(new RestRolloverIndexAction(settings, restController));
         registerHandler.accept(new RestDeleteIndexAction(settings, restController));
         registerHandler.accept(new RestCloseIndexAction(settings, restController));
         registerHandler.accept(new RestOpenIndexAction(settings, restController));
 
         registerHandler.accept(new RestUpdateSettingsAction(settings, restController));
-        registerHandler.accept(new RestGetSettingsAction(settings, restController, indexScopedSettings, settingsFilter));
+        registerHandler.accept(new RestGetSettingsAction(settings, restController));
 
         registerHandler.accept(new RestAnalyzeAction(settings, restController));
         registerHandler.accept(new RestGetIndexTemplateAction(settings, restController));

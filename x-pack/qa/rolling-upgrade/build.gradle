@@ -96,7 +96,7 @@ subprojects {
     }
   }
 
-  String outputDir = "generated-resources/${project.name}"
+  String outputDir = "${buildDir}/generated-resources/${project.name}"
 
   // This is a top level task which we will add dependencies to below.
   // It is a single task that can be used to backcompat tests against all versions.
@@ -105,7 +105,7 @@ subprojects {
     group = 'verification'
   }
 
-  String output = "generated-resources/${project.name}"
+  String output = "${buildDir}/generated-resources/${project.name}"
   task copyTestNodeKeystore(type: Copy) {
     from project(xpackModule('core'))
             .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
@@ -123,7 +123,7 @@ subprojects {
     configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
       dependsOn copyTestNodeKeystore
       if (version.before('6.3.0')) {
-        plugin xpackProject('plugin').path
+        mavenPlugin 'x-pack', "org.elasticsearch.plugin:x-pack:${version}"
       }
       String usersCli = version.before('6.3.0') ? 'bin/x-pack/users' : 'bin/elasticsearch-users'
       setupCommand 'setupTestUser', usersCli, 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'

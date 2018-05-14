@@ -9,8 +9,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-
-import static java.util.Collections.emptyMap;
+import org.elasticsearch.client.Request;
 
 import static org.hamcrest.Matchers.startsWith;
 
@@ -37,7 +36,9 @@ public class ErrorsTestCase extends JdbcIntegrationTestCase implements org.elast
     @Override
     public void testSelectFromIndexWithoutTypes() throws Exception {
         // Create an index without any types
-        client().performRequest("PUT", "/test", emptyMap(), new StringEntity("{}", ContentType.APPLICATION_JSON));
+        Request request = new Request("PUT", "/test");
+        request.setJsonEntity("{}");
+        client().performRequest(request);
 
         try (Connection c = esJdbc()) {
             SQLException e = expectThrows(SQLException.class, () -> c.prepareStatement("SELECT * FROM test").executeQuery());

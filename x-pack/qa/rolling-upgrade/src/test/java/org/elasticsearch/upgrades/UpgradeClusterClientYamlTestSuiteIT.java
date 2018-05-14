@@ -8,6 +8,7 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -29,6 +30,7 @@ import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.is;
 
 @TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30456")
 public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     /**
@@ -37,34 +39,6 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
     @Before
     public void waitForTemplates() throws Exception {
         XPackRestTestHelper.waitForMlTemplates(client());
-    }
-
-    /**
-     * Enables an HTTP exporter for monitoring so that we can test the production-level exporter (not the local exporter).
-     *
-     * The build.gradle file disables data collection, so the expectation is that any monitoring rest tests will use the
-     * "_xpack/monitoring/_bulk" endpoint to lazily setup the templates on-demand and fill in data without worrying about
-     * timing.
-     */
-    @Before
-    public void waitForMonitoring() throws Exception {
-        final String[] nodes = System.getProperty("tests.rest.cluster").split(",");
-        final Map<String, Object> settings = new HashMap<>();
-
-        settings.put("xpack.monitoring.exporters._http.enabled", true);
-        // only select the last node to avoid getting the "old" node in a mixed cluster
-        // if we ever randomize the order that the nodes are restarted (or add more nodes), then we need to verify which node we select
-        settings.put("xpack.monitoring.exporters._http.host", nodes[nodes.length - 1]);
-
-        assertBusy(() -> {
-            final ClientYamlTestResponse response =
-                    getAdminExecutionContext().callApi("cluster.put_settings",
-                                                       emptyMap(),
-                                                       singletonList(singletonMap("transient", settings)),
-                                                       emptyMap());
-
-            assertThat(response.evaluate("acknowledged"), is(true));
-        });
     }
 
     @Override

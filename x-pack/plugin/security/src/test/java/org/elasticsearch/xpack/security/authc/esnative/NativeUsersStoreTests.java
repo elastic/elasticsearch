@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -236,16 +237,17 @@ public class NativeUsersStoreTests extends ESTestCase {
 
     private NativeUsersStore startNativeUsersStore() {
         SecurityLifecycleService securityLifecycleService = mock(SecurityLifecycleService.class);
-        when(securityLifecycleService.isSecurityIndexAvailable()).thenReturn(true);
-        when(securityLifecycleService.isSecurityIndexExisting()).thenReturn(true);
-        when(securityLifecycleService.isSecurityIndexMappingUpToDate()).thenReturn(true);
-        when(securityLifecycleService.isSecurityIndexOutOfDate()).thenReturn(false);
-        when(securityLifecycleService.isSecurityIndexUpToDate()).thenReturn(true);
+        SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
+        when(securityLifecycleService.securityIndex()).thenReturn(securityIndex);
+        when(securityIndex.isAvailable()).thenReturn(true);
+        when(securityIndex.indexExists()).thenReturn(true);
+        when(securityIndex.isMappingUpToDate()).thenReturn(true);
+        when(securityIndex.isIndexUpToDate()).thenReturn(true);
         doAnswer((i) -> {
             Runnable action = (Runnable) i.getArguments()[1];
             action.run();
             return null;
-        }).when(securityLifecycleService).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
         return new NativeUsersStore(Settings.EMPTY, client, securityLifecycleService);
     }
 

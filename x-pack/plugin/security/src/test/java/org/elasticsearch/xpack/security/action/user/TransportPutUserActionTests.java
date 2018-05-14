@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealmTests;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
@@ -118,7 +119,9 @@ public class TransportPutUserActionTests extends ESTestCase {
     public void testReservedUser() {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         SecurityLifecycleService securityLifecycleService = mock(SecurityLifecycleService.class);
-        when(securityLifecycleService.isSecurityIndexAvailable()).thenReturn(true);
+        SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
+        when(securityLifecycleService.securityIndex()).thenReturn(securityIndex);
+        when(securityIndex.isAvailable()).thenReturn(true);
         ReservedRealmTests.mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
         Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         ReservedRealm reservedRealm = new ReservedRealm(TestEnvironment.newEnvironment(settings), settings, usersStore,

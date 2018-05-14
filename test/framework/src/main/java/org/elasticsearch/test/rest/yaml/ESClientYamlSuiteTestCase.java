@@ -28,6 +28,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
@@ -143,7 +144,19 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion);
     }
 
+    /**
+     * Create parameters for this parameterized test. Uses the
+     * {@link ExecutableSection#XCONTENT_REGISTRY list} of executable sections
+     * defined in {@link ExecutableSection}.
+     */
     public static Iterable<Object[]> createParameters() throws Exception {
+        return createParameters(ExecutableSection.XCONTENT_REGISTRY);
+    }
+
+    /**
+     * Create parameters for this parameterized test.
+     */
+    public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry) throws Exception {
         String[] paths = resolvePathsProperty(REST_TESTS_SUITE, ""); // default to all tests under the test root
         List<Object[]> tests = new ArrayList<>();
         Map<String, Set<Path>> yamlSuites = loadSuites(paths);
@@ -151,7 +164,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         for (String api : yamlSuites.keySet()) {
             List<Path> yamlFiles = new ArrayList<>(yamlSuites.get(api));
             for (Path yamlFile : yamlFiles) {
-                ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(api, yamlFile);
+                ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(executeableSectionRegistry, api, yamlFile);
                 for (ClientYamlTestSection testSection : restTestSuite.getTestSections()) {
                     tests.add(new Object[]{ new ClientYamlTestCandidate(restTestSuite, testSection) });
                 }

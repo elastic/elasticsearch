@@ -423,6 +423,7 @@ public class SliceBuilderTests extends ESTestCase {
             for (int i = 0; i < numSlices; i++) {
                 for (int j = 0; j < numShards; j++) {
                     SliceBuilder slice = new SliceBuilder("_id", i, numSlices);
+                    context = createShardContext(Version.CURRENT, reader, "_id", DocValuesType.SORTED, numShards, j);
                     Query q = slice.toFilter(null, createRequest(j), context, Version.CURRENT);
                     if (i == j) {
                         assertThat(q, instanceOf(MatchAllDocsQuery.class));

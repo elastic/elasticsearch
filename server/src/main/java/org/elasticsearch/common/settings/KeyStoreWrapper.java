@@ -31,6 +31,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -317,26 +318,24 @@ public class KeyStoreWrapper implements SecureSettings {
              DataInputStream input = new DataInputStream(bytesStream)) {
             int saltLen = input.readInt();
             salt = new byte[saltLen];
-            if (input.read(salt) != saltLen) {
-                throw new SecurityException("Keystore has been corrupted or tampered with");
-            }
+            input.readFully(salt);
             int ivLen = input.readInt();
             iv = new byte[ivLen];
-            if (input.read(iv) != ivLen) {
-                throw new SecurityException("Keystore has been corrupted or tampered with");
-            }
+            input.readFully(iv);
             int encryptedLen = input.readInt();
             encryptedBytes = new byte[encryptedLen];
-            if (input.read(encryptedBytes) != encryptedLen) {
+            input.readFully(encryptedBytes);
+            if (input.read() != -1) {
                 throw new SecurityException("Keystore has been corrupted or tampered with");
             }
+        } catch (EOFException e) {
+            throw new SecurityException("Keystore has been corrupted or tampered with", e);
         }
 
         Cipher cipher = createCipher(Cipher.DECRYPT_MODE, password, salt, iv);
         try (ByteArrayInputStream bytesStream = new ByteArrayInputStream(encryptedBytes);
              CipherInputStream cipherStream = new CipherInputStream(bytesStream, cipher);
              DataInputStream input = new DataInputStream(cipherStream)) {
-
             entries.set(new HashMap<>());
             int numEntries = input.readInt();
             while (numEntries-- > 0) {
@@ -344,11 +343,14 @@ public class KeyStoreWrapper implements SecureSettings {
                 EntryType entryType = EntryType.valueOf(input.readUTF());
                 int entrySize = input.readInt();
                 byte[] entryBytes = new byte[entrySize];
-                if (input.read(entryBytes) != entrySize) {
-                    throw new SecurityException("Keystore has been corrupted or tampered with");
-                }
+                input.readFully(entryBytes);
                 entries.get().put(setting, new Entry(entryType, entryBytes));
             }
+            if (input.read() != -1) {
+                throw new SecurityException("Keystore has been corrupted or tampered with");
+            }
+        } catch (EOFException e) {
+            throw new SecurityException("Keystore has been corrupted or tampered with", e);
         }
     }
 
@@ -360,7 +362,6 @@ public class KeyStoreWrapper implements SecureSettings {
         Cipher cipher = createCipher(Cipher.ENCRYPT_MODE, password, salt, iv);
         try (CipherOutputStream cipherStream = new CipherOutputStream(bytes, cipher);
              DataOutputStream output = new DataOutputStream(cipherStream)) {
-
             output.writeInt(entries.get().size());
             for (Map.Entry<String, Entry> mapEntry : entries.get().entrySet()) {
                 output.writeUTF(mapEntry.getKey());
@@ -370,7 +371,6 @@ public class KeyStoreWrapper implements SecureSettings {
                 output.write(entry.bytes);
             }
         }
-
         return bytes.toByteArray();
     }
 

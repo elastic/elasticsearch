@@ -115,8 +115,6 @@ public class AllocationService extends AbstractComponent {
 
     protected ClusterState buildResultAndLogHealthChange(ClusterState oldState, RoutingAllocation allocation, String reason) {
         ClusterState newState = buildResult(oldState, allocation);
-        assert AutoExpandReplicas.getAutoExpandReplicaChanges(newState.metaData(), newState.nodes()).isEmpty() :
-            "auto-expand replicas out of sync with number of nodes in the cluster";
 
         logClusterHealthStateChange(
             new ClusterStateHealth(oldState),
@@ -395,6 +393,8 @@ public class AllocationService extends AbstractComponent {
 
     private void reroute(RoutingAllocation allocation) {
         assert hasDeadNodes(allocation) == false : "dead nodes should be explicitly cleaned up. See deassociateDeadNodes";
+        assert AutoExpandReplicas.getAutoExpandReplicaChanges(allocation.metaData(), allocation.nodes()).isEmpty() :
+            "auto-expand replicas out of sync with number of nodes in the cluster";
 
         // now allocate all the unassigned to available nodes
         if (allocation.routingNodes().unassigned().size() > 0) {

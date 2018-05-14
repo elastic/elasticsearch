@@ -127,7 +127,7 @@ final class StoreRecovery {
                     final long maxSeqNo = shards.stream().mapToLong(LocalShardSnapshot::maxSeqNo).max().getAsLong();
                     final long maxUnsafeAutoIdTimestamp =
                             shards.stream().mapToLong(LocalShardSnapshot::maxUnsafeAutoIdTimestamp).max().getAsLong();
-                    try (final Directory directory = indexShard.store().createNewDirectory()) {
+                    try (Directory directory = indexShard.store().createNewDirectory()) {
                         // we create a new directory since we might delete old files we never write again
                         // but this might cause issues on windows since Lucenes IW now checks for pending deletes before it
                         // starts up and we might be still holding on to them on windows. for this reason we use a private directory here

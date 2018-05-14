@@ -52,7 +52,6 @@ import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
@@ -2607,7 +2606,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private EngineConfig.TombstoneDocSupplier tombstoneDocSupplier() {
-        final RootObjectMapper.Builder noopRootMapper = new RootObjectMapper.Builder("__noop").enabled(false); // Don't parse _source
+        final RootObjectMapper.Builder noopRootMapper = new RootObjectMapper.Builder("__noop");
         final DocumentMapper noopDocumentMapper = new DocumentMapper.Builder(noopRootMapper, mapperService).build(mapperService);
         return new EngineConfig.TombstoneDocSupplier() {
             @Override
@@ -2615,8 +2614,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 return docMapper(type).getDocumentMapper().createDeleteTombstoneDoc(shardId.getIndexName(), type, id);
             }
             @Override
-            public ParsedDocument newNoopTombstoneDoc(BytesReference source) {
-                return noopDocumentMapper.createNoopTombstoneDoc(shardId.getIndexName(), source);
+            public ParsedDocument newNoopTombstoneDoc(String reason) {
+                return noopDocumentMapper.createNoopTombstoneDoc(shardId.getIndexName(), reason);
             }
         };
     }

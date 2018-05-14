@@ -19,13 +19,14 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
@@ -179,8 +180,8 @@ public class DocumentMapper implements ToXContentFragment {
             TypeFieldMapper.NAME, SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME, SeqNoFieldMapper.TOMBSTONE_NAME);
         this.deleteTombstoneMetadataFieldMappers = Stream.of(mapping.metadataMappers)
             .filter(field -> deleteTombstoneMetadataFields.contains(field.name())).toArray(MetadataFieldMapper[]::new);
-        final Collection<String> noopTombstoneMetadataFields = Arrays.asList(VersionFieldMapper.NAME, SourceFieldMapper.NAME,
-            SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME, SeqNoFieldMapper.TOMBSTONE_NAME);
+        final Collection<String> noopTombstoneMetadataFields = Arrays.asList(
+            VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME, SeqNoFieldMapper.TOMBSTONE_NAME);
         this.noopTombstoneMetadataFieldMappers = Stream.of(mapping.metadataMappers)
             .filter(field -> noopTombstoneMetadataFields.contains(field.name())).toArray(MetadataFieldMapper[]::new);
     }
@@ -263,10 +264,14 @@ public class DocumentMapper implements ToXContentFragment {
         return documentParser.parseDocument(emptySource, deleteTombstoneMetadataFieldMappers).toTombstone();
     }
 
-    public ParsedDocument createNoopTombstoneDoc(String index, BytesReference source) throws MapperParsingException {
+    public ParsedDocument createNoopTombstoneDoc(String index, String reason) throws MapperParsingException {
         final String id = ""; // _id won't be used.
-        final SourceToParse sourceToParse = SourceToParse.source(index, type, id, source, XContentType.JSON);
-        return documentParser.parseDocument(sourceToParse, noopTombstoneMetadataFieldMappers).toTombstone();
+        final SourceToParse sourceToParse = SourceToParse.source(index, type, id, new BytesArray("{}"), XContentType.JSON);
+        final ParsedDocument parsedDoc = documentParser.parseDocument(sourceToParse, noopTombstoneMetadataFieldMappers).toTombstone();
+        // Store the reason of a noop as a raw string in the _source field
+        final BytesRef byteRef = new BytesRef(reason);
+        parsedDoc.rootDoc().add(new StoredField(SourceFieldMapper.NAME, byteRef.bytes, byteRef.offset, byteRef.length));
+        return parsedDoc;
     }
 
     /**

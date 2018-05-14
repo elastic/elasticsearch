@@ -56,7 +56,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -72,7 +71,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
@@ -3110,8 +3108,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(deleteDoc.getField(IdFieldMapper.NAME).binaryValue(), equalTo(Uid.encodeId(id)));
         assertThat(deleteDoc.getField(SeqNoFieldMapper.TOMBSTONE_NAME).numericValue().longValue(), equalTo(1L));
 
-        BytesReference reason = BytesReference.bytes(
-            JsonXContent.contentBuilder().startObject().field(Engine.NoOp.REASON_FIELD_NAME, randomUnicodeOfLength(200)).endObject());
+        final String reason = randomUnicodeOfLength(200);
         ParsedDocument noopTombstone = shard.getEngine().config().getTombstoneDocSupplier().newNoopTombstoneDoc(reason);
         assertThat(noopTombstone.docs(), hasSize(1));
         ParseContext.Document noopDoc = noopTombstone.docs().get(0);
@@ -3119,7 +3116,7 @@ public class IndexShardTests extends IndexShardTestCase {
             containsInAnyOrder(VersionFieldMapper.NAME, SourceFieldMapper.NAME, SeqNoFieldMapper.TOMBSTONE_NAME,
                 SeqNoFieldMapper.NAME, SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME));
         assertThat(noopDoc.getField(SeqNoFieldMapper.TOMBSTONE_NAME).numericValue().longValue(), equalTo(1L));
-        assertThat(noopDoc.getField(SourceFieldMapper.NAME).binaryValue(), equalTo(reason.toBytesRef()));
+        assertThat(noopDoc.getField(SourceFieldMapper.NAME).stringValue(), equalTo(reason));
 
         closeShards(shard);
     }

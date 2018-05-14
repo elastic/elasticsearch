@@ -42,7 +42,7 @@ PUT /my_source_index/_settings
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT my_source_index\n/]
+// TEST[s/^/PUT my_source_index\n{"settings":{"index.number_of_shards":2}}\n/]
 <1> Forces the relocation of a copy of each shard to the node with name
     `shrink_node_name`.  See <<shard-allocation-filtering>> for more options.
 
@@ -119,7 +119,7 @@ POST my_source_index/_shrink/my_target_index?copy_settings=true
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT my_source_index\n{"settings": {"index.blocks.write": true}}\n/]
+// TEST[s/^/PUT my_source_index\n{"settings": {"index.number_of_shards":5,"index.blocks.write": true}}\n/]
 
 <1> The number of shards in the target index. This must be a factor of the
     number of shards in the source index.

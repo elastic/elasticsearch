@@ -762,7 +762,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         @Override
         public boolean checkPendingDeletions() throws IOException {
-            if (super.checkPendingDeletions() == false) {
+            if (super.checkPendingDeletions()) {
                 deletesLogger.warn("directory has still pending deletes");
             }
             // we skip this check since our IW usage always goes forward.

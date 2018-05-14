@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.qa.sql.security;
 
-import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -14,11 +13,9 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.NotEqualMessageBuilder;
-import org.elasticsearch.xpack.qa.sql.security.SqlSecurityTestCase.AuditLogAsserter;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -30,7 +27,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.qa.sql.rest.RestSqlTestCase.columnInfo;
@@ -182,7 +178,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
                 request.addParameter("mode", mode);
             }
             if (asUser != null) {
-                request.setHeaders(new BasicHeader("es-security-runas-user", asUser));
+                request.addHeaders(new BasicHeader("es-security-runas-user", asUser));
             }
             request.setEntity(entity);
             return toMap(client().performRequest(request));

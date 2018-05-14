@@ -26,8 +26,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
-import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -564,7 +562,7 @@ public class RestHighLevelClient implements Closeable {
             throw validationException;
         }
         Request req = requestConverter.apply(request);
-        req.setHeaders(headers);
+        req.addHeaders(headers);
         Response response;
         try {
             response = client.performRequest(req);
@@ -614,7 +612,7 @@ public class RestHighLevelClient implements Closeable {
             listener.onFailure(e);
             return;
         }
-        req.setHeaders(headers);
+        req.addHeaders(headers);
 
         ResponseListener responseListener = wrapResponseListener(responseConverter, listener, ignores);
         client.performRequestAsync(req, responseListener);

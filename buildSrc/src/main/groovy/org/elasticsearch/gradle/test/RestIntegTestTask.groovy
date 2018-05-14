@@ -78,8 +78,6 @@ public class RestIntegTestTask extends DefaultTask {
         // that sets up the test cluster and passes this transport uri instead of http uri. Until then, we pass
         // both as separate sysprops
         runner.systemProperty('tests.cluster', "${-> nodes[0].transportUri()}")
-        // always pass in the distribution so we can see it in things like the yaml `skip` section
-        runner.systemProperty('tests.distribution', "${-> clusterConfig.distribution}")
 
         // dump errors and warnings from cluster log on failure
         TaskExecutionAdapter logDumpListener = new TaskExecutionAdapter() {

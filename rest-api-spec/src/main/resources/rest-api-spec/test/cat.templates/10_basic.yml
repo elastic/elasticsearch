@@ -16,8 +16,6 @@
 "No templates":
     - skip:
         features: default_shards
-        distribution: zip
-        reason: x-pack includes templates which breaks the output here
 
     - do:
         cat.templates: {}
@@ -181,8 +179,6 @@
 "Sort templates":
     - skip:
         features: default_shards
-        distribution: zip
-        reason: x-pack includes templates which breaks the output here
 
     - do:
         indices.put_template:
@@ -234,8 +230,6 @@
 "Multiple template":
     - skip:
         features: default_shards
-        distribution: zip
-        reason: x-pack includes templates which breaks the output here
 
     - do:
         indices.put_template:

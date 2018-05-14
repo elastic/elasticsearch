@@ -57,6 +57,11 @@ for (Version version : bwcVersions.wireCompatible) {
   /* To support taking index snapshots, we have to set path.repo setting */
   tasks.getByName("${baseName}#mixedClusterTestRunner").configure {
     systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
+    systemProperty 'tests.rest.blacklist', [
+        'cat.templates/10_basic/No templates',
+        'cat.templates/10_basic/Sort templates',
+        'cat.templates/10_basic/Multiple template',
+      ].join(',')
   }
 }
 

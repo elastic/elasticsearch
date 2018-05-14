@@ -82,7 +82,7 @@ public class ReservedRolesStore {
                                 RoleDescriptor.IndicesPrivileges.builder()
                                         .indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
                                 RoleDescriptor.IndicesPrivileges.builder()
-                                        .indices(".management-beats").privileges("create_index", "index", "read").build()
+                                        .indices(".management-beats").privileges("create_index", "read", "write").build()
                         },
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("logstash_system", new RoleDescriptor("logstash_system", new String[] { "monitor", MonitoringBulkAction.NAME},

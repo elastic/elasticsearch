@@ -229,8 +229,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(beatsAgentRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(false));
         assertThat(beatsAgentRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(true));
         assertThat(beatsAgentRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(index), is(true));
-        assertThat(beatsAgentRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(false));
-        assertThat(beatsAgentRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(true));
+        assertThat(beatsAgentRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(true));
+        assertThat(beatsAgentRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(false));
         assertThat(beatsAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(true));
         assertThat(beatsAgentRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(true));
         assertThat(beatsAgentRole.indices().allowedIndicesMatcher(GetAction.NAME).test(index), is(true));

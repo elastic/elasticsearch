@@ -287,6 +287,9 @@ public class RangeFieldMapper extends FieldMapper {
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
                                 ShapeRelation relation, DateTimeZone timeZone, DateMathParser parser, QueryShardContext context) {
             failIfNotIndexed();
+            if (parser == null) {
+                parser = dateMathParser();
+            }
             return rangeType.rangeQuery(name(), hasDocValues(), lowerTerm, upperTerm, includeLower, includeUpper, relation,
                 timeZone, parser, context);
         }

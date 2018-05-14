@@ -175,6 +175,19 @@ public class GeoPointParsingTests  extends ESTestCase {
         assertThat(e.getMessage(), is("field must be either [lat], [lon] or [geohash]"));
     }
 
+    public void testInvalidGeoHash() throws IOException {
+        XContentBuilder content = JsonXContent.contentBuilder();
+        content.startObject();
+        content.field("geohash", "!!!!");
+        content.endObject();
+
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content));
+        parser.nextToken();
+
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
+        assertThat(e.getMessage(), is("unsupported symbol [!] in geohash [!!!!]"));
+    }
+
     private XContentParser objectLatLon(double lat, double lon) throws IOException {
         XContentBuilder content = JsonXContent.contentBuilder();
         content.startObject();

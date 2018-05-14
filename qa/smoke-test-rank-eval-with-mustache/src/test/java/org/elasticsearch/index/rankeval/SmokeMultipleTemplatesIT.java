@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -104,6 +105,43 @@ public class SmokeMultipleTemplatesIT  extends ESIntegTestCase {
 
         RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request().indices("test")).actionGet();
         assertEquals(0.9, response.getEvaluationResult(), Double.MIN_VALUE);
+    }
+
+    public void testTemplateWithAggsFails() {
+        String template = "{ \"aggs\" : { \"avg_grade\" : { \"avg\" : { \"field\" : \"grade\" }}}}";
+        assertTemplatedRequestFailures(template, "Query in rated requests should not contain aggregations.");
+    }
+
+    public void testTemplateWithSuggestFails() {
+        String template = "{\"suggest\" : {\"my-suggestion\" : {\"text\" : \"Elastic\",\"term\" : {\"field\" : \"message\"}}}}";
+        assertTemplatedRequestFailures(template, "Query in rated requests should not contain a suggest section.");
+    }
+
+    public void testTemplateWithHighlighterFails() {
+        String template = "{\"highlight\" : { \"fields\" : {\"content\" : {}}}}";
+        assertTemplatedRequestFailures(template, "Query in rated requests should not contain a highlighter section.");
+    }
+
+    public void testTemplateWithProfileFails() {
+        String template = "{\"profile\" : \"true\" }";
+        assertTemplatedRequestFailures(template, "Query in rated requests should not use profile.");
+    }
+
+    public void testTemplateWithExplainFails() {
+        String template = "{\"explain\" : \"true\" }";
+        assertTemplatedRequestFailures(template, "Query in rated requests should not use explain.");
+    }
+
+    private static void assertTemplatedRequestFailures(String template, String expectedMessage) {
+        List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1));
+        RatedRequest ratedRequest = new RatedRequest("id", ratedDocs, Collections.singletonMap("param1", "value1"), "templateId");
+        Collection<ScriptWithId> templates = Collections.singletonList(new ScriptWithId("templateId",
+                new Script(ScriptType.INLINE, Script.DEFAULT_TEMPLATE_LANG, template, Collections.emptyMap())));
+        RankEvalSpec rankEvalSpec = new RankEvalSpec(Collections.singletonList(ratedRequest), new PrecisionAtK(), templates);
+        RankEvalRequest rankEvalRequest = new RankEvalRequest(rankEvalSpec, new String[] { "test" });
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> client().execute(RankEvalAction.INSTANCE, rankEvalRequest).actionGet());
+        assertEquals(expectedMessage, e.getMessage());
     }
 
     private static List<RatedDocument> createRelevant(String... docs) {

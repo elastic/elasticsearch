@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
@@ -216,6 +217,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
 
     private static final Logger logger = Loggers.getLogger(Watcher.class);
     private WatcherIndexingListener listener;
+    private HttpClient httpClient;
 
     protected final Settings settings;
     protected final boolean transportClient;
@@ -266,7 +268,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
         // TODO: add more auth types, or remove this indirection
         HttpAuthRegistry httpAuthRegistry = new HttpAuthRegistry(httpAuthFactories);
         HttpRequestTemplate.Parser httpTemplateParser = new HttpRequestTemplate.Parser(httpAuthRegistry);
-        final HttpClient httpClient = new HttpClient(settings, httpAuthRegistry, getSslService());
+        httpClient = new HttpClient(settings, httpAuthRegistry, getSslService());
 
         // notification
         EmailService emailService = new EmailService(settings, cryptoService, clusterService.getClusterSettings());
@@ -351,7 +353,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
         final WatchParser watchParser = new WatchParser(settings, triggerService, registry, inputRegistry, cryptoService, getClock());
 
         final ExecutionService executionService = new ExecutionService(settings, historyStore, triggeredWatchStore, watchExecutor,
-                getClock(), watchParser, clusterService, client);
+                getClock(), watchParser, clusterService, client, threadPool.generic());
 
         final Consumer<Iterable<TriggerEvent>> triggerEngineListener = getTriggerEngineListener(executionService);
         triggerService.register(triggerEngineListener);
@@ -360,7 +362,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
                 watchParser, client);
 
         final WatcherLifeCycleService watcherLifeCycleService =
-                new WatcherLifeCycleService(settings, threadPool, clusterService, watcherService);
+                new WatcherLifeCycleService(settings, clusterService, watcherService);
 
         listener = new WatcherIndexingListener(settings, watchParser, getClock(), triggerService);
         clusterService.addListener(listener);
@@ -607,5 +609,10 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin {
     @Override
     public List<ScriptContext> getContexts() {
         return Arrays.asList(Watcher.SCRIPT_SEARCH_CONTEXT, Watcher.SCRIPT_EXECUTABLE_CONTEXT, Watcher.SCRIPT_TEMPLATE_CONTEXT);
+    }
+
+    @Override
+    public void close() throws IOException {
+        IOUtils.closeWhileHandlingException(httpClient);
     }
 }

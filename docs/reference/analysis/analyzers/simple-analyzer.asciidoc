@@ -123,14 +123,14 @@ The `simple` analyzer is not configurable.
 [float]
 === Definition
 
-The `simple` anlzyer consists of:
+The `simple` analzyer consists of:
 
 Tokenizer::
 * <<analysis-lowercase-tokenizer,Lower Case Tokenizer>>
 
 If you need to customize the `simple` analyzer then you need to recreate
 it as a `custom` analyzer and modify it, usually by adding token filters.
-This would recreate the built in `simple` analyzer and you can use it as
+This would recreate the built-in `simple` analyzer and you can use it as
 a starting point for further customization:
 
 [source,js]

@@ -380,7 +380,7 @@ Token Filters::
 
 If you need to customize the `pattern` analyzer beyond the configuration
 parameters then you need to recreate it as a `custom` analyzer and modify
-it, usually by adding token filters. This would recreate the built in
+it, usually by adding token filters. This would recreate the built-in
 `pattern` analyzer and you can use it as a starting point for further
 customization:
 
@@ -393,7 +393,7 @@ PUT /pattern_example
       "tokenizer": {
         "split_on_non_word": {
           "type":       "pattern",
-          "stopwords":  "\\W+" <1>
+          "pattern":    "\\W+" <1>
         }
       },
       "analyzer": {

@@ -39,11 +39,9 @@ import org.elasticsearch.index.analysis.CatalanAnalyzerProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.ChineseAnalyzerProvider;
 import org.elasticsearch.index.analysis.CjkAnalyzerProvider;
-import org.elasticsearch.index.analysis.ClassicTokenizerFactory;
 import org.elasticsearch.index.analysis.CzechAnalyzerProvider;
 import org.elasticsearch.index.analysis.DanishAnalyzerProvider;
 import org.elasticsearch.index.analysis.DutchAnalyzerProvider;
-import org.elasticsearch.index.analysis.EdgeNGramTokenizerFactory;
 import org.elasticsearch.index.analysis.EnglishAnalyzerProvider;
 import org.elasticsearch.index.analysis.FingerprintAnalyzerProvider;
 import org.elasticsearch.index.analysis.FinnishAnalyzerProvider;
@@ -60,14 +58,9 @@ import org.elasticsearch.index.analysis.ItalianAnalyzerProvider;
 import org.elasticsearch.index.analysis.KeywordAnalyzerProvider;
 import org.elasticsearch.index.analysis.KeywordTokenizerFactory;
 import org.elasticsearch.index.analysis.LatvianAnalyzerProvider;
-import org.elasticsearch.index.analysis.LetterTokenizerFactory;
 import org.elasticsearch.index.analysis.LithuanianAnalyzerProvider;
-import org.elasticsearch.index.analysis.LowerCaseTokenizerFactory;
-import org.elasticsearch.index.analysis.NGramTokenizerFactory;
 import org.elasticsearch.index.analysis.NorwegianAnalyzerProvider;
-import org.elasticsearch.index.analysis.PathHierarchyTokenizerFactory;
 import org.elasticsearch.index.analysis.PatternAnalyzerProvider;
-import org.elasticsearch.index.analysis.PatternTokenizerFactory;
 import org.elasticsearch.index.analysis.PersianAnalyzerProvider;
 import org.elasticsearch.index.analysis.PortugueseAnalyzerProvider;
 import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
@@ -88,13 +81,10 @@ import org.elasticsearch.index.analysis.StopAnalyzerProvider;
 import org.elasticsearch.index.analysis.StopTokenFilterFactory;
 import org.elasticsearch.index.analysis.SwedishAnalyzerProvider;
 import org.elasticsearch.index.analysis.ThaiAnalyzerProvider;
-import org.elasticsearch.index.analysis.ThaiTokenizerFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.analysis.TurkishAnalyzerProvider;
-import org.elasticsearch.index.analysis.UAX29URLEmailTokenizerFactory;
 import org.elasticsearch.index.analysis.WhitespaceAnalyzerProvider;
-import org.elasticsearch.index.analysis.WhitespaceTokenizerFactory;
 import org.elasticsearch.plugins.AnalysisPlugin;
 
 import java.io.IOException;
@@ -223,36 +213,19 @@ public final class AnalysisModule {
             }
             preConfiguredTokenizers.register(name, preConfigured);
         }
-        // Temporary shim for aliases. TODO deprecate after they are moved
-        preConfiguredTokenizers.register("nGram", preConfiguredTokenizers.getRegistry().get("ngram"));
-        preConfiguredTokenizers.register("edgeNGram", preConfiguredTokenizers.getRegistry().get("edge_ngram"));
-        preConfiguredTokenizers.register("PathHierarchy", preConfiguredTokenizers.getRegistry().get("path_hierarchy"));
-
         for (AnalysisPlugin plugin: plugins) {
             for (PreConfiguredTokenizer tokenizer : plugin.getPreConfiguredTokenizers()) {
                 preConfiguredTokenizers.register(tokenizer.getName(), tokenizer);
             }
         }
+
         return unmodifiableMap(preConfiguredTokenizers.getRegistry());
     }
 
     private NamedRegistry<AnalysisProvider<TokenizerFactory>> setupTokenizers(List<AnalysisPlugin> plugins) {
         NamedRegistry<AnalysisProvider<TokenizerFactory>> tokenizers = new NamedRegistry<>("tokenizer");
         tokenizers.register("standard", StandardTokenizerFactory::new);
-        tokenizers.register("uax_url_email", UAX29URLEmailTokenizerFactory::new);
-        tokenizers.register("path_hierarchy", PathHierarchyTokenizerFactory::new);
-        tokenizers.register("PathHierarchy", PathHierarchyTokenizerFactory::new);
         tokenizers.register("keyword", KeywordTokenizerFactory::new);
-        tokenizers.register("letter", LetterTokenizerFactory::new);
-        tokenizers.register("lowercase", LowerCaseTokenizerFactory::new);
-        tokenizers.register("whitespace", WhitespaceTokenizerFactory::new);
-        tokenizers.register("nGram", NGramTokenizerFactory::new);
-        tokenizers.register("ngram", NGramTokenizerFactory::new);
-        tokenizers.register("edgeNGram", EdgeNGramTokenizerFactory::new);
-        tokenizers.register("edge_ngram", EdgeNGramTokenizerFactory::new);
-        tokenizers.register("pattern", PatternTokenizerFactory::new);
-        tokenizers.register("classic", ClassicTokenizerFactory::new);
-        tokenizers.register("thai", ThaiTokenizerFactory::new);
         tokenizers.extractAndRegister(plugins, AnalysisPlugin::getTokenizers);
         return tokenizers;
     }

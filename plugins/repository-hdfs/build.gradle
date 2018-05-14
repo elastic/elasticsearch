@@ -230,6 +230,11 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   fixtureSupported = true
 }
 
+boolean legalPath = rootProject.rootDir.toString().contains(" ") == false
+if (legalPath == false) {
+  fixtureSupported = false
+}
+
 // Always ignore HA integration tests in the normal integration test runner, they are included below as
 // part of their own HA-specific integration test tasks.
 integTestRunner.exclude('**/Ha*TestSuiteIT.class')
@@ -248,7 +253,12 @@ if (fixtureSupported) {
   // Only include the HA integration tests for the HA test task
   integTestHaRunner.patternSet.setIncludes(['**/Ha*TestSuiteIT.class'])
 } else {
-  logger.warn("hdfsFixture unsupported, please set HADOOP_HOME and put HADOOP_HOME\\bin in PATH")
+  if (legalPath) {
+    logger.warn("hdfsFixture unsupported, please set HADOOP_HOME and put HADOOP_HOME\\bin in PATH")
+  } else {
+    logger.warn("hdfsFixture unsupported since there are spaces in the path: '" + rootProject.rootDir.toString() + "'")
+  }
+
   // The normal integration test runner will just test that the plugin loads
   integTestRunner.systemProperty 'tests.rest.suite', 'hdfs_repository/10_basic'
   // HA fixture is unsupported. Don't run them.

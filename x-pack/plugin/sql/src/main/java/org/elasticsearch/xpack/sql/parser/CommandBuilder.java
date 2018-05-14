@@ -148,6 +148,7 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
     @Override
     public SysTables visitSysTables(SysTablesContext ctx) {
         List<IndexType> types = new ArrayList<>();
+        boolean legacyTableType = false;
         for (StringContext string : ctx.string()) {
             String value = string(string);
             if (value != null) {
@@ -156,6 +157,12 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
                     // since % is the same as not specifying a value, choose
                     // https://docs.microsoft.com/en-us/sql/odbc/reference/develop-app/value-list-arguments?view=ssdt-18vs2017
                     // that is skip the value
+                }
+                // special case for legacy apps (like msquery) that always asks for 'TABLE'
+                // which we manually map to all concrete tables supported
+                else if (value.toUpperCase(Locale.ROOT).equals("TABLE")) {
+                    legacyTableType = true;
+                    types.add(IndexType.INDEX);
                 } else {
                     IndexType type = IndexType.from(value);
                     types.add(type);
@@ -165,7 +172,7 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
 
         // if the ODBC enumeration is specified, skip validation
         EnumSet<IndexType> set = types.isEmpty() ? null : EnumSet.copyOf(types);
-        return new SysTables(source(ctx), visitPattern(ctx.clusterPattern), visitPattern(ctx.tablePattern), set);
+        return new SysTables(source(ctx), visitPattern(ctx.clusterPattern), visitPattern(ctx.tablePattern), set, legacyTableType);
     }
 
     @Override

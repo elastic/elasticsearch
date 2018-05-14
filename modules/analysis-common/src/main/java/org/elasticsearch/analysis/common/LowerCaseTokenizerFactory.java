@@ -17,22 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.core.LetterTokenizer;
+import org.apache.lucene.analysis.core.LowerCaseTokenizer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
+import org.elasticsearch.index.analysis.MultiTermAwareComponent;
 
-public class LetterTokenizerFactory extends AbstractTokenizerFactory {
+public class LowerCaseTokenizerFactory extends AbstractTokenizerFactory implements MultiTermAwareComponent {
 
-    public LetterTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+    LowerCaseTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
     }
 
     @Override
     public Tokenizer create() {
-        return new LetterTokenizer();
+        return new LowerCaseTokenizer();
+    }
+
+    @Override
+    public Object getMultiTermComponent() {
+        return this;
     }
 }

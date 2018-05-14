@@ -154,4 +154,9 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:44: Cannot order by non-grouped column [MAX(int)], expected [int]",
                 verify("SELECT int FROM test GROUP BY int ORDER BY MAX(int)"));
     }
+
+    public void testGroupByOrderByScore() {
+        assertEquals("1:44: Cannot order by non-grouped column [SCORE()], expected [int]",
+                verify("SELECT int FROM test GROUP BY int ORDER BY SCORE()"));
+    }
 }

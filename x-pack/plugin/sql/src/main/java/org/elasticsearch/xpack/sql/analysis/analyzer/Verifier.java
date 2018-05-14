@@ -237,10 +237,6 @@ abstract class Verifier {
                 Map<Expression, Node<?>> missing = new LinkedHashMap<>();
                 o.order().forEach(oe -> {
                     Expression e = oe.child();
-                    // skip score
-                    if (e instanceof Score) {
-                        return;
-                    }
                     // cannot order by aggregates (not supported by composite)
                     if (Functions.isAggregate(e)) {
                         missing.put(e, oe);

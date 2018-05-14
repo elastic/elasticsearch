@@ -91,10 +91,10 @@ public class StateProcessor extends AbstractComponent {
     }
 
     void persist(String jobId, BytesReference bytes) throws IOException {
-        logger.trace("[{}] ES API CALL: bulk index", jobId);
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(bytes, AnomalyDetectorsIndex.jobStateIndexName(), ElasticsearchMappings.DOC_TYPE, XContentType.JSON);
         if (bulkRequest.numberOfActions() > 0) {
+            logger.trace("[{}] Persisting job state document", jobId);
             try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
                 client.bulk(bulkRequest).actionGet();
             }

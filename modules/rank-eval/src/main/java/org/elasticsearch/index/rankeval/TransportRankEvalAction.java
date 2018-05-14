@@ -52,6 +52,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.createParser;
+import static org.elasticsearch.index.rankeval.RatedRequest.validateEvaluatedQuery;
 
 /**
  * Instances of this class execute a collection of search intents (read: user
@@ -99,15 +100,17 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         msearchRequest.maxConcurrentSearchRequests(evaluationSpecification.getMaxConcurrentSearches());
         List<RatedRequest> ratedRequestsInSearch = new ArrayList<>();
         for (RatedRequest ratedRequest : ratedRequests) {
-            SearchSourceBuilder ratedSearchSource = ratedRequest.getTestRequest();
-            if (ratedSearchSource == null) {
+            SearchSourceBuilder evaluationRequest = ratedRequest.getEvaluationRequest();
+            if (evaluationRequest == null) {
                 Map<String, Object> params = ratedRequest.getParams();
                 String templateId = ratedRequest.getTemplateId();
                 TemplateScript.Factory templateScript = scriptsWithoutParams.get(templateId);
                 String resolvedRequest = templateScript.newInstance(params).execute();
                 try (XContentParser subParser = createParser(namedXContentRegistry,
                     LoggingDeprecationHandler.INSTANCE, new BytesArray(resolvedRequest), XContentType.JSON)) {
-                    ratedSearchSource = SearchSourceBuilder.fromXContent(subParser, false);
+                    evaluationRequest = SearchSourceBuilder.fromXContent(subParser, false);
+                    // check for parts that should not be part of a ranking evaluation request
+                    validateEvaluatedQuery(evaluationRequest);
                 } catch (IOException e) {
                     // if we fail parsing, put the exception into the errors map and continue
                     errors.put(ratedRequest.getId(), e);
@@ -116,17 +119,17 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             }
 
             if (metric.forcedSearchSize().isPresent()) {
-                ratedSearchSource.size(metric.forcedSearchSize().get());
+                evaluationRequest.size(metric.forcedSearchSize().get());
             }
 
             ratedRequestsInSearch.add(ratedRequest);
             List<String> summaryFields = ratedRequest.getSummaryFields();
             if (summaryFields.isEmpty()) {
-                ratedSearchSource.fetchSource(false);
+                evaluationRequest.fetchSource(false);
             } else {
-                ratedSearchSource.fetchSource(summaryFields.toArray(new String[summaryFields.size()]), new String[0]);
+                evaluationRequest.fetchSource(summaryFields.toArray(new String[summaryFields.size()]), new String[0]);
             }
-            SearchRequest searchRequest = new SearchRequest(request.indices(), ratedSearchSource);
+            SearchRequest searchRequest = new SearchRequest(request.indices(), evaluationRequest);
             searchRequest.indicesOptions(request.indicesOptions());
             msearchRequest.add(searchRequest);
         }

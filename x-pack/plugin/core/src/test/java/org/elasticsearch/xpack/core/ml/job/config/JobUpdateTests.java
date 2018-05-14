@@ -26,6 +26,8 @@ import static org.mockito.Mockito.mock;
 
 public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
 
+    private boolean useInternalParser = randomBoolean();
+
     @Override
     protected JobUpdate createTestInstance() {
         JobUpdate.Builder update = new JobUpdate.Builder(randomAlphaOfLength(4));
@@ -84,13 +86,13 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         if (randomBoolean()) {
             update.setCustomSettings(Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         }
-        if (randomBoolean()) {
+        if (useInternalParser && randomBoolean()) {
             update.setModelSnapshotId(randomAlphaOfLength(10));
         }
-        if (randomBoolean()) {
+        if (useInternalParser && randomBoolean()) {
             update.setEstablishedModelMemory(randomNonNegativeLong());
         }
-        if (randomBoolean()) {
+        if (useInternalParser && randomBoolean()) {
             update.setJobVersion(randomFrom(Version.CURRENT, Version.V_6_2_0, Version.V_6_1_0));
         }
 
@@ -104,7 +106,11 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
 
     @Override
     protected JobUpdate doParseInstance(XContentParser parser) {
-        return JobUpdate.PARSER.apply(parser, null).build();
+        if (useInternalParser) {
+            return JobUpdate.INTERNAL_PARSER.apply(parser, null).build();
+        } else {
+            return JobUpdate.EXTERNAL_PARSER.apply(parser, null).build();
+        }
     }
 
     public void testMergeWithJob() {
@@ -141,7 +147,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         JobUpdate update = updateBuilder.build();
 
         Job.Builder jobBuilder = new Job.Builder("foo");
-        jobBuilder.setGroups(Arrays.asList("group-1"));
+        jobBuilder.setGroups(Collections.singletonList("group-1"));
         Detector.Builder d1 = new Detector.Builder("info_content", "domain");
         d1.setOverFieldName("mlcategory");
         Detector.Builder d2 = new Detector.Builder("min", "field");

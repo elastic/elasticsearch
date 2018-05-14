@@ -19,6 +19,7 @@
 
 
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
@@ -406,10 +407,19 @@ allprojects {
       }
     }
   }
+
+  File licenseHeaderFile;
+  if (eclipse.project.name.startsWith(':x-pack')) {
+      licenseHeaderFile = new File(project.rootDir, 'buildSrc/src/main/resources/license-headers/elastic-license-header.txt')
+  } else {
+      licenseHeaderFile = new File(project.rootDir, 'buildSrc/src/main/resources/license-headers/oss-license-header.txt')
+  }
+  String licenseHeader = licenseHeaderFile.getText('UTF-8').replace('\n', '\\\\n')
   task copyEclipseSettings(type: Copy) {
     // TODO: "package this up" for external builds
     from new File(project.rootDir, 'buildSrc/src/main/resources/eclipse.settings')
     into '.settings'
+    filter{ it.replaceAll('@@LICENSE_HEADER_TEXT@@', licenseHeader)}
   }
   // otherwise .settings is not nuked entirely
   task wipeEclipseSettings(type: Delete) {

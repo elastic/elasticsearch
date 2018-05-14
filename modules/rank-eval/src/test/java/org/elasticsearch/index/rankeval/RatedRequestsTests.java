@@ -33,7 +33,11 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.suggest.SuggestBuilders;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -165,7 +169,7 @@ public class RatedRequestsTests extends ESTestCase {
 
     private static RatedRequest mutateTestItem(RatedRequest original) {
         String id = original.getId();
-        SearchSourceBuilder testRequest = original.getTestRequest();
+        SearchSourceBuilder evaluationRequest = original.getEvaluationRequest();
         List<RatedDocument> ratedDocs = original.getRatedDocs();
         Map<String, Object> params = original.getParams();
         List<String> summaryFields = original.getSummaryFields();
@@ -177,11 +181,11 @@ public class RatedRequestsTests extends ESTestCase {
             id = randomValueOtherThan(id, () -> randomAlphaOfLength(10));
             break;
         case 1:
-            if (testRequest != null) {
-                int size = randomValueOtherThan(testRequest.size(), () -> randomInt(Integer.MAX_VALUE));
-                testRequest = new SearchSourceBuilder();
-                testRequest.size(size);
-                testRequest.query(new MatchAllQueryBuilder());
+            if (evaluationRequest != null) {
+                int size = randomValueOtherThan(evaluationRequest.size(), () -> randomInt(Integer.MAX_VALUE));
+                evaluationRequest = new SearchSourceBuilder();
+                evaluationRequest.size(size);
+                evaluationRequest.query(new MatchAllQueryBuilder());
             } else {
                 if (randomBoolean()) {
                     Map<String, Object> mutated = new HashMap<>();
@@ -204,10 +208,10 @@ public class RatedRequestsTests extends ESTestCase {
         }
 
         RatedRequest ratedRequest;
-        if (testRequest == null) {
+        if (evaluationRequest == null) {
             ratedRequest = new RatedRequest(id, ratedDocs, params, templateId);
         } else {
-            ratedRequest = new RatedRequest(id, ratedDocs, testRequest);
+            ratedRequest = new RatedRequest(id, ratedDocs, evaluationRequest);
         }
         ratedRequest.addSummaryFields(summaryFields);
 
@@ -258,6 +262,44 @@ public class RatedRequestsTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> new RatedRequest("id", ratedDocs, null, "templateId"));
     }
 
+    public void testAggsNotAllowed() {
+        List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1));
+        SearchSourceBuilder query = new SearchSourceBuilder();
+        query.aggregation(AggregationBuilders.terms("fieldName"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new RatedRequest("id", ratedDocs, query));
+        assertEquals("Query in rated requests should not contain aggregations.", e.getMessage());
+    }
+
+    public void testSuggestionsNotAllowed() {
+        List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1));
+        SearchSourceBuilder query = new SearchSourceBuilder();
+        query.suggest(new SuggestBuilder().addSuggestion("id", SuggestBuilders.completionSuggestion("fieldname")));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new RatedRequest("id", ratedDocs, query));
+        assertEquals("Query in rated requests should not contain a suggest section.", e.getMessage());
+    }
+
+    public void testHighlighterNotAllowed() {
+        List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1));
+        SearchSourceBuilder query = new SearchSourceBuilder();
+        query.highlighter(new HighlightBuilder().field("field"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new RatedRequest("id", ratedDocs, query));
+        assertEquals("Query in rated requests should not contain a highlighter section.", e.getMessage());
+    }
+
+    public void testExplainNotAllowed() {
+        List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> new RatedRequest("id", ratedDocs, new SearchSourceBuilder().explain(true)));
+        assertEquals("Query in rated requests should not use explain.", e.getMessage());
+    }
+
+    public void testProfileNotAllowed() {
+        List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument("index1", "id1", 1));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> new RatedRequest("id", ratedDocs, new SearchSourceBuilder().profile(true)));
+        assertEquals("Query in rated requests should not use profile.", e.getMessage());
+    }
+
     /**
      * test that modifying the order of index/docId to make sure it doesn't
      * matter for parsing xContent
@@ -287,7 +329,7 @@ public class RatedRequestsTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, querySpecString)) {
             RatedRequest specification = RatedRequest.fromXContent(parser);
             assertEquals("my_qa_query", specification.getId());
-            assertNotNull(specification.getTestRequest());
+            assertNotNull(specification.getEvaluationRequest());
             List<RatedDocument> ratedDocs = specification.getRatedDocs();
             assertEquals(3, ratedDocs.size());
             for (int i = 0; i < 3; i++) {

@@ -1545,42 +1545,6 @@ public class InternalEngineTests extends EngineTestCase {
         assertVisibleCount(engine, totalExpectedOps);
     }
 
-    private void concurrentlyApplyOps(List<Engine.Operation> ops, InternalEngine engine) throws InterruptedException {
-        Thread[] thread = new Thread[randomIntBetween(3, 5)];
-        CountDownLatch startGun = new CountDownLatch(thread.length);
-        AtomicInteger offset = new AtomicInteger(-1);
-        for (int i = 0; i < thread.length; i++) {
-            thread[i] = new Thread(() -> {
-                startGun.countDown();
-                try {
-                    startGun.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
-                int docOffset;
-                while ((docOffset = offset.incrementAndGet()) < ops.size()) {
-                    try {
-                        final Engine.Operation op = ops.get(docOffset);
-                        if (op instanceof Engine.Index) {
-                            engine.index((Engine.Index) op);
-                        } else {
-                            engine.delete((Engine.Delete) op);
-                        }
-                        if ((docOffset + 1) % 4 == 0) {
-                            engine.refresh("test");
-                        }
-                    } catch (IOException e) {
-                        throw new AssertionError(e);
-                    }
-                }
-            });
-            thread[i].start();
-        }
-        for (int i = 0; i < thread.length; i++) {
-            thread[i].join();
-        }
-    }
-
     public void testInternalVersioningOnPrimary() throws IOException {
         final List<Engine.Operation> ops = generateSingleDocHistory(false, VersionType.INTERNAL, 2, 2, 20, "1");
         assertOpsOnPrimary(ops, Versions.NOT_FOUND, true, engine);
@@ -3779,6 +3743,61 @@ public class InternalEngineTests extends EngineTestCase {
         } finally {
             IOUtils.close(noOpEngine);
         }
+    }
+
+    /**
+     * Verifies that a segment containing only no-ops can be used to look up _version and _seqno.
+     */
+    public void testSegmentContainsOnlyNoOps() throws Exception {
+        Engine.NoOpResult noOpResult = engine.noOp(new Engine.NoOp(1, primaryTerm.get(),
+            randomFrom(Engine.Operation.Origin.values()), randomNonNegativeLong(), "test"));
+        assertThat(noOpResult.getFailure(), nullValue());
+        engine.refresh("test");
+        Engine.DeleteResult deleteResult = engine.delete(replicaDeleteForDoc("id", 1, 2, randomNonNegativeLong()));
+        assertThat(deleteResult.getFailure(), nullValue());
+        engine.refresh("test");
+    }
+
+    /**
+     * A simple test to check that random combination of operations can coexist in segments and be lookup.
+     * This is needed as some fields in Lucene may not exist if a segment misses operation types and this code is to check for that.
+     * For example, a segment containing only no-ops does not have neither _uid or _version.
+     */
+    public void testRandomOperations() throws Exception {
+        int numOps = between(10, 100);
+        for (int i = 0; i < numOps; i++) {
+            String id = Integer.toString(randomIntBetween(1, 10));
+            ParsedDocument doc = createParsedDoc(id, null);
+            Engine.Operation.TYPE type = randomFrom(Engine.Operation.TYPE.values());
+            switch (type) {
+                case INDEX:
+                    Engine.IndexResult index = engine.index(replicaIndexForDoc(doc, between(1, 100), i, randomBoolean()));
+                    assertThat(index.getFailure(), nullValue());
+                    break;
+                case DELETE:
+                    Engine.DeleteResult delete = engine.delete(replicaDeleteForDoc(doc.id(), between(1, 100), i, randomNonNegativeLong()));
+                    assertThat(delete.getFailure(), nullValue());
+                    break;
+                case NO_OP:
+                    Engine.NoOpResult noOp = engine.noOp(new Engine.NoOp(i, primaryTerm.get(),
+                        randomFrom(Engine.Operation.Origin.values()), randomNonNegativeLong(), ""));
+                    assertThat(noOp.getFailure(), nullValue());
+                    break;
+                default:
+                    throw new IllegalStateException("Invalid op [" + type + "]");
+            }
+            if (randomBoolean()) {
+                engine.refresh("test");
+            }
+            if (randomBoolean()) {
+                engine.flush();
+            }
+            if (randomBoolean()) {
+                engine.forceMerge(randomBoolean(), between(1, 10), randomBoolean(), false, false);
+            }
+        }
+        List<Translog.Operation> operations = readAllOperationsInLucene(engine, createMapperService("test"));
+        assertThat(operations, hasSize(numOps));
     }
 
     public void testMinGenerationForSeqNo() throws IOException, BrokenBarrierException, InterruptedException {

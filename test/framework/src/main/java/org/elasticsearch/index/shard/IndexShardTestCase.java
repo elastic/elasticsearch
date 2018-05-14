@@ -518,22 +518,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     protected Set<String> getShardDocUIDs(final IndexShard shard) throws IOException {
-        shard.refresh("get_uids");
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-            Set<String> ids = new HashSet<>();
-            for (LeafReaderContext leafContext : searcher.reader().leaves()) {
-                LeafReader reader = leafContext.reader();
-                Bits liveDocs = reader.getLiveDocs();
-                for (int i = 0; i < reader.maxDoc(); i++) {
-                    if (liveDocs == null || liveDocs.get(i)) {
-                        Document uuid = reader.document(i, Collections.singleton(IdFieldMapper.NAME));
-                        BytesRef binaryID = uuid.getBinaryValue(IdFieldMapper.NAME);
-                        ids.add(Uid.decodeId(Arrays.copyOfRange(binaryID.bytes, binaryID.offset, binaryID.offset + binaryID.length)));
-                    }
-                }
-            }
-            return ids;
-        }
+        return EngineTestCase.getDocIds(shard.getEngine(), true);
     }
 
     protected void assertDocCount(IndexShard shard, int docDount) throws IOException {

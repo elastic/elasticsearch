@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
@@ -137,7 +138,7 @@ public class PutIndexTemplateRequestTests extends AbstractXContentTestCase<PutIn
     }
 
     @Override
-    protected PutIndexTemplateRequest createTestInstance() throws IOException {
+    protected PutIndexTemplateRequest createTestInstance() {
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         request.name("test");
         if (randomBoolean()) {
@@ -159,10 +160,14 @@ public class PutIndexTemplateRequestTests extends AbstractXContentTestCase<PutIn
             request.alias(alias);
         }
         if (randomBoolean()) {
-            request.mapping("doc", XContentFactory.jsonBuilder().startObject()
-                .startObject("doc").startObject("properties")
-                .startObject("field-" + randomInt()).field("type", randomFrom("keyword", "text")).endObject()
-                .endObject().endObject().endObject());
+            try {
+                request.mapping("doc", XContentFactory.jsonBuilder().startObject()
+                    .startObject("doc").startObject("properties")
+                    .startObject("field-" + randomInt()).field("type", randomFrom("keyword", "text")).endObject()
+                    .endObject().endObject().endObject());
+            } catch (IOException ex) {
+                throw new UncheckedIOException(ex);
+            }
         }
         if (randomBoolean()) {
             request.settings(Settings.builder().put("setting1", randomLong()).put("setting2", randomTimeValue()).build());

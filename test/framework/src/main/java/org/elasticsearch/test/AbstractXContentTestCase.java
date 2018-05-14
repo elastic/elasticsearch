@@ -21,7 +21,6 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -42,7 +41,7 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
 
     protected static final int NUMBER_OF_TEST_RUNS = 20;
 
-    public static <T extends ToXContent> void testFromXContent(int numberOfTestRuns, CheckedSupplier<T, IOException> instanceSupplier,
+    public static <T extends ToXContent> void testFromXContent(int numberOfTestRuns, Supplier<T> instanceSupplier,
                                                                boolean supportsUnknownFields, String[] shuffleFieldsExceptions,
                                                                Predicate<String> randomFieldsExcludeFilter,
                                                                CheckedBiFunction<XContent, BytesReference, XContentParser, IOException>
@@ -86,7 +85,7 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
      * called multiple times during test execution and should return a different
      * random instance each time it is called.
      */
-    protected abstract T createTestInstance() throws IOException;
+    protected abstract T createTestInstance();
 
     private T parseInstance(XContentParser parser) throws IOException {
         T parsedInstance = doParseInstance(parser);

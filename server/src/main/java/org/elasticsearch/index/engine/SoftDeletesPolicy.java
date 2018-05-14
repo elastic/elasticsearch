@@ -36,8 +36,8 @@ final class SoftDeletesPolicy {
     private final LongSupplier globalCheckpointSupplier;
     private int retentionLockCount;
     private long checkpointOfSafeCommit;
-    private volatile long minRequiredSeqNoForRecovery;
-    private volatile long retentionOperations;
+    private long minRequiredSeqNoForRecovery;
+    private long retentionOperations;
 
     SoftDeletesPolicy(LongSupplier globalCheckpointSupplier, long retentionOperations) {
         this.globalCheckpointSupplier = globalCheckpointSupplier;
@@ -51,7 +51,7 @@ final class SoftDeletesPolicy {
      * Updates the number of soft-deleted prior to the global checkpoint to be retained
      * See {@link org.elasticsearch.index.IndexSettings#INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING}
      */
-    void setRetentionOperations(long retentionOperations) {
+    synchronized void setRetentionOperations(long retentionOperations) {
         this.retentionOperations = retentionOperations;
     }
 
@@ -82,8 +82,8 @@ final class SoftDeletesPolicy {
      * This is a analogy to the translog's retention lock; see {@link Translog#acquireRetentionLock()}
      */
     synchronized Releasable acquireRetentionLock() {
+        assert retentionLockCount >= 0 : "Invalid number of retention locks [" + retentionLockCount + "]";
         retentionLockCount++;
-        assert retentionLockCount > 0 : "Invalid number of retention locks [" + retentionLockCount + "]";
         final AtomicBoolean released = new AtomicBoolean();
         return () -> {
             if (released.compareAndSet(false, true)) {
@@ -93,8 +93,8 @@ final class SoftDeletesPolicy {
     }
 
     private synchronized void releaseRetentionLock() {
+        assert retentionLockCount > 0 : "Invalid number of retention locks [" + retentionLockCount + "]";
         retentionLockCount--;
-        assert retentionLockCount >= 0 : "Invalid number of retention locks [" + retentionLockCount + "]";
         updateMinRequiredSeqNoForRecovery();
     }
 
@@ -107,7 +107,7 @@ final class SoftDeletesPolicy {
     }
 
     // Package-level for testing
-    long getMinSeqNoToRetain() {
+    synchronized long getMinSeqNoToRetain() {
         final long minSeqNoForQueryingChanges = globalCheckpointSupplier.getAsLong() + 1 - retentionOperations;
         return Math.min(minRequiredSeqNoForRecovery, minSeqNoForQueryingChanges);
     }

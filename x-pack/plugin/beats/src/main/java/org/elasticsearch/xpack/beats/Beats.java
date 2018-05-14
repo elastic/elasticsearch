@@ -28,8 +28,7 @@ import java.util.regex.Pattern;
  */
 public class Beats extends Plugin implements ActionPlugin {
 
-    private static final String BEATS_AGENTS_TEMPLATE_NAME = "beats-agents-template";
-    private static final String BEATS_ADMIN_TEMPLATE_NAME = "beats-admin-template";
+    private static final String BEATS_TEMPLATE_NAME = "beats-template";
     private static final String TEMPLATE_VERSION_PATTERN =
             Pattern.quote("${beats.template.version}");
 
@@ -59,10 +58,8 @@ public class Beats extends Plugin implements ActionPlugin {
 
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
         return templates -> {
-            TemplateUtils.loadTemplateIntoMap("/" + BEATS_AGENTS_TEMPLATE_NAME + ".json", templates, BEATS_AGENTS_TEMPLATE_NAME,
+            TemplateUtils.loadTemplateIntoMap("/" + BEATS_TEMPLATE_NAME + ".json", templates, BEATS_TEMPLATE_NAME,
                     Version.CURRENT.toString(), TEMPLATE_VERSION_PATTERN, Loggers.getLogger(Beats.class));
-            TemplateUtils.loadTemplateIntoMap("/" + BEATS_ADMIN_TEMPLATE_NAME + ".json", templates, BEATS_ADMIN_TEMPLATE_NAME,
-                Version.CURRENT.toString(), TEMPLATE_VERSION_PATTERN, Loggers.getLogger(Beats.class));
             return templates;
         };
     }

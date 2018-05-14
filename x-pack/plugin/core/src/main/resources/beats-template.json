@@ -1,6 +1,6 @@
 {
   "index_patterns": [
-    ".management-beats-agents"
+    ".management-beats"
   ],
   "settings": {
     "index": {
@@ -16,6 +16,29 @@
       },
       "dynamic": "strict",
       "properties": {
+        "type": {
+          "type": "keyword"
+        },
+        "enrollment_token": {
+          "properties": {
+            "token": {
+              "type": "keyword"
+            },
+            "expires_on": {
+              "type": "date"
+            }
+          }
+        },
+        "configuration_fragment": {
+          "properties": {
+            "tag": {
+              "type": "keyword"
+            },
+            "fragment_yml": {
+              "type": "text"
+            }
+          }
+        },
         "beat": {
           "properties": {
             "id": {

@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.VersionUtils;
 
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -35,22 +36,39 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
 
     public void testSkip() {
         SkipSection section = new SkipSection("5.0.0 - 5.1.0",
-                randomBoolean() ? Collections.emptyList() : Collections.singletonList("warnings"), "foobar");
+                randomBoolean() ? Collections.emptyList() : Collections.singletonList("warnings"), "foobar", "foobaz");
         assertFalse(section.skip(Version.CURRENT));
         assertTrue(section.skip(Version.V_5_0_0));
         section = new SkipSection(randomBoolean() ? null : "5.0.0 - 5.1.0",
-                Collections.singletonList("boom"), "foobar");
+                Collections.singletonList("boom"), "foobar", "foobaz");
+        assertTrue(section.skip(Version.CURRENT));
+
+        AtomicReference<String> distribution = new AtomicReference<>(null);
+        section = new SkipSection(null, Collections.emptyList(), "zip", "reason") {
+            @Override
+            protected String getDistributionOverrideValue() {
+                return distribution.get();
+            }
+        };
+        assertFalse(section.skip(Version.CURRENT));
+        distribution.set("something");
+        assertFalse(section.skip(Version.CURRENT));
+        distribution.set("zip");
         assertTrue(section.skip(Version.CURRENT));
     }
 
     public void testMessage() {
         SkipSection section = new SkipSection("5.0.0 - 5.1.0",
-                Collections.singletonList("warnings"), "foobar");
+                Collections.singletonList("warnings"), "zip", "foobar");
+        assertEquals("[FOOBAR] skipped, reason: [foobar] unsupported features [warnings] unsupported distribution [zip]",
+                section.getSkipMessage("FOOBAR"));
+        section = new SkipSection(null, Collections.singletonList("warnings"), null, "foobar");
         assertEquals("[FOOBAR] skipped, reason: [foobar] unsupported features [warnings]", section.getSkipMessage("FOOBAR"));
-        section = new SkipSection(null, Collections.singletonList("warnings"), "foobar");
-        assertEquals("[FOOBAR] skipped, reason: [foobar] unsupported features [warnings]", section.getSkipMessage("FOOBAR"));
-        section = new SkipSection(null, Collections.singletonList("warnings"), null);
+        section = new SkipSection(null, Collections.singletonList("warnings"), null, null);
         assertEquals("[FOOBAR] skipped, unsupported features [warnings]", section.getSkipMessage("FOOBAR"));
+        section = new SkipSection(null, Collections.emptyList(), "blah-distro", "blah-distro is lame");
+        assertEquals("[FOOBAR] skipped, reason: [blah-distro is lame] unsupported distribution [blah-distro]",
+                section.getSkipMessage("FOOBAR"));
     }
 
     public void testParseSkipSectionVersionNoFeature() throws Exception {
@@ -88,7 +106,6 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
 
         SkipSection skipSection = SkipSection.parse(parser);
         assertThat(skipSection, notNullValue());
-        assertThat(skipSection.isVersionCheck(), equalTo(false));
         assertThat(skipSection.getFeatures().size(), equalTo(1));
         assertThat(skipSection.getFeatures().get(0), equalTo("regex"));
         assertThat(skipSection.getReason(), nullValue());
@@ -101,7 +118,6 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
 
         SkipSection skipSection = SkipSection.parse(parser);
         assertThat(skipSection, notNullValue());
-        assertThat(skipSection.isVersionCheck(), equalTo(false));
         assertThat(skipSection.getFeatures().size(), equalTo(3));
         assertThat(skipSection.getFeatures().get(0), equalTo("regex1"));
         assertThat(skipSection.getFeatures().get(1), equalTo("regex2"));
@@ -138,6 +154,28 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
         );
 
         Exception e = expectThrows(ParsingException.class, () -> SkipSection.parse(parser));
-        assertThat(e.getMessage(), is("version or features is mandatory within skip section"));
+        assertThat(e.getMessage(), is("version or features or distribution is mandatory within skip section"));
+    }
+
+    public void testParseSkipSectionDistribution() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent,
+                "distribution:     zip\n" +
+                "reason: Zip distribution differs because XYZ\n"
+        );
+
+        SkipSection skipSection = SkipSection.parse(parser);
+        assertThat(skipSection, notNullValue());
+        assertThat(skipSection.getFeatures(), equalTo(Collections.emptyList()));
+        assertThat(skipSection.getDistribution(), equalTo("zip"));
+        assertThat(skipSection.getReason(), equalTo("Zip distribution differs because XYZ"));
+    }
+
+    public void testParseSkipSectionDistributionNoReason() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent,
+                "distribution:     zip\n"
+        );
+
+        Exception e = expectThrows(ParsingException.class, () -> SkipSection.parse(parser));
+        assertThat(e.getMessage(), is("reason is mandatory within skip distribution section"));
     }
 }

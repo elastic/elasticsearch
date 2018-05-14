@@ -78,6 +78,8 @@ public class RestIntegTestTask extends DefaultTask {
         // that sets up the test cluster and passes this transport uri instead of http uri. Until then, we pass
         // both as separate sysprops
         runner.systemProperty('tests.cluster', "${-> nodes[0].transportUri()}")
+        // always pass in the distribution so we can see it in things like the yaml `skip` section
+        runner.systemProperty('tests.distribution', "${-> clusterConfig.distribution}")
 
         // dump errors and warnings from cluster log on failure
         TaskExecutionAdapter logDumpListener = new TaskExecutionAdapter() {
@@ -100,7 +102,7 @@ public class RestIntegTestTask extends DefaultTask {
         // copy the rest spec/tests into the test resources
         Task copyRestSpec = createCopyRestSpecTask(project, includePackaged)
         runner.dependsOn(copyRestSpec)
-        
+
         // this must run after all projects have been configured, so we know any project
         // references can be accessed as a fully configured
         project.gradle.projectsEvaluated {

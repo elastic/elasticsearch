@@ -14,6 +14,9 @@
 
 ---
 "No templates":
+    - skip:
+        distribution: zip
+        reason: x-pack includes templates which breaks the output here
     - do:
         cat.templates: {}
 
@@ -174,6 +177,10 @@
 
 ---
 "Sort templates":
+    - skip:
+        distribution: zip
+        reason: x-pack includes templates which breaks the output here
+
     - do:
         indices.put_template:
           name: test
@@ -222,6 +229,10 @@
 
 ---
 "Multiple template":
+    - skip:
+        distribution: zip
+        reason: x-pack includes templates which breaks the output here
+
     - do:
         indices.put_template:
           name: test_1

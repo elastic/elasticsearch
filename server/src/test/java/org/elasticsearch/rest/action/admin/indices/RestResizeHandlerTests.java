@@ -20,15 +20,20 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Locale;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasToString;
 import static org.mockito.Mockito.mock;
 
 public class RestResizeHandlerTests extends ESTestCase {
@@ -36,27 +41,41 @@ public class RestResizeHandlerTests extends ESTestCase {
     public void testShrinkCopySettingsDeprecated() throws IOException {
         final RestResizeHandler.RestShrinkIndexAction handler =
                 new RestResizeHandler.RestShrinkIndexAction(Settings.EMPTY, mock(RestController.class));
-        final String copySettings = randomFrom("true", "false");
-        final FakeRestRequest request =
-                new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-                        .withParams(Collections.singletonMap("copy_settings", copySettings))
-                        .withPath("source/_shrink/target")
-                        .build();
-        handler.prepareRequest(request, mock(NodeClient.class));
-        assertWarnings("parameter [copy_settings] is deprecated but was [" + copySettings + "]");
+        for (final String copySettings : new String[]{null, "", "true", "false"}) {
+            runTestResizeCopySettingsDeprecated(handler, "shrink", copySettings);
+        }
     }
 
     public void testSplitCopySettingsDeprecated() throws IOException {
         final RestResizeHandler.RestSplitIndexAction handler =
                 new RestResizeHandler.RestSplitIndexAction(Settings.EMPTY, mock(RestController.class));
-        final String copySettings = randomFrom("true", "false");
-        final FakeRestRequest request =
+        for (final String copySettings : new String[]{null, "", "true", "false"}) {
+            runTestResizeCopySettingsDeprecated(handler, "split", copySettings);
+        }
+    }
+
+    private void runTestResizeCopySettingsDeprecated(
+            final RestResizeHandler handler, final String resizeOperation, final String copySettings) throws IOException {
+        final FakeRestRequest.Builder builder =
                 new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
                         .withParams(Collections.singletonMap("copy_settings", copySettings))
-                        .withPath("source/_split/target")
-                        .build();
-        handler.prepareRequest(request, mock(NodeClient.class));
-        assertWarnings("parameter [copy_settings] is deprecated but was [" + copySettings + "]");
+                        .withPath(String.format(Locale.ROOT, "source/_%s/target", resizeOperation));
+        if (copySettings != null) {
+            builder.withParams(Collections.singletonMap("copy_settings", copySettings));
+        }
+        final FakeRestRequest request = builder.build();
+        if ("false".equals(copySettings)) {
+            final IllegalArgumentException e =
+                    expectThrows(IllegalArgumentException.class, () -> handler.prepareRequest(request, mock(NodeClient.class)));
+            assertThat(e, hasToString(containsString("parameter [copy_settings] can not be explicitly set to [false]")));
+        } else {
+            handler.prepareRequest(request, mock(NodeClient.class));
+            if (copySettings == null) {
+                assertWarnings(
+                        "resize operations without copying settings is deprecated; "
+                                + "set parameter [copy_settings] to [true] for future default behavior");
+            }
+        }
     }
 
 }

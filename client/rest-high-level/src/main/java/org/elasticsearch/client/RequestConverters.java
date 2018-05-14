@@ -29,6 +29,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -641,6 +642,17 @@ final class RequestConverters {
         parameters.withPreserveExisting(updateSettingsRequest.isPreserveExisting());
 
         request.setEntity(createEntity(updateSettingsRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request getRepositories(GetRepositoriesRequest getRepositoriesRequest) {
+        String[] repositories = getRepositoriesRequest.repositories() == null ? Strings.EMPTY_ARRAY : getRepositoriesRequest.repositories();
+        String endpoint = new EndpointBuilder().addPathPartAsIs("_snapshot").addCommaSeparatedPathParts(repositories).build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+
+        Params parameters = new Params(request);
+        parameters.withMasterTimeout(getRepositoriesRequest.masterNodeTimeout());
+        parameters.withLocal(getRepositoriesRequest.local());
         return request;
     }
 

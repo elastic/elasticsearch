@@ -114,7 +114,7 @@ public class NativeUsersStore extends AbstractComponent {
             }
         };
 
-        if (securityLifecycleService.isSecurityIndexExisting() == false) {
+        if (securityLifecycleService.securityIndex().indexExists() == false) {
             // TODO remove this short circuiting and fix tests that fail without this!
             listener.onResponse(Collections.emptyList());
         } else if (userNames.length == 1) { // optimization for single user lookup
@@ -123,7 +123,7 @@ public class NativeUsersStore extends AbstractComponent {
                     (uap) -> listener.onResponse(uap == null ? Collections.emptyList() : Collections.singletonList(uap.user())),
                     handleException));
         } else {
-            securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+            securityLifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
                 final QueryBuilder query;
                 if (userNames == null || userNames.length == 0) {
                     query = QueryBuilders.termQuery(Fields.TYPE.getPreferredName(), USER_DOC_TYPE);
@@ -154,11 +154,11 @@ public class NativeUsersStore extends AbstractComponent {
      * Async method to retrieve a user and their password
      */
     private void getUserAndPassword(final String user, final ActionListener<UserAndPassword> listener) {
-        if (securityLifecycleService.isSecurityIndexExisting() == false) {
+        if (securityLifecycleService.securityIndex().indexExists() == false) {
             // TODO remove this short circuiting and fix tests that fail without this!
             listener.onResponse(null);
         } else {
-            securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+            securityLifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () ->
                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                             client.prepareGet(SECURITY_INDEX_NAME,
                                     INDEX_TYPE, getIdForUser(USER_DOC_TYPE, user)).request(),
@@ -199,7 +199,7 @@ public class NativeUsersStore extends AbstractComponent {
             docType = USER_DOC_TYPE;
         }
 
-        securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+        securityLifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                     client.prepareUpdate(SECURITY_INDEX_NAME, INDEX_TYPE, getIdForUser(docType, username))
                             .setDoc(Requests.INDEX_CONTENT_TYPE, Fields.PASSWORD.getPreferredName(),
@@ -237,7 +237,7 @@ public class NativeUsersStore extends AbstractComponent {
      * has been indexed
      */
     private void createReservedUser(String username, char[] passwordHash, RefreshPolicy refresh, ActionListener<Void> listener) {
-        securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+        securityLifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                     client.prepareIndex(SECURITY_INDEX_NAME, INDEX_TYPE,
                             getIdForUser(RESERVED_USER_TYPE, username))
@@ -279,7 +279,7 @@ public class NativeUsersStore extends AbstractComponent {
     private void updateUserWithoutPassword(final PutUserRequest putUserRequest, final ActionListener<Boolean> listener) {
         assert putUserRequest.passwordHash() == null;
         // We must have an existing document
-        securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+        securityLifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                     client.prepareUpdate(SECURITY_INDEX_NAME, INDEX_TYPE,
                             getIdForUser(USER_DOC_TYPE, putUserRequest.username()))
@@ -322,7 +322,7 @@ public class NativeUsersStore extends AbstractComponent {
 
     private void indexUser(final PutUserRequest putUserRequest, final ActionListener<Boolean> listener) {
         assert putUserRequest.passwordHash() != null;
-        securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+        securityLifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                     client.prepareIndex(SECURITY_INDEX_NAME, INDEX_TYPE,
                             getIdForUser(USER_DOC_TYPE, putUserRequest.username()))
@@ -366,7 +366,7 @@ public class NativeUsersStore extends AbstractComponent {
 
     private void setRegularUserEnabled(final String username, final boolean enabled, final RefreshPolicy refreshPolicy,
                             final ActionListener<Void> listener) {
-        securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+        securityLifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                     client.prepareUpdate(SECURITY_INDEX_NAME, INDEX_TYPE,
                             getIdForUser(USER_DOC_TYPE, username))
@@ -401,7 +401,7 @@ public class NativeUsersStore extends AbstractComponent {
 
     private void setReservedUserEnabled(final String username, final boolean enabled, final RefreshPolicy refreshPolicy,
                                         boolean clearCache, final ActionListener<Void> listener) {
-        securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+        securityLifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                     client.prepareUpdate(SECURITY_INDEX_NAME, INDEX_TYPE,
                             getIdForUser(RESERVED_USER_TYPE, username))
@@ -431,7 +431,7 @@ public class NativeUsersStore extends AbstractComponent {
     }
 
     public void deleteUser(final DeleteUserRequest deleteUserRequest, final ActionListener<Boolean> listener) {
-        securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+        securityLifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             DeleteRequest request = client.prepareDelete(SECURITY_INDEX_NAME,
                     INDEX_TYPE, getIdForUser(USER_DOC_TYPE, deleteUserRequest.username())).request();
             request.setRefreshPolicy(deleteUserRequest.getRefreshPolicy());
@@ -470,11 +470,11 @@ public class NativeUsersStore extends AbstractComponent {
     }
 
     void getReservedUserInfo(String username, ActionListener<ReservedUserInfo> listener) {
-        if (securityLifecycleService.isSecurityIndexExisting() == false) {
+        if (securityLifecycleService.securityIndex().indexExists() == false) {
             // TODO remove this short circuiting and fix tests that fail without this!
             listener.onResponse(null);
         } else {
-            securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+            securityLifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () ->
                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                             client.prepareGet(SECURITY_INDEX_NAME, INDEX_TYPE,
                                     getIdForUser(RESERVED_USER_TYPE, username)).request(),
@@ -514,7 +514,7 @@ public class NativeUsersStore extends AbstractComponent {
     }
 
     void getAllReservedUserInfo(ActionListener<Map<String, ReservedUserInfo>> listener) {
-        securityLifecycleService.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+        securityLifecycleService.securityIndex().prepareIndexIfNeededThenExecute(listener::onFailure, () ->
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                 client.prepareSearch(SECURITY_INDEX_NAME)
                         .setQuery(QueryBuilders.termQuery(Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE))
